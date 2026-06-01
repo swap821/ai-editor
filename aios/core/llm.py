@@ -39,11 +39,13 @@ class OllamaClient:
         host: str = config.OLLAMA_HOST,
         timeout_s: int = config.LLM_REQUEST_TIMEOUT_S,
         temperature: float = config.LLM_TEMPERATURE,
+        num_ctx: int = config.LLM_NUM_CTX,
     ) -> None:
         self.model = model
         self.host = host.rstrip("/")
         self.timeout_s = timeout_s
         self.temperature = temperature
+        self.num_ctx = num_ctx
 
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
         """Generate a single non-streaming completion from the local model.
@@ -55,7 +57,7 @@ class OllamaClient:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": self.temperature},
+            "options": {"temperature": self.temperature, "num_ctx": self.num_ctx},
         }
         if system:
             payload["system"] = system

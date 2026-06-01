@@ -148,6 +148,9 @@ LLM_MODEL: Final[str] = _env_str("AIOS_LLM_MODEL", "llama3.1:8b")
 LLM_REQUEST_TIMEOUT_S: Final[int] = _env_int("AIOS_LLM_TIMEOUT_S", 120)
 #: Low temperature keeps structured (JSON) reflection output deterministic.
 LLM_TEMPERATURE: Final[float] = _env_float("AIOS_LLM_TEMPERATURE", 0.1)
+#: Context window (tokens). A smaller window shrinks the KV cache, which is what
+#: lets mid-size models fit on a small GPU (e.g. a 4GB laptop card).
+LLM_NUM_CTX: Final[int] = _env_int("AIOS_LLM_NUM_CTX", 4096)
 
 
 __all__ = [
@@ -172,4 +175,5 @@ __all__ = [
     "LLM_MODEL",
     "LLM_REQUEST_TIMEOUT_S",
     "LLM_TEMPERATURE",
+    "LLM_NUM_CTX",
 ]
