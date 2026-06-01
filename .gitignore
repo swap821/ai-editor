@@ -3,3 +3,15 @@
 *.sqlite-shm
 node_modules/
 .env
+
+# --- Python / aios ---
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# --- AI OS runtime data (SQLite DBs, FAISS index, rollback snapshots) ---
+data/
+!data/.gitkeep
