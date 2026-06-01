@@ -89,6 +89,68 @@ class OllamaClient:
 
         return str(body.get("response", ""))
 
+    def chat(
+        self,
+        messages: list[dict],
+        *,
+        tools: Optional[list[dict]] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        """Single non-streaming chat turn via Ollama ``/api/chat``.
+
+        Used by the agentic tool loop: when *tools* are supplied and the model
+        supports function calling, the returned message may carry a
+        ``tool_calls`` list instead of (or alongside) ``content``.
+
+        Args:
+            messages: Ollama chat messages (``role`` + ``content`` [+ ``tool_calls``]).
+            tools: Optional OpenAI-style function tool specs.
+            model: Per-call model override.
+
+        Returns:
+            The assistant ``message`` dict (``role``/``content``/``tool_calls``).
+
+        Raises:
+            LLMError: On any transport or decoding failure.
+        """
+        payload: dict[str, object] = {
+            "model": model or self.model,
+            "messages": messages,
+            "stream": False,
+            "options": {"temperature": self.temperature, "num_ctx": self.num_ctx},
+        }
+        if tools:
+            payload["tools"] = tools
+
+        request = urllib.request.Request(
+            f"{self.host}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", "replace").strip()
+            except Exception:  # noqa: BLE001 - best-effort detail extraction
+                detail = ""
+            raise LLMError(
+                f"Ollama returned HTTP {exc.code} for model "
+                f"'{model or self.model}': {detail or exc.reason}"
+            ) from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise LLMError(f"Ollama chat to {self.host} failed: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"Ollama returned a non-JSON response: {exc}") from exc
+
+        message = body.get("message")
+        if not isinstance(message, dict):
+            return {"role": "assistant", "content": ""}
+        return message
+
     def stream_complete(
         self, prompt: str, *, system: Optional[str] = None, model: Optional[str] = None
     ) -> Iterator[str]:

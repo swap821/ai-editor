@@ -18,7 +18,6 @@ any network, model, or host side effects.
 from __future__ import annotations
 
 import json
-import re
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Iterator, Optional
@@ -32,8 +31,9 @@ import aios
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
+from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
-from aios.core.llm import LLMClient, LLMError, OllamaClient
+from aios.core.llm import LLMClient, OllamaClient
 from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db
 from aios.memory.retrieval import hybrid_search
@@ -289,34 +289,6 @@ def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict:
     return client.list_models()
 
 
-#: System prompt for the chat surface: a local coding assistant that fences code.
-_CHAT_SYSTEM_PROMPT = (
-    "You are a concise local coding assistant embedded in an IDE. "
-    "Answer briefly. When you produce code, put it in a single fenced block "
-    "with a language tag, e.g. ```html ... ```. Do not include prose inside the "
-    "code fence."
-)
-
-#: First fenced code block in a reply -> (language, code).
-_CODE_FENCE = re.compile(r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
-
-
-def _latest_user_text(messages: list[dict]) -> str:
-    """Pull the most recent user message's text out of the UI history shape."""
-    for msg in reversed(messages):
-        if msg.get("role") != "user":
-            continue
-        content = msg.get("content")
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts = [c.get("text", "") for c in content if isinstance(c, dict)]
-            joined = " ".join(p for p in parts if p).strip()
-            if joined:
-                return joined
-    return ""
-
-
 def _resolve_local_model(model_id: Optional[str]) -> str:
     """Map a UI model id to a local Ollama tag (``ollama.x`` -> ``x``).
 
@@ -328,47 +300,70 @@ def _resolve_local_model(model_id: Optional[str]) -> str:
     return config.LLM_MODEL
 
 
+def _to_chat_messages(messages: list[dict]) -> list[dict]:
+    """Flatten the UI history (``content`` arrays) into Ollama chat messages."""
+    out: list[dict] = []
+    for msg in messages:
+        role = msg.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        content = msg.get("content")
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = " ".join(
+                c.get("text", "") for c in content if isinstance(c, dict)
+            ).strip()
+        else:
+            text = ""
+        if text:
+            out.append({"role": role, "content": text})
+    return out
+
+
 def _sse(event: str, data: dict) -> str:
     """Format one Server-Sent Event frame."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
+#: Agent event type -> SSE event name the front-end's stream reader understands.
+_STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
+
 
 @app.post("/api/generate")
 def generate(
-    req: GenerateRequest, client: OllamaClient = Depends(get_ollama_client)
+    req: GenerateRequest,
+    client: OllamaClient = Depends(get_ollama_client),
+    executor: Executor = Depends(get_executor),
 ) -> StreamingResponse:
-    """Stream a chat reply from the local model as Server-Sent Events.
+    """Run the agentic tool loop and stream it to the UI as Server-Sent Events.
 
-    Emits ``text_chunk`` frames as tokens arrive, a ``code`` frame if the reply
-    contains a fenced code block (so the editor can update the active file), then
-    a final ``done`` frame. Transport/model failures surface as an ``error``
-    frame rather than a broken stream.
+    The local model may call tools (``read_file``, ``read_directory``,
+    ``execute_terminal``) before answering; each call is gated and audited by the
+    same subsystems the rest of the OS uses. Tool activity is forwarded as
+    ``step`` frames (rendered as agent steps), the final answer streams as
+    ``text_chunk`` frames, a fenced code block becomes a ``code`` frame (updating
+    the editor), and the stream ends with ``done``. Failures surface as ``error``.
     """
-    prompt = _latest_user_text(req.messages)
+    chat_messages = _to_chat_messages(req.messages)
     model = _resolve_local_model(req.model_id)
 
     def event_stream() -> Iterator[str]:
-        if not prompt:
+        if not any(m["role"] == "user" for m in chat_messages):
             yield _sse("error", {"text": "No user message provided."})
             return
-        collected: list[str] = []
-        try:
-            for piece in client.stream_complete(
-                prompt, system=_CHAT_SYSTEM_PROMPT, model=model
-            ):
-                collected.append(piece)
-                yield _sse("text_chunk", {"text": piece})
-        except LLMError as exc:
-            yield _sse("error", {"text": f"Local inference error: {exc}"})
-            return
-
-        match = _CODE_FENCE.search("".join(collected))
-        if match:
-            language = match.group(1) or "text"
-            code = match.group(2).rstrip("\n")
-            if code.strip():
-                yield _sse("code", {"code": code, "language": language})
-        yield _sse("done", {})
+        agent = ToolAgent(client, executor, model=model)
+        for ev in agent.run(chat_messages):
+            kind = ev["type"]
+            if kind in _STEP_EVENTS:
+                yield _sse("step", ev)
+            elif kind == "text":
+                yield _sse("text_chunk", {"text": ev["text"]})
+            elif kind == "code":
+                yield _sse("code", {"code": ev["code"], "language": ev["language"]})
+            elif kind == "error":
+                yield _sse("error", {"text": ev["text"]})
+            elif kind == "done":
+                yield _sse("done", {})
 
     return StreamingResponse(
         event_stream(),

@@ -45,16 +45,23 @@ class FakeLLM:
 
 
 class FakeOllama:
-    """Deterministic Ollama stand-in for model discovery + chat streaming."""
+    """Deterministic Ollama stand-in for model discovery + agentic chat."""
 
     def list_models(self) -> dict:
         return {"available": True, "models": ["llama3.2:3b", "nomic-embed-text:latest"]}
 
-    def stream_complete(
-        self, prompt: str, *, system: Optional[str] = None, model: Optional[str] = None
-    ) -> Iterator[str]:
-        yield "Here is a button:\n"
-        yield "```html\n<button>Hi</button>\n```"
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        # No tool call: answer immediately with a fenced code block.
+        return {
+            "role": "assistant",
+            "content": "Here is a button:\n```html\n<button>Hi</button>\n```",
+        }
 
 
 class FakeRunner:
