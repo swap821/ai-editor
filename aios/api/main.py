@@ -1,19 +1,19 @@
 """FastAPI orchestration layer for the AI OS.
 
-Exposes the subsystems built so far behind versioned HTTP endpoints. This is
-Phase 3a — the four endpoints backed by completed subsystems are live:
+Exposes the subsystems behind versioned HTTP endpoints. Phase 3a + 3b are live:
 
     POST /api/v1/memory/search     hybrid BM25+FAISS+decay retrieval
     POST /api/v1/security/classify deterministic, fail-closed zone classifier
     GET  /api/v1/audit/verify      tamper-evident hash-chain verification
     POST /api/v1/reflect           structured failure post-mortem -> Mistake DB
+    POST /api/v1/plan              chain-of-thought planner + confidence gate
+    POST /api/v1/execute           gateway-guarded, scope-locked execution
+    POST /api/v1/approval/req      human approval of an escalated action
+    POST /api/v1/rollback          restore the sandbox to a prior snapshot
 
-The remaining blueprint endpoints (``/plan``, ``/execute``, ``/approval/req``,
-``/rollback``) are reserved for Phase 3b, once the planner, sandboxed executor,
-and rollback engine land.
-
-The LLM client is supplied via dependency injection (:func:`get_llm_client`) so
-tests can override it with a fake and avoid any network/model dependency.
+Collaborators (LLM client, executor, rollback engine) are supplied via
+dependency injection so tests can override them with fakes/sandboxes and avoid
+any network, model, or host side effects.
 """
 from __future__ import annotations
 
@@ -26,11 +26,14 @@ from pydantic import BaseModel, Field
 
 import aios
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
+from aios.agents.rollback_engine import RollbackEngine, RollbackError
+from aios.core.executor import Executor
 from aios.core.llm import LLMClient, OllamaClient
+from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db
 from aios.memory.retrieval import hybrid_search
-from aios.security.audit_logger import init_audit_db, verify_chain
-from aios.security.gateway import classify
+from aios.security.audit_logger import init_audit_db, log_action, verify_chain
+from aios.security.gateway import Zone, classify
 
 
 @asynccontextmanager
@@ -52,6 +55,16 @@ app = FastAPI(
 def get_llm_client() -> LLMClient:
     """Provide the default local LLM client. Overridden in tests."""
     return OllamaClient()
+
+
+def get_executor() -> Executor:
+    """Provide the default sandboxed executor. Overridden in tests."""
+    return Executor()
+
+
+def get_rollback_engine() -> RollbackEngine:
+    """Provide the default sandbox rollback engine. Overridden in tests."""
+    return RollbackEngine()
 
 
 # --------------------------------------------------------------------------- #
@@ -76,6 +89,34 @@ class ReflectRequest(BaseModel):
     command: str = Field(..., description="The action/command that failed.")
     error_output: str = Field(..., description="Captured error text.")
     task_id: Optional[str] = Field(None, description="Stable id for recurrence detection.")
+
+
+class PlanRequest(BaseModel):
+    """Body for ``/plan``."""
+
+    goal: str = Field(..., description="High-level goal to decompose into steps.")
+
+
+class ExecuteRequest(BaseModel):
+    """Body for ``/execute``."""
+
+    command: str = Field(..., description="Command to classify, gate, and run.")
+    session_id: Optional[str] = Field(None, description="Session id for rate limiting.")
+
+
+class ApprovalRequest(BaseModel):
+    """Body for ``/approval/req`` — a human's decision on an escalated action."""
+
+    command: str = Field(..., description="The escalated command being decided on.")
+    approve: bool = Field(..., description="True to authorise execution, False to reject.")
+
+
+class RollbackRequest(BaseModel):
+    """Body for ``/rollback``."""
+
+    snapshot_id: Optional[str] = Field(
+        None, description="Target snapshot SHA; defaults to the previous snapshot."
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -121,3 +162,67 @@ def reflect(req: ReflectRequest, llm: LLMClient = Depends(get_llm_client)) -> di
     except ReflectionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return asdict(reflection)
+
+
+def _serialize_plan(plan) -> dict:
+    """Flatten a Plan (with TaskStep dataclasses) into JSON-safe primitives."""
+    return {
+        "goal": plan.goal,
+        "requires_human": plan.requires_human,
+        "steps": [asdict(s) for s in plan.steps],
+        "approved": [asdict(s) for s in plan.approved],
+        "escalate": [
+            {"step": asdict(e["step"]), "reason": e["reason"], "action": e["action"]}
+            for e in plan.escalate
+        ],
+    }
+
+
+@app.post("/api/v1/plan")
+def plan(req: PlanRequest, llm: LLMClient = Depends(get_llm_client)) -> dict:
+    """Decompose a goal into a confidence-gated task tree."""
+    planner = Planner(llm)
+    try:
+        result = planner.plan(req.goal)
+    except PlannerError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _serialize_plan(result)
+
+
+@app.post("/api/v1/execute")
+def execute(req: ExecuteRequest, executor: Executor = Depends(get_executor)) -> dict:
+    """Classify, gate, audit, and (if GREEN) run a command in the sandbox."""
+    result = executor.execute(req.command, session_id=req.session_id)
+    return asdict(result)
+
+
+@app.post("/api/v1/approval/req")
+def approval_req(req: ApprovalRequest, executor: Executor = Depends(get_executor)) -> dict:
+    """Resolve a human decision on an escalated (YELLOW) action.
+
+    Approve -> run the command in the sandbox (RED is still refused). Reject ->
+    audit the rejection and return without running.
+    """
+    if not req.approve:
+        log_action("human-approval", f"REJECTED: {req.command}", Zone.YELLOW)
+        return {"decision": "rejected", "command": req.command, "executed": False}
+
+    result = executor.execute_approved(req.command)
+    return {
+        "decision": "approved",
+        "command": req.command,
+        "executed": result.status == "OK",
+        "result": asdict(result),
+    }
+
+
+@app.post("/api/v1/rollback")
+def rollback(
+    req: RollbackRequest, engine: RollbackEngine = Depends(get_rollback_engine)
+) -> dict:
+    """Restore the sandbox working tree to a prior snapshot."""
+    try:
+        result = engine.rollback(req.snapshot_id)
+    except RollbackError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return asdict(result)

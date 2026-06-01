@@ -1,7 +1,7 @@
 """FastAPI integration tests using Starlette's TestClient.
 
-The LLM dependency is overridden with a fake so ``/reflect`` runs without
-Ollama. Other endpoints exercise the real (empty) databases created at startup.
+Collaborators are overridden via dependency injection so the suite never calls
+Ollama, spawns a shell, or touches the real sandbox/ledger.
 """
 from __future__ import annotations
 
@@ -11,13 +11,27 @@ from typing import Iterator, Optional
 import pytest
 from fastapi.testclient import TestClient
 
-from aios.api.main import app, get_llm_client
+from aios.api.main import (
+    app,
+    get_executor,
+    get_llm_client,
+    get_rollback_engine,
+)
+from aios.core.executor import Executor
+from aios.security.gateway import RateLimiter
 
 
 class FakeLLM:
-    """Deterministic LLM stand-in for the reflect endpoint."""
+    """Deterministic LLM stand-in for reflect + plan endpoints."""
 
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+        if "planning module" in (system or ""):
+            return json.dumps(
+                {"steps": [
+                    {"step_id": "1", "description": "scaffold project", "confidence": 0.9},
+                    {"step_id": "2", "description": "risky migration", "confidence": 0.4},
+                ]}
+            )
         return json.dumps(
             {
                 "error_type": "Timeout",
@@ -29,9 +43,26 @@ class FakeLLM:
         )
 
 
+class FakeRunner:
+    """Stand-in process runner — records, never spawns."""
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        return f"ran: {command}", "", 0
+
+
+class RecordingAudit:
+    def __call__(self, actor, payload, zone, **kwargs):
+        return None
+
+
+def _fake_executor() -> Executor:
+    return Executor(runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit())
+
+
 @pytest.fixture()
 def client() -> Iterator[TestClient]:
     app.dependency_overrides[get_llm_client] = FakeLLM
+    app.dependency_overrides[get_executor] = _fake_executor
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
