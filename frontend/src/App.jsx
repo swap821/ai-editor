@@ -5,6 +5,7 @@ import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
+import { API_BASE } from './config';
 
 /* ─── Resize Handles ─────────────────────────────────────────── */
 const ResizeHandle = () => (
@@ -561,7 +562,7 @@ export default function App() {
   // whenever the window regains focus — so a model pulled in a terminal shows up
   // as soon as you switch back, without a hard refresh.
   useEffect(() => {
-    const probe = () => fetch('http://localhost:5000/api/v1/models/local')
+    const probe = () => fetch(`${API_BASE}/api/v1/models/local`)
       .then(r => r.json())
       .then(s => setOllamaStatus(s))
       .catch(() => setOllamaStatus({ available: false, models: [] }));
@@ -606,7 +607,7 @@ export default function App() {
     setTermInput('');
     if (cmd.toLowerCase() === 'clear') return setTermHistory([]);
     try {
-      const res  = await fetch('http://localhost:5000/api/terminal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
+      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
       const data = await res.json();
       setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
     } catch {
@@ -622,7 +623,7 @@ export default function App() {
     setGitInput('');
     if (cmd.toLowerCase() === 'clear') return setGitHistory([]);
     try {
-      const res  = await fetch('http://localhost:5000/api/terminal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
+      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
       const data = await res.json();
       setGitHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
     } catch {
@@ -639,7 +640,7 @@ export default function App() {
     for (const cmd of commandsToRun) {
       setTermHistory(prev => [...prev, `[AI AGENT]: $ ${cmd}`]);
       try {
-        const res  = await fetch('http://localhost:5000/api/terminal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
+        const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
         const data = await res.json();
         setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
       } catch {
@@ -720,7 +721,7 @@ export default function App() {
     let accSteps = [];
 
     try {
-      const response = await fetch('http://localhost:5000/api/generate', {
+      const response = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newHistory, modelId: selectedModel })

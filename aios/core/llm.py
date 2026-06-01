@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from typing import Optional, Protocol, runtime_checkable
+from typing import Iterator, Optional, Protocol, runtime_checkable
 
 from aios import config
 
@@ -88,6 +88,78 @@ class OllamaClient:
             raise LLMError(f"Ollama returned a non-JSON response: {exc}") from exc
 
         return str(body.get("response", ""))
+
+    def stream_complete(
+        self, prompt: str, *, system: Optional[str] = None, model: Optional[str] = None
+    ) -> Iterator[str]:
+        """Yield completion text chunks as the local model produces them.
+
+        Talks to Ollama's streaming ``/api/generate`` (newline-delimited JSON),
+        yielding each ``response`` fragment so callers can forward tokens to a
+        client in real time. *model* overrides the instance default for a single
+        call (used when the UI selects a specific local model).
+
+        Raises:
+            LLMError: On any transport or decoding failure.
+        """
+        payload: dict[str, object] = {
+            "model": model or self.model,
+            "prompt": prompt,
+            "stream": True,
+            "options": {"temperature": self.temperature, "num_ctx": self.num_ctx},
+        }
+        if system:
+            payload["system"] = system
+
+        request = urllib.request.Request(
+            f"{self.host}/api/generate",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", "replace").strip()
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    piece = chunk.get("response")
+                    if piece:
+                        yield str(piece)
+                    if chunk.get("done"):
+                        break
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", "replace").strip()
+            except Exception:  # noqa: BLE001 - best-effort detail extraction
+                detail = ""
+            raise LLMError(
+                f"Ollama returned HTTP {exc.code} for model "
+                f"'{model or self.model}': {detail or exc.reason}"
+            ) from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise LLMError(f"Ollama stream to {self.host} failed: {exc}") from exc
+
+    def list_models(self) -> dict:
+        """Return installed local models as ``{"available": bool, "models": [str]}``.
+
+        ``available`` reports whether the Ollama server answered at all, so the
+        UI can distinguish "engine down" from "engine up but nothing pulled".
+        Never raises — failures collapse to ``{"available": False, "models": []}``.
+        """
+        try:
+            request = urllib.request.Request(f"{self.host}/api/tags", method="GET")
+            with urllib.request.urlopen(request, timeout=4) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001 - discovery must never raise
+            return {"available": False, "models": []}
+        names = [str(m.get("name", "")) for m in body.get("models", []) if m.get("name")]
+        return {"available": True, "models": names}
 
     def is_available(self) -> bool:
         """Return True if the Ollama server answers a tags probe within 4s."""

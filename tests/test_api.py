@@ -15,6 +15,7 @@ from aios.api.main import (
     app,
     get_executor,
     get_llm_client,
+    get_ollama_client,
     get_rollback_engine,
 )
 from aios.core.executor import Executor
@@ -43,6 +44,19 @@ class FakeLLM:
         )
 
 
+class FakeOllama:
+    """Deterministic Ollama stand-in for model discovery + chat streaming."""
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b", "nomic-embed-text:latest"]}
+
+    def stream_complete(
+        self, prompt: str, *, system: Optional[str] = None, model: Optional[str] = None
+    ) -> Iterator[str]:
+        yield "Here is a button:\n"
+        yield "```html\n<button>Hi</button>\n```"
+
+
 class FakeRunner:
     """Stand-in process runner — records, never spawns."""
 
@@ -62,6 +76,7 @@ def _fake_executor() -> Executor:
 @pytest.fixture()
 def client() -> Iterator[TestClient]:
     app.dependency_overrides[get_llm_client] = FakeLLM
+    app.dependency_overrides[get_ollama_client] = FakeOllama
     app.dependency_overrides[get_executor] = _fake_executor
     with TestClient(app) as test_client:
         yield test_client
@@ -104,3 +119,50 @@ def test_reflect_with_injected_fake_llm(client: TestClient) -> None:
     body = response.json()
     assert body["error_type"] == "Timeout"
     assert body["mistake_id"] >= 1
+
+
+def test_models_local_lists_installed(client: TestClient) -> None:
+    response = client.get("/api/v1/models/local")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["available"] is True
+    assert "llama3.2:3b" in body["models"]
+
+
+def test_generate_streams_text_code_and_done(client: TestClient) -> None:
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "make a button"}]}],
+            "modelId": "ollama.llama3.2:3b",
+        },
+    )
+    assert response.status_code == 200
+    body = response.text
+    # streamed prose, the extracted code event, and a terminal done frame
+    assert "event: text_chunk" in body
+    assert "event: code" in body
+    assert "<button>Hi</button>" in body
+    assert "event: done" in body
+
+
+def test_generate_without_user_message_emits_error(client: TestClient) -> None:
+    response = client.post("/api/generate", json={"messages": []})
+    assert response.status_code == 200
+    assert "event: error" in response.text
+
+
+def test_terminal_green_runs_in_sandbox(client: TestClient) -> None:
+    response = client.post("/api/terminal", json={"command": "echo hello"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["isError"] is False
+    assert "ran: echo hello" in body["output"]
+
+
+def test_terminal_red_command_is_blocked(client: TestClient) -> None:
+    response = client.post("/api/terminal", json={"command": "rm -rf /"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["isError"] is True
+    assert "BLOCKED" in body["output"]

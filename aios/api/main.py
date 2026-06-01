@@ -17,18 +17,23 @@ any network, model, or host side effects.
 """
 from __future__ import annotations
 
+import json
+import re
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Optional
+from typing import Iterator, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import aios
+from aios import config
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.core.executor import Executor
-from aios.core.llm import LLMClient, OllamaClient
+from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db
 from aios.memory.retrieval import hybrid_search
@@ -51,9 +56,29 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Browser clients (the Vite front-end) run on a different origin, so the API
+# must opt them in explicitly. Origins come from config (env-overridable).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(config.API_CORS_ORIGINS),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 def get_llm_client() -> LLMClient:
     """Provide the default local LLM client. Overridden in tests."""
+    return OllamaClient()
+
+
+def get_ollama_client() -> OllamaClient:
+    """Provide a concrete Ollama client for streaming + model discovery.
+
+    Distinct from :func:`get_llm_client` (which yields the minimal protocol) so
+    the chat/discovery endpoints can use streaming and ``/api/tags`` while
+    remaining overridable in tests.
+    """
     return OllamaClient()
 
 
@@ -117,6 +142,31 @@ class RollbackRequest(BaseModel):
     snapshot_id: Optional[str] = Field(
         None, description="Target snapshot SHA; defaults to the previous snapshot."
     )
+
+
+class GenerateRequest(BaseModel):
+    """Body for ``/api/generate`` — the conversational chat endpoint.
+
+    ``messages`` is the front-end's running history in the shape
+    ``[{"role": "user"|"assistant", "content": [{"text": "..."}]}]``.
+    ``model_id`` is the UI's selected model id (e.g. ``ollama.llama3.2:3b``);
+    the ``ollama.`` prefix is stripped, and any non-local id falls back to the
+    configured default local model.
+    """
+
+    messages: list[dict] = Field(default_factory=list)
+    model_id: Optional[str] = Field(None, alias="modelId")
+
+    model_config = {"populate_by_name": True}
+
+
+class TerminalRequest(BaseModel):
+    """Body for ``/api/terminal`` — a single shell command from the UI terminal."""
+
+    command: str = Field(..., description="Command typed into the UI terminal.")
+    session_id: Optional[str] = Field(None, alias="sessionId")
+
+    model_config = {"populate_by_name": True}
 
 
 # --------------------------------------------------------------------------- #
@@ -226,3 +276,131 @@ def rollback(
     except RollbackError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return asdict(result)
+
+
+# --------------------------------------------------------------------------- #
+# Front-end bridge: model discovery, conversational chat, UI terminal
+# These three endpoints back the React UI's main surfaces. The ``/api/v1/*``
+# routes above expose individual subsystems; these compose them for the UI.
+# --------------------------------------------------------------------------- #
+@app.get("/api/v1/models/local")
+def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict:
+    """List models installed in the local Ollama engine (for the model picker)."""
+    return client.list_models()
+
+
+#: System prompt for the chat surface: a local coding assistant that fences code.
+_CHAT_SYSTEM_PROMPT = (
+    "You are a concise local coding assistant embedded in an IDE. "
+    "Answer briefly. When you produce code, put it in a single fenced block "
+    "with a language tag, e.g. ```html ... ```. Do not include prose inside the "
+    "code fence."
+)
+
+#: First fenced code block in a reply -> (language, code).
+_CODE_FENCE = re.compile(r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
+
+
+def _latest_user_text(messages: list[dict]) -> str:
+    """Pull the most recent user message's text out of the UI history shape."""
+    for msg in reversed(messages):
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = [c.get("text", "") for c in content if isinstance(c, dict)]
+            joined = " ".join(p for p in parts if p).strip()
+            if joined:
+                return joined
+    return ""
+
+
+def _resolve_local_model(model_id: Optional[str]) -> str:
+    """Map a UI model id to a local Ollama tag (``ollama.x`` -> ``x``).
+
+    Non-local ids (or none) fall back to the configured default local model, so
+    the local-first backend always has something to run.
+    """
+    if model_id and model_id.startswith("ollama."):
+        return model_id[len("ollama.") :]
+    return config.LLM_MODEL
+
+
+def _sse(event: str, data: dict) -> str:
+    """Format one Server-Sent Event frame."""
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+@app.post("/api/generate")
+def generate(
+    req: GenerateRequest, client: OllamaClient = Depends(get_ollama_client)
+) -> StreamingResponse:
+    """Stream a chat reply from the local model as Server-Sent Events.
+
+    Emits ``text_chunk`` frames as tokens arrive, a ``code`` frame if the reply
+    contains a fenced code block (so the editor can update the active file), then
+    a final ``done`` frame. Transport/model failures surface as an ``error``
+    frame rather than a broken stream.
+    """
+    prompt = _latest_user_text(req.messages)
+    model = _resolve_local_model(req.model_id)
+
+    def event_stream() -> Iterator[str]:
+        if not prompt:
+            yield _sse("error", {"text": "No user message provided."})
+            return
+        collected: list[str] = []
+        try:
+            for piece in client.stream_complete(
+                prompt, system=_CHAT_SYSTEM_PROMPT, model=model
+            ):
+                collected.append(piece)
+                yield _sse("text_chunk", {"text": piece})
+        except LLMError as exc:
+            yield _sse("error", {"text": f"Local inference error: {exc}"})
+            return
+
+        match = _CODE_FENCE.search("".join(collected))
+        if match:
+            language = match.group(1) or "text"
+            code = match.group(2).rstrip("\n")
+            if code.strip():
+                yield _sse("code", {"code": code, "language": language})
+        yield _sse("done", {})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/terminal")
+def terminal(
+    req: TerminalRequest, executor: Executor = Depends(get_executor)
+) -> dict:
+    """Run a UI-terminal command through the security gateway + sandbox.
+
+    Returns the front-end terminal's ``{output, isError}`` shape. The command is
+    classified and gated exactly like an agent action: RED is blocked, YELLOW is
+    reported as needing approval, and only GREEN runs in the scope-locked
+    sandbox. Every outcome is audited by the executor.
+    """
+    result = executor.execute(req.command, session_id=req.session_id)
+
+    if result.status == "OK":
+        output = (result.stdout or "") + (result.stderr or "")
+        return {
+            "output": output.strip() or "(no output)",
+            "isError": bool(result.exit_code),
+        }
+    if result.status == "REQUIRE_APPROVAL":
+        return {
+            "output": f"[APPROVAL REQUIRED] {result.reason}",
+            "isError": False,
+            "requiresApproval": True,
+        }
+    # BLOCKED / TIMEOUT / ERROR
+    return {"output": f"[{result.status}] {result.reason}", "isError": True}

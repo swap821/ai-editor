@@ -152,6 +152,23 @@ LLM_TEMPERATURE: Final[float] = _env_float("AIOS_LLM_TEMPERATURE", 0.1)
 #: lets mid-size models fit on a small GPU (e.g. a 4GB laptop card).
 LLM_NUM_CTX: Final[int] = _env_int("AIOS_LLM_NUM_CTX", 4096)
 
+# --------------------------------------------------------------------------- #
+# HTTP API server (FastAPI / uvicorn) + browser CORS
+# --------------------------------------------------------------------------- #
+#: Interface and port uvicorn binds to when serving the API.
+API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
+API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
+#: Browser origins permitted to call the API (the Vite dev server by default).
+#: Comma-separated via ``AIOS_CORS_ORIGINS`` to add deployed front-end origins.
+API_CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
+    o.strip()
+    for o in _env_str(
+        "AIOS_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if o.strip()
+)
+
 
 __all__ = [
     "PROJECT_ROOT",
@@ -176,4 +193,7 @@ __all__ = [
     "LLM_REQUEST_TIMEOUT_S",
     "LLM_TEMPERATURE",
     "LLM_NUM_CTX",
+    "API_HOST",
+    "API_PORT",
+    "API_CORS_ORIGINS",
 ]
