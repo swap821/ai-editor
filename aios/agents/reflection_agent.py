@@ -1,0 +1,180 @@
+"""Reflection Agent — converts a failure into a structured, queryable lesson.
+
+On an execution failure, :meth:`ReflectionAgent.reflect` asks the local LLM for
+a structured post-mortem, validates and clamps it, then writes it to the L4
+Mistake pool. Repeated failures of the same kind on the same task increment an
+occurrence counter instead of duplicating. Lessons are written ``pending`` and
+promoted to ``verified`` via :meth:`confirm_lesson` once they prove themselves
+on a later task.
+
+Safeguards (Blueprint Q6):
+  * Malformed or incomplete LLM output is rejected *before* any DB write.
+  * ``confidence_delta`` is clamped to ``[-1.0, 0.0]`` by the storage layer, so
+    a lesson can only reduce the planner's confidence, never inflate it.
+"""
+from __future__ import annotations
+
+import json
+import re
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+from aios import config
+from aios.core.llm import LLMClient
+from aios.memory.mistake import MistakeMemory
+
+REFLECT_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
+Analyse the failed action, identify the root cause, and formulate a generalised lesson so
+the primary agent does not repeat the mistake.
+
+Respond with ONLY a single valid JSON object, no prose and no code fences, matching this
+schema exactly:
+{
+  "error_type": "short category, e.g. 'PathNotFound', 'SyntaxError', 'Timeout'",
+  "root_cause": "detailed explanation of why it failed",
+  "fix_applied": "the specific remediation for this case",
+  "lesson_text": "a generalised rule to avoid this class of error in future",
+  "confidence_delta": -0.1
+}
+confidence_delta must be a negative number between -1.0 and 0.0."""
+
+REFLECT_USER_TEMPLATE = "Action attempted:\n{command}\n\nError output:\n{error_output}"
+
+#: Fields that must be present and non-empty for a lesson to be accepted.
+_REQUIRED_KEYS = ("error_type", "root_cause", "lesson_text")
+#: Greedy match to pull the JSON object out of otherwise-noisy LLM text.
+_JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+
+
+class ReflectionError(RuntimeError):
+    """Raised when the LLM output cannot be parsed into a valid lesson."""
+
+
+@dataclass(frozen=True)
+class Reflection:
+    """The structured outcome of a reflection, as written to the Mistake pool."""
+
+    mistake_id: int
+    task_id: str
+    error_type: str
+    root_cause: str
+    fix_applied: str
+    lesson_text: str
+    confidence_delta: float
+    recurrence: bool
+
+
+def _parse_reflection(raw: str) -> dict:
+    """Extract and validate the JSON lesson object from raw LLM text."""
+    if not raw or not raw.strip():
+        raise ReflectionError("Empty LLM response.")
+    cleaned = raw.replace("```json", "").replace("```", "").strip()
+    match = _JSON_OBJECT.search(cleaned)
+    if not match:
+        raise ReflectionError("No JSON object found in LLM response.")
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError as exc:
+        raise ReflectionError(f"Malformed JSON in LLM response: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ReflectionError("LLM response JSON is not an object.")
+
+    # Accept the legacy 'suggested_fix' alias for 'fix_applied'.
+    if "fix_applied" not in data and "suggested_fix" in data:
+        data["fix_applied"] = data["suggested_fix"]
+    data.setdefault("fix_applied", "")
+
+    missing = [key for key in _REQUIRED_KEYS if not str(data.get(key, "")).strip()]
+    if missing:
+        raise ReflectionError(f"Lesson missing required field(s): {', '.join(missing)}")
+    return data
+
+
+class ReflectionAgent:
+    """Analyses failures and records structured lessons in the Mistake pool."""
+
+    def __init__(
+        self,
+        llm: LLMClient,
+        *,
+        mistakes: Optional[MistakeMemory] = None,
+        db_path: Path = config.MEMORY_DB_PATH,
+    ) -> None:
+        self.llm = llm
+        self.mistakes = mistakes or MistakeMemory(db_path)
+
+    def reflect(
+        self,
+        command: str,
+        error_output: str,
+        *,
+        task_id: Optional[str] = None,
+    ) -> Reflection:
+        """Analyse one failure and persist a structured lesson.
+
+        Args:
+            command: The action/command that failed.
+            error_output: Captured error text (truncated to 2000 chars for the prompt).
+            task_id: Stable task identifier. Reusing it across calls enables
+                recurrence detection; a random id is generated when omitted.
+
+        Returns:
+            The :class:`Reflection` that was written (or whose occurrence count
+            was incremented on a recurrence).
+
+        Raises:
+            ReflectionError: If the LLM output is unparseable or incomplete.
+        """
+        task_id = task_id or uuid.uuid4().hex
+        prompt = REFLECT_USER_TEMPLATE.format(
+            command=command, error_output=error_output[:2000]
+        )
+        raw = self.llm.complete(prompt, system=REFLECT_SYSTEM_PROMPT)
+        data = _parse_reflection(raw)
+
+        try:
+            confidence_delta = float(data.get("confidence_delta", -0.1))
+        except (TypeError, ValueError):
+            confidence_delta = -0.1
+
+        error_type = str(data["error_type"]).strip()
+        root_cause = str(data["root_cause"]).strip()
+        fix_applied = str(data["fix_applied"]).strip()
+        lesson_text = str(data["lesson_text"]).strip()
+
+        existing = self.mistakes.find_recurrence(task_id, error_type)
+        if existing is not None:
+            self.mistakes.increment_occurrence(int(existing["id"]))
+            mistake_id = int(existing["id"])
+            recurrence = True
+        else:
+            mistake_id = self.mistakes.record(
+                task_id=task_id,
+                error_type=error_type,
+                root_cause=root_cause,
+                fix_applied=fix_applied,
+                lesson_text=lesson_text,
+                confidence_delta=confidence_delta,
+            )
+            recurrence = False
+
+        # Re-read the stored (clamped) delta so the return value is accurate.
+        stored = self.mistakes.get(mistake_id)
+        stored_delta = float(stored["confidence_delta"]) if stored else confidence_delta
+
+        return Reflection(
+            mistake_id=mistake_id,
+            task_id=task_id,
+            error_type=error_type,
+            root_cause=root_cause,
+            fix_applied=fix_applied,
+            lesson_text=lesson_text,
+            confidence_delta=stored_delta,
+            recurrence=recurrence,
+        )
+
+    def confirm_lesson(self, mistake_id: int) -> None:
+        """Promote a lesson to 'verified' after it proves itself on a later task."""
+        self.mistakes.promote(mistake_id)

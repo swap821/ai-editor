@@ -93,10 +93,12 @@ def hybrid_search(
     if not query or not query.strip():
         return []
 
-    embedder = embedder or EmbeddingModel.instance()
+    # Construct the index first and short-circuit on an empty store, so we never
+    # pay the cost of loading the embedding model just to return no results.
     index = index or VectorIndex()
     if index.size == 0:
         return []
+    embedder = embedder or EmbeddingModel.instance()
 
     query_vector = embedder.encode(query)[0]
     candidates = index.search(query_vector, top_k * candidate_multiplier)

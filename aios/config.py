@@ -137,6 +137,18 @@ SCOPE_ROOTS: Final[tuple[Path, ...]] = _env_scope_roots(
     "AIOS_SCOPE_ROOTS", (PROJECT_ROOT / "training_ground",)
 )
 
+# --------------------------------------------------------------------------- #
+# Local LLM (Ollama) — reflection agent + planner
+# --------------------------------------------------------------------------- #
+#: Base URL of the local Ollama server.
+OLLAMA_HOST: Final[str] = _env_str("OLLAMA_HOST", "http://127.0.0.1:11434")
+#: Default model for reflection/planning reasoning (strong local reasoner).
+LLM_MODEL: Final[str] = _env_str("AIOS_LLM_MODEL", "llama3.1:8b")
+#: Per-request timeout (seconds) for local generation.
+LLM_REQUEST_TIMEOUT_S: Final[int] = _env_int("AIOS_LLM_TIMEOUT_S", 120)
+#: Low temperature keeps structured (JSON) reflection output deterministic.
+LLM_TEMPERATURE: Final[float] = _env_float("AIOS_LLM_TEMPERATURE", 0.1)
+
 
 __all__ = [
     "PROJECT_ROOT",
@@ -156,4 +168,8 @@ __all__ = [
     "RED_APPROVAL_TIMEOUT_MS",
     "AUDIT_GENESIS_HASH",
     "SCOPE_ROOTS",
+    "OLLAMA_HOST",
+    "LLM_MODEL",
+    "LLM_REQUEST_TIMEOUT_S",
+    "LLM_TEMPERATURE",
 ]
