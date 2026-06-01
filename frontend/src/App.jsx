@@ -1,21 +1,25 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Panel, Group, Separator } from "react-resizable-panels";
-import { Terminal, Code, MessageSquare, Play, Send, GitBranch, Network, Mic, FolderOpen, FileCode2, PanelLeftClose, PanelLeft, Check, X } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
+import { Terminal, Code, Play, Send, GitBranch, Network, Mic, FolderOpen, FileCode2, PanelLeftClose, PanelLeft, Check, X, Plus, Trash2, Sparkles, Bot } from "lucide-react";
 import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
+import MessageBubble from './components/MessageBubble';
 
 /* ─── Resize Handles ─────────────────────────────────────────── */
 const ResizeHandle = () => (
-  <Separator className="w-[3px] bg-[#13141b] hover:bg-[#3b82f6] transition-colors duration-200 cursor-col-resize shrink-0 group relative">
+  <PanelResizeHandle className="w-[3px] bg-[#13141b] hover:bg-[#3b82f6] transition-colors duration-200 cursor-col-resize shrink-0 group relative">
     <span className="absolute inset-y-0 -left-[2px] -right-[2px] group-hover:bg-blue-500/10 transition-colors duration-200" />
-  </Separator>
+  </PanelResizeHandle>
 );
 const HorizontalResizeHandle = () => (
-  <Separator className="h-[3px] w-full bg-[#13141b] hover:bg-[#3b82f6] transition-colors duration-200 cursor-row-resize shrink-0" />
+  <PanelResizeHandle className="h-[3px] w-full bg-[#13141b] hover:bg-[#3b82f6] transition-colors duration-200 cursor-row-resize shrink-0" />
 );
 
 /* ─── Model Dictionary ───────────────────────────────────────── */
+// Cloud (Bedrock) models. The "Local (Ollama)" group is injected at runtime
+// from whatever is actually installed in the local engine (see availableModels),
+// so the list never claims a model you don't have pulled.
 const BEDROCK_MODELS = [
   {
     group: "Anthropic Claude (Next-Gen)",
@@ -85,13 +89,7 @@ const BEDROCK_MODELS = [
   {
     group: "Meta Llama",
     models: [
-      { id: "us.meta.llama4-maverick-17b-instruct-v1:0", name: "Llama 4 Maverick (17B)" },
-      { id: "us.meta.llama4-scout-17b-instruct-v1:0", name: "Llama 4 Scout (17B)" },
-      { id: "us.meta.llama3-3-70b-instruct-v1:0", name: "Llama 3.3 (70B Instruct)" },
       { id: "us.meta.llama3-2-90b-instruct-v1:0", name: "Llama 3.2 (90B)" },
-      { id: "us.meta.llama3-2-11b-vision-instruct-v1:0", name: "Llama 3.2 Vision (11B)" },
-      { id: "us.meta.llama3-2-3b-instruct-v1:0", name: "Llama 3.2 (3B Instruct)" },
-      { id: "us.meta.llama3-2-1b-instruct-v1:0", name: "Llama 3.2 (1B Instruct)" },
       { id: "us.meta.llama3-1-70b-instruct-v1:0", name: "Llama 3.1 (70B)" },
       { id: "us.meta.llama3-1-8b-instruct-v1:0", name: "Llama 3.1 (8B)" }
     ]
@@ -104,6 +102,7 @@ const getExt = (name) => name.split('.').pop();
 
 /* ─── Model Selector (2026 Standard) ───────────────────────── */
 const PROVIDER_META = {
+  "Local (Ollama)": { color: "#34d399", icon: "⬡", tags: ["Offline", "Private"] },
   "Anthropic Claude (Next-Gen)": { color: "#d97757", icon: "◆", tags: ["Vision", "Reasoning"] },
   "DeepSeek (Advanced Reasoning)": { color: "#4f6ef7", icon: "◈", tags: ["Reasoning"] },
   "OpenAI (OSS Series)": { color: "#10a37f", icon: "◇", tags: ["Open Source"] },
@@ -116,6 +115,9 @@ const PROVIDER_META = {
 };
 
 const MODEL_TAGS = {
+  "ollama.llama3.2": ["Offline", "Fast", "Local"],
+  "ollama.qwen2.5-coder": ["Offline", "Coding", "Local"],
+  "ollama.mistral": ["Offline", "Reasoning", "Local"],
   "anthropic.claude-4-8-opus-v1:0": ["Reasoning", "Vision", "Coding"],
   "anthropic.claude-4-7-opus-v1:0": ["Reasoning", "Vision"],
   "anthropic.claude-4-6-sonnet-v1:0": ["Vision", "Coding"],
@@ -177,6 +179,7 @@ function ModelSelector({ value, onChange, models }) {
 
   const flatList = Object.entries(grouped).flatMap(([group, items]) => items.map(item => ({ ...item, group })));
 
+  // Stable callback so it can be safely referenced inside effects below.
   const selectModel = useCallback((id) => {
     onChange(id);
     setOpen(false);
@@ -204,15 +207,11 @@ function ModelSelector({ value, onChange, models }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, flatList, highlighted, selectModel]);
 
+  // Focus the search input when the dropdown opens. Highlight reset happens in
+  // the trigger handler and the search onChange, so no setState is needed here.
   useEffect(() => {
-    if (!open) return;
-    const timer = setTimeout(() => {
-      inputRef.current?.focus();
-      setHighlighted(0);
-      
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [open, search]);
+    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -230,8 +229,9 @@ function ModelSelector({ value, onChange, models }) {
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
+      {/* Trigger */}
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => { if (!open) setHighlighted(0); setOpen(!open); }}
         style={{
           display: "flex", alignItems: "center", gap: 10,
           padding: "6px 12px 6px 10px",
@@ -266,6 +266,7 @@ function ModelSelector({ value, onChange, models }) {
         </svg>
       </button>
 
+      {/* Dropdown */}
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 8px)", right: 0,
@@ -281,6 +282,7 @@ function ModelSelector({ value, onChange, models }) {
           overflow: "hidden",
           animation: "dropdownIn 0.18s cubic-bezier(0.16,1,0.3,1)",
         }}>
+          {/* Search */}
           <div style={{
             padding: "12px 14px 10px",
             borderBottom: "1px solid rgba(255,255,255,0.04)",
@@ -311,7 +313,9 @@ function ModelSelector({ value, onChange, models }) {
             </span>
           </div>
 
+          {/* List */}
           <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: "6px 8px" }}>
+            {/* Recent Section */}
             {!search && recentModels.length > 0 && (
               <div style={{ marginBottom: 8 }}>
                 <div style={{ padding: "6px 8px 4px", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-3)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -332,6 +336,7 @@ function ModelSelector({ value, onChange, models }) {
               </div>
             )}
 
+            {/* Grouped Models */}
             {Object.entries(grouped).map(([group, items]) => {
               const meta = PROVIDER_META[group] || { color: "var(--text-3)", icon: "◆" };
               return (
@@ -366,6 +371,7 @@ function ModelSelector({ value, onChange, models }) {
             )}
           </div>
 
+          {/* Footer */}
           <div style={{
             padding: "8px 14px",
             borderTop: "1px solid rgba(255,255,255,0.04)",
@@ -445,6 +451,76 @@ function ModelRow({ model, group, isActive, isHighlighted, onClick }) {
   );
 }
 
+/* ─── Suggested Prompts ─────────────────────────────────────── */
+const SUGGESTED_PROMPTS = [
+  { icon: '🎨', text: 'Build a landing page with hero, features, and CTA sections' },
+  { icon: '🔌', text: 'Create a REST API with GET and POST endpoints' },
+  { icon: '🌙', text: 'Add a dark/light mode toggle to the current file' },
+  { icon: '🧪', text: 'Explain this code and suggest improvements' },
+];
+
+/* ─── New File Dialog ───────────────────────────────────────── */
+function NewFileDialog({ onConfirm, onCancel }) {
+  const [name, setName] = useState('');
+  const inputRef = useRef(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  const submit = (e) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed) onConfirm(trimmed);
+  };
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={onCancel}>
+      <div style={{
+        background: 'var(--surface-2)', border: '1px solid var(--border)',
+        borderRadius: 14, padding: '20px 22px', minWidth: 300,
+        boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', marginBottom: 12 }}>New File</div>
+        <form onSubmit={submit}>
+          <input
+            ref={inputRef}
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="filename.js"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'var(--surface-3)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '8px 12px',
+              fontSize: 13, color: 'var(--text-1)', outline: 'none', fontFamily: 'inherit',
+            }}
+            onFocus={e => { e.target.style.borderColor = 'rgba(59,130,246,0.5)'; }}
+            onBlur={e => { e.target.style.borderColor = 'var(--border)'; }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button type="submit" style={{
+              flex: 1, background: 'var(--accent)', color: '#fff',
+              border: 'none', borderRadius: 8, padding: '7px 0',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>
+              Create
+            </button>
+            <button type="button" onClick={onCancel} style={{
+              flex: 1, background: 'var(--surface-3)',
+              color: 'var(--text-2)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '7px 0',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const EXT_LANG = { html: 'html', css: 'css', js: 'javascript', ts: 'typescript', jsx: 'javascript', tsx: 'typescript', json: 'json', py: 'python', md: 'markdown' };
+
 export default function App() {
   const [files, setFiles] = useState({
     'index.html': { language: 'html', content: '<div class="text-center text-gray-400 font-mono mt-10">\n  <h1 class="title">Waiting for AI input...</h1>\n</div>' },
@@ -453,9 +529,13 @@ export default function App() {
   });
   const [activeFile, setActiveFile]   = useState('index.html');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [messages, setMessages]       = useState([{ id: 1, sender: 'ai', text: 'Agentic Orchestrator connected. What shall we build today?' }]);
-  const [apiMessages, setApiMessages] = useState([]);
-  const [input, setInput]             = useState('');
+  const [showNewFile, setShowNewFile] = useState(false);
+
+  const [messages, setMessages]        = useState([{ id: 1, sender: 'ai', text: 'Amazon Bedrock connected. What shall we build today?', steps: [] }]);
+  const [convHistory, setConvHistory]  = useState([]); // Bedrock-format conversation history
+  const [input, setInput]              = useState('');
+  const [isStreaming, setIsStreaming]   = useState(false);
+
   const [selectedModel, setSelectedModel] = useState('amazon.nova-lite-v1:0');
   const [pendingAction, setPendingAction] = useState(null);
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
@@ -464,18 +544,42 @@ export default function App() {
   const [gitHistory,  setGitHistory]  = useState(['Git Bash integrated.', 'Type "git status" to begin.']);
   const [gitInput,    setGitInput]    = useState('');
   const [isListening, setIsListening] = useState(false);
-  // ---> NEW: AGENT MODE STATE
-  const [isAgentMode, setIsAgentMode] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState({ available: false, models: [] });
 
-  const terminalEndRef = useRef(null);
-  const gitEndRef      = useRef(null);
-  const recognitionRef = useRef(null);
-  const chatEndRef     = useRef(null);
+  const terminalEndRef  = useRef(null);
+  const gitEndRef       = useRef(null);
+  const recognitionRef  = useRef(null);
+  const chatEndRef      = useRef(null);
+  const sidebarPanelRef = useRef(null);
+  const textareaRef     = useRef(null);
 
   useEffect(() => { terminalEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termHistory]);
   useEffect(() => { gitEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [gitHistory]);
-  // Updated scroll effect to ensure we scroll down when pendingAction updates
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, pendingAction]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  // Probe the local Ollama engine for installed models. Runs on mount and again
+  // whenever the window regains focus — so a model pulled in a terminal shows up
+  // as soon as you switch back, without a hard refresh.
+  useEffect(() => {
+    const probe = () => fetch('http://localhost:5000/api/v1/models/local')
+      .then(r => r.json())
+      .then(s => setOllamaStatus(s))
+      .catch(() => setOllamaStatus({ available: false, models: [] }));
+    probe();
+    window.addEventListener('focus', probe);
+    return () => window.removeEventListener('focus', probe);
+  }, []);
+
+  // Build the model list shown in the selector: a dynamic "Local (Ollama)" group
+  // built from the models actually installed (embedding-only models excluded,
+  // since they can't chat), followed by the static cloud groups.
+  const availableModels = useMemo(() => {
+    const chatModels = (ollamaStatus.models || []).filter(m => !/embed/i.test(m));
+    const localGroup = chatModels.length
+      ? [{ group: 'Local (Ollama)', models: chatModels.map(m => ({ id: `ollama.${m}`, name: m })) }]
+      : [];
+    return [...localGroup, ...BEDROCK_MODELS];
+  }, [ollamaStatus]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -526,120 +630,23 @@ export default function App() {
     }
   };
 
-  const sendToBedrock = useCallback(async (currentApiMessages, loadingId) => {
-    try {
-      const response = await fetch('http://localhost:5000/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: currentApiMessages, modelId: selectedModel })
-      });
-      const aiData = await response.json();
-      
-      if (aiData.type === "tool_use") {
-        const assistantMsg = { 
-          role: "assistant", 
-          content: [{ toolUse: { toolUseId: aiData.toolUseId, name: aiData.name, input: aiData.input } }] 
-        };
-        setApiMessages(prev => [...prev, assistantMsg]);
-        
-        setMessages(prev => prev.map(m => m.id === loadingId ? { ...m, text: aiData.text, loading: false } : m));
-        setPendingAction({ ...aiData.input, toolUseId: aiData.toolUseId });
-      } else {
-        const assistantMsg = { role: "assistant", content: [{ text: aiData.text || "Task completed." }] };
-        setApiMessages(prev => [...prev, assistantMsg]);
-
-        if (aiData.code) {
-          setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: aiData.code } }));
-        }
-        setMessages(prev => prev.map(m => m.id === loadingId ? { ...m, text: aiData.text || "Code updated.", loading: false } : m));
-      }
-    } catch {
-      setMessages(prev => prev.map(m => m.id === loadingId ? { ...m, text: "Error: Could not reach Bedrock.", loading: false } : m));
-    }
-  });
-
-  const handleApproveAction = useCallback(async () => {
+  const handleApproveAction = async () => {
     if (!pendingAction) return;
     setActiveBottomTab('terminal');
-    const commandsToRun = pendingAction.commands || [];
-    const currentToolId = pendingAction.toolUseId;
+    const commandsToRun = pendingAction.commands;
     setPendingAction(null);
-    
     setMessages(prev => [...prev, { id: Date.now(), sender: 'ai', text: `✅ Executing ${commandsToRun.length} command(s) in terminal…` }]);
-    
-    let combinedTerminalOutput = "";
-
     for (const cmd of commandsToRun) {
       setTermHistory(prev => [...prev, `[AI AGENT]: $ ${cmd}`]);
       try {
         const res  = await fetch('http://localhost:5000/api/terminal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
         const data = await res.json();
-        
-        // Check if the terminal command failed
-        if (data.isError) {
-          setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
-          combinedTerminalOutput += `\n$ ${cmd}\n[EXECUTION ERROR]: ${data.output}`;
-          
-          // --- TRIGGER BACKGROUND REFLECTION AGENT ---
-          setTermHistory(prev => [...prev, `[SYSTEM]: Triggering Reflection Agent for error analysis...`]);
-          fetch('http://localhost:5000/api/v1/reflect', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ command: cmd, errorOutput: data.output, modelId: selectedModel })
-          })
-          .then(r => r.json())
-          .then(refData => {
-              if (refData.inserted) {
-                  // Print the lesson learned to the terminal!
-                  setTermHistory(prev => [...prev, `[LEARNED LESSON]: ${refData.lesson_text}`]);
-              }
-          }).catch(e => console.error(e));
-          
-        } else {
-          setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
-          combinedTerminalOutput += `\n$ ${cmd}\n${data.output}`;
-        }
+        setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
       } catch {
         setTermHistory(prev => [...prev, `[ERROR]: Failed to execute ${cmd}`]);
-        combinedTerminalOutput += `\n$ ${cmd}\nERROR: Failed to connect to terminal server.`;
       }
     }
-
-    const toolResultMsg = {
-      role: "user",
-      content: [{
-        toolResult: {
-          toolUseId: currentToolId,
-          content: [{ text: combinedTerminalOutput.trim() || "Command executed successfully with no output." }]
-        }
-      }]
-    };
-
-    const updatedApiMessages = [...apiMessages, toolResultMsg];
-    setApiMessages(updatedApiMessages);
-    
-    const loadingId = Date.now() + 1;
-    setMessages(prev => [...prev, { id: loadingId, sender: 'ai', text: `Analyzing terminal output…`, loading: true }]);
-    sendToBedrock(updatedApiMessages, loadingId);
-  }, [pendingAction, apiMessages, sendToBedrock, selectedModel]);
-
-  // ---> NEW: THE AUTONOMOUS EXECUTION LOOP (MOVED AFTER handleApproveAction)
-  useEffect(() => {
-    if (isAgentMode && pendingAction) {
-      const timer = setTimeout(() => {
-        setMessages(prev => [...prev, { 
-          id: Date.now(), 
-          sender: 'system', 
-          text: '⚡ Agent Mode Active: Auto-executing in 1 second...' 
-        }]);
-        setTimeout(() => {
-          handleApproveAction();
-        }, 1000);
-      }, 500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [pendingAction, isAgentMode, handleApproveAction]);
+  };
 
   const handleRejectAction = () => {
     setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Action rejected.' }]);
@@ -651,55 +658,169 @@ export default function App() {
     isListening ? recognitionRef.current.stop() : (setInput(''), recognitionRef.current.start());
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-    
-    const userText = input;
-    setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: userText }]);
-    setInput('');
-    if (isListening) recognitionRef.current?.stop();
-    
-    const userMsg = { role: "user", content: [{ text: userText }] };
-    const updatedApiMessages = [...apiMessages, userMsg];
-    setApiMessages(updatedApiMessages);
+  /* ─── Auto-resize textarea ─────────────────────────────────── */
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }, []);
 
-    const loadingId  = Date.now() + 1;
-    const modelName  = BEDROCK_MODELS.flatMap(g => g.models).find(m => m.id === selectedModel)?.name || 'AI';
-    setMessages(prev => [...prev, { id: loadingId, sender: 'ai', text: `Processing with ${modelName}…`, loading: true }]);
-    
-    sendToBedrock(updatedApiMessages, loadingId);
+  useEffect(() => { autoResize(); }, [input, autoResize]);
+
+  /* ─── File management ───────────────────────────────────────── */
+  const handleNewFile = (name) => {
+    const ext = name.split('.').pop();
+    const lang = EXT_LANG[ext] || 'javascript';
+    setFiles(prev => ({ ...prev, [name]: { language: lang, content: '' } }));
+    setActiveFile(name);
+    setShowNewFile(false);
   };
 
-  const combinedCode = `<html><head><style>${files['style.css'].content}</style></head><body>${files['index.html'].content}<script>${files['app.js'].content}</script></body></html>`;
+  const handleDeleteFile = (name) => {
+    const keys = Object.keys(files);
+    if (keys.length <= 1) return;
+    setFiles(prev => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+    if (activeFile === name) {
+      const remaining = keys.filter(k => k !== name);
+      setActiveFile(remaining[0] || 'index.html');
+    }
+  };
 
-  /* ─── Derived ───────────────────────────────────────────────── */
-  const selectedModelName = BEDROCK_MODELS.flatMap(g => g.models).find(m => m.id === selectedModel)?.name || 'Model';
+  /* ─── SSE-based send message ────────────────────────────────── */
+  const handleSendMessage = async (e) => {
+    e?.preventDefault();
+    const userText = input.trim();
+    if (!userText || isStreaming || pendingAction) return;
+
+    setInput('');
+    if (isListening) recognitionRef.current?.stop();
+
+    // Add user message to UI
+    const userMsgId = Date.now();
+    setMessages(prev => [...prev, { id: userMsgId, sender: 'user', text: userText, steps: [] }]);
+
+    // Build Bedrock-format conversation history
+    const newHistory = [
+      ...convHistory,
+      { role: 'user', content: [{ text: userText }] }
+    ];
+    setConvHistory(newHistory);
+
+    // Add loading AI message
+    const aiMsgId = Date.now() + 1;
+    setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', loading: true, steps: [], streaming: false }]);
+    setIsStreaming(true);
+
+    let accText = '';
+    let accSteps = [];
+
+    try {
+      const response = await fetch('http://localhost:5000/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newHistory, modelId: selectedModel })
+      });
+
+      if (!response.ok) throw new Error(`Server error ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const processEvent = (eventType, rawData) => {
+        let data;
+        try { data = JSON.parse(rawData); } catch { return; }
+
+        if (eventType === 'step') {
+          accSteps = [...accSteps, data];
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, steps: accSteps, loading: false } : m
+          ));
+        } else if (eventType === 'text_chunk') {
+          accText += data.text;
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, text: accText, loading: false, streaming: true } : m
+          ));
+        } else if (eventType === 'code') {
+          setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: data.code } }));
+        } else if (eventType === 'done') {
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, text: accText || 'Done.', loading: false, streaming: false } : m
+          ));
+          if (accText) {
+            setConvHistory(prev => [...prev, { role: 'assistant', content: [{ text: accText }] }]);
+          }
+          setIsStreaming(false);
+        } else if (eventType === 'human_required') {
+          setPendingAction(data.input);
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, text: data.text || 'Authorization required.', loading: false, streaming: false, steps: accSteps } : m
+          ));
+          setIsStreaming(false);
+        } else if (eventType === 'error') {
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, text: `Error: ${data.text}`, loading: false, streaming: false } : m
+          ));
+          setIsStreaming(false);
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+
+        for (const part of parts) {
+          const lines = part.split('\n');
+          let eventType = 'message';
+          let dataLine = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+            else if (line.startsWith('data: ')) dataLine = line.slice(6);
+          }
+          if (dataLine) processEvent(eventType, dataLine);
+        }
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, text: `Error: ${err.message}`, loading: false, streaming: false } : m
+      ));
+      setIsStreaming(false);
+    }
+  };
+
+  /* ─── Textarea key handler ──────────────────────────────────── */
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
 
   /* ─── Render ────────────────────────────────────────────────── */
   return (
     <div
       className="h-screen w-screen flex flex-col select-none overflow-hidden"
       style={{
-        background: '#09090b',
-        color: '#e2e4e9',
-        fontFamily: '"Geist", "Inter", system-ui, -apple-system, sans-serif',
-        '--accent':       '#3b82f6',
-        '--accent-dim':   'rgba(59,130,246,0.10)',
-        '--accent-glow':  'rgba(59,130,246,0.25)',
-        '--surface-0':    '#09090b',
-        '--surface-1':    '#0e0f14',
-        '--surface-2':    '#13141b',
-        '--surface-3':    '#1a1b23',
-        '--surface-4':    '#22232e',
-        '--border':       'rgba(255,255,255,0.045)',
-        '--border-hover': 'rgba(255,255,255,0.10)',
-        '--text-1':       '#f0f1f5',
-        '--text-2':       '#9ca0b0',
-        '--text-3':       '#5b6078',
-        '--green':        '#4ade80',
-        '--amber':        '#fbbf24',
-        '--red':          '#f87171',
+        // Surfaces, accent, border and text vars now inherit from the global
+        // token layer (src/styles/tokens.css) — single source of truth.
+        // Only App-specific semantic aliases are declared locally.
+        background: 'var(--canvas)',
+        color: 'var(--text-1)',
+        fontFamily: 'var(--font-sans)',
+        '--border-hover': 'var(--border-strong)',
+        '--green': 'var(--success)',
+        '--amber': 'var(--warn)',
+        '--red':   'var(--danger)',
       }}
     >
 
@@ -714,6 +835,7 @@ export default function App() {
           zIndex: 50,
         }}
       >
+        {/* Left cluster */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5">
             <div
@@ -741,10 +863,18 @@ export default function App() {
             </span>
           </div>
 
-          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
+          <div
+            style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }}
+          />
 
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() => {
+              if (sidebarOpen) {
+                sidebarPanelRef.current?.collapse();
+              } else {
+                sidebarPanelRef.current?.expand();
+              }
+            }}
             className="transition-all duration-200"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
@@ -759,255 +889,268 @@ export default function App() {
           </button>
         </div>
 
+        {/* Right cluster */}
         <div className="flex items-center gap-3">
           <ModelSelector
             value={selectedModel}
             onChange={setSelectedModel}
-            models={BEDROCK_MODELS}
+            models={availableModels}
           />
 
-          {/* ---> NEW: AGENT MODE UI TOGGLE */}
+          {/* Local / Cloud inference indicator */}
+          {(() => {
+            const local = selectedModel.startsWith('ollama.');
+            const tag = selectedModel.replace(/^ollama\./, '');
+            const ready = local && ollamaStatus.available &&
+              ollamaStatus.models.some(m => m === tag || m.startsWith(tag + ':'));
+            const color = local ? (ollamaStatus.available ? '#34d399' : '#fbbf24') : '#60a5fa';
+            const label = local
+              ? (ollamaStatus.available ? (ready ? 'Local · ready' : 'Local · not pulled') : 'Local · offline')
+              : 'Cloud';
+            return (
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                title={local
+                  ? (ollamaStatus.available
+                      ? (ready ? `Running offline on ${tag}` : `Ollama is up, but "${tag}" isn't pulled. Run: ollama pull ${tag}`)
+                      : 'Ollama not reachable on :11434. Start it to run offline.')
+                  : 'Inference runs on Amazon Bedrock (cloud).'}
+                style={{
+                  background: `${color}10`,
+                  border: `1px solid ${color}28`,
+                  fontSize: 11, fontWeight: 600, color,
+                  boxShadow: `0 0 12px ${color}10`,
+                }}
+              >
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', background: color,
+                  boxShadow: `0 0 8px ${color}`, display: 'inline-block',
+                  animation: 'breathe 2.5s ease-in-out infinite',
+                }}/>
+                {label}
+              </div>
+            );
+          })()}
+
           <div
-            onClick={() => setIsAgentMode(!isAgentMode)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
             style={{
-              background: isAgentMode ? 'rgba(168,85,247,0.1)' : 'rgba(74,222,128,0.06)',
-              border: isAgentMode ? '1px solid rgba(168,85,247,0.3)' : '1px solid rgba(74,222,128,0.15)',
-              fontSize: 11, fontWeight: 600,
-              color: isAgentMode ? '#c084fc' : '#4ade80',
-              boxShadow: isAgentMode ? '0 0 12px rgba(168,85,247,0.15)' : '0 0 12px rgba(74,222,128,0.06)',
+              background: 'rgba(74,222,128,0.06)',
+              border: '1px solid rgba(74,222,128,0.15)',
+              fontSize: 11, fontWeight: 600, color: '#4ade80',
+              boxShadow: '0 0 12px rgba(74,222,128,0.06)',
             }}
           >
             <span
               style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: isAgentMode ? '#c084fc' : '#4ade80',
-                boxShadow: isAgentMode ? '0 0 8px #c084fc' : '0 0 8px #4ade80',
+                background: '#4ade80',
+                boxShadow: '0 0 8px #4ade80, 0 0 16px rgba(74,222,128,0.3)',
                 display: 'inline-block',
                 animation: 'breathe 2.5s ease-in-out infinite',
               }}
             />
-            {isAgentMode ? 'AGENT MODE: AUTO' : 'COPILOT: SUPERVISED'}
+            Secure Gateway
           </div>
         </div>
       </header>
 
       {/* ══ MAIN BODY ══════════════════════════════════════════ */}
       <div className="flex-1 overflow-hidden">
-        <Group orientation="vertical">
+        <PanelGroup orientation="vertical">
 
+          {/* Top 70% */}
           <Panel defaultSize={70} minSize={30}>
-            <Group orientation="horizontal">
+            <PanelGroup orientation="horizontal">
 
               {/* ── SIDEBAR ── */}
-              {sidebarOpen && (
-                <>
-                  <Panel
-                    defaultSize={15} minSize={10}
-                    style={{ background: 'var(--surface-1)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}
+              <Panel
+                ref={sidebarPanelRef}
+                defaultSize={15} minSize={10}
+                collapsible collapsedSize={0}
+                onCollapse={() => setSidebarOpen(false)}
+                onExpand={() => setSidebarOpen(true)}
+                style={{ background: 'var(--surface-1)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              >
+                <div style={{
+                  padding: '10px 10px 8px',
+                  fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: 'var(--text-3)',
+                  borderBottom: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <FolderOpen size={11} style={{ color: 'var(--text-3)' }} />
+                  <span style={{ flex: 1 }}>Explorer</span>
+                  <button
+                    onClick={() => setShowNewFile(true)}
+                    title="New file"
+                    style={{
+                      padding: 4, borderRadius: 5, border: 'none',
+                      background: 'none', cursor: 'pointer',
+                      color: 'var(--text-3)', display: 'flex',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'none'; }}
                   >
-                    <div
-                      style={{
-                        padding: '12px 14px 10px',
-                        fontSize: 10, fontWeight: 700,
-                        letterSpacing: '0.12em', textTransform: 'uppercase',
-                        color: 'var(--text-3)',
-                        borderBottom: '1px solid var(--border)',
-                        display: 'flex', alignItems: 'center', gap: 8,
-                      }}
-                    >
-                      <FolderOpen size={12} style={{ color: 'var(--text-3)' }} />
-                      Explorer
-                    </div>
+                    <Plus size={13} />
+                  </button>
+                </div>
 
-                    <div style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-                      <div
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '5px 8px', marginBottom: 6,
-                          fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
-                          borderRadius: 6,
-                        }}
-                      >
-                        <FolderOpen size={14} style={{ color: 'var(--accent)' }} />
-                        my-ai-project
-                      </div>
+                <div style={{ flex: 1, padding: '8px 6px', overflowY: 'auto' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '4px 8px', marginBottom: 4,
+                    fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
+                  }}>
+                    <FolderOpen size={13} style={{ color: 'var(--accent)' }} />
+                    my-ai-project
+                  </div>
 
-                      {Object.keys(files).map(filename => {
-                        const ext    = getExt(filename);
-                        const color  = fileIconColor[ext] || '#8b8fa8';
-                        const active = activeFile === filename;
-                        return (
-                          <button
-                            key={filename}
-                            onClick={() => setActiveFile(filename)}
-                            style={{
-                              width: '100%',
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              padding: '5px 8px 5px 22px',
-                              borderRadius: 6,
-                              fontSize: 12,
-                              fontWeight: active ? 500 : 400,
-                              background: active ? 'var(--accent-dim)' : 'transparent',
-                              color: active ? 'var(--text-1)' : 'var(--text-2)',
-                              border: active ? '1px solid var(--accent-glow)' : '1px solid transparent',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease',
-                              textAlign: 'left',
-                              position: 'relative',
-                            }}
-                            onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--surface-3)'; e.currentTarget.style.color = 'var(--text-1)'; } }}
-                            onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; } }}
-                          >
-                            {active && (
-                              <span
-                                style={{
-                                  position: 'absolute', left: 6, top: '50%',
-                                  transform: 'translateY(-50%)', width: 3, height: 14,
-                                  borderRadius: 2, background: 'var(--accent)',
-                                  boxShadow: '0 0 6px rgba(59,130,246,0.4)',
-                                }}
-                              />
-                            )}
-                            <FileCode2 size={13} style={{ color, flexShrink: 0 }} />
+                  {Object.keys(files).map(filename => {
+                    const ext    = getExt(filename);
+                    const color  = fileIconColor[ext] || '#8b8fa8';
+                    const active = activeFile === filename;
+                    const canDelete = Object.keys(files).length > 1;
+                    return (
+                      <div key={filename} style={{ position: 'relative' }} className="sidebar-file-row">
+                        <button
+                          onClick={() => setActiveFile(filename)}
+                          style={{
+                            width: '100%',
+                            display: 'flex', alignItems: 'center', gap: 7,
+                            padding: '5px 8px 5px 20px',
+                            borderRadius: 6, fontSize: 11.5,
+                            fontWeight: active ? 500 : 400,
+                            background: active ? 'var(--accent-dim)' : 'transparent',
+                            color: active ? 'var(--text-1)' : 'var(--text-2)',
+                            border: active ? '1px solid var(--accent-glow)' : '1px solid transparent',
+                            cursor: 'pointer', transition: 'all 0.12s',
+                            textAlign: 'left', position: 'relative',
+                          }}
+                          onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--surface-3)'; e.currentTarget.style.color = 'var(--text-1)'; } }}
+                          onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; } }}
+                        >
+                          {active && (
+                            <span style={{
+                              position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)',
+                              width: 3, height: 14, borderRadius: 2,
+                              background: 'var(--accent)', boxShadow: '0 0 6px rgba(59,130,246,0.4)',
+                            }}/>
+                          )}
+                          <FileCode2 size={12} style={{ color, flexShrink: 0 }} />
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {filename}
+                          </span>
+                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDeleteFile(filename)}
+                            title={`Delete ${filename}`}
+                            className="delete-btn"
+                            style={{
+                              position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
+                              padding: '2px 3px', borderRadius: 4, border: 'none',
+                              background: 'var(--surface-4)', cursor: 'pointer',
+                              color: '#f87171', display: 'none', alignItems: 'center',
+                              opacity: 0, transition: 'opacity 0.15s',
+                            }}
+                          >
+                            <Trash2 size={10} />
                           </button>
-                        );
-                      })}
-                    </div>
-                  </Panel>
-                  <ResizeHandle />
-                </>
-              )}
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Panel>
+              <ResizeHandle />
 
               {/* ── AI BRAIN ── */}
               <Panel
                 defaultSize={25} minSize={15}
                 style={{ background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', position: 'relative' }}
               >
-                <div
-                  style={{
-                    padding: '0 16px', height: 40,
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    borderBottom: '1px solid var(--border)',
-                    fontSize: 10, fontWeight: 700,
-                    letterSpacing: '0.1em', textTransform: 'uppercase',
-                    color: 'var(--text-3)', flexShrink: 0,
-                    background: 'var(--surface-1)',
-                  }}
-                >
-                  <MessageSquare size={13} style={{ color: 'var(--accent)' }} />
-                  AI Brain
+                {/* Header */}
+                <div style={{
+                  padding: '0 14px', height: 40,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  borderBottom: '1px solid var(--border)',
+                  fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: 'var(--text-3)', flexShrink: 0,
+                  background: 'var(--surface-1)',
+                }}>
+                  <Bot size={12} style={{ color: 'var(--accent)' }} />
+                  AI Agent
+                  {isStreaming && (
+                    <span style={{
+                      marginLeft: 4, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+                      color: '#34d399', background: 'rgba(52,211,153,0.1)',
+                      border: '1px solid rgba(52,211,153,0.2)',
+                      borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase',
+                      animation: 'breathe 1.5s ease-in-out infinite',
+                    }}>
+                      Working
+                    </span>
+                  )}
                   <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 500, color: 'var(--text-3)', letterSpacing: 0, textTransform: 'none' }}>
-                    {selectedModelName}
+                    {convHistory.length > 0 && `${Math.ceil(convHistory.length / 2)} turn${convHistory.length > 2 ? 's' : ''}`}
                   </span>
                 </div>
 
-                <div
-                  style={{
-                    flex: 1, overflowY: 'auto', padding: '14px 12px',
-                    display: 'flex', flexDirection: 'column', gap: 10,
-                  }}
-                >
+                {/* Messages */}
+                <div style={{
+                  flex: 1, overflowY: 'auto', padding: '14px 10px',
+                  display: 'flex', flexDirection: 'column', gap: 10,
+                }}>
                   {messages.map(msg => (
-                    <div
-                      key={msg.id}
-                      style={{
-                        flexShrink: 0, // Prevent shrinking
-                        maxWidth: '90%',
-                        alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                        background: msg.sender === 'user'
-                          ? 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)'
-                          : 'var(--surface-3)',
-                        color: msg.sender === 'user' ? '#fff' : 'var(--text-1)',
-                        border: msg.sender === 'user' ? 'none' : '1px solid var(--border)',
-                        borderRadius: msg.sender === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        padding: '10px 14px',
-                        fontSize: 12.5,
-                        lineHeight: 1.6,
-                        wordBreak: 'break-word',
-                        boxShadow: msg.sender === 'user' 
-                          ? '0 4px 16px rgba(59,130,246,0.18)' 
-                          : '0 2px 8px rgba(0,0,0,0.15)',
-                      }}
-                    >
-                      {msg.loading ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-2)' }}>
-                          <span style={{ display: 'inline-flex', gap: 3 }}>
-                            {[0, 1, 2].map(i => (
-                              <span
-                                key={i}
-                                style={{
-                                  width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)',
-                                  animation: 'pulse 1.2s ease-in-out infinite',
-                                  animationDelay: `${i * 0.2}s`,
-                                }}
-                              />
-                            ))}
-                          </span>
-                          {msg.text}
-                        </span>
-                      ) : msg.text}
-                    </div>
+                    <MessageBubble key={msg.id} msg={msg} />
                   ))}
 
+                  {/* Human approval card */}
                   {pendingAction && (
-                    <div
-                      style={{
-                        flexShrink: 0, // CRITICAL FIX: Forces full height so buttons are visible
-                        background: 'var(--surface-3)',
-                        border: '1px solid rgba(59,130,246,0.3)',
-                        borderRadius: 14, padding: '16px',
-                        fontSize: 12, marginTop: 4,
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.25), 0 0 0 1px rgba(59,130,246,0.08)',
-                        position: 'relative',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-                          background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
-                          opacity: 0.5,
-                        }}
-                      />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fbbf24', fontWeight: 700, marginBottom: 10, fontSize: 12 }}>
-                        <span style={{ fontSize: 14 }}>⚠</span> Security Approval Required
+                    <div style={{
+                      background: 'var(--surface-3)',
+                      border: '1px solid rgba(251,191,36,0.25)',
+                      borderRadius: 14, padding: '14px',
+                      fontSize: 12, marginTop: 4,
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                      position: 'relative', overflow: 'hidden',
+                    }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, #fbbf24, transparent)', opacity: 0.6 }}/>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fbbf24', fontWeight: 700, marginBottom: 8, fontSize: 12 }}>
+                        <span>⚠</span> Security Approval Required
                       </div>
-                      <p style={{ color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.6, fontSize: 12 }}>
+                      <p style={{ color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.6, fontSize: 12 }}>
                         {pendingAction.explanation}
                       </p>
-                      <div
-                        style={{
-                          background: '#0c0c10', borderRadius: 10, padding: '12px 14px',
-                          fontFamily: '"Geist Mono", "Fira Code", "Cascadia Code", monospace',
-                          fontSize: 11.5, color: '#4ade80',
-                          marginBottom: 14, overflowX: 'auto',
-                          border: '1px solid rgba(255,255,255,0.04)',
-                        }}
-                      >
-                        {pendingAction.commands?.map((cmd, i) => (
-                          <div key={i} style={{ marginBottom: i < (pendingAction.commands?.length || 1) - 1 ? 4 : 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        background: '#0c0c10', borderRadius: 8, padding: '10px 12px',
+                        fontFamily: '"Geist Mono", monospace', fontSize: 11.5, color: '#4ade80',
+                        marginBottom: 12, overflowX: 'auto', border: '1px solid rgba(255,255,255,0.04)',
+                      }}>
+                        {(pendingAction.commands || []).map((cmd, i) => (
+                          <div key={i} style={{ marginBottom: i < pendingAction.commands.length - 1 ? 3 : 0, display: 'flex', gap: 8 }}>
                             <span style={{ color: 'var(--text-3)', userSelect: 'none' }}>$</span>
                             <span>{cmd}</span>
                           </div>
                         ))}
                       </div>
-                      <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           onClick={handleApproveAction}
                           style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            background: 'var(--accent)', color: '#fff',
-                            border: 'none', borderRadius: 8,
-                            padding: '8px 0', fontSize: 12, fontWeight: 600,
-                            cursor: 'pointer', transition: 'all 0.15s',
+                            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8,
+                            padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                             boxShadow: '0 2px 8px rgba(59,130,246,0.25)',
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                         >
-                          <Check size={14} strokeWidth={2.5} /> Run
+                          <Check size={13} strokeWidth={2.5} /> Run
                         </button>
                         <button
                           onClick={handleRejectAction}
@@ -1015,87 +1158,135 @@ export default function App() {
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                             background: 'rgba(248,113,113,0.08)', color: '#f87171',
                             border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8,
-                            padding: '8px 0', fontSize: 12, fontWeight: 600,
-                            cursor: 'pointer', transition: 'all 0.15s',
+                            padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.14)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.14)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
                         >
-                          <X size={14} strokeWidth={2.5} /> Reject
+                          <X size={13} strokeWidth={2.5} /> Reject
                         </button>
                       </div>
                     </div>
                   )}
 
-                  <div ref={chatEndRef} style={{ flexShrink: 0, height: 1 }} />
+                  <div ref={chatEndRef} />
                 </div>
 
-                <form
-                  onSubmit={handleSendMessage}
-                  style={{
-                    padding: '10px 12px',
-                    borderTop: '1px solid var(--border)',
-                    background: 'var(--surface-1)',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    flexShrink: 0,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={toggleVoice}
-                    style={{
-                      flexShrink: 0, padding: '8px',
-                      borderRadius: 10,
-                      background: isListening ? 'rgba(248,113,113,0.12)' : 'var(--surface-3)',
-                      color: isListening ? '#f87171' : 'var(--text-3)',
-                      cursor: 'pointer', transition: 'all 0.2s',
-                      boxShadow: isListening ? '0 0 16px rgba(248,113,113,0.2)' : 'none',
-                      border: isListening ? '1px solid rgba(248,113,113,0.25)' : '1px solid var(--border)',
-                    }}
-                    onMouseEnter={e => { if (!isListening) { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-4)'; } }}
-                    onMouseLeave={e => { if (!isListening) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface-3)'; } }}
-                  >
-                    <Mic size={15} style={isListening ? { animation: 'pulse 1s ease-in-out infinite' } : {}} />
-                  </button>
+                {/* Input area */}
+                <div style={{
+                  padding: '8px 10px 10px',
+                  borderTop: '1px solid var(--border)',
+                  background: 'var(--surface-1)',
+                  flexShrink: 0,
+                }}>
+                  {/* Suggested prompts — shown when input is empty and not streaming */}
+                  {!input && !isStreaming && !pendingAction && messages.length <= 1 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                      {SUGGESTED_PROMPTS.map((p, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setInput(p.text)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            padding: '4px 9px', borderRadius: 20,
+                            background: 'var(--surface-3)', border: '1px solid var(--border)',
+                            color: 'var(--text-3)', fontSize: 10.5, fontWeight: 500,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.3)'; e.currentTarget.style.background = 'rgba(59,130,246,0.06)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
+                        >
+                          <span>{p.icon}</span>
+                          <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.text.split(' ').slice(0, 4).join(' ')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-                  <input
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    disabled={pendingAction !== null}
-                    placeholder={pendingAction ? 'Awaiting approval…' : `Ask AI to write ${activeFile}…`}
-                    style={{
-                      flex: 1, background: 'var(--surface-3)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 10, padding: '8px 12px',
-                      fontSize: 12.5, color: 'var(--text-1)',
-                      outline: 'none', fontFamily: 'inherit',
-                      opacity: pendingAction ? 0.4 : 1,
-                      transition: 'all 0.2s',
-                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)',
-                    }}
-                    onFocus={e => { e.target.style.borderColor = 'rgba(59,130,246,0.4)'; e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.2), 0 0 0 3px rgba(59,130,246,0.08)'; }}
-                    onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.2)'; }}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 7 }}>
+                    {/* Voice button */}
+                    <button
+                      type="button"
+                      onClick={toggleVoice}
+                      style={{
+                        flexShrink: 0, padding: '7px', borderRadius: 9,
+                        background: isListening ? 'rgba(248,113,113,0.12)' : 'var(--surface-3)',
+                        color: isListening ? '#f87171' : 'var(--text-3)',
+                        cursor: 'pointer', transition: 'all 0.2s',
+                        boxShadow: isListening ? '0 0 12px rgba(248,113,113,0.2)' : 'none',
+                        border: isListening ? '1px solid rgba(248,113,113,0.25)' : '1px solid var(--border)',
+                        marginBottom: 1,
+                      }}
+                      onMouseEnter={e => { if (!isListening) { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-4)'; } }}
+                      onMouseLeave={e => { if (!isListening) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface-3)'; } }}
+                    >
+                      <Mic size={14} style={isListening ? { animation: 'pulse 1s ease-in-out infinite' } : {}} />
+                    </button>
 
-                  <button
-                    type="submit"
-                    disabled={pendingAction !== null}
-                    style={{
-                      flexShrink: 0, padding: '8px 10px',
-                      borderRadius: 10, border: 'none',
-                      background: 'var(--accent)', color: '#fff',
-                      cursor: pendingAction ? 'not-allowed' : 'pointer',
-                      opacity: pendingAction ? 0.35 : 1,
-                      transition: 'all 0.2s',
-                      display: 'flex', alignItems: 'center',
-                      boxShadow: pendingAction ? 'none' : '0 2px 8px rgba(59,130,246,0.25)',
-                    }}
-                    onMouseEnter={e => { if (!pendingAction) { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
-                    onMouseLeave={e => { if (!pendingAction) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; } }}
-                  >
-                    <Send size={14} strokeWidth={2.5} />
-                  </button>
-                </form>
+                    {/* Auto-expanding textarea */}
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <textarea
+                        ref={textareaRef}
+                        value={input}
+                        onChange={e => { setInput(e.target.value); autoResize(); }}
+                        onKeyDown={handleInputKeyDown}
+                        disabled={!!pendingAction || isStreaming}
+                        placeholder={
+                          pendingAction ? 'Awaiting approval…'
+                          : isStreaming ? 'AI is working…'
+                          : `Ask about ${activeFile}, or describe what to build…`
+                        }
+                        rows={1}
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          background: 'var(--surface-3)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 10, padding: '8px 12px',
+                          fontSize: 12.5, color: 'var(--text-1)',
+                          outline: 'none', fontFamily: 'inherit',
+                          resize: 'none', lineHeight: 1.5,
+                          opacity: (pendingAction || isStreaming) ? 0.45 : 1,
+                          transition: 'border-color 0.2s, box-shadow 0.2s',
+                          overflow: 'hidden',
+                        }}
+                        onFocus={e => { e.target.style.borderColor = 'rgba(59,130,246,0.4)'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.07)'; }}
+                        onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
+                      />
+                      {input && (
+                        <div style={{
+                          position: 'absolute', bottom: 5, right: 8,
+                          fontSize: 9, color: 'var(--text-3)', pointerEvents: 'none',
+                        }}>
+                          ↵ send · ⇧↵ newline
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Send button */}
+                    <button
+                      type="button"
+                      onClick={handleSendMessage}
+                      disabled={!input.trim() || !!pendingAction || isStreaming}
+                      style={{
+                        flexShrink: 0, padding: '7px 9px', borderRadius: 9,
+                        border: 'none',
+                        background: (!input.trim() || pendingAction || isStreaming) ? 'var(--surface-3)' : 'var(--accent)',
+                        color: (!input.trim() || pendingAction || isStreaming) ? 'var(--text-3)' : '#fff',
+                        cursor: (!input.trim() || pendingAction || isStreaming) ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex', alignItems: 'center',
+                        boxShadow: (!input.trim() || pendingAction || isStreaming) ? 'none' : '0 2px 8px rgba(59,130,246,0.25)',
+                        marginBottom: 1,
+                      }}
+                    >
+                      {isStreaming
+                        ? <Sparkles size={14} style={{ animation: 'pulse 1s ease-in-out infinite' }} />
+                        : <Send size={14} strokeWidth={2.5} />
+                      }
+                    </button>
+                  </div>
+                </div>
               </Panel>
 
               <ResizeHandle />
@@ -1193,11 +1384,11 @@ export default function App() {
                 </div>
 
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <LivePreview code={combinedCode} />
+                  <LivePreview files={files} />
                 </div>
               </Panel>
 
-            </Group>
+            </PanelGroup>
           </Panel>
 
           <HorizontalResizeHandle />
@@ -1343,13 +1534,13 @@ export default function App() {
             </div>
           </Panel>
 
-        </Group>
+        </PanelGroup>
       </div>
 
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 0.3; transform: scale(0.85); }
-          50%      { opacity: 1;   transform: scale(1.1); }
+          50%       { opacity: 1;   transform: scale(1.1); }
         }
         @keyframes breathe {
           0%, 100% { opacity: 0.6; box-shadow: 0 0 8px #4ade80, 0 0 16px rgba(74,222,128,0.2); }
@@ -1359,13 +1550,33 @@ export default function App() {
           0% { opacity: 0; transform: translateY(-6px) scale(0.98); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes cursor-blink {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0; }
+        }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
         ::-webkit-scrollbar-corner { background: transparent; }
+        .sidebar-file-row:hover .delete-btn {
+          display: flex !important;
+          opacity: 1 !important;
+        }
       `}</style>
+
+      {/* New file dialog */}
+      {showNewFile && (
+        <NewFileDialog
+          onConfirm={handleNewFile}
+          onCancel={() => setShowNewFile(false)}
+        />
+      )}
     </div>
   );
 }

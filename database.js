@@ -28,14 +28,15 @@ export async function initDB() {
   `);
 
   // --- LAYER 3: SEMANTIC MEMORY ---
-  // Stores learned facts about the project (e.g., "User prefers Tailwind")
+  // Stores ingested knowledge chunks, each mapped to a FAISS vector row.
+  // IMPORTANT: This schema MUST match vector_memory_setup.py and hybrid_search.py.
+  // If these columns drift, the Python FAISS retrieval breaks silently.
   await db.exec(`
     CREATE TABLE IF NOT EXISTS semantic_memory (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      entity_key TEXT UNIQUE NOT NULL,
-      entity_value TEXT NOT NULL,
-      confidence REAL DEFAULT 1.0
+      text_content TEXT NOT NULL,
+      vector_id INTEGER,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -73,6 +74,9 @@ export async function initDB() {
   // Create indexes for fast retrieval during the Agent's reasoning loop
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_mistake_task ON mistake_pool(task_id);`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_mistake_type ON mistake_pool(error_type);`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_mistake_time ON mistake_pool(timestamp);`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_episodic_session ON episodic_memory(session_id);`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_zone ON tamper_audit_trail(security_zone);`);
 
   console.log("[MEMORY ENGINE] SQLite Database initialized with WAL mode enabled.");
   return db;

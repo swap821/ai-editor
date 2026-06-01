@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { converseLLM } from './llmProvider.js';
 
 export async function analyzeAndLogMistake(db, command, errorOutput, modelId, region, bearerToken) {
   const systemPrompt = `You are a Reflection Agent for an Enterprise AI IDE.
@@ -17,17 +18,15 @@ export async function analyzeAndLogMistake(db, command, errorOutput, modelId, re
 
   try {
     console.log(`[REFLECTION AGENT] Analyzing failed command...`);
-    const response = await fetch(`https://bedrock-runtime.${region}.amazonaws.com/model/${modelId}/converse`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bearerToken}` },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: [{ text: prompt }] }],
-        system: [{ text: systemPrompt }],
-        inferenceConfig: { maxTokens: 500, temperature: 0.1 }
-      })
+    const responseData = await converseLLM({
+      modelId,
+      messages: [{ role: "user", content: [{ text: prompt }] }],
+      system: [{ text: systemPrompt }],
+      inferenceConfig: { maxTokens: 500, temperature: 0.1 },
+      region,
+      bearerToken,
     });
 
-    const responseData = await response.json();
     const textContent = responseData.output.message.content.find(b => b.text).text;
     
     // Clean and parse the JSON

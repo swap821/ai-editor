@@ -1,15 +1,148 @@
+/* ============================================================================
+   GLOBAL STYLESHEET
+   Order matters: Tailwind first, then our token layer, then base + a11y.
+   ========================================================================== */
 @import "tailwindcss";
+@import "./styles/tokens.css";
 
-:root {
-  --color-editorBg: #1e1e1e;
-  --color-panelBg: #252526;
-  --color-borderDark: #333333;
+/* ── Tailwind v4 @theme bridge ───────────────────────────────────────────
+   Registers the legacy utility names used by existing components
+   (bg-editorBg, border-borderDark, etc.) so they resolve to the unified
+   palette instead of silently producing nothing. Also exposes the new
+   surface/accent ramp + fluid type scale as Tailwind utilities. */
+@theme {
+  --color-canvas:     #050507;
+  --color-editorBg:   #08090c;
+  --color-panelBg:    #12131a;
+  --color-surface1:   #0d0e13;
+  --color-surface2:   #12131a;
+  --color-surface3:   #1a1c25;
+  --color-surface4:   #232531;
+  --color-borderDark: #232531;
+
+  --color-ink1: #f2f3f7;
+  --color-ink2: #a7abbd;
+  --color-ink3: #6b7088;
+
+  --color-accent:  #3b82f6;
+  --color-success: #34d399;
+  --color-warn:    #fbbf24;
+  --color-danger:  #f87171;
+
+  --font-sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
 }
+
+/* ── Modern reset ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
 
 html, body, #root {
   height: 100%;
   width: 100%;
-  margin: 0;
-  background-color: var(--color-editorBg);
-  color: #cccccc;
+}
+
+html { color-scheme: dark; }
+
+body {
+  background-color: var(--canvas);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+}
+
+#root {
+  isolation: isolate; /* own stacking context — keeps z-index scale predictable */
+}
+
+/* ── Media defaults ─────────────────────────────────────────────────────── */
+img, svg, video, canvas { display: block; max-width: 100%; }
+
+/* ── Form controls inherit type ─────────────────────────────────────────── */
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+/* ── Accessibility: visible focus only for keyboard users ───────────────── */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--accent-400);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* ── Text selection ─────────────────────────────────────────────────────── */
+::selection {
+  background: var(--accent-dim);
+  color: var(--text-1);
+}
+
+/* ── Custom scrollbars (token-driven) ───────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
+::-webkit-scrollbar-corner { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
+
+/* ── Shared motion keyframes (used across components) ───────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50%      { opacity: 1;   transform: scale(1.1); }
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+@keyframes dropdownIn {
+  0%   { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes overlayIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes dialogIn {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Reusable skeleton shimmer (GPU-friendly: only background-position) ──── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 25%,
+    var(--surface-4) 37%,
+    var(--surface-3) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,0 +1,128 @@
+/* ============================================================================
+   AI ORCHESTRATOR — DESIGN TOKENS  (single source of truth)
+   ----------------------------------------------------------------------------
+   This file is the design language. To restyle the entire application, edit
+   tokens here — components consume these variables and should rarely change.
+   Scales: color · elevation · radius · spacing · typography · motion · z-index
+   ========================================================================== */
+
+:root {
+  /* ── Color · Base canvas (OLED-optimized) ───────────────────────────── */
+  --canvas:        #050507;   /* app background — near-pure black for OLED   */
+  --surface-0:     #08090c;
+  --surface-1:     #0d0e13;
+  --surface-2:     #12131a;
+  --surface-3:     #1a1c25;
+  --surface-4:     #232531;
+  --surface-5:     #2d303d;
+
+  /* ── Color · Hairlines & borders ────────────────────────────────────── */
+  --border:        rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.11);
+  --border-accent: rgba(96, 165, 250, 0.35);
+
+  /* ── Color · Text ramp (tuned for >=4.5:1 on surface-1..3) ──────────── */
+  --text-1: #f2f3f7;   /* primary   */
+  --text-2: #a7abbd;   /* secondary */
+  --text-3: #6b7088;   /* tertiary / muted */
+  --text-on-accent: #ffffff;
+
+  /* ── Color · Accent ramp (blue→indigo) ──────────────────────────────── */
+  --accent-50:  #eff5ff;
+  --accent-200: #bcd3ff;
+  --accent-400: #60a5fa;
+  --accent-500: #3b82f6;
+  --accent-600: #2f6ae6;
+  --accent-700: #2657c0;
+  --accent:        var(--accent-500);
+  --accent-hover:  var(--accent-400);
+  --accent-dim:    rgba(59, 130, 246, 0.12);
+  --accent-glow:   rgba(59, 130, 246, 0.28);
+  --accent-grad:   linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+
+  /* ── Color · Semantic status (each has fg + dim bg) ─────────────────── */
+  --success:     #34d399;
+  --success-dim: rgba(52, 211, 153, 0.10);
+  --warn:        #fbbf24;
+  --warn-dim:    rgba(251, 191, 36, 0.10);
+  --danger:      #f87171;
+  --danger-dim:  rgba(248, 113, 113, 0.10);
+  --info:        #60a5fa;
+  --info-dim:    rgba(96, 165, 250, 0.10);
+
+  /* ── Glass (backdrop layers) ────────────────────────────────────────── */
+  --glass-bg:     rgba(13, 14, 19, 0.72);
+  --glass-blur:   blur(20px) saturate(1.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  /* ── Elevation (layered ambient shadow + inset highlight) ───────────── */
+  --elevation-1: 0 1px 2px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03);
+  --elevation-2: 0 4px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+  --elevation-3: 0 12px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+  --elevation-4: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(59,130,246,0.06);
+  --glow-accent: 0 0 20px rgba(59,130,246,0.18);
+  --glow-success:0 0 16px rgba(52,211,153,0.22);
+
+  /* ── Radius ─────────────────────────────────────────────────────────── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 22px;
+  --radius-pill: 999px;
+
+  /* ── Spacing scale (4px base) ───────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ── Typography ─────────────────────────────────────────────────────── */
+  --font-sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+
+  /* Fluid type scale — clamp(min, preferred, max). No media queries needed. */
+  --text-2xs: clamp(0.60rem, 0.58rem + 0.10vw, 0.66rem);
+  --text-xs:  clamp(0.68rem, 0.66rem + 0.12vw, 0.76rem);
+  --text-sm:  clamp(0.78rem, 0.75rem + 0.15vw, 0.86rem);
+  --text-md:  clamp(0.84rem, 0.81rem + 0.18vw, 0.94rem);
+  --text-lg:  clamp(0.96rem, 0.91rem + 0.25vw, 1.10rem);
+  --text-xl:  clamp(1.12rem, 1.04rem + 0.40vw, 1.40rem);
+  --text-2xl: clamp(1.40rem, 1.25rem + 0.70vw, 1.90rem);
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.75;
+  --tracking-wide: 0.08em;
+  --tracking-wider: 0.12em;
+
+  /* ── Motion (physics-inspired easing) ───────────────────────────────── */
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);   /* overshoot/bounce  */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);       /* decisive settle   */
+  --ease-snappy:   cubic-bezier(0.4, 0, 0.2, 1);        /* standard material */
+  --dur-fast:   120ms;
+  --dur-base:   200ms;
+  --dur-slow:   320ms;
+  --dur-slower: 480ms;
+
+  /* ── Z-index scale ──────────────────────────────────────────────────── */
+  --z-base: 1;
+  --z-sticky: 50;
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-toast: 300;
+}
+
+/* Honor the OS reduced-motion preference globally. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+    --dur-slower: 1ms;
+  }
+}

@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { Send, Globe, Code, Clock, Activity, CheckCircle2, XCircle } from "lucide-react";
 
+const METHOD_COLOR = {
+  GET:    '#34d399',
+  POST:   '#fbbf24',
+  PUT:    '#60a5fa',
+  PATCH:  '#a78bfa',
+  DELETE: '#f87171',
+};
+
 export default function TestingDashboard() {
   const [url, setUrl] = useState('https://jsonplaceholder.typicode.com/posts');
   const [method, setMethod] = useState('GET');
   const [reqBody, setReqBody] = useState('{\n  "title": "foo",\n  "body": "bar",\n  "userId": 1\n}');
-  
-  const [response, setResponse] = useState('// Hit Send to test the API...');
-  const [status, setStatus] = useState(null); 
+
+  const [response, setResponse] = useState(null);
+  const [status, setStatus] = useState(null);
   const [time, setTime] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  // Tab state for the request area
   const [reqTab, setReqTab] = useState('body');
+
+  const hasBody = ['POST', 'PUT', 'PATCH'].includes(method);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -21,17 +29,14 @@ export default function TestingDashboard() {
     setLoading(true);
     setStatus(null);
     setTime(null);
-    setResponse('// Fetching...');
+    setResponse(null);
 
     const startTime = performance.now();
     try {
       const options = { method };
-      
-      // Only attach body for methods that support it
-      if (['POST', 'PUT', 'PATCH'].includes(method)) {
+      if (hasBody) {
         options.headers = { 'Content-Type': 'application/json' };
         try {
-          // Validate JSON before sending
           JSON.parse(reqBody);
           options.body = reqBody;
         } catch {
@@ -50,8 +55,7 @@ export default function TestingDashboard() {
         const data = await res.json();
         setResponse(JSON.stringify(data, null, 2));
       } else {
-        const text = await res.text();
-        setResponse(text);
+        setResponse(await res.text());
       }
     } catch (error) {
       setResponse(`Error: ${error.message}\n\nNote: Browsers block some requests due to CORS policies. Start with public APIs.`);
@@ -60,139 +64,204 @@ export default function TestingDashboard() {
     setLoading(false);
   };
 
-  // UI Helpers
-  const getMethodColor = (m) => {
-    switch(m) {
-      case 'GET': return 'text-green-400';
-      case 'POST': return 'text-yellow-400';
-      case 'PUT': return 'text-blue-400';
-      case 'DELETE': return 'text-red-500';
-      default: return 'text-white';
-    }
-  };
-
-  const hasBody = ['POST', 'PUT', 'PATCH'].includes(method);
+  const methodColor = METHOD_COLOR[method] || 'var(--text-1)';
 
   return (
-    <div className="h-full flex flex-col bg-[#121212] text-gray-300 font-sans">
-      
-      {/* Top Title Bar */}
-      <div className="px-4 py-2 border-b border-borderDark flex items-center justify-between bg-[#181818] shrink-0">
-        <div className="flex items-center gap-2">
-          <Globe size={14} className="text-blue-400" />
-          <span className="font-semibold text-xs tracking-wide">API WORKSPACE</span>
-        </div>
+    <div style={{
+      height: '100%', display: 'flex', flexDirection: 'column',
+      background: 'var(--surface-0)', color: 'var(--text-2)',
+      fontFamily: 'var(--font-sans)',
+    }}>
+      {/* Title bar */}
+      <div style={{
+        padding: '8px 16px', flexShrink: 0,
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'var(--surface-1)',
+      }}>
+        <Globe size={13} style={{ color: 'var(--info)' }} />
+        <span style={{
+          fontSize: 'var(--text-xs)', fontWeight: 700,
+          letterSpacing: 'var(--tracking-wide)', textTransform: 'uppercase',
+          color: 'var(--text-2)',
+        }}>
+          API Workspace
+        </span>
       </div>
 
-      <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
-        
-        {/* URL / Request Bar */}
-        <form onSubmit={handleSend} className="flex gap-2 shrink-0 h-9">
-          <select 
-            value={method} 
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 14, gap: 12, overflow: 'hidden' }}>
+        {/* Request bar */}
+        <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, flexShrink: 0, height: 36 }}>
+          <select
+            value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className={`bg-[#1e1e1e] border border-borderDark rounded px-3 text-xs focus:outline-none focus:border-blue-500 font-bold w-24 cursor-pointer ${getMethodColor(method)}`}
+            aria-label="HTTP method"
+            style={{
+              width: 96, padding: '0 10px', borderRadius: 'var(--radius-md)',
+              background: 'var(--surface-3)', border: '1px solid var(--border)',
+              color: methodColor, fontWeight: 700, fontSize: 'var(--text-xs)',
+              fontFamily: 'var(--font-mono)', cursor: 'pointer', outline: 'none',
+            }}
           >
-            <option className="text-green-400">GET</option>
-            <option className="text-yellow-400">POST</option>
-            <option className="text-blue-400">PUT</option>
-            <option className="text-red-500">DELETE</option>
+            {['GET', 'POST', 'PUT', 'DELETE'].map(m => <option key={m} value={m}>{m}</option>)}
           </select>
-          
-          <input 
-            type="text" 
-            value={url} 
+
+          <input
+            type="text"
+            value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Enter request URL"
-            className="flex-1 bg-editorBg border border-borderDark rounded px-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono transition-colors"
+            placeholder="https://api.example.com/endpoint"
+            aria-label="Request URL"
+            style={{
+              flex: 1, padding: '0 12px', borderRadius: 'var(--radius-md)',
+              background: 'var(--surface-3)', border: '1px solid var(--border)',
+              color: 'var(--text-1)', fontSize: 'var(--text-xs)',
+              fontFamily: 'var(--font-mono)', outline: 'none',
+              transition: 'border-color var(--dur-base) var(--ease-snappy)',
+            }}
+            onFocus={e => { e.target.style.borderColor = 'var(--border-accent)'; }}
+            onBlur={e => { e.target.style.borderColor = 'var(--border)'; }}
           />
-          
-          <button 
-            type="submit" 
+
+          <button
+            type="submit"
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-5 rounded text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '0 18px',
+              borderRadius: 'var(--radius-md)', border: 'none',
+              background: 'var(--accent)', color: 'var(--text-on-accent)',
+              fontSize: 'var(--text-xs)', fontWeight: 600,
+              opacity: loading ? 0.6 : 1, cursor: loading ? 'wait' : 'pointer',
+              boxShadow: 'var(--glow-accent)',
+              transition: 'transform var(--dur-fast) var(--ease-spring), opacity var(--dur-base)',
+            }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >
-            {loading ? <Activity size={14} className="animate-spin" /> : <Send size={14} />}
+            {loading ? <Activity size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Send size={14} />}
             Send
           </button>
         </form>
 
-        {/* Workspace Split: Request (Top) & Response (Bottom) */}
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-          
-          {/* Request Config Area */}
-          <div className="flex flex-col border border-borderDark rounded-lg overflow-hidden bg-[#1a1a1a] h-[40%] shrink-0">
-            <div className="flex items-center bg-[#1e1e1e] border-b border-borderDark text-xs text-gray-400 px-2">
-              <button 
-                className={`px-3 py-1.5 border-b-2 transition-colors ${reqTab === 'body' ? 'border-blue-500 text-gray-200' : 'border-transparent hover:text-gray-300'}`}
-                onClick={() => setReqTab('body')}
-              >
-                Body
-              </button>
-              <button 
-                className={`px-3 py-1.5 border-b-2 transition-colors ${reqTab === 'headers' ? 'border-blue-500 text-gray-200' : 'border-transparent hover:text-gray-300'}`}
-                onClick={() => setReqTab('headers')}
-              >
-                Headers
-              </button>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+          {/* Request config */}
+          <div style={{
+            display: 'flex', flexDirection: 'column', height: '38%', flexShrink: 0,
+            borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+            background: 'var(--surface-1)', border: '1px solid var(--border)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '0 6px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+              {['body', 'headers'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setReqTab(tab)}
+                  style={{
+                    padding: '7px 12px', background: 'none', border: 'none',
+                    borderBottom: reqTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+                    color: reqTab === tab ? 'var(--text-1)' : 'var(--text-3)',
+                    fontSize: 'var(--text-xs)', fontWeight: reqTab === tab ? 600 : 400,
+                    textTransform: 'capitalize', transition: 'color var(--dur-fast)',
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
-            
-            <div className="flex-1 p-0 overflow-hidden relative">
-              {reqTab === 'body' && (
+
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              {reqTab === 'body' ? (
                 hasBody ? (
-                  <textarea 
+                  <textarea
                     value={reqBody}
                     onChange={(e) => setReqBody(e.target.value)}
-                    className="w-full h-full bg-transparent p-3 font-mono text-xs text-yellow-300 focus:outline-none resize-none"
                     spellCheck="false"
+                    aria-label="Request body JSON"
+                    style={{
+                      width: '100%', height: '100%', resize: 'none',
+                      background: 'transparent', border: 'none', outline: 'none',
+                      padding: 12, color: 'var(--warn)',
+                      fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
+                      lineHeight: 1.6,
+                    }}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 font-mono">
-                    This request does not have a body
-                  </div>
+                  <EmptyHint text={`A ${method} request has no body.`} />
                 )
-              )}
-              {reqTab === 'headers' && (
-                <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 font-mono">
-                  Auto-generated headers hidden.
-                </div>
+              ) : (
+                <EmptyHint text="Content-Type is auto-generated for requests with a body." />
               )}
             </div>
           </div>
 
-          {/* Response Area */}
-          <div className="flex-1 flex flex-col border border-borderDark rounded-lg overflow-hidden bg-editorBg min-h-0">
-            {/* Response Status Bar */}
-            <div className="bg-[#1e1e1e] p-2 border-b border-borderDark text-xs flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2 font-mono text-gray-400">
-                <Code size={14} /> Response
-              </div>
-              
-              {/* Telemetry */}
+          {/* Response */}
+          <div style={{
+            flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0,
+            borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+            background: 'var(--surface-0)', border: '1px solid var(--border)',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 12px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)',
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 'var(--text-xs)', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
+                <Code size={13} /> Response
+              </span>
               {status && (
-                <div className="flex items-center gap-4 font-mono">
-                  <div className={`flex items-center gap-1 ${status.ok ? 'text-green-400' : 'text-red-400'}`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: status.ok ? 'var(--success)' : 'var(--danger)' }}>
                     {status.ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                    Status: {status.code} {status.text}
-                  </div>
-                  <div className="flex items-center gap-1 text-blue-400">
-                    <Clock size={12} />
-                    Time: {time} ms
-                  </div>
+                    {status.code} {status.text}
+                  </span>
+                  {time != null && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--info)' }}>
+                      <Clock size={12} /> {time} ms
+                    </span>
+                  )}
                 </div>
               )}
             </div>
-            
-            {/* Response Body */}
-            <div className="flex-1 p-3 overflow-auto">
-              <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap break-all">
-                {response}
-              </pre>
+
+            <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+              {loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[90, 70, 80, 55, 65].map((w, i) => (
+                    <div key={i} className="skeleton" style={{ height: 11, width: `${w}%` }} />
+                  ))}
+                </div>
+              ) : response == null ? (
+                <EmptyHint icon text="Send a request to see the response here." />
+              ) : (
+                <pre style={{
+                  margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
+                  lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  color: status?.ok === false ? 'var(--danger)' : 'var(--success)',
+                }}>
+                  {response}
+                </pre>
+              )}
             </div>
           </div>
-          
         </div>
       </div>
+    </div>
+  );
+}
+
+function EmptyHint({ text, icon = false }) {
+  return (
+    <div style={{
+      width: '100%', height: '100%',
+      display: 'flex', flexDirection: 'column', gap: 10,
+      alignItems: 'center', justifyContent: 'center',
+      color: 'var(--text-3)', fontSize: 'var(--text-xs)',
+      fontFamily: 'var(--font-mono)', textAlign: 'center', padding: 16,
+    }}>
+      {icon && (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ opacity: 0.4 }}>
+          <path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        </svg>
+      )}
+      {text}
     </div>
   );
 }

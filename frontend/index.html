@@ -3,8 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ai-editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#050507" />
+    <meta name="description" content="AI Orchestrator — an agentic, security-gated, memory-driven IDE workspace." />
+    <!-- Anti-flash: paint the OLED canvas before the bundle loads -->
+    <style>
+      html { background: #050507; }
+      #root { min-height: 100vh; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <title>AI Orchestrator</title>
   </head>
   <body>
     <div id="root"></div>
