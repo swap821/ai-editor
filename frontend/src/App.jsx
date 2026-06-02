@@ -746,8 +746,12 @@ export default function App() {
   };
 
   const handleRejectAction = () => {
-    setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Action rejected.' }]);
+    if (!pendingAction) return;
+    // Reject ends the paused turn: clear both the pending action and the approval
+    // whitelist, so an authorised-but-unrun command can't linger into a later turn.
+    setApprovedCommands([]);
     setPendingAction(null);
+    setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Rejected — the command was not run.' }]);
   };
 
   const toggleVoice = () => {

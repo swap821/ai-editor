@@ -35,11 +35,13 @@ priority (propose one, then STOP for the operator's go before writing code):
    command runs → reflection. This is the highest-value next step (proves 4h end-to-end)
    but needs ~4 GB free RAM (close other apps). Set `AIOS_INDEX_CHAT=false` /
    `AIOS_REFLECT_ON_FAILURE=false` on a tight run to avoid extra model loads.
-2. **Reject-on-resume polish.** `handleRejectAction` currently just posts "Action
-   rejected" — consider recording the rejection to the chat/episodic trail and clearing
-   any half-streamed assistant bubble, for symmetry with approve.
+2. ~~Reject-on-resume polish~~ **DONE** — `handleRejectAction` now clears the
+   approval whitelist + pending action and posts "Rejected — the command was not run."
 3. **Offline voice (Whisper + Piper)** — fully local STT/TTS; bigger scope.
 4. **Docker + Prometheus/Grafana** — packaging/observability; bigger scope.
+
+The next *substantive* step is the live e2e demo (RAM-gated, operator-driven) — see
+the runbook; free ~3 GB first (only 1.31 GB free at last checkpoint).
 
 Note: approval whitelist is **per-request** (frontend resets `approvedCommands` on each
 new user message; grows it only across an approve→resume chain). That's the intended
