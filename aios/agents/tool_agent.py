@@ -13,9 +13,11 @@ Tools exposed to the model:
     no symlink escape), and content is secret-scrubbed before the model sees it.
   * ``read_directory``   — list a project directory (same scope rule).
   * ``execute_terminal`` — run a shell command through the gateway + sandbox
-    :class:`~aios.core.executor.Executor`. RED is blocked and YELLOW is reported
-    as needing human approval; only GREEN actually runs. The agent never
-    auto-runs a non-GREEN command.
+    :class:`~aios.core.executor.Executor`. GREEN runs immediately. A YELLOW
+    command pauses the turn and asks the human; once authorised (the command is
+    passed back in ``approved_commands``) it actually runs via
+    ``execute_approved``. RED is always blocked. The agent never auto-runs a
+    non-GREEN command.
 
 The agent is transport-agnostic: :meth:`ToolAgent.run` *yields* plain event
 dicts so the API layer can forward them as SSE and tests can assert on them
@@ -194,6 +196,7 @@ class ToolAgent:
         on_failure: Optional[FailureHook] = None,
         confirm_lesson: Optional[ConfirmHook] = None,
         prior_lesson_ids: Optional[list[int]] = None,
+        approved_commands: Optional[list[str]] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -215,11 +218,17 @@ class ToolAgent:
         #: Pending lesson ids recalled from earlier turns of this session; carried
         #: into the loop so a success here can verify a lesson learned before.
         self.prior_lesson_ids = list(prior_lesson_ids or [])
+        #: Commands a human has explicitly authorised this turn (blueprint Q5).
+        #: A YELLOW command listed here runs via ``execute_approved`` instead of
+        #: pausing again — this is what makes in-chat approval *resumable*. RED is
+        #: still refused even if listed, because approval can't authorise RED.
+        self.approved_commands = set(approved_commands or [])
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Drive the loop, yielding event dicts the API maps to SSE.
 
-        Event types: ``tool_call``, ``tool_result``, ``tool_blocked``, ``text``,
+        Event types: ``tool_call``, ``tool_result``, ``tool_blocked``,
+        ``human_required`` (pauses the turn for YELLOW approval), ``text``,
         ``code``, ``done``, ``error``.
         """
         system = SYSTEM_PROMPT
@@ -258,6 +267,20 @@ class ToolAgent:
 
                 yield {"type": "tool_call", "tool": name, "input": args, "id": call_id}
                 output, status, failed = self._dispatch(name, args)
+                if status == "approval":
+                    # A YELLOW command the human hasn't authorised yet: pause the
+                    # whole turn and ask. The turn is *resumable* — the frontend
+                    # re-calls /api/generate with this command whitelisted, so we
+                    # return here without running it, recording no assistant answer
+                    # (the paused turn is replayed, not continued from mid-stream).
+                    yield {
+                        "type": "human_required",
+                        "tool": name,
+                        "command": args.get("command", ""),
+                        "reason": output,
+                        "id": call_id,
+                    }
+                    return
                 if status == "blocked":
                     yield {
                         "type": "tool_blocked",
@@ -394,16 +417,36 @@ class ToolAgent:
             return (f"[ERROR] Could not list {path}: {exc}", "blocked", False)
         return ("\n".join(entries) if entries else "(empty)", "ok", False)
 
-    def _execute(self, command: str) -> tuple[str, str, bool]:
-        result = self.executor.execute(command, session_id=self.session_id)
+    def _format_exec_result(self, result: Any) -> tuple[str, str, bool]:
+        """Map a *resolved* ExecutionResult to ``(output, status, failed)``.
+
+        Handles every terminal status (OK/BLOCKED/TIMEOUT/ERROR) — i.e. a command
+        that actually ran or was refused — but never ``REQUIRE_APPROVAL``, which
+        the caller intercepts so the turn can pause for a human.
+        """
         if result.status == "OK":
             output = ((result.stdout or "") + (result.stderr or "")).strip()
             scrubbed = scan_and_redact(output or "(no output)").scrubbed
             # Ran, but a non-zero exit code is a real failure to learn from.
             return (scrubbed, "ok", bool(result.exit_code))
-        if result.status == "REQUIRE_APPROVAL":
-            return (f"[NEEDS HUMAN APPROVAL - not run] {result.reason}", "blocked", False)
         if result.status in ("TIMEOUT", "ERROR"):
             return (f"[{result.status}] {result.reason}", "blocked", True)
-        # BLOCKED — a security decision, not a mistake.
+        # BLOCKED — a security decision (incl. RED refused under approval), not a
+        # mistake to reflect on.
         return (f"[{result.status}] {result.reason}", "blocked", False)
+
+    def _execute(self, command: str) -> tuple[str, str, bool]:
+        """Run a command, returning ``(output, status, failed)``.
+
+        A command the human has authorised this turn runs through
+        ``execute_approved`` (GREEN/YELLOW run; RED is still refused). Otherwise
+        it goes through the normal gateway: a YELLOW escalation surfaces as the
+        ``"approval"`` status so :meth:`run` can pause and ask, rather than the
+        old "needs approval / not run" dead-end.
+        """
+        if command in self.approved_commands:
+            return self._format_exec_result(self.executor.execute_approved(command))
+        result = self.executor.execute(command, session_id=self.session_id)
+        if result.status == "REQUIRE_APPROVAL":
+            return (result.reason, "approval", False)
+        return self._format_exec_result(result)

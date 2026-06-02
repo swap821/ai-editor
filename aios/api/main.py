@@ -180,6 +180,10 @@ class GenerateRequest(BaseModel):
     messages: list[dict[str, Any]] = Field(default_factory=lambda: cast(list[dict[str, Any]], []))
     model_id: Optional[str] = Field(None, alias="modelId")
     session_id: str = Field("ui-session", alias="sessionId")
+    #: Commands the human has authorised for this turn. When the agent pauses on
+    #: a YELLOW command, the frontend re-sends the turn with that command added
+    #: here so it actually runs (resumable in-chat approval — blueprint Q5).
+    approved_commands: list[str] = Field(default_factory=list, alias="approvedCommands")
 
     model_config = {"populate_by_name": True}
 
@@ -557,6 +561,7 @@ def generate(
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(reflector),
             prior_lesson_ids=prior_lesson_ids,
+            approved_commands=req.approved_commands,
         )
         answer_parts: list[str] = []
         for ev in agent.run(chat_messages):
@@ -570,6 +575,19 @@ def generate(
                 yield _sse("code", {"code": ev["code"], "language": ev["language"]})
             elif kind == "error":
                 yield _sse("error", {"text": ev["text"]})
+            elif kind == "human_required":
+                # The agent paused on a YELLOW command. Ask the UI for approval;
+                # the turn ends here (no answer recorded) and is replayed once the
+                # human authorises the command. Shape matches the frontend's
+                # existing pendingAction handler ({commands, explanation}).
+                yield _sse(
+                    "human_required",
+                    {
+                        "input": {"commands": [ev["command"]], "explanation": ev["reason"]},
+                        "text": f"Authorization required: {ev['reason']}",
+                        "requiresApproval": True,
+                    },
+                )
             elif kind == "done":
                 # 4. Persist the answer (L2) and consolidate the turn into L3.
                 answer = "".join(answer_parts)

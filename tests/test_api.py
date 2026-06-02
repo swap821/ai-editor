@@ -68,6 +68,33 @@ class FakeOllama:
         }
 
 
+class FakeOllamaYellow:
+    """Ollama stand-in whose first turn calls a YELLOW (needs-approval) command."""
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "execute_terminal",
+                        "arguments": {"command": "pip install flask"},
+                    }
+                }
+            ],
+        }
+
+
 class FakeRunner:
     """Stand-in process runner — records, never spawns."""
 
@@ -272,3 +299,42 @@ def test_generate_indexes_completed_turn_into_semantic(client: TestClient) -> No
     assert client.fake_indexer.added, "the completed turn should be indexed into L3"
     entry = client.fake_indexer.added[-1]
     assert "User:" in entry and "Assistant:" in entry
+
+
+def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
+    # When the agent hits a YELLOW command, the turn pauses and the UI is asked
+    # to authorise it (resumable in-chat approval) instead of completing.
+    app.dependency_overrides[get_ollama_client] = FakeOllamaYellow
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-yellow-approval",
+        },
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "event: human_required" in body
+    assert "pip install flask" in body          # the command to authorise is surfaced
+    assert "event: done" not in body            # the paused turn does not complete
+
+
+def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
+    # Re-sending the turn with the command whitelisted runs it via the sandbox
+    # (FakeRunner), so the turn now completes instead of pausing.
+    app.dependency_overrides[get_ollama_client] = FakeOllamaYellow
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-yellow-approved",
+            "approvedCommands": ["pip install flask"],
+        },
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "event: human_required" not in body
+    assert "ran: pip install flask" in body     # executed in the sandbox
+    assert "event: done" in body

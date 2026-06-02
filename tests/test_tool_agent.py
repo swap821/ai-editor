@@ -274,3 +274,68 @@ def test_agent_stops_at_step_cap() -> None:
     ))
     assert events[-1]["type"] == "done"
     assert any("step limit" in e.get("text", "") for e in events if e["type"] == "text")
+
+
+def test_agent_pauses_on_unapproved_yellow_command() -> None:
+    # A YELLOW command the human hasn't authorised pauses the turn for approval
+    # instead of running it or dead-ending with "not run".
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "pip install flask"}),
+        {"role": "assistant", "content": "should not be reached"},
+    ])
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "install flask"}]
+    ))
+    types = [e["type"] for e in events]
+
+    assert "human_required" in types, "an unapproved YELLOW command must ask the human"
+    hr = next(e for e in events if e["type"] == "human_required")
+    assert hr["command"] == "pip install flask"
+    # The turn pauses cleanly: nothing ran, no answer, and the loop stopped before
+    # consuming the next scripted response.
+    assert "tool_result" not in types
+    assert "done" not in types
+    assert chat._responses, "the loop must stop before requesting another turn"
+
+
+def test_agent_runs_approved_yellow_command() -> None:
+    # The same YELLOW command, now whitelisted, runs via execute_approved instead
+    # of pausing again — this is what makes in-chat approval resumable.
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "pip install flask"}),
+        {"role": "assistant", "content": "Installed."},
+    ])
+    events = list(
+        ToolAgent(
+            chat, _executor(), max_iters=3,
+            approved_commands=["pip install flask"],
+        ).run([{"role": "user", "content": "install flask"}])
+    )
+    types = [e["type"] for e in events]
+
+    assert "human_required" not in types, "an authorised command must not pause again"
+    results = [e for e in events if e["type"] == "tool_result"]
+    assert results and "ran: pip install flask" in results[0]["output"]
+    assert types[-1] == "done"
+
+
+def test_agent_refuses_red_even_if_approved() -> None:
+    # Approval cannot authorise a RED action: execute_approved refuses it, so it
+    # surfaces as blocked, never runs, and does not pause for re-approval.
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "rm -rf /"}),
+        {"role": "assistant", "content": "could not run that."},
+    ])
+    events = list(
+        ToolAgent(
+            chat, _executor(), max_iters=3,
+            approved_commands=["rm -rf /"],
+        ).run([{"role": "user", "content": "delete everything"}])
+    )
+    types = [e["type"] for e in events]
+
+    assert "human_required" not in types
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked, "a RED command must stay blocked even when 'approved'"
+    assert "RED action" in blocked[0]["reason"]
+    assert events[-1]["type"] == "done"

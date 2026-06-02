@@ -539,6 +539,10 @@ export default function App() {
 
   const [selectedModel, setSelectedModel] = useState('amazon.nova-lite-v1:0');
   const [pendingAction, setPendingAction] = useState(null);
+  // Commands the human has authorised for the in-flight request. Reset when a
+  // new message is sent; grown when an approval resumes a paused turn so the
+  // agent can actually run the YELLOW command (resumable in-chat approval).
+  const [approvedCommands, setApprovedCommands] = useState([]);
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
   const [termHistory, setTermHistory] = useState(['AI Editor OS v2.0', 'Type "help" for available commands.']);
   const [termInput,   setTermInput]   = useState('');
@@ -631,88 +635,13 @@ export default function App() {
     }
   };
 
-  const handleApproveAction = async () => {
-    if (!pendingAction) return;
-    setActiveBottomTab('terminal');
-    const commandsToRun = pendingAction.commands;
-    setPendingAction(null);
-    setMessages(prev => [...prev, { id: Date.now(), sender: 'ai', text: `✅ Executing ${commandsToRun.length} command(s) in terminal…` }]);
-    for (const cmd of commandsToRun) {
-      setTermHistory(prev => [...prev, `[AI AGENT]: $ ${cmd}`]);
-      try {
-        const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
-        const data = await res.json();
-        setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
-      } catch {
-        setTermHistory(prev => [...prev, `[ERROR]: Failed to execute ${cmd}`]);
-      }
-    }
-  };
-
-  const handleRejectAction = () => {
-    setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Action rejected.' }]);
-    setPendingAction(null);
-  };
-
-  const toggleVoice = () => {
-    if (!recognitionRef.current) return alert("Voice recognition not supported.");
-    isListening ? recognitionRef.current.stop() : (setInput(''), recognitionRef.current.start());
-  };
-
-  /* ─── Auto-resize textarea ─────────────────────────────────── */
-  const autoResize = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
-  }, []);
-
-  useEffect(() => { autoResize(); }, [input, autoResize]);
-
-  /* ─── File management ───────────────────────────────────────── */
-  const handleNewFile = (name) => {
-    const ext = name.split('.').pop();
-    const lang = EXT_LANG[ext] || 'javascript';
-    setFiles(prev => ({ ...prev, [name]: { language: lang, content: '' } }));
-    setActiveFile(name);
-    setShowNewFile(false);
-  };
-
-  const handleDeleteFile = (name) => {
-    const keys = Object.keys(files);
-    if (keys.length <= 1) return;
-    setFiles(prev => {
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-    if (activeFile === name) {
-      const remaining = keys.filter(k => k !== name);
-      setActiveFile(remaining[0] || 'index.html');
-    }
-  };
-
-  /* ─── SSE-based send message ────────────────────────────────── */
-  const handleSendMessage = async (e) => {
-    e?.preventDefault();
-    const userText = input.trim();
-    if (!userText || isStreaming || pendingAction) return;
-
-    setInput('');
-    if (isListening) recognitionRef.current?.stop();
-
-    // Add user message to UI
-    const userMsgId = Date.now();
-    setMessages(prev => [...prev, { id: userMsgId, sender: 'user', text: userText, steps: [] }]);
-
-    // Build Bedrock-format conversation history
-    const newHistory = [
-      ...convHistory,
-      { role: 'user', content: [{ text: userText }] }
-    ];
-    setConvHistory(newHistory);
-
-    // Add loading AI message
+  /* ─── Stream one agent turn over SSE ────────────────────────── */
+  // Extracted so it can be invoked both for a fresh user message and to *resume*
+  // a turn that paused for YELLOW approval. `historyMessages` already includes
+  // the user turn; the paused assistant turn is never recorded (no `done`), so
+  // resuming simply replays the same history with the approved command(s) now
+  // whitelisted in `approvedCmds`.
+  const streamGenerate = async (historyMessages, approvedCmds) => {
     const aiMsgId = Date.now() + 1;
     setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', loading: true, steps: [], streaming: false }]);
     setIsStreaming(true);
@@ -724,7 +653,7 @@ export default function App() {
       const response = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newHistory, modelId: selectedModel })
+        body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, approvedCommands: approvedCmds })
       });
 
       if (!response.ok) throw new Error(`Server error ${response.status}`);
@@ -796,6 +725,93 @@ export default function App() {
       ));
       setIsStreaming(false);
     }
+  };
+
+  const handleApproveAction = async () => {
+    if (!pendingAction || isStreaming) return;
+    const commandsToRun = pendingAction.commands || [];
+    // Whitelist the approved command(s) and resume the *same* turn through the
+    // agent loop — so it runs under the gateway (execute_approved), stays in the
+    // chat transcript, and its outcome can still be reflected on. convHistory
+    // ends at the user message (the paused turn recorded no answer), so replaying
+    // it with the command(s) authorised continues exactly where we left off.
+    const newApproved = [...approvedCommands, ...commandsToRun];
+    setApprovedCommands(newApproved);
+    setPendingAction(null);
+    setMessages(prev => [...prev, {
+      id: Date.now(), sender: 'ai', steps: [],
+      text: `✅ Approved — resuming with ${commandsToRun.length} authorised command(s)…`,
+    }]);
+    await streamGenerate(convHistory, newApproved);
+  };
+
+  const handleRejectAction = () => {
+    setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Action rejected.' }]);
+    setPendingAction(null);
+  };
+
+  const toggleVoice = () => {
+    if (!recognitionRef.current) return alert("Voice recognition not supported.");
+    isListening ? recognitionRef.current.stop() : (setInput(''), recognitionRef.current.start());
+  };
+
+  /* ─── Auto-resize textarea ─────────────────────────────────── */
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }, []);
+
+  useEffect(() => { autoResize(); }, [input, autoResize]);
+
+  /* ─── File management ───────────────────────────────────────── */
+  const handleNewFile = (name) => {
+    const ext = name.split('.').pop();
+    const lang = EXT_LANG[ext] || 'javascript';
+    setFiles(prev => ({ ...prev, [name]: { language: lang, content: '' } }));
+    setActiveFile(name);
+    setShowNewFile(false);
+  };
+
+  const handleDeleteFile = (name) => {
+    const keys = Object.keys(files);
+    if (keys.length <= 1) return;
+    setFiles(prev => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+    if (activeFile === name) {
+      const remaining = keys.filter(k => k !== name);
+      setActiveFile(remaining[0] || 'index.html');
+    }
+  };
+
+  /* ─── SSE-based send message ────────────────────────────────── */
+  const handleSendMessage = async (e) => {
+    e?.preventDefault();
+    const userText = input.trim();
+    if (!userText || isStreaming || pendingAction) return;
+
+    setInput('');
+    if (isListening) recognitionRef.current?.stop();
+
+    // Add user message to UI
+    const userMsgId = Date.now();
+    setMessages(prev => [...prev, { id: userMsgId, sender: 'user', text: userText, steps: [] }]);
+
+    // Build Bedrock-format conversation history
+    const newHistory = [
+      ...convHistory,
+      { role: 'user', content: [{ text: userText }] }
+    ];
+    setConvHistory(newHistory);
+
+    // A fresh request starts with a clean approval whitelist, then streams the
+    // turn (which pauses for human approval if it hits a YELLOW command).
+    setApprovedCommands([]);
+    await streamGenerate(newHistory, []);
   };
 
   /* ─── Textarea key handler ──────────────────────────────────── */
