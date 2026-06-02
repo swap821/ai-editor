@@ -1125,6 +1125,9 @@ export default function App() {
                 <div style={{
                   flex: 1, overflowY: 'auto', padding: '14px 10px',
                   display: 'flex', flexDirection: 'column', gap: 10,
+                  // Soft top fade so messages dissolve under the header as they scroll.
+                  WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 14px)',
+                  maskImage: 'linear-gradient(to bottom, transparent 0, #000 14px)',
                 }}>
                   {messages.map(msg => (
                     <MessageBubble key={msg.id} msg={msg} />
