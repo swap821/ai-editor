@@ -172,6 +172,27 @@ button:not(:disabled):active { transform: scale(0.97); }
   100% { opacity: 1; transform: translateY(0); }
 }
 
+/* ── AI-state aura: the chat panel breathes cyan when idle and pulses violet
+   while the agent is generating. Only opacity animates (GPU-composited, cheap);
+   the colored rim is a static inset shadow swapped per state. Content untouched. */
+.ai-aura::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(34,211,238,0.22), inset 0 0 34px -10px rgba(34,211,238,0.30);
+  opacity: 0.30;
+  transition: box-shadow 0.45s ease;
+  animation: auraBreath 5.5s ease-in-out infinite;
+}
+.ai-aura.is-generating::before {
+  box-shadow: inset 0 0 0 1px rgba(139,92,246,0.40), inset 0 0 42px -8px rgba(139,92,246,0.45);
+  animation: auraPulse 1.5s ease-in-out infinite;
+}
+@keyframes auraBreath { 0%, 100% { opacity: 0.20; } 50% { opacity: 0.46; } }
+@keyframes auraPulse  { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.95; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;

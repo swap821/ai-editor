@@ -1091,6 +1091,7 @@ export default function App() {
               {/* ── AI BRAIN ── */}
               <Panel
                 defaultSize={25} minSize={15}
+                className={`ai-aura${isStreaming ? ' is-generating' : ''}`}
                 style={{ background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', position: 'relative' }}
               >
                 {/* Header */}
