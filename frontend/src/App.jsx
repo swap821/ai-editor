@@ -1,12 +1,15 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { Terminal, Code, Play, Send, GitBranch, Network, Mic, FolderOpen, FileCode2, PanelLeftClose, PanelLeft, Check, X, Plus, Trash2, Sparkles, Bot } from "lucide-react";
 import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
-import AmbientVoid from './components/AmbientVoid';
 import { API_BASE } from './config';
+
+// The 3D spatial backdrop pulls in three.js — lazy-load it as its own chunk so
+// the app shell stays light and a 3D failure never white-screens the UI.
+const SpatialScene = lazy(() => import('./components/SpatialScene'));
 
 /* ─── Premium Resize Handles ─────────────────────────────────────────── */
 const ResizeHandle = () => (
@@ -849,7 +852,9 @@ export default function App() {
         '--red':   'var(--danger)',
       }}
     >
-      <AmbientVoid energy={isStreaming ? 1 : 0.28} />
+      <Suspense fallback={null}>
+        <SpatialScene energy={isStreaming ? 1 : 0.15} />
+      </Suspense>
 
       {/* ══ TITLE BAR ══════════════════════════════════════════ */}
       <header
