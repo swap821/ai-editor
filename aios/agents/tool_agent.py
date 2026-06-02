@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Callable, Iterator, Optional, Protocol
+from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
 from aios import config
 from aios.core.executor import Executor
@@ -38,7 +38,12 @@ from aios.security.secret_scanner import scan_and_redact
 #: a summary dict (``error_type``/``lesson_text``/``recurrence``/``mistake_id``),
 #: or ``None`` if nothing was recorded. Lets the agent stay decoupled from the
 #: reflection agent + Mistake DB.
-FailureHook = Callable[[str, str], Optional[dict]]
+FailureHook = Callable[[str, str], Optional[dict[str, Any]]]
+
+#: A confirmation hook: given a lesson's mistake id, promote it pending->verified.
+#: Called when a command succeeds after an earlier failure in the same task —
+#: evidence the recorded lesson proved itself (blueprint Q6).
+ConfirmHook = Callable[[int], None]
 
 #: Max reason -> act turns before the loop stops for safety.
 DEFAULT_MAX_ITERS = 5
@@ -61,7 +66,7 @@ SYSTEM_PROMPT = (
 )
 
 #: OpenAI-style function tool specs advertised to the model.
-TOOL_SPECS: list[dict] = [
+TOOL_SPECS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
@@ -131,25 +136,25 @@ class ChatClient(Protocol):
 
     def chat(
         self,
-        messages: list[dict],
+        messages: list[dict[str, Any]],
         *,
-        tools: Optional[list[dict]] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         ...
 
 
-def _coerce_args(raw: object) -> dict:
+def _coerce_args(raw: object) -> dict[str, Any]:
     """Normalise a tool-call ``arguments`` value (dict or JSON string) to a dict."""
     if isinstance(raw, dict):
-        return raw
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
+        return cast(dict[str, Any], raw)
+    if not isinstance(raw, str):
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return cast(dict[str, Any], parsed) if isinstance(parsed, dict) else {}
 
 
 def _resolve_within(root: Path, candidate: str) -> Optional[Path]:
@@ -158,7 +163,7 @@ def _resolve_within(root: Path, candidate: str) -> Optional[Path]:
     Defeats ``../`` traversal, absolute paths, and symlink escape via
     :meth:`pathlib.Path.resolve`. Fail-closed: any error yields ``None``.
     """
-    if not candidate or not isinstance(candidate, str):
+    if not candidate:
         return None
     try:
         resolved = (root / candidate).resolve()
@@ -187,6 +192,7 @@ class ToolAgent:
         session_id: Optional[str] = None,
         memory_context: Optional[str] = None,
         on_failure: Optional[FailureHook] = None,
+        confirm_lesson: Optional[ConfirmHook] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -202,8 +208,11 @@ class ToolAgent:
         #: Optional reflection hook fired when a command genuinely fails (not when
         #: it is merely blocked by the gateway) — blueprint stage 9.
         self.on_failure = on_failure
+        #: Optional confirmation hook: promotes a pending lesson to verified once
+        #: a later command succeeds within the same task (blueprint Q6).
+        self.confirm_lesson = confirm_lesson
 
-    def run(self, messages: list[dict]) -> Iterator[dict]:
+    def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Drive the loop, yielding event dicts the API maps to SSE.
 
         Event types: ``tool_call``, ``tool_result``, ``tool_blocked``, ``text``,
@@ -212,18 +221,22 @@ class ToolAgent:
         system = SYSTEM_PROMPT
         if self.memory_context:
             system = f"{SYSTEM_PROMPT}\n\n{self.memory_context}"
-        convo: list[dict] = [{"role": "system", "content": system}]
+        convo: list[dict[str, Any]] = [{"role": "system", "content": system}]
         convo.extend(messages)
+
+        #: Lesson ids recorded from failures this task, awaiting a success to
+        #: confirm them (blueprint Q6: a lesson is verified once a later command
+        #: succeeds, showing the fix was applied).
+        pending_lessons: list[int] = []
 
         for _ in range(self.max_iters):
             try:
-                msg = self.llm.chat(convo, tools=TOOL_SPECS, model=self.model)
+                msg: dict[str, Any] = self.llm.chat(convo, tools=TOOL_SPECS, model=self.model)
             except LLMError as exc:
                 yield {"type": "error", "text": f"Local inference error: {exc}"}
                 return
-
-            tool_calls = msg.get("tool_calls") or []
-            assistant_msg: dict = {"role": "assistant", "content": msg.get("content", "")}
+            tool_calls: list[dict[str, Any]] = msg.get("tool_calls") or []
+            assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.get("content", "")}
             if tool_calls:
                 assistant_msg["tool_calls"] = tool_calls
             convo.append(assistant_msg)
@@ -233,9 +246,9 @@ class ToolAgent:
                 return
 
             for index, call in enumerate(tool_calls):
-                function = call.get("function", {}) if isinstance(call, dict) else {}
+                function = cast(dict[str, Any], call.get("function", {}))
                 name = str(function.get("name", ""))
-                args = _coerce_args(function.get("arguments"))
+                args: dict[str, Any] = _coerce_args(function.get("arguments"))
                 call_id = f"{name}-{index}"
 
                 yield {"type": "tool_call", "tool": name, "input": args, "id": call_id}
@@ -256,24 +269,40 @@ class ToolAgent:
                     }
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
 
-                # Self-correction (blueprint stage 9): a genuine command failure
-                # becomes a structured lesson. Security blocks are correct
-                # behaviour, not mistakes, so they never reflect.
-                if failed and name == "execute_terminal" and self.on_failure is not None:
-                    yield from self._reflect(args.get("command", ""), output, index)
+                if name == "execute_terminal":
+                    if failed and self.on_failure is not None:
+                        # Self-correction (blueprint stage 9): a genuine command
+                        # failure becomes a structured lesson. Security blocks are
+                        # correct behaviour, not mistakes, so they never reflect.
+                        yield from self._reflect(
+                            args.get("command", ""), output, index, pending_lessons
+                        )
+                    elif not failed and status == "ok" and pending_lessons:
+                        # A command succeeded after an earlier failure this task:
+                        # the recorded lesson(s) proved themselves (blueprint Q6).
+                        yield from self._confirm(pending_lessons, index)
 
         # Step cap reached without a final answer.
         yield {"type": "text", "text": "Reached the step limit and stopped for safety."}
         yield {"type": "done"}
 
-    def _reflect(self, command: str, error_output: str, index: int) -> Iterator[dict]:
-        """Run the failure hook and surface the recorded lesson as a step."""
+    def _reflect(
+        self,
+        command: str,
+        error_output: str,
+        index: int,
+        pending_lessons: list[int],
+    ) -> Iterator[dict[str, Any]]:
+        """Run the failure hook, track the lesson id, and surface it as a step."""
         try:
             lesson = self.on_failure(command, error_output)  # type: ignore[misc]
         except Exception:  # noqa: BLE001 - reflection must never break the loop
             lesson = None
         if not lesson:
             return
+        mistake_id = lesson.get("mistake_id")
+        if isinstance(mistake_id, int):
+            pending_lessons.append(mistake_id)
         summary = f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
         if lesson.get("recurrence"):
             summary = f"(recurring) {summary}"
@@ -284,8 +313,28 @@ class ToolAgent:
             "id": f"reflect-{index}",
         }
 
+    def _confirm(
+        self, pending_lessons: list[int], index: int
+    ) -> Iterator[dict[str, Any]]:
+        """Promote pending lessons to verified after a corrective success."""
+        promoted = list(pending_lessons)
+        pending_lessons.clear()
+        if self.confirm_lesson is None:
+            return
+        for mistake_id in promoted:
+            try:
+                self.confirm_lesson(mistake_id)
+            except Exception:  # noqa: BLE001 - confirmation must never break the loop
+                pass
+        yield {
+            "type": "tool_result",
+            "tool": "reflect",
+            "output": f"Verified {len(promoted)} earlier lesson(s) — the fix worked.",
+            "id": f"verify-{index}",
+        }
+
     # ----------------------------------------------------------------- finish
-    def _finish(self, content: str) -> Iterator[dict]:
+    def _finish(self, content: str) -> Iterator[dict[str, Any]]:
         """Stream a final answer word-by-word, then surface any code block."""
         text = content.strip() or "(no answer)"
         for word in re.findall(r"\S+\s*", text):
@@ -298,7 +347,7 @@ class ToolAgent:
         yield {"type": "done"}
 
     # --------------------------------------------------------------- dispatch
-    def _dispatch(self, name: str, args: dict) -> tuple[str, str, bool]:
+    def _dispatch(self, name: str, args: dict[str, Any]) -> tuple[str, str, bool]:
         """Route a tool call to its handler. Returns ``(output, status, failed)``.
 
         ``failed`` marks a genuine execution failure worth reflecting on (a

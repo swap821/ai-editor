@@ -40,6 +40,19 @@ class FailRunner:
         return "", "boom: assertion failed", 1
 
 
+class FlakyRunner:
+    """Fails the first command, then succeeds — models a fix being applied."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        self.calls += 1
+        if self.calls == 1:
+            return "", "boom: assertion failed", 1
+        return "ok", "", 0
+
+
 def _executor() -> Executor:
     return Executor(
         runner=FakeRunner(),
@@ -51,6 +64,14 @@ def _executor() -> Executor:
 def _failing_executor() -> Executor:
     return Executor(
         runner=FailRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+    )
+
+
+def _flaky_executor() -> Executor:
+    return Executor(
+        runner=FlakyRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
     )
@@ -165,6 +186,48 @@ def test_agent_reflects_on_command_failure() -> None:
     assert seen and seen[0][0] == "pytest"          # the hook saw the failed command
     reflect_steps = [e for e in events if e.get("tool") == "reflect"]
     assert reflect_steps and "add a guard clause" in reflect_steps[0]["output"]
+
+
+def test_agent_promotes_lesson_after_corrective_success() -> None:
+    # Fail a command (records lesson 7), then succeed on the retry -> verify it.
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "pytest"}),
+        _tool_call("execute_terminal", {"command": "pytest --fixed"}),
+        {"role": "assistant", "content": "Fixed and passing."},
+    ])
+
+    def on_failure(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "guard the input",
+                "recurrence": False, "mistake_id": 7}
+
+    confirmed: list[int] = []
+    events = list(
+        ToolAgent(
+            chat, _flaky_executor(), max_iters=4,
+            on_failure=on_failure, confirm_lesson=confirmed.append,
+        ).run([{"role": "user", "content": "make the tests pass"}])
+    )
+
+    assert confirmed == [7], "the lesson should be promoted after the corrective success"
+    verify_steps = [e for e in events if e.get("tool") == "reflect" and "Verified" in e.get("output", "")]
+    assert verify_steps, "a 'lesson verified' step should be surfaced"
+
+
+def test_agent_does_not_promote_without_prior_failure() -> None:
+    # A clean success with no earlier failure must not promote anything.
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "echo hi"}),
+        {"role": "assistant", "content": "done"},
+    ])
+    confirmed: list[int] = []
+    list(
+        ToolAgent(
+            chat, _executor(), max_iters=3,
+            on_failure=lambda c, e: {"mistake_id": 1, "error_type": "X", "lesson_text": "y", "recurrence": False},
+            confirm_lesson=confirmed.append,
+        ).run([{"role": "user", "content": "say hi"}])
+    )
+    assert confirmed == [], "no failure occurred, so nothing should be confirmed"
 
 
 def test_agent_does_not_reflect_on_security_block() -> None:

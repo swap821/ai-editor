@@ -441,6 +441,24 @@ def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str):
     return hook
 
 
+def _make_confirm_hook(reflector: Optional[ReflectionAgent]):
+    """Build the agent's lesson-confirmation hook (promotes pending->verified).
+
+    Guarded so promotion can never break the chat; ``None`` when reflection is
+    disabled, in which case the agent simply never confirms.
+    """
+    if reflector is None:
+        return None
+
+    def confirm(mistake_id: int) -> None:
+        try:
+            reflector.confirm_lesson(mistake_id)
+        except Exception:  # noqa: BLE001 - confirmation must never break the chat
+            pass
+
+    return confirm
+
+
 @app.post("/api/generate")
 def generate(
     req: GenerateRequest,
@@ -486,7 +504,7 @@ def generate(
             )
         _record_episode(session_id, "user", user_text)
 
-        # 3. Agentic loop with the recalled context + reflection hook.
+        # 3. Agentic loop with recalled context + reflection + lesson confirmation.
         agent = ToolAgent(
             client,
             executor,
@@ -494,6 +512,7 @@ def generate(
             session_id=session_id,
             memory_context=memory_context,
             on_failure=_make_failure_hook(reflector, session_id),
+            confirm_lesson=_make_confirm_hook(reflector),
         )
         answer_parts: list[str] = []
         for ev in agent.run(chat_messages):
