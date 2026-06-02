@@ -561,6 +561,13 @@ export default function App() {
   useEffect(() => { terminalEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termHistory]);
   useEffect(() => { gitEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [gitHistory]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  // The approval card is tall; when it appears, scroll (after it lays out) so its
+  // Run/Reject buttons are visible instead of being clipped below the panel fold.
+  useEffect(() => {
+    if (!pendingAction) return;
+    const t = setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 60);
+    return () => clearTimeout(t);
+  }, [pendingAction]);
 
   // Probe the local Ollama engine for installed models. Runs on mount and again
   // whenever the window regains focus — so a model pulled in a terminal shows up
