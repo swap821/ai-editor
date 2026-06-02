@@ -27,15 +27,32 @@ security-gated, human-supervised, self-correcting.
 - **Agentic chat that acts + learns** — `/api/generate` runs a security-gated tool loop (read_file / read_directory / execute_terminal), recalls memory, persists + consolidates each turn into L2/L3, reflects on failures (🧠 lesson), promotes lessons pending→verified on a corrective success, and recalls a session's pending lessons across turns. `[aios/agents/tool_agent.py]`
 
 ## Next action  → do this first on resume
-1. Decide the next build target. Recommended (highest leverage first):
-   **(a) Live end-to-end demo pass** — start uvicorn + `npm run dev`, pull a small model (`ollama pull llama3.2:3b`), and exercise the full loop on a real task; capture any rough edges as experiences.
-   Then candidate features: **(b)** resumable YELLOW approval inside the chat loop (currently "needs approval / not run"); **(c)** offline voice (Whisper STT + Piper TTS); **(d)** Docker compose + Prometheus/Grafana.
+**IN PROGRESS — Phase 4h: resumable in-chat YELLOW approval** (started, no code written yet; design locked below). Goal: when the agent hits a YELLOW command in the chat loop, pause and ask the human; on approval the command actually runs (instead of today's "needs approval / not run"). Backend-first + fully fake-tested; minimal frontend wire-up.
+
+Exact plan (build in this order, `pytest` green before commit):
+1. `aios/core/executor.py` already has `execute_approved(command)` (runs GREEN/YELLOW, still refuses RED) — reuse it. `ExecutionResult.status` ∈ OK/BLOCKED/REQUIRE_APPROVAL/TIMEOUT/ERROR.
+2. `aios/agents/tool_agent.py`:
+   - `__init__(..., approved_commands: Optional[list[str]] = None)` → `self.approved_commands = set(approved_commands or [])`.
+   - Refactor `_execute`: add helper `_format_exec_result(result)` → maps OK→(out,"ok",bool(exit_code)), TIMEOUT/ERROR→(reason,"blocked",True), BLOCKED→(reason,"blocked",False). In `_execute(command)`: if `command in self.approved_commands` → `_format_exec_result(self.executor.execute_approved(command))`; else `r=self.executor.execute(command, session_id=...)`; if `r.status=="REQUIRE_APPROVAL"` → return `(r.reason, "approval", False)` (NEW status); else `_format_exec_result(r)`.
+   - In `run()` tool-call block: after `output,status,failed = self._dispatch(...)`, if `status == "approval"` → `yield {"type":"human_required","tool":name,"command":args.get("command",""),"reason":output,"id":call_id}` then `return` (pause turn). Keep existing blocked/result/reflect branches for other statuses.
+3. `aios/api/main.py`:
+   - `GenerateRequest`: add `approved_commands: list[str] = Field(default_factory=list, alias="approvedCommands")` (+ keep `populate_by_name`).
+   - Pass `approved_commands=req.approved_commands` into `ToolAgent(...)`.
+   - In the SSE map, handle agent event `human_required` → `yield _sse("human_required", {"input": {"commands": [ev["command"]], "explanation": ev["reason"]}, "text": f"Authorization required: {ev['reason']}", "requiresApproval": True})`. (Frontend already handles `human_required` → `setPendingAction(data.input)`.)
+4. Tests:
+   - `tests/test_tool_agent.py`: unapproved YELLOW (`_tool_call("execute_terminal", {"command":"pip install flask"})`) → events contain a `human_required` and loop stops (no `done`); with `approved_commands=["pip install flask"]` → runs via FakeRunner → `tool_result`. (`classify("pip install flask")` = YELLOW.)
+   - `tests/test_api.py`: a `FakeOllama.chat` variant that calls execute_terminal with a YELLOW command → `/api/generate` SSE contains `event: human_required`.
+5. Frontend (minimal, lint+build): `App.jsx` — add `approvedCommands` state (array); include `approvedCommands` in the `/api/generate` body; extract a `streamGenerate(messages)` helper from `handleSendMessage`; on `handleApproveAction`, append `pendingAction.commands` to `approvedCommands`, clear pendingAction, and re-call `streamGenerate(convHistory)` to resume the turn with the command now whitelisted. (convHistory ends at the last user msg because the paused assistant turn was never recorded on `done`.)
+
+After: 89→~93 tests green, commit "Phase 4h: resumable in-chat YELLOW approval", append an Experience Object, update this file.
+
+Deferred (not this step): (a) live e2e demo pass (RAM-gated — needs `llama3.2:3b` loaded); (c) offline voice Whisper+Piper; (d) Docker + Prometheus/Grafana.
 
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files
-- (idle — last work was `aios/agents/tool_agent.py`, `aios/api/main.py`, and the three test files, all committed in `b380b6b`.)
+## Active files  (Phase 4h — none edited yet; will touch:)
+- `aios/agents/tool_agent.py` · `aios/api/main.py` · `tests/test_tool_agent.py` · `tests/test_api.py` · `frontend/src/App.jsx`
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
