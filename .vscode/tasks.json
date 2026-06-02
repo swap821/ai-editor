@@ -1,0 +1,39 @@
+{
+  // ==========================================================================
+  // AI-OS resume task.
+  //
+  // DEFAULT (safe): a MANUAL task. Run it via:
+  //   Terminal > Run Task > "AI-OS: resume Claude Code"
+  // It probes whether your usage window is available and, if so, resumes Claude
+  // Code where you left off — with approvals ON (never --dangerously-skip-permissions).
+  //
+  // OPTIONAL — auto-run when you open the folder:
+  //   This is deliberately OFF. Auto-running a script on folder-open is a
+  //   persistence mechanism, so YOU should enable it consciously:
+  //     1. Allow scripts once (run in PowerShell):
+  //          Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+  //     2. Add this line inside the task object below, after "problemMatcher":
+  //          "runOptions": { "runOn": "folderOpen" }
+  //     3. Reopen the folder; click "Allow and Run" on the VS Code prompt (once).
+  // ==========================================================================
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "AI-OS: resume Claude Code",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-File", "${workspaceFolder}\\aios-resume.ps1"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true,
+        "clear": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

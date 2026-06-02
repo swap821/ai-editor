@@ -15,3 +15,8 @@ __pycache__/
 # --- AI OS runtime data (SQLite DBs, FAISS index, rollback snapshots) ---
 data/
 !data/.gitkeep
+
+# --- Claude Code build-continuity brain ---
+# Keep the brain + handoff (RESUME.md, memory logs) tracked for continuity,
+# but the session id is machine-specific and script-written.
+.aios/state/last_session_id
