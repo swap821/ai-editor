@@ -5,16 +5,19 @@ import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
+import './styles/App.css';
+import './styles/nexgen-3d.css';
+import './styles/nexgen-layout.css';
 import { API_BASE } from './config';
 
-/* ─── Resize Handles ─────────────────────────────────────────── */
+/* ─── Premium Resize Handles ─────────────────────────────────────────── */
 const ResizeHandle = () => (
-  <PanelResizeHandle className="w-[3px] bg-[#13141b] hover:bg-[#3b82f6] transition-colors duration-200 cursor-col-resize shrink-0 group relative">
+  <PanelResizeHandle className="resize-handle group relative">
     <span className="absolute inset-y-0 -left-[2px] -right-[2px] group-hover:bg-blue-500/10 transition-colors duration-200" />
   </PanelResizeHandle>
 );
 const HorizontalResizeHandle = () => (
-  <PanelResizeHandle className="h-[3px] w-full bg-[#13141b] hover:bg-[#3b82f6] transition-colors duration-200 cursor-row-resize shrink-0" />
+  <PanelResizeHandle className="resize-handle-horizontal w-full" />
 );
 
 /* ─── Model Dictionary ───────────────────────────────────────── */
@@ -561,13 +564,6 @@ export default function App() {
   useEffect(() => { terminalEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termHistory]);
   useEffect(() => { gitEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [gitHistory]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
-  // The approval card is tall; when it appears, scroll (after it lays out) so its
-  // Run/Reject buttons are visible instead of being clipped below the panel fold.
-  useEffect(() => {
-    if (!pendingAction) return;
-    const t = setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 60);
-    return () => clearTimeout(t);
-  }, [pendingAction]);
 
   // Probe the local Ollama engine for installed models. Runs on mount and again
   // whenever the window regains focus — so a model pulled in a terminal shows up
@@ -1137,68 +1133,109 @@ export default function App() {
                     <MessageBubble key={msg.id} msg={msg} />
                   ))}
 
-                  {/* Human approval card */}
-                  {pendingAction && (
-                    <div style={{
-                      background: 'var(--surface-3)',
-                      border: '1px solid rgba(251,191,36,0.25)',
-                      borderRadius: 14, padding: '14px',
-                      fontSize: 12, marginTop: 4,
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
-                      position: 'relative', overflow: 'hidden',
-                    }}>
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, #fbbf24, transparent)', opacity: 0.6 }}/>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fbbf24', fontWeight: 700, marginBottom: 8, fontSize: 12 }}>
-                        <span>⚠</span> Security Approval Required
-                      </div>
-                      <p style={{ color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.6, fontSize: 12 }}>
-                        {pendingAction.explanation}
-                      </p>
-                      <div style={{
-                        background: '#0c0c10', borderRadius: 8, padding: '10px 12px',
-                        fontFamily: '"Geist Mono", monospace', fontSize: 11.5, color: '#4ade80',
-                        marginBottom: 12, overflowX: 'auto', border: '1px solid rgba(255,255,255,0.04)',
-                      }}>
-                        {(pendingAction.commands || []).map((cmd, i) => (
-                          <div key={i} style={{ marginBottom: i < pendingAction.commands.length - 1 ? 3 : 0, display: 'flex', gap: 8 }}>
-                            <span style={{ color: 'var(--text-3)', userSelect: 'none' }}>$</span>
-                            <span>{cmd}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={handleApproveAction}
-                          style={{
-                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8,
-                            padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(59,130,246,0.25)',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                        >
-                          <Check size={13} strokeWidth={2.5} /> Run
-                        </button>
-                        <button
-                          onClick={handleRejectAction}
-                          style={{
-                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            background: 'rgba(248,113,113,0.08)', color: '#f87171',
-                            border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8,
-                            padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.14)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-                        >
-                          <X size={13} strokeWidth={2.5} /> Reject
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   <div ref={chatEndRef} />
                 </div>
+
+                {/* Pinned approval bar — lives OUTSIDE the scrollable message
+                    list (as a flex-shrink-0 sibling above the composer) so its
+                    Run / Reject controls are ALWAYS fully visible and can never
+                    be clipped below the fold, regardless of scroll position. */}
+                {pendingAction && (
+                  <div style={{
+                    flexShrink: 0,
+                    position: 'relative',
+                    margin: '0 10px 10px',
+                    borderRadius: 14,
+                    padding: '13px 14px 12px',
+                    background: 'linear-gradient(180deg, rgba(251,191,36,0.08) 0%, rgba(18,19,26,0.72) 60%)',
+                    border: '1px solid rgba(251,191,36,0.30)',
+                    backdropFilter: 'blur(14px) saturate(1.4)',
+                    WebkitBackdropFilter: 'blur(14px) saturate(1.4)',
+                    overflow: 'hidden',
+                    animation: 'approvalIn 0.34s cubic-bezier(0.16,1,0.3,1), approvalGlow 3.4s ease-in-out 0.34s infinite',
+                  }}>
+                    {/* sweeping top accent */}
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, overflow: 'hidden', borderRadius: '14px 14px 0 0' }}>
+                      <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '55%', background: 'linear-gradient(90deg, transparent, #fbbf24, transparent)', animation: 'sweep 2.8s ease-in-out infinite' }} />
+                    </div>
+
+                    {/* header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: 7, flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'rgba(251,191,36,0.14)', border: '1px solid rgba(251,191,36,0.32)',
+                        color: '#fbbf24', fontSize: 12,
+                      }}>⚠</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', letterSpacing: '-0.01em' }}>
+                        Security approval required
+                      </span>
+                      <span style={{
+                        marginLeft: 'auto', fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+                        color: '#fbbf24', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.24)',
+                        borderRadius: 5, padding: '2px 7px',
+                      }}>Yellow</span>
+                    </div>
+
+                    {/* explanation */}
+                    {pendingAction.explanation && (
+                      <p style={{ color: 'var(--text-2)', margin: '0 0 9px', lineHeight: 1.55, fontSize: 11.5 }}>
+                        {pendingAction.explanation}
+                      </p>
+                    )}
+
+                    {/* command(s) to authorise */}
+                    <div style={{
+                      background: '#0b0c10', borderRadius: 9, padding: '9px 11px',
+                      fontFamily: '"Geist Mono", monospace', fontSize: 11.5, color: '#7ee787',
+                      marginBottom: 11, overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                    }}>
+                      {(pendingAction.commands || []).map((cmd, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: i < (pendingAction.commands.length - 1) ? 4 : 0 }}>
+                          <span style={{ color: 'var(--text-3)', userSelect: 'none' }}>$</span>
+                          <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{cmd}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* actions */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={handleApproveAction}
+                        style={{
+                          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: '#fff',
+                          border: 'none', borderRadius: 9, padding: '9px 0', fontSize: 12.5, fontWeight: 700,
+                          cursor: 'pointer', boxShadow: '0 4px 14px rgba(34,197,94,0.28)',
+                          transition: 'transform 0.12s ease, box-shadow 0.2s, filter 0.2s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(34,197,94,0.40)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(34,197,94,0.28)'; }}
+                        onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
+                        onMouseUp={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                      >
+                        <Check size={14} strokeWidth={2.8} /> Run command
+                      </button>
+                      <button
+                        onClick={handleRejectAction}
+                        style={{
+                          flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          background: 'rgba(248,113,113,0.08)', color: '#f87171',
+                          border: '1px solid rgba(248,113,113,0.22)', borderRadius: 9,
+                          padding: '9px 18px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                          transition: 'background 0.2s, transform 0.12s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.16)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; }}
+                        onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+                        onMouseUp={e => { e.currentTarget.style.transform = 'none'; }}
+                      >
+                        <X size={14} strokeWidth={2.8} /> Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Input area */}
                 <div style={{

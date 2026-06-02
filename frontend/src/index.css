@@ -1,15 +1,13 @@
-/* ============================================================================
-   GLOBAL STYLESHEET
-   Order matters: Tailwind first, then our token layer, then base + a11y.
-   ========================================================================== */
+/* ═════════════════════════════════════════════════════════════════════════
+   PREMIUM 2026 GLOBAL STYLESHEET — Production Grade
+   ═════════════════════════════════════════════════════════════════════════ */
 @import "tailwindcss";
 @import "./styles/tokens.css";
+@import "./styles/design-system.css";
+@import "./styles/nexgen-3d.css";
+@import "./styles/nexgen-layout.css";
 
-/* ── Tailwind v4 @theme bridge ───────────────────────────────────────────
-   Registers the legacy utility names used by existing components
-   (bg-editorBg, border-borderDark, etc.) so they resolve to the unified
-   palette instead of silently producing nothing. Also exposes the new
-   surface/accent ramp + fluid type scale as Tailwind utilities. */
+/* ── Premium Color System ───────────────────────────────────────────────── */
 @theme {
   --color-canvas:     #050507;
   --color-editorBg:   #08090c;
@@ -24,10 +22,15 @@
   --color-ink2: #a7abbd;
   --color-ink3: #6b7088;
 
-  --color-accent:  #3b82f6;
-  --color-success: #34d399;
-  --color-warn:    #fbbf24;
-  --color-danger:  #f87171;
+  /* Premium Gradients */
+  --color-accent:  #0f7bff;
+  --color-accent-bright: #3d9bff;
+  --color-success: #10b981;
+  --color-warn:    #f59e0b;
+  --color-danger:  #ef4444;
+  --color-cyan:    #00d4ff;
+  --color-purple:  #8b5cf6;
+  --color-pink:    #ec4899;
 
   --font-sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
@@ -136,6 +139,20 @@ button:disabled { cursor: not-allowed; }
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
   border-radius: var(--radius-sm);
+}
+
+/* ── Approval action bar: premium slide-up entrance + ambient amber glow ── */
+@keyframes approvalIn {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.985); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes approvalGlow {
+  0%, 100% { box-shadow: 0 8px 36px -14px rgba(251,191,36,0.20), 0 0 0 1px rgba(251,191,36,0.10) inset; }
+  50%      { box-shadow: 0 10px 48px -12px rgba(251,191,36,0.34), 0 0 0 1px rgba(251,191,36,0.22) inset; }
+}
+@keyframes sweep {
+  0%   { transform: translateX(-130%); }
+  100% { transform: translateX(130%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
