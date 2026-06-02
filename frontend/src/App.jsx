@@ -5,6 +5,7 @@ import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
+import AmbientVoid from './components/AmbientVoid';
 import { API_BASE } from './config';
 
 /* ─── Premium Resize Handles ─────────────────────────────────────────── */
@@ -835,7 +836,11 @@ export default function App() {
         // Surfaces, accent, border and text vars now inherit from the global
         // token layer (src/styles/tokens.css) — single source of truth.
         // Only App-specific semantic aliases are declared locally.
-        background: 'var(--canvas)',
+        // Transparent + own stacking context so the AmbientVoid (z-index:-1)
+        // shows as the backdrop behind translucent panels.
+        background: 'transparent',
+        position: 'relative',
+        isolation: 'isolate',
         color: 'var(--text-1)',
         fontFamily: 'var(--font-sans)',
         '--border-hover': 'var(--border-strong)',
@@ -844,6 +849,7 @@ export default function App() {
         '--red':   'var(--danger)',
       }}
     >
+      <AmbientVoid energy={isStreaming ? 1 : 0.28} />
 
       {/* ══ TITLE BAR ══════════════════════════════════════════ */}
       <header
@@ -1092,7 +1098,7 @@ export default function App() {
               <Panel
                 defaultSize={25} minSize={15}
                 className={`ai-aura${isStreaming ? ' is-generating' : ''}`}
-                style={{ background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', position: 'relative' }}
+                style={{ background: 'rgba(18,19,26,0.74)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)', display: 'flex', flexDirection: 'column', position: 'relative' }}
               >
                 {/* Header */}
                 <div style={{
