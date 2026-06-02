@@ -165,6 +165,12 @@ LLM_NUM_CTX: Final[int] = _env_int("AIOS_LLM_NUM_CTX", 4096)
 #: alongside the LLM, so set ``AIOS_INDEX_CHAT=false`` on very RAM-tight hosts.
 INDEX_CHAT: Final[bool] = _env_bool("AIOS_INDEX_CHAT", True)
 
+#: When True, a command that fails inside the agentic loop triggers the
+#: reflection agent to write a structured lesson to the L4 Mistake pool. Costs
+#: an extra local LLM call per failure; set ``AIOS_REFLECT_ON_FAILURE=false`` to
+#: disable on RAM-tight hosts.
+REFLECT_ON_FAILURE: Final[bool] = _env_bool("AIOS_REFLECT_ON_FAILURE", True)
+
 # --------------------------------------------------------------------------- #
 # HTTP API server (FastAPI / uvicorn) + browser CORS
 # --------------------------------------------------------------------------- #
@@ -207,6 +213,7 @@ __all__ = [
     "LLM_TEMPERATURE",
     "LLM_NUM_CTX",
     "INDEX_CHAT",
+    "REFLECT_ON_FAILURE",
     "API_HOST",
     "API_PORT",
     "API_CORS_ORIGINS",

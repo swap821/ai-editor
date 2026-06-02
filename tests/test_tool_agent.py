@@ -33,9 +33,24 @@ class FakeRunner:
         return f"ran: {command}", "", 0
 
 
+class FailRunner:
+    """Runner that always reports a non-zero exit (a genuine command failure)."""
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        return "", "boom: assertion failed", 1
+
+
 def _executor() -> Executor:
     return Executor(
         runner=FakeRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+    )
+
+
+def _failing_executor() -> Executor:
+    return Executor(
+        runner=FailRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
     )
@@ -129,6 +144,46 @@ def test_agent_injects_memory_context_into_system_prompt() -> None:
     system_msg = chat.calls[0][0]
     assert system_msg["role"] == "system"
     assert "the answer is 42" in system_msg["content"]
+
+
+def test_agent_reflects_on_command_failure() -> None:
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "pytest"}),
+        {"role": "assistant", "content": "The tests failed; noted."},
+    ])
+    seen: list[tuple[str, str]] = []
+
+    def hook(command: str, error_output: str):
+        seen.append((command, error_output))
+        return {"error_type": "AssertionError", "lesson_text": "add a guard clause",
+                "recurrence": False, "mistake_id": 7}
+
+    events = list(ToolAgent(chat, _failing_executor(), max_iters=3, on_failure=hook).run(
+        [{"role": "user", "content": "run the tests"}]
+    ))
+
+    assert seen and seen[0][0] == "pytest"          # the hook saw the failed command
+    reflect_steps = [e for e in events if e.get("tool") == "reflect"]
+    assert reflect_steps and "add a guard clause" in reflect_steps[0]["output"]
+
+
+def test_agent_does_not_reflect_on_security_block() -> None:
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "rm -rf /"}),
+        {"role": "assistant", "content": "blocked"},
+    ])
+    seen: list[tuple[str, str]] = []
+
+    def hook(command: str, error_output: str):
+        seen.append((command, error_output))
+        return {"error_type": "X", "lesson_text": "y", "recurrence": False, "mistake_id": 1}
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3, on_failure=hook).run(
+        [{"role": "user", "content": "delete everything"}]
+    ))
+
+    assert not seen, "a security block is correct behaviour, not a mistake to reflect on"
+    assert not any(e.get("tool") == "reflect" for e in events)
 
 
 def test_agent_stops_at_step_cap() -> None:

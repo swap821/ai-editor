@@ -27,12 +27,18 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Iterator, Optional, Protocol
+from typing import Callable, Iterator, Optional, Protocol
 
 from aios import config
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
 from aios.security.secret_scanner import scan_and_redact
+
+#: A reflection hook: given (command, error_output), record a lesson and return
+#: a summary dict (``error_type``/``lesson_text``/``recurrence``/``mistake_id``),
+#: or ``None`` if nothing was recorded. Lets the agent stay decoupled from the
+#: reflection agent + Mistake DB.
+FailureHook = Callable[[str, str], Optional[dict]]
 
 #: Max reason -> act turns before the loop stops for safety.
 DEFAULT_MAX_ITERS = 5
@@ -180,6 +186,7 @@ class ToolAgent:
         read_root: Optional[Path] = None,
         session_id: Optional[str] = None,
         memory_context: Optional[str] = None,
+        on_failure: Optional[FailureHook] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -192,6 +199,9 @@ class ToolAgent:
         #: Optional recalled-memory block injected into the system prompt
         #: (blueprint stage 4 — the agent reasons with relevant past knowledge).
         self.memory_context = memory_context
+        #: Optional reflection hook fired when a command genuinely fails (not when
+        #: it is merely blocked by the gateway) — blueprint stage 9.
+        self.on_failure = on_failure
 
     def run(self, messages: list[dict]) -> Iterator[dict]:
         """Drive the loop, yielding event dicts the API maps to SSE.
@@ -229,7 +239,7 @@ class ToolAgent:
                 call_id = f"{name}-{index}"
 
                 yield {"type": "tool_call", "tool": name, "input": args, "id": call_id}
-                output, status = self._dispatch(name, args)
+                output, status, failed = self._dispatch(name, args)
                 if status == "blocked":
                     yield {
                         "type": "tool_blocked",
@@ -246,9 +256,33 @@ class ToolAgent:
                     }
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
 
+                # Self-correction (blueprint stage 9): a genuine command failure
+                # becomes a structured lesson. Security blocks are correct
+                # behaviour, not mistakes, so they never reflect.
+                if failed and name == "execute_terminal" and self.on_failure is not None:
+                    yield from self._reflect(args.get("command", ""), output, index)
+
         # Step cap reached without a final answer.
         yield {"type": "text", "text": "Reached the step limit and stopped for safety."}
         yield {"type": "done"}
+
+    def _reflect(self, command: str, error_output: str, index: int) -> Iterator[dict]:
+        """Run the failure hook and surface the recorded lesson as a step."""
+        try:
+            lesson = self.on_failure(command, error_output)  # type: ignore[misc]
+        except Exception:  # noqa: BLE001 - reflection must never break the loop
+            lesson = None
+        if not lesson:
+            return
+        summary = f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+        if lesson.get("recurrence"):
+            summary = f"(recurring) {summary}"
+        yield {
+            "type": "tool_result",
+            "tool": "reflect",
+            "output": summary[:_PREVIEW_LIMIT],
+            "id": f"reflect-{index}",
+        }
 
     # ----------------------------------------------------------------- finish
     def _finish(self, content: str) -> Iterator[dict]:
@@ -264,48 +298,58 @@ class ToolAgent:
         yield {"type": "done"}
 
     # --------------------------------------------------------------- dispatch
-    def _dispatch(self, name: str, args: dict) -> tuple[str, str]:
-        """Route a tool call to its handler. Returns ``(output, status)``."""
+    def _dispatch(self, name: str, args: dict) -> tuple[str, str, bool]:
+        """Route a tool call to its handler. Returns ``(output, status, failed)``.
+
+        ``failed`` marks a genuine execution failure worth reflecting on (a
+        non-zero exit, timeout, or launch error) — never a security block or a
+        scope denial, which are correct behaviour rather than mistakes.
+        """
         if name == "read_file":
             return self._read_file(str(args.get("filepath", "")))
         if name == "read_directory":
             return self._read_directory(str(args.get("path", ".")))
         if name == "execute_terminal":
             return self._execute(str(args.get("command", "")))
-        return (f"Unknown tool '{name}'.", "blocked")
+        return (f"Unknown tool '{name}'.", "blocked", False)
 
-    def _read_file(self, filepath: str) -> tuple[str, str]:
+    def _read_file(self, filepath: str) -> tuple[str, str, bool]:
         resolved = _resolve_within(self.read_root, filepath)
         if resolved is None:
-            return (f"[BLOCKED] Path '{filepath}' escapes the project root.", "blocked")
+            return (f"[BLOCKED] Path '{filepath}' escapes the project root.", "blocked", False)
         if not resolved.is_file():
-            return (f"[ERROR] Not a file: {filepath}", "blocked")
+            return (f"[ERROR] Not a file: {filepath}", "blocked", False)
         try:
             text = resolved.read_text(encoding="utf-8", errors="replace")
         except Exception as exc:  # noqa: BLE001 - report read failures cleanly
-            return (f"[ERROR] Could not read {filepath}: {exc}", "blocked")
+            return (f"[ERROR] Could not read {filepath}: {exc}", "blocked", False)
         # Never let credentials (e.g. from a .env) reach the model or UI.
-        return (scan_and_redact(text[:_FILE_READ_LIMIT]).scrubbed, "ok")
+        return (scan_and_redact(text[:_FILE_READ_LIMIT]).scrubbed, "ok", False)
 
-    def _read_directory(self, path: str) -> tuple[str, str]:
+    def _read_directory(self, path: str) -> tuple[str, str, bool]:
         resolved = _resolve_within(self.read_root, path or ".")
         if resolved is None:
-            return (f"[BLOCKED] Path '{path}' escapes the project root.", "blocked")
+            return (f"[BLOCKED] Path '{path}' escapes the project root.", "blocked", False)
         if not resolved.is_dir():
-            return (f"[ERROR] Not a directory: {path}", "blocked")
+            return (f"[ERROR] Not a directory: {path}", "blocked", False)
         try:
             entries = sorted(
                 p.name + ("/" if p.is_dir() else "") for p in resolved.iterdir()
             )
         except Exception as exc:  # noqa: BLE001 - report listing failures cleanly
-            return (f"[ERROR] Could not list {path}: {exc}", "blocked")
-        return ("\n".join(entries) if entries else "(empty)", "ok")
+            return (f"[ERROR] Could not list {path}: {exc}", "blocked", False)
+        return ("\n".join(entries) if entries else "(empty)", "ok", False)
 
-    def _execute(self, command: str) -> tuple[str, str]:
+    def _execute(self, command: str) -> tuple[str, str, bool]:
         result = self.executor.execute(command, session_id=self.session_id)
         if result.status == "OK":
             output = ((result.stdout or "") + (result.stderr or "")).strip()
-            return (scan_and_redact(output or "(no output)").scrubbed, "ok")
+            scrubbed = scan_and_redact(output or "(no output)").scrubbed
+            # Ran, but a non-zero exit code is a real failure to learn from.
+            return (scrubbed, "ok", bool(result.exit_code))
         if result.status == "REQUIRE_APPROVAL":
-            return (f"[NEEDS HUMAN APPROVAL - not run] {result.reason}", "blocked")
-        return (f"[{result.status}] {result.reason}", "blocked")
+            return (f"[NEEDS HUMAN APPROVAL - not run] {result.reason}", "blocked", False)
+        if result.status in ("TIMEOUT", "ERROR"):
+            return (f"[{result.status}] {result.reason}", "blocked", True)
+        # BLOCKED — a security decision, not a mistake.
+        return (f"[{result.status}] {result.reason}", "blocked", False)

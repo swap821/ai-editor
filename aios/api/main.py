@@ -104,6 +104,17 @@ def get_semantic_indexer() -> Optional[SemanticMemory]:
     return SemanticMemory() if config.INDEX_CHAT else None
 
 
+def get_reflection_agent(
+    llm: LLMClient = Depends(get_llm_client),
+) -> Optional[ReflectionAgent]:
+    """Provide the reflection agent that turns a command failure into a lesson.
+
+    Returns ``None`` when :data:`aios.config.REFLECT_ON_FAILURE` is disabled.
+    Reuses the injected LLM client so it is fully overridable in tests.
+    """
+    return ReflectionAgent(llm) if config.REFLECT_ON_FAILURE else None
+
+
 # --------------------------------------------------------------------------- #
 # Request models
 # --------------------------------------------------------------------------- #
@@ -403,12 +414,40 @@ def _index_turn(
         pass
 
 
+def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str):
+    """Build the agent's on-failure hook from a reflection agent (or ``None``).
+
+    The hook records a structured lesson in the Mistake pool and returns a small
+    summary for the UI; any failure to reflect is swallowed so a learning step
+    never breaks the chat.
+    """
+    if reflector is None:
+        return None
+
+    def hook(command: str, error_output: str) -> Optional[dict]:
+        try:
+            reflection = reflector.reflect(command, error_output, task_id=session_id)
+        except ReflectionError:
+            return None
+        except Exception:  # noqa: BLE001 - reflection must never break the chat
+            return None
+        return {
+            "error_type": reflection.error_type,
+            "lesson_text": reflection.lesson_text,
+            "recurrence": reflection.recurrence,
+            "mistake_id": reflection.mistake_id,
+        }
+
+    return hook
+
+
 @app.post("/api/generate")
 def generate(
     req: GenerateRequest,
     client: OllamaClient = Depends(get_ollama_client),
     executor: Executor = Depends(get_executor),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
+    reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -447,13 +486,14 @@ def generate(
             )
         _record_episode(session_id, "user", user_text)
 
-        # 3. Agentic loop with the recalled context injected.
+        # 3. Agentic loop with the recalled context + reflection hook.
         agent = ToolAgent(
             client,
             executor,
             model=model,
             session_id=session_id,
             memory_context=memory_context,
+            on_failure=_make_failure_hook(reflector, session_id),
         )
         answer_parts: list[str] = []
         for ev in agent.run(chat_messages):

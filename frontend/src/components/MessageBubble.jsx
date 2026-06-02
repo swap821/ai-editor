@@ -10,6 +10,7 @@ const TOOL_META = {
   rollback_workspace:{ icon: '↩', label: 'Rollback',         color: '#f87171' },
   map_knowledge:    { icon: '🕸', label: 'Map knowledge',    color: '#c084fc' },
   query_knowledge:  { icon: '🔮', label: 'Query knowledge',  color: '#818cf8' },
+  reflect:          { icon: '🧠', label: 'Lesson learned',   color: '#fbbf24' },
 };
 
 /* ─── Agent Step Card ───────────────────────────────────────── */
