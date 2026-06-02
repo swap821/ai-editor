@@ -14,7 +14,7 @@ const TOOL_META = {
 };
 
 /* ─── Agent Step Card ───────────────────────────────────────── */
-function AgentStep({ step }) {
+function AgentStep({ step, settled }) {
   const [expanded, setExpanded] = useState(false);
   const meta = TOOL_META[step.tool] || { icon: '🔧', label: step.tool, color: '#9ca3af' };
 
@@ -35,13 +35,23 @@ function AgentStep({ step }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: meta.color }}>{meta.label}</span>
-            <span style={{
-              width: 12, height: 12, borderRadius: '50%',
-              border: `2px solid ${meta.color}`,
-              borderTopColor: 'transparent',
-              animation: 'spin 0.8s linear infinite',
-              display: 'inline-block', flexShrink: 0,
-            }} />
+            {settled ? (
+              // Turn is over (done / paused for approval / error): the step is
+              // recorded, so show a static dot rather than a forever-spinner.
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: meta.color, opacity: 0.5,
+                display: 'inline-block', flexShrink: 0,
+              }} />
+            ) : (
+              <span style={{
+                width: 12, height: 12, borderRadius: '50%',
+                border: `2px solid ${meta.color}`,
+                borderTopColor: 'transparent',
+                animation: 'spin 0.8s linear infinite',
+                display: 'inline-block', flexShrink: 0,
+              }} />
+            )}
           </div>
           {inputPreview && (
             <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2, fontFamily: '"Geist Mono", monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -372,7 +382,7 @@ export default function MessageBubble({ msg }) {
             Agent steps
           </div>
           {msg.steps.map((step, i) => (
-            <AgentStep key={`${step.id}-${i}`} step={step} isLast={i === msg.steps.length - 1} />
+            <AgentStep key={`${step.id}-${i}`} step={step} settled={!!msg.settled} isLast={i === msg.steps.length - 1} />
           ))}
         </div>
       )}

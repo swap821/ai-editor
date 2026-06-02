@@ -317,6 +317,10 @@ def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
     body = response.text
     assert "event: human_required" in body
     assert "pip install flask" in body          # the command to authorise is surfaced
+    assert "Approval required to run: pip install flask" in body  # plain-language prompt
+    # The raw classifier reason (which embeds a regex like "\bpip\s+install\b")
+    # must never reach the human approval prompt — it belongs in the audit log.
+    assert "Caution operation requires approval" not in body
     assert "event: done" not in body            # the paused turn does not complete
 
 

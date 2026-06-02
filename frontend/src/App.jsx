@@ -680,7 +680,7 @@ export default function App() {
           setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: data.code } }));
         } else if (eventType === 'done') {
           setMessages(prev => prev.map(m =>
-            m.id === aiMsgId ? { ...m, text: accText || 'Done.', loading: false, streaming: false } : m
+            m.id === aiMsgId ? { ...m, text: accText || 'Done.', loading: false, streaming: false, settled: true } : m
           ));
           if (accText) {
             setConvHistory(prev => [...prev, { role: 'assistant', content: [{ text: accText }] }]);
@@ -689,12 +689,12 @@ export default function App() {
         } else if (eventType === 'human_required') {
           setPendingAction(data.input);
           setMessages(prev => prev.map(m =>
-            m.id === aiMsgId ? { ...m, text: data.text || 'Authorization required.', loading: false, streaming: false, steps: accSteps } : m
+            m.id === aiMsgId ? { ...m, text: data.text || 'Authorization required.', loading: false, streaming: false, settled: true, steps: accSteps } : m
           ));
           setIsStreaming(false);
         } else if (eventType === 'error') {
           setMessages(prev => prev.map(m =>
-            m.id === aiMsgId ? { ...m, text: `Error: ${data.text}`, loading: false, streaming: false } : m
+            m.id === aiMsgId ? { ...m, text: `Error: ${data.text}`, loading: false, streaming: false, settled: true } : m
           ));
           setIsStreaming(false);
         }

@@ -578,13 +578,24 @@ def generate(
             elif kind == "human_required":
                 # The agent paused on a YELLOW command. Ask the UI for approval;
                 # the turn ends here (no answer recorded) and is replayed once the
-                # human authorises the command. Shape matches the frontend's
-                # existing pendingAction handler ({commands, explanation}).
+                # human authorises the command. Surface the *command* in plain
+                # language — never the raw classifier reason, which embeds the
+                # matched regex pattern (e.g. "\\bpip\\s+install\\b") and belongs
+                # in the audit log, not in a human approval prompt. Shape matches
+                # the frontend's pendingAction handler ({commands, explanation}).
+                cmd = ev["command"]
                 yield _sse(
                     "human_required",
                     {
-                        "input": {"commands": [ev["command"]], "explanation": ev["reason"]},
-                        "text": f"Authorization required: {ev['reason']}",
+                        "input": {
+                            "commands": [cmd],
+                            "explanation": (
+                                "The agent wants to run a caution-level command "
+                                "(e.g. a package install, git write, or file "
+                                "change). Review it and approve to let it run."
+                            ),
+                        },
+                        "text": f"Approval required to run: {cmd}",
                         "requiresApproval": True,
                     },
                 )

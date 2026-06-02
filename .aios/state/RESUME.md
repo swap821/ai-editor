@@ -14,7 +14,7 @@ security-gated, human-supervised, self-correcting.
 - **Reality: the backend is ~75–80% of the blueprint MVP, well past the doc's estimate.**
 - Stack: Python 3.12 `.venv`, FastAPI + uvicorn, SQLite (WAL) + FAISS, Ollama (local LLM). Node backend archived on branch `legacy-node` / tag `legacy-node-v1`.
 - Tests: **94 passed, 1 skipped** (`.venv/Scripts/python -m pytest -q`). The 1 skip = Windows symlink-privilege case (environmental, not a failure).
-- Last completed + verified step: **Phase 4h committed** — resumable in-chat YELLOW approval (chat pauses on a YELLOW command and runs it after human approval). Backend + 5 new tests green; frontend eslint clean + vite build ok.
+- Last completed + verified step: **Phase 4h committed + live-confirmed** — resumable in-chat YELLOW approval. First live run (llama3.2:3b) showed the approval card; then fixed two cosmetics it surfaced: the prompt was leaking the classifier's raw regex (`\bpip\s+install\b`) and the step-spinner span forever on a paused turn. Both fixed (plain-language prompt + `settled` flag stops the spinner). 94 tests green; eslint+build clean.
 
 ### BUILT & committed (per-phase commits on `master`)
 - **Memory L2/L3/L4** — episodic, semantic (FAISS `IndexIDMap`), mistake pool; hybrid BM25+FAISS+decay retrieval `R = 0.25·BM25 + 0.45·FAISS + 0.30·e^(−0.05·Δt)`. `[aios/memory/]`
