@@ -213,6 +213,23 @@ def test_agent_promotes_lesson_after_corrective_success() -> None:
     assert verify_steps, "a 'lesson verified' step should be surfaced"
 
 
+def test_agent_verifies_prior_session_lesson_on_success() -> None:
+    # A lesson carried in from an earlier turn is verified when a command now
+    # succeeds — no failure needed this run.
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "echo ok"}),
+        {"role": "assistant", "content": "looks good"},
+    ])
+    confirmed: list[int] = []
+    list(
+        ToolAgent(
+            chat, _executor(), max_iters=3,
+            confirm_lesson=confirmed.append, prior_lesson_ids=[42],
+        ).run([{"role": "user", "content": "continue"}])
+    )
+    assert confirmed == [42], "a recalled prior-session lesson should verify on a success"
+
+
 def test_agent_does_not_promote_without_prior_failure() -> None:
     # A clean success with no earlier failure must not promote anything.
     chat = ScriptedChat([

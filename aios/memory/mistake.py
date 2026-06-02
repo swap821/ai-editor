@@ -75,6 +75,20 @@ class MistakeMemory:
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
 
+    def pending_for_task(self, task_id: str, limit: int = 5) -> list[sqlite3.Row]:
+        """Return this task's still-``pending`` lessons, newest first.
+
+        Used to carry a session's unverified lessons forward into later turns so
+        the agent reasons with them (and can prove them) across the session.
+        """
+        with get_connection(self.db_path) as conn:
+            return conn.execute(
+                "SELECT * FROM mistake_pool "
+                "WHERE task_id = ? AND verification_status = 'pending' "
+                "ORDER BY timestamp DESC, id DESC LIMIT ?",
+                (task_id, limit),
+            ).fetchall()
+
     def find_recurrence(self, task_id: str, error_type: str) -> Optional[sqlite3.Row]:
         """Return an existing non-superseded lesson for the same task+error.
 

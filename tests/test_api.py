@@ -17,6 +17,7 @@ from aios.api.main import (
     get_executor,
     get_llm_client,
     get_ollama_client,
+    get_reflection_agent,
     get_rollback_engine,
     get_semantic_indexer,
 )
@@ -225,6 +226,35 @@ def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> Non
     body = response.text
     assert "query_knowledge" in body          # the recall step is surfaced
     assert "serves the API on port 8000" in body
+
+
+class FakeReflector:
+    """Reflector stand-in that recalls one pending lesson for the session."""
+
+    def recall_pending(self, task_id, limit=5):
+        return [{"mistake_id": 5, "error_type": "Timeout", "lesson_text": "set a timeout"}]
+
+    def reflect(self, *a, **k):  # pragma: no cover - not exercised here
+        raise AssertionError("reflect should not be called in this test")
+
+    def confirm_lesson(self, mistake_id):  # pragma: no cover
+        return None
+
+
+def test_generate_recalls_session_lessons_as_step(client: TestClient) -> None:
+    app.dependency_overrides[get_reflection_agent] = lambda: FakeReflector()
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "carry on"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-session-lessons",
+        },
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "Recalled 1 past lesson" in body     # the lesson-recall step is surfaced
+    assert "event: done" in body
 
 
 def test_generate_indexes_completed_turn_into_semantic(client: TestClient) -> None:

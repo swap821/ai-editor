@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from typing import Iterator, Optional, Protocol, runtime_checkable
+from typing import Iterator, Optional, Protocol, runtime_checkable, Any
 
 from aios import config
 
@@ -91,11 +91,11 @@ class OllamaClient:
 
     def chat(
         self,
-        messages: list[dict],
+        messages: list[dict[str, Any]],
         *,
-        tools: Optional[list[dict]] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Single non-streaming chat turn via Ollama ``/api/chat``.
 
         Used by the agentic tool loop: when *tools* are supplied and the model
@@ -207,7 +207,7 @@ class OllamaClient:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise LLMError(f"Ollama stream to {self.host} failed: {exc}") from exc
 
-    def list_models(self) -> dict:
+    def list_models(self) -> dict[str, Any]:
         """Return installed local models as ``{"available": bool, "models": [str]}``.
 
         ``available`` reports whether the Ollama server answered at all, so the

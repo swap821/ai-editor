@@ -193,6 +193,7 @@ class ToolAgent:
         memory_context: Optional[str] = None,
         on_failure: Optional[FailureHook] = None,
         confirm_lesson: Optional[ConfirmHook] = None,
+        prior_lesson_ids: Optional[list[int]] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -211,6 +212,9 @@ class ToolAgent:
         #: Optional confirmation hook: promotes a pending lesson to verified once
         #: a later command succeeds within the same task (blueprint Q6).
         self.confirm_lesson = confirm_lesson
+        #: Pending lesson ids recalled from earlier turns of this session; carried
+        #: into the loop so a success here can verify a lesson learned before.
+        self.prior_lesson_ids = list(prior_lesson_ids or [])
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Drive the loop, yielding event dicts the API maps to SSE.
@@ -224,10 +228,11 @@ class ToolAgent:
         convo: list[dict[str, Any]] = [{"role": "system", "content": system}]
         convo.extend(messages)
 
-        #: Lesson ids recorded from failures this task, awaiting a success to
-        #: confirm them (blueprint Q6: a lesson is verified once a later command
-        #: succeeds, showing the fix was applied).
-        pending_lessons: list[int] = []
+        #: Lesson ids awaiting a success to confirm them (blueprint Q6: a lesson
+        #: is verified once a later command succeeds, showing the fix was applied).
+        #: Seeded with lessons recalled from earlier turns of this session, then
+        #: extended with any recorded from failures during this run.
+        pending_lessons: list[int] = list(self.prior_lesson_ids)
 
         for _ in range(self.max_iters):
             try:

@@ -19,7 +19,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from aios import config
 from aios.core.llm import LLMClient
@@ -178,3 +178,20 @@ class ReflectionAgent:
     def confirm_lesson(self, mistake_id: int) -> None:
         """Promote a lesson to 'verified' after it proves itself on a later task."""
         self.mistakes.promote(mistake_id)
+
+    def recall_pending(self, task_id: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Return this task's pending lessons as plain dicts for injection.
+
+        Lets a later turn reason with (and ultimately verify) lessons learned in
+        earlier turns of the same session. Each dict carries ``mistake_id``,
+        ``error_type`` and ``lesson_text``.
+        """
+        rows = self.mistakes.pending_for_task(task_id, limit)
+        return [
+            {
+                "mistake_id": int(row["id"]),
+                "error_type": str(row["error_type"]),
+                "lesson_text": str(row["lesson_text"]),
+            }
+            for row in rows
+        ]

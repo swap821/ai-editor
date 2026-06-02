@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Any, cast
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -177,7 +177,7 @@ class GenerateRequest(BaseModel):
     configured default local model.
     """
 
-    messages: list[dict] = Field(default_factory=list)
+    messages: list[dict[str, Any]] = Field(default_factory=lambda: cast(list[dict[str, Any]], []))
     model_id: Optional[str] = Field(None, alias="modelId")
     session_id: str = Field("ui-session", alias="sessionId")
 
@@ -197,20 +197,20 @@ class TerminalRequest(BaseModel):
 # Endpoints
 # --------------------------------------------------------------------------- #
 @app.get("/health")
-def health() -> dict:
+def health() -> dict[str, Any]:
     """Liveness probe."""
     return {"status": "ok", "version": aios.__version__}
 
 
 @app.post("/api/v1/memory/search")
-def memory_search(req: MemorySearchRequest) -> dict:
+def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
     """Hybrid BM25 + FAISS + temporal-decay retrieval over semantic memory."""
     results = hybrid_search(req.query, top_k=req.top_k)
     return {"query": req.query, "results": [asdict(r) for r in results]}
 
 
 @app.post("/api/v1/security/classify")
-def security_classify(req: ClassifyRequest) -> dict:
+def security_classify(req: ClassifyRequest) -> dict[str, Any]:
     """Deterministic, fail-closed security-zone classification."""
     result = classify(req.command)
     return {
@@ -221,14 +221,14 @@ def security_classify(req: ClassifyRequest) -> dict:
 
 
 @app.get("/api/v1/audit/verify")
-def audit_verify(from_entry: int = 1, to_entry: Optional[int] = None) -> dict:
+def audit_verify(from_entry: int = 1, to_entry: Optional[int] = None) -> dict[str, Any]:
     """Verify the tamper-evident audit hash chain over an optional id range."""
     status = verify_chain(from_id=from_entry, to_id=to_entry)
     return asdict(status)
 
 
 @app.post("/api/v1/reflect")
-def reflect(req: ReflectRequest, llm: LLMClient = Depends(get_llm_client)) -> dict:
+def reflect(req: ReflectRequest, llm: LLMClient = Depends(get_llm_client)) -> dict[str, Any]:
     """Run the reflection agent on a failure and store a structured lesson."""
     agent = ReflectionAgent(llm)
     try:
@@ -238,7 +238,7 @@ def reflect(req: ReflectRequest, llm: LLMClient = Depends(get_llm_client)) -> di
     return asdict(reflection)
 
 
-def _serialize_plan(plan) -> dict:
+def _serialize_plan(plan: Any) -> dict[str, Any]:
     """Flatten a Plan (with TaskStep dataclasses) into JSON-safe primitives."""
     return {
         "goal": plan.goal,
@@ -253,7 +253,7 @@ def _serialize_plan(plan) -> dict:
 
 
 @app.post("/api/v1/plan")
-def plan(req: PlanRequest, llm: LLMClient = Depends(get_llm_client)) -> dict:
+def plan(req: PlanRequest, llm: LLMClient = Depends(get_llm_client)) -> dict[str, Any]:
     """Decompose a goal into a confidence-gated task tree."""
     planner = Planner(llm)
     try:
@@ -264,14 +264,14 @@ def plan(req: PlanRequest, llm: LLMClient = Depends(get_llm_client)) -> dict:
 
 
 @app.post("/api/v1/execute")
-def execute(req: ExecuteRequest, executor: Executor = Depends(get_executor)) -> dict:
+def execute(req: ExecuteRequest, executor: Executor = Depends(get_executor)) -> dict[str, Any]:
     """Classify, gate, audit, and (if GREEN) run a command in the sandbox."""
     result = executor.execute(req.command, session_id=req.session_id)
     return asdict(result)
 
 
 @app.post("/api/v1/approval/req")
-def approval_req(req: ApprovalRequest, executor: Executor = Depends(get_executor)) -> dict:
+def approval_req(req: ApprovalRequest, executor: Executor = Depends(get_executor)) -> dict[str, Any]:
     """Resolve a human decision on an escalated (YELLOW) action.
 
     Approve -> run the command in the sandbox (RED is still refused). Reject ->
@@ -293,7 +293,7 @@ def approval_req(req: ApprovalRequest, executor: Executor = Depends(get_executor
 @app.post("/api/v1/rollback")
 def rollback(
     req: RollbackRequest, engine: RollbackEngine = Depends(get_rollback_engine)
-) -> dict:
+) -> dict[str, Any]:
     """Restore the sandbox working tree to a prior snapshot."""
     try:
         result = engine.rollback(req.snapshot_id)
@@ -308,7 +308,7 @@ def rollback(
 # routes above expose individual subsystems; these compose them for the UI.
 # --------------------------------------------------------------------------- #
 @app.get("/api/v1/models/local")
-def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict:
+def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict[str, Any]:
     """List models installed in the local Ollama engine (for the model picker)."""
     return client.list_models()
 
@@ -324,9 +324,9 @@ def _resolve_local_model(model_id: Optional[str]) -> str:
     return config.LLM_MODEL
 
 
-def _to_chat_messages(messages: list[dict]) -> list[dict]:
+def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten the UI history (``content`` arrays) into Ollama chat messages."""
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for msg in messages:
         role = msg.get("role")
         if role not in ("user", "assistant"):
@@ -335,9 +335,13 @@ def _to_chat_messages(messages: list[dict]) -> list[dict]:
         if isinstance(content, str):
             text = content
         elif isinstance(content, list):
-            text = " ".join(
-                c.get("text", "") for c in content if isinstance(c, dict)
-            ).strip()
+            content_list: list[Any] = cast(list[Any], content)
+            text_parts: list[str] = [
+                cast(dict[str, Any], c).get("text", "")
+                for c in content_list
+                if isinstance(c, dict)
+            ]
+            text = " ".join(text_parts).strip()
         else:
             text = ""
         if text:
@@ -345,7 +349,7 @@ def _to_chat_messages(messages: list[dict]) -> list[dict]:
     return out
 
 
-def _sse(event: str, data: dict) -> str:
+def _sse(event: str, data: dict[str, Any]) -> str:
     """Format one Server-Sent Event frame."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
@@ -357,7 +361,7 @@ _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
 _EPISODIC = EpisodicMemory()
 
 
-def _latest_user(chat_messages: list[dict]) -> str:
+def _latest_user(chat_messages: list[dict[str, Any]]) -> str:
     """Return the most recent user message text (already flattened to a string)."""
     for msg in reversed(chat_messages):
         if msg["role"] == "user":
@@ -396,6 +400,22 @@ def _record_episode(session_id: str, role: str, content: str) -> None:
         pass
 
 
+def _recall_lessons(
+    reflector: Optional[ReflectionAgent], session_id: str, limit: int = 5
+) -> list[dict[str, Any]]:
+    """Best-effort recall of this session's still-pending lessons (L4).
+
+    Carries lessons learned in earlier turns into the current one so the agent
+    reasons with them — and can verify them when it now succeeds. Never fatal.
+    """
+    if reflector is None:
+        return []
+    try:
+        return reflector.recall_pending(session_id, limit)
+    except Exception:  # noqa: BLE001 - lesson recall is an enhancement, never fatal
+        return []
+
+
 def _index_turn(
     indexer: Optional[SemanticMemory], user_text: str, answer: str
 ) -> None:
@@ -414,7 +434,7 @@ def _index_turn(
         pass
 
 
-def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str):
+def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str) -> Optional[Any]:
     """Build the agent's on-failure hook from a reflection agent (or ``None``).
 
     The hook records a structured lesson in the Mistake pool and returns a small
@@ -424,7 +444,7 @@ def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str):
     if reflector is None:
         return None
 
-    def hook(command: str, error_output: str) -> Optional[dict]:
+    def hook(command: str, error_output: str) -> Optional[dict[str, Any]]:
         try:
             reflection = reflector.reflect(command, error_output, task_id=session_id)
         except ReflectionError:
@@ -490,21 +510,44 @@ def generate(
             yield _sse("error", {"text": "No user message provided."})
             return
 
-        # 1. Recall (best-effort) + 2. persist the user turn.
-        memory_context = _recall_memory(user_text)
-        if memory_context:
+        # 1. Recall: relevant semantic memory + this session's pending lessons.
+        context_parts: list[str] = []
+        semantic = _recall_memory(user_text)
+        if semantic:
+            context_parts.append(semantic)
             yield _sse(
                 "step",
                 {
                     "type": "tool_result",
                     "tool": "query_knowledge",
-                    "output": memory_context[:400],
+                    "output": semantic[:400],
                     "id": "memory-recall",
                 },
             )
+
+        lessons = _recall_lessons(reflector, session_id)
+        prior_lesson_ids = [int(le["mistake_id"]) for le in lessons]
+        if lessons:
+            block = "PAST LESSONS FROM THIS SESSION (do not repeat these mistakes):\n" + "\n".join(
+                f"- [{le['error_type']}] {le['lesson_text']}" for le in lessons
+            )
+            context_parts.append(block)
+            yield _sse(
+                "step",
+                {
+                    "type": "tool_result",
+                    "tool": "reflect",
+                    "output": f"Recalled {len(lessons)} past lesson(s) from this session.",
+                    "id": "lesson-recall",
+                },
+            )
+
+        memory_context = "\n\n".join(context_parts) or None
+
+        # 2. Persist the user turn.
         _record_episode(session_id, "user", user_text)
 
-        # 3. Agentic loop with recalled context + reflection + lesson confirmation.
+        # 3. Agentic loop with recalled context + lessons + reflection + confirmation.
         agent = ToolAgent(
             client,
             executor,
@@ -513,6 +556,7 @@ def generate(
             memory_context=memory_context,
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(reflector),
+            prior_lesson_ids=prior_lesson_ids,
         )
         answer_parts: list[str] = []
         for ev in agent.run(chat_messages):
@@ -543,7 +587,7 @@ def generate(
 @app.post("/api/terminal")
 def terminal(
     req: TerminalRequest, executor: Executor = Depends(get_executor)
-) -> dict:
+) -> dict[str, Any]:
     """Run a UI-terminal command through the security gateway + sandbox.
 
     Returns the front-end terminal's ``{output, isError}`` shape. The command is

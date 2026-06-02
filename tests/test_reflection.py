@@ -102,6 +102,23 @@ def test_recurrence_increments_instead_of_duplicating(db_path: Path) -> None:
     assert mistakes.count() == 1
 
 
+def test_recall_pending_returns_session_lessons_until_verified(db_path: Path) -> None:
+    mistakes = MistakeMemory(db_path)
+    agent = ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes)
+    reflection = agent.reflect("cat missing.txt", "No such file", task_id="sess-A")
+    # A lesson from a different session must not leak into sess-A's recall.
+    ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes).reflect("x", "y", task_id="sess-B")
+
+    pending = agent.recall_pending("sess-A")
+    assert [p["mistake_id"] for p in pending] == [reflection.mistake_id]
+    assert pending[0]["error_type"] == "PathNotFound"
+    assert "verify a path exists" in pending[0]["lesson_text"]
+
+    # Once verified, it is no longer recalled as pending.
+    agent.confirm_lesson(reflection.mistake_id)
+    assert agent.recall_pending("sess-A") == []
+
+
 def test_confirm_lesson_promotes_to_verified(db_path: Path) -> None:
     mistakes = MistakeMemory(db_path)
     agent = ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes)
