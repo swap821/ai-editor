@@ -49,6 +49,17 @@ security boundary — re-check it if you change the resume flow.
 
 Deferred (unchanged): offline voice; Docker + Prometheus/Grafana.
 
+### Frontend stabilization (after a parallel rewrite broke it)
+A concurrent "premium 2026" rewrite landed uncommitted in the tree (rewritten
+`MessageBubble.jsx`/`LivePreview.jsx` with **incompatible props** — `{message,isUser}`
+vs the `{msg}` the app passes — plus new `styles/{App,design-system,nexgen-3d,nexgen-layout}.css`
+imported into App.jsx/index.css). It broke the chat render. Per operator choice we
+**stabilized**: restored the working components + clean `index.css` baseline, stripped
+the foreign imports, and **parked the 4 new CSS files untracked+unimported** (preserved,
+not deleted) for the upcoming incremental polish. App builds clean; pinned approval bar kept.
+**Next (polish phase):** layer premium polish onto the WORKING components one increment at a
+time (verify build each step); optionally mine the parked CSS for ideas. Don't re-import it wholesale.
+
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 

@@ -1,13 +1,15 @@
-/* ═════════════════════════════════════════════════════════════════════════
-   PREMIUM 2026 GLOBAL STYLESHEET — Production Grade
-   ═════════════════════════════════════════════════════════════════════════ */
+/* ============================================================================
+   GLOBAL STYLESHEET
+   Order matters: Tailwind first, then our token layer, then base + a11y.
+   ========================================================================== */
 @import "tailwindcss";
 @import "./styles/tokens.css";
-@import "./styles/design-system.css";
-@import "./styles/nexgen-3d.css";
-@import "./styles/nexgen-layout.css";
 
-/* ── Premium Color System ───────────────────────────────────────────────── */
+/* ── Tailwind v4 @theme bridge ───────────────────────────────────────────
+   Registers the legacy utility names used by existing components
+   (bg-editorBg, border-borderDark, etc.) so they resolve to the unified
+   palette instead of silently producing nothing. Also exposes the new
+   surface/accent ramp + fluid type scale as Tailwind utilities. */
 @theme {
   --color-canvas:     #050507;
   --color-editorBg:   #08090c;
@@ -22,15 +24,10 @@
   --color-ink2: #a7abbd;
   --color-ink3: #6b7088;
 
-  /* Premium Gradients */
-  --color-accent:  #0f7bff;
-  --color-accent-bright: #3d9bff;
-  --color-success: #10b981;
-  --color-warn:    #f59e0b;
-  --color-danger:  #ef4444;
-  --color-cyan:    #00d4ff;
-  --color-purple:  #8b5cf6;
-  --color-pink:    #ec4899;
+  --color-accent:  #3b82f6;
+  --color-success: #34d399;
+  --color-warn:    #fbbf24;
+  --color-danger:  #f87171;
 
   --font-sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;

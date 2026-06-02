@@ -5,9 +5,6 @@ import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
-import './styles/App.css';
-import './styles/nexgen-3d.css';
-import './styles/nexgen-layout.css';
 import { API_BASE } from './config';
 
 /* ─── Premium Resize Handles ─────────────────────────────────────────── */
