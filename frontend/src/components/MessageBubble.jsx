@@ -30,6 +30,7 @@ function AgentStep({ step, settled }) {
         background: 'rgba(255,255,255,0.03)',
         border: `1px solid ${meta.color}20`,
         position: 'relative',
+        animation: 'stepIn 0.28s ease-out both',
       }}>
         <span style={{ fontSize: 14, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>{meta.icon}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -71,6 +72,7 @@ function AgentStep({ step, settled }) {
         borderRadius: 8,
         background: 'rgba(52,211,153,0.04)',
         border: '1px solid rgba(52,211,153,0.12)',
+        animation: 'stepIn 0.28s ease-out both',
       }}>
         <span style={{ fontSize: 12, color: '#34d399', flexShrink: 0, marginTop: 2 }}>✓</span>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -113,6 +115,7 @@ function AgentStep({ step, settled }) {
         padding: '6px 10px', borderRadius: 8,
         background: 'rgba(248,113,113,0.06)',
         border: '1px solid rgba(248,113,113,0.2)',
+        animation: 'stepIn 0.28s ease-out both',
       }}>
         <span style={{ fontSize: 12, flexShrink: 0, marginTop: 2 }}>🛡</span>
         <div>
@@ -347,8 +350,9 @@ export default function MessageBubble({ msg }) {
         padding: '10px 14px',
         fontSize: 13, lineHeight: 1.65,
         wordBreak: 'break-word',
-        boxShadow: '0 4px 16px rgba(59,130,246,0.2)',
+        boxShadow: '0 4px 18px rgba(59,130,246,0.28), inset 0 1px 0 rgba(255,255,255,0.14)',
         whiteSpace: 'pre-wrap',
+        animation: 'messageIn 0.34s cubic-bezier(0.22,1,0.36,1) both',
       }}>
         {msg.text}
       </div>
@@ -357,7 +361,7 @@ export default function MessageBubble({ msg }) {
 
   // AI message
   return (
-    <div style={{ alignSelf: 'flex-start', maxWidth: '92%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ alignSelf: 'flex-start', maxWidth: '92%', display: 'flex', flexDirection: 'column', gap: 6, animation: 'messageIn 0.34s cubic-bezier(0.22,1,0.36,1) both' }}>
       {/* Agent steps */}
       {msg.steps && msg.steps.length > 0 && (
         <div style={{
@@ -396,7 +400,7 @@ export default function MessageBubble({ msg }) {
           borderRadius: msg.steps?.length > 0 ? '12px 12px 12px 4px' : '4px 16px 16px 16px',
           padding: '10px 14px',
           wordBreak: 'break-word',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.03)',
         }}>
           {msg.loading && !msg.text ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-3)' }}>

@@ -152,6 +152,17 @@ button:disabled { cursor: not-allowed; }
   100% { transform: translateX(130%); }
 }
 
+/* ── Chat message: soft fade + slide-up on mount (plays once per bubble) ─── */
+@keyframes messageIn {
+  0%   { opacity: 0; transform: translateY(9px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+/* ── Agent step: tiny slide-in so steps cascade as the agent works ──────── */
+@keyframes stepIn {
+  0%   { opacity: 0; transform: translateY(5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
