@@ -18,6 +18,7 @@ from aios.api.main import (
     get_llm_client,
     get_ollama_client,
     get_rollback_engine,
+    get_semantic_indexer,
 )
 from aios.core.executor import Executor
 from aios.memory.episodic import EpisodicMemory
@@ -78,16 +79,30 @@ class RecordingAudit:
         return None
 
 
+class FakeIndexer:
+    """Stand-in L3 writer — records indexed text, never loads an embedder."""
+
+    def __init__(self) -> None:
+        self.added: list[str] = []
+
+    def add(self, text: str) -> int:
+        self.added.append(text)
+        return len(self.added)
+
+
 def _fake_executor() -> Executor:
     return Executor(runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit())
 
 
 @pytest.fixture()
 def client() -> Iterator[TestClient]:
+    fake_indexer = FakeIndexer()
     app.dependency_overrides[get_llm_client] = FakeLLM
     app.dependency_overrides[get_ollama_client] = FakeOllama
     app.dependency_overrides[get_executor] = _fake_executor
+    app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
     with TestClient(app) as test_client:
+        test_client.fake_indexer = fake_indexer  # exposed for indexing assertions
         yield test_client
     app.dependency_overrides.clear()
 
@@ -210,3 +225,20 @@ def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> Non
     body = response.text
     assert "query_knowledge" in body          # the recall step is surfaced
     assert "serves the API on port 8000" in body
+
+
+def test_generate_indexes_completed_turn_into_semantic(client: TestClient) -> None:
+    client.fake_indexer.added.clear()
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "make a button"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-index-turn",
+        },
+    )
+    assert response.status_code == 200
+    assert "event: done" in response.text
+    assert client.fake_indexer.added, "the completed turn should be indexed into L3"
+    entry = client.fake_indexer.added[-1]
+    assert "User:" in entry and "Assistant:" in entry

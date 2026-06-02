@@ -38,6 +38,7 @@ from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.retrieval import hybrid_search
+from aios.memory.semantic import SemanticMemory
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import Zone, classify
 
@@ -91,6 +92,16 @@ def get_executor() -> Executor:
 def get_rollback_engine() -> RollbackEngine:
     """Provide the default sandbox rollback engine. Overridden in tests."""
     return RollbackEngine()
+
+
+def get_semantic_indexer() -> Optional[SemanticMemory]:
+    """Provide the L3 semantic writer used to index completed chat turns.
+
+    Returns ``None`` when :data:`aios.config.INDEX_CHAT` is disabled (so no
+    embedding model is loaded). Overridden in tests with a fake recorder so the
+    suite never loads the real embedder or mutates the on-disk vector index.
+    """
+    return SemanticMemory() if config.INDEX_CHAT else None
 
 
 # --------------------------------------------------------------------------- #
@@ -374,15 +385,34 @@ def _record_episode(session_id: str, role: str, content: str) -> None:
         pass
 
 
+def _index_turn(
+    indexer: Optional[SemanticMemory], user_text: str, answer: str
+) -> None:
+    """Embed a completed Q->A turn into L3 semantic memory so future recall finds it.
+
+    Best-effort and gated by the injected *indexer* (``None`` disables it). This
+    is what makes recall self-reinforcing: today's answer becomes tomorrow's
+    recalled context. Skipped for empty answers.
+    """
+    answer = (answer or "").strip()
+    if indexer is None or not answer:
+        return
+    try:
+        indexer.add(f"User: {user_text}\nAssistant: {answer}")
+    except Exception:  # noqa: BLE001 - indexing must not break the chat
+        pass
+
+
 @app.post("/api/generate")
 def generate(
     req: GenerateRequest,
     client: OllamaClient = Depends(get_ollama_client),
     executor: Executor = Depends(get_executor),
+    indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
-    Pipeline per turn (blueprint stages 4 -> ... -> persistence):
+    Pipeline per turn (blueprint stages 4 -> ... -> consolidation):
       1. Recall relevant semantic memories and inject them into the agent's
          context (surfaced as a ``query_knowledge`` step when anything is found).
       2. Persist the user turn to L2 episodic memory.
@@ -390,7 +420,8 @@ def generate(
          ``execute_terminal``, all gated + audited), forwarding tool activity as
          ``step`` frames, the answer as ``text_chunk`` frames, any code as a
          ``code`` frame, and finishing with ``done`` (or ``error``).
-      4. Persist the assistant's final answer to L2 episodic memory.
+      4. Persist the assistant's final answer to L2 episodic memory and embed the
+         completed turn into L3 semantic memory (self-reinforcing recall).
     """
     chat_messages = _to_chat_messages(req.messages)
     model = _resolve_local_model(req.model_id)
@@ -437,8 +468,10 @@ def generate(
             elif kind == "error":
                 yield _sse("error", {"text": ev["text"]})
             elif kind == "done":
-                # 4. Persist the assistant's answer.
-                _record_episode(session_id, "assistant", "".join(answer_parts))
+                # 4. Persist the answer (L2) and consolidate the turn into L3.
+                answer = "".join(answer_parts)
+                _record_episode(session_id, "assistant", answer)
+                _index_turn(indexer, user_text, answer)
                 yield _sse("done", {})
 
     return StreamingResponse(

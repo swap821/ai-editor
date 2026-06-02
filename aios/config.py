@@ -53,6 +53,14 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    """Return *name* parsed as a boolean (``true/1/yes/on``), else *default*."""
+    raw = os.getenv(name)
+    if raw in (None, ""):
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 def _env_path(name: str, default: Path) -> Path:
     """Return *name* as an absolute, user-expanded ``Path``; else *default*."""
     raw = os.getenv(name)
@@ -152,6 +160,11 @@ LLM_TEMPERATURE: Final[float] = _env_float("AIOS_LLM_TEMPERATURE", 0.1)
 #: lets mid-size models fit on a small GPU (e.g. a 4GB laptop card).
 LLM_NUM_CTX: Final[int] = _env_int("AIOS_LLM_NUM_CTX", 4096)
 
+#: When True, each completed chat turn is embedded into L3 semantic memory so
+#: future recall is self-reinforcing across sessions. Loads the embedding model
+#: alongside the LLM, so set ``AIOS_INDEX_CHAT=false`` on very RAM-tight hosts.
+INDEX_CHAT: Final[bool] = _env_bool("AIOS_INDEX_CHAT", True)
+
 # --------------------------------------------------------------------------- #
 # HTTP API server (FastAPI / uvicorn) + browser CORS
 # --------------------------------------------------------------------------- #
@@ -193,6 +206,7 @@ __all__ = [
     "LLM_REQUEST_TIMEOUT_S",
     "LLM_TEMPERATURE",
     "LLM_NUM_CTX",
+    "INDEX_CHAT",
     "API_HOST",
     "API_PORT",
     "API_CORS_ORIGINS",
