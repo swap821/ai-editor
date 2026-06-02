@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from aios.api.main import (
     app,
+    get_bedrock_client,
     get_executor,
     get_llm_client,
     get_ollama_client,
@@ -322,6 +323,32 @@ def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
     # must never reach the human approval prompt — it belongs in the audit log.
     assert "Caution operation requires approval" not in body
     assert "event: done" not in body            # the paused turn does not complete
+
+
+class FakeBedrockChat:
+    """Bedrock stand-in for the agent loop — answers with a fenced code block."""
+
+    def chat(self, messages, *, tools=None, model=None) -> dict:
+        return {"role": "assistant", "content": "Answer from Bedrock.\n```text\ncloud\n```"}
+
+
+def test_generate_routes_cloud_model_to_bedrock(client: TestClient) -> None:
+    # A non-ollama (cloud) model id routes to the injected Bedrock client instead
+    # of falling through to local Ollama.
+    app.dependency_overrides[get_bedrock_client] = lambda: FakeBedrockChat()
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+            "modelId": "amazon.nova-pro-v1:0",
+            "sessionId": "test-bedrock-route",
+        },
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "event: done" in body
+    assert "cloud" in body                      # code block from the Bedrock answer
+    assert "<button>Hi</button>" not in body    # did NOT fall through to Ollama
 
 
 def test_generate_runs_approved_yellow_command(client: TestClient) -> None:

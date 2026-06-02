@@ -60,6 +60,20 @@ not deleted) for the upcoming incremental polish. App builds clean; pinned appro
 **Next (polish phase):** layer premium polish onto the WORKING components one increment at a
 time (verify build each step); optionally mine the parked CSS for ideas. Don't re-import it wholesale.
 
+### Cloud inference (AWS Bedrock) — NEW, opt-in
+Local Ollama CUDA-OOMs on the 4GB RTX 3050, so a **Bedrock cloud provider** was
+added (`aios/core/bedrock.py`, Converse API + tool-use; routed in `/api/generate`
+via `_select_chat_client`). Local-first stays the default; Bedrock is **off**
+unless configured. To use it, set env vars **before** starting uvicorn:
+```
+$env:AIOS_BEDROCK_REGION="us-east-1"          # your region
+$env:AIOS_BEDROCK_MODEL="<enabled model/inference-profile id>"
+$env:AWS_ACCESS_KEY_ID="..."; $env:AWS_SECRET_ACCESS_KEY="..."   # or a profile/role
+```
+Then in the UI pick any non-Ollama (Cloud) model → it routes to Bedrock on the
+configured model. Secrets live only in env (never on disk). `boto3` is in
+requirements; 103 tests pass (fakes, no live AWS).
+
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 

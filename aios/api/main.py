@@ -33,7 +33,8 @@ from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
-from aios.core.llm import LLMClient, OllamaClient
+from aios.core.bedrock import BedrockClient
+from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db
 from aios.memory.episodic import EpisodicMemory
@@ -82,6 +83,21 @@ def get_ollama_client() -> OllamaClient:
     remaining overridable in tests.
     """
     return OllamaClient()
+
+
+def get_bedrock_client() -> Optional[BedrockClient]:
+    """Provide the AWS Bedrock cloud chat client, or ``None`` when unconfigured.
+
+    Returns ``None`` unless :data:`aios.config.BEDROCK_ENABLED` (region + model
+    set) *and* boto3 is importable — so the agent transparently stays on local
+    inference when the cloud isn't set up. Overridden in tests with a fake.
+    """
+    if not config.BEDROCK_ENABLED:
+        return None
+    try:
+        return BedrockClient()
+    except LLMError:
+        return None
 
 
 def get_executor() -> Executor:
@@ -328,6 +344,24 @@ def _resolve_local_model(model_id: Optional[str]) -> str:
     return config.LLM_MODEL
 
 
+def _select_chat_client(
+    model_id: Optional[str],
+    ollama: Any,
+    bedrock: Optional[Any],
+) -> tuple[Any, str]:
+    """Pick the ``(chat_client, model)`` for the requested UI model id.
+
+    ``ollama.x`` always runs locally on ``x``. Any other id is a "use cloud"
+    signal: it routes to Bedrock (on the configured :data:`BEDROCK_MODEL`) when a
+    Bedrock client is available, otherwise falls back to the local default model.
+    """
+    if model_id and model_id.startswith("ollama."):
+        return ollama, _resolve_local_model(model_id)
+    if bedrock is not None:
+        return bedrock, config.BEDROCK_MODEL
+    return ollama, config.LLM_MODEL
+
+
 def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten the UI history (``content`` arrays) into Ollama chat messages."""
     out: list[dict[str, Any]] = []
@@ -487,6 +521,7 @@ def _make_confirm_hook(reflector: Optional[ReflectionAgent]):
 def generate(
     req: GenerateRequest,
     client: OllamaClient = Depends(get_ollama_client),
+    bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     executor: Executor = Depends(get_executor),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
@@ -505,7 +540,7 @@ def generate(
          completed turn into L3 semantic memory (self-reinforcing recall).
     """
     chat_messages = _to_chat_messages(req.messages)
-    model = _resolve_local_model(req.model_id)
+    chat_client, model = _select_chat_client(req.model_id, client, bedrock)
     session_id = req.session_id
     user_text = _latest_user(chat_messages)
 
@@ -552,8 +587,9 @@ def generate(
         _record_episode(session_id, "user", user_text)
 
         # 3. Agentic loop with recalled context + lessons + reflection + confirmation.
+        #    `chat_client` is local Ollama or cloud Bedrock per the selected model.
         agent = ToolAgent(
-            client,
+            chat_client,
             executor,
             model=model,
             session_id=session_id,

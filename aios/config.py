@@ -172,6 +172,22 @@ INDEX_CHAT: Final[bool] = _env_bool("AIOS_INDEX_CHAT", True)
 REFLECT_ON_FAILURE: Final[bool] = _env_bool("AIOS_REFLECT_ON_FAILURE", True)
 
 # --------------------------------------------------------------------------- #
+# Cloud LLM (AWS Bedrock) — optional, for when the local GPU can't host a model
+# --------------------------------------------------------------------------- #
+#: AWS region for Bedrock (e.g. ``us-east-1``). Bedrock stays *disabled* until
+#: both this and :data:`BEDROCK_MODEL` are set. Credentials are resolved by
+#: boto3's default chain (env vars / shared profile / role) — this module never
+#: reads or writes them to disk, honouring the no-secret-persistence rule.
+BEDROCK_REGION: Final[str] = _env_str("AIOS_BEDROCK_REGION", "")
+#: Bedrock model (or inference-profile) id to run, e.g.
+#: ``us.anthropic.claude-3-5-sonnet-20241022-v2:0``.
+BEDROCK_MODEL: Final[str] = _env_str("AIOS_BEDROCK_MODEL", "")
+#: Max output tokens per Bedrock turn.
+BEDROCK_MAX_TOKENS: Final[int] = _env_int("AIOS_BEDROCK_MAX_TOKENS", 1024)
+#: True only when Bedrock is fully configured (region + model both present).
+BEDROCK_ENABLED: Final[bool] = bool(BEDROCK_REGION and BEDROCK_MODEL)
+
+# --------------------------------------------------------------------------- #
 # HTTP API server (FastAPI / uvicorn) + browser CORS
 # --------------------------------------------------------------------------- #
 #: Interface and port uvicorn binds to when serving the API.
@@ -214,6 +230,10 @@ __all__ = [
     "LLM_NUM_CTX",
     "INDEX_CHAT",
     "REFLECT_ON_FAILURE",
+    "BEDROCK_REGION",
+    "BEDROCK_MODEL",
+    "BEDROCK_MAX_TOKENS",
+    "BEDROCK_ENABLED",
     "API_HOST",
     "API_PORT",
     "API_CORS_ORIGINS",
