@@ -118,6 +118,19 @@ def test_agent_surfaces_llm_error() -> None:
     assert "ollama is down" in events[-1]["text"]
 
 
+def test_agent_injects_memory_context_into_system_prompt() -> None:
+    chat = ScriptedChat([{"role": "assistant", "content": "ok"}])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=2,
+        memory_context="RELEVANT PROJECT MEMORY:\n- the answer is 42",
+    )
+    list(agent.run([{"role": "user", "content": "what is the answer?"}]))
+
+    system_msg = chat.calls[0][0]
+    assert system_msg["role"] == "system"
+    assert "the answer is 42" in system_msg["content"]
+
+
 def test_agent_stops_at_step_cap() -> None:
     # Always asks for another tool call -> never finishes on its own.
     looping = ScriptedChat([_tool_call("read_directory", {"path": "."}) for _ in range(10)])

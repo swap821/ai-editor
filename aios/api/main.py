@@ -36,6 +36,7 @@ from aios.core.executor import Executor
 from aios.core.llm import LLMClient, OllamaClient
 from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db
+from aios.memory.episodic import EpisodicMemory
 from aios.memory.retrieval import hybrid_search
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import Zone, classify
@@ -156,6 +157,7 @@ class GenerateRequest(BaseModel):
 
     messages: list[dict] = Field(default_factory=list)
     model_id: Optional[str] = Field(None, alias="modelId")
+    session_id: str = Field("ui-session", alias="sessionId")
 
     model_config = {"populate_by_name": True}
 
@@ -325,8 +327,51 @@ def _sse(event: str, data: dict) -> str:
     """Format one Server-Sent Event frame."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
+
 #: Agent event type -> SSE event name the front-end's stream reader understands.
 _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
+
+#: Episodic (L2) memory facade — the durable, chronological record of every turn.
+_EPISODIC = EpisodicMemory()
+
+
+def _latest_user(chat_messages: list[dict]) -> str:
+    """Return the most recent user message text (already flattened to a string)."""
+    for msg in reversed(chat_messages):
+        if msg["role"] == "user":
+            return msg["content"]
+    return ""
+
+
+def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
+    """Best-effort hybrid recall of relevant semantic memories for *query*.
+
+    Returns a prompt-ready knowledge block, or ``None`` when there is nothing
+    relevant (or the memory subsystem is unavailable). ``hybrid_search``
+    short-circuits to empty without loading the embedding model when the
+    semantic index is empty, so this is a cheap no-op on a fresh system.
+    """
+    try:
+        hits = hybrid_search(query, top_k=top_k)
+    except Exception:  # noqa: BLE001 - recall is an enhancement, never fatal
+        return None
+    if not hits:
+        return None
+    lines = "\n".join(f"- {hit.text}" for hit in hits)
+    return (
+        "RELEVANT PROJECT MEMORY (recalled from past sessions; use if helpful):\n"
+        f"{lines}"
+    )
+
+
+def _record_episode(session_id: str, role: str, content: str) -> None:
+    """Persist one turn to L2 episodic memory. Best-effort; never fatal."""
+    if not content or not content.strip():
+        return
+    try:
+        _EPISODIC.record(session_id, role, content)
+    except Exception:  # noqa: BLE001 - persistence must not break the chat
+        pass
 
 
 @app.post("/api/generate")
@@ -335,34 +380,65 @@ def generate(
     client: OllamaClient = Depends(get_ollama_client),
     executor: Executor = Depends(get_executor),
 ) -> StreamingResponse:
-    """Run the agentic tool loop and stream it to the UI as Server-Sent Events.
+    """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
-    The local model may call tools (``read_file``, ``read_directory``,
-    ``execute_terminal``) before answering; each call is gated and audited by the
-    same subsystems the rest of the OS uses. Tool activity is forwarded as
-    ``step`` frames (rendered as agent steps), the final answer streams as
-    ``text_chunk`` frames, a fenced code block becomes a ``code`` frame (updating
-    the editor), and the stream ends with ``done``. Failures surface as ``error``.
+    Pipeline per turn (blueprint stages 4 -> ... -> persistence):
+      1. Recall relevant semantic memories and inject them into the agent's
+         context (surfaced as a ``query_knowledge`` step when anything is found).
+      2. Persist the user turn to L2 episodic memory.
+      3. Run the agentic tool loop (``read_file``/``read_directory``/
+         ``execute_terminal``, all gated + audited), forwarding tool activity as
+         ``step`` frames, the answer as ``text_chunk`` frames, any code as a
+         ``code`` frame, and finishing with ``done`` (or ``error``).
+      4. Persist the assistant's final answer to L2 episodic memory.
     """
     chat_messages = _to_chat_messages(req.messages)
     model = _resolve_local_model(req.model_id)
+    session_id = req.session_id
+    user_text = _latest_user(chat_messages)
 
     def event_stream() -> Iterator[str]:
-        if not any(m["role"] == "user" for m in chat_messages):
+        if not user_text:
             yield _sse("error", {"text": "No user message provided."})
             return
-        agent = ToolAgent(client, executor, model=model)
+
+        # 1. Recall (best-effort) + 2. persist the user turn.
+        memory_context = _recall_memory(user_text)
+        if memory_context:
+            yield _sse(
+                "step",
+                {
+                    "type": "tool_result",
+                    "tool": "query_knowledge",
+                    "output": memory_context[:400],
+                    "id": "memory-recall",
+                },
+            )
+        _record_episode(session_id, "user", user_text)
+
+        # 3. Agentic loop with the recalled context injected.
+        agent = ToolAgent(
+            client,
+            executor,
+            model=model,
+            session_id=session_id,
+            memory_context=memory_context,
+        )
+        answer_parts: list[str] = []
         for ev in agent.run(chat_messages):
             kind = ev["type"]
             if kind in _STEP_EVENTS:
                 yield _sse("step", ev)
             elif kind == "text":
+                answer_parts.append(ev["text"])
                 yield _sse("text_chunk", {"text": ev["text"]})
             elif kind == "code":
                 yield _sse("code", {"code": ev["code"], "language": ev["language"]})
             elif kind == "error":
                 yield _sse("error", {"text": ev["text"]})
             elif kind == "done":
+                # 4. Persist the assistant's answer.
+                _record_episode(session_id, "assistant", "".join(answer_parts))
                 yield _sse("done", {})
 
     return StreamingResponse(

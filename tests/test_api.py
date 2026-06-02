@@ -6,6 +6,7 @@ Ollama, spawns a shell, or touches the real sandbox/ledger.
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Iterator, Optional
 
 import pytest
@@ -19,6 +20,7 @@ from aios.api.main import (
     get_rollback_engine,
 )
 from aios.core.executor import Executor
+from aios.memory.episodic import EpisodicMemory
 from aios.security.gateway import RateLimiter
 
 
@@ -173,3 +175,38 @@ def test_terminal_red_command_is_blocked(client: TestClient) -> None:
     body = response.json()
     assert body["isError"] is True
     assert "BLOCKED" in body["output"]
+
+
+def test_generate_persists_episodic_turns(client: TestClient) -> None:
+    session_id = "test-episodic-persist"
+    before = EpisodicMemory().count(session_id)
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "make a button"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
+    assert response.status_code == 200
+    assert "event: done" in response.text
+    # The user turn and the assistant answer are both recorded.
+    assert EpisodicMemory().count(session_id) - before >= 2
+
+
+def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> None:
+    recalled = [SimpleNamespace(text="The project serves the API on port 8000.")]
+    monkeypatch.setattr("aios.api.main.hybrid_search", lambda q, top_k=3: recalled)
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "what port?"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-recall-step",
+        },
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "query_knowledge" in body          # the recall step is surfaced
+    assert "serves the API on port 8000" in body

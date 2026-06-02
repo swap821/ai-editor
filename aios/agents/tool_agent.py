@@ -179,6 +179,7 @@ class ToolAgent:
         max_iters: int = DEFAULT_MAX_ITERS,
         read_root: Optional[Path] = None,
         session_id: Optional[str] = None,
+        memory_context: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -188,6 +189,9 @@ class ToolAgent:
         #: confined to the executor's own (tighter) sandbox scope roots.
         self.read_root = (read_root or config.PROJECT_ROOT).resolve()
         self.session_id = session_id
+        #: Optional recalled-memory block injected into the system prompt
+        #: (blueprint stage 4 — the agent reasons with relevant past knowledge).
+        self.memory_context = memory_context
 
     def run(self, messages: list[dict]) -> Iterator[dict]:
         """Drive the loop, yielding event dicts the API maps to SSE.
@@ -195,7 +199,10 @@ class ToolAgent:
         Event types: ``tool_call``, ``tool_result``, ``tool_blocked``, ``text``,
         ``code``, ``done``, ``error``.
         """
-        convo: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        system = SYSTEM_PROMPT
+        if self.memory_context:
+            system = f"{SYSTEM_PROMPT}\n\n{self.memory_context}"
+        convo: list[dict] = [{"role": "system", "content": system}]
         convo.extend(messages)
 
         for _ in range(self.max_iters):
