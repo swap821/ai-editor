@@ -988,8 +988,17 @@ export default function App() {
       </header>
 
       {/* ══ MAIN BODY ══════════════════════════════════════════ */}
-      <div className="flex-1 overflow-hidden">
-        <PanelGroup orientation="vertical">
+      {/* Padding leaves a margin of the 3D void around the workspace, and the
+          PanelGroup is a rounded, shadowed "slab" floating in that space. */}
+      <div className="flex-1 overflow-hidden" style={{ padding: 12, position: 'relative', zIndex: 1 }}>
+        <PanelGroup
+          orientation="vertical"
+          style={{
+            borderRadius: 16,
+            overflow: 'hidden',
+            boxShadow: '0 36px 100px -28px rgba(0,0,0,0.78), 0 0 0 1px rgba(255,255,255,0.05), 0 0 60px -20px rgba(99,102,241,0.18)',
+          }}
+        >
 
           {/* Top 70% */}
           <Panel defaultSize={70} minSize={30}>
