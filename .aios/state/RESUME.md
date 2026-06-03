@@ -56,11 +56,16 @@ later phases, not dropped).
   runs a test command through the gated Executor, judges pass/fail by exit code + parsed
   pytest/jest counts, returns a bounded confidence delta, and feeds failures to a reflection
   hook (fail-closed on blocked/timeout). 5 tests. Full suite **134 passed, 1 skipped**.
-**Next action:** commit Slice 5, then **Slice 4 — diff-preview UI + e2e (code half)**: wire
-`approvedEdits` + the edit snapshot/diff through `/api/generate` + `App.jsx`, extract an
-`ApprovalBar` rendering the unified diff (+ tests). The live e2e walk is **operator-gated**
-(RAM-bound, interactive) — hand the operator exact steps. Frontend-polish-worker idea recorded
-in PLAN.md "Later phases" (propose-only, approval-gated, test-green-required, externally scheduled).
+- **Slice 7 — L3 entity facts + contradiction detection (Blueprint 5.3): DONE & GREEN.**
+  New `semantic_facts` table + `aios/memory/facts.py` (`SemanticFacts`): `(subject,predicate,object)`
+  triples; `add_fact` detects a same-subject+predicate / different-object **contradiction** and
+  refuses to silently commit it (returns the conflict to route to reflection/human); `reconcile`
+  supersedes + commits the chosen object; exact duplicates idempotent. 4 tests. Full suite **138 passed, 1 skipped**.
+  Frontend-polish-worker idea now recorded **permanently in memory** (`frontend-polish-worker-idea`) + PLAN.md.
+**Next action:** commit Slice 7. Autonomously-completable slices are now DONE (1,2,3,5,7). The
+remaining work needs the operator: **Slice 4** (diff-preview UI — code half is mine, the live e2e
+walk is RAM-gated/interactive), **Slice 6** (prompt-injection vector blocklist — FROZEN CORE, needs
+explicit go), **Slice 8** (polish/freeze, best after 4). Restate & wait before each.
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---

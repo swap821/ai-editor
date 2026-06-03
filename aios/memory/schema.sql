@@ -48,6 +48,21 @@ CREATE TABLE IF NOT EXISTS mistake_pool (
     occurrence_count    INTEGER NOT NULL DEFAULT 1
 );
 
+-- == L3b: Semantic facts (entity-relation triples) ===========================
+-- Project entities, user preferences, codebase facts as (subject, predicate,
+-- object). Contradiction detection (Blueprint 5.3) checks for an existing
+-- *active* fact on the same subject+predicate before committing a different
+-- object, instead of silently accumulating conflicting knowledge.
+CREATE TABLE IF NOT EXISTS semantic_facts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    subject     TEXT NOT NULL,
+    predicate   TEXT NOT NULL,
+    object      TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'active'
+                CHECK (status IN ('active','superseded'))
+);
+
 -- == Indexes =================================================================
 CREATE INDEX IF NOT EXISTS idx_episodic_session ON episodic_memory(session_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_time    ON episodic_memory(timestamp);
@@ -57,3 +72,4 @@ CREATE INDEX IF NOT EXISTS idx_mistake_time     ON mistake_pool(timestamp);
 -- Partial index: hot path is querying *verified* lessons during planning.
 CREATE INDEX IF NOT EXISTS idx_mistake_verified ON mistake_pool(verification_status)
     WHERE verification_status = 'verified';
+CREATE INDEX IF NOT EXISTS idx_facts_sp         ON semantic_facts(subject, predicate);

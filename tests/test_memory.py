@@ -16,6 +16,7 @@ import pytest
 from aios.memory import db as memdb
 from aios.memory.embeddings import EmbeddingModel, VectorIndex
 from aios.memory.episodic import EpisodicMemory
+from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
@@ -166,3 +167,42 @@ def test_recency_term_decays_over_time() -> None:
     decay_old = math.exp(-config.RETRIEVAL_LAMBDA_DECAY_PER_HOUR * _hours_since(older, now))
     decay_new = math.exp(-config.RETRIEVAL_LAMBDA_DECAY_PER_HOUR * _hours_since(newer, now))
     assert decay_new > decay_old
+
+
+# --------------------------------------------------------------------------- #
+# L3 Semantic facts + contradiction detection (Blueprint 5.3)
+# --------------------------------------------------------------------------- #
+def test_fact_commits_when_no_conflict(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    res = facts.add_fact("api", "listens_on_port", "8000")
+    assert res.committed is True and res.fact_id is not None
+    assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["8000"]
+
+
+def test_fact_exact_duplicate_is_idempotent(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    first = facts.add_fact("user", "prefers", "dark mode")
+    again = facts.add_fact("user", "prefers", "dark mode")
+    assert again.committed is True
+    assert again.fact_id == first.fact_id            # no duplicate row created
+    assert len(facts.facts_for("user", "prefers")) == 1
+
+
+def test_contradiction_is_detected_and_not_committed(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("api", "listens_on_port", "8000")
+    conflict = facts.add_fact("api", "listens_on_port", "9000")  # same subj+pred, diff obj
+    assert conflict.committed is False
+    assert conflict.reason == "contradiction"
+    assert conflict.conflict_object == "8000"
+    # The conflicting fact was NOT silently written; only the original stays active.
+    assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["8000"]
+
+
+def test_reconcile_supersedes_old_and_commits_new(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("api", "listens_on_port", "8000")
+    facts.add_fact("api", "listens_on_port", "9000")             # contradiction, not committed
+    res = facts.reconcile("api", "listens_on_port", "9000")
+    assert res.committed is True
+    assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["9000"]
