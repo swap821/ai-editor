@@ -191,9 +191,8 @@ Table 2 Technical Differentiators Summary
 Differentiator Technical Realisation
 Deterministic fail-closed security 3-zone classifier with scope-locking, secret scanning, rate limiting
 4-layer memory architecture Working/Episodic/Semantic/Mistake with hybrid BM25+FAISS retrieval
-Cryptographic audit integrity SHA-256 hash-chained append-only SQLite log; tamper detectable in 
+Cryptographic audit integrity SHA-256 hash-chained append-only SQLite log; tamper detectable in O(n)
 Structured self-correction Reflection Agent writes root cause + lesson to queryable Mistake DB
-O(n)
 
 ---
 
@@ -308,9 +307,8 @@ Table 6 Memory Hierarchy — Four-Layer Storage Model
 Layer Backend Contents Access TTL
 L1 Working RAM dict Active task context, tool vars, conversation
 history
- direct Session
-L2 Episodic SQLite Historical tasks, goals, executions, outcomes Time+semantic
-Q
+O(1) direct Session
+L2 Episodic SQLite Historical tasks, goals, executions, outcomes Time+semantic Query
 Permanent
 L3 Semantic SQLite Project entities, user preferences, codebase facts Entity-relation Permanent
 L4 Mistake SQLite Errors, root causes, fixes, confidence deltas Error+similarity Permanent
@@ -326,28 +324,24 @@ Graph traversal Phase 3
 The composite memory relevance score combines lexical, semantic, and temporal components into a unified
 retrieval ranking function. This hybrid approach addresses the limitations of pure vector similarity by
 incorporating exact keyword matching (BM25) and temporal recency bias.
-(1)
+(1)  R(q, m, t) = α·S_BM25(q, m) + β·S_FAISS(q, m) + γ·e^(−λ·Δt)
 Table 7 Hybrid Relevance Score Parameters
 Parameter Value Role
-0.25 Weight for BM25 lexical score — captures exact keywords, error codes, file paths
-0.45 Weight for FAISS cosine similarity — captures semantic relationships
-O(1)
-R(q,m,t)=α⋅ S  (q,m)+BM25 β⋅ S  (q,m)+FAISS γ⋅ e−λ⋅Δt
-α
-β
+α   0.25    Weight for BM25 lexical score — captures exact keywords, error codes, file paths
+β   0.45    Weight for FAISS cosine similarity — captures semantic relationships
 
 ---
 
 ## SECTION_PAGE_10
 06. Deterministic Security Model
 10
-0.30 Weight for temporal recency — recent memories rank higher
-0.05/hr Decay constant — calibrated on LoCoMo benchmark (+12-18% over pure vector)
-hours Elapsed time since memory last accessed
+γ   0.30    Weight for temporal recency — recent memories rank higher
+λ   0.05/hr Decay constant — calibrated on LoCoMo benchmark (+12-18% over pure vector)
+Δt  hours   Elapsed time since memory last accessed
 5.3 Contradiction Detection Flow
 Algorithm 1: Contradiction Detection & Resolution
 1. New fact extracted from LLM output or tool result.
-2. Entity-relation triple parsed: .
+2. Entity-relation triple parsed: (subject, predicate, object).
 3. Semantic index queried for conflicting triples on same subject-predicate.
 4. If conflict detected: route to Reflection Agent, compute confidence delta, offer human
 reconciliation.
@@ -363,10 +357,6 @@ Hybrid BM25+FAISS re-ranking 15–30ms Combined Parallel ok
 Context assembly + token trim 2–5ms Python Linear
 Total memory overhead < 80ms All layers Interactive
 06. Deterministic Security Model
-γ
-λ
-Δt
-(subject,predicate,object)
 
 ---
 
@@ -466,12 +456,9 @@ Figure 2: Mistake Database Schema — SQLite DDL with Optimised Indexes
 7.2 Cryptographic Audit Log — Hash Chain Formula
 The tamper-evident audit log implements a cryptographically linked hash chain over SQLite entries. Each
 entry's hash depends on the previous entry's hash, creating a sequential integrity guarantee.
-(2)
-Genesis hash:  (64 zero characters). Any historical alteration breaks all subsequent hashes,
-making tampering detectable in  via sequential recomputation.
-H  =i SHA-256(H  ∥i−1 timestamp  ∥i actor  ∥i payload  ∥i zone  )i
-H  =0 ’0’×64
-O(n)
+(2)  H_i = SHA-256(H_{i−1} ∥ timestamp_i ∥ actor_i ∥ payload_i ∥ zone_i)
+Genesis hash: H_0 = '0'×64 (64 zero characters). Any historical alteration breaks all subsequent hashes,
+making tampering detectable in O(n) via sequential recomputation.
 
 ---
 
@@ -1176,10 +1163,8 @@ failed.
 context window.
 Cryptography Tampering is mathematically
 detectable.
-Hash chain: altering entry  invalidates all entries  to 
-.  verify.
-i i+1 n
-O(n)
+Hash chain: altering entry i invalidates all entries i+1 to n
+. O(n) verify.
 
 ---
 
@@ -1215,12 +1200,11 @@ Q3: How does your audit log prove tampering without a blockchain?
 Each entry stores SHA-256 of (previous_hash + timestamp + actor + payload + zone). If I alter entry 5, its
 hash changes. But entry 6 was computed using entry 5's original hash — so entry 6's stored hash no longer
 matches the recomputed value. Every entry after 5 breaks. verify_chain() does a single sequential pass
-in  to find the first broken link. Same tamper-detection guarantee as a blockchain, no distributed
+in O(n) to find the first broken link. Same tamper-detection guarantee as a blockchain, no distributed
 consensus needed.
 Q4: Why 0.72 as the confidence threshold?
 It's configurable — 0.72 is the default I chose based on the empirical observation that below ~70%
 confidence, LLM chain-of-thought reasoning tends to produce higher error rates on code tasks. The key
-O(n)
 
 ---
 
@@ -1239,7 +1223,7 @@ Q6: How does the Reflection Agent avoid writing wrong lessons?
 Three safeguards. First, the LLM output is parsed against a strict schema — if the JSON is malformed or
 missing fields, the insert is rejected. Second, new lessons get verification_status='pending' and are
 only promoted to 'verified' after the Planner successfully applies the lesson on a similar future task. Third, the
-confidence_delta field is bounded to  — a lesson can only reduce confidence, never
+confidence_delta field is bounded to [−1.0,0] — a lesson can only reduce confidence, never
 artificially inflate it on an unverified lesson.
 Q7: What's your rollback strategy and how do you verify it worked?
 Two strategies depending on context. For code changes: git-stash before modification, git-stash pop on
@@ -1258,7 +1242,6 @@ The Docker Compose topology already has defined service boundaries that map dire
 deployments. The Memory Service, Security Service, and Executor Sandbox are independent containers. For
 a team: the Security Service becomes a singleton sidecar ensuring consistent zone classification across all
 agent instances. The Audit DB moves to a shared append-only PostgreSQL with the same hash-chain
-[−1.0,0]
 
 ---
 
