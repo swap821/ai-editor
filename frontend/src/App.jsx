@@ -6,6 +6,7 @@ import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
 import { API_BASE } from './config';
+import { parseSseBuffer } from './lib/sse';
 
 // The 3D spatial backdrop pulls in three.js — lazy-load it as its own chunk so
 // the app shell stays light and a 3D failure never white-screens the UI.
@@ -724,19 +725,9 @@ export default function App() {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() ?? '';
-
-        for (const part of parts) {
-          const lines = part.split('\n');
-          let eventType = 'message';
-          let dataLine = '';
-          for (const line of lines) {
-            if (line.startsWith('event: ')) eventType = line.slice(7).trim();
-            else if (line.startsWith('data: ')) dataLine = line.slice(6);
-          }
-          if (dataLine) processEvent(eventType, dataLine);
-        }
+        const { frames, rest } = parseSseBuffer(buffer);
+        buffer = rest;
+        for (const frame of frames) processEvent(frame.event, frame.data);
       }
     } catch (err) {
       setMessages(prev => prev.map(m =>

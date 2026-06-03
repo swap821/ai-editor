@@ -48,10 +48,14 @@ later phases, not dropped).
   pause → pre-write snapshot + write + audit on approval), scope-locked to sandbox roots.
   5 tests in `test_tool_agent.py`. Live path stays SAFE: `edit_file` always pauses until
   Slice 4 wires `approvedEdits` + the snapshot/diff UI. Full suite **129 passed, 1 skipped**.
-**Next action:** commit Slice 2, then **Slice 3 — frontend test harness (Vitest + RTL)**.
-⚠ Slice 3 needs `npm install` (YELLOW, network) — get operator OK for the install before
-running it. Operator said "do all on your order"; honor that for GREEN code work but still
-gate the package install.
+- **Slice 3 — frontend test harness: DONE & GREEN.** Installed vitest + RTL + jsdom
+  (operator-approved). Extracted the SSE frame parser to `src/lib/sse.js` (wired into
+  `App.jsx` streamGenerate, behavior-preserving) + vitest config/setup + `npm test` script.
+  Tests: `sse.test.js` (4) + `MessageBubble.test.jsx` (3) = **7 passing**; `npm run build` clean.
+**Next action:** commit Slice 3, then **Slice 4 — diff-preview UI + e2e happy-path**: wire
+`approvedEdits` through `/api/generate` + `App.jsx`, extract an `ApprovalBar` that renders the
+unified diff (pays off the Slice-3 harness), and record the live walk (RAM-gated, operator-run).
+One slice at a time.
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---
