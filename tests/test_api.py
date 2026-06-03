@@ -12,6 +12,7 @@ from typing import Iterator, Optional
 import pytest
 from fastapi.testclient import TestClient
 
+from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.api.main import (
     app,
     get_bedrock_client,
@@ -397,3 +398,105 @@ def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
     assert "event: human_required" not in body
     assert "ran: pip install flask" in body     # executed in the sandbox
     assert "event: done" in body
+
+
+# --------------------------------------------------------------------------- #
+# v1 contract routes — plan / execute / approval / rollback (Slice 1b)
+# These wrappers were present but had no direct HTTP-level assertion; the tests
+# below drive each route through the TestClient using the same injected fakes.
+# --------------------------------------------------------------------------- #
+def test_plan_endpoint_partitions_by_confidence(client: TestClient) -> None:
+    response = client.post("/api/v1/plan", json={"goal": "build a thing"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["goal"] == "build a thing"
+    assert len(body["steps"]) == 2
+    # FakeLLM emits a 0.9 step (approved) and a 0.4 step (escalated, < 0.72).
+    assert len(body["approved"]) == 1
+    assert len(body["escalate"]) == 1
+    assert body["requires_human"] is True
+
+
+def test_plan_endpoint_rejects_malformed_llm(client: TestClient) -> None:
+    class BadLLM:
+        def complete(self, prompt, *, system=None):
+            return "not json at all"
+
+    app.dependency_overrides[get_llm_client] = BadLLM
+    response = client.post("/api/v1/plan", json={"goal": "x"})
+    assert response.status_code == 422
+
+
+def test_execute_endpoint_green_runs_and_red_blocks(client: TestClient) -> None:
+    green = client.post("/api/v1/execute", json={"command": "echo hello"})
+    assert green.status_code == 200
+    gbody = green.json()
+    assert gbody["status"] == "OK"
+    assert gbody["zone"] == "GREEN"
+    assert "ran: echo hello" in gbody["stdout"]
+
+    red = client.post("/api/v1/execute", json={"command": "rm -rf /"})
+    rbody = red.json()
+    assert rbody["status"] == "BLOCKED"
+    assert rbody["zone"] == "RED"
+
+
+def test_approval_req_approve_runs_yellow(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/approval/req",
+        json={"command": "pip install flask", "approve": True},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision"] == "approved"
+    assert body["executed"] is True
+    assert body["result"]["status"] == "OK"
+
+
+def test_approval_req_reject_does_not_run(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/approval/req",
+        json={"command": "pip install flask", "approve": False},
+    )
+    body = response.json()
+    assert body["decision"] == "rejected"
+    assert body["executed"] is False
+
+
+def test_approval_req_refuses_red_even_when_approved(client: TestClient) -> None:
+    # D1 invariant at the HTTP boundary: one-click approval can never run a RED
+    # command — execute_approved refuses it.
+    response = client.post(
+        "/api/v1/approval/req",
+        json={"command": "rm -rf /", "approve": True},
+    )
+    body = response.json()
+    assert body["executed"] is False
+    assert body["result"]["status"] == "BLOCKED"
+    assert body["result"]["zone"] == "RED"
+
+
+def test_rollback_endpoint_restores_snapshot(client: TestClient, tmp_path) -> None:
+    engine = RollbackEngine(repo_dir=tmp_path)
+    work = tmp_path / "work.txt"
+    work.write_text("v1", encoding="utf-8")
+    snap = engine.create_snapshot("v1 state")
+    work.write_text("v2", encoding="utf-8")
+    engine.create_snapshot("v2 state")
+
+    app.dependency_overrides[get_rollback_engine] = lambda: engine
+    response = client.post("/api/v1/rollback", json={"snapshot_id": snap.sha})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["restored"] is True
+    assert work.read_text(encoding="utf-8") == "v1"
+
+
+def test_rollback_endpoint_maps_error_to_500(client: TestClient) -> None:
+    class BoomEngine:
+        def rollback(self, sha=None):
+            raise RollbackError("boom")
+
+    app.dependency_overrides[get_rollback_engine] = lambda: BoomEngine()
+    response = client.post("/api/v1/rollback", json={})
+    assert response.status_code == 500
