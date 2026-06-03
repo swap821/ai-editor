@@ -340,10 +340,17 @@ class ToolAgent:
                         "id": call_id,
                     }
                     if name == "edit_file":
-                        # Surface the edit + its unified diff for the approval UI.
+                        # Surface the edit + its unified diff for the approval UI,
+                        # and the full triple so the frontend can re-send it as an
+                        # approved edit (the edit analog of approved_commands).
                         event["command"] = f"edit {args.get('filepath', '')}"
                         event["filepath"] = str(args.get("filepath", ""))
                         event["diff"] = output
+                        event["edit"] = {
+                            "filepath": str(args.get("filepath", "")),
+                            "old_string": str(args.get("old_string", "")),
+                            "new_string": str(args.get("new_string", "")),
+                        }
                     yield event
                     return
                 if status == "blocked":

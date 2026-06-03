@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Iterator, Optional, Any, cast
+from typing import Callable, Iterator, Optional, Any, cast
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,6 +108,23 @@ def get_executor() -> Executor:
 def get_rollback_engine() -> RollbackEngine:
     """Provide the default sandbox rollback engine. Overridden in tests."""
     return RollbackEngine()
+
+
+def get_edit_snapshot() -> Callable[..., object]:
+    """Provide the pre-edit snapshot hook for the agent's ``edit_file`` tool.
+
+    Returns a callable that lazily constructs a sandbox :class:`RollbackEngine`
+    and snapshots it — only when an approved edit is actually applied, so read /
+    command turns pay nothing. Best-effort: a snapshot failure never breaks the
+    turn. Overridden in tests with a recorder.
+    """
+    def snapshot(message: str = "pre-edit snapshot") -> None:
+        try:
+            RollbackEngine().create_snapshot(message)
+        except Exception:  # noqa: BLE001 - pre-edit snapshot is best-effort
+            pass
+
+    return snapshot
 
 
 def get_semantic_indexer() -> Optional[SemanticMemory]:
@@ -200,6 +217,9 @@ class GenerateRequest(BaseModel):
     #: a YELLOW command, the frontend re-sends the turn with that command added
     #: here so it actually runs (resumable in-chat approval — blueprint Q5).
     approved_commands: list[str] = Field(default_factory=list, alias="approvedCommands")
+    #: File edits the human has authorised this turn (the edit analog of
+    #: ``approvedCommands``), each ``{filepath, old_string, new_string}``.
+    approved_edits: list[dict[str, Any]] = Field(default_factory=list, alias="approvedEdits")
 
     model_config = {"populate_by_name": True}
 
@@ -543,6 +563,7 @@ def generate(
     executor: Executor = Depends(get_executor),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
+    snapshot: Callable[..., object] = Depends(get_edit_snapshot),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -616,6 +637,8 @@ def generate(
             confirm_lesson=_make_confirm_hook(reflector),
             prior_lesson_ids=prior_lesson_ids,
             approved_commands=req.approved_commands,
+            approved_edits=req.approved_edits,
+            snapshot=snapshot,
         )
         answer_parts: list[str] = []
         for ev in agent.run(chat_messages):
@@ -638,9 +661,25 @@ def generate(
                 # in the audit log, not in a human approval prompt. Shape matches
                 # the frontend's pendingAction handler ({commands, explanation}).
                 cmd = ev["command"]
-                yield _sse(
-                    "human_required",
-                    {
+                edit = ev.get("edit")
+                if edit is not None:
+                    # An edit_file approval: surface the unified diff + the edit
+                    # triple so the UI shows the diff and re-sends it as an
+                    # approved edit on resume (a snapshot is taken before writing).
+                    payload = {
+                        "input": {
+                            "edits": [edit],
+                            "diff": ev.get("diff", ""),
+                            "explanation": (
+                                "The agent wants to edit a file. Review the diff "
+                                "and approve to apply it (a snapshot is taken first)."
+                            ),
+                        },
+                        "text": f"Approval required to apply an edit to {ev.get('filepath', '')}",
+                        "requiresApproval": True,
+                    }
+                else:
+                    payload = {
                         "input": {
                             "commands": [cmd],
                             "explanation": (
@@ -651,8 +690,8 @@ def generate(
                         },
                         "text": f"Approval required to run: {cmd}",
                         "requiresApproval": True,
-                    },
-                )
+                    }
+                yield _sse("human_required", payload)
             elif kind == "done":
                 # 4. Persist the answer (L2) and consolidate the turn into L3.
                 answer = "".join(answer_parts)

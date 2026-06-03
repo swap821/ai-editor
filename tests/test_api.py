@@ -16,6 +16,7 @@ from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.api.main import (
     app,
     get_bedrock_client,
+    get_edit_snapshot,
     get_executor,
     get_llm_client,
     get_ollama_client,
@@ -23,6 +24,7 @@ from aios.api.main import (
     get_rollback_engine,
     get_semantic_indexer,
 )
+from aios.security import scope_lock
 from aios.core.executor import Executor
 from aios.memory.episodic import EpisodicMemory
 from aios.security.gateway import RateLimiter
@@ -500,3 +502,75 @@ def test_rollback_endpoint_maps_error_to_500(client: TestClient) -> None:
     app.dependency_overrides[get_rollback_engine] = lambda: BoomEngine()
     response = client.post("/api/v1/rollback", json={})
     assert response.status_code == 500
+
+
+# --------------------------------------------------------------------------- #
+# /api/generate — file-edit diff approval + apply (Slice 4a)
+# --------------------------------------------------------------------------- #
+class FakeOllamaEdit:
+    """Ollama stand-in: proposes a file edit on turn 1, then answers on turn 2."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(self, messages, *, tools=None, model=None) -> dict:
+        self.calls += 1
+        if self.calls == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "edit_file", "arguments": {
+                        "filepath": "note.txt", "old_string": "world", "new_string": "there",
+                    }}}
+                ],
+            }
+        return {"role": "assistant", "content": "Applied the edit."}
+
+
+def test_generate_pauses_with_edit_diff(client: TestClient, tmp_path) -> None:
+    (tmp_path / "note.txt").write_text("hello world\n", encoding="utf-8")
+    original = scope_lock.get_scope_roots()
+    scope_lock.set_scope_roots([tmp_path])
+    app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
+    try:
+        response = client.post("/api/generate", json={
+            "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-edit-pause",
+        })
+        assert response.status_code == 200
+        body = response.text
+        assert "event: human_required" in body
+        assert "-hello world" in body and "+hello there" in body   # the diff is surfaced
+        assert "event: done" not in body                            # paused, not completed
+        assert (tmp_path / "note.txt").read_text(encoding="utf-8") == "hello world\n"  # unwritten
+    finally:
+        scope_lock.set_scope_roots(list(original))
+
+
+def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_path) -> None:
+    (tmp_path / "note.txt").write_text("hello world\n", encoding="utf-8")
+    snaps: list[str] = []
+    original = scope_lock.get_scope_roots()
+    scope_lock.set_scope_roots([tmp_path])
+    app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
+    app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": snaps.append(message))
+    try:
+        response = client.post("/api/generate", json={
+            "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-edit-apply",
+            "approvedEdits": [{"filepath": "note.txt", "old_string": "world", "new_string": "there"}],
+        })
+        assert response.status_code == 200
+        body = response.text
+        assert "event: human_required" not in body                  # authorised -> no pause
+        assert (tmp_path / "note.txt").read_text(encoding="utf-8") == "hello there\n"  # applied
+        assert snaps, "a pre-edit snapshot must be taken before the write"
+        assert "event: done" in body
+    finally:
+        scope_lock.set_scope_roots(list(original))
