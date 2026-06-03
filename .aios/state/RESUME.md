@@ -72,10 +72,16 @@ $env:AIOS_BEDROCK_REGION      = "us-east-1"   # the operator's region
 $env:AWS_BEARER_TOKEN_BEDROCK = "ABSK..."     # the Bedrock API key (env only)
 # optional: $env:AIOS_BEDROCK_MODEL = "<other model/inference-profile id>"
 ```
-Then in the UI pick any non-Ollama (Cloud) model → routes to Bedrock on
-`config.BEDROCK_MODEL`. Secrets live only in env (never on disk). 103 tests pass.
-**Next:** real Bedrock model picker (currently every Cloud selection uses the one
-configured model; the static cloud list still has placeholder ids).
+Then in the UI pick a **Cloud (Bedrock)** model → routes to Bedrock on THAT model
+(the selected id is passed through to Converse). Secrets live only in env.
+
+**Model picker DONE:** `BedrockClient.list_models()` (control-plane
+ListFoundationModels, TEXT+ON_DEMAND) → `/api/v1/models/bedrock`; the frontend
+shows a real "Cloud (Bedrock)" group (curated fallback if discovery is blocked).
+107 tests pass. NOTE: the test suite now stubs `aios.api.main.hybrid_search` in
+the `client` fixture — live app usage had populated the on-disk FAISS index, so
+generate tests were loading the real embedder and **segfaulting torch**; the stub
+isolates tests from live `data/` (no model side-effects in tests).
 
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.

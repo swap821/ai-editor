@@ -108,6 +108,7 @@ const getExt = (name) => name.split('.').pop();
 /* ─── Model Selector (2026 Standard) ───────────────────────── */
 const PROVIDER_META = {
   "Local (Ollama)": { color: "#34d399", icon: "⬡", tags: ["Offline", "Private"] },
+  "Cloud (Bedrock)": { color: "#ff9900", icon: "☁", tags: ["AWS", "Cloud"] },
   "Anthropic Claude (Next-Gen)": { color: "#d97757", icon: "◆", tags: ["Vision", "Reasoning"] },
   "DeepSeek (Advanced Reasoning)": { color: "#4f6ef7", icon: "◈", tags: ["Reasoning"] },
   "OpenAI (OSS Series)": { color: "#10a37f", icon: "◇", tags: ["Open Source"] },
@@ -557,6 +558,7 @@ export default function App() {
   const [gitInput,    setGitInput]    = useState('');
   const [isListening, setIsListening] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState({ available: false, models: [] });
+  const [bedrockStatus, setBedrockStatus] = useState({ available: false, models: [] });
 
   const terminalEndRef  = useRef(null);
   const gitEndRef       = useRef(null);
@@ -569,29 +571,38 @@ export default function App() {
   useEffect(() => { gitEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [gitHistory]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  // Probe the local Ollama engine for installed models. Runs on mount and again
-  // whenever the window regains focus — so a model pulled in a terminal shows up
-  // as soon as you switch back, without a hard refresh.
+  // Probe both engines for available models. Runs on mount and on window focus,
+  // so a model pulled locally or enabled in Bedrock shows up without a refresh.
   useEffect(() => {
-    const probe = () => fetch(`${API_BASE}/api/v1/models/local`)
+    const probeLocal = () => fetch(`${API_BASE}/api/v1/models/local`)
       .then(r => r.json())
       .then(s => setOllamaStatus(s))
       .catch(() => setOllamaStatus({ available: false, models: [] }));
+    const probeBedrock = () => fetch(`${API_BASE}/api/v1/models/bedrock`)
+      .then(r => r.json())
+      .then(s => setBedrockStatus(s))
+      .catch(() => setBedrockStatus({ available: false, models: [] }));
+    const probe = () => { probeLocal(); probeBedrock(); };
     probe();
     window.addEventListener('focus', probe);
     return () => window.removeEventListener('focus', probe);
   }, []);
 
-  // Build the model list shown in the selector: a dynamic "Local (Ollama)" group
-  // built from the models actually installed (embedding-only models excluded,
-  // since they can't chat), followed by the static cloud groups.
+  // Build the selector list: a dynamic "Local (Ollama)" group (installed chat
+  // models) + a "Cloud (Bedrock)" group of the models this AWS account can
+  // actually invoke. Falls back to the curated static cloud list when Bedrock
+  // discovery is unavailable, so the dropdown is never empty.
   const availableModels = useMemo(() => {
     const chatModels = (ollamaStatus.models || []).filter(m => !/embed/i.test(m));
     const localGroup = chatModels.length
       ? [{ group: 'Local (Ollama)', models: chatModels.map(m => ({ id: `ollama.${m}`, name: m })) }]
       : [];
-    return [...localGroup, ...BEDROCK_MODELS];
-  }, [ollamaStatus]);
+    const bedrockModels = bedrockStatus.models || [];
+    const cloudGroups = bedrockModels.length
+      ? [{ group: 'Cloud (Bedrock)', models: bedrockModels.map(m => ({ id: m.id, name: m.name })) }]
+      : BEDROCK_MODELS;
+    return [...localGroup, ...cloudGroups];
+  }, [ollamaStatus, bedrockStatus]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;

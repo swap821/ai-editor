@@ -124,7 +124,12 @@ def _fake_executor() -> Executor:
 
 
 @pytest.fixture()
-def client() -> Iterator[TestClient]:
+def client(monkeypatch) -> Iterator[TestClient]:
+    # Keep model side-effects out of the test path: stub hybrid recall so a
+    # populated on-disk semantic index can't pull the real embedder into a test
+    # (it would otherwise load sentence-transformers/torch). Tests that need
+    # recall override this in their own body via the same monkeypatch instance.
+    monkeypatch.setattr("aios.api.main.hybrid_search", lambda query, top_k=3: [])
     fake_indexer = FakeIndexer()
     app.dependency_overrides[get_llm_client] = FakeLLM
     app.dependency_overrides[get_ollama_client] = FakeOllama
@@ -330,6 +335,29 @@ class FakeBedrockChat:
 
     def chat(self, messages, *, tools=None, model=None) -> dict:
         return {"role": "assistant", "content": "Answer from Bedrock.\n```text\ncloud\n```"}
+
+
+class FakeBedrockModels:
+    """Bedrock stand-in exposing model discovery for the picker endpoint."""
+
+    def list_models(self) -> list:
+        return [{"id": "amazon.nova-pro-v1:0", "name": "Amazon Nova Pro"}]
+
+
+def test_models_bedrock_lists_when_configured(client: TestClient) -> None:
+    app.dependency_overrides[get_bedrock_client] = lambda: FakeBedrockModels()
+    response = client.get("/api/v1/models/bedrock")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["available"] is True
+    assert body["models"][0]["id"] == "amazon.nova-pro-v1:0"
+
+
+def test_models_bedrock_empty_when_unconfigured(client: TestClient) -> None:
+    # No override -> real get_bedrock_client returns None (Bedrock off in tests).
+    response = client.get("/api/v1/models/bedrock")
+    assert response.status_code == 200
+    assert response.json() == {"available": False, "models": []}
 
 
 def test_generate_routes_cloud_model_to_bedrock(client: TestClient) -> None:

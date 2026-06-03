@@ -111,3 +111,42 @@ def test_chat_wraps_failures_as_llmerror() -> None:
     client = BedrockClient(model="m", region="r", client=Boom())
     with pytest.raises(LLMError):
         client.chat([{"role": "user", "content": "hi"}])
+
+
+class FakeCtrl:
+    """Stub bedrock control-plane client for model discovery."""
+
+    def __init__(self, summaries: list) -> None:
+        self.summaries = summaries
+
+    def list_foundation_models(self, **kwargs):
+        return {"modelSummaries": self.summaries}
+
+
+def test_list_models_filters_sorts_and_dedups() -> None:
+    ctrl = FakeCtrl([
+        {"modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0", "providerName": "Anthropic",
+         "modelName": "Claude 3.5 Sonnet", "outputModalities": ["TEXT"]},
+        {"modelId": "amazon.nova-pro-v1:0", "providerName": "Amazon",
+         "modelName": "Nova Pro", "outputModalities": ["TEXT"]},
+        {"modelId": "amazon.nova-pro-v1:0", "providerName": "Amazon",
+         "modelName": "Nova Pro", "outputModalities": ["TEXT"]},               # duplicate
+        {"modelId": "amazon.titan-embed-text-v2:0", "providerName": "Amazon",
+         "modelName": "Titan Embed", "outputModalities": ["EMBEDDING"]},        # not chat
+    ])
+    client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=ctrl)
+    models = client.list_models()
+    ids = [m["id"] for m in models]
+
+    assert "amazon.titan-embed-text-v2:0" not in ids       # embeddings excluded
+    assert ids.count("amazon.nova-pro-v1:0") == 1          # deduped
+    assert [m["name"] for m in models] == ["Amazon Nova Pro", "Anthropic Claude 3.5 Sonnet"]  # sorted
+
+
+def test_list_models_empty_on_control_plane_error() -> None:
+    class Boom:
+        def list_foundation_models(self, **kwargs):
+            raise RuntimeError("AccessDeniedException")
+
+    client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=Boom())
+    assert client.list_models() == []

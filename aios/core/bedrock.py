@@ -138,11 +138,15 @@ class BedrockClient:
         max_tokens: int = config.BEDROCK_MAX_TOKENS,
         temperature: float = config.LLM_TEMPERATURE,
         client: Optional[Any] = None,
+        ctrl_client: Optional[Any] = None,
     ) -> None:
         self.model = model
         self.region = region
         self.max_tokens = max_tokens
         self.temperature = temperature
+        #: Control-plane client (``bedrock``) for model discovery — created lazily
+        #: in :meth:`list_models` so it's only needed if discovery is used.
+        self._ctrl_client = ctrl_client
         if client is not None:
             self._client = client  # injected fake (tests)
         else:
@@ -186,3 +190,43 @@ class BedrockClient:
         if not isinstance(message, dict):
             return {"role": "assistant", "content": ""}
         return _parse_output(message)
+
+    def list_models(self) -> list[dict[str, str]]:
+        """List on-demand, text Bedrock models for this region (best-effort).
+
+        Uses the control-plane ``ListFoundationModels`` (TEXT output, ON_DEMAND)
+        so the UI can offer the models this account/region can actually invoke.
+        Returns ``[{"id", "name"}]`` sorted by name, or ``[]`` on any error (e.g.
+        the API key lacks control-plane access) — callers fall back to a curated
+        list, so discovery failing never breaks the picker.
+        """
+        ctrl = self._ctrl_client
+        if ctrl is None:
+            try:
+                import boto3  # lazy
+                ctrl = boto3.client("bedrock", region_name=self.region or None)
+            except Exception:  # noqa: BLE001 - discovery is best-effort
+                return []
+        try:
+            resp = ctrl.list_foundation_models(byOutputModality="TEXT", byInferenceType="ON_DEMAND")
+        except Exception:  # noqa: BLE001 - no control-plane access -> fall back
+            return []
+
+        seen: set[str] = set()
+        out: list[dict[str, str]] = []
+        for summary in resp.get("modelSummaries", []) or []:
+            if not isinstance(summary, dict):
+                continue
+            mid = summary.get("modelId")
+            if not mid or mid in seen:
+                continue
+            # Only models usable for a chat/agent turn (skip embeddings etc.).
+            if "EMBEDDING" in (summary.get("outputModalities") or []):
+                continue
+            seen.add(mid)
+            provider = str(summary.get("providerName") or "").strip()
+            model_name = str(summary.get("modelName") or mid).strip()
+            name = f"{provider} {model_name}".strip() if provider else model_name
+            out.append({"id": str(mid), "name": name})
+        out.sort(key=lambda m: m["name"].lower())
+        return out

@@ -333,6 +333,22 @@ def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict[str,
     return client.list_models()
 
 
+@app.get("/api/v1/models/bedrock")
+def models_bedrock(
+    bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
+) -> dict[str, Any]:
+    """List invocable AWS Bedrock text models for the picker.
+
+    ``{"available": bool, "models": [{"id","name"}]}`` — empty when Bedrock isn't
+    configured or the credentials lack control-plane (discovery) access, in which
+    case the UI falls back to a curated cloud list.
+    """
+    if bedrock is None:
+        return {"available": False, "models": []}
+    models = bedrock.list_models()
+    return {"available": bool(models), "models": models}
+
+
 def _resolve_local_model(model_id: Optional[str]) -> str:
     """Map a UI model id to a local Ollama tag (``ollama.x`` -> ``x``).
 
@@ -358,7 +374,9 @@ def _select_chat_client(
     if model_id and model_id.startswith("ollama."):
         return ollama, _resolve_local_model(model_id)
     if bedrock is not None:
-        return bedrock, config.BEDROCK_MODEL
+        # Pass the selected Bedrock model id straight through (so each dropdown
+        # choice runs that actual model); fall back to the configured default.
+        return bedrock, (model_id or config.BEDROCK_MODEL)
     return ollama, config.LLM_MODEL
 
 
