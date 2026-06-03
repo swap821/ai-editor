@@ -535,6 +535,9 @@ export default function App() {
   const [activeFile, setActiveFile]   = useState('index.html');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showNewFile, setShowNewFile] = useState(false);
+  // The code editor + live preview are hidden by default so the 3D void owns
+  // that space; they slide in on demand (agent generates code, or the pill).
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
   const [messages, setMessages]        = useState([{ id: 1, sender: 'ai', text: 'Amazon Bedrock connected. What shall we build today?', steps: [] }]);
   const [convHistory, setConvHistory]  = useState([]); // Bedrock-format conversation history
@@ -682,6 +685,7 @@ export default function App() {
           ));
         } else if (eventType === 'code') {
           setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: data.code } }));
+          setWorkspaceOpen(true);   // summon the editor/preview when code arrives
         } else if (eventType === 'done') {
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId ? { ...m, text: accText || 'Done.', loading: false, streaming: false, settled: true } : m
@@ -1377,101 +1381,93 @@ export default function App() {
 
               <ResizeHandle />
 
-              {/* ── CODE EDITOR ── */}
+              {/* ── WORKSPACE (code editor + live preview) ──────────────────
+                  Hidden by default so the 3D void owns this space. Summoned on
+                  demand — the agent opens it when it generates code, or click the
+                  "Open workspace" pill — and slides in. */}
               <Panel
-                defaultSize={40} minSize={20}
-                style={{ background: 'var(--surface-0)', display: 'flex', flexDirection: 'column' }}
+                defaultSize={60} minSize={20}
+                style={{ background: 'transparent', display: 'flex', flexDirection: 'column', position: 'relative' }}
               >
-                <div
-                  style={{
-                    display: 'flex', background: 'var(--surface-1)',
-                    borderBottom: '1px solid var(--border)',
-                    flexShrink: 0, overflowX: 'auto',
-                    padding: '0 4px',
-                    gap: 2,
-                  }}
-                >
-                  {Object.keys(files).map(filename => {
-                    const ext    = getExt(filename);
-                    const color  = fileIconColor[ext] || '#8b8fa8';
-                    const active = activeFile === filename;
-                    return (
-                      <button
-                        key={filename}
-                        onClick={() => setActiveFile(filename)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 7,
-                          padding: '0 14px',
-                          height: 36,
-                          fontSize: 12, fontWeight: active ? 500 : 400,
-                          color: active ? 'var(--text-1)' : 'var(--text-3)',
-                          background: active ? 'var(--surface-0)' : 'transparent',
-                          border: 'none',
-                          borderTop: active ? '2px solid var(--accent)' : '2px solid transparent',
-                          borderBottom: active ? '1px solid var(--surface-0)' : '1px solid transparent',
-                          borderRadius: '8px 8px 0 0',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s',
-                          flexShrink: 0,
-                          position: 'relative',
-                          top: 1,
-                        }}
-                        onMouseEnter={e => { if (!active) { e.currentTarget.style.color = 'var(--text-2)'; e.currentTarget.style.background = 'var(--surface-2)'; } }}
-                        onMouseLeave={e => { if (!active) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'transparent'; } }}
-                      >
-                        <FileCode2 size={12} style={{ color: active ? color : 'inherit', opacity: active ? 1 : 0.6 }} />
-                        {filename}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-                  <CodeCanvas
-                    code={files[activeFile].content}
-                    onChange={newCode => setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: newCode } }))}
-                    language={files[activeFile].language}
-                  />
-                </div>
-              </Panel>
-
-              <ResizeHandle />
-
-              {/* ── LIVE PREVIEW ── */}
-              <Panel
-                defaultSize={20} minSize={15}
-                style={{ background: '#f8f9fb', display: 'flex', flexDirection: 'column', color: '#111' }}
-              >
-                <div
-                  style={{
-                    height: 38, display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '0 14px',
-                    background: '#eef0f3',
-                    borderBottom: '1px solid rgba(0,0,0,0.06)',
-                    flexShrink: 0,
-                  }}
-                >
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c940', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
-                  <div
-                    style={{
-                      flex: 1, marginLeft: 6,
-                      background: '#e2e5e9', borderRadius: 6,
-                      height: 24, display: 'flex', alignItems: 'center',
-                      padding: '0 12px', fontSize: 10.5, color: '#6b7280',
-                      fontFamily: '"Geist Mono", monospace',
-                      border: '1px solid rgba(0,0,0,0.04)',
-                    }}
-                  >
-                    preview://localhost
+                {workspaceOpen ? (
+                  <div className="workspace-in" style={{ position: 'absolute', inset: 0, display: 'flex', minWidth: 0 }}>
+                    {/* Code editor */}
+                    <div style={{ flex: 1.7, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--surface-0)', borderRight: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-1)', borderBottom: '1px solid var(--border)', flexShrink: 0, overflowX: 'auto', padding: '0 4px', gap: 2 }}>
+                        {Object.keys(files).map(filename => {
+                          const ext    = getExt(filename);
+                          const color  = fileIconColor[ext] || '#8b8fa8';
+                          const active = activeFile === filename;
+                          return (
+                            <button
+                              key={filename}
+                              onClick={() => setActiveFile(filename)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 7,
+                                padding: '0 14px', height: 36,
+                                fontSize: 12, fontWeight: active ? 500 : 400,
+                                color: active ? 'var(--text-1)' : 'var(--text-3)',
+                                background: active ? 'var(--surface-0)' : 'transparent',
+                                border: 'none',
+                                borderTop: active ? '2px solid var(--accent)' : '2px solid transparent',
+                                borderBottom: active ? '1px solid var(--surface-0)' : '1px solid transparent',
+                                borderRadius: '8px 8px 0 0', cursor: 'pointer',
+                                transition: 'all 0.15s', flexShrink: 0, position: 'relative', top: 1,
+                              }}
+                              onMouseEnter={e => { if (!active) { e.currentTarget.style.color = 'var(--text-2)'; e.currentTarget.style.background = 'var(--surface-2)'; } }}
+                              onMouseLeave={e => { if (!active) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'transparent'; } }}
+                            >
+                              <FileCode2 size={12} style={{ color: active ? color : 'inherit', opacity: active ? 1 : 0.6 }} />
+                              {filename}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => setWorkspaceOpen(false)}
+                          title="Hide workspace"
+                          style={{ marginLeft: 'auto', flexShrink: 0, height: 36, padding: '0 12px', background: 'transparent', border: 'none', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; }}
+                        >
+                          <X size={13} /> Hide
+                        </button>
+                      </div>
+                      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                        <CodeCanvas
+                          code={files[activeFile].content}
+                          onChange={newCode => setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: newCode } }))}
+                          language={files[activeFile].language}
+                        />
+                      </div>
+                    </div>
+                    {/* Live preview */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: '#f8f9fb', color: '#111' }}>
+                      <div style={{ height: 38, display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', background: '#eef0f3', borderBottom: '1px solid rgba(0,0,0,0.06)', flexShrink: 0 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c940', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
+                        <div style={{ flex: 1, marginLeft: 6, background: '#e2e5e9', borderRadius: 6, height: 24, display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 10.5, color: '#6b7280', fontFamily: '"Geist Mono", monospace', border: '1px solid rgba(0,0,0,0.04)' }}>
+                          preview://localhost
+                        </div>
+                        <Play size={12} style={{ color: '#9ca3af' }} />
+                      </div>
+                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <LivePreview files={files} />
+                      </div>
+                    </div>
                   </div>
-                  <Play size={12} style={{ color: '#9ca3af' }} />
-                </div>
-
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <LivePreview files={files} />
-                </div>
+                ) : (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                    <button
+                      onClick={() => setWorkspaceOpen(true)}
+                      style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderRadius: 999, background: 'rgba(18,19,26,0.5)', border: '1px solid rgba(255,255,255,0.10)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', color: 'var(--text-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 12px 44px -14px rgba(0,0,0,0.65)' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.45)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-2)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; }}
+                    >
+                      <Code size={14} /> Open workspace
+                    </button>
+                  </div>
+                )}
               </Panel>
 
             </PanelGroup>

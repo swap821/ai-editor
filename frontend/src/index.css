@@ -193,6 +193,13 @@ button:not(:disabled):active { transform: scale(0.97); }
 @keyframes auraBreath { 0%, 100% { opacity: 0.20; } 50% { opacity: 0.46; } }
 @keyframes auraPulse  { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.95; } }
 
+/* ── Workspace (editor + preview) sliding in when summoned on demand ─────── */
+@keyframes workspaceIn {
+  0%   { opacity: 0; transform: translateX(26px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.workspace-in { animation: workspaceIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
