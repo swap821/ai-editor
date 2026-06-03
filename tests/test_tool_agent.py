@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from typing import Optional
 
+import pytest
+
 from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
+from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
 
 
@@ -339,3 +342,116 @@ def test_agent_refuses_red_even_if_approved() -> None:
     assert blocked, "a RED command must stay blocked even when 'approved'"
     assert "RED action" in blocked[0]["reason"]
     assert events[-1]["type"] == "done"
+
+
+# --------------------------------------------------------------------------- #
+# edit_file — patch-style edits with diff preview + approval (Slice 2)
+# --------------------------------------------------------------------------- #
+@pytest.fixture()
+def sandbox(tmp_path):
+    """Point the scope roots at an isolated temp dir for edit tests; restore after."""
+    original = scope_lock.get_scope_roots()
+    scope_lock.set_scope_roots([tmp_path])
+    try:
+        yield tmp_path
+    finally:
+        scope_lock.set_scope_roots(list(original))
+
+
+def test_agent_edit_blocks_out_of_scope_path(sandbox) -> None:
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "../../../../etc/hosts",
+                                 "old_string": "a", "new_string": "b"}),
+        {"role": "assistant", "content": "blocked"},
+    ])
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "edit hosts"}]
+    ))
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "scope" in blocked[0]["reason"].lower()
+
+
+def test_agent_edit_pauses_with_diff(sandbox) -> None:
+    f = sandbox / "greeting.txt"
+    f.write_text("hello world\n", encoding="utf-8")
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "greeting.txt",
+                                 "old_string": "world", "new_string": "there"}),
+        {"role": "assistant", "content": "should not be reached"},
+    ])
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "change world to there"}]
+    ))
+    types = [e["type"] for e in events]
+
+    assert "human_required" in types, "an unapproved edit must ask the human"
+    hr = next(e for e in events if e["type"] == "human_required")
+    assert "greeting.txt" in hr["command"]
+    assert "-hello world" in hr["diff"] and "+hello there" in hr["diff"]
+    # Nothing written, turn paused, loop stopped before the next scripted turn.
+    assert f.read_text(encoding="utf-8") == "hello world\n"
+    assert "done" not in types
+    assert chat._responses
+
+
+def test_agent_edit_applies_when_approved_and_snapshots(sandbox) -> None:
+    f = sandbox / "greeting.txt"
+    f.write_text("hello world\n", encoding="utf-8")
+    snaps: list[str] = []
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "greeting.txt",
+                                 "old_string": "world", "new_string": "there"}),
+        {"role": "assistant", "content": "Done."},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "greeting.txt",
+                         "old_string": "world", "new_string": "there"}],
+        snapshot=lambda msg="": snaps.append(msg),
+    )
+    events = list(agent.run([{"role": "user", "content": "change world to there"}]))
+    types = [e["type"] for e in events]
+
+    assert "human_required" not in types
+    assert f.read_text(encoding="utf-8") == "hello there\n"   # written
+    assert snaps, "a pre-write snapshot must be taken before applying the edit"
+    results = [e for e in events if e["type"] == "tool_result"]
+    assert results and "greeting.txt" in results[0]["output"]
+    assert types[-1] == "done"
+
+
+def test_agent_edit_audits_applied_write(sandbox) -> None:
+    f = sandbox / "conf.txt"
+    f.write_text("x = 1\n", encoding="utf-8")
+    audited: list[tuple] = []
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "conf.txt",
+                                 "old_string": "1", "new_string": "2"}),
+        {"role": "assistant", "content": "done"},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "conf.txt", "old_string": "1", "new_string": "2"}],
+        audit_log=lambda *a, **k: audited.append(a),
+    )
+    list(agent.run([{"role": "user", "content": "bump"}]))
+    assert f.read_text(encoding="utf-8") == "x = 2\n"
+    assert audited, "the applied edit must be audited"
+
+
+def test_agent_edit_rejects_nonunique_old_string(sandbox) -> None:
+    f = sandbox / "dup.txt"
+    f.write_text("a\na\n", encoding="utf-8")
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "dup.txt",
+                                 "old_string": "a", "new_string": "b"}),
+        {"role": "assistant", "content": "ambiguous"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "dup.txt", "old_string": "a", "new_string": "b"}],
+    ).run([{"role": "user", "content": "edit"}]))
+
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "unique" in blocked[0]["reason"].lower()
+    assert f.read_text(encoding="utf-8") == "a\na\n"   # untouched (not unique)

@@ -43,9 +43,15 @@ later phases, not dropped).
   stricter than the blueprint, by choice). Recorded in `PLAN.md` + memory.
 - Operator memories saved (independent dev; 100% goal; CEO role) + `CEO_LOG.md` (Advice #1).
   Commits: `e39a3f8` v6 · `e7bba3c` scope fix · `2b657dd` blueprint cleanup · `ba5d838` planning.
-**Next action:** commit Slice 1b (`tests/test_api.py` + the `PLAN.md` D1 edit), then start
-**Slice 2 — file-edit tool + unified diff (backend)**, tests-first (restate & WAIT before
-writing code). One slice at a time.
+- **Slice 2 — file-edit tool (patch-style `edit_file`), backend: DONE & GREEN.** Per
+  operator, built as search/replace (unique old_string → unified-diff preview → YELLOW
+  pause → pre-write snapshot + write + audit on approval), scope-locked to sandbox roots.
+  5 tests in `test_tool_agent.py`. Live path stays SAFE: `edit_file` always pauses until
+  Slice 4 wires `approvedEdits` + the snapshot/diff UI. Full suite **129 passed, 1 skipped**.
+**Next action:** commit Slice 2, then **Slice 3 — frontend test harness (Vitest + RTL)**.
+⚠ Slice 3 needs `npm install` (YELLOW, network) — get operator OK for the install before
+running it. Operator said "do all on your order"; honor that for GREEN code work but still
+gate the package install.
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---

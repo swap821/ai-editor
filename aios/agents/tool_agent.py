@@ -18,6 +18,10 @@ Tools exposed to the model:
     passed back in ``approved_commands``) it actually runs via
     ``execute_approved``. RED is always blocked. The agent never auto-runs a
     non-GREEN command.
+  * ``edit_file``        — replace a unique snippet in a sandbox file. Scope-
+    locked to the executor's roots; shows a unified diff and pauses for approval
+    (YELLOW); an approved edit (passed back in ``approved_edits``) is snapshotted,
+    written, and audited.
 
 The agent is transport-agnostic: :meth:`ToolAgent.run` *yields* plain event
 dicts so the API layer can forward them as SSE and tests can assert on them
@@ -26,6 +30,7 @@ loop with a scripted fake and touch neither Ollama nor a shell.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from pathlib import Path
@@ -34,6 +39,9 @@ from typing import Callable, Iterator, Optional, Protocol, Any, cast
 from aios import config
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
+from aios.security import scope_lock
+from aios.security.audit_logger import log_action
+from aios.security.gateway import Zone
 from aios.security.secret_scanner import scan_and_redact
 
 #: A reflection hook: given (command, error_output), record a lesson and return
@@ -130,6 +138,37 @@ TOOL_SPECS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_file",
+            "description": (
+                "Edit a file in the sandbox by replacing an exact, unique "
+                "snippet. Shows a unified diff and pauses for human approval "
+                "before writing (file edits are caution-level). old_string must "
+                "occur exactly once — include enough surrounding context to make "
+                "it unique."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {
+                        "type": "string",
+                        "description": "Sandbox-relative path of the file to edit.",
+                    },
+                    "old_string": {
+                        "type": "string",
+                        "description": "Exact text to replace; must be unique in the file.",
+                    },
+                    "new_string": {
+                        "type": "string",
+                        "description": "Replacement text.",
+                    },
+                },
+                "required": ["filepath", "old_string", "new_string"],
+            },
+        },
+    },
 ]
 
 
@@ -197,6 +236,9 @@ class ToolAgent:
         confirm_lesson: Optional[ConfirmHook] = None,
         prior_lesson_ids: Optional[list[int]] = None,
         approved_commands: Optional[list[str]] = None,
+        approved_edits: Optional[list[dict[str, str]]] = None,
+        snapshot: Optional[Callable[..., Any]] = None,
+        audit_log: Optional[Callable[..., object]] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -223,6 +265,23 @@ class ToolAgent:
         #: pausing again — this is what makes in-chat approval *resumable*. RED is
         #: still refused even if listed, because approval can't authorise RED.
         self.approved_commands = set(approved_commands or [])
+        #: File edits a human has authorised this turn, keyed by
+        #: ``(filepath, old_string, new_string)`` — the edit analog of
+        #: ``approved_commands``. An unapproved ``edit_file`` pauses with a diff;
+        #: a listed one is snapshotted, written, and audited.
+        self.approved_edits: set[tuple[str, str, str]] = {
+            (
+                str(e.get("filepath", "")),
+                str(e.get("old_string", "")),
+                str(e.get("new_string", "")),
+            )
+            for e in (approved_edits or [])
+        }
+        #: Optional pre-write snapshot hook (e.g. ``RollbackEngine.create_snapshot``)
+        #: called before an approved edit is written, so it stays revertible.
+        self.snapshot = snapshot
+        #: Audit sink for applied edits; defaults to the tamper-evident ledger.
+        self._audit: Callable[..., object] = audit_log or log_action
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Drive the loop, yielding event dicts the API maps to SSE.
@@ -268,18 +327,24 @@ class ToolAgent:
                 yield {"type": "tool_call", "tool": name, "input": args, "id": call_id}
                 output, status, failed = self._dispatch(name, args)
                 if status == "approval":
-                    # A YELLOW command the human hasn't authorised yet: pause the
+                    # A caution action the human hasn't authorised yet: pause the
                     # whole turn and ask. The turn is *resumable* — the frontend
-                    # re-calls /api/generate with this command whitelisted, so we
-                    # return here without running it, recording no assistant answer
-                    # (the paused turn is replayed, not continued from mid-stream).
-                    yield {
+                    # re-calls /api/generate with the command/edit whitelisted, so
+                    # we return here without applying it, recording no assistant
+                    # answer (the paused turn is replayed, not continued mid-stream).
+                    event: dict[str, Any] = {
                         "type": "human_required",
                         "tool": name,
                         "command": args.get("command", ""),
                         "reason": output,
                         "id": call_id,
                     }
+                    if name == "edit_file":
+                        # Surface the edit + its unified diff for the approval UI.
+                        event["command"] = f"edit {args.get('filepath', '')}"
+                        event["filepath"] = str(args.get("filepath", ""))
+                        event["diff"] = output
+                    yield event
                     return
                 if status == "blocked":
                     yield {
@@ -388,6 +453,12 @@ class ToolAgent:
             return self._read_directory(str(args.get("path", ".")))
         if name == "execute_terminal":
             return self._execute(str(args.get("command", "")))
+        if name == "edit_file":
+            return self._edit_file(
+                str(args.get("filepath", "")),
+                str(args.get("old_string", "")),
+                str(args.get("new_string", "")),
+            )
         return (f"Unknown tool '{name}'.", "blocked", False)
 
     def _read_file(self, filepath: str) -> tuple[str, str, bool]:
@@ -416,6 +487,67 @@ class ToolAgent:
         except Exception as exc:  # noqa: BLE001 - report listing failures cleanly
             return (f"[ERROR] Could not list {path}: {exc}", "blocked", False)
         return ("\n".join(entries) if entries else "(empty)", "ok", False)
+
+    def _edit_file(self, filepath: str, old_string: str, new_string: str) -> tuple[str, str, bool]:
+        """Replace a unique snippet in a sandbox file, gated by human approval.
+
+        Scope-checked against the executor's sandbox roots (tighter than reads).
+        Produces a unified diff; an unapproved edit pauses the turn (``approval``)
+        carrying that diff, and an approved edit (listed in ``approved_edits``) is
+        snapshotted first, then written and audited. ``old_string`` must occur
+        exactly once — fail-closed on zero/ambiguous matches or any escape.
+        """
+        if not old_string:
+            return ("[ERROR] old_string must be non-empty.", "blocked", False)
+        scope = scope_lock.is_path_in_scope(filepath)
+        if not scope.in_scope:
+            return (f"[BLOCKED] Path '{filepath}' escapes the sandbox scope.", "blocked", False)
+        target = Path(scope.resolved)
+        if not target.is_file():
+            return (f"[ERROR] Not a file in scope: {filepath}", "blocked", False)
+        try:
+            current = target.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:  # noqa: BLE001 - report read failures cleanly
+            return (f"[ERROR] Could not read {filepath}: {exc}", "blocked", False)
+
+        occurrences = current.count(old_string)
+        if occurrences == 0:
+            return (f"[ERROR] old_string not found in {filepath}.", "blocked", False)
+        if occurrences > 1:
+            return (
+                f"[ERROR] old_string is not unique in {filepath} "
+                f"({occurrences} matches); add surrounding context.",
+                "blocked",
+                False,
+            )
+
+        updated = current.replace(old_string, new_string, 1)
+        diff = "".join(
+            difflib.unified_diff(
+                current.splitlines(keepends=True),
+                updated.splitlines(keepends=True),
+                fromfile=f"a/{filepath}",
+                tofile=f"b/{filepath}",
+            )
+        )
+        scrubbed = scan_and_redact(diff).scrubbed
+
+        if (filepath, old_string, new_string) not in self.approved_edits:
+            # Unapproved: pause the turn for human approval, showing the diff.
+            return (scrubbed or "(no textual change)", "approval", False)
+
+        # Approved: snapshot first (revertible), then write, then audit.
+        if self.snapshot is not None:
+            try:
+                self.snapshot(f"pre-edit: {filepath}")
+            except Exception:  # noqa: BLE001 - a snapshot failure must not bypass the gate
+                pass
+        try:
+            target.write_text(updated, encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001 - report write failures cleanly
+            return (f"[ERROR] Could not write {filepath}: {exc}", "blocked", False)
+        self._audit("tool-agent", f"EDIT APPLIED: {filepath}", Zone.YELLOW)
+        return (f"Edited {filepath}:\n{scrubbed}", "ok", False)
 
     def _format_exec_result(self, result: Any) -> tuple[str, str, bool]:
         """Map a *resolved* ExecutionResult to ``(output, status, failed)``.
