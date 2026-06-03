@@ -64,15 +64,18 @@ time (verify build each step); optionally mine the parked CSS for ideas. Don't r
 Local Ollama CUDA-OOMs on the 4GB RTX 3050, so a **Bedrock cloud provider** was
 added (`aios/core/bedrock.py`, Converse API + tool-use; routed in `/api/generate`
 via `_select_chat_client`). Local-first stays the default; Bedrock is **off**
-unless configured. To use it, set env vars **before** starting uvicorn:
+unless a region is set. Auth uses the operator's new **Bedrock API key** (`ABSK…`,
+a bearer token — NOT an IAM `AKIA…` key) via `AWS_BEARER_TOKEN_BEDROCK`. The model
+defaults to `amazon.nova-lite-v1:0`, so only **region + key** are needed:
 ```
-$env:AIOS_BEDROCK_REGION="us-east-1"          # your region
-$env:AIOS_BEDROCK_MODEL="<enabled model/inference-profile id>"
-$env:AWS_ACCESS_KEY_ID="..."; $env:AWS_SECRET_ACCESS_KEY="..."   # or a profile/role
+$env:AIOS_BEDROCK_REGION      = "us-east-1"   # the operator's region
+$env:AWS_BEARER_TOKEN_BEDROCK = "ABSK..."     # the Bedrock API key (env only)
+# optional: $env:AIOS_BEDROCK_MODEL = "<other model/inference-profile id>"
 ```
-Then in the UI pick any non-Ollama (Cloud) model → it routes to Bedrock on the
-configured model. Secrets live only in env (never on disk). `boto3` is in
-requirements; 103 tests pass (fakes, no live AWS).
+Then in the UI pick any non-Ollama (Cloud) model → routes to Bedrock on
+`config.BEDROCK_MODEL`. Secrets live only in env (never on disk). 103 tests pass.
+**Next:** real Bedrock model picker (currently every Cloud selection uses the one
+configured model; the static cloud list still has placeholder ids).
 
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.

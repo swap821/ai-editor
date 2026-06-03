@@ -174,17 +174,20 @@ REFLECT_ON_FAILURE: Final[bool] = _env_bool("AIOS_REFLECT_ON_FAILURE", True)
 # --------------------------------------------------------------------------- #
 # Cloud LLM (AWS Bedrock) — optional, for when the local GPU can't host a model
 # --------------------------------------------------------------------------- #
-#: AWS region for Bedrock (e.g. ``us-east-1``). Bedrock stays *disabled* until
-#: both this and :data:`BEDROCK_MODEL` are set. Credentials are resolved by
-#: boto3's default chain (env vars / shared profile / role) — this module never
-#: reads or writes them to disk, honouring the no-secret-persistence rule.
+#: AWS region for Bedrock (e.g. ``us-east-1``). Setting this is the single opt-in
+#: that turns Bedrock on — the model below has a sensible default. Credentials are
+#: resolved by boto3's default chain: a Bedrock **API key** via
+#: ``AWS_BEARER_TOKEN_BEDROCK`` (the new ``ABSK…`` keys), or a profile/role/IAM
+#: pair. This module never reads or writes them to disk (no-secret-persistence).
 BEDROCK_REGION: Final[str] = _env_str("AIOS_BEDROCK_REGION", "")
-#: Bedrock model (or inference-profile) id to run, e.g.
+#: Bedrock model (or inference-profile) id to run. The key is *auth*; this names
+#: *which* model. Defaults to Amazon Nova Lite (cheap, broadly available) so only
+#: a region + key are needed; override per account, e.g.
 #: ``us.anthropic.claude-3-5-sonnet-20241022-v2:0``.
-BEDROCK_MODEL: Final[str] = _env_str("AIOS_BEDROCK_MODEL", "")
+BEDROCK_MODEL: Final[str] = _env_str("AIOS_BEDROCK_MODEL", "amazon.nova-lite-v1:0")
 #: Max output tokens per Bedrock turn.
 BEDROCK_MAX_TOKENS: Final[int] = _env_int("AIOS_BEDROCK_MAX_TOKENS", 1024)
-#: True only when Bedrock is fully configured (region + model both present).
+#: True when Bedrock is opted in (region set; the model has a default).
 BEDROCK_ENABLED: Final[bool] = bool(BEDROCK_REGION and BEDROCK_MODEL)
 
 # --------------------------------------------------------------------------- #
