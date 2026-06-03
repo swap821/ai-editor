@@ -52,10 +52,15 @@ later phases, not dropped).
   (operator-approved). Extracted the SSE frame parser to `src/lib/sse.js` (wired into
   `App.jsx` streamGenerate, behavior-preserving) + vitest config/setup + `npm test` script.
   Tests: `sse.test.js` (4) + `MessageBubble.test.jsx` (3) = **7 passing**; `npm run build` clean.
-**Next action:** commit Slice 3, then **Slice 4 — diff-preview UI + e2e happy-path**: wire
-`approvedEdits` through `/api/generate` + `App.jsx`, extract an `ApprovalBar` that renders the
-unified diff (pays off the Slice-3 harness), and record the live walk (RAM-gated, operator-run).
-One slice at a time.
+- **Slice 5 — Verifier stage (Blueprint stage 8): DONE & GREEN.** New `aios/core/verifier.py`
+  runs a test command through the gated Executor, judges pass/fail by exit code + parsed
+  pytest/jest counts, returns a bounded confidence delta, and feeds failures to a reflection
+  hook (fail-closed on blocked/timeout). 5 tests. Full suite **134 passed, 1 skipped**.
+**Next action:** commit Slice 5, then **Slice 4 — diff-preview UI + e2e (code half)**: wire
+`approvedEdits` + the edit snapshot/diff through `/api/generate` + `App.jsx`, extract an
+`ApprovalBar` rendering the unified diff (+ tests). The live e2e walk is **operator-gated**
+(RAM-bound, interactive) — hand the operator exact steps. Frontend-polish-worker idea recorded
+in PLAN.md "Later phases" (propose-only, approval-gated, test-green-required, externally scheduled).
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---

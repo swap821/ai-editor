@@ -46,10 +46,19 @@ After W4 the *demoable* MVP should already clear ~90% of the recruiter-demo path
 (architecture → YELLOW diff gate → error intercept → reflection → audit-chain
 break). W5–W7 raise core fidelity; W8 is reliability.
 
-## Explicitly OUT of scope for this MVP (defer to post-MVP)
-Voice (Whisper/Piper, P2) · Project Knowledge Graph (Neo4j, P3) · Docker Compose +
+## Later phases (toward 100%, sequenced AFTER the core is green — not dropped)
+Voice (Whisper/Piper) · Project Knowledge Graph (Neo4j) · Docker Compose +
 Prometheus/Grafana/OpenTelemetry · chaos/perf/automated-adversarial test tiers.
 (AWS Bedrock cloud routing is already BUILT and stays opt-in.)
+
+**Frontend-polish worker (operator idea, 2026-06-03):** a task-scoped sub-agent that
+proposes UI improvements (iterating in the CodeCanvas / live-preview loop) so the backend
+brain stays the human's focus. Safe-by-construction on the pipeline we're already building:
+its edits ride the **same `edit_file` → unified diff → human approval → pre-write snapshot →
+audit** path (Slice 2/4); it must keep `npm test` + `npm run build` green (Slice 3) or the
+diff is rejected. It is **propose-only, approval-gated, and externally scheduled** — never an
+autonomous daily self-driver (a prompt can't self-trigger — blueprint A1; unattended = plan-only,
+A4). Scope it only once the core MVP is green.
 
 ## Definition of done for the whole plan
 Full suite green on every checkpoint; new slices each ship their own passing tests;
