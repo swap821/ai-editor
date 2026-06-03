@@ -13,7 +13,7 @@ import pytest
 
 from aios.security import gateway, scope_lock
 from aios.security.gateway import RateLimiter, Zone, classify, validate_command
-from aios.security.scope_lock import is_path_in_scope, set_scope_roots
+from aios.security.scope_lock import command_stays_in_scope, is_path_in_scope, set_scope_roots
 from aios.security.secret_scanner import scan_and_redact, shannon_entropy
 
 
@@ -92,6 +92,69 @@ def test_symlink_escape_is_out_of_scope(scoped: Path, tmp_path: Path) -> None:
     link.symlink_to(outside, target_is_directory=True)
     # A path through the in-scope symlink resolves to the outside real dir.
     assert is_path_in_scope(str(link / "creds.txt")).in_scope is False
+
+
+def test_relative_tool_path_stays_in_scope(scoped: Path) -> None:
+    # Regression: a relative tool path (.venv\Scripts\python.exe) must not be
+    # mis-read as the rooted C:\Scripts\python.exe. It stays in scope and the
+    # command classifies YELLOW (a pip install), not a RED scope block.
+    cmd = r".venv\Scripts\python.exe -m pip install flask"
+    assert command_stays_in_scope(cmd).in_scope is True
+    assert classify(cmd).zone is Zone.YELLOW
+
+
+def test_compound_venv_command_stays_in_scope(scoped: Path) -> None:
+    cmd = r"python -m venv .venv && .venv\Scripts\pip install flask"
+    assert command_stays_in_scope(cmd).in_scope is True
+    assert classify(cmd).zone is Zone.YELLOW
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="backslash is a path separator only on Windows"
+)
+def test_embedded_traversal_still_blocked(scoped: Path) -> None:
+    # A single word that escapes via embedded ..\..  is still caught (fail-closed).
+    cmd = r"type foo\..\..\..\..\Windows\System32\config"
+    assert command_stays_in_scope(cmd).in_scope is False
+    assert classify(cmd).zone is Zone.RED
+
+
+def test_bare_words_are_not_treated_as_paths(scoped: Path) -> None:
+    # No path-like words -> in scope; the command is YELLOW for the pip install.
+    assert command_stays_in_scope("pip install flask").in_scope is True
+    assert classify("pip install flask").zone is Zone.YELLOW
+
+
+def test_traversal_with_forward_slashes_blocked(scoped: Path) -> None:
+    # Cross-platform twin of the Windows-only backslash test above.
+    cmd = "type ../../../../etc/passwd"
+    assert command_stays_in_scope(cmd).in_scope is False
+    assert classify(cmd).zone is Zone.RED
+
+
+def test_home_reference_is_out_of_scope(scoped: Path) -> None:
+    # Regression: '~' would expand to home outside the sandbox; Path does not
+    # expand it, so it must be refused outright, not resolved in-scope.
+    assert command_stays_in_scope("cat ~/.ssh/id_rsa").in_scope is False
+    assert classify("cat ~/.ssh/id_rsa").zone is Zone.RED
+
+
+def test_absolute_path_glued_via_redirect_is_blocked(scoped: Path) -> None:
+    # Regression: an absolute path glued to a word by '>' must be split out and
+    # blocked, not resolved as a relative subpath of the scope root.
+    assert command_stays_in_scope("echo x>/home/kumar/.bashrc").in_scope is False
+    assert classify("echo x>/home/kumar/.bashrc").zone is Zone.RED
+
+
+def test_absolute_path_glued_via_semicolon_is_blocked(scoped: Path) -> None:
+    # Regression: command-chaining metachar.
+    assert command_stays_in_scope("cat foo;/etc/passwd").in_scope is False
+    assert classify("cat foo;/etc/passwd").zone is Zone.RED
+
+
+def test_bare_parent_ref_is_out_of_scope(scoped: Path) -> None:
+    # Regression: a bare '..' escapes to the scope root's parent.
+    assert command_stays_in_scope("cat ..").in_scope is False
 
 
 # --------------------------------------------------------------------------- #

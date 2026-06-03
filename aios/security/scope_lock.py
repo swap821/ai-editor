@@ -14,6 +14,7 @@ Scope roots default to :data:`aios.config.SCOPE_ROOTS` (the ``training_ground``
 from __future__ import annotations
 
 import re
+import shlex
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,9 +22,11 @@ from typing import Iterable, Optional
 
 from aios import config
 
-#: Tokens inside a shell command that look like filesystem paths: a drive
-#: prefix (``C:\``), a relative marker (``./`` / ``../``), or a leading slash.
-_PATH_TOKEN = re.compile(r"(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|[\\/])[^\s\"';|&]*")
+#: Shell operators that separate commands/redirections. We split on these BEFORE
+#: tokenising so an absolute path glued to a prior word (``x>/etc/p``,
+#: ``foo;/etc/passwd``) becomes its own word and is scope-checked as the escape
+#: it is. Newlines are already handled by shlex's whitespace split.
+_SHELL_OPS = re.compile(r"[;|&<>`]+")
 
 _lock = threading.RLock()
 _scope_roots: list[Path] = [Path(p).resolve() for p in config.SCOPE_ROOTS]
@@ -105,17 +108,68 @@ def is_path_in_scope(candidate: str) -> ScopeResult:
         return ScopeResult(False, "", f"Path resolution failed (fail-closed): {exc}")
 
 
-def command_stays_in_scope(command: str) -> CommandScopeResult:
-    """Extract path-like tokens from *command* and verify each stays in scope.
+def _looks_like_path(token: str) -> bool:
+    """Whether a shell word is worth scope-checking as a filesystem path.
 
-    Returns at the first offending token. Pure flags (``-rf``, ``/s``) are
-    skipped via a minimum-length guard so they are not mistaken for paths.
+    True when it contains a path separator, starts with a parent ref (``..``), or
+    has a drive prefix (``C:``). Bare words (``pip``, ``flask``) are not paths and
+    are skipped, so a command argument can't be mistaken for one.
+    """
+    if "/" in token or "\\" in token:
+        return True
+    if token.startswith(".."):
+        return True
+    return len(token) >= 2 and token[1] == ":" and token[0].isalpha()
+
+
+def command_stays_in_scope(command: str) -> CommandScopeResult:
+    """Verify every path-like *word* in *command* resolves inside a scope root.
+
+    The command is split into shell **words** and each path-like word is resolved
+    as a *single* path. This is deliberately different from scanning for path
+    *fragments*: a relative tool path like ``.venv\\Scripts\\python.exe`` is checked
+    intact, instead of a mid-word separator being mis-read as the rooted
+    ``\\Scripts\\python.exe`` (which used to falsely resolve to ``C:\\Scripts\\…``
+    and block legitimate commands). Real escapes are still caught — an absolute
+    path, a drive path, or relative traversal (``..\\..``) resolves outside the
+    root and is blocked. The line is first split on shell operators (so an
+    absolute path glued to a word by ``>`` ``;`` ``|`` ``&`` is isolated), and a
+    ``~`` home reference is refused outright. Returns at the first offending word;
+    fail-closed (unbalanced quotes fall back to a whitespace split).
     """
     if not command or not isinstance(command, str):
         return CommandScopeResult(False, "Empty command (fail-closed).")
 
-    for token in _PATH_TOKEN.findall(command):
-        if len(token) < 3:  # e.g. "/s", "-r" — a flag, not a path
+    # Split on shell operators first so a glued absolute path (``x>/etc/p``,
+    # ``a;/etc/passwd``) becomes its own word, then shlex-tokenise each segment
+    # (posix=False keeps Windows backslashes literal). Unbalanced quotes fall
+    # back to a whitespace split. Over-splitting a quoted literal can only block,
+    # never silently allow — the right bias for a fail-closed scope gate.
+    words: list[str] = []
+    for segment in _SHELL_OPS.split(command):
+        if not segment.strip():
+            continue
+        try:
+            words.extend(shlex.split(segment, posix=False))
+        except ValueError:
+            words.extend(segment.split())
+
+    for raw in words:
+        token = raw.strip("\"'")
+        if not token:
+            continue
+        # Home reference: Path never expands ``~``, so a literal join would
+        # resolve in-scope. Refuse it — home is never inside the sandbox.
+        if token.startswith("~"):
+            return CommandScopeResult(
+                False,
+                f"Home-directory reference '{token}' escapes the sandbox scope.",
+                offending=token,
+            )
+        if not _looks_like_path(token):
+            continue
+        # Skip tiny pure flags (``/s``, ``-r``) — but never a parent ref (``..``).
+        if len(token) < 3 and not token.startswith(".."):
             continue
         check = is_path_in_scope(token)
         if not check.in_scope:
