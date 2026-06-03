@@ -62,10 +62,17 @@ later phases, not dropped).
   refuses to silently commit it (returns the conflict to route to reflection/human); `reconcile`
   supersedes + commits the chosen object; exact duplicates idempotent. 4 tests. Full suite **138 passed, 1 skipped**.
   Frontend-polish-worker idea now recorded **permanently in memory** (`frontend-polish-worker-idea`) + PLAN.md.
-**Next action:** commit Slice 7. Autonomously-completable slices are now DONE (1,2,3,5,7). The
-remaining work needs the operator: **Slice 4** (diff-preview UI — code half is mine, the live e2e
-walk is RAM-gated/interactive), **Slice 6** (prompt-injection vector blocklist — FROZEN CORE, needs
-explicit go), **Slice 8** (polish/freeze, best after 4). Restate & wait before each.
+- **Slice 4 — diff-preview approval (CODE HALF): DONE & GREEN.** 4a (backend, committed `e5bfbc7`):
+  `approvedEdits` + a lazy pre-write snapshot wired through `/api/generate`; the edit `human_required`
+  SSE carries the diff + edit triple. 4b (frontend): a `DiffView` component renders the unified diff
+  in the (unchanged, working) approval bar; `approvedEdits` state + resume wired
+  (`handleApproveAction`/`handleRejectAction`/`streamGenerate`). Frontend **9 tests** (DiffView ×2);
+  `npm run build` clean; backend 140.
+**Next action — OPERATOR-GATED (live e2e walk, RAM-bound):** load `llama3.2:3b`, start backend +
+`npm run dev`, then chat → ask for a file edit → diff preview shows in the approval bar → Approve →
+file written (snapshot taken) → reflection. Record the result here. Then the remaining slices:
+**Slice 6** (prompt-injection vector blocklist — FROZEN CORE, needs explicit go) and **Slice 8**
+(polish/freeze). Restate & wait before each.
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---

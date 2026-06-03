@@ -5,6 +5,7 @@ import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
+import DiffView from './components/DiffView';
 import { API_BASE } from './config';
 import { parseSseBuffer } from './lib/sse';
 
@@ -552,6 +553,7 @@ export default function App() {
   // new message is sent; grown when an approval resumes a paused turn so the
   // agent can actually run the YELLOW command (resumable in-chat approval).
   const [approvedCommands, setApprovedCommands] = useState([]);
+  const [approvedEdits, setApprovedEdits] = useState([]);
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
   const [termHistory, setTermHistory] = useState(['AI Editor OS v2.0', 'Type "help" for available commands.']);
   const [termInput,   setTermInput]   = useState('');
@@ -660,7 +662,7 @@ export default function App() {
   // the user turn; the paused assistant turn is never recorded (no `done`), so
   // resuming simply replays the same history with the approved command(s) now
   // whitelisted in `approvedCmds`.
-  const streamGenerate = async (historyMessages, approvedCmds) => {
+  const streamGenerate = async (historyMessages, approvedCmds, approvedEdts = []) => {
     const aiMsgId = Date.now() + 1;
     setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', loading: true, steps: [], streaming: false }]);
     setIsStreaming(true);
@@ -672,7 +674,7 @@ export default function App() {
       const response = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, approvedCommands: approvedCmds })
+        body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, approvedCommands: approvedCmds, approvedEdits: approvedEdts })
       });
 
       if (!response.ok) throw new Error(`Server error ${response.status}`);
@@ -745,14 +747,17 @@ export default function App() {
     // chat transcript, and its outcome can still be reflected on. convHistory
     // ends at the user message (the paused turn recorded no answer), so replaying
     // it with the command(s) authorised continues exactly where we left off.
+    const editsToApply = pendingAction.edits || [];
     const newApproved = [...approvedCommands, ...commandsToRun];
+    const newApprovedEdits = [...approvedEdits, ...editsToApply];
     setApprovedCommands(newApproved);
+    setApprovedEdits(newApprovedEdits);
     setPendingAction(null);
     setMessages(prev => [...prev, {
       id: Date.now(), sender: 'ai', steps: [],
       text: `✅ Approved — resuming with ${commandsToRun.length} authorised command(s)…`,
     }]);
-    await streamGenerate(convHistory, newApproved);
+    await streamGenerate(convHistory, newApproved, newApprovedEdits);
   };
 
   const handleRejectAction = () => {
@@ -760,6 +765,7 @@ export default function App() {
     // Reject ends the paused turn: clear both the pending action and the approval
     // whitelist, so an authorised-but-unrun command can't linger into a later turn.
     setApprovedCommands([]);
+    setApprovedEdits([]);
     setPendingAction(null);
     setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Rejected — the command was not run.' }]);
   };
@@ -1211,20 +1217,24 @@ export default function App() {
                       </p>
                     )}
 
-                    {/* command(s) to authorise */}
-                    <div style={{
-                      background: '#0b0c10', borderRadius: 9, padding: '9px 11px',
-                      fontFamily: '"Geist Mono", monospace', fontSize: 11.5, color: '#7ee787',
-                      marginBottom: 11, overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)',
-                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-                    }}>
-                      {(pendingAction.commands || []).map((cmd, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: i < (pendingAction.commands.length - 1) ? 4 : 0 }}>
-                          <span style={{ color: 'var(--text-3)', userSelect: 'none' }}>$</span>
-                          <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{cmd}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {/* the unified diff (file edit) or the command(s) to authorise */}
+                    {pendingAction.diff ? (
+                      <DiffView diff={pendingAction.diff} />
+                    ) : (
+                      <div style={{
+                        background: '#0b0c10', borderRadius: 9, padding: '9px 11px',
+                        fontFamily: '"Geist Mono", monospace', fontSize: 11.5, color: '#7ee787',
+                        marginBottom: 11, overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                      }}>
+                        {(pendingAction.commands || []).map((cmd, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: i < (pendingAction.commands.length - 1) ? 4 : 0 }}>
+                            <span style={{ color: 'var(--text-3)', userSelect: 'none' }}>$</span>
+                            <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{cmd}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* actions */}
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -1242,7 +1252,7 @@ export default function App() {
                         onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
                         onMouseUp={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
                       >
-                        <Check size={14} strokeWidth={2.8} /> Run command
+                        <Check size={14} strokeWidth={2.8} /> {pendingAction.diff ? 'Apply edit' : 'Run command'}
                       </button>
                       <button
                         onClick={handleRejectAction}
