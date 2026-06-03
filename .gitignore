@@ -10,6 +10,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
 *.egg-info/
 
 # --- AI OS runtime data (SQLite DBs, FAISS index, rollback snapshots) ---

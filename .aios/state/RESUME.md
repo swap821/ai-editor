@@ -28,6 +28,25 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
+**PHASE 1+2 DONE; SLICE 1a APPLIED & GREEN (2026-06-03).** Audit → `AUDIT.md`
+(now **116 passed, 1 skipped**). Plan → `PLAN.md` — now targets **100% / no left-outs**
+per operator (deferrals are later phases, not dropped; build fundamentals first).
+**Slice 1a (security-scope hardening, FROZEN CORE) DONE & verified:** an xhigh code
+review found 3 live scope bypasses in the prior `command_stays_in_scope` rewrite —
+`~/…` home paths, absolute paths glued via shell metachars (`>``;``|``&`), and bare
+`..` all classified GREEN. Fixed in `aios/security/scope_lock.py` (operator pre-split
+`_SHELL_OPS` + `~` refusal + `..` guard) with 5 regression tests; all now classify RED,
+legit `.venv\Scripts\python.exe`/`&&` cases still YELLOW. Full suite 116 green.
+**This supersedes the prior uncommitted scope_lock edit** (the buggy rewrite is fixed
+on top). Still **uncommitted** — awaiting operator OK to commit.
+**Next action:** commit Slice 1a (scope_lock.py + test_security.py), then Slice 1b
+(direct HTTP tests for `/plan,/execute,/approval/req,/rollback`). One slice at a time.
+Side task: blueprint_text.md upgraded v3.0→v6.0 (committed `e39a3f8`); cleanup pass uncommitted.
+**Still pending:** (a) save operator memories (independent dev not student; 100% goal;
+CEO daily-advice role) + create `.aios/state/CEO_LOG.md` + first advice; (b) RED-policy
+decision D1; (c) 4 untracked premium CSS files parked.
+
+--- (prior Phase-4h candidates, retained for context) ---
 **Phase 4h is DONE and committed.** Pick the next build step. Candidates, in rough
 priority (propose one, then STOP for the operator's go before writing code):
 1. **Live e2e demo pass (RAM-gated).** Load `llama3.2:3b`, run backend + frontend,
