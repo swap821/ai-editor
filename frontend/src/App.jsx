@@ -753,9 +753,12 @@ export default function App() {
     setApprovedCommands(newApproved);
     setApprovedEdits(newApprovedEdits);
     setPendingAction(null);
+    const approvedSummary = editsToApply.length
+      ? `${editsToApply.length} file edit(s)`
+      : `${commandsToRun.length} command(s)`;
     setMessages(prev => [...prev, {
       id: Date.now(), sender: 'ai', steps: [],
-      text: `✅ Approved — resuming with ${commandsToRun.length} authorised command(s)…`,
+      text: `✅ Approved — resuming with ${approvedSummary} authorised…`,
     }]);
     await streamGenerate(convHistory, newApproved, newApprovedEdits);
   };

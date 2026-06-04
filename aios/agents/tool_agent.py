@@ -265,13 +265,14 @@ class ToolAgent:
         #: pausing again — this is what makes in-chat approval *resumable*. RED is
         #: still refused even if listed, because approval can't authorise RED.
         self.approved_commands = set(approved_commands or [])
-        #: File edits a human has authorised this turn, keyed by
-        #: ``(filepath, old_string, new_string)`` — the edit analog of
-        #: ``approved_commands``. An unapproved ``edit_file`` pauses with a diff;
-        #: a listed one is snapshotted, written, and audited.
-        self.approved_edits: set[tuple[str, str, str]] = {
-            (
-                str(e.get("filepath", "")),
+        #: File edits a human has authorised this turn, keyed by **filepath** ->
+        #: ``(old_string, new_string)``. Keyed by filepath (not the full triple)
+        #: so an approved edit still applies when the model regenerates slightly
+        #: different args on the replayed turn — we then apply exactly the edit the
+        #: human approved, not the model's drifted one. An unapproved ``edit_file``
+        #: pauses with a diff; an approved one is snapshotted + audited, then written.
+        self.approved_edits: dict[str, tuple[str, str]] = {
+            str(e.get("filepath", "")): (
                 str(e.get("old_string", "")),
                 str(e.get("new_string", "")),
             )
@@ -504,14 +505,30 @@ class ToolAgent:
         snapshotted first, then written and audited. ``old_string`` must occur
         exactly once — fail-closed on zero/ambiguous matches or any escape.
         """
+        approved = self.approved_edits.get(filepath)
+        if approved is not None:
+            # Apply EXACTLY what the human approved, not the model's possibly
+            # re-generated args on the replayed turn (robust resume for long edits).
+            old_string, new_string = approved
+
         if not old_string:
             return ("[ERROR] old_string must be non-empty.", "blocked", False)
         scope = scope_lock.is_path_in_scope(filepath)
         if not scope.in_scope:
-            return (f"[BLOCKED] Path '{filepath}' escapes the sandbox scope.", "blocked", False)
+            roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())
+            return (
+                f"[BLOCKED] '{filepath}' is outside the editable sandbox scope ({roots}).",
+                "blocked",
+                False,
+            )
         target = Path(scope.resolved)
         if not target.is_file():
-            return (f"[ERROR] Not a file in scope: {filepath}", "blocked", False)
+            return (
+                f"[ERROR] No such file in the sandbox scope: {filepath} "
+                "(edits are confined to the sandbox, which is separate from where reads are allowed).",
+                "blocked",
+                False,
+            )
         try:
             current = target.read_text(encoding="utf-8", errors="replace")
         except Exception as exc:  # noqa: BLE001 - report read failures cleanly
@@ -539,21 +556,34 @@ class ToolAgent:
         )
         scrubbed = scan_and_redact(diff).scrubbed
 
-        if (filepath, old_string, new_string) not in self.approved_edits:
+        if approved is None:
             # Unapproved: pause the turn for human approval, showing the diff.
             return (scrubbed or "(no textual change)", "approval", False)
 
-        # Approved: snapshot first (revertible), then write, then audit.
+        # Approved. Capture the pre-edit snapshot and audit the intent FIRST —
+        # both fail-closed: if either fails the edit is NOT applied (no
+        # unprotected and no unlogged write) — then write.
         if self.snapshot is not None:
             try:
                 self.snapshot(f"pre-edit: {filepath}")
-            except Exception:  # noqa: BLE001 - a snapshot failure must not bypass the gate
-                pass
+            except Exception as exc:  # noqa: BLE001 - fail-closed: no snapshot, no edit
+                return (
+                    f"[BLOCKED] Pre-edit snapshot failed; edit not applied: {exc}",
+                    "blocked",
+                    False,
+                )
+        try:
+            self._audit("tool-agent", f"EDIT: {filepath}", Zone.YELLOW)
+        except Exception as exc:  # noqa: BLE001 - fail-closed: no audit, no edit
+            return (
+                f"[BLOCKED] Audit failed; edit not applied: {exc}",
+                "blocked",
+                False,
+            )
         try:
             target.write_text(updated, encoding="utf-8")
         except Exception as exc:  # noqa: BLE001 - report write failures cleanly
             return (f"[ERROR] Could not write {filepath}: {exc}", "blocked", False)
-        self._audit("tool-agent", f"EDIT APPLIED: {filepath}", Zone.YELLOW)
         return (f"Edited {filepath}:\n{scrubbed}", "ok", False)
 
     def _format_exec_result(self, result: Any) -> tuple[str, str, bool]:

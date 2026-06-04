@@ -115,14 +115,14 @@ def get_edit_snapshot() -> Callable[..., object]:
 
     Returns a callable that lazily constructs a sandbox :class:`RollbackEngine`
     and snapshots it — only when an approved edit is actually applied, so read /
-    command turns pay nothing. Best-effort: a snapshot failure never breaks the
-    turn. Overridden in tests with a recorder.
+    command turns pay nothing. Fail-closed: a snapshot failure propagates so the
+    agent refuses the edit (no unprotected write). Overridden in tests with a recorder.
     """
     def snapshot(message: str = "pre-edit snapshot") -> None:
-        try:
-            RollbackEngine().create_snapshot(message)
-        except Exception:  # noqa: BLE001 - pre-edit snapshot is best-effort
-            pass
+        # Let failures propagate: the agent treats a snapshot error as fail-closed
+        # and refuses the edit, so a write is never applied without a captured
+        # pre-edit state to roll back to.
+        RollbackEngine().create_snapshot(message)
 
     return snapshot
 

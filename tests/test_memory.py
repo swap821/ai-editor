@@ -206,3 +206,12 @@ def test_reconcile_supersedes_old_and_commits_new(db_path: Path) -> None:
     res = facts.reconcile("api", "listens_on_port", "9000")
     assert res.committed is True
     assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["9000"]
+
+
+def test_reconcile_rejects_empty_object(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("api", "listens_on_port", "8000")
+    res = facts.reconcile("api", "listens_on_port", "   ")
+    assert res.committed is False
+    # The existing fact is untouched (not superseded by a blank value).
+    assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["8000"]

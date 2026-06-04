@@ -68,6 +68,12 @@ later phases, not dropped).
   in the (unchanged, working) approval bar; `approvedEdits` state + resume wired
   (`handleApproveAction`/`handleRejectAction`/`streamGenerate`). Frontend **9 tests** (DiffView ×2);
   `npm run build` clean; backend 140.
+- **Slice 4c — hardening pass (DONE & GREEN):** fixed all 8 findings from the max-effort self
+  /code-review of this session's code. `edit_file` is now **fail-closed on snapshot AND audit** (a
+  failure of either blocks the edit), **audits before writing**, and applies the *approved* edit by
+  **filepath** (robust to a local model regenerating drifted args on resume); verifier **trusts the
+  exit code** + **skips reflection on security blocks**; `facts.reconcile` rejects empty; App.jsx
+  approve message fixed. +6 tests. Full suite **146 passed, 1 skipped**; frontend 9; build clean.
 **Next action — OPERATOR-GATED (live e2e walk, RAM-bound):** load `llama3.2:3b`, start backend +
 `npm run dev`, then chat → ask for a file edit → diff preview shows in the approval bar → Approve →
 file written (snapshot taken) → reflection. Record the result here. Then the remaining slices:

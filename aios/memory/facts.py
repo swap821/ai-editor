@@ -88,6 +88,8 @@ class SemanticFacts:
         """Resolve a contradiction: supersede every active fact on this
         subject+predicate and commit *new_obj* as the active fact."""
         subject, predicate, new_obj = subject.strip(), predicate.strip(), new_obj.strip()
+        if not (subject and predicate and new_obj):
+            return FactWriteResult(False, None, "empty subject/predicate/object")
         with get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE semantic_facts SET status = 'superseded' "

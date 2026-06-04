@@ -59,3 +59,20 @@ def test_verify_does_not_reflect_on_pass() -> None:
     res = Verifier(ex, on_failure=lambda c, o: seen.append((c, o))).verify("pytest")
     assert res.passed is True
     assert seen == [], "a passing verification must not trigger reflection"
+
+
+def test_verify_blocked_command_does_not_reflect() -> None:
+    # A security BLOCK is correct behaviour, not a mistake to reflect on.
+    ex = _executor(lambda *a, **k: ("should-not-run", "", 0))
+    seen: list[str] = []
+    res = Verifier(ex, on_failure=lambda c, o: seen.append(c)).verify("rm -rf /")
+    assert res.passed is False and res.status == "BLOCKED"
+    assert seen == []
+
+
+def test_verify_pass_not_fooled_by_incidental_error_text() -> None:
+    # Exit 0 is authoritative; an incidental "error" in output must not flip it.
+    ex = _executor(lambda command, *, cwd, env, timeout_s: ("5 passed; cleaned up 1 error log", "", 0))
+    res = Verifier(ex).verify("pytest")
+    assert res.passed is True
+    assert res.confidence_delta == 0.0

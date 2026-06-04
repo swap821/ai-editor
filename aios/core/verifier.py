@@ -70,9 +70,11 @@ class Verifier:
 
         if result.status != "OK":
             # Could not even run to completion (blocked / timeout / launch error):
-            # cannot prove success, so fail-closed.
+            # cannot prove success, so fail-closed. A security BLOCK is correct
+            # behaviour, not a mistake — only genuine run failures feed reflection.
             summary = f"[{result.status}] {result.reason}".strip()
-            self._maybe_reflect(command, summary or result.status)
+            if result.status != "BLOCKED":
+                self._maybe_reflect(command, summary or result.status)
             return VerifierResult(
                 passed=False,
                 summary=summary,
@@ -82,7 +84,11 @@ class Verifier:
             )
 
         passed_count, failed_count = _parse_counts(output)
-        passed = result.exit_code == 0 and failed_count == 0
+        # Trust the runner's exit code as the authoritative pass/fail signal
+        # (pytest/jest exit non-zero on failures); the parsed counts only enrich
+        # the summary/delta, so an incidental "error" in a passing run's output
+        # cannot flip the verdict to FAIL.
+        passed = result.exit_code == 0
 
         if passed:
             return VerifierResult(

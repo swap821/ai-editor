@@ -455,3 +455,68 @@ def test_agent_edit_rejects_nonunique_old_string(sandbox) -> None:
     blocked = [e for e in events if e["type"] == "tool_blocked"]
     assert blocked and "unique" in blocked[0]["reason"].lower()
     assert f.read_text(encoding="utf-8") == "a\na\n"   # untouched (not unique)
+
+
+def test_agent_edit_applies_approved_despite_model_arg_drift(sandbox) -> None:
+    # On resume the model regenerates *different* args; the APPROVED edit (keyed
+    # by filepath) is applied, not the model's drifted one.
+    f = sandbox / "greeting.txt"
+    f.write_text("hello world\n", encoding="utf-8")
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "greeting.txt",
+                                 "old_string": "HELLO", "new_string": "zzz"}),
+        {"role": "assistant", "content": "done"},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "greeting.txt", "old_string": "world", "new_string": "there"}],
+        snapshot=lambda msg="": None, audit_log=lambda *a, **k: None,
+    )
+    list(agent.run([{"role": "user", "content": "edit"}]))
+    assert f.read_text(encoding="utf-8") == "hello there\n"   # the APPROVED edit, not the drift
+
+
+def test_agent_edit_blocked_when_snapshot_fails(sandbox) -> None:
+    # Fail-closed: a snapshot failure must NOT apply the edit.
+    f = sandbox / "greeting.txt"
+    f.write_text("hello world\n", encoding="utf-8")
+
+    def boom(msg=""):
+        raise RuntimeError("git down")
+
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "greeting.txt",
+                                 "old_string": "world", "new_string": "there"}),
+        {"role": "assistant", "content": "x"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "greeting.txt", "old_string": "world", "new_string": "there"}],
+        snapshot=boom, audit_log=lambda *a, **k: None,
+    ).run([{"role": "user", "content": "edit"}]))
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "snapshot failed" in blocked[0]["reason"].lower()
+    assert f.read_text(encoding="utf-8") == "hello world\n"   # not applied
+
+
+def test_agent_edit_blocked_when_audit_fails(sandbox) -> None:
+    # Fail-closed: an audit failure must NOT apply the edit.
+    f = sandbox / "greeting.txt"
+    f.write_text("hello world\n", encoding="utf-8")
+
+    def boom_audit(*a, **k):
+        raise RuntimeError("audit db locked")
+
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "greeting.txt",
+                                 "old_string": "world", "new_string": "there"}),
+        {"role": "assistant", "content": "x"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "greeting.txt", "old_string": "world", "new_string": "there"}],
+        snapshot=lambda msg="": None, audit_log=boom_audit,
+    ).run([{"role": "user", "content": "edit"}]))
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "audit failed" in blocked[0]["reason"].lower()
+    assert f.read_text(encoding="utf-8") == "hello world\n"   # not applied
