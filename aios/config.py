@@ -138,6 +138,15 @@ RED_APPROVAL_TIMEOUT_MS: Final[int] = _env_int("AIOS_RED_TIMEOUT_MS", 30_000)
 #: Genesis hash for the audit chain (64 zero characters), per the blueprint.
 AUDIT_GENESIS_HASH: Final[str] = "0" * 64
 
+#: Opt-in second layer of the prompt-injection shield: an embedding-similarity
+#: blocklist that catches paraphrased injections the regex misses. Off by default
+#: so the gateway stays pure-regex and torch-free; the API installs it at startup
+#: when set. Loads the embedding model on first classify, so enable only with RAM.
+INJECTION_VECTOR_SHIELD: Final[bool] = _env_bool("AIOS_INJECTION_VECTOR_SHIELD", False)
+#: Cosine-similarity threshold (>=) above which an input counts as a semantic
+#: injection. Higher = stricter (fewer false positives, more misses).
+INJECTION_VECTOR_THRESHOLD: Final[float] = _env_float("AIOS_INJECTION_VECTOR_THRESHOLD", 0.6)
+
 #: Absolute directories the executor may touch. Defaults to the "playground"
 #: (``training_ground``) so the agent learns organically without risking the
 #: host. Out-of-scope paths auto-escalate to RED in the security gateway.
@@ -225,6 +234,8 @@ __all__ = [
     "YELLOW_APPROVAL_TIMEOUT_MS",
     "RED_APPROVAL_TIMEOUT_MS",
     "AUDIT_GENESIS_HASH",
+    "INJECTION_VECTOR_SHIELD",
+    "INJECTION_VECTOR_THRESHOLD",
     "SCOPE_ROOTS",
     "OLLAMA_HOST",
     "LLM_MODEL",

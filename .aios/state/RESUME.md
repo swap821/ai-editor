@@ -74,11 +74,17 @@ later phases, not dropped).
   **filepath** (robust to a local model regenerating drifted args on resume); verifier **trusts the
   exit code** + **skips reflection on security blocks**; `facts.reconcile` rejects empty; App.jsx
   approve message fixed. +6 tests. Full suite **146 passed, 1 skipped**; frontend 9; build clean.
+- **Slice 6 — prompt-injection vector blocklist (FROZEN CORE, operator-approved): DONE & GREEN.**
+  `aios/security/injection_shield.py` (`VectorInjectionShield`) embeds a curated injection set and
+  flags inputs with cosine ≥ threshold; `gateway.classify` consults an installed shield after the
+  regex layer. Deterministic · fail-safe (embedder error → regex-only) · opt-in (`AIOS_INJECTION_VECTOR_SHIELD`,
+  default off; API installs it at startup when set). 3 tests; all prior security tests pass regex-only.
+  Full suite **149 passed, 1 skipped**.
 **Next action — OPERATOR-GATED (live e2e walk, RAM-bound):** load `llama3.2:3b`, start backend +
-`npm run dev`, then chat → ask for a file edit → diff preview shows in the approval bar → Approve →
-file written (snapshot taken) → reflection. Record the result here. Then the remaining slices:
-**Slice 6** (prompt-injection vector blocklist — FROZEN CORE, needs explicit go) and **Slice 8**
-(polish/freeze). Restate & wait before each.
+`npm run dev`, then chat → ask for a file edit → diff preview in the approval bar → Approve → file
+written (snapshot) → reflection. Record the result here. Last remaining build slice: **Slice 8**
+(polish/freeze — fix any bug the e2e surfaces, README, rehearse the 2-min demo). After Slice 8 the
+core MVP is green; later phases (voice, KG, Docker, chaos/perf, frontend-polish worker) follow.
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---

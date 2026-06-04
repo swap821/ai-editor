@@ -144,12 +144,27 @@ class RateLimiter:
 #: Process-wide default limiter used when a caller does not supply its own.
 _default_rate_limiter = RateLimiter()
 
+#: Optional embedding-similarity injection shield (the dual-layer's vector half).
+#: ``None`` by default so the gateway stays pure-regex and dependency-light (no
+#: torch); the API installs one at startup when ``config.INJECTION_VECTOR_SHIELD``
+#: is set. Anything truthy must expose ``is_injection(text) -> bool``.
+_injection_shield: object = None
 
-def classify(command: str) -> ClassificationResult:
+
+def set_injection_shield(shield: object) -> None:
+    """Install (or clear with ``None``) the process-wide vector injection shield."""
+    global _injection_shield
+    _injection_shield = shield
+
+
+def classify(command: str, *, injection_shield: object = None) -> ClassificationResult:
     """Deterministically classify *command* into a security zone (fail-closed).
 
     Args:
         command: The action payload (shell command or code) to classify.
+        injection_shield: Optional vector injection shield (``is_injection``);
+            falls back to the process-wide one set via
+            :func:`set_injection_shield`. ``None`` everywhere = regex-only.
 
     Returns:
         A :class:`ClassificationResult`. Any internal error yields ``RED``.
@@ -161,6 +176,13 @@ def classify(command: str) -> ClassificationResult:
         for pat in _INJECTION_PATTERNS:
             if pat.search(command):
                 return ClassificationResult(Zone.RED, 1.0, f"Prompt-injection pattern: {pat.pattern}")
+
+        # Second injection layer (Blueprint 5.2): an embedding-similarity blocklist
+        # catches paraphrased injections the regex misses. Fail-safe inside the
+        # shield (model error -> False), so the regex layer is never weakened.
+        shield = injection_shield if injection_shield is not None else _injection_shield
+        if shield is not None and shield.is_injection(command):  # type: ignore[attr-defined]
+            return ClassificationResult(Zone.RED, 1.0, "Semantic prompt-injection (vector blocklist).")
 
         scan = scan_and_redact(command)
         if scan.detected:

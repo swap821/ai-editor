@@ -49,6 +49,17 @@ async def lifespan(app: FastAPI):
     """Ensure both databases exist before the app serves traffic."""
     init_memory_db()
     init_audit_db()
+    # Opt-in second injection layer: install the vector blocklist when enabled.
+    # Best-effort — a model/load failure must never block startup, since the
+    # regex layer remains the active defence.
+    if config.INJECTION_VECTOR_SHIELD:
+        try:
+            from aios.security.injection_shield import VectorInjectionShield
+            from aios.security.gateway import set_injection_shield
+
+            set_injection_shield(VectorInjectionShield())
+        except Exception:  # noqa: BLE001 - enhancement; never block startup
+            pass
     yield
 
 
