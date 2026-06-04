@@ -27,66 +27,15 @@ const HorizontalResizeHandle = () => (
 // Cloud (Bedrock) models. The "Local (Ollama)" group is injected at runtime
 // from whatever is actually installed in the local engine (see availableModels),
 // so the list never claims a model you don't have pulled.
+// Curated FALLBACK list of real, on-demand-invocable Bedrock model ids that
+// support Converse tool-use (needed by the agent loop). The live picker prefers
+// /api/v1/models/bedrock (the account's actual invocable models) and only falls
+// back to this when discovery is unavailable. Nova is recommended: on-demand and
+// broadly enabled by default. Claude/Llama use cross-region inference-profile ids
+// ("us.*") and require model access to be granted in the Bedrock console.
 const BEDROCK_MODELS = [
   {
-    group: "Anthropic Claude (Next-Gen)",
-    models: [
-      { id: "anthropic.claude-4-8-opus-v1:0", name: "Claude Opus 4.8" },
-      { id: "anthropic.claude-4-7-opus-v1:0", name: "Claude Opus 4.7" },
-      { id: "anthropic.claude-4-6-sonnet-v1:0", name: "Claude Sonnet 4.6" },
-      { id: "anthropic.claude-4-6-opus-v1:0", name: "Claude Opus 4.6" },
-      { id: "anthropic.claude-4-5-opus-v1:0", name: "Claude Opus 4.5" },
-      { id: "anthropic.claude-4-5-haiku-v1:0", name: "Claude Haiku 4.5" }
-    ]
-  },
-  {
-    group: "DeepSeek (Advanced Reasoning)",
-    models: [
-      { id: "deepseek.r1-v1:0", name: "DeepSeek-R1" },
-      { id: "deepseek.v3.2", name: "DeepSeek V3.2" }
-    ]
-  },
-  {
-    group: "OpenAI (OSS Series)",
-    models: [
-      { id: "openai.gpt-oss-120b-1:0", name: "gpt-oss-120b" },
-      { id: "openai.gpt-oss-20b-1:0", name: "gpt-oss-20b" },
-      { id: "openai.gpt-oss-safeguard-120b-1:0", name: "GPT OSS Safeguard 120B" },
-      { id: "openai.gpt-oss-safeguard-20b-1:0", name: "GPT OSS Safeguard 20B" }
-    ]
-  },
-  {
-    group: "Google",
-    models: [
-      { id: "google.gemma-3-27b-it", name: "Gemma 3 (27B IT)" },
-      { id: "google.gemma-3-12b-it", name: "Gemma 3 (12B IT)" },
-      { id: "google.gemma-3-4b-it", name: "Gemma 3 (4B IT)" }
-    ]
-  },
-  {
-    group: "Moonshot AI",
-    models: [
-      { id: "moonshotai.kimi-k2.5", name: "Kimi K2.5" },
-      { id: "moonshotai.kimi-k2-thinking", name: "Kimi K2 Thinking" }
-    ]
-  },
-  {
-    group: "Cohere (Enterprise Logic)",
-    models: [
-      { id: "cohere.command-r-plus-v1:0", name: "Command R+" },
-      { id: "cohere.command-r-v1:0", name: "Command R" }
-    ]
-  },
-  {
-    group: "Mistral AI",
-    models: [
-      { id: "mistral.mistral-large-3-675b-instruct-v1:0", name: "Mistral Large 3" },
-      { id: "mistral.mistral-large-2407-v1:0", name: "Mistral Large 2" },
-      { id: "mistral.pixtral-large-v1:0", name: "Pixtral Large" }
-    ]
-  },
-  {
-    group: "Amazon Nova",
+    group: "Amazon Nova (recommended — on-demand + tool use)",
     models: [
       { id: "amazon.nova-pro-v1:0", name: "Nova Pro" },
       { id: "amazon.nova-lite-v1:0", name: "Nova Lite" },
@@ -94,11 +43,25 @@ const BEDROCK_MODELS = [
     ]
   },
   {
-    group: "Meta Llama",
+    group: "Anthropic Claude (inference profiles)",
     models: [
-      { id: "us.meta.llama3-2-90b-instruct-v1:0", name: "Llama 3.2 (90B)" },
-      { id: "us.meta.llama3-1-70b-instruct-v1:0", name: "Llama 3.1 (70B)" },
-      { id: "us.meta.llama3-1-8b-instruct-v1:0", name: "Llama 3.1 (8B)" }
+      { id: "us.anthropic.claude-3-5-sonnet-20241022-v2:0", name: "Claude 3.5 Sonnet v2" },
+      { id: "us.anthropic.claude-3-5-haiku-20241022-v1:0", name: "Claude 3.5 Haiku" },
+      { id: "us.anthropic.claude-3-haiku-20240307-v1:0", name: "Claude 3 Haiku" }
+    ]
+  },
+  {
+    group: "Meta Llama (inference profiles)",
+    models: [
+      { id: "us.meta.llama3-1-70b-instruct-v1:0", name: "Llama 3.1 70B" },
+      { id: "us.meta.llama3-1-8b-instruct-v1:0", name: "Llama 3.1 8B" }
+    ]
+  },
+  {
+    group: "Mistral / Cohere",
+    models: [
+      { id: "mistral.mistral-large-2407-v1:0", name: "Mistral Large 2" },
+      { id: "cohere.command-r-plus-v1:0", name: "Command R+" }
     ]
   }
 ];

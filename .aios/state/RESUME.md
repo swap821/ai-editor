@@ -80,11 +80,16 @@ later phases, not dropped).
   regex layer. Deterministic · fail-safe (embedder error → regex-only) · opt-in (`AIOS_INJECTION_VECTOR_SHIELD`,
   default off; API installs it at startup when set). 3 tests; all prior security tests pass regex-only.
   Full suite **149 passed, 1 skipped**.
-**Next action — OPERATOR-GATED (live e2e walk, RAM-bound):** load `llama3.2:3b`, start backend +
-`npm run dev`, then chat → ask for a file edit → diff preview in the approval bar → Approve → file
-written (snapshot) → reflection. Record the result here. Last remaining build slice: **Slice 8**
-(polish/freeze — fix any bug the e2e surfaces, README, rehearse the 2-min demo). After Slice 8 the
-core MVP is green; later phases (voice, KG, Docker, chaos/perf, frontend-polish worker) follow.
+- **Bedrock re-enabled for the e2e (RAM workaround): DONE.** Local models OOM on the operator's RAM,
+  so the e2e runs on AWS Bedrock instead (a capable cloud model is also *more* reliable at emitting
+  `edit_file` tool calls). Verified this boto3 (botocore 1.43.20) supports the `ABSK` bearer token via
+  dynamic `AWS_BEARER_TOKEN_BEDROCK` + `httpBearerAuth`; fixed the dropdown's **fictional** model ids
+  → real Nova/Claude/Llama/Mistral ids (Converse-tool-use capable); documented env in `.env.example`.
+**Next action — OPERATOR-GATED (live e2e via Bedrock, no local RAM needed):** set `$env:AIOS_BEDROCK_REGION`
++ `$env:AWS_BEARER_TOKEN_BEDROCK` (env only), start backend + `npm run dev`, pick a **Cloud (Bedrock)**
+model (Nova Pro), then chat → ask it to edit a `training_ground/` file → diff preview in the approval bar
+→ Approve → file written (snapshot) → reflection. Record the result here. Then **Slice 8** (polish/freeze).
+Later phases follow (voice, KG, Docker, chaos/perf, frontend-polish worker).
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---
