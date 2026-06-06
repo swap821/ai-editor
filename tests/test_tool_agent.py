@@ -10,6 +10,7 @@ from typing import Optional
 
 import pytest
 
+from aios import config
 from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
@@ -348,12 +349,50 @@ def test_agent_refuses_red_even_if_approved() -> None:
 # edit_file — patch-style edits with diff preview + approval (Slice 2)
 # --------------------------------------------------------------------------- #
 @pytest.fixture()
-def sandbox(tmp_path):
-    """Point the scope roots at an isolated temp dir for edit tests; restore after."""
+def sandbox(tmp_path, monkeypatch):
+    """Point scope roots AND the project root at an isolated temp dir for edit tests.
+
+    read_root defaults to config.PROJECT_ROOT, and edit_file resolves the model's path
+    under read_root before the scope check, so the project root must match the sandbox
+    for bare in-scope names to resolve. monkeypatch auto-reverts after the test.
+    """
     original = scope_lock.get_scope_roots()
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
     scope_lock.set_scope_roots([tmp_path])
     try:
         yield tmp_path
+    finally:
+        scope_lock.set_scope_roots(list(original))
+
+
+def test_agent_edit_resolves_project_relative_sandbox_path(tmp_path, monkeypatch) -> None:
+    # Regression: a project-relative path that *names* the sandbox dir must resolve to
+    # the real file, not double-join onto the scope root. This is the "file is empty"
+    # bug — edit_file("training_ground/data.json") used to become
+    # .../training_ground/training_ground/data.json (nonexistent) -> "no such file".
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+    sand = tmp_path / "training_ground"
+    sand.mkdir()
+    (sand / "data.json").write_text('{ "greeting": "hello" }\n', encoding="utf-8")
+    original = scope_lock.get_scope_roots()
+    scope_lock.set_scope_roots([sand])
+    try:
+        chat = ScriptedChat([
+            _tool_call("edit_file", {"filepath": "training_ground/data.json",
+                                     "old_string": "hello", "new_string": "hi"}),
+            {"role": "assistant", "content": "should not be reached"},
+        ])
+        events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+            [{"role": "user", "content": "change hello to hi"}]
+        ))
+        types = [e["type"] for e in events]
+        assert "human_required" in types, "a project-relative sandbox path must resolve, not 404"
+        hr = next(e for e in events if e["type"] == "human_required")
+        assert "training_ground/data.json" in hr["command"]
+        assert '-{ "greeting": "hello" }' in hr["diff"]
+        assert '+{ "greeting": "hi" }' in hr["diff"]
+        # Unapproved edit: nothing written yet.
+        assert (sand / "data.json").read_text(encoding="utf-8") == '{ "greeting": "hello" }\n'
     finally:
         scope_lock.set_scope_roots(list(original))
 

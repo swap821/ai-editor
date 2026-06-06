@@ -154,7 +154,12 @@ TOOL_SPECS: list[dict[str, Any]] = [
                 "properties": {
                     "filepath": {
                         "type": "string",
-                        "description": "Sandbox-relative path of the file to edit.",
+                        "description": (
+                            "Project-relative path of the file to edit (e.g. "
+                            "training_ground/notes.txt). Edits are confined to the "
+                            "sandbox playground (training_ground/); paths outside it "
+                            "are blocked."
+                        ),
                     },
                     "old_string": {
                         "type": "string",
@@ -513,7 +518,11 @@ class ToolAgent:
 
         if not old_string:
             return ("[ERROR] old_string must be non-empty.", "blocked", False)
-        scope = scope_lock.is_path_in_scope(filepath)
+        # Resolve project-relative (like read_file) before the scope check; the absolute
+        # path makes is_path_in_scope a pure containment check, so a path that names the
+        # sandbox dir (training_ground/x) no longer double-joins to
+        # training_ground/training_ground/x. Sandbox confinement is unchanged.
+        scope = scope_lock.is_path_in_scope(str(self.read_root / filepath))
         if not scope.in_scope:
             roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())
             return (

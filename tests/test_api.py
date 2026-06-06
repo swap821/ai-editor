@@ -12,6 +12,7 @@ from typing import Iterator, Optional
 import pytest
 from fastapi.testclient import TestClient
 
+from aios import config
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.api.main import (
     app,
@@ -531,8 +532,11 @@ class FakeOllamaEdit:
         return {"role": "assistant", "content": "Applied the edit."}
 
 
-def test_generate_pauses_with_edit_diff(client: TestClient, tmp_path) -> None:
+def test_generate_pauses_with_edit_diff(client: TestClient, tmp_path, monkeypatch) -> None:
     (tmp_path / "note.txt").write_text("hello world\n", encoding="utf-8")
+    # edit_file resolves under read_root (= config.PROJECT_ROOT); point it at the sandbox
+    # so the bare "note.txt" the model edits resolves in scope.
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([tmp_path])
     app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
@@ -552,9 +556,10 @@ def test_generate_pauses_with_edit_diff(client: TestClient, tmp_path) -> None:
         scope_lock.set_scope_roots(list(original))
 
 
-def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_path) -> None:
+def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_path, monkeypatch) -> None:
     (tmp_path / "note.txt").write_text("hello world\n", encoding="utf-8")
     snaps: list[str] = []
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([tmp_path])
     app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
