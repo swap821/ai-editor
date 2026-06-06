@@ -28,6 +28,30 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
+**LATEST (2026-06-06): edit_file path bug FIXED + committed `68653dc` (master).** The live e2e
+"file is empty" error was a path-doubling bug — `edit_file` resolved sandbox-relative while reads
+resolve project-relative, so `training_ground/data.json` → `training_ground/training_ground/data.json`
+(nonexistent). Fixed `_edit_file` to resolve under `read_root` before the scope check (frozen
+`scope_lock` core untouched) + a regression test + aligned test fixtures. **Suite: 150 passed, 1
+skipped.** Now standing up a **private GitHub remote** so the operator can use Claude-web "ultracode"
+(local box is RAM-bound). `gh` v2.93 installed + authed (**swap821**). **DONE — private remote LIVE:** `origin` =
+https://github.com/swap821/ai-editor · `master` pushed (fix `68653dc` on origin/master) · no secrets
+tracked. **NEXT (operator, browser): (1)** connect the repo to Claude-web (authorize the Claude GitHub
+app) to enable ultracode/PRs; **(2)** add the ABSK key + region as cloud secrets
+(`AWS_BEARER_TOKEN_BEDROCK`, `AIOS_BEDROCK_REGION`), never committed; **(3)** run the live e2e of the
+fix (Bedrock): change hello→hi in `training_ground/data.json` → approval bar shows the diff → Apply →
+file updated + pre-edit snapshot.
+**✅ E2E VERIFIED (2026-06-07, live Bedrock):** diff shown → Apply → `training_ground/data.json` =
+`{ "greeting": "hi" }`; pre-edit snapshot `dce2427` in the nested `training_ground/.git`. The full
+chain (model → edit_file → diff → human approval → snapshot → write) is proven in the real app — the
+edit_file path bug is fully closed. Steps 1–2 (connect repo to Claude-web + cloud secrets) remain
+optional for *cloud* runs. **NEXT:** (a) optional commit+push of the verified state + `.aios` brain to
+origin; (b) pivot to the premium-UI thread (operator priority); (c) FOLLOW-UP/DEBT: RollbackEngine
+inits a `.git` INSIDE the main-repo-tracked `training_ground/` → embedded-repo wrinkle + snapshots not
+backed by origin; consider relocating the snapshot repo under gitignored `data/` or gitignoring the
+playground. Plan: `~/.claude/plans/bubbly-sniffing-sundae.md`.
+
+--- (prior next-action history below) ---
 **PHASE 1+2 DONE; SLICE 1 (1a+1b) DONE & GREEN (2026-06-03).** Full suite **124 passed,
 1 skipped**. `PLAN.md` targets **100% / no left-outs** (fundamentals-first; deferrals are
 later phases, not dropped).
@@ -80,16 +104,19 @@ later phases, not dropped).
   regex layer. Deterministic · fail-safe (embedder error → regex-only) · opt-in (`AIOS_INJECTION_VECTOR_SHIELD`,
   default off; API installs it at startup when set). 3 tests; all prior security tests pass regex-only.
   Full suite **149 passed, 1 skipped**.
-- **Bedrock re-enabled for the e2e (RAM workaround): DONE.** Local models OOM on the operator's RAM,
-  so the e2e runs on AWS Bedrock instead (a capable cloud model is also *more* reliable at emitting
-  `edit_file` tool calls). Verified this boto3 (botocore 1.43.20) supports the `ABSK` bearer token via
-  dynamic `AWS_BEARER_TOKEN_BEDROCK` + `httpBearerAuth`; fixed the dropdown's **fictional** model ids
-  → real Nova/Claude/Llama/Mistral ids (Converse-tool-use capable); documented env in `.env.example`.
-**Next action — OPERATOR-GATED (live e2e via Bedrock, no local RAM needed):** set `$env:AIOS_BEDROCK_REGION`
-+ `$env:AWS_BEARER_TOKEN_BEDROCK` (env only), start backend + `npm run dev`, pick a **Cloud (Bedrock)**
-model (Nova Pro), then chat → ask it to edit a `training_ground/` file → diff preview in the approval bar
-→ Approve → file written (snapshot) → reflection. Record the result here. Then **Slice 8** (polish/freeze).
-Later phases follow (voice, KG, Docker, chaos/perf, frontend-polish worker).
+- **Bedrock re-enabled + LIVE on cloud (2026-06-04): WORKING.** Operator ran the agent on AWS Bedrock
+  (RAM-free): `query_knowledge` + `read_directory` + `read_file` all executed via the gated tools, the
+  cloud model reliably emitted tool calls, and it **correctly declined to edit an EMPTY `data.json`**
+  (`edit_file` is search/replace — nothing to match; the safe behavior we built). So the **cloud pipeline
+  + agentic loop + tool-calling + reasoning are CONFIRMED working.** Verified this boto3 (botocore 1.43.20)
+  supports the `ABSK` bearer token via dynamic `AWS_BEARER_TOKEN_BEDROCK`+`httpBearerAuth`; fixed the
+  dropdown's fictional model ids → real Nova/Claude/Llama/Mistral ids; documented env in `.env.example`.
+**Next action — OPERATOR (finish the e2e, one step left):** seed a file with content
+(`Set-Content training_ground\data.json '{ "greeting": "hello" }'`), then ask the agent to change
+"hello"→"hi" via `edit_file` → confirm the **approval bar shows the diff** → Apply → file written +
+`[SNAPSHOT] pre-edit` in `git -C training_ground log`. That's the only unexercised piece. Then **Slice 8**
+(polish/freeze). NOTE: no "create file" tool yet (`edit_file` is patch-only) — acceptable for MVP; could
+add a `create_file` tool later. Later phases: voice, KG, Docker, chaos/perf, frontend-polish worker.
 **Parked:** 4 untracked premium CSS files (intentional, for a later polish phase).
 
 --- (prior Phase-4h candidates, retained for context) ---

@@ -28,3 +28,9 @@ session can't end with the suite green, the last slice was too big — shrink th
 
 **Scoreboard.** End every session with: full suite green + `RESUME.md` current.
 Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope-lock fix).
+
+## 2026-06-06 - CEO note (session: edit_file fix + GitHub remote)
+- Shipped: fixed the edit_file path-doubling bug (read + edit now share project-relative addressing); suite 150/1 green; committed 68653dc on master.
+- Infra: stood up a PRIVATE GitHub remote (swap821/ai-editor) + gh CLI, unblocking Claude-web cloud/ultracode - the right call given the RAM-bound local box. No secrets pushed (frontend/.env gitignored).
+- Highest-leverage next: finish the live e2e of the fix on Bedrock (never exercised end-to-end), then return to the premium-UI thread (the thing that actually bugs you).
+- Risk to watch: RollbackEngine snapshot target - training_ground shares the main .git; confirm pre-edit snapshots land where expected before trusting the rollback net.
