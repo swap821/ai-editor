@@ -45,11 +45,13 @@ file updated + pre-edit snapshot.
 `{ "greeting": "hi" }`; pre-edit snapshot `dce2427` in the nested `training_ground/.git`. The full
 chain (model → edit_file → diff → human approval → snapshot → write) is proven in the real app — the
 edit_file path bug is fully closed. Steps 1–2 (connect repo to Claude-web + cloud secrets) remain
-optional for *cloud* runs. **NEXT:** (a) optional commit+push of the verified state + `.aios` brain to
-origin; (b) pivot to the premium-UI thread (operator priority); (c) FOLLOW-UP/DEBT: RollbackEngine
-inits a `.git` INSIDE the main-repo-tracked `training_ground/` → embedded-repo wrinkle + snapshots not
-backed by origin; consider relocating the snapshot repo under gitignored `data/` or gitignoring the
-playground. Plan: `~/.claude/plans/bubbly-sniffing-sundae.md`.
+optional for *cloud* runs. **NEXT (2026-06-07): operator pivoted to BACKEND.** Full backend check-up done →
+`.aios/state/AUDIT.md` (core ≈90% test-backed, 150/1; KEY GAP = Planner/Verifier/Confidence built but
+NOT wired into the live `/api/generate` loop). Build order: **(1) wire the Verifier into the live loop
+via ultracode** (prompt drafted; PR → I review locally → merge → `git pull`); (2) wire
+Planner+confidence; (3) fix rollback nested-`.git` + test/DATA_DIR isolation; (4) static tooling +
+golden tests + pull `qwen2.5-coder:7b` (16 GB RAM now); (5) **Self-Analysis module** (marquee feature,
+v6 assessment §6). UI deferred. Brain syncs to origin (swap821/ai-editor) via the cloud workflow.
 
 --- (prior next-action history below) ---
 **PHASE 1+2 DONE; SLICE 1 (1a+1b) DONE & GREEN (2026-06-03).** Full suite **124 passed,
