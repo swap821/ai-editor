@@ -28,8 +28,9 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-07: `create_file` TOOL — author NEW files in the sandbox, behind the same human gate —
-DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+**▶ LATEST 2026-06-08: `create_file` TOOL — author NEW files in the sandbox, behind the same human gate —
+MERGED to `master` (`02f93cc`, PR #6); suite 185 passed / 1 skipped on Windows; reviewed on evidence +
+an independent adversarial scope probe (aios/`../`/abs all REFUSED even with approval) — no patch.**
 Implemented `.aios/state/ULTRACODE_NEXT_create_file.md` directly in Claude Code. THE GAP IT FILLS: the
 agent could MODIFY files (`edit_file`, search/replace needs a non-empty `old_string`) but could not
 AUTHOR a new one — blocking it from writing new tests/modules even in its sandbox. `create_file` adds
@@ -56,11 +57,14 @@ send wiring; approve button reads "Create file") · `MessageBubble.jsx` (🆕 TO
 snapshot despite drift · audit-applied · refuse-existing · out-of-scope blocked · `../` escape blocked ·
 fail-closed on audit AND snapshot). Frontend **eslint clean + vitest 10/10** (+1 DiffView all-additions
 test) **+ vite build** green. Smoke: `GenerateRequest(approvedCreations=…)` + `ToolAgent(approved_creations=…)`
-wire cleanly; `create_file` in TOOL_SPECS. **NEXT:** operator reviews/merges this draft PR. Then runway
-**(b)** static tooling (radon cyclomatic + coverage.py join; heavy/new-deps → ultracode, spec issued after
-this so it reflects current shape) → **(c)** golden-regression harness → **(d)** doc frozen core in
-CLAUDE.md (§VIII: I PROPOSE the diff, operator approves) → **T2** (propose-diff, YELLOW + no-self-approval
-guard + two-snapshot check, §6.3) → T3 → T4.
+wire cleanly; `create_file` in TOOL_SPECS. **NEXT (BUILD track): (b) static tooling** — radon cyclomatic
++ coverage.py join (real metrics; sharpen the coarse `missing_test` + branch-count proxies; optional
+`dead_code`). HEAVY + adds NEW DEPS (radon, coverage) → ultracode job; **DECISION GATE: operator OKs adding
+those deps first**, then I draft the spec (reflecting the reconcile + create_file shape). Then **(c)**
+golden-regression harness → **(d)** doc frozen core in CLAUDE.md (§VIII: I PROPOSE the diff, operator
+approves) → **T2** (propose-diff, YELLOW + no-self-approval guard + two-snapshot check, §6.3) → T3 → T4.
+**BREATHE track** (sandbox first breath on Ollama `qwen2.5-coder:7b`) still staged + available in parallel
+— `create_file` now lets the agent author NEW files in its sandbox too (richer breath).
 
 **▶ PRIOR 2026-06-07: PRE-T2 RUNWAY (a) — FINGERPRINT-RECONCILE FOR `self_analysis_report` — MERGED to
 `master` (`17d96f5`, PR #5); suite 177 passed / 1 skipped on Windows; reviewed on evidence (no patch).**
@@ -424,4 +428,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-07 by Claude Code (create_file tool — gated new-file authoring in the sandbox — draft PR, 180/4/2)_
+_Last updated: 2026-06-08 by Claude Code (create_file MERGED — PR #6 `02f93cc`, 185/1; next BUILD = (b) coverage/radon, pending deps OK)_
