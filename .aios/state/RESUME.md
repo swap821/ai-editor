@@ -28,14 +28,18 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**⏸ PARKED 2026-06-07 (~97% usage; operator plans to resume ~21:00 / 9 PM). CLEAN STOP — nothing in
-flight.** Master is green (171/1) and the brain is pushed to `origin/master`. I cannot self-wake
-(CLAUDE.md §0): the relaunch is the operator reopening the session or the external resume script.
-**On resume:** (1) read this file; (2) `git status` should be clean APART FROM the long-parked
-`training_ground/data.json` (e2e leftover) + 5 untracked files (`"AI-OS v6 Assessment…pdf"` and the 4
-parked `frontend/src/styles/*.css`) — that's expected, not drift; (3) per §III, PROPOSE the single
-next step below (pre-T2 runway item **(a) report-row hygiene**) and **WAIT for the operator's go** —
-do not auto-run.
+**▶ ACTIVE 2026-06-07 (resumed). Operator gave the GO for the whole pre-T2 runway in my recommended
+order: (a) report-row hygiene → (b) coverage/radon → (c) golden tests → (d) doc frozen core → T2 → T3
+→ T4.** WORKING MODEL set this session: **ultracode (Claude-web) BUILDS the heavy items; Claude Code
+(local) REVIEWS its PR on evidence + MERGES** — the proven #1–#4 loop. HONESTY (CLAUDE.md §0/§X): I
+cannot launch ultracode or `/code-review ultra` myself (operator's browser/billed action); my half is
+the airtight spec + the evidence review + the merge.
+**SINGLE NEXT ACTION:** the **(a) fingerprint-reconcile** spec is written to
+`.aios/state/ULTRACODE_TASK.md` (full design + file-by-file changes + migration ordering + 7-test
+matrix + acceptance). Operator runs it in ultracode → a PR appears → I `gh pr checkout`, run the suite
+on the real Windows baseline (171/1 + new tests), re-prove read-only + frozen core untouched, then
+squash-merge + reset onto origin/master. (d) is a §VIII change → I PROPOSE the CLAUDE.md diff, operator
+approves. `git status` noise (`training_ground/data.json` + the PDF + 4 parked CSS) is expected, not drift.
 
 **▶ CURRENT (2026-06-07): SELF-ANALYSIS MODULE — READ-ONLY FOUNDATION (T0 + T1) — DONE, REVIEWED
 ON EVIDENCE, & MERGED to `master` (PR #4 → squash `4cb01b6`). Full suite 171 passed / 1 skipped
