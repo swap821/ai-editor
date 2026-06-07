@@ -29,7 +29,8 @@ security-gated, human-supervised, self-correcting.
 
 ## Next action  → do this first on resume
 **▶ LATEST 2026-06-08: PRE-T2 RUNWAY (b) — STATIC TOOLING (radon cyclomatic complexity + coverage join) —
-DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+MERGED to `master` (`f1b5e36`, PR #7); suite 190 passed / 1 skipped on Windows; reviewed on evidence +
+independent live-tree smoke (radon active, 11 real CC findings, read-only) — no patch.**
 Implemented `.aios/state/ULTRACODE_TASK.md` (b) directly in Claude Code. SHARPENS T1 before T2 turns
 findings into proposals: replaced the AST branch-count `complexity` PROXY with **radon** real cyclomatic
 complexity, and added a read-only **coverage join** → a new `uncovered` finding for testable modules the
@@ -58,7 +59,7 @@ incomplete pin list breaks reproducible installs. Noted in the PR.
 fallback via monkeypatch `_radon_cc_visit=None` · coverage `uncovered` flags unmeasured / not measured ·
 dormant w/o data · diagnose-with-coverage read-only). **Real-path smoke:** live `aios/` → 11 complexity
 findings all "cyclomatic complexity N (> 12)" w/ bare symbols, no crash; coverage dormant (no root
-`.coverage`). **NEXT:** operator reviews/merges this draft PR. Then runway **(c)** golden-regression
+`.coverage`). **NEXT (BUILD track):** (b) is MERGED. **OPS NOTE (verified at PR #7 review):** the local root `.coverage` is STALE (measures only `aios/api/main.py`) + gitignored, so live `self_analyze` emits ~24 low-value `uncovered` findings until a full `pytest --cov` regenerates it (or `rm .coverage` → the join goes dormant); the radon CC path is solid (11 real findings on live aios/). Then runway **(c)** golden-regression
 harness for the analyzer (freeze findings over a fixture; catch drift; no new deps) → **(d)** doc the
 frozen core in CLAUDE.md (§VIII: I PROPOSE the diff, operator approves) → **T2** (propose-diff, YELLOW +
 no-self-approval guard + two-snapshot check, §6.3) → T3 → T4. BREATHE track (Ollama `qwen2.5-coder:7b`)
@@ -466,4 +467,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (runway (b) static tooling: radon complexity + coverage uncovered join — draft PR, 185/4/2)_
+_Last updated: 2026-06-08 by Claude Code ((b) static tooling MERGED — PR #7 `f1b5e36`, 190/1; next BUILD = (c) golden tests)_
