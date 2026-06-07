@@ -736,6 +736,11 @@ class ToolAgent:
             plan = self._planner.plan(goal)
         except PlannerError as exc:
             return (f"[plan error] could not produce a plan: {exc}", "ok", False)
+        except Exception as exc:  # noqa: BLE001 - advisory tool must never abort the turn
+            # A planner-LLM failure (e.g. LLMError when the local completion model is
+            # down while chatting on Bedrock) must degrade to a graceful advisory result —
+            # run() does not wrap _dispatch, so an uncaught error here would abort the turn.
+            return (f"[plan error] planner failed: {exc}", "ok", False)
 
         lines = [f"Plan for: {plan.goal}", ""]
         for step in plan.steps:

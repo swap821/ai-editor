@@ -793,3 +793,34 @@ def test_agent_plan_degrades_gracefully_without_planner() -> None:
     assert results and results[0]["type"] == "tool_result"
     assert "[plan unavailable]" in results[0]["output"]
     assert events[-1]["type"] == "done"
+
+
+def test_agent_plan_survives_planner_llm_error() -> None:
+    # If the planner's completion LLM fails (e.g. Ollama down while chatting on Bedrock),
+    # the plan tool must degrade to a graceful advisory result, NOT abort the turn —
+    # run() does not wrap _dispatch in try/except, so _plan must catch it itself.
+    class _BoomPlannerLLM:
+        def complete(self, prompt, *, system=None):
+            raise LLMError("ollama is down")
+
+    chat = ScriptedChat([
+        _tool_call("plan", {"goal": "do the thing"}),
+        {"role": "assistant", "content": "Planner was unavailable; proceeding."},
+    ])
+    reflected: list[str] = []
+    events = list(
+        ToolAgent(
+            chat, _executor(), max_iters=3, planner_llm=_BoomPlannerLLM(),
+            on_failure=lambda c, o: reflected.append(c),
+        ).run([{"role": "user", "content": "do the thing"}])
+    )
+
+    results = [
+        e for e in events
+        if e["type"] in ("tool_result", "tool_blocked") and e.get("tool") == "plan"
+    ]
+    assert results and results[0]["type"] == "tool_result"   # graceful, not a crash
+    assert "[plan error]" in results[0]["output"]
+    assert not any(e.get("tool") == "reflect" for e in events)
+    assert reflected == [], "a planner failure is advisory, not a reflectable mistake"
+    assert events[-1]["type"] == "done"
