@@ -818,7 +818,7 @@ class ToolAgent:
         )
         try:
             report = agent.analyze()
-            written = agent.write_report(list(report.findings))
+            res = agent.write_report(list(report.findings))
         except Exception as exc:  # noqa: BLE001 - read-only analysis must never abort the turn
             return (f"[ERROR] Self-analysis failed: {exc}", "blocked", False)
 
@@ -829,7 +829,8 @@ class ToolAgent:
 
         lines = [
             f"Self-analysis of '{path}': {len(report.modules)} module(s), "
-            f"{len(report.findings)} finding(s) [{by_type}]; {written} written to report.",
+            f"{len(report.findings)} finding(s) [{by_type}]; "
+            f"{res.open_total} open in report ({res.inserted} new, {res.closed} resolved).",
         ]
         for f in report.findings[:8]:
             lines.append(f"  - [{f.finding_type}] {f.target_path}: {f.evidence}")

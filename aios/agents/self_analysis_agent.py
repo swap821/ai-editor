@@ -78,11 +78,31 @@ class ModuleFacts:
 
 @dataclass(frozen=True)
 class Finding:
-    """One deterministic T1 finding. Mirrors the report table's core columns."""
+    """One deterministic T1 finding. Mirrors the report table's core columns.
+
+    ``symbol`` is a line-number-free discriminator *within the file* — a function
+    name, the trimmed text of a TODO line, or ``""`` for one-per-module findings.
+    It exists so a finding has a STABLE :func:`finding_fingerprint` identity across
+    runs: ``evidence`` refreshes (line numbers move) but the fingerprint does not,
+    which lets reconcile preserve a finding's lifecycle status across unrelated
+    edits (see :meth:`SelfAnalysisAgent.write_report`).
+    """
 
     target_path: str
     finding_type: str  #: 'missing_test' | 'smell' | 'todo' | 'complexity'
     evidence: str
+    symbol: str = ""
+
+
+def finding_fingerprint(target_path: str, finding_type: str, symbol: str) -> str:
+    """Stable logical identity of a finding: ``sha256(path \\x1f type \\x1f symbol)``.
+
+    Deliberately excludes ``evidence`` (which carries volatile line numbers) so the
+    same logical issue keeps one identity across runs even as the file shifts.
+    """
+    return hashlib.sha256(
+        f"{target_path}\x1f{finding_type}\x1f{symbol}".encode("utf-8")
+    ).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -93,6 +113,17 @@ class SelfAnalysisReport:
     #: intra-package dependency map: module rel-path -> imported package modules.
     import_map: dict[str, tuple[str, ...]] = field(default_factory=dict)
     findings: tuple[Finding, ...] = ()
+
+
+@dataclass(frozen=True)
+class ReconcileResult:
+    """Outcome of reconciling a fresh scan into ``self_analysis_report``."""
+
+    inserted: int  #: genuinely new findings written at status 'open'
+    updated: int   #: existing open findings whose evidence was refreshed
+    closed: int    #: open rows whose finding vanished from the scan (deleted)
+    skipped: int   #: fresh findings already in a decided/in-flight status
+    open_total: int  #: open rows under the analyzed scope after reconcile
 
 
 class SelfAnalysisAgent:
@@ -262,12 +293,12 @@ class SelfAnalysisAgent:
             return out
 
         for lineno, line in enumerate(src.splitlines(), start=1):
-            if _TODO_MARKER.search(line):
-                marker = _TODO_MARKER.search(line)
-                assert marker is not None  # guarded by the if
+            marker = _TODO_MARKER.search(line)
+            if marker is not None:
                 out.append(
                     Finding(rel_path, "todo",
-                            f"{marker.group(1)} marker at line {lineno}")
+                            f"{marker.group(1)} marker at line {lineno}",
+                            symbol=line.strip())  # the marker LINE TEXT — stable when it moves
                 )
 
         try:
@@ -283,7 +314,8 @@ class SelfAnalysisAgent:
                 out.append(
                     Finding(rel_path, "smell",
                             f"function '{node.name}' is {span} lines long "
-                            f"(> {self.long_function_threshold})")
+                            f"(> {self.long_function_threshold})",
+                            symbol=node.name)
                 )
             branches = sum(1 for n in ast.walk(node) if isinstance(n, _BRANCH_NODES))
             complexity = branches + 1  # 1 base path + one per decision point
@@ -291,7 +323,8 @@ class SelfAnalysisAgent:
                 out.append(
                     Finding(rel_path, "complexity",
                             f"function '{node.name}' branch-count proxy {complexity} "
-                            f"(> {self.complexity_threshold})")
+                            f"(> {self.complexity_threshold})",
+                            symbol=node.name)
                 )
         return out
 
@@ -319,24 +352,116 @@ class SelfAnalysisAgent:
         )
 
     # ----------------------------------------------------------------- persistence
-    def write_report(self, findings: list[Finding]) -> int:
-        """Persist findings to ``self_analysis_report`` (status 'open'); return count.
+    def write_report(self, findings: list[Finding]) -> ReconcileResult:
+        """Reconcile *findings* into ``self_analysis_report`` by stable fingerprint.
 
-        Ensures the schema first (idempotent), so the agent is self-contained even
-        on a fresh DB. Only the deterministic columns are written —
-        ``llm_commentary`` / ``proposed_zone`` / ``proposed_diff`` stay NULL until
-        a later (T2) increment, and ``status`` defaults to 'open'.
+        A plain re-INSERT would pile up duplicate ``open`` rows every run, which
+        would make T2 (propose-diff) propose the same fix N times and muddy the
+        status lifecycle. Instead, each finding has a stable
+        :func:`finding_fingerprint` (path + type + line-number-free ``symbol``), and
+        reconcile keeps the ``open`` set a clean, de-duplicated mirror of the current
+        scan **within the analyzed scope**, while never disturbing a finding that
+        already has a human/agent decision:
+
+          * fresh finding already in a *decided* status (proposed/approved/applied/
+            rejected/rolled_back)  -> **skipped** (never re-opened or duplicated);
+          * fresh finding matching an existing *open* row -> **updated** (evidence
+            refreshed, e.g. new line numbers) — identity and status preserved;
+          * genuinely new finding  -> **inserted** at status 'open';
+          * existing *open* row whose finding vanished from the scan -> **closed**
+            (deleted): an open row is undecided and deterministically regenerable,
+            so the open set tracks reality. A non-``open`` row is NEVER deleted —
+            that lineage is the decision/audit trail.
+
+        Scope-confined: only rows whose ``target_path`` is the analyzed sub-tree
+        (derived from ``scope_root``) are reconciled; other sub-trees are untouched.
+        Ensures the schema + migration first (idempotent), so it is self-contained
+        on a fresh or legacy DB.
+
+        Known v1 limitation (acceptable, refine later): two identically named
+        functions in one module, or two identical TODO lines in one file, collapse
+        to a single fingerprint.
         """
-        if not findings:
-            return 0
         init_memory_db(self.db_path)
+        prefix = self._rel(self.scope_root)
+        # `_rel` yields "." (not "") when scope_root == path_root; treat both as the
+        # defensive "reconcile the whole table" case. In practice the tool always
+        # passes a non-empty sub-path, so the scoped branch is the live one.
+        whole_table = prefix in ("", ".")
+        # NOTE (v1 caveat): the LIKE pattern is unescaped, so a scope path containing
+        # '_' or '%' would treat them as wildcards. Real scopes here ('aios', test
+        # 'pkg') contain neither; refine with ESCAPE if that ever changes.
+        like = prefix + "/%"
+
+        fresh: dict[str, Finding] = {
+            finding_fingerprint(f.target_path, f.finding_type, f.symbol): f
+            for f in findings
+        }
+
+        inserted = updated = closed = skipped = 0
         with get_connection(self.db_path) as conn:
-            conn.executemany(
-                "INSERT INTO self_analysis_report (target_path, finding_type, evidence) "
-                "VALUES (?, ?, ?)",
-                [(f.target_path, f.finding_type, f.evidence) for f in findings],
-            )
-        return len(findings)
+            if whole_table:
+                existing = conn.execute(
+                    "SELECT id, fingerprint, status FROM self_analysis_report"
+                ).fetchall()
+            else:
+                existing = conn.execute(
+                    "SELECT id, fingerprint, status FROM self_analysis_report "
+                    "WHERE target_path = ? OR target_path LIKE ?",
+                    (prefix, like),
+                ).fetchall()
+
+            open_by_fp: dict[str, int] = {}
+            decided_fps: set[str] = set()
+            for row in existing:
+                fp = row["fingerprint"]
+                if fp is None:
+                    continue  # legacy/unfingerprinted; migration drops open ones
+                if row["status"] == "open":
+                    open_by_fp[fp] = int(row["id"])
+                else:
+                    decided_fps.add(fp)
+
+            for fp, f in fresh.items():
+                if fp in decided_fps:
+                    skipped += 1  # already decided — never re-open or duplicate
+                elif fp in open_by_fp:
+                    conn.execute(
+                        "UPDATE self_analysis_report SET evidence = ? WHERE id = ?",
+                        (f.evidence, open_by_fp[fp]),
+                    )
+                    updated += 1
+                else:
+                    conn.execute(
+                        "INSERT INTO self_analysis_report "
+                        "(target_path, finding_type, evidence, fingerprint) "
+                        "VALUES (?, ?, ?, ?)",
+                        (f.target_path, f.finding_type, f.evidence, fp),
+                    )
+                    inserted += 1
+
+            for fp, row_id in open_by_fp.items():
+                if fp not in fresh:
+                    conn.execute(
+                        "DELETE FROM self_analysis_report WHERE id = ?", (row_id,)
+                    )
+                    closed += 1
+
+            if whole_table:
+                open_total = conn.execute(
+                    "SELECT COUNT(*) FROM self_analysis_report WHERE status = 'open'"
+                ).fetchone()[0]
+            else:
+                open_total = conn.execute(
+                    "SELECT COUNT(*) FROM self_analysis_report "
+                    "WHERE status = 'open' AND (target_path = ? OR target_path LIKE ?)",
+                    (prefix, like),
+                ).fetchone()[0]
+
+        return ReconcileResult(
+            inserted=inserted, updated=updated, closed=closed,
+            skipped=skipped, open_total=int(open_total),
+        )
 
     def read_findings(
         self,
