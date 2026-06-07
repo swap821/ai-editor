@@ -28,8 +28,8 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-07: PRE-T2 RUNWAY (a) — FINGERPRINT-RECONCILE FOR `self_analysis_report` — DONE &
-GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+**▶ LATEST 2026-06-07: PRE-T2 RUNWAY (a) — FINGERPRINT-RECONCILE FOR `self_analysis_report` — MERGED to
+`master` (`17d96f5`, PR #5); suite 177 passed / 1 skipped on Windows; reviewed on evidence (no patch).**
 Implemented `.aios/state/ULTRACODE_TASK.md` directly in Claude Code (operator asked me to build it, not
 ultracode this time). THE NIT IT KILLS: PR#4's `write_report` did a plain INSERT per finding at
 `status='open'`, so every `self_analyze` re-run piled up DUPLICATE open rows — T2 would then propose the
@@ -51,13 +51,14 @@ the SAME pre-existing/environmental `test_security.py` cases (confirmed identica
 stashed). +6 reconcile tests (idempotent re-run · don't-reopen-decided · close-vanished · fingerprint-
 stable-when-TODO-moves · scope-confined · legacy-DB migration) + the persistence test updated. **Real-
 path smoke:** ran `self_analyze` over the live `aios/` TWICE → run1 inserted 45 / run2 inserted 0,
-updated 45, 45 unique fingerprints = 45 rows (NO dup accumulation). **NEXT:** operator reviews/merges
-this draft PR; then runway **(b)** static tooling (radon cyclomatic + coverage.py join; heavy/new-deps →
-ultracode job, spec issued after this merges so it reflects the reconcile shape), **(c)** golden-
-regression harness, **(d)** doc the frozen core in CLAUDE.md (§VIII: I PROPOSE the diff, operator
-approves) → **T2** (propose-diff, YELLOW + no-self-approval guard + two-snapshot check, §6.3) → T3 → T4.
-Also still queued: the `create_file` tool spec (`.aios/state/ULTRACODE_NEXT_create_file.md`) — both it
-and (b) touch `tool_agent.py`, so rebase to keep diffs clean.
+updated 45, 45 unique fingerprints = 45 rows (NO dup accumulation); `REAL_SOURCE_UNCHANGED: True`.
+**NEXT (BUILD track): `create_file` tool is now CURRENT + UNBLOCKED** — spec at
+`.aios/state/ULTRACODE_NEXT_create_file.md`; operator launches ultracode → PR → I review+merge. Then
+**(b)** static tooling (radon cyclomatic + coverage.py join; heavy/new-deps → ultracode, spec issued
+after this so it reflects the reconcile shape) → **(c)** golden-regression harness → **(d)** doc the
+frozen core in CLAUDE.md (§VIII: I PROPOSE the diff, operator approves) → **T2** (propose-diff, YELLOW +
+no-self-approval guard + two-snapshot check, §6.3) → T3 → T4. ((a)'s spec file `ULTRACODE_TASK.md` was
+deleted post-merge — it lives in PR #5 + experiences.)
 
 **▶ PRIOR 2026-06-07 (resumed). Operator gave the GO for the whole pre-T2 runway in my recommended
 order: (a) report-row hygiene → (b) coverage/radon → (c) golden tests → (d) doc frozen core → T2 → T3
@@ -67,13 +68,10 @@ cannot launch ultracode or `/code-review ultra` myself (operator's browser/bille
 the airtight spec + the evidence review + the merge. (NOTE: for (a) the operator routed the build to me
 directly — done above.)
 **TWO PARALLEL TRACKS (decided this session):**
-- **BUILD track (ultracode builds → I review+merge):** **(a) fingerprint-reconcile** spec at
-  `.aios/state/ULTRACODE_TASK.md` is pushed (origin `6615717`) — operator launches ultracode on it →
-  PR → I `gh pr checkout`, run the Windows baseline (171/1 + new), re-prove read-only + frozen core,
-  squash-merge + reset onto origin/master. **Queued next: `create_file` tool** spec at
-  `.aios/state/ULTRACODE_NEXT_create_file.md` — START AFTER (a) MERGES (both touch `tool_agent.py`;
-  rebase to keep the diff clean). Then (b) coverage/radon → (c) golden tests → (d) doc (a §VIII change:
-  I PROPOSE the CLAUDE.md diff, operator approves) → T2→T4.
+- **BUILD track (ultracode builds → I review+merge):** **(a) fingerprint-reconcile = MERGED (PR #5,
+  `17d96f5`, 177/1).** **CURRENT = `create_file` tool** (`.aios/state/ULTRACODE_NEXT_create_file.md`) —
+  operator launches ultracode → PR → I `gh pr checkout`, run the Windows baseline, review on evidence,
+  squash-merge. Then (b) coverage/radon → (c) golden tests → (d) doc frozen core (§VIII) → T2→T4.
 - **BREATHE track (the AI-OS dogfoods itself in its sandbox, on Ollama):** seed pair staged
   (untracked) — `training_ground/greeter.py` (planted bug: `greet()` drops the name) +
   `training_ground/test_greeter.py` (fails until fixed). Operator runs backend+frontend, picks
