@@ -129,11 +129,11 @@ def _fake_executor() -> Executor:
 
 @pytest.fixture()
 def client(monkeypatch) -> Iterator[TestClient]:
-    # Keep model side-effects out of the test path: stub hybrid recall so a
-    # populated on-disk semantic index can't pull the real embedder into a test
-    # (it would otherwise load sentence-transformers/torch). Tests that need
-    # recall override this in their own body via the same monkeypatch instance.
-    monkeypatch.setattr("aios.api.main.hybrid_search", lambda query, top_k=3: [])
+    # No hybrid_search stub needed: tests/conftest.py isolates AIOS_DATA_DIR to a
+    # fresh temp dir, so the semantic index is empty and hybrid_search short-
+    # circuits to [] WITHOUT loading the embedder (sentence-transformers/torch) —
+    # see test_data_isolation.py, which enforces that contract. Tests that need
+    # recall still override hybrid_search in their own body via `monkeypatch`.
     fake_indexer = FakeIndexer()
     app.dependency_overrides[get_llm_client] = FakeLLM
     app.dependency_overrides[get_ollama_client] = FakeOllama

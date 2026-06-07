@@ -62,3 +62,60 @@ def test_list_snapshots_newest_first(tmp_path) -> None:
     snaps = engine.list_snapshots(limit=5)
     assert len(snaps) >= 3  # baseline + first + second
     assert "second" in snaps[0].message
+
+
+# --------------------------------------------------------------------------- #
+# FIX #3 — the rollback git DATABASE lives out of the tracked sandbox work-tree
+# --------------------------------------------------------------------------- #
+def test_default_engine_keeps_git_db_out_of_the_tracked_worktree(tmp_path, monkeypatch) -> None:
+    # The default engine (no repo_dir) snapshots the sandbox work-tree but stores
+    # its git DATABASE under the gitignored ROLLBACK_DIR — so no .git database
+    # lands inside the main-repo-tracked training_ground/, only a gitdir pointer.
+    work = tmp_path / "sandbox"
+    gitdb = tmp_path / "data" / "rollback"
+    monkeypatch.setattr(config, "SCOPE_ROOTS", (work,))
+    monkeypatch.setattr(config, "ROLLBACK_DIR", gitdb)
+
+    engine = RollbackEngine()  # uses the (patched) default sandbox + ROLLBACK_DIR
+
+    pointer = work / ".git"
+    assert pointer.is_file(), "the sandbox must hold a gitdir pointer, not a .git dir"
+    assert "gitdir:" in pointer.read_text(encoding="utf-8")
+    assert not (work / ".git").is_dir()
+    # The actual git database (HEAD + objects) lives under ROLLBACK_DIR.
+    assert (gitdb / "HEAD").exists() and (gitdb / "objects").is_dir()
+
+    # Snapshot/rollback still works end-to-end through the external database.
+    f = work / "work.txt"
+    f.write_text("v1", encoding="utf-8")
+    snap = engine.create_snapshot("v1 state")
+    f.write_text("v2 BROKEN", encoding="utf-8")
+    engine.create_snapshot("v2 state")
+    assert engine.rollback(snap.sha).restored is True
+    assert f.read_text(encoding="utf-8") == "v1"
+
+
+def test_default_engine_reopens_existing_db_via_pointer(tmp_path, monkeypatch) -> None:
+    # A second engine over the same sandbox reopens the external DB via the
+    # pointer file (no re-init), so prior snapshot history is preserved.
+    work = tmp_path / "sandbox"
+    gitdb = tmp_path / "data" / "rollback"
+    monkeypatch.setattr(config, "SCOPE_ROOTS", (work,))
+    monkeypatch.setattr(config, "ROLLBACK_DIR", gitdb)
+
+    first = RollbackEngine()
+    (work / "a.txt").write_text("a", encoding="utf-8")
+    snap = first.create_snapshot("first")
+
+    second = RollbackEngine()
+    assert any(s.sha == snap.sha for s in second.list_snapshots(limit=5)), (
+        "a reopened engine must see snapshots from the external database"
+    )
+
+
+def test_injected_repo_dir_keeps_db_in_tree(tmp_path) -> None:
+    # An explicitly injected repo_dir (a temp dir, already isolated) keeps its git
+    # database in-tree — preserving the original behaviour the other tests rely on.
+    engine = RollbackEngine(repo_dir=tmp_path)
+    assert (tmp_path / ".git").is_dir(), "an injected repo_dir uses an in-tree .git database"
+    assert engine.repo_dir == tmp_path.resolve()

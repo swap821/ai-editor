@@ -28,7 +28,44 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**LATEST (2026-06-07): PLANNER + CONFIDENCE GATE WIRED INTO THE LIVE LOOP — DONE & GREEN
+**LATEST (2026-06-07): TIER-2 HARDENING — ROLLBACK GIT-DB OUT-OF-TREE (#3) + TEST DATA_DIR
+ISOLATION (#4) — DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator
+review → merge → `git pull`).** Cleared the two AUDIT.md Tier-2 structural-debt items in ONE
+focused PR, kept as two separable changes each with its own tests.
+**FIX #3 (rollback repo inside the tracked tree):** the engine snapshotted a git repo INSIDE
+`config.SCOPE_ROOTS[0]` (`training_ground`), which the MAIN repo tracks → embedded-repo wrinkle
++ `training_ground/.gitkeep` showed untracked. Added `config.ROLLBACK_DIR` (default
+`DATA_DIR/"rollback"`, gitignored; `AIOS_ROLLBACK_DIR` overridable). `RollbackEngine` now keeps
+the sandbox as the git WORK-TREE but puts its git DATABASE under `ROLLBACK_DIR` via
+`Repo.init(work_tree, separate_git_dir=...)`, leaving only a tiny `gitdir:` POINTER file in
+`training_ground/`. Re-opening via the work-tree transparently follows that pointer (history
+preserved). An injected `repo_dir` (tests, already a tmp dir) keeps its DB in-tree — original
+behavior intact; project-root refusal guard untouched. Also gitignored `training_ground/.git`
++ `training_ground/.gitkeep` (local scratch, like `data/`). **Verified in the real production
+path:** `training_ground/.git` is a 43-byte pointer, the real DB (HEAD/objects) is under
+`data/rollback/`, and `git status` shows NO `training_ground/.git*` or `.gitkeep` (all gitignored,
+confirmed via `git check-ignore`). +3 tests in `tests/test_rollback.py` (DB out-of-tree + e2e
+snapshot/rollback through external DB · reopen-via-pointer preserves history · injected repo_dir
+stays in-tree).
+**FIX #4 (tests shared the live DATA_DIR):** added `tests/conftest.py` that sets
+`os.environ["AIOS_DATA_DIR"]` to a fresh `tempfile.mkdtemp` at MODULE level — before `aios.config`
+is first imported — so config derives DATA_DIR / MEMORY_DB_PATH / AUDIT_DB_PATH / FAISS_INDEX_PATH
+/ ROLLBACK_DIR under the temp dir for the whole session; the real `data/` is never read/written
+(atexit cleanup). An isolated temp index is empty, so `hybrid_search` short-circuits to `[]`
+WITHOUT loading the embedder — so I REMOVED the now-unnecessary `client`-fixture `hybrid_search`
+stub in `tests/test_api.py` (no model/network/shell side-effect added to any test path; the
+contract is pinned by a test). +3 tests in new `tests/test_data_isolation.py` (DATA_DIR is the
+temp dir, not project `data/` · all derived paths live under it · `hybrid_search` returns `[]`
+on the empty index with `EmbeddingModel.instance` made to explode if loaded).
+**Verified this env:** full suite `159 passed, 4 skipped, 2 failed` — the 2 fails are the SAME
+PRE-EXISTING + ENVIRONMENTAL `test_security.py` cases (Windows `C:\…` path classified GREEN on
+Linux + a random `/tmp/pytest-…` dir tripping the entropy scanner); confirmed they fail
+IDENTICALLY with my changes stashed (they are not mine). Frozen security core + frontend
+untouched. **NEXT:** operator reviews/merges the draft PR, then (5) **Self-Analysis module** —
+now fully unblocked: plan-before-act + verify-after + a clean rollback engine all live, so
+apply→verify→auto-rollback has every piece; its tests can rely on real DATA_DIR isolation.
+
+**(prior 2026-06-07): PLANNER + CONFIDENCE GATE WIRED INTO THE LIVE LOOP — DONE & GREEN
 (branch `claude/sharp-heisenberg-q2C1L`, draft PR #2 → operator review → merge → `git pull`).**
 AUDIT Tier-1 #2, mirroring the merged `verify` pattern (PR #1). Added a `plan` tool to
 `aios/agents/tool_agent.py`: new TOOL_SPECS entry (one `goal` param) routed in `_dispatch`
@@ -232,13 +269,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Planner-wiring increment — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/agents/tool_agent.py` (plan tool + Planner wired, COMPLETION client injected) · `aios/api/main.py` (`planner_llm=Depends(get_llm_client)` into ToolAgent) · `tests/test_tool_agent.py` (+4 plan tests + FakePlannerLLM) · `frontend/src/components/MessageBubble.jsx` (TOOL_META plan entry)
-- (prior verify increment, merged PR #1:) same files + `verify` tool/tests.
+## Active files  (Tier-2 hardening increment — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/config.py` (+`ROLLBACK_DIR`, gitignored, `AIOS_ROLLBACK_DIR`-overridable) · `aios/agents/rollback_engine.py` (work-tree at sandbox, git-DB under ROLLBACK_DIR via `separate_git_dir`; injected `repo_dir` stays in-tree) · `.gitignore` (+`training_ground/.git`, `training_ground/.gitkeep`) · `tests/test_rollback.py` (+3 tests) · `tests/conftest.py` (NEW — module-level `AIOS_DATA_DIR` temp isolation) · `tests/test_api.py` (dropped the now-unneeded `hybrid_search` stub) · `tests/test_data_isolation.py` (NEW — +3 tests)
+- (prior, merged:) verify tool (PR #1) + planner/plan tool (PR #2) in `tool_agent.py`/`main.py`/`MessageBubble.jsx`/`test_tool_agent.py`.
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-02 by Claude Code (Phase 4h checkpoint)_
+_Last updated: 2026-06-07 by Claude Code (Tier-2 hardening: rollback git-DB out-of-tree + test DATA_DIR isolation)_
