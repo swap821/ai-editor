@@ -620,6 +620,169 @@ def test_agent_edit_blocked_when_audit_fails(sandbox) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# create_file — author a NEW file in the sandbox, behind the same human gate
+# --------------------------------------------------------------------------- #
+def test_agent_create_pauses_with_preview(sandbox) -> None:
+    # An unapproved create_file must pause for the human, showing an all-additions
+    # preview, and write nothing.
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "new.py", "content": "print('hi')\n"}),
+        {"role": "assistant", "content": "should not be reached"},
+    ])
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "make a new file"}]
+    ))
+    types = [e["type"] for e in events]
+
+    assert "human_required" in types, "an unapproved create must ask the human"
+    hr = next(e for e in events if e["type"] == "human_required")
+    assert "new.py" in hr["command"]
+    assert "+print('hi')" in hr["diff"]          # all-additions preview
+    assert hr["creation"] == {"filepath": "new.py", "content": "print('hi')\n"}
+    assert not (sandbox / "new.py").exists()     # nothing written
+    assert "done" not in types
+    assert chat._responses                       # paused before the next scripted turn
+
+
+def test_agent_create_applies_approved_and_snapshots_despite_drift(sandbox) -> None:
+    # On resume the model regenerates *different* content; the APPROVED creation
+    # (keyed by filepath) is written, snapshotted first.
+    snaps: list[str] = []
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "sub/new.py", "content": "WRONG DRIFT\n"}),
+        {"role": "assistant", "content": "Done."},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_creations=[{"filepath": "sub/new.py", "content": "print('hi')\n"}],
+        snapshot=lambda msg="": snaps.append(msg),
+    )
+    events = list(agent.run([{"role": "user", "content": "create it"}]))
+    types = [e["type"] for e in events]
+
+    assert "human_required" not in types
+    created = sandbox / "sub" / "new.py"
+    assert created.read_text(encoding="utf-8") == "print('hi')\n"   # APPROVED, not drift
+    assert snaps, "a pre-create snapshot must be taken before writing the new file"
+    results = [e for e in events if e["type"] == "tool_result"]
+    assert results and "sub/new.py" in results[0]["output"]
+    assert types[-1] == "done"
+
+
+def test_agent_create_audits_applied_write(sandbox) -> None:
+    audited: list[tuple] = []
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "note.txt", "content": "hello\n"}),
+        {"role": "assistant", "content": "done"},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_creations=[{"filepath": "note.txt", "content": "hello\n"}],
+        audit_log=lambda *a, **k: audited.append(a),
+    )
+    list(agent.run([{"role": "user", "content": "create note"}]))
+    assert (sandbox / "note.txt").read_text(encoding="utf-8") == "hello\n"
+    assert audited, "the applied creation must be audited"
+
+
+def test_agent_create_refuses_existing_file(sandbox) -> None:
+    # create_file is for NEW files only — an existing path is refused (use edit_file).
+    f = sandbox / "exists.txt"
+    f.write_text("original\n", encoding="utf-8")
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "exists.txt", "content": "clobbered\n"}),
+        {"role": "assistant", "content": "blocked"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_creations=[{"filepath": "exists.txt", "content": "clobbered\n"}],
+    ).run([{"role": "user", "content": "create over existing"}]))
+
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "already exists" in blocked[0]["reason"].lower()
+    assert "edit_file" in blocked[0]["reason"]
+    assert f.read_text(encoding="utf-8") == "original\n"   # not overwritten
+
+
+def test_agent_create_blocked_out_of_scope(tmp_path, monkeypatch) -> None:
+    # A path inside the project but OUTSIDE the sandbox scope is refused, even when
+    # an approval is supplied (out-of-sandbox writes are blocked, never written).
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+    sand = tmp_path / "training_ground"
+    sand.mkdir()
+    original = scope_lock.get_scope_roots()
+    scope_lock.set_scope_roots([sand])
+    try:
+        chat = ScriptedChat([
+            _tool_call("create_file", {"filepath": "aios/x.py", "content": "x = 1\n"}),
+            {"role": "assistant", "content": "blocked"},
+        ])
+        events = list(ToolAgent(
+            chat, _executor(), max_iters=3, read_root=tmp_path,
+            approved_creations=[{"filepath": "aios/x.py", "content": "x = 1\n"}],
+        ).run([{"role": "user", "content": "create out of scope"}]))
+        blocked = [e for e in events if e["type"] == "tool_blocked"]
+        assert blocked and "scope" in blocked[0]["reason"].lower()
+        assert not (tmp_path / "aios" / "x.py").exists()
+    finally:
+        scope_lock.set_scope_roots(list(original))
+
+
+def test_agent_create_blocked_path_escape(sandbox) -> None:
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "../../../../etc/evil", "content": "x"}),
+        {"role": "assistant", "content": "blocked"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_creations=[{"filepath": "../../../../etc/evil", "content": "x"}],
+    ).run([{"role": "user", "content": "escape"}]))
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and (
+        "escapes the project root" in blocked[0]["reason"]
+        or "scope" in blocked[0]["reason"].lower()
+    )
+
+
+def test_agent_create_blocked_when_audit_fails(sandbox) -> None:
+    # Fail-closed: an audit failure must NOT create the file.
+    def boom_audit(*a, **k):
+        raise RuntimeError("audit db locked")
+
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "new.py", "content": "x = 1\n"}),
+        {"role": "assistant", "content": "x"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_creations=[{"filepath": "new.py", "content": "x = 1\n"}],
+        snapshot=lambda msg="": None, audit_log=boom_audit,
+    ).run([{"role": "user", "content": "create"}]))
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "audit failed" in blocked[0]["reason"].lower()
+    assert not (sandbox / "new.py").exists()   # not created
+
+
+def test_agent_create_blocked_when_snapshot_fails(sandbox) -> None:
+    # Fail-closed: a snapshot failure must NOT create the file.
+    def boom(msg=""):
+        raise RuntimeError("git down")
+
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "new.py", "content": "x = 1\n"}),
+        {"role": "assistant", "content": "x"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_creations=[{"filepath": "new.py", "content": "x = 1\n"}],
+        snapshot=boom, audit_log=lambda *a, **k: None,
+    ).run([{"role": "user", "content": "create"}]))
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "snapshot failed" in blocked[0]["reason"].lower()
+    assert not (sandbox / "new.py").exists()   # not created
+
+
+# --------------------------------------------------------------------------- #
 # verify — run a check through the gated Verifier to PROVE a change worked
 # (Slice 5 / blueprint stage 8, now wired into the live loop)
 # --------------------------------------------------------------------------- #
