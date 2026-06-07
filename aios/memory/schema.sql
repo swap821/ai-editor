@@ -63,6 +63,28 @@ CREATE TABLE IF NOT EXISTS semantic_facts (
                 CHECK (status IN ('active','superseded'))
 );
 
+-- == Self-Analysis report (the module's own-code diagnostics) =================
+-- Modelled on mistake_pool (Assessment §6.4): a structured, queryable record of
+-- findings the Self-Analysis agent produces while reading + diagnosing the
+-- system's OWN code. T0/T1 write deterministic findings (target_path,
+-- finding_type, evidence) with status 'open'; llm_commentary is EXPLICITLY
+-- non-authoritative ("trust evidence, not the model"). proposed_zone /
+-- proposed_diff stay NULL until a later T2 (propose-diff) increment, and
+-- applied_audit_id links into the audit trail only once a T3 apply happens.
+CREATE TABLE IF NOT EXISTS self_analysis_report (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    target_path      TEXT NOT NULL,   -- file analysed (project-relative)
+    finding_type     TEXT NOT NULL,   -- 'missing_test'|'smell'|'todo'|'complexity'|...
+    evidence         TEXT NOT NULL,   -- deterministic fact: LOC, line refs, counts
+    llm_commentary   TEXT,            -- model opinion, EXPLICITLY non-authoritative
+    proposed_zone    TEXT,            -- 'GREEN'|'YELLOW'|'RED' if a fix were applied (T2)
+    proposed_diff    TEXT,            -- unified diff, NULL until tier T2
+    status           TEXT NOT NULL DEFAULT 'open'
+                     CHECK (status IN ('open','proposed','approved','applied','rolled_back','rejected')),
+    applied_audit_id INTEGER          -- FK into the audit trail once applied (T3)
+);
+
 -- == Indexes =================================================================
 CREATE INDEX IF NOT EXISTS idx_episodic_session ON episodic_memory(session_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_time    ON episodic_memory(timestamp);
@@ -73,3 +95,6 @@ CREATE INDEX IF NOT EXISTS idx_mistake_time     ON mistake_pool(timestamp);
 CREATE INDEX IF NOT EXISTS idx_mistake_verified ON mistake_pool(verification_status)
     WHERE verification_status = 'verified';
 CREATE INDEX IF NOT EXISTS idx_facts_sp         ON semantic_facts(subject, predicate);
+-- Self-analysis hot paths: triaging by status, and looking up a file's history.
+CREATE INDEX IF NOT EXISTS idx_sar_status       ON self_analysis_report(status);
+CREATE INDEX IF NOT EXISTS idx_sar_path         ON self_analysis_report(target_path);

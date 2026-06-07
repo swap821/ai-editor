@@ -28,10 +28,51 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**LATEST (2026-06-07): TIER-2 HARDENING — ROLLBACK GIT-DB OUT-OF-TREE (#3) + TEST DATA_DIR
-ISOLATION (#4) — DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator
-review → merge → `git pull`).** Cleared the two AUDIT.md Tier-2 structural-debt items in ONE
-focused PR, kept as two separable changes each with its own tests.
+**LATEST (2026-06-07): SELF-ANALYSIS MODULE — READ-ONLY FOUNDATION (T0 + T1) — DONE & GREEN
+(branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+The first, zero-risk slice of the AUDIT's marquee feature (Assessment §6). STRICTLY READ-ONLY:
+never edits source, never executes, loads NO model — pure stdlib (`ast`/`pathlib`/`hashlib`/`re`).
+T2 (propose-diff) / T3 (apply) / T4 (core edit) are LATER increments — deliberately NOT built.
+**(1) `aios/agents/self_analysis_agent.py` — `SelfAnalysisAgent`.** Default scope = the `aios/`
+package under `config.PROJECT_ROOT`; `scope_root`/`tests_root`/`path_root`/`db_path` all injectable
+(tests point it at a fixture tree). **T0 (index):** per-module `ModuleFacts` via `ast` — rel path,
+LOC, function names, class names, imports — + a simple intra-package import/dependency map.
+**T1 (diagnose):** deterministic `Finding(target_path, finding_type, evidence)` — `missing_test`
+(a testable module, i.e. defines a func/class & not `__init__`, with no `tests/test_<stem>.py`),
+`smell` (>40 LOC defining nothing, or an over-long function), `todo` (TODO/FIXME/XXX/HACK + line),
+`complexity` (AST branch-count proxy over a threshold). Deterministic facts ONLY — no LLM
+commentary this increment (`llm_commentary`/`proposed_zone`/`proposed_diff` left NULL; trust
+evidence, not the model). `analyze()` is pure/read-only; `write_report()`/`read_findings()`
+persist/query (ensure schema via idempotent `init_memory_db`). TODOs left for the later
+coverage.py join + radon metric + dead_code.
+**(2) `self_analysis_report` table** added to `aios/memory/schema.sql` via the existing idempotent
+`IF NOT EXISTS` pattern (same MEMORY_DB), schema per §6.4 (id, timestamp, target_path,
+finding_type, evidence, llm_commentary, proposed_zone, proposed_diff, status DEFAULT 'open' w/
+CHECK, applied_audit_id) + the two indexes (status, target_path).
+**(3) Wired READ-ONLY as a `self_analyze` tool** in `tool_agent.py` (mirrors verify/plan): TOOL_SPECS
+entry (optional `path`, default `aios`); `_dispatch` → `_self_analyze`, which confines `path` with
+the SAME `_resolve_within(self.read_root, …)` resolver as `read_file` (refuses `../`/abs/symlink
+escape), runs the agent, writes the report, returns a summary (counts by finding_type + top 8).
+status `ok`, `failed=False` — read-only, never reflected. Frontend: one additive `MessageBubble.jsx`
+TOOL_META entry (🔬 "Self-analysis").
+**Verified:** new `tests/test_self_analysis.py` (7) all pass — T0 map (funcs/classes/LOC/imports +
+intra-edge), T1 todo(+line)/smell/missing_test, over-long-function smell, write→read rows (open,
+T2 cols NULL), **source-hash-unchanged before/after (never writes source)**, tool returns a
+summary, path-escape refused. Full suite `166 passed, 4 skipped, 2 failed` — the 2 fails are the
+SAME PRE-EXISTING + ENVIRONMENTAL `test_security.py` cases (Windows `C:\…` path GREEN on Linux +
+`/tmp/pytest-…` entropy false-positive), confirmed IDENTICAL with my changes stashed. Frontend
+**eslint clean + vitest 9/9 + vite build** all green. **Real-path smoke:** ran the analyzer over
+the live `aios/` (31 modules, 41 findings {missing_test 20, complexity 11, smell 5, todo 5}, 65
+intra-package import edges, clean DB round-trip). Frozen security core untouched.
+**NEXT:** operator reviews/merges the draft PR. Then the runway items before T2/T3: static tooling
+(coverage.py + radon — turns the TODO proxies into real metrics) + a golden-regression harness +
+document the frozen core in CLAUDE.md; THEN **T2 (propose-diff, YELLOW + diff preview)** → **T3
+(apply: snapshot → verify → audit → auto-rollback)** → **T4 (core edit, RED, frozen)**. T2+ needs
+the no-self-approval guard in the approval endpoint + the two-snapshot integrity check (§6.3).
+
+**(prior 2026-06-07): TIER-2 HARDENING — ROLLBACK GIT-DB OUT-OF-TREE (#3) + TEST DATA_DIR
+ISOLATION (#4) — DONE & GREEN — MERGED (PR #3).** Cleared the two AUDIT.md Tier-2 structural-debt
+items in ONE focused PR, kept as two separable changes each with its own tests.
 **FIX #3 (rollback repo inside the tracked tree):** the engine snapshotted a git repo INSIDE
 `config.SCOPE_ROOTS[0]` (`training_ground`), which the MAIN repo tracks → embedded-repo wrinkle
 + `training_ground/.gitkeep` showed untracked. Added `config.ROLLBACK_DIR` (default
@@ -269,13 +310,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Tier-2 hardening increment — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/config.py` (+`ROLLBACK_DIR`, gitignored, `AIOS_ROLLBACK_DIR`-overridable) · `aios/agents/rollback_engine.py` (work-tree at sandbox, git-DB under ROLLBACK_DIR via `separate_git_dir`; injected `repo_dir` stays in-tree) · `.gitignore` (+`training_ground/.git`, `training_ground/.gitkeep`) · `tests/test_rollback.py` (+3 tests) · `tests/conftest.py` (NEW — module-level `AIOS_DATA_DIR` temp isolation) · `tests/test_api.py` (dropped the now-unneeded `hybrid_search` stub) · `tests/test_data_isolation.py` (NEW — +3 tests)
-- (prior, merged:) verify tool (PR #1) + planner/plan tool (PR #2) in `tool_agent.py`/`main.py`/`MessageBubble.jsx`/`test_tool_agent.py`.
+## Active files  (Self-Analysis T0/T1 increment — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/agents/self_analysis_agent.py` (NEW — `SelfAnalysisAgent`: T0 `ModuleFacts`/import-map + T1 deterministic `Finding`s; `analyze()` pure read-only, `write_report()`/`read_findings()` persist) · `aios/memory/schema.sql` (+`self_analysis_report` table + 2 indexes, idempotent) · `aios/agents/tool_agent.py` (+`self_analyze` TOOL_SPECS/_dispatch/`_self_analyze`, path confined via `_resolve_within`) · `frontend/src/components/MessageBubble.jsx` (TOOL_META 🔬 entry) · `tests/test_self_analysis.py` (NEW — 7 tests)
+- (prior, merged:) verify tool (PR #1) · planner/plan tool (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-07 by Claude Code (Tier-2 hardening: rollback git-DB out-of-tree + test DATA_DIR isolation)_
+_Last updated: 2026-06-07 by Claude Code (Self-Analysis module: read-only T0/T1 foundation)_
