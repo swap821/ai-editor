@@ -28,7 +28,43 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-08: `create_file` TOOL — author NEW files in the sandbox, behind the same human gate —
+**▶ LATEST 2026-06-08: PRE-T2 RUNWAY (b) — STATIC TOOLING (radon cyclomatic complexity + coverage join) —
+DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+Implemented `.aios/state/ULTRACODE_TASK.md` (b) directly in Claude Code. SHARPENS T1 before T2 turns
+findings into proposals: replaced the AST branch-count `complexity` PROXY with **radon** real cyclomatic
+complexity, and added a read-only **coverage join** → a new `uncovered` finding for testable modules the
+suite never executed.
+- **Fail-soft optional deps** (project's lazy-dep style): `try: from radon.complexity import cc_visit`,
+  `try: import coverage` — both degrade if absent (radon→proxy fallback kept; coverage→dormant). Module
+  imports + suite runs even without radon.
+- **radon** in `_scan_source_findings`→ new `_complexity_findings(src,tree,rel_path)`: `cc_visit(src)` is
+  read-only AST; iterate the FLAT block list, keep `letter in ('F','M')` (functions/methods; skip 'C'
+  classes — methods appear flattened), emit `complexity` for `block.complexity > threshold`, **symbol =
+  bare `block.name`** (fingerprint-stable: proxy→radon UPDATES existing open rows, no dup). radon raising
+  on exotic source → per-file fallback to `_complexity_proxy_findings` (the old branch-count, kept).
+- **coverage join** in `diagnose`: `__init__(coverage_data_path=None)`; `_measured_files()` reads an
+  EXISTING `.coverage` (default `path_root/.coverage`) via `CoverageData(basename=…).read()` →
+  realpath set; a testable module (defines func/class, not `__init__`) whose realpath ∉ measured →
+  `Finding(rel_path,"uncovered","module has no executed lines in the coverage data")`. Dormant when no
+  coverage/no file. Binary never-executed signal (partial-% deferred); `dead_code` deferred (needs vulture).
+- `analyze()` stays PURE/read-only (radon parses, coverage only reads); **NO `tool_agent.py` change** (the
+  summary counts finding types generically) · **NO frontend** · **NO `aios/security/`**.
+**Deps:** added `radon==6.0.1` to `requirements.txt`. **FLAG (deviation-for-correctness):** the spec said
+"only radon", but this requirements.txt is a fully-pinned FLAT list (all transitive deps pinned), so I
+also pinned radon's transitive dep `mando==0.7.1` (radon's other deps colorama/six already pinned) — an
+incomplete pin list breaks reproducible installs. Noted in the PR.
+**Verified:** full suite `185 passed, 4 skipped, 2 failed` — the 2 = SAME pre-existing/environmental
+`test_security.py` (identical with changes stashed). +5 self-analysis tests (radon real metric · proxy
+fallback via monkeypatch `_radon_cc_visit=None` · coverage `uncovered` flags unmeasured / not measured ·
+dormant w/o data · diagnose-with-coverage read-only). **Real-path smoke:** live `aios/` → 11 complexity
+findings all "cyclomatic complexity N (> 12)" w/ bare symbols, no crash; coverage dormant (no root
+`.coverage`). **NEXT:** operator reviews/merges this draft PR. Then runway **(c)** golden-regression
+harness for the analyzer (freeze findings over a fixture; catch drift; no new deps) → **(d)** doc the
+frozen core in CLAUDE.md (§VIII: I PROPOSE the diff, operator approves) → **T2** (propose-diff, YELLOW +
+no-self-approval guard + two-snapshot check, §6.3) → T3 → T4. BREATHE track (Ollama `qwen2.5-coder:7b`)
+still available in parallel.
+
+**▶ PRIOR 2026-06-08: `create_file` TOOL — author NEW files in the sandbox, behind the same human gate —
 MERGED to `master` (`02f93cc`, PR #6); suite 185 passed / 1 skipped on Windows; reviewed on evidence +
 an independent adversarial scope probe (aios/`../`/abs all REFUSED even with approval) — no patch.**
 Implemented `.aios/state/ULTRACODE_NEXT_create_file.md` directly in Claude Code. THE GAP IT FILLS: the
@@ -421,13 +457,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (`create_file` tool — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/agents/tool_agent.py` (TOOL_SPECS `create_file` + docstring · `__init__` `approved_creations` map · `_dispatch` route · `run()` approval branch carrying `creation`+`diff` · new `_create_file` mirroring `_edit_file`) · `aios/api/main.py` (`approvedCreations` request field → ToolAgent; `human_required` `creation` branch) · `frontend/src/App.jsx` (`approvedCreations` state + `streamGenerate` arg/body + approve/reject/send wiring + button label) · `frontend/src/components/MessageBubble.jsx` (🆕 create_file + ✏️ edit_file TOOL_META) · `frontend/src/components/DiffView.test.jsx` (+all-additions test) · `tests/test_tool_agent.py` (+8 create_file tests). NO `aios/security/` change.
-- (all merged:) verify tool (PR #1) · planner/plan tool (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5).
+## Active files  (Runway (b) static tooling — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/agents/self_analysis_agent.py` (fail-soft `radon`/`coverage` imports · `_complexity_findings` radon `cc_visit` + `_complexity_proxy_findings` fallback · `__init__ coverage_data_path` + `_measured_files` + `uncovered` in `diagnose` · docstrings/`_BRANCH_NODES` comment updated, TODOs resolved) · `aios/memory/schema.sql` (`finding_type` comment lists `uncovered`) · `requirements.txt` (+`radon==6.0.1`, +transitive `mando==0.7.1`) · `tests/test_self_analysis.py` (+5 static-tooling tests). NO `tool_agent.py` / frontend / `aios/security/` change.
+- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (create_file MERGED — PR #6 `02f93cc`, 185/1; next BUILD = (b) coverage/radon, pending deps OK)_
+_Last updated: 2026-06-08 by Claude Code (runway (b) static tooling: radon complexity + coverage uncovered join — draft PR, 185/4/2)_

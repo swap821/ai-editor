@@ -10,8 +10,10 @@ module (Assessment §6). It is **strictly read-only and GREEN**:
   * **T1 — diagnose.** Emit deterministic findings, each a
     ``{target_path, finding_type, evidence}`` triple: modules with no
     corresponding test (``missing_test``), structural smells (``smell``),
-    ``TODO``/``FIXME``/``XXX``/``HACK`` markers (``todo``), and an optional AST
-    branch-count complexity proxy (``complexity``).
+    ``TODO``/``FIXME``/``XXX``/``HACK`` markers (``todo``), cyclomatic
+    ``complexity`` over a threshold (radon when installed, else an AST branch-count
+    proxy), and modules the test suite never executed (``uncovered``, from a join
+    against an existing ``.coverage`` data file).
 
 **It NEVER edits source, NEVER executes anything, loads NO model, and opens no
 network connection.** Findings are *deterministic facts*, not model guesses —
@@ -25,14 +27,18 @@ Proposing a fix (T2, writes ``proposed_diff`` + routes to the gate) and applying
 one (T3/T4, approval → snapshot → verify → audit → auto-rollback) are SEPARATE,
 later increments — deliberately not built here.
 
-Pure stdlib (``ast``, ``pathlib``, ``hashlib``, ``re``); no heavy deps. A real
-coverage join (``coverage.py``) and a real cyclomatic metric (``radon``) are a
-later enhancement — see the TODOs in :meth:`SelfAnalysisAgent.diagnose`.
+Mostly stdlib (``ast``, ``pathlib``, ``hashlib``, ``re``). Two *optional* analysis
+deps sharpen the diagnosis when present and fail soft when absent: ``radon`` for a
+real cyclomatic metric (else the AST branch-count proxy) and ``coverage`` for the
+``uncovered`` join (else dormant). Both are read-only — radon only parses source,
+the coverage join only *reads* an existing ``.coverage`` file; neither runs tests.
+A ``dead_code`` finding is deferred (it would need a third dep, ``vulture``).
 """
 from __future__ import annotations
 
 import ast
 import hashlib
+import os
 import re
 import sqlite3
 from dataclasses import dataclass, field
@@ -42,11 +48,21 @@ from typing import Optional
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 
+# --- Optional static-analysis deps (fail-soft, like the rest of the project) --- #
+try:  # radon gives a real cyclomatic-complexity metric (read-only AST analysis).
+    from radon.complexity import cc_visit as _radon_cc_visit
+except Exception:  # noqa: BLE001 - radon optional: degrade to the AST branch-count proxy
+    _radon_cc_visit = None  # type: ignore[assignment]
+try:  # coverage lets us flag modules the suite never executed (read of an existing DB).
+    import coverage as _coverage
+except Exception:  # noqa: BLE001 - coverage optional: skip the coverage join entirely
+    _coverage = None  # type: ignore[assignment]
+
 #: Markers that flag deferred work, surfaced as ``todo`` findings (file + line).
 _TODO_MARKER = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
 
-#: AST node types that introduce a decision point, for the branch-count proxy.
-#: A stand-in for true cyclomatic complexity until ``radon`` is wired in (T1+).
+#: AST node types that introduce a decision point, for the branch-count proxy —
+#: the FALLBACK cyclomatic estimate used only when ``radon`` is not installed.
 _BRANCH_NODES: tuple[type[ast.AST], ...] = (
     ast.If,
     ast.For,
@@ -89,7 +105,7 @@ class Finding:
     """
 
     target_path: str
-    finding_type: str  #: 'missing_test' | 'smell' | 'todo' | 'complexity'
+    finding_type: str  #: 'missing_test' | 'smell' | 'todo' | 'complexity' | 'uncovered'
     evidence: str
     symbol: str = ""
 
@@ -143,6 +159,7 @@ class SelfAnalysisAgent:
         tests_root: Optional[Path] = None,
         path_root: Optional[Path] = None,
         db_path: Path = config.MEMORY_DB_PATH,
+        coverage_data_path: Optional[Path] = None,
         loc_smell_threshold: int = 40,
         long_function_threshold: int = 80,
         complexity_threshold: int = 12,
@@ -154,6 +171,9 @@ class SelfAnalysisAgent:
         #: Findings' ``target_path`` is relative to this.
         self.path_root = (path_root or config.PROJECT_ROOT).resolve()
         self.db_path = db_path
+        #: Optional coverage data file for the ``uncovered`` join; defaults to a
+        #: ``.coverage`` at the path root. Read-only — never written or generated.
+        self.coverage_data_path = coverage_data_path
         self.loc_smell_threshold = loc_smell_threshold
         self.long_function_threshold = long_function_threshold
         self.complexity_threshold = complexity_threshold
@@ -249,25 +269,37 @@ class SelfAnalysisAgent:
           * ``smell`` — a substantial module (> ``loc_smell_threshold`` LOC) that
             defines nothing, or a function longer than ``long_function_threshold``.
           * ``todo`` — a TODO/FIXME/XXX/HACK marker (file + line).
-          * ``complexity`` — a branch-count proxy over ``complexity_threshold``.
+          * ``complexity`` — cyclomatic complexity over ``complexity_threshold``
+            (radon when installed; otherwise the AST branch-count proxy).
+          * ``uncovered`` — a testable module with no executed lines in an existing
+            ``.coverage`` data file. Binary "never executed" only — partial-coverage
+            percentages are a later refinement; dormant when coverage is absent.
+
+        Deferred: ``dead_code`` (unreferenced functions) — needs a third dep
+        (``vulture``); not implemented here.
         """
         facts = self.build_map() if facts is None else facts
         findings: list[Finding] = []
-        # TODO(coverage): join against coverage.py data -> richer 'missing_test'
-        #   findings (uncovered lines), not just file-existence by convention.
-        # TODO(radon): replace the branch-count proxy with a real cyclomatic
-        #   metric, and add a 'dead_code' finding for unreferenced functions.
+        #: Realpaths the coverage data recorded as executed, or ``None`` when the
+        #: join is dormant (no coverage installed / no ``.coverage`` file).
+        measured = self._measured_files()
         for rel_path, m in facts.items():
             path = (self.path_root / rel_path)
             stem = Path(rel_path).stem
+            testable = stem != "__init__" and bool(m.functions or m.classes)
 
-            if stem != "__init__" and (m.functions or m.classes):
-                if not self._has_test(stem):
-                    findings.append(
-                        Finding(rel_path, "missing_test",
-                                f"no tests/test_{stem}.py for a module defining "
-                                f"{len(m.functions)} function(s)/{len(m.classes)} class(es)")
-                    )
+            if testable and not self._has_test(stem):
+                findings.append(
+                    Finding(rel_path, "missing_test",
+                            f"no tests/test_{stem}.py for a module defining "
+                            f"{len(m.functions)} function(s)/{len(m.classes)} class(es)")
+                )
+
+            if testable and measured is not None and os.path.realpath(str(path)) not in measured:
+                findings.append(
+                    Finding(rel_path, "uncovered",
+                            "module has no executed lines in the coverage data")
+                )
 
             if m.loc > self.loc_smell_threshold and not m.functions and not m.classes:
                 findings.append(
@@ -277,6 +309,26 @@ class SelfAnalysisAgent:
 
             findings.extend(self._scan_source_findings(path, rel_path))
         return findings
+
+    def _measured_files(self) -> Optional[set[str]]:
+        """Realpaths the coverage data recorded as executed, or ``None``.
+
+        **Read-only**: opens an EXISTING ``.coverage`` data file and reads the list
+        of measured files; it never runs tests or generates coverage. Returns
+        ``None`` (the join is dormant) when ``coverage`` is not installed, no data
+        file exists, or the file can't be read — so diagnosis degrades gracefully.
+        """
+        if _coverage is None:
+            return None
+        cov_path = self.coverage_data_path or (self.path_root / ".coverage")
+        if not cov_path.exists():
+            return None
+        try:
+            data = _coverage.CoverageData(basename=str(cov_path))
+            data.read()
+            return {os.path.realpath(f) for f in data.measured_files()}
+        except Exception:  # noqa: BLE001 - fail-soft: a corrupt/locked DB -> no coverage findings
+            return None
 
     def _has_test(self, stem: str) -> bool:
         """True if a ``test_<stem>.py`` exists anywhere under the tests root."""
@@ -317,6 +369,51 @@ class SelfAnalysisAgent:
                             f"(> {self.long_function_threshold})",
                             symbol=node.name)
                 )
+
+        out.extend(self._complexity_findings(src, tree, rel_path))
+        return out
+
+    def _complexity_findings(self, src: str, tree: ast.AST, rel_path: str) -> list[Finding]:
+        """Cyclomatic-complexity findings for *rel_path*.
+
+        Prefers radon's :func:`cc_visit` — a real cyclomatic metric (read-only AST
+        analysis) — and falls back to the AST branch-count proxy when radon is
+        absent or raises on exotic source. The ``symbol`` is always the BARE
+        function/method name (radon ``block.name``) so switching proxy->radon
+        UPDATES existing open rows (evidence refreshed) rather than duplicating them.
+        """
+        if _radon_cc_visit is not None:
+            try:
+                blocks = _radon_cc_visit(src)
+            except Exception:  # noqa: BLE001 - radon can choke on exotic source -> fall back
+                blocks = None
+            if blocks is not None:
+                out: list[Finding] = []
+                for block in blocks:
+                    # cc_visit returns a flat list; functions are 'F', methods 'M'
+                    # (classes 'C' are skipped — their methods appear individually).
+                    if getattr(block, "letter", "") not in ("F", "M"):
+                        continue
+                    if block.complexity > self.complexity_threshold:
+                        out.append(
+                            Finding(rel_path, "complexity",
+                                    f"cyclomatic complexity {block.complexity} "
+                                    f"(> {self.complexity_threshold})",
+                                    symbol=block.name)
+                        )
+                return out
+        return self._complexity_proxy_findings(tree, rel_path)
+
+    def _complexity_proxy_findings(self, tree: ast.AST, rel_path: str) -> list[Finding]:
+        """Fallback cyclomatic estimate: 1 + decision-point count per function.
+
+        Used only when radon is unavailable. Same ``symbol`` (bare function name)
+        as the radon path, so a finding's identity is stable across the two.
+        """
+        out: list[Finding] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, _FUNC_NODES):
+                continue
             branches = sum(1 for n in ast.walk(node) if isinstance(n, _BRANCH_NODES))
             complexity = branches + 1  # 1 base path + one per decision point
             if complexity > self.complexity_threshold:

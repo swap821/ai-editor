@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS self_analysis_report (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp        DATETIME DEFAULT CURRENT_TIMESTAMP,
     target_path      TEXT NOT NULL,   -- file analysed (project-relative)
-    finding_type     TEXT NOT NULL,   -- 'missing_test'|'smell'|'todo'|'complexity'|...
+    finding_type     TEXT NOT NULL,   -- 'missing_test'|'smell'|'todo'|'complexity'|'uncovered'|...
     evidence         TEXT NOT NULL,   -- deterministic fact: LOC, line refs, counts
     fingerprint      TEXT,            -- stable logical identity (sha256 path|type|symbol); NULL on legacy rows
     llm_commentary   TEXT,            -- model opinion, EXPLICITLY non-authoritative

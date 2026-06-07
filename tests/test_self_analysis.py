@@ -11,9 +11,11 @@ DB path so row-count assertions are exact and independent of other tests.
 from __future__ import annotations
 
 import hashlib
+import os
 
 import pytest
 
+from aios.agents import self_analysis_agent
 from aios.agents.self_analysis_agent import SelfAnalysisAgent, finding_fingerprint
 from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
@@ -196,6 +198,101 @@ def test_analyze_never_writes_to_any_source_file(tmp_path) -> None:
     agent.write_report(list(report.findings))
     after = _hash_tree(tmp_path)
     assert before == after, "self-analysis must NEVER modify source files"
+
+
+# --------------------------------------------------------------------------- #
+# Static tooling — radon cyclomatic complexity + coverage 'uncovered' join
+# --------------------------------------------------------------------------- #
+def _tangled_module(tmp_path):
+    """Plant a tested module with a genuinely high-cyclomatic-complexity function."""
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (tmp_path / "tests").mkdir()
+    src = "def tangled(x):\n"
+    for i in range(6):                      # 6 branches -> cyclomatic complexity ~7
+        src += f"    if x == {i}:\n        return {i}\n"
+    src += "    return -1\n"
+    (pkg / "m.py").write_text(src, encoding="utf-8")
+    (tmp_path / "tests" / "test_m.py").write_text("def test_x():\n    assert True\n", encoding="utf-8")
+    return SelfAnalysisAgent(
+        scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
+        db_path=tmp_path / "r.db", complexity_threshold=3,
+    )
+
+
+def test_radon_complexity_uses_real_metric(tmp_path) -> None:
+    pytest.importorskip("radon")
+    agent = _tangled_module(tmp_path)
+    cx = [f for f in agent.diagnose()
+          if f.finding_type == "complexity" and f.target_path == "pkg/m.py"]
+    assert cx, "radon should flag the high-complexity function"
+    assert "cyclomatic complexity" in cx[0].evidence
+    assert cx[0].symbol == "tangled"        # bare name -> fingerprint-stable
+
+
+def test_complexity_falls_back_to_proxy_without_radon(tmp_path, monkeypatch) -> None:
+    # With radon unavailable, the SAME function is still flagged via the AST proxy.
+    monkeypatch.setattr(self_analysis_agent, "_radon_cc_visit", None)
+    agent = _tangled_module(tmp_path)
+    cx = [f for f in agent.diagnose()
+          if f.finding_type == "complexity" and f.target_path == "pkg/m.py"]
+    assert cx, "the proxy fallback should still flag the function"
+    assert "branch-count proxy" in cx[0].evidence
+    assert cx[0].symbol == "tangled"        # same symbol as radon -> stable identity
+
+
+def test_coverage_uncovered_flags_unmeasured_module(tmp_path) -> None:
+    coverage = pytest.importorskip("coverage")
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (tmp_path / "tests").mkdir()
+    (pkg / "seen.py").write_text("def a():\n    return 1\n", encoding="utf-8")
+    (pkg / "unseen.py").write_text("def b():\n    return 2\n", encoding="utf-8")
+    # Both are tested by convention, so only the coverage signal differs.
+    (tmp_path / "tests" / "test_seen.py").write_text("def t():\n    assert True\n", encoding="utf-8")
+    (tmp_path / "tests" / "test_unseen.py").write_text("def t():\n    assert True\n", encoding="utf-8")
+
+    # Synthetic coverage DB: only seen.py was ever executed.
+    cov_file = tmp_path / ".coverage"
+    cd = coverage.CoverageData(basename=str(cov_file))
+    cd.add_lines({os.path.realpath(str(pkg / "seen.py")): [1, 2]})
+    cd.write()
+
+    agent = SelfAnalysisAgent(
+        scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
+        db_path=tmp_path / "r.db", coverage_data_path=cov_file,
+    )
+    uncovered = {f.target_path for f in agent.diagnose() if f.finding_type == "uncovered"}
+    assert "pkg/unseen.py" in uncovered      # never executed -> flagged
+    assert "pkg/seen.py" not in uncovered    # executed -> not flagged
+
+
+def test_coverage_join_dormant_without_data(tmp_path) -> None:
+    # No .coverage and no coverage_data_path -> zero 'uncovered'; the rest stands.
+    _build_fixture(tmp_path)
+    agent = _agent(tmp_path)
+    findings = agent.diagnose()
+    assert not [f for f in findings if f.finding_type == "uncovered"]
+    assert [f for f in findings if f.finding_type == "missing_test"]   # diagnosis unchanged
+
+
+def test_diagnose_with_coverage_is_read_only(tmp_path) -> None:
+    # The coverage join only READS an existing .coverage file — no source is written.
+    coverage = pytest.importorskip("coverage")
+    _build_fixture(tmp_path)
+    cov_file = tmp_path / ".coverage"
+    cd = coverage.CoverageData(basename=str(cov_file))
+    cd.add_lines({os.path.realpath(str(tmp_path / "pkg" / "covered.py")): [1]})
+    cd.write()
+
+    before = _hash_tree(tmp_path)
+    agent = SelfAnalysisAgent(
+        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests", path_root=tmp_path,
+        db_path=tmp_path / "r.db", coverage_data_path=cov_file,
+    )
+    agent.diagnose()
+    after = _hash_tree(tmp_path)
+    assert before == after, "the coverage join must NEVER modify source files"
 
 
 # --------------------------------------------------------------------------- #
