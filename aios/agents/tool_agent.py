@@ -27,6 +27,13 @@ Tools exposed to the model:
     counts (blueprint stage 8). Fail-closed — a blocked, timed-out, or non-zero
     run is a FAIL, never a silent pass — and a genuine failure feeds the same
     reflection hook, closing the execute -> verify -> reflect loop.
+  * ``plan``             — decompose a multi-step goal into an ordered,
+    confidence-scored plan via the Planner + the 0.72 confidence gate (blueprint
+    Q4). ADVISORY only — it never executes; steps below the threshold are flagged
+    for human review, and the model still routes real actions through the gate. It
+    needs a completion-capable LLM (injected separately from the chat client,
+    which may be cloud Bedrock with no ``.complete()``); without one it degrades
+    to a graceful "unavailable" result.
 
 The agent is transport-agnostic: :meth:`ToolAgent.run` *yields* plain event
 dicts so the API layer can forward them as SSE and tests can assert on them
@@ -43,7 +50,8 @@ from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
 from aios import config
 from aios.core.executor import Executor
-from aios.core.llm import LLMError
+from aios.core.llm import LLMClient, LLMError
+from aios.core.planner import Planner, PlannerError
 from aios.core.verifier import Verifier
 from aios.security import scope_lock
 from aios.security.audit_logger import log_action
@@ -201,6 +209,28 @@ TOOL_SPECS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "plan",
+            "description": (
+                "Decompose a complex, multi-step goal into an ordered, "
+                "confidence-scored plan before acting. Steps the planner is unsure "
+                "about (below the confidence threshold) are flagged for human "
+                "review. Use for non-trivial requests."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "goal": {
+                        "type": "string",
+                        "description": "The high-level, multi-step goal to decompose.",
+                    }
+                },
+                "required": ["goal"],
+            },
+        },
+    },
 ]
 
 
@@ -271,6 +301,7 @@ class ToolAgent:
         approved_edits: Optional[list[dict[str, str]]] = None,
         snapshot: Optional[Callable[..., Any]] = None,
         audit_log: Optional[Callable[..., object]] = None,
+        planner_llm: Optional[LLMClient] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -320,6 +351,14 @@ class ToolAgent:
         #: sandboxed pipeline and a genuine failure feeds the same reflection sink.
         #: Constructed once and reused by the ``verify`` tool — we never rewrite it.
         self._verifier = Verifier(self.executor, on_failure=self.on_failure)
+        #: Planner (blueprint Q4) built from an injected COMPLETION client
+        #: (:meth:`LLMClient.complete`) — deliberately NOT ``self.llm``, which is a
+        #: CHAT client that may be cloud Bedrock with no ``.complete()``. Built once
+        #: and reused by the ``plan`` tool; ``None`` when no planner LLM is injected,
+        #: in which case ``plan`` degrades gracefully. We never rewrite planner.py.
+        self._planner: Optional[Planner] = (
+            Planner(planner_llm) if planner_llm is not None else None
+        )
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Drive the loop, yielding event dicts the API maps to SSE.
@@ -506,6 +545,8 @@ class ToolAgent:
             )
         if name == "verify":
             return self._verify(str(args.get("command", "")))
+        if name == "plan":
+            return self._plan(str(args.get("goal", "")))
         return (f"Unknown tool '{name}'.", "blocked", False)
 
     def _read_file(self, filepath: str) -> tuple[str, str, bool]:
@@ -670,6 +711,54 @@ class ToolAgent:
         # only for execute_terminal, so `failed` here is informational (it cannot
         # re-trigger reflection) — carried for the loop's tool-result shape.
         return (output, "ok", not result.passed)
+
+    def _plan(self, goal: str) -> tuple[str, str, bool]:
+        """Decompose *goal* into a confidence-gated plan (blueprint Q4); ADVISORY.
+
+        Runs the Planner over the injected COMPLETION client (never ``self.llm`` —
+        the chat client may be cloud Bedrock with no ``.complete()``) and the 0.72
+        confidence gate, then surfaces an ordered, confidence-scored summary so the
+        model can plan before acting. The plan NEVER executes and is NEVER reflected
+        on: real actions still pass through the security gate + approval, and a bad
+        goal / unusable LLM output is a normal advisory result, not a mistake.
+
+          * no planner configured -> a graceful "unavailable" result (never crash);
+          * ``PlannerError`` (empty goal / junk LLM output) -> a clean error result;
+          * success -> the ordered steps with confidences + an explicit human-review
+            section listing every step the gate escalated (confidence < threshold).
+
+        Always returns status ``ok`` with ``failed=False`` — planning is advisory,
+        so it surfaces as a normal ``tool_result`` and is never a reflectable failure.
+        """
+        if self._planner is None:
+            return ("[plan unavailable] no planner configured", "ok", False)
+        try:
+            plan = self._planner.plan(goal)
+        except PlannerError as exc:
+            return (f"[plan error] could not produce a plan: {exc}", "ok", False)
+        except Exception as exc:  # noqa: BLE001 - advisory tool must never abort the turn
+            # A planner-LLM failure (e.g. LLMError when the local completion model is
+            # down while chatting on Bedrock) must degrade to a graceful advisory result —
+            # run() does not wrap _dispatch, so an uncaught error here would abort the turn.
+            return (f"[plan error] planner failed: {exc}", "ok", False)
+
+        lines = [f"Plan for: {plan.goal}", ""]
+        for step in plan.steps:
+            lines.append(
+                f"  {step.step_id}. {step.description} (confidence {step.confidence:.2f})"
+            )
+        if plan.requires_human:
+            lines.append("")
+            lines.append(
+                f"{len(plan.escalate)} step(s) need human review "
+                f"(confidence < {self._planner.threshold:.2f}):"
+            )
+            for item in plan.escalate:
+                step = item["step"]
+                lines.append(
+                    f"  - step {step.step_id}: {step.description} ({step.confidence:.2f})"
+                )
+        return ("\n".join(lines), "ok", False)
 
     def _format_exec_result(self, result: Any) -> tuple[str, str, bool]:
         """Map a *resolved* ExecutionResult to ``(output, status, failed)``.

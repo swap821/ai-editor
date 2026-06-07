@@ -6,6 +6,7 @@ blocking behaviour under test is genuine, not mocked away.
 """
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 import pytest
@@ -76,6 +77,34 @@ class RecordingRunner:
     def __call__(self, command, *, cwd, env, timeout_s):
         self.calls.append(command)
         return "should-not-run", "", 0
+
+
+class FakePlannerLLM:
+    """Fake COMPLETION client (LLMClient.complete) returning a fixed plan string.
+
+    Distinct from ScriptedChat (a .chat() client): the Planner needs .complete(),
+    which the loop's chat client may not have (it can be cloud Bedrock).
+    """
+
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.calls: list[tuple[str, Optional[str]]] = []
+
+    def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+        self.calls.append((prompt, system))
+        return self.response
+
+
+#: A fixed 3-step plan with one step (step 2) below the 0.72 confidence gate.
+_PLAN_JSON = json.dumps(
+    {
+        "steps": [
+            {"step_id": "1", "description": "Read config", "confidence": 0.9},
+            {"step_id": "2", "description": "Refactor parser", "confidence": 0.4},
+            {"step_id": "3", "description": "Run tests", "confidence": 0.85},
+        ]
+    }
+)
 
 
 def _executor() -> Executor:
@@ -670,4 +699,128 @@ def test_agent_verify_red_command_is_refused_by_gateway_not_run() -> None:
     assert "BLOCK" in blocked[0]["reason"].upper()
     assert runner.calls == [], "a blocked verify command must never reach the runner"
     assert reflected == [], "a security block is correct behaviour, not a mistake to reflect on"
+    assert events[-1]["type"] == "done"
+
+
+# --------------------------------------------------------------------------- #
+# plan — decompose a goal into a confidence-gated plan BEFORE acting
+# (Slice 5 Planner + the 0.72 confidence gate, now wired into the live loop)
+# --------------------------------------------------------------------------- #
+def test_agent_plan_lists_ordered_steps() -> None:
+    # plan over the injected completion client surfaces an ordered, confidence-
+    # scored summary as a normal tool_result (tool == "plan").
+    planner_llm = FakePlannerLLM(_PLAN_JSON)
+    chat = ScriptedChat([
+        _tool_call("plan", {"goal": "refactor the parser safely"}),
+        {"role": "assistant", "content": "Here is my plan."},
+    ])
+    events = list(
+        ToolAgent(chat, _executor(), max_iters=3, planner_llm=planner_llm).run(
+            [{"role": "user", "content": "refactor the parser safely"}]
+        )
+    )
+
+    results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "plan"]
+    assert results, "plan must surface a tool_result"
+    out = results[0]["output"]
+    assert "Read config" in out and "Refactor parser" in out and "Run tests" in out
+    # ordered: step 1 appears before step 3 in the summary
+    assert out.index("Read config") < out.index("Run tests")
+    assert planner_llm.calls, "the planner's COMPLETION client (.complete) must be called"
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_plan_flags_low_confidence_step_for_human_review() -> None:
+    # The 0.40 step is below the 0.72 gate -> surfaced as needing human review.
+    planner_llm = FakePlannerLLM(_PLAN_JSON)
+    chat = ScriptedChat([
+        _tool_call("plan", {"goal": "do the risky thing"}),
+        {"role": "assistant", "content": "One step needs review."},
+    ])
+    events = list(
+        ToolAgent(chat, _executor(), max_iters=3, planner_llm=planner_llm).run(
+            [{"role": "user", "content": "do the risky thing"}]
+        )
+    )
+
+    out = next(
+        e["output"] for e in events
+        if e["type"] == "tool_result" and e.get("tool") == "plan"
+    )
+    assert "human review" in out.lower()
+    assert "Refactor parser" in out          # the 0.40 step is the escalated one
+    assert "0.72" in out                      # the confidence threshold is named
+
+
+def test_agent_plan_surfaces_planner_error_cleanly() -> None:
+    # Junk LLM output -> PlannerError -> a clean advisory result (status ok), NOT a
+    # security block and NOT a reflectable failure (no reflect step, hook untouched).
+    planner_llm = FakePlannerLLM("not json at all")
+    chat = ScriptedChat([
+        _tool_call("plan", {"goal": "whatever"}),
+        {"role": "assistant", "content": "Could not plan."},
+    ])
+    reflected: list[str] = []
+    events = list(
+        ToolAgent(
+            chat, _executor(), max_iters=3, planner_llm=planner_llm,
+            on_failure=lambda c, o: reflected.append(c),
+        ).run([{"role": "user", "content": "whatever"}])
+    )
+
+    results = [e for e in events if e["type"] in ("tool_result", "tool_blocked") and e.get("tool") == "plan"]
+    assert results and results[0]["type"] == "tool_result"   # surfaced cleanly, not blocked
+    assert "[plan error]" in results[0]["output"]
+    assert not any(e.get("tool") == "reflect" for e in events)
+    assert reflected == [], "a planning error is advisory, not a reflectable failure"
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_plan_degrades_gracefully_without_planner() -> None:
+    # No planner_llm injected -> the plan tool returns a graceful "unavailable"
+    # result and the loop still completes normally.
+    chat = ScriptedChat([
+        _tool_call("plan", {"goal": "anything"}),
+        {"role": "assistant", "content": "No planner available, proceeding."},
+    ])
+    events = list(
+        ToolAgent(chat, _executor(), max_iters=3).run(
+            [{"role": "user", "content": "anything"}]
+        )
+    )
+
+    results = [e for e in events if e["type"] in ("tool_result", "tool_blocked") and e.get("tool") == "plan"]
+    assert results and results[0]["type"] == "tool_result"
+    assert "[plan unavailable]" in results[0]["output"]
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_plan_survives_planner_llm_error() -> None:
+    # If the planner's completion LLM fails (e.g. Ollama down while chatting on Bedrock),
+    # the plan tool must degrade to a graceful advisory result, NOT abort the turn —
+    # run() does not wrap _dispatch in try/except, so _plan must catch it itself.
+    class _BoomPlannerLLM:
+        def complete(self, prompt, *, system=None):
+            raise LLMError("ollama is down")
+
+    chat = ScriptedChat([
+        _tool_call("plan", {"goal": "do the thing"}),
+        {"role": "assistant", "content": "Planner was unavailable; proceeding."},
+    ])
+    reflected: list[str] = []
+    events = list(
+        ToolAgent(
+            chat, _executor(), max_iters=3, planner_llm=_BoomPlannerLLM(),
+            on_failure=lambda c, o: reflected.append(c),
+        ).run([{"role": "user", "content": "do the thing"}])
+    )
+
+    results = [
+        e for e in events
+        if e["type"] in ("tool_result", "tool_blocked") and e.get("tool") == "plan"
+    ]
+    assert results and results[0]["type"] == "tool_result"   # graceful, not a crash
+    assert "[plan error]" in results[0]["output"]
+    assert not any(e.get("tool") == "reflect" for e in events)
+    assert reflected == [], "a planner failure is advisory, not a reflectable mistake"
     assert events[-1]["type"] == "done"
