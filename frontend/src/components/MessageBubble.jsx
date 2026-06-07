@@ -11,6 +11,7 @@ const TOOL_META = {
   map_knowledge:    { icon: '🕸', label: 'Map knowledge',    color: '#c084fc' },
   query_knowledge:  { icon: '🔮', label: 'Query knowledge',  color: '#818cf8' },
   reflect:          { icon: '🧠', label: 'Lesson learned',   color: '#fbbf24' },
+  verify:           { icon: '✅', label: 'Verify',           color: '#22c55e' },
 };
 
 /* ─── Agent Step Card ───────────────────────────────────────── */

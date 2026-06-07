@@ -57,6 +57,27 @@ class FlakyRunner:
         return "ok", "", 0
 
 
+class PassRunner:
+    """Runner that emits pytest-style passing output (exit 0)."""
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        return "3 passed in 0.2s", "", 0
+
+
+class RecordingRunner:
+    """Runner that records every command it is asked to run, but spawns nothing.
+
+    Lets a test prove a *blocked* command never reaches execution at all.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        self.calls.append(command)
+        return "should-not-run", "", 0
+
+
 def _executor() -> Executor:
     return Executor(
         runner=FakeRunner(),
@@ -76,6 +97,14 @@ def _failing_executor() -> Executor:
 def _flaky_executor() -> Executor:
     return Executor(
         runner=FlakyRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+    )
+
+
+def _passing_executor() -> Executor:
+    return Executor(
+        runner=PassRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
     )
@@ -559,3 +588,86 @@ def test_agent_edit_blocked_when_audit_fails(sandbox) -> None:
     blocked = [e for e in events if e["type"] == "tool_blocked"]
     assert blocked and "audit failed" in blocked[0]["reason"].lower()
     assert f.read_text(encoding="utf-8") == "hello world\n"   # not applied
+
+
+# --------------------------------------------------------------------------- #
+# verify — run a check through the gated Verifier to PROVE a change worked
+# (Slice 5 / blueprint stage 8, now wired into the live loop)
+# --------------------------------------------------------------------------- #
+def test_agent_verify_reports_pass_and_does_not_reflect() -> None:
+    # The agent verifies a passing command: the result reports PASS with counts,
+    # and a PASS must never fire the reflection hook (nothing to learn from).
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": "pytest"}),
+        {"role": "assistant", "content": "Verified — all green."},
+    ])
+    reflected: list[tuple[str, str]] = []
+    events = list(
+        ToolAgent(
+            chat, _passing_executor(), max_iters=3,
+            on_failure=lambda c, o: reflected.append((c, o)),
+        ).run([{"role": "user", "content": "verify the tests pass"}])
+    )
+
+    results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "verify"]
+    assert results, "a verify must surface its result to the stream"
+    assert "VERIFY PASS" in results[0]["output"]
+    assert "3 passed" in results[0]["output"]          # parsed pass count is shown
+    assert reflected == [], "a passing verification must not trigger reflection"
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_verify_reports_fail_and_reflects_once() -> None:
+    # A failing verification reports FAIL AND fires the on_failure reflection hook
+    # (the Verifier fires it) — but the dispatch path must NOT double-reflect, so
+    # no separate 'reflect' step is surfaced from the verify path.
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": "pytest"}),
+        {"role": "assistant", "content": "Verification failed; noted."},
+    ])
+    reflected: list[tuple[str, str]] = []
+
+    def hook(command: str, error_output: str):
+        reflected.append((command, error_output))
+        return {"error_type": "AssertionError", "lesson_text": "fix the broken case",
+                "recurrence": False, "mistake_id": 11}
+
+    events = list(
+        ToolAgent(chat, _failing_executor(), max_iters=3, on_failure=hook).run(
+            [{"role": "user", "content": "verify the change"}]
+        )
+    )
+
+    results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "verify"]
+    assert results and "VERIFY FAIL" in results[0]["output"]
+    # The SAME reflection hook fired, once, with the failed command + its output.
+    assert reflected and reflected[0][0] == "pytest"
+    assert "boom" in reflected[0][1]
+    # ...and the verify path did not also emit a 'reflect' step (no double-reflect).
+    assert not any(e.get("tool") == "reflect" for e in events)
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_verify_red_command_is_refused_by_gateway_not_run() -> None:
+    # An out-of-scope / RED verify command is refused by the security gateway:
+    # it surfaces as blocked, never reaches the runner, and is not a "mistake"
+    # to reflect on (a refusal is correct behaviour).
+    runner = RecordingRunner()
+    ex = Executor(runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None)
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": "rm -rf /"}),
+        {"role": "assistant", "content": "Could not verify — that command was blocked."},
+    ])
+    reflected: list[str] = []
+    events = list(
+        ToolAgent(chat, ex, max_iters=3, on_failure=lambda c, o: reflected.append(c)).run(
+            [{"role": "user", "content": "verify by wiping the disk"}]
+        )
+    )
+
+    blocked = [e for e in events if e["type"] == "tool_blocked" and e.get("tool") == "verify"]
+    assert blocked, "a RED verify command must be refused by the gateway (blocked)"
+    assert "BLOCK" in blocked[0]["reason"].upper()
+    assert runner.calls == [], "a blocked verify command must never reach the runner"
+    assert reflected == [], "a security block is correct behaviour, not a mistake to reflect on"
+    assert events[-1]["type"] == "done"

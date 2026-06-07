@@ -22,6 +22,11 @@ Tools exposed to the model:
     locked to the executor's roots; shows a unified diff and pauses for approval
     (YELLOW); an approved edit (passed back in ``approved_edits``) is snapshotted,
     written, and audited.
+  * ``verify``           — run a verification command (e.g. the test suite)
+    through the SAME gated Executor and judge pass/fail by exit code + parsed
+    counts (blueprint stage 8). Fail-closed — a blocked, timed-out, or non-zero
+    run is a FAIL, never a silent pass — and a genuine failure feeds the same
+    reflection hook, closing the execute -> verify -> reflect loop.
 
 The agent is transport-agnostic: :meth:`ToolAgent.run` *yields* plain event
 dicts so the API layer can forward them as SSE and tests can assert on them
@@ -39,6 +44,7 @@ from typing import Callable, Iterator, Optional, Protocol, Any, cast
 from aios import config
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
+from aios.core.verifier import Verifier
 from aios.security import scope_lock
 from aios.security.audit_logger import log_action
 from aios.security.gateway import Zone
@@ -174,6 +180,27 @@ TOOL_SPECS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "verify",
+            "description": (
+                "Run a verification command (e.g. the test suite) to confirm the "
+                "previous change actually worked — judged by exit code + parsed "
+                "pass/fail counts. Use after edits or commands to verify success."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The verification command to run (e.g. 'pytest -q').",
+                    }
+                },
+                "required": ["command"],
+            },
+        },
+    },
 ]
 
 
@@ -288,6 +315,11 @@ class ToolAgent:
         self.snapshot = snapshot
         #: Audit sink for applied edits; defaults to the tamper-evident ledger.
         self._audit: Callable[..., object] = audit_log or log_action
+        #: Verifier (blueprint stage 8) built from THIS agent's OWN executor and
+        #: reflection hook, so a ``verify`` runs through the same security-gated,
+        #: sandboxed pipeline and a genuine failure feeds the same reflection sink.
+        #: Constructed once and reused by the ``verify`` tool — we never rewrite it.
+        self._verifier = Verifier(self.executor, on_failure=self.on_failure)
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Drive the loop, yielding event dicts the API maps to SSE.
@@ -472,6 +504,8 @@ class ToolAgent:
                 str(args.get("old_string", "")),
                 str(args.get("new_string", "")),
             )
+        if name == "verify":
+            return self._verify(str(args.get("command", "")))
         return (f"Unknown tool '{name}'.", "blocked", False)
 
     def _read_file(self, filepath: str) -> tuple[str, str, bool]:
@@ -594,6 +628,48 @@ class ToolAgent:
         except Exception as exc:  # noqa: BLE001 - report write failures cleanly
             return (f"[ERROR] Could not write {filepath}: {exc}", "blocked", False)
         return (f"Edited {filepath}:\n{scrubbed}", "ok", False)
+
+    def _verify(self, command: str) -> tuple[str, str, bool]:
+        """Run *command* as a verification through the Verifier; map its verdict.
+
+        Closes the execute -> verify -> reflect loop (blueprint stage 8). The
+        Verifier runs *command* through the SAME gated, sandboxed Executor — so a
+        RED / out-of-scope verify command is refused by the gateway and never run;
+        we do NOT bypass it — and judges pass/fail by exit code + parsed counts,
+        fail-closed. The Verifier fires the reflection hook itself on a genuine
+        failure, so this dispatch path must NOT reflect again.
+
+        The :class:`~aios.core.verifier.VerifierResult` maps to the loop's
+        ``(output, status, failed)`` shape:
+
+          * a security BLOCK -> ``blocked`` (a refusal is correct behaviour, not a
+            mistake; ``run`` only reflects for ``execute_terminal``, so it cannot
+            double-reflect a verify either way);
+          * a pass or a genuine fail -> ``ok`` with a clear PASS/FAIL line, the
+            pass/fail counts, exit code, and the captured summary so the model
+            (and the UI) plainly see the verdict.
+        """
+        result = self._verifier.verify(command, session_id=self.session_id)
+
+        if result.status == "BLOCKED":
+            return (
+                result.summary or f"[BLOCKED] Verification command refused: {command}",
+                "blocked",
+                False,
+            )
+
+        verdict = "PASS" if result.passed else "FAIL"
+        exit_str = "?" if result.exit_code is None else str(result.exit_code)
+        header = (
+            f"[VERIFY {verdict}] {result.passed_count} passed, "
+            f"{result.failed_count} failed (exit {exit_str})"
+        )
+        body = result.summary.strip()
+        output = f"{header}\n{body}" if body else header
+        # The Verifier already fired on_failure on a genuine failure; run() reflects
+        # only for execute_terminal, so `failed` here is informational (it cannot
+        # re-trigger reflection) — carried for the loop's tool-result shape.
+        return (output, "ok", not result.passed)
 
     def _format_exec_result(self, result: Any) -> tuple[str, str, bool]:
         """Map a *resolved* ExecutionResult to ``(output, status, failed)``.
