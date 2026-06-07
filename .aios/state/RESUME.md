@@ -57,14 +57,16 @@ send wiring; approve button reads "Create file") · `MessageBubble.jsx` (🆕 TO
 snapshot despite drift · audit-applied · refuse-existing · out-of-scope blocked · `../` escape blocked ·
 fail-closed on audit AND snapshot). Frontend **eslint clean + vitest 10/10** (+1 DiffView all-additions
 test) **+ vite build** green. Smoke: `GenerateRequest(approvedCreations=…)` + `ToolAgent(approved_creations=…)`
-wire cleanly; `create_file` in TOOL_SPECS. **NEXT (BUILD track): (b) static tooling** — radon cyclomatic
-+ coverage.py join (real metrics; sharpen the coarse `missing_test` + branch-count proxies; optional
-`dead_code`). HEAVY + adds NEW DEPS (radon, coverage) → ultracode job; **DECISION GATE: operator OKs adding
-those deps first**, then I draft the spec (reflecting the reconcile + create_file shape). Then **(c)**
-golden-regression harness → **(d)** doc frozen core in CLAUDE.md (§VIII: I PROPOSE the diff, operator
-approves) → **T2** (propose-diff, YELLOW + no-self-approval guard + two-snapshot check, §6.3) → T3 → T4.
-**BREATHE track** (sandbox first breath on Ollama `qwen2.5-coder:7b`) still staged + available in parallel
-— `create_file` now lets the agent author NEW files in its sandbox too (richer breath).
+wire cleanly; `create_file` in TOOL_SPECS. **NEXT (BUILD track): (b) static tooling — SPEC WRITTEN &
+CURRENT** at `.aios/state/ULTRACODE_TASK.md` (operator OK'd deps 2026-06-08). radon real cyclomatic
+complexity (replaces the branch-count proxy) + a read-only coverage join (new `uncovered` finding from an
+existing `.coverage`); fail-soft, `analyze()` stays PURE, fingerprint-stable (complexity symbol = bare
+func name), NO tool_agent/frontend/security change. **Only NEW dep = `radon`** (coverage 7.14.1 +
+pytest-cov 7.1.0 already in requirements.txt). Operator launches ultracode on it → PR → I review+merge.
+Then **(c)** golden-regression harness → **(d)** doc frozen core in CLAUDE.md (§VIII: I PROPOSE the diff)
+→ **T2** (propose-diff, YELLOW + no-self-approval guard + two-snapshot check, §6.3) → T3 → T4. **BREATHE
+track** (sandbox first breath on Ollama `qwen2.5-coder:7b`) still staged + available in parallel —
+`create_file` now lets the agent author NEW files in its sandbox too (richer breath).
 
 **▶ PRIOR 2026-06-07: PRE-T2 RUNWAY (a) — FINGERPRINT-RECONCILE FOR `self_analysis_report` — MERGED to
 `master` (`17d96f5`, PR #5); suite 177 passed / 1 skipped on Windows; reviewed on evidence (no patch).**
