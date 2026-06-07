@@ -28,7 +28,33 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**LATEST (2026-06-06): edit_file path bug FIXED + committed `68653dc` (master).** The live e2e
+**LATEST (2026-06-07): VERIFIER WIRED INTO THE LIVE LOOP — DONE & GREEN (branch
+`claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+Closed the AUDIT.md KEY GAP (Verifier built but "wired to nothing"). Added a `verify`
+tool to `aios/agents/tool_agent.py`: a new TOOL_SPECS entry (one `command` param) routed
+in `_dispatch` to a `Verifier(self.executor, on_failure=self.on_failure)` built ONCE in
+`__init__` (reuses `verifier.py`, not rewritten). `_verify` calls
+`.verify(command, session_id=...)` and maps `VerifierResult` → the loop's
+`(output, status, failed)` shape: a security BLOCK → `tool_blocked` (RED/out-of-scope
+verify refused by the gateway, never run — not bypassed); a pass/fail → `tool_result`
+with a `[VERIFY PASS|FAIL] N passed, M failed (exit C)` line + summary the model/UI see.
+Fail-closed kept. **No double-reflect:** the Verifier fires `on_failure` itself; `run()`
+only reflects for `execute_terminal`, so the dispatch path adds none. Frontend: one
+additive `verify` entry in `MessageBubble.jsx` `TOOL_META` (✅ "Verify"). +3 tests in
+`tests/test_tool_agent.py` (pass→no reflect · fail→reflects once · RED→blocked, runner
+never called). **Suite on Linux: 148 passed, 2 failed, 4 skipped — the 2 fails are
+PRE-EXISTING + ENVIRONMENTAL** (test_security.py: a `C:\Windows\...` path + a random
+`/tmp/pytest-…` dir name tripping the entropy scanner; both fail identically with my
+changes stashed — Windows baseline was 150/1). All tool_agent + verifier tests pass.
+**NEXT:** operator reviews/merges the draft PR, then **(2) wire Planner+confidence** into
+the live loop (next build step), then (3) rollback nested-`.git` + DATA_DIR isolation,
+(4) static tooling + golden tests, (5) Self-Analysis module (now unblocked: apply→verify
+→auto-rollback has its verify).
+NOTE (this env): no `.venv` checked in; tests run via a throwaway venv with the ML
+training stack (torch/transformers/sentence-transformers) omitted — they're lazy-loaded
+and the suite stubs the embedder, so faiss+numpy suffice. Windows run cmd unchanged.
+
+**(prior 2026-06-06): edit_file path bug FIXED + committed `68653dc` (master).** The live e2e
 "file is empty" error was a path-doubling bug — `edit_file` resolved sandbox-relative while reads
 resolve project-relative, so `training_ground/data.json` → `training_ground/training_ground/data.json`
 (nonexistent). Fixed `_edit_file` to resolve under `read_root` before the scope check (frozen
@@ -180,8 +206,9 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Phase 4h — committed; touched these:)
-- `aios/agents/tool_agent.py` · `aios/api/main.py` · `tests/test_tool_agent.py` · `tests/test_api.py` · `frontend/src/App.jsx`
+## Active files  (Verifier-wiring increment — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/agents/tool_agent.py` (verify tool + Verifier wired) · `tests/test_tool_agent.py` (+3 verify tests) · `frontend/src/components/MessageBubble.jsx` (TOOL_META verify entry)
+- (Phase 4h, prior:) `aios/api/main.py` · `tests/test_api.py` · `frontend/src/App.jsx`
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
