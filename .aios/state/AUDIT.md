@@ -1,171 +1,110 @@
-# AUDIT.md — Evidence-Based Status of the AI-OS vs. Blueprint v3/v4
+# AUDIT.md — Evidence-Based Backend Status (refreshed 2026-06-07)
 
-> Phase 1 audit (read-only). Authored by Claude Code on **2026-06-03**.
-> **Rule applied:** a component is **BUILT** only if its code exists **AND** it has
-> tests **AND** I ran those tests and they passed. Comments, docstrings, and
-> RESUME.md claims were treated as unverified until confirmed against code + a
-> green test. This file supersedes the stale counts in CLAUDE.md ("89") and
-> RESUME.md ("94"/"107").
+> **2026-06-07 refresh** by Claude Code (acting CEO/Chief Architect). Supersedes the
+> 2026-06-03 Phase-1 audit (git history retains it). Rule unchanged: a component is
+> **BUILT** only if code exists **AND** tests exist **AND** they pass. Cross-referenced
+> against `blueprint_text.md` (v6) and the v6 Assessment companion
+> (`aiosv6_assessment_text.md`).
 
----
+## 0. Ground truth
+- Full suite: **150 passed, 1 skipped** (`.venv\Scripts\python -m pytest -q`). The skip is the
+  Windows symlink-privilege case (environmental, not a failure).
+- Backend: 28 modules in `aios/{core,memory,security,agents,api}`. **Zero** TODO/FIXME/stub
+  markers found. Clean dependency-injection + centralized `config.py`.
 
-## 0. Ground truth — full suite run
+## 1. What changed since the 2026-06-03 audit (111 → 150 tests)
+The Phase-2 slices in `PLAN.md` are DONE, closing most prior gaps:
+- ✅ Security scope hardening (Slice 1a) + API contract tests (1b)
+- ✅ **File-edit tool + unified diff + approval** (Slice 2/4); path-resolution bug fixed + **live
+  e2e verified on Bedrock 2026-06-07** (diff → Apply → write + pre-edit snapshot `dce2427`)
+- ✅ Frontend test harness — Vitest/RTL (Slice 3)
+- ✅ **Verifier component** `aios/core/verifier.py` (Slice 5)
+- ✅ Prompt-injection **vector blocklist** `aios/security/injection_shield.py` (Slice 6)
+- ✅ **L3 entity facts + contradiction detection** `aios/memory/facts.py` (Slice 7)
+- ✅ AWS Bedrock cloud provider + real model picker
 
-```
-.venv\Scripts\python -m pytest -q --cov=aios
-=> 111 passed, 1 skipped, 1 warning in ~34s
-=> TOTAL coverage 83% (1661 stmts, 289 missed)
-```
+The 06-03 "PARTIAL/MISSING" rows for Verifier, L3 facts/contradiction, injection-vector,
+file-edit-diff, and frontend-tests are now **BUILT**.
 
-- The **1 skip** is `test_symlink_escape_is_out_of_scope` — skipped on Windows
-  because symlink creation needs privilege. Environmental, not a failure.
-- The **1 warning** is a Starlette/httpx deprecation in the test client. Cosmetic.
-- Per-file coverage (security/memory/agents core): gateway 95%, secret_scanner
-  95%, audit_logger 91%, scope_lock 88%, retrieval 87%, reflection 92%, rollback
-  88%, executor 89%, planner 88%, confidence 100%, mistake 82%. `llm.py` is 16%
-  (pure Ollama HTTP I/O, exercised only live — agents use injected fakes; this is
-  expected, not a gap).
+## 2. Component status (2026-06-07)
+**BUILT + tested:** Security gateway (3-zone, fail-closed, rate limit) · scope-lock · secret
+scanner · audit hash-chain · L1/L2/L3/L4 memory · FAISS + hybrid BM25+FAISS+decay retrieval ·
+L3 facts + contradiction detection · Planner · Confidence filter · Executor (sandboxed) ·
+Reflection agent · Mistake pool · Rollback engine · Verifier · injection vector shield ·
+edit_file diff-approval · agentic tool-loop · Bedrock cloud · 8 v1 API contracts · frontend harness.
 
-### ⚠ Flags found during audit (need your attention before Phase 2/3)
-1. **Uncommitted edits to the FROZEN security core.** `aios/security/scope_lock.py`
-   and `tests/test_security.py` are modified in the working tree (not committed).
-   The change rewrites `command_stays_in_scope` from regex path-fragment scanning
-   to `shlex` word-splitting (+4 new scope tests). Tests pass *with* these edits.
-   Per CLAUDE.md §VII, security is a frozen core — this change is an improvement
-   but it landed without an explicit approve/commit. **Decision needed:** commit
-   it, or revert it.
-2. **4 untracked CSS files** (`frontend/src/styles/{App,design-system,nexgen-3d,
-   nexgen-layout}.css`) — the parked "premium 2026" rewrite. Preserved, unimported.
-3. **Stale docs:** CLAUDE.md baseline (89) and RESUME.md (94/107) no longer match
-   reality (111). Worth syncing.
-4. **Repo hygiene:** `legacy_node/` is the archived Node backend (its `tests/*.js`
-   are NOT run by pytest). Loose root scripts (`hybrid_search.py`, `ingest_*.py`,
-   `vector_memory_setup.py`, `pdf_util.py`, `reset_audit_chain.py`, `memory.db`,
-   `vector_index.faiss`, `chat-ui.html`) are pre-`aios/` artifacts, untested and
-   not part of the package. Not blueprint components; candidates for an `archive/`.
+## 3. 🔑 KEY FINDING — the integration gap
+The live path `/api/generate → ToolAgent` does: **recall → security-gated tools (read/edit/exec)
+→ reflect-on-failure → audit.** Solid. But three finished components are **islands**:
 
----
+| Component | Built & tested | In the live loop? |
+|---|---|---|
+| Planner (+0.72 gate) | ✅ | ❌ only standalone `/api/v1/plan` |
+| Verifier (stage 8) | ✅ | ❌ **wired to nothing** — no endpoint, not in the loop |
+| Confidence filter | ✅ | ❌ only via Planner → `/plan` |
 
-## 1. Module structure → blueprint component map
+⇒ The blueprint's pipeline (plan → retrieve → classify → approve → execute → **verify** → reflect →
+audit) exists as *parts, not one flow*. **Highest-ROI next work is integration, not new features.**
 
-```
-aios/
-  config.py                 single source of truth (paths, weights, thresholds)   [Core API contract §6.3 tunables]
-  core/
-    llm.py                  Ollama HTTP client (complete/chat/stream/list)         [LLM routing, P0]
-    bedrock.py              AWS Bedrock Converse client (opt-in cloud)             [NOT in blueprint — extra]
-    planner.py              CoT goal->task-tree + confidence gate                  [Stage 2 Planner]
-    confidence_filter.py    0.72 escalation gate                                   [Stage 3 Confidence Filter]
-    executor.py             gateway-guarded, scope-locked, audited subprocess      [Stage 7 Executor]
-  memory/
-    db.py / schema.sql      SQLite bootstrap (WAL, FK), L2/L3/L4 DDL               [§4.1 storage]
-    working.py              L1 RAM dict, session-scoped                            [L1 Working]
-    episodic.py             L2 chronological turns                                 [L2 Episodic]
-    semantic.py             L3 text chunks + FAISS sync                            [L3 Semantic]
-    mistake.py              L4 mistake pool + lifecycle                            [L4 Mistake / §6.1]
-    embeddings.py           MiniLM encoder + FAISS HNSW IndexIDMap                 [Vector index]
-    retrieval.py            R = .25·BM25 + .45·FAISS + .30·e^(-.05Δt)              [§4.2 hybrid+decay]
-  security/
-    gateway.py              deterministic 3-zone, fail-closed, rate limiter        [Stage 5 / §5.1]
-    scope_lock.py           path canonicalization + scope roots                    [§5.2 scope locking]
-    secret_scanner.py       regex + Shannon-entropy redaction                      [§5.2 secret scanner]
-    audit_logger.py         SHA-256 hash chain, O(n) verify, redact-before-store   [Stage 10 / §6.2]
-  agents/
-    reflection_agent.py     LLM post-mortem -> L4, pending->verified              [Stage 9 Reflection]
-    rollback_engine.py      GitPython snapshot/restore, refuses project root       [Stage 11 Rollback]
-    tool_agent.py           bounded reason->act->observe loop, in-chat approval    [orchestration / Stage 6]
-  api/main.py               FastAPI: 8 v1 contracts + /generate + /terminal        [§6.3 API contracts]
-frontend/                   React/Vite UI (chat, code canvas, live preview, 3D)    [P0 UI: preview/edit/approve]
-```
+## 4. Structural debt (found 2026-06-07)
+1. **RollbackEngine inits a `.git` INSIDE the main-repo-tracked `training_ground/`** → embedded-repo
+   wrinkle; snapshots never reach origin. (Verified live today: `training_ground/.git` now exists.)
+2. **Tests share `DATA_DIR` with the live app** → a `hybrid_search` stub is needed to avoid a torch
+   segfault. Couples tests to on-disk state.
+3. **Self-edit scope:** scope roots = `training_ground` only, so the agent currently **cannot edit
+   its own `aios/` code at all**. The planned Self-Analysis module (T2/T3) needs scope to include
+   `aios/` with `aios/security/` excluded — a security-sensitive expansion to design carefully.
 
----
+## 5. Genuinely missing — build targets
+**Marquee (from the v6 Assessment doc) — the capability the operator most wants:**
+- **Self-Analysis & Self-Improvement Module** `aios/agents/self_analysis_agent.py` — tiers T0
+  index/explain → T1 diagnose → T2 propose-diff (YELLOW) → T3 apply (snapshot→verify→audit→auto-
+  rollback) → T4 core edit (RED, frozen). Scoped to **code, not cognition**. Reuses gateway +
+  rollback + audit unchanged. Prereqs (mostly met now): real tests ✅, wired Verifier (TODO),
+  solid rollback (fix the nesting), static tooling (coverage+radon), golden tests, documented
+  frozen core, stronger analysis model ✅ (16GB unlock).
 
-## 2. Component status table
+**Blueprint P3/P4 (deferred):** Project Knowledge Graph (Neo4j — L3 facts are a seed) · Voice
+(Whisper+Piper) · Observability + Deployment (Docker, Prometheus/Grafana/OTel) · chaos/perf/
+adversarial test tiers.
 
-| Component (blueprint) | Status | Evidence (files) | Tests pass? | Gap to close |
-|---|---|---|---|---|
-| **Security Gateway** — 3-zone, deterministic, fail-closed, rate limit | **BUILT** | `security/gateway.py` | ✅ 27 in `test_security.py` incl. fail-closed-on-exception, rate limit, determinism | None for core. (Vector-blocklist injection layer is separate row below.) |
-| **Scope Locking** — path canonicalization, traversal/symlink defense | **BUILT** | `security/scope_lock.py` | ✅ (abs/relative/embedded-traversal; symlink skipped on Win) | Commit the uncommitted rewrite; add a privileged-CI symlink run. |
-| **Secret Scanner** — regex + entropy, redact w/ fingerprint | **BUILT** | `security/secret_scanner.py` | ✅ AWS/entropy/plain-english cases | None. |
-| **Audit Logger** — SHA-256 chain, tamper-evident, redact-before-store | **BUILT** | `security/audit_logger.py` | ✅ 6 in `test_audit.py` incl. tamper-breaks-chain, genesis, redaction | None. (Startup-verify hook is an enhancement.) |
-| **L1 Working Memory** — RAM dict, session TTL | **BUILT** | `memory/working.py` | ✅ isolation test | None. |
-| **L2 Episodic Memory** — SQLite chronological | **BUILT** | `memory/episodic.py`, `schema.sql` | ✅ chronological-order test | None. |
-| **L3 Semantic Memory** — durable chunks + FAISS | **PARTIAL** | `memory/semantic.py` | ✅ add+search test | Stores **text chunks**, not entity-relation triples (§4.1); no preference/entity schema. |
-| **L4 Mistake Pool** — structured post-mortems + lifecycle | **BUILT** | `memory/mistake.py`, `schema.sql` | ✅ clamp + pending/verified/superseded + recurrence | None. Schema matches §6.1. |
-| **Vector Index (FAISS HNSW)** — 384-dim, IDMap | **BUILT** | `memory/embeddings.py` | ✅ via semantic/retrieval tests | None. |
-| **Hybrid Retrieval + Decay** — BM25+FAISS+e^(−λΔt) | **BUILT** | `memory/retrieval.py` | ✅ ranking + recency-decay + empty-index | None. Formula + weights match §4.2. |
-| **Contradiction Detection** (§4.3) — conflict check before L3 write | **MISSING** | — | — | No entity parse, no conflict query, no reconciliation route. |
-| **Planner** — CoT decomposition + confidence | **BUILT** | `core/planner.py` | ✅ 7 incl. malformed-JSON, clamp, partition | None. |
-| **Confidence Filter** — 0.72 gate | **BUILT** | `core/confidence_filter.py` | ✅ boundary (0.719→escalate, 0.72→pass) | None. 100% cov. |
-| **Executor** — sandboxed, scope-locked, audited | **BUILT** | `core/executor.py` | ✅ 7 incl. RED-blocked, YELLOW-not-run, env-strip, every-outcome-audited | Sandbox = cwd+env-strip+timeout; **no OS chroot/cgroup** (§3.2 "subprocess+chroot"). Acceptable local-first, note it. |
-| **Approval Engine** — human-in-loop, resumable YELLOW | **BUILT** | `tool_agent.py`, `api/main.py` (`/approval/req`, `/generate`) | ✅ pauses-on-YELLOW, runs-approved, refuses-RED | RED is **hard-blocked**, not typed-token-confirmed as §5.1 specifies (safer deviation — confirm intended). |
-| **Reflection Agent** — post-mortem -> L4 | **BUILT** | `agents/reflection_agent.py` | ✅ 8 incl. malformed-reject, clamp, recurrence, confirm | None. |
-| **Rollback Engine** — git snapshot/restore | **BUILT** | `agents/rollback_engine.py` | ✅ 5 incl. restore-state, refuse-project-root, clean-untracked | None. |
-| **Verifier Layer** (Stage 8) — pytest/jest assertions + delta | **PARTIAL** | `tool_agent._format_exec_result` (exit-code only) | ✅ (indirect) | No dedicated verifier component/endpoint; no test-assertion run or delta computation on agent executions. |
-| **API Contracts (8 endpoints §6.3)** | **BUILT** | `api/main.py` | ✅ classify/memory/audit/reflect/generate/terminal directly; plan/execute/approval/rollback via unit tests | Add **direct HTTP tests** for `/plan`, `/execute`, `/approval/req`, `/rollback` (logic is tested; routes are thin but unasserted). Path is `/approval/req` vs blueprint `/approval/request`. |
-| **Prompt-Injection Shield** — regex **+ vector blocklist** | **PARTIAL** | `gateway.py` (`_INJECTION_PATTERNS`) | ✅ regex cases | Regex layer only; **no embedding/vector blocklist** (§5.2). |
-| **LLM Code Generation** — multi-model routing | **BUILT** | `core/llm.py`, `core/bedrock.py`, `/generate` | ✅ streams text+code+done | None for backend. |
-| **Terminal Interaction** — gated sandbox | **BUILT** | `api/main.py` `/api/terminal` | ✅ green-runs, red-blocked | None. |
-| **File Modification — diff preview, git-aware** (P0) | **PARTIAL/MISSING** | only via `execute_terminal` (shell write, YELLOW) | partial | **No write_file tool, no interactive diff preview** — the signature demo moment (0:30) is not built as specified. |
-| **Live Preview Environment** (P0) | **PARTIAL** | `frontend/src/components/LivePreview.jsx` | ❌ no automated tests | Frontend has **zero** test suite; cannot be called BUILT. |
-| **Frontend UI** (chat, approval bar, model picker, 3D) | **PARTIAL** | `frontend/src/**` | ❌ no tests; recently broke + was stabilized | Add a minimal frontend test/build-smoke; verify the live e2e path. |
-| **AWS Bedrock cloud provider** (extra, not in blueprint) | **BUILT** | `core/bedrock.py` | ✅ 10 in `test_bedrock.py` | None. Opt-in; off unless region set. |
-| **Voice Interface** (Whisper/Piper, P2) | **MISSING** | — | — | Out of MVP scope (P2). |
-| **Project Knowledge Graph** (Neo4j, P3) | **MISSING** | — | — | Out of MVP scope (P3). |
-| **Deployment/Observability** (Docker, Prometheus, OTel) | **MISSING** | — | — | Out of MVP scope. |
-| **Test tiers** — integration/e2e/security-automation/chaos/perf | **PARTIAL** | `tests/` (unit + light integration) | ✅ what exists | Strong unit + some integration; no e2e/Playwright, no chaos/perf, no automated adversarial suite. |
+## 6. Assessment-doc framing corrections (adopt)
+- Target **90%+ working MVP**, not "100% built" (pursue completeness; *report* it as 90%+).
+- Self-analysis = reads/improves its own **code** under approval — not "understands its cognition."
+- Security framing: "**deterministic routing** + a probabilistic 2nd layer, both feeding a **human
+  gate**." The human gate is the guarantee; don't oversell the classifier.
+
+## 7. RAM upgrade (2026-06-07): 8 → 16 GB
+Unlocks local mid-size models (`qwen2.5-coder:7b`, `llama3.1:8b`) — the Assessment doc's hard
+requirement for trustworthy reflection/self-analysis (3B is too weak). Bedrock is now optional, not
+mandatory. Self-analysis readiness (was 5/10: "needs tests + a stronger model") — both now satisfied.
+
+## 8. Recommended build order
+**Tier 1 — integrate what exists (highest ROI):**
+1. Wire the **Verifier** into the live loop (execute→verify→reflect). ← prereq for self-improvement.
+   *(ultracode prompt drafted 2026-06-07.)*
+2. Wire the **Planner + confidence gate** for multi-step goals.
+
+**Tier 2 — fix the cracks:**
+3. Relocate the rollback snapshot repo out of tracked `training_ground/` (into gitignored `data/`).
+4. Isolate tests from live `DATA_DIR` (retire the stub workaround).
+
+**Tier 3 — self-analysis runway:**
+5. Static tooling (`coverage.py` + `radon`) + a golden-regression harness; document the frozen core
+   in CLAUDE.md; pull a stronger local model (`qwen2.5-coder:7b`).
+
+**Tier 4 — the marquee feature:**
+6. Self-Analysis Module — T0/T1 (read-only diagnose) first → T2/T3 → T4 last (frozen-core, RED).
+
+**Tier 5 — blueprint expansion:** Knowledge Graph → Voice → Observability/Docker → chaos/perf.
+
+## 9. Honest completion estimate (2026-06-07)
+- Backend P0–P1 core: **≈90%** built + test-backed (up from ~80% on 06-03).
+- Live agentic pipeline *integration*: **≈75%** (Planner/Verifier not yet in the loop).
+- Full v6 vision (incl. self-analysis + voice + KG + observability): **≈55–60%**.
+
+Not 100% — and reported as such. A strong, test-backed core; the next leverage is integrating it
+into one pipeline, then building the self-analysis capability on that foundation.
 
 ---
-
-## 3. Prioritized gap list (P0 → P3)
-
-**P0 — blocks an honest, demoable MVP**
-1. **File-edit with diff preview** (write tool + UI diff). The blueprint's headline
-   demo (0:30 YELLOW source-edit with diff) currently shows a *command*, not a
-   *diff*. Highest-value missing capability.
-2. **Frontend has no tests + unverified e2e.** Add a build-smoke + the live
-   happy-path walk (chat → YELLOW → approve → run → reflect). It broke once already.
-3. **Direct HTTP tests for `/plan`, `/execute`, `/approval/req`, `/rollback`.**
-   Logic is tested; the contract layer is not asserted end-to-end.
-
-**P1 — core fidelity to the blueprint**
-4. **Verifier stage** as a real component: run pytest/jest assertions on an agent
-   execution, compute pass/fail delta, feed the Reflection loop on failure.
-5. **Prompt-injection vector blocklist** to complement the regex layer (§5.2).
-6. **L3 semantic = entity/preference facts** (not just chat-turn text), enabling…
-7. **Contradiction detection** before L3 commit (§4.3).
-8. **Decide RED policy:** keep hard-block (current, safer) vs. blueprint's typed-token
-   confirm — and write the choice down.
-
-**P2 — deferred capability**
-9. Offline voice (Whisper + Piper).
-10. Audit-verify-on-startup hook + chain-integrity alert.
-
-**P3 — scope only after core is green**
-11. Project knowledge graph (Neo4j).
-12. Docker Compose + Prometheus/Grafana/OpenTelemetry.
-13. Chaos + performance + automated adversarial (MITRE ATLAS) test tiers.
-
----
-
-## 4. Honest completion estimate
-
-**Backend P0–P1 core: ≈ 80% built and verified.** **Whole demoable MVP: ≈ 62%.**
-
-- *Justification (backend):* the security/memory/audit/reflection/rollback/planner/
-  executor/agentic-loop backbone is implemented to spec **and** covered by 111
-  passing tests that assert the real invariants (tamper-evidence, fail-closed,
-  scope escape, confidence boundary, lesson lifecycle, rollback restore). This is
-  genuinely well past the blueprint's own "40–50%" framing for these modules.
-- *Justification (whole MVP):* the user-facing demo path drags the real number
-  down — the signature diff-preview edit isn't built, the frontend has no tests and
-  was recently broken/stabilized, there's no Verifier stage, and the prompt-injection
-  vector layer is absent. These gate "demoable," not just "coded."
-
-This is **not** 100% and must not be reported as such. It is a strong, test-backed
-backend with a thin/unverified front edge and three or four real P0–P1 gaps.
-
----
-
-_Phase 1 complete. STOPPING here for operator review per the agreed protocol.
-Phase 2 (week-by-week PLAN.md) begins only on your approval of this audit._
+_Refreshed 2026-06-07 by Claude Code. Next action: Tier-1 #1 (wire the Verifier) via ultracode._
