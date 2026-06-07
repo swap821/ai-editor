@@ -14,9 +14,10 @@ import hashlib
 
 import pytest
 
-from aios.agents.self_analysis_agent import SelfAnalysisAgent
+from aios.agents.self_analysis_agent import SelfAnalysisAgent, finding_fingerprint
 from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
+from aios.memory.db import connect, get_connection, init_memory_db
 from aios.security.gateway import RateLimiter
 
 
@@ -160,23 +161,27 @@ def test_write_report_persists_open_findings(tmp_path) -> None:
         path_root=tmp_path, db_path=db_path,
     )
     report = agent.analyze()
-    written = agent.write_report(list(report.findings))
-    assert written == len(report.findings) > 0
+    res = agent.write_report(list(report.findings))
+    # On a fresh DB every finding is a new 'open' row; nothing updated/closed/skipped.
+    assert res.inserted == len(report.findings) > 0
+    assert res.open_total == len(report.findings)
+    assert (res.updated, res.closed, res.skipped) == (0, 0, 0)
 
     rows = agent.read_findings()
-    assert len(rows) == written
+    assert len(rows) == res.inserted
     # Deterministic columns are written; T2 columns stay NULL; status defaults open.
     types = {r["finding_type"] for r in rows}
     assert {"missing_test", "smell", "todo"} <= types
     for r in rows:
         assert r["status"] == "open"
+        assert r["fingerprint"] is not None
         assert r["llm_commentary"] is None
         assert r["proposed_zone"] is None
         assert r["proposed_diff"] is None
         assert r["applied_audit_id"] is None
 
     # The status filter works (all rows are 'open').
-    assert len(agent.read_findings(status="open")) == written
+    assert len(agent.read_findings(status="open")) == res.inserted
     assert agent.read_findings(status="applied") == []
 
 
@@ -191,6 +196,159 @@ def test_analyze_never_writes_to_any_source_file(tmp_path) -> None:
     agent.write_report(list(report.findings))
     after = _hash_tree(tmp_path)
     assert before == after, "self-analysis must NEVER modify source files"
+
+
+# --------------------------------------------------------------------------- #
+# Reconcile — fingerprint-based de-dup / lifecycle hygiene for re-runs
+# --------------------------------------------------------------------------- #
+def _agent(tmp_path):
+    """A SelfAnalysisAgent over the fixture pkg with a per-test temp DB."""
+    return SelfAnalysisAgent(
+        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
+        path_root=tmp_path, db_path=tmp_path / "report.db",
+    )
+
+
+def test_write_report_is_idempotent_on_rerun(tmp_path) -> None:
+    _build_fixture(tmp_path)
+    agent = _agent(tmp_path)
+    first = agent.write_report(list(agent.analyze().findings))
+    rows_after_first = agent.read_findings(limit=1000)
+
+    second = agent.write_report(list(agent.analyze().findings))
+    rows_after_second = agent.read_findings(limit=1000)
+
+    # Re-running the same scan must not change the row set.
+    assert len(rows_after_second) == len(rows_after_first)
+    assert second.inserted == 0
+    assert second.updated == first.inserted
+    assert second.closed == 0
+    # Exactly one row per fingerprint (no duplicate 'open' rows accumulate).
+    fps = [r["fingerprint"] for r in rows_after_second]
+    assert len(fps) == len(set(fps))
+
+
+def test_reconcile_does_not_reopen_a_decided_finding(tmp_path) -> None:
+    _build_fixture(tmp_path)
+    agent = _agent(tmp_path)
+    agent.write_report(list(agent.analyze().findings))
+
+    # Promote one finding to a decided status, as T2 will.
+    target_fp = agent.read_findings(limit=1000)[0]["fingerprint"]
+    with get_connection(tmp_path / "report.db") as conn:
+        conn.execute(
+            "UPDATE self_analysis_report SET status = 'proposed' WHERE fingerprint = ?",
+            (target_fp,),
+        )
+
+    res = agent.write_report(list(agent.analyze().findings))
+    assert res.skipped >= 1
+    rows = [r for r in agent.read_findings(limit=1000) if r["fingerprint"] == target_fp]
+    # Still exactly one row for it, still 'proposed' — NOT re-opened or duplicated.
+    assert len(rows) == 1
+    assert rows[0]["status"] == "proposed"
+
+
+def test_reconcile_closes_a_vanished_finding(tmp_path) -> None:
+    _build_fixture(tmp_path)
+    agent = _agent(tmp_path)
+    agent.write_report(list(agent.analyze().findings))
+    assert [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"]
+
+    # Remove the TODO line so that finding disappears from the scan.
+    big = tmp_path / "pkg" / "bigconfig.py"
+    kept = [ln for ln in big.read_text(encoding="utf-8").splitlines() if "TODO" not in ln]
+    big.write_text("\n".join(kept) + "\n", encoding="utf-8")
+
+    res = agent.write_report(list(agent.analyze().findings))
+    assert res.closed >= 1
+    assert not [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"]
+    # Unrelated findings survive.
+    assert [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "missing_test"]
+
+
+def test_fingerprint_stable_when_todo_moves(tmp_path) -> None:
+    _build_fixture(tmp_path)
+    agent = _agent(tmp_path)
+    agent.write_report(list(agent.analyze().findings))
+    todo_before = [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"]
+    assert len(todo_before) == 1
+    fp_before, ev_before = todo_before[0]["fingerprint"], todo_before[0]["evidence"]
+
+    # Same TODO TEXT, different line: prepend blank lines.
+    big = tmp_path / "pkg" / "bigconfig.py"
+    big.write_text("\n\n\n" + big.read_text(encoding="utf-8"), encoding="utf-8")
+
+    res = agent.write_report(list(agent.analyze().findings))
+    todo_after = [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"]
+    assert len(todo_after) == 1                          # still ONE open row
+    assert todo_after[0]["fingerprint"] == fp_before     # identity preserved
+    assert todo_after[0]["evidence"] != ev_before        # line number refreshed
+    assert res.inserted == 0 and res.updated >= 1        # an update, not a new insert
+
+
+def test_reconcile_is_scope_confined(tmp_path) -> None:
+    _build_fixture(tmp_path)
+    db_path = tmp_path / "report.db"
+    agent = _agent(tmp_path)
+
+    # Seed an OPEN finding for a path OUTSIDE the analyzed 'pkg/' sub-tree.
+    init_memory_db(db_path)
+    outside_fp = finding_fingerprint("other/mod.py", "todo", "# TODO: external")
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT INTO self_analysis_report (target_path, finding_type, evidence, fingerprint) "
+            "VALUES ('other/mod.py', 'todo', 'TODO marker at line 1', ?)",
+            (outside_fp,),
+        )
+
+    agent.write_report(list(agent.analyze().findings))  # analyzes 'pkg' only
+
+    outside = [r for r in agent.read_findings(limit=1000) if r["target_path"] == "other/mod.py"]
+    assert len(outside) == 1 and outside[0]["status"] == "open"  # untouched by an out-of-scope run
+
+
+def test_migration_adds_fingerprint_to_legacy_db(tmp_path) -> None:
+    db_path = tmp_path / "legacy.db"
+    # Build a PR#4-shaped table WITHOUT the fingerprint column + a legacy open row
+    # and a legacy decided row.
+    conn = connect(db_path)
+    conn.executescript(
+        "CREATE TABLE self_analysis_report ("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+        " target_path TEXT NOT NULL, finding_type TEXT NOT NULL, evidence TEXT NOT NULL,"
+        " llm_commentary TEXT, proposed_zone TEXT, proposed_diff TEXT,"
+        " status TEXT NOT NULL DEFAULT 'open', applied_audit_id INTEGER);"
+        "INSERT INTO self_analysis_report (target_path, finding_type, evidence) "
+        "VALUES ('legacy/x.py', 'todo', 'old open row');"
+        "INSERT INTO self_analysis_report (target_path, finding_type, evidence, status) "
+        "VALUES ('legacy/y.py', 'smell', 'kept decided row', 'proposed');"
+    )
+    conn.commit()
+    conn.close()
+
+    init_memory_db(db_path)  # runs the migration
+
+    with get_connection(db_path) as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(self_analysis_report)")}
+        assert "fingerprint" in cols
+        paths = {
+            r["target_path"]: r["status"]
+            for r in conn.execute("SELECT target_path, status FROM self_analysis_report")
+        }
+    # The legacy OPEN row (NULL fingerprint) is dropped; the DECIDED one is kept.
+    assert "legacy/x.py" not in paths
+    assert paths.get("legacy/y.py") == "proposed"
+
+    # A subsequent write_report works against the MIGRATED DB (legacy.db).
+    _build_fixture(tmp_path)
+    agent = SelfAnalysisAgent(
+        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
+        path_root=tmp_path, db_path=db_path,
+    )
+    res = agent.write_report(list(agent.analyze().findings))
+    assert res.inserted > 0
 
 
 # --------------------------------------------------------------------------- #

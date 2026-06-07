@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS self_analysis_report (
     target_path      TEXT NOT NULL,   -- file analysed (project-relative)
     finding_type     TEXT NOT NULL,   -- 'missing_test'|'smell'|'todo'|'complexity'|...
     evidence         TEXT NOT NULL,   -- deterministic fact: LOC, line refs, counts
+    fingerprint      TEXT,            -- stable logical identity (sha256 path|type|symbol); NULL on legacy rows
     llm_commentary   TEXT,            -- model opinion, EXPLICITLY non-authoritative
     proposed_zone    TEXT,            -- 'GREEN'|'YELLOW'|'RED' if a fix were applied (T2)
     proposed_diff    TEXT,            -- unified diff, NULL until tier T2

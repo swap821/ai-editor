@@ -65,9 +65,38 @@ def get_connection(
 def init_memory_db(db_path: Path = config.MEMORY_DB_PATH) -> None:
     """Create all memory-layer tables and indexes if absent (idempotent).
 
-    Reads ``schema.sql`` and executes it as a script. Re-running is safe because
-    every statement uses ``IF NOT EXISTS``.
+    Reads ``schema.sql`` and executes it as a script, then applies in-place
+    :func:`_migrate` steps for columns/indexes that ``CREATE TABLE IF NOT EXISTS``
+    cannot add to a pre-existing table. Re-running is safe.
     """
     schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
     with get_connection(db_path) as conn:
         conn.executescript(schema_sql)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Idempotent, in-place schema migrations for already-existing databases.
+
+    ``CREATE TABLE IF NOT EXISTS`` is a no-op on an existing table, so a column
+    added to ``schema.sql`` after a DB was first created must be applied with
+    ``ALTER TABLE`` here. Runs inside the caller's transaction (after the script).
+    """
+    # self_analysis_report.fingerprint (added post-PR#4 for finding reconcile).
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(self_analysis_report)")}
+    if cols and "fingerprint" not in cols:
+        conn.execute("ALTER TABLE self_analysis_report ADD COLUMN fingerprint TEXT")
+        # Pre-migration 'open' rows carry no fingerprint and are deterministically
+        # regenerable on the next scan; drop them so the open set stays clean.
+        # NEVER touch decided rows (proposed/approved/applied/...): that is lineage.
+        conn.execute(
+            "DELETE FROM self_analysis_report WHERE status = 'open' AND fingerprint IS NULL"
+        )
+    # Enforce the invariant — at most one OPEN row per fingerprint. Created HERE
+    # (not in schema.sql) so it runs only after the column is guaranteed to exist on
+    # both fresh and migrated DBs. (``cols`` is empty only if the table is somehow
+    # absent after executescript — the ``if cols`` guard above is harmless defense.)
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_sar_open_fp "
+        "ON self_analysis_report(fingerprint) WHERE status = 'open'"
+    )

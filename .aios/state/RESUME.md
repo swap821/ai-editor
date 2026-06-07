@@ -28,12 +28,44 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ ACTIVE 2026-06-07 (resumed). Operator gave the GO for the whole pre-T2 runway in my recommended
+**▶ LATEST 2026-06-07: PRE-T2 RUNWAY (a) — FINGERPRINT-RECONCILE FOR `self_analysis_report` — DONE &
+GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+Implemented `.aios/state/ULTRACODE_TASK.md` directly in Claude Code (operator asked me to build it, not
+ultracode this time). THE NIT IT KILLS: PR#4's `write_report` did a plain INSERT per finding at
+`status='open'`, so every `self_analyze` re-run piled up DUPLICATE open rows — T2 would then propose the
+same fix N times. FIX: each `Finding` now carries a line-number-free `symbol` (func name / trimmed TODO
+text / "" for one-per-module), and `finding_fingerprint = sha256(target_path\x1f finding_type\x1f symbol)`
+gives a STABLE identity across runs (evidence/line numbers refresh; fingerprint doesn't).
+`write_report` is now a SCOPE-CONFINED RECONCILE (→ `ReconcileResult{inserted,updated,closed,skipped,
+open_total}`): decided rows (proposed/approved/applied/rejected/rolled_back) are SKIPPED (never
+re-opened/duped); a matching open row is UPDATED (evidence refreshed); a new finding is INSERTED;
+a vanished open finding is CLOSED (deleted — open rows are undecided + regenerable; decided rows are
+NEVER deleted = the audit/decision lineage). Schema: `fingerprint TEXT` column added after `evidence`;
+`db.py` gained an idempotent `_migrate` (ALTER ADD COLUMN on legacy DBs + DROP legacy open NULL-fp rows
++ a UNIQUE partial index `idx_sar_open_fp ON (fingerprint) WHERE status='open'` — created in `_migrate`,
+not schema.sql, so it runs only after the column exists on fresh+migrated DBs). `_self_analyze` summary
+now reports `{open_total} open ({inserted} new, {closed} resolved)` (kept the `Self-analysis of '{path}'`
++ `finding(s)` substrings a test pins). `analyze()` stays PURE/read-only; `aios/security/` untouched;
+NO frontend change (per spec). **Verified:** full suite `172 passed, 4 skipped, 2 failed` — the 2 are
+the SAME pre-existing/environmental `test_security.py` cases (confirmed identical with my changes
+stashed). +6 reconcile tests (idempotent re-run · don't-reopen-decided · close-vanished · fingerprint-
+stable-when-TODO-moves · scope-confined · legacy-DB migration) + the persistence test updated. **Real-
+path smoke:** ran `self_analyze` over the live `aios/` TWICE → run1 inserted 45 / run2 inserted 0,
+updated 45, 45 unique fingerprints = 45 rows (NO dup accumulation). **NEXT:** operator reviews/merges
+this draft PR; then runway **(b)** static tooling (radon cyclomatic + coverage.py join; heavy/new-deps →
+ultracode job, spec issued after this merges so it reflects the reconcile shape), **(c)** golden-
+regression harness, **(d)** doc the frozen core in CLAUDE.md (§VIII: I PROPOSE the diff, operator
+approves) → **T2** (propose-diff, YELLOW + no-self-approval guard + two-snapshot check, §6.3) → T3 → T4.
+Also still queued: the `create_file` tool spec (`.aios/state/ULTRACODE_NEXT_create_file.md`) — both it
+and (b) touch `tool_agent.py`, so rebase to keep diffs clean.
+
+**▶ PRIOR 2026-06-07 (resumed). Operator gave the GO for the whole pre-T2 runway in my recommended
 order: (a) report-row hygiene → (b) coverage/radon → (c) golden tests → (d) doc frozen core → T2 → T3
 → T4.** WORKING MODEL set this session: **ultracode (Claude-web) BUILDS the heavy items; Claude Code
 (local) REVIEWS its PR on evidence + MERGES** — the proven #1–#4 loop. HONESTY (CLAUDE.md §0/§X): I
 cannot launch ultracode or `/code-review ultra` myself (operator's browser/billed action); my half is
-the airtight spec + the evidence review + the merge.
+the airtight spec + the evidence review + the merge. (NOTE: for (a) the operator routed the build to me
+directly — done above.)
 **TWO PARALLEL TRACKS (decided this session):**
 - **BUILD track (ultracode builds → I review+merge):** **(a) fingerprint-reconcile** spec at
   `.aios/state/ULTRACODE_TASK.md` is pushed (origin `6615717`) — operator launches ultracode on it →
@@ -351,8 +383,8 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Self-Analysis T0/T1 increment — MERGED to `master` via PR #4 `4cb01b6`:)
-- `aios/agents/self_analysis_agent.py` (NEW — `SelfAnalysisAgent`: T0 `ModuleFacts`/import-map + T1 deterministic `Finding`s; `analyze()` pure read-only, `write_report()`/`read_findings()` persist) · `aios/memory/schema.sql` (+`self_analysis_report` table + 2 indexes, idempotent) · `aios/agents/tool_agent.py` (+`self_analyze` TOOL_SPECS/_dispatch/`_self_analyze`, path confined via `_resolve_within`) · `frontend/src/components/MessageBubble.jsx` (TOOL_META 🔬 entry) · `tests/test_self_analysis.py` (NEW — 7 tests)
+## Active files  (Runway (a) fingerprint-reconcile — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/agents/self_analysis_agent.py` (`Finding`+`symbol`, module-level `finding_fingerprint`, new `ReconcileResult`, `write_report` rewritten as a scope-confined reconcile) · `aios/memory/schema.sql` (+`fingerprint` column after `evidence`) · `aios/memory/db.py` (+idempotent `_migrate`: ALTER ADD COLUMN + drop legacy open NULL-fp rows + UNIQUE partial index `idx_sar_open_fp`) · `aios/agents/tool_agent.py` (`_self_analyze` summary uses `ReconcileResult`) · `tests/test_self_analysis.py` (persistence test updated + 6 reconcile tests). NO frontend change.
 - (all merged:) verify tool (PR #1) · planner/plan tool (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4).
 
 ## Notes not yet promoted to memory
@@ -360,4 +392,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-07 by Claude Code (PARKED ~97% usage, resume ~21:00; PR #4 Self-Analysis T0/T1 merged to master, 171/1, brain pushed)_
+_Last updated: 2026-06-07 by Claude Code (runway (a) fingerprint-reconcile for self_analysis_report — draft PR, 172/4/2)_
