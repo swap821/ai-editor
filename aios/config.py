@@ -101,6 +101,11 @@ MEMORY_DB_PATH: Final[Path] = DATA_DIR / "aios_memory.db"
 AUDIT_DB_PATH: Final[Path] = DATA_DIR / "aios_audit.db"
 #: On-disk FAISS index for semantic/episodic embeddings.
 FAISS_INDEX_PATH: Final[Path] = DATA_DIR / "vector_index.faiss"
+#: Git database for the rollback engine's snapshots. Kept UNDER the gitignored
+#: DATA_DIR — never inside the tracked sandbox work-tree — so snapshot commits are
+#: local scratch state (like the rest of ``data/``) and never reach the project
+#: repo. The sandbox stays the git *work-tree*; only its git *database* moves here.
+ROLLBACK_DIR: Final[Path] = _env_path("AIOS_ROLLBACK_DIR", DATA_DIR / "rollback")
 
 # --------------------------------------------------------------------------- #
 # Embeddings
@@ -223,6 +228,7 @@ __all__ = [
     "MEMORY_DB_PATH",
     "AUDIT_DB_PATH",
     "FAISS_INDEX_PATH",
+    "ROLLBACK_DIR",
     "EMBEDDING_MODEL",
     "EMBEDDING_DIM",
     "RETRIEVAL_ALPHA_BM25",

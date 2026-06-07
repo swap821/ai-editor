@@ -19,6 +19,13 @@ htmlcov/
 data/
 !data/.gitkeep
 
+# --- Rollback engine scratch inside the sandbox work-tree ---
+# The rollback git DATABASE lives under data/ (above); only a tiny gitdir pointer
+# and a .gitkeep land in the tracked sandbox. They are local scratch state, never
+# committed to the project repo.
+training_ground/.git
+training_ground/.gitkeep
+
 # --- Claude Code build-continuity brain ---
 # Keep the brain + handoff (RESUME.md, memory logs) tracked for continuity,
 # but the session id is machine-specific and script-written.
