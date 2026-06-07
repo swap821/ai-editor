@@ -28,7 +28,33 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**LATEST (2026-06-07): VERIFIER WIRED INTO THE LIVE LOOP — DONE & GREEN (branch
+**LATEST (2026-06-07): PLANNER + CONFIDENCE GATE WIRED INTO THE LIVE LOOP — DONE & GREEN
+(branch `claude/sharp-heisenberg-q2C1L`, draft PR #2 → operator review → merge → `git pull`).**
+AUDIT Tier-1 #2, mirroring the merged `verify` pattern (PR #1). Added a `plan` tool to
+`aios/agents/tool_agent.py`: new TOOL_SPECS entry (one `goal` param) routed in `_dispatch`
+to `_plan`, backed by `Planner(planner_llm)` built ONCE in `__init__` (reuses `planner.py`,
+not rewritten). **CRITICAL client split honored:** the Planner needs a COMPLETION client
+(`.complete()`), NOT the loop's chat client `self.llm` (may be cloud Bedrock, no
+`.complete()`) — so `ToolAgent.__init__` takes an injected `planner_llm: Optional[LLMClient]`,
+and `main.py /api/generate` passes it via `Depends(get_llm_client)` (the local completion
+model, same dep `/api/v1/plan` + reflection use). `_plan` is ADVISORY + fail-soft: no planner
+→ `[plan unavailable]`; `PlannerError` → `[plan error] …`; success → ordered steps w/
+confidences + an explicit "N step(s) need human review (confidence < 0.72): …" section when
+`requires_human`. ALWAYS status `ok`, `failed=False` — planning is never a security block and
+never reflected on; real actions still pass the gate + approval. Did NOT auto-plan per turn,
+did NOT pause-on-`requires_human` (out of scope). Frontend: one additive `plan` TOOL_META
+entry (📋 "Plan"). +4 tests in `tests/test_tool_agent.py` (lists steps · flags <0.72 step ·
+PlannerError surfaced cleanly, no reflect · graceful unavailable + loop still `done`).
+**Verified this env:** backend `152 passed, 4 skipped, 2 failed` — the 2 fails are the SAME
+PRE-EXISTING + ENVIRONMENTAL `test_security.py` cases (Windows `C:\…` path + a random
+`/tmp/pytest-…` dir tripping the entropy scanner; identical with my changes stashed; Windows
+baseline 153/1). Frontend **vitest 9/9 + build + eslint all green** (deps installed this run).
+**NEXT:** operator reviews/merges PR #2, then (3) rollback nested-`.git` + DATA_DIR isolation,
+(4) static tooling + golden tests + pull `qwen2.5-coder:7b`, (5) **Self-Analysis module** (now
+fully unblocked: plan-before-act + verify-after both live → apply→verify→auto-rollback has its
+pieces).
+
+**(prior 2026-06-07): VERIFIER WIRED INTO THE LIVE LOOP — DONE & GREEN (branch
 `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
 Closed the AUDIT.md KEY GAP (Verifier built but "wired to nothing"). Added a `verify`
 tool to `aios/agents/tool_agent.py`: a new TOOL_SPECS entry (one `command` param) routed
@@ -206,9 +232,9 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Verifier-wiring increment — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/agents/tool_agent.py` (verify tool + Verifier wired) · `tests/test_tool_agent.py` (+3 verify tests) · `frontend/src/components/MessageBubble.jsx` (TOOL_META verify entry)
-- (Phase 4h, prior:) `aios/api/main.py` · `tests/test_api.py` · `frontend/src/App.jsx`
+## Active files  (Planner-wiring increment — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/agents/tool_agent.py` (plan tool + Planner wired, COMPLETION client injected) · `aios/api/main.py` (`planner_llm=Depends(get_llm_client)` into ToolAgent) · `tests/test_tool_agent.py` (+4 plan tests + FakePlannerLLM) · `frontend/src/components/MessageBubble.jsx` (TOOL_META plan entry)
+- (prior verify increment, merged PR #1:) same files + `verify` tool/tests.
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.

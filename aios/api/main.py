@@ -575,6 +575,7 @@ def generate(
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
     snapshot: Callable[..., object] = Depends(get_edit_snapshot),
+    planner_llm: LLMClient = Depends(get_llm_client),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -650,6 +651,10 @@ def generate(
             approved_commands=req.approved_commands,
             approved_edits=req.approved_edits,
             snapshot=snapshot,
+            # The Planner needs a COMPLETION client (.complete()); pass the local
+            # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
+            # so planning always uses the local completion model.
+            planner_llm=planner_llm,
         )
         answer_parts: list[str] = []
         for ev in agent.run(chat_messages):
