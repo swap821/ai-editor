@@ -28,6 +28,23 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
+**▶ CURRENT (2026-06-07, post-/clear resume point): AUDIT Tiers 1 & 2 COMPLETE + merged to
+`master` (@ `e29e3f6`); full suite 164 passed, 1 skipped.** Live loop now does plan → act
+(gated+approved) → verify → reflect → audit, on an out-of-tree rollback engine with isolated
+tests. **NEXT ACTION:** the **T0/T1 Self-Analysis** ultracode prompt is DELIVERED; operator is
+firing it in Claude-web. **When the PR lands (cloud reuses branch `claude/sharp-heisenberg-q2C1L`),
+review on evidence:** `& "C:\Program Files\GitHub CLI\gh.exe" pr checkout <n>` → `.venv\Scripts\python
+-m pytest -q` (expect 164 + new self-analysis tests) → confirm READ-ONLY (no source edits; writes to
+the `self_analysis_report` table only; path-escape refused) + frozen core untouched → `gh pr merge <n>
+--squash --delete-branch` → `git checkout master; git pull` → re-run suite → append an Experience
+Object + push the brain. T0/T1 scope = `aios/agents/self_analysis_agent.py` (AST index/map + diagnose:
+missing_test/smell/todo) + `self_analysis_report` SQLite table (assessment §6.4) + a read-only
+`self_analyze` loop tool; full prompt regenerable from AUDIT Tier-4 + `aiosv6_assessment_text.md` §6.
+After T0/T1: T2 (propose diff, YELLOW) → T3 (apply: snapshot→verify→auto-rollback) → T4 (core edit,
+RED, frozen). Workflow: ultracode builds → PR → I review on Windows → squash-merge → pull → brain-log.
+**Role: I am CEO + Chief Architect — decide & drive (see memory `ceo-role-daily-advice`).**
+
+--- (history below; newest first) ---
 **LATEST (2026-06-07): TIER-2 HARDENING — ROLLBACK GIT-DB OUT-OF-TREE (#3) + TEST DATA_DIR
 ISOLATION (#4) — DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator
 review → merge → `git pull`).** Cleared the two AUDIT.md Tier-2 structural-debt items in ONE
