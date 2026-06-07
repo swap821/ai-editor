@@ -34,12 +34,26 @@ order: (a) report-row hygiene → (b) coverage/radon → (c) golden tests → (d
 (local) REVIEWS its PR on evidence + MERGES** — the proven #1–#4 loop. HONESTY (CLAUDE.md §0/§X): I
 cannot launch ultracode or `/code-review ultra` myself (operator's browser/billed action); my half is
 the airtight spec + the evidence review + the merge.
-**SINGLE NEXT ACTION:** the **(a) fingerprint-reconcile** spec is written to
-`.aios/state/ULTRACODE_TASK.md` (full design + file-by-file changes + migration ordering + 7-test
-matrix + acceptance). Operator runs it in ultracode → a PR appears → I `gh pr checkout`, run the suite
-on the real Windows baseline (171/1 + new tests), re-prove read-only + frozen core untouched, then
-squash-merge + reset onto origin/master. (d) is a §VIII change → I PROPOSE the CLAUDE.md diff, operator
-approves. `git status` noise (`training_ground/data.json` + the PDF + 4 parked CSS) is expected, not drift.
+**TWO PARALLEL TRACKS (decided this session):**
+- **BUILD track (ultracode builds → I review+merge):** **(a) fingerprint-reconcile** spec at
+  `.aios/state/ULTRACODE_TASK.md` is pushed (origin `6615717`) — operator launches ultracode on it →
+  PR → I `gh pr checkout`, run the Windows baseline (171/1 + new), re-prove read-only + frozen core,
+  squash-merge + reset onto origin/master. **Queued next: `create_file` tool** spec at
+  `.aios/state/ULTRACODE_NEXT_create_file.md` — START AFTER (a) MERGES (both touch `tool_agent.py`;
+  rebase to keep the diff clean). Then (b) coverage/radon → (c) golden tests → (d) doc (a §VIII change:
+  I PROPOSE the CLAUDE.md diff, operator approves) → T2→T4.
+- **BREATHE track (the AI-OS dogfoods itself in its sandbox, on Ollama):** seed pair staged
+  (untracked) — `training_ground/greeter.py` (planted bug: `greet()` drops the name) +
+  `training_ground/test_greeter.py` (fails until fixed). Operator runs backend+frontend, picks
+  `qwen2.5-coder:7b`, and drives the full loop: read → (run pytest, fail) → reflect 🧠 → propose
+  `edit_file` diff → APPROVE (YELLOW) → snapshot+write → verify (pass) → lesson promoted. This is the
+  first real breath; it stays OFF the build track's critical path. KEY FACT: the agent can ONLY write
+  inside `training_ground/` (SCOPE_ROOTS); editing its own `aios/` source is auto-RED — that is T2+,
+  the guarded evolution step, NOT a shortcut.
+
+`git status` noise (`training_ground/data.json` + the PDF + 4 parked CSS + the 2 new seed files) is
+expected, not drift. HONESTY (§0): I cannot launch ultracode or the Ollama run — those are the
+operator's physical actions; I spec, stage, watch pasted output, and review+merge.
 
 **▶ CURRENT (2026-06-07): SELF-ANALYSIS MODULE — READ-ONLY FOUNDATION (T0 + T1) — DONE, REVIEWED
 ON EVIDENCE, & MERGED to `master` (PR #4 → squash `4cb01b6`). Full suite 171 passed / 1 skipped
