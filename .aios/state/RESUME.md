@@ -28,6 +28,15 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
+**⏸ PARKED 2026-06-07 (~97% usage; operator plans to resume ~21:00 / 9 PM). CLEAN STOP — nothing in
+flight.** Master is green (171/1) and the brain is pushed to `origin/master`. I cannot self-wake
+(CLAUDE.md §0): the relaunch is the operator reopening the session or the external resume script.
+**On resume:** (1) read this file; (2) `git status` should be clean APART FROM the long-parked
+`training_ground/data.json` (e2e leftover) + 5 untracked files (`"AI-OS v6 Assessment…pdf"` and the 4
+parked `frontend/src/styles/*.css`) — that's expected, not drift; (3) per §III, PROPOSE the single
+next step below (pre-T2 runway item **(a) report-row hygiene**) and **WAIT for the operator's go** —
+do not auto-run.
+
 **▶ CURRENT (2026-06-07): SELF-ANALYSIS MODULE — READ-ONLY FOUNDATION (T0 + T1) — DONE, REVIEWED
 ON EVIDENCE, & MERGED to `master` (PR #4 → squash `4cb01b6`). Full suite 171 passed / 1 skipped
 on Windows; brain pushed.**
@@ -333,4 +342,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-07 by Claude Code (PR #4 review on evidence + squash-merge: Self-Analysis T0/T1 on master, 171/1)_
+_Last updated: 2026-06-07 by Claude Code (PARKED ~97% usage, resume ~21:00; PR #4 Self-Analysis T0/T1 merged to master, 171/1, brain pushed)_
