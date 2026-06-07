@@ -34,6 +34,12 @@ Tools exposed to the model:
     needs a completion-capable LLM (injected separately from the chat client,
     which may be cloud Bedrock with no ``.complete()``); without one it degrades
     to a graceful "unavailable" result.
+  * ``self_analyze``     — read + diagnose this project's OWN codebase (the
+    Self-Analysis module, Tiers T0/T1; Assessment §6). Builds an architecture map
+    and a deterministic diagnostic report (missing tests, smells, TODOs,
+    complexity), writes it to the report table, and returns a summary. Strictly
+    READ-ONLY/GREEN — it never edits source, runs anything, or loads a model — and
+    the analysed ``path`` is confined to the project root like the other reads.
 
 The agent is transport-agnostic: :meth:`ToolAgent.run` *yields* plain event
 dicts so the API layer can forward them as SSE and tests can assert on them
@@ -53,6 +59,7 @@ from aios.core.executor import Executor
 from aios.core.llm import LLMClient, LLMError
 from aios.core.planner import Planner, PlannerError
 from aios.core.verifier import Verifier
+from aios.agents.self_analysis_agent import SelfAnalysisAgent
 from aios.security import scope_lock
 from aios.security.audit_logger import log_action
 from aios.security.gateway import Zone
@@ -228,6 +235,31 @@ TOOL_SPECS: list[dict[str, Any]] = [
                     }
                 },
                 "required": ["goal"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "self_analyze",
+            "description": (
+                "Analyze this project's OWN codebase (read-only): build an "
+                "architecture map + a diagnostic report (missing tests, smells, "
+                "TODOs, complexity). Use to understand or audit the system's own "
+                "code. Never edits or runs anything."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Project-relative directory to analyse. Defaults to the "
+                            "'aios' package. Confined to the project root."
+                        ),
+                    }
+                },
+                "required": [],
             },
         },
     },
@@ -547,6 +579,8 @@ class ToolAgent:
             return self._verify(str(args.get("command", "")))
         if name == "plan":
             return self._plan(str(args.get("goal", "")))
+        if name == "self_analyze":
+            return self._self_analyze(str(args.get("path", "") or "aios"))
         return (f"Unknown tool '{name}'.", "blocked", False)
 
     def _read_file(self, filepath: str) -> tuple[str, str, bool]:
@@ -758,6 +792,49 @@ class ToolAgent:
                 lines.append(
                     f"  - step {step.step_id}: {step.description} ({step.confidence:.2f})"
                 )
+        return ("\n".join(lines), "ok", False)
+
+    def _self_analyze(self, path: str) -> tuple[str, str, bool]:
+        """Read + diagnose the project's own code (Self-Analysis T0/T1); READ-ONLY.
+
+        Confines *path* to the project root with the SAME read-side resolver as
+        ``read_file`` (defeating ``../`` traversal / absolute-path / symlink
+        escape), runs the deterministic :class:`SelfAnalysisAgent` over it, writes
+        the findings to the report table, and returns a concise summary (counts by
+        finding_type + the top findings). It never edits source, runs a command, or
+        loads a model — so it always returns status ``ok`` with ``failed=False``
+        and is never a reflectable failure (a read-only audit is correct behaviour).
+        """
+        resolved = _resolve_within(self.read_root, path)
+        if resolved is None:
+            return (f"[BLOCKED] Path '{path}' escapes the project root.", "blocked", False)
+        if not resolved.is_dir():
+            return (f"[ERROR] Not a directory: {path}", "blocked", False)
+
+        agent = SelfAnalysisAgent(
+            scope_root=resolved,
+            tests_root=self.read_root / "tests",
+            path_root=self.read_root,
+        )
+        try:
+            report = agent.analyze()
+            written = agent.write_report(list(report.findings))
+        except Exception as exc:  # noqa: BLE001 - read-only analysis must never abort the turn
+            return (f"[ERROR] Self-analysis failed: {exc}", "blocked", False)
+
+        counts: dict[str, int] = {}
+        for f in report.findings:
+            counts[f.finding_type] = counts.get(f.finding_type, 0) + 1
+        by_type = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"
+
+        lines = [
+            f"Self-analysis of '{path}': {len(report.modules)} module(s), "
+            f"{len(report.findings)} finding(s) [{by_type}]; {written} written to report.",
+        ]
+        for f in report.findings[:8]:
+            lines.append(f"  - [{f.finding_type}] {f.target_path}: {f.evidence}")
+        if len(report.findings) > 8:
+            lines.append(f"  … and {len(report.findings) - 8} more.")
         return ("\n".join(lines), "ok", False)
 
     def _format_exec_result(self, result: Any) -> tuple[str, str, bool]:

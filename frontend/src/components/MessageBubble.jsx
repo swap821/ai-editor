@@ -13,6 +13,7 @@ const TOOL_META = {
   reflect:          { icon: '🧠', label: 'Lesson learned',   color: '#fbbf24' },
   verify:           { icon: '✅', label: 'Verify',           color: '#22c55e' },
   plan:             { icon: '📋', label: 'Plan',             color: '#38bdf8' },
+  self_analyze:     { icon: '🔬', label: 'Self-analysis',    color: '#2dd4bf' },
 };
 
 /* ─── Agent Step Card ───────────────────────────────────────── */
