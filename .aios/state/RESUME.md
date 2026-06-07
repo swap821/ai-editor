@@ -13,7 +13,7 @@ security-gated, human-supervised, self-correcting.
 ## Status  (read from the CODE, not the blueprint's "~35%")
 - **Reality: the backend is ~75–80% of the blueprint MVP, well past the doc's estimate.**
 - Stack: Python 3.12 `.venv`, FastAPI + uvicorn, SQLite (WAL) + FAISS, Ollama (local LLM). Node backend archived on branch `legacy-node` / tag `legacy-node-v1`.
-- Tests: **94 passed, 1 skipped** (`.venv/Scripts/python -m pytest -q`). The 1 skip = Windows symlink-privilege case (environmental, not a failure).
+- Tests: **171 passed, 1 skipped** (`.venv/Scripts/python -m pytest -q`). The 1 skip = Windows symlink-privilege case (environmental, not a failure).
 - Last completed + verified step: **Phase 4h DONE + premium polish pass DONE.** 4h live-verified (llama3.2:3b): pinned approval bar (YELLOW badge, clean prompt, always-visible Run/Reject). Then a 3-part chat polish on the WORKING components (eslint+build clean each step): #1 message entrance + agent-step cascade + bubble depth (`4f87dbc`); #2 global tactile button press + smooth transitions; #3 chat top scroll-fade (`7099a8a`). All motion gated by prefers-reduced-motion. Live run (llama3.2:3b) showed the card; fixed in sequence: (1) prompt leaked the classifier's raw regex → plain language; (2) step-spinner span forever on pause → `settled` flag; (3) **the Run/Reject buttons were clipped inside the scroll log → re-architected the approval as a PINNED action bar (flex-shrink-0) above the composer, premium-styled (glassmorphism + slide-up + glow), so controls are always visible.** 94 backend tests green; eslint+build clean. Lesson: never put a blocking decision inside a scroll container.
 
 ### BUILT & committed (per-phase commits on `master`)
@@ -28,8 +28,9 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**LATEST (2026-06-07): SELF-ANALYSIS MODULE — READ-ONLY FOUNDATION (T0 + T1) — DONE & GREEN
-(branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+**▶ CURRENT (2026-06-07): SELF-ANALYSIS MODULE — READ-ONLY FOUNDATION (T0 + T1) — DONE, REVIEWED
+ON EVIDENCE, & MERGED to `master` (PR #4 → squash `4cb01b6`). Full suite 171 passed / 1 skipped
+on Windows; brain pushed.**
 The first, zero-risk slice of the AUDIT's marquee feature (Assessment §6). STRICTLY READ-ONLY:
 never edits source, never executes, loads NO model — pure stdlib (`ast`/`pathlib`/`hashlib`/`re`).
 T2 (propose-diff) / T3 (apply) / T4 (core edit) are LATER increments — deliberately NOT built.
@@ -64,11 +65,24 @@ SAME PRE-EXISTING + ENVIRONMENTAL `test_security.py` cases (Windows `C:\…` pat
 **eslint clean + vitest 9/9 + vite build** all green. **Real-path smoke:** ran the analyzer over
 the live `aios/` (31 modules, 41 findings {missing_test 20, complexity 11, smell 5, todo 5}, 65
 intra-package import edges, clean DB round-trip). Frozen security core untouched.
-**NEXT:** operator reviews/merges the draft PR. Then the runway items before T2/T3: static tooling
-(coverage.py + radon — turns the TODO proxies into real metrics) + a golden-regression harness +
-document the frozen core in CLAUDE.md; THEN **T2 (propose-diff, YELLOW + diff preview)** → **T3
-(apply: snapshot → verify → audit → auto-rollback)** → **T4 (core edit, RED, frozen)**. T2+ needs
-the no-self-approval guard in the approval endpoint + the two-snapshot integrity check (§6.3).
+**REVIEW (2026-06-07, Windows, evidence):** checked out PR #4 → full suite **171 passed / 1
+skipped** (164 baseline + 7); frontend **eslint + vitest 9/9 + build** green; **independently
+reproduced** the real-tree smoke (31 modules, 41 findings {missing_test 20, complexity 11, smell 5,
+todo 5}, 65 import edges) AND re-proved READ-ONLY by SHA-256-hashing the live `aios/` tree
+before/after a full `analyze()`+`write_report()` (`REAL_SOURCE_UNCHANGED: True`); confirmed
+`_resolve_within` is the SAME fail-closed resolver `read_file` uses (escape → `tool_blocked`),
+`get_connection` commits, frozen `aios/security/` untouched. Correct as-submitted — no patch needed
+(like PR #3). The one brain-file (RESUME.md) conflict was resolved by merging `origin/master` INTO
+the branch (took ours), pushing, then squash-merging (`gh pr merge 4 --squash --delete-branch`).
+**NEXT ACTION (decide as CEO + Architect — propose ONE, then wait for the go):** the runway before
+T2 — **(a) report-row hygiene** (the only nit that bites T2: live `self_analyze` always INSERTs
+every finding as `open`, so re-runs accumulate duplicate rows → add a scan/run grouping or de-dup
+BEFORE T2 turns findings into proposals); **(b) static tooling** (coverage.py + radon — turn the
+TODO proxies into real metrics + refine the coarse `missing_test` heuristic); **(c) golden-regression
+harness**; **(d) document the frozen core in CLAUDE.md**. THEN **T2 (propose-diff, YELLOW + diff
+preview)** → **T3 (apply: snapshot → verify → audit → auto-rollback)** → **T4 (core edit, RED,
+frozen)**. T2+ also needs the no-self-approval guard in the approval endpoint + the two-snapshot
+integrity check (§6.3).
 
 **(prior 2026-06-07): TIER-2 HARDENING — ROLLBACK GIT-DB OUT-OF-TREE (#3) + TEST DATA_DIR
 ISOLATION (#4) — DONE & GREEN — MERGED (PR #3).** Cleared the two AUDIT.md Tier-2 structural-debt
@@ -310,13 +324,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Self-Analysis T0/T1 increment — on branch `claude/sharp-heisenberg-q2C1L`:)
+## Active files  (Self-Analysis T0/T1 increment — MERGED to `master` via PR #4 `4cb01b6`:)
 - `aios/agents/self_analysis_agent.py` (NEW — `SelfAnalysisAgent`: T0 `ModuleFacts`/import-map + T1 deterministic `Finding`s; `analyze()` pure read-only, `write_report()`/`read_findings()` persist) · `aios/memory/schema.sql` (+`self_analysis_report` table + 2 indexes, idempotent) · `aios/agents/tool_agent.py` (+`self_analyze` TOOL_SPECS/_dispatch/`_self_analyze`, path confined via `_resolve_within`) · `frontend/src/components/MessageBubble.jsx` (TOOL_META 🔬 entry) · `tests/test_self_analysis.py` (NEW — 7 tests)
-- (prior, merged:) verify tool (PR #1) · planner/plan tool (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3).
+- (all merged:) verify tool (PR #1) · planner/plan tool (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-07 by Claude Code (Self-Analysis module: read-only T0/T1 foundation)_
+_Last updated: 2026-06-07 by Claude Code (PR #4 review on evidence + squash-merge: Self-Analysis T0/T1 on master, 171/1)_
