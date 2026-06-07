@@ -28,7 +28,41 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-07: PRE-T2 RUNWAY (a) — FINGERPRINT-RECONCILE FOR `self_analysis_report` — MERGED to
+**▶ LATEST 2026-06-07: `create_file` TOOL — author NEW files in the sandbox, behind the same human gate —
+DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+Implemented `.aios/state/ULTRACODE_NEXT_create_file.md` directly in Claude Code. THE GAP IT FILLS: the
+agent could MODIFY files (`edit_file`, search/replace needs a non-empty `old_string`) but could not
+AUTHOR a new one — blocking it from writing new tests/modules even in its sandbox. `create_file` adds
+that behind the SAME gate as `edit_file` (NOT a new security path):
+- **Scope-locked** to `config.SCOPE_ROOTS` via the same `is_path_in_scope(read_root/filepath)` check;
+  a `../`/abs/symlink escape (`_resolve_within` → None) or any out-of-sandbox path (e.g. `aios/x.py`)
+  is REFUSED, even with an approval supplied. **Refuses to overwrite** an existing file → error pointing
+  to `edit_file` (create_file is for NEW paths only).
+- **YELLOW + paused**: an unapproved create pauses with a `human_required` carrying an all-additions diff
+  preview (`difflib.unified_diff([], content, fromfile="/dev/null", tofile=...)`) + a `{filepath,content}`
+  creation payload; resumes only when re-sent with `approvedCreations` (keyed by filepath → apply EXACTLY
+  the approved content, robust to model drift on replay — same lesson as `edit_file`).
+- **Snapshot + audit FIRST, both fail-closed**, then write (mirrors `_edit_file`): pre-create snapshot
+  ("before" = file absent, so rollback deletes it), `log_action("CREATE: …", YELLOW)`, then `mkdir(parents)`
+  within scope + `write_text`. A snapshot OR audit failure → blocked, file NOT created.
+**Files:** `tool_agent.py` (TOOL_SPECS `create_file` + docstring; `__init__` `approved_creations` map;
+`_dispatch` route; `run()` approval branch carrying `creation`+`diff`; new `_create_file`) · `api/main.py`
+(`approvedCreations` request field → `ToolAgent`; `human_required` handler `creation` branch → `input.creations`
++ diff) · `frontend/src/App.jsx` (`approvedCreations` state + `streamGenerate` 4th arg/body + approve/reject/
+send wiring; approve button reads "Create file") · `MessageBubble.jsx` (🆕 TOOL_META + ✏️ edit_file) ·
+`DiffView` reused for the all-additions preview. **NO `aios/security/` change.** **Verified:** full suite
+`180 passed, 4 skipped, 2 failed` — the 2 are the SAME pre-existing/environmental `test_security.py` cases
+(confirmed identical with changes stashed). +8 backend create tests (pause-with-preview · apply-approved+
+snapshot despite drift · audit-applied · refuse-existing · out-of-scope blocked · `../` escape blocked ·
+fail-closed on audit AND snapshot). Frontend **eslint clean + vitest 10/10** (+1 DiffView all-additions
+test) **+ vite build** green. Smoke: `GenerateRequest(approvedCreations=…)` + `ToolAgent(approved_creations=…)`
+wire cleanly; `create_file` in TOOL_SPECS. **NEXT:** operator reviews/merges this draft PR. Then runway
+**(b)** static tooling (radon cyclomatic + coverage.py join; heavy/new-deps → ultracode, spec issued after
+this so it reflects current shape) → **(c)** golden-regression harness → **(d)** doc frozen core in
+CLAUDE.md (§VIII: I PROPOSE the diff, operator approves) → **T2** (propose-diff, YELLOW + no-self-approval
+guard + two-snapshot check, §6.3) → T3 → T4.
+
+**▶ PRIOR 2026-06-07: PRE-T2 RUNWAY (a) — FINGERPRINT-RECONCILE FOR `self_analysis_report` — MERGED to
 `master` (`17d96f5`, PR #5); suite 177 passed / 1 skipped on Windows; reviewed on evidence (no patch).**
 Implemented `.aios/state/ULTRACODE_TASK.md` directly in Claude Code (operator asked me to build it, not
 ultracode this time). THE NIT IT KILLS: PR#4's `write_report` did a plain INSERT per finding at
@@ -381,13 +415,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Runway (a) fingerprint-reconcile — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/agents/self_analysis_agent.py` (`Finding`+`symbol`, module-level `finding_fingerprint`, new `ReconcileResult`, `write_report` rewritten as a scope-confined reconcile) · `aios/memory/schema.sql` (+`fingerprint` column after `evidence`) · `aios/memory/db.py` (+idempotent `_migrate`: ALTER ADD COLUMN + drop legacy open NULL-fp rows + UNIQUE partial index `idx_sar_open_fp`) · `aios/agents/tool_agent.py` (`_self_analyze` summary uses `ReconcileResult`) · `tests/test_self_analysis.py` (persistence test updated + 6 reconcile tests). NO frontend change.
-- (all merged:) verify tool (PR #1) · planner/plan tool (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4).
+## Active files  (`create_file` tool — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/agents/tool_agent.py` (TOOL_SPECS `create_file` + docstring · `__init__` `approved_creations` map · `_dispatch` route · `run()` approval branch carrying `creation`+`diff` · new `_create_file` mirroring `_edit_file`) · `aios/api/main.py` (`approvedCreations` request field → ToolAgent; `human_required` `creation` branch) · `frontend/src/App.jsx` (`approvedCreations` state + `streamGenerate` arg/body + approve/reject/send wiring + button label) · `frontend/src/components/MessageBubble.jsx` (🆕 create_file + ✏️ edit_file TOOL_META) · `frontend/src/components/DiffView.test.jsx` (+all-additions test) · `tests/test_tool_agent.py` (+8 create_file tests). NO `aios/security/` change.
+- (all merged:) verify tool (PR #1) · planner/plan tool (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-07 by Claude Code (runway (a) fingerprint-reconcile for self_analysis_report — draft PR, 172/4/2)_
+_Last updated: 2026-06-07 by Claude Code (create_file tool — gated new-file authoring in the sandbox — draft PR, 180/4/2)_

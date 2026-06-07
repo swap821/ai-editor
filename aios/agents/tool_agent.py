@@ -22,6 +22,11 @@ Tools exposed to the model:
     locked to the executor's roots; shows a unified diff and pauses for approval
     (YELLOW); an approved edit (passed back in ``approved_edits``) is snapshotted,
     written, and audited.
+  * ``create_file``      — author a NEW file in the sandbox. Same human gate as
+    ``edit_file``: scope-locked, shows an all-additions preview and pauses for
+    approval (YELLOW); an approved creation (passed back in ``approved_creations``)
+    is snapshotted + audited, then written. Refuses to overwrite an existing file
+    (use ``edit_file`` for that).
   * ``verify``           — run a verification command (e.g. the test suite)
     through the SAME gated Executor and judge pass/fail by exit code + parsed
     counts (blueprint stage 8). Fail-closed — a blocked, timed-out, or non-zero
@@ -198,6 +203,36 @@ TOOL_SPECS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "create_file",
+            "description": (
+                "Create a NEW file in the sandbox with the given content. Shows a "
+                "preview and pauses for human approval before writing (caution-"
+                "level); never overwrites an existing file — use edit_file to "
+                "modify one. Confined to the sandbox playground (training_ground/)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {
+                        "type": "string",
+                        "description": (
+                            "Project-relative path of the NEW file to create (e.g. "
+                            "training_ground/test_new.py). Must be inside the sandbox "
+                            "playground (training_ground/); paths outside it are blocked."
+                        ),
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The full text body of the new file.",
+                    },
+                },
+                "required": ["filepath", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "verify",
             "description": (
                 "Run a verification command (e.g. the test suite) to confirm the "
@@ -331,6 +366,7 @@ class ToolAgent:
         prior_lesson_ids: Optional[list[int]] = None,
         approved_commands: Optional[list[str]] = None,
         approved_edits: Optional[list[dict[str, str]]] = None,
+        approved_creations: Optional[list[dict[str, str]]] = None,
         snapshot: Optional[Callable[..., Any]] = None,
         audit_log: Optional[Callable[..., object]] = None,
         planner_llm: Optional[LLMClient] = None,
@@ -372,6 +408,16 @@ class ToolAgent:
                 str(e.get("new_string", "")),
             )
             for e in (approved_edits or [])
+        }
+        #: New files a human has authorised this turn, keyed by **filepath** ->
+        #: ``content``. Keyed by filepath (not the full pair) for the same reason as
+        #: ``approved_edits``: on the replayed turn we write exactly the content the
+        #: human approved, not the model's possibly-drifted regeneration. An
+        #: unapproved ``create_file`` pauses with a preview; an approved one is
+        #: snapshotted + audited, then written.
+        self.approved_creations: dict[str, str] = {
+            str(c.get("filepath", "")): str(c.get("content", ""))
+            for c in (approved_creations or [])
         }
         #: Optional pre-write snapshot hook (e.g. ``RollbackEngine.create_snapshot``)
         #: called before an approved edit is written, so it stays revertible.
@@ -459,6 +505,17 @@ class ToolAgent:
                             "filepath": str(args.get("filepath", "")),
                             "old_string": str(args.get("old_string", "")),
                             "new_string": str(args.get("new_string", "")),
+                        }
+                    elif name == "create_file":
+                        # Surface the new file + its all-additions diff for the UI,
+                        # and the {filepath, content} pair so the frontend can re-send
+                        # it as an approved creation (the create analog of an edit).
+                        event["command"] = f"create {args.get('filepath', '')}"
+                        event["filepath"] = str(args.get("filepath", ""))
+                        event["diff"] = output
+                        event["creation"] = {
+                            "filepath": str(args.get("filepath", "")),
+                            "content": str(args.get("content", "")),
                         }
                     yield event
                     return
@@ -574,6 +631,11 @@ class ToolAgent:
                 str(args.get("filepath", "")),
                 str(args.get("old_string", "")),
                 str(args.get("new_string", "")),
+            )
+        if name == "create_file":
+            return self._create_file(
+                str(args.get("filepath", "")),
+                str(args.get("content", "")),
             )
         if name == "verify":
             return self._verify(str(args.get("command", "")))
@@ -703,6 +765,95 @@ class ToolAgent:
         except Exception as exc:  # noqa: BLE001 - report write failures cleanly
             return (f"[ERROR] Could not write {filepath}: {exc}", "blocked", False)
         return (f"Edited {filepath}:\n{scrubbed}", "ok", False)
+
+    def _create_file(self, filepath: str, content: str) -> tuple[str, str, bool]:
+        """Author a NEW file in the sandbox, gated by human approval.
+
+        Mirrors :meth:`_edit_file`'s security exactly — scope-locked to the sandbox
+        roots (a ``../`` / absolute / symlink escape or any out-of-sandbox path is
+        refused, never written), an unapproved create pauses the turn (``approval``)
+        carrying an all-additions diff preview, and an approved create (listed in
+        ``approved_creations``) is snapshotted + audited FIRST (both fail-closed),
+        then written. Refuses to overwrite: ``create_file`` is for NEW paths only —
+        an existing file must go through ``edit_file``.
+        """
+        approved = self.approved_creations.get(filepath)
+        if approved is not None:
+            # Write EXACTLY the content the human approved, not the model's possibly
+            # re-generated content on the replayed turn (robust resume for new files).
+            content = approved
+
+        resolved = _resolve_within(self.read_root, filepath)
+        if resolved is None:
+            return (f"[BLOCKED] Path '{filepath}' escapes the project root.", "blocked", False)
+        # Same containment check edit_file uses: resolve project-relative, then a
+        # pure scope test against the sandbox roots (out-of-sandbox -> refused).
+        scope = scope_lock.is_path_in_scope(str(self.read_root / filepath))
+        if not scope.in_scope:
+            roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())
+            return (
+                f"[BLOCKED] '{filepath}' is outside the editable sandbox scope ({roots}).",
+                "blocked",
+                False,
+            )
+        target = Path(scope.resolved)
+        if target.exists():
+            return (
+                f"[ERROR] {filepath} already exists; use edit_file to modify it "
+                "(create_file only authors new files).",
+                "blocked",
+                False,
+            )
+
+        # An all-additions unified diff ("" -> content) for the approval preview.
+        diff = "".join(
+            difflib.unified_diff(
+                [],
+                content.splitlines(keepends=True),
+                fromfile="/dev/null",
+                tofile=f"b/{filepath}",
+            )
+        )
+        scrubbed = scan_and_redact(diff).scrubbed
+
+        if approved is None:
+            # Unapproved: pause the turn for human approval, showing the new content.
+            return (scrubbed or "(empty file)", "approval", False)
+
+        # Approved. Capture the pre-create snapshot and audit the intent FIRST —
+        # both fail-closed: if either fails the file is NOT created (no unprotected
+        # and no unlogged write). The snapshot's "before" has the file absent, so a
+        # rollback correctly deletes it.
+        if self.snapshot is not None:
+            try:
+                self.snapshot(f"pre-create: {filepath}")
+            except Exception as exc:  # noqa: BLE001 - fail-closed: no snapshot, no create
+                return (
+                    f"[BLOCKED] Pre-create snapshot failed; file not created: {exc}",
+                    "blocked",
+                    False,
+                )
+        try:
+            self._audit("tool-agent", f"CREATE: {filepath}", Zone.YELLOW)
+        except Exception as exc:  # noqa: BLE001 - fail-closed: no audit, no create
+            return (
+                f"[BLOCKED] Audit failed; file not created: {exc}",
+                "blocked",
+                False,
+            )
+        try:
+            # Parent dirs are inside the verified-in-scope target, so creating them
+            # cannot escape the sandbox.
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001 - report write failures cleanly
+            return (f"[ERROR] Could not create {filepath}: {exc}", "blocked", False)
+        n_lines = content.count("\n") + (0 if content.endswith("\n") or not content else 1)
+        return (
+            f"Created {filepath} ({len(content)} bytes, {n_lines} line(s)):\n{scrubbed}",
+            "ok",
+            False,
+        )
 
     def _verify(self, command: str) -> tuple[str, str, bool]:
         """Run *command* as a verification through the Verifier; map its verdict.

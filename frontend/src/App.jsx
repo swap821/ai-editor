@@ -517,6 +517,7 @@ export default function App() {
   // agent can actually run the YELLOW command (resumable in-chat approval).
   const [approvedCommands, setApprovedCommands] = useState([]);
   const [approvedEdits, setApprovedEdits] = useState([]);
+  const [approvedCreations, setApprovedCreations] = useState([]);
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
   const [termHistory, setTermHistory] = useState(['AI Editor OS v2.0', 'Type "help" for available commands.']);
   const [termInput,   setTermInput]   = useState('');
@@ -625,7 +626,7 @@ export default function App() {
   // the user turn; the paused assistant turn is never recorded (no `done`), so
   // resuming simply replays the same history with the approved command(s) now
   // whitelisted in `approvedCmds`.
-  const streamGenerate = async (historyMessages, approvedCmds, approvedEdts = []) => {
+  const streamGenerate = async (historyMessages, approvedCmds, approvedEdts = [], approvedCrts = []) => {
     const aiMsgId = Date.now() + 1;
     setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', loading: true, steps: [], streaming: false }]);
     setIsStreaming(true);
@@ -637,7 +638,7 @@ export default function App() {
       const response = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, approvedCommands: approvedCmds, approvedEdits: approvedEdts })
+        body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, approvedCommands: approvedCmds, approvedEdits: approvedEdts, approvedCreations: approvedCrts })
       });
 
       if (!response.ok) throw new Error(`Server error ${response.status}`);
@@ -711,19 +712,24 @@ export default function App() {
     // ends at the user message (the paused turn recorded no answer), so replaying
     // it with the command(s) authorised continues exactly where we left off.
     const editsToApply = pendingAction.edits || [];
+    const creationsToApply = pendingAction.creations || [];
     const newApproved = [...approvedCommands, ...commandsToRun];
     const newApprovedEdits = [...approvedEdits, ...editsToApply];
+    const newApprovedCreations = [...approvedCreations, ...creationsToApply];
     setApprovedCommands(newApproved);
     setApprovedEdits(newApprovedEdits);
+    setApprovedCreations(newApprovedCreations);
     setPendingAction(null);
-    const approvedSummary = editsToApply.length
-      ? `${editsToApply.length} file edit(s)`
-      : `${commandsToRun.length} command(s)`;
+    const approvedSummary = creationsToApply.length
+      ? `${creationsToApply.length} new file(s)`
+      : editsToApply.length
+        ? `${editsToApply.length} file edit(s)`
+        : `${commandsToRun.length} command(s)`;
     setMessages(prev => [...prev, {
       id: Date.now(), sender: 'ai', steps: [],
       text: `✅ Approved — resuming with ${approvedSummary} authorised…`,
     }]);
-    await streamGenerate(convHistory, newApproved, newApprovedEdits);
+    await streamGenerate(convHistory, newApproved, newApprovedEdits, newApprovedCreations);
   };
 
   const handleRejectAction = () => {
@@ -732,6 +738,7 @@ export default function App() {
     // whitelist, so an authorised-but-unrun command can't linger into a later turn.
     setApprovedCommands([]);
     setApprovedEdits([]);
+    setApprovedCreations([]);
     setPendingAction(null);
     setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Rejected — the command was not run.' }]);
   };
@@ -797,6 +804,8 @@ export default function App() {
     // A fresh request starts with a clean approval whitelist, then streams the
     // turn (which pauses for human approval if it hits a YELLOW command).
     setApprovedCommands([]);
+    setApprovedEdits([]);
+    setApprovedCreations([]);
     await streamGenerate(newHistory, []);
   };
 
@@ -1218,7 +1227,7 @@ export default function App() {
                         onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
                         onMouseUp={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
                       >
-                        <Check size={14} strokeWidth={2.8} /> {pendingAction.diff ? 'Apply edit' : 'Run command'}
+                        <Check size={14} strokeWidth={2.8} /> {pendingAction.creations ? 'Create file' : pendingAction.diff ? 'Apply edit' : 'Run command'}
                       </button>
                       <button
                         onClick={handleRejectAction}

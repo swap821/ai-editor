@@ -231,6 +231,9 @@ class GenerateRequest(BaseModel):
     #: File edits the human has authorised this turn (the edit analog of
     #: ``approvedCommands``), each ``{filepath, old_string, new_string}``.
     approved_edits: list[dict[str, Any]] = Field(default_factory=list, alias="approvedEdits")
+    #: New files the human has authorised this turn (the create analog of
+    #: ``approvedEdits``), each ``{filepath, content}``.
+    approved_creations: list[dict[str, Any]] = Field(default_factory=list, alias="approvedCreations")
 
     model_config = {"populate_by_name": True}
 
@@ -650,6 +653,7 @@ def generate(
             prior_lesson_ids=prior_lesson_ids,
             approved_commands=req.approved_commands,
             approved_edits=req.approved_edits,
+            approved_creations=req.approved_creations,
             snapshot=snapshot,
             # The Planner needs a COMPLETION client (.complete()); pass the local
             # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
@@ -678,6 +682,7 @@ def generate(
                 # the frontend's pendingAction handler ({commands, explanation}).
                 cmd = ev["command"]
                 edit = ev.get("edit")
+                creation = ev.get("creation")
                 if edit is not None:
                     # An edit_file approval: surface the unified diff + the edit
                     # triple so the UI shows the diff and re-sends it as an
@@ -692,6 +697,24 @@ def generate(
                             ),
                         },
                         "text": f"Approval required to apply an edit to {ev.get('filepath', '')}",
+                        "requiresApproval": True,
+                    }
+                elif creation is not None:
+                    # A create_file approval: surface the all-additions diff + the
+                    # {filepath, content} pair so the UI shows the new file and
+                    # re-sends it as an approved creation on resume (a snapshot is
+                    # taken before writing, so the new file stays revertible).
+                    payload = {
+                        "input": {
+                            "creations": [creation],
+                            "diff": ev.get("diff", ""),
+                            "explanation": (
+                                "The agent wants to create a new file. Review the "
+                                "contents and approve to write it (a snapshot is "
+                                "taken first)."
+                            ),
+                        },
+                        "text": f"Approval required to create {ev.get('filepath', '')}",
                         "requiresApproval": True,
                     }
                 else:
