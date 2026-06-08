@@ -28,7 +28,38 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-08: PRE-T2 RUNWAY (b) — STATIC TOOLING (radon cyclomatic complexity + coverage join) —
+**▶ LATEST 2026-06-08: PRE-T2 RUNWAY (c) — GOLDEN-REGRESSION HARNESS for the Self-Analysis analyzer —
+DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+Implemented `.aios/state/ULTRACODE_TASK.md` (c) directly in Claude Code. LOCKS the analyzer's
+deterministic T1 findings against a FROZEN committed fixture so any future drift (refactor / threshold
+tweak / radon version bump) fails a test instead of silently shifting the marquee feature's output before
+T2. **Tests + fixture + golden JSON ONLY — NO `aios/` change, NO new deps, no security/frontend.**
+- **Committed fixture** `tests/golden/fixture/` exercises every T1 type once: `pkg/__init__.py` (none) ·
+  `pkg/orphan.py` (→`missing_test`; also `import pkg.tidy` = the frozen T0 import edge) · `pkg/tidy.py`
+  +test (none — proves no over-flagging) · `pkg/bloated.py`+test (TODO line 1 →`todo`; 18-line func
+  →`smell`) · `pkg/tangled.py`+test (7 `if`s, radon CC 8 →`complexity`).
+- **Explicit thresholds baked in BOTH fixture + golden:** `long_function_threshold=15`,
+  `complexity_threshold=5` (keeps the fixture small + the golden reproducible). `uncovered` intentionally
+  OUT of the golden (no `coverage_data_path` → join dormant; a committed synthetic `.coverage` could
+  freeze it later).
+- **Golden** `tests/golden/expected_findings.json` = SORTED array of `{target_path,finding_type,evidence,
+  symbol}` (4 findings). **Test** `tests/test_golden_analysis.py`: `pytest.importorskip("radon")`; build
+  agent over the fixture (path_root=fixture → machine-independent paths); `assert sorted(actual)==golden`
+  with an added/removed set-diff message + the hint to regen; **regen via `AIOS_UPDATE_GOLDEN=1 …pytest
+  tests/test_golden_analysis.py`**. Plus a T0 invariant (5 modules + the `pkg.tidy` edge) and a
+  load-bearing drift self-test (`complexity_threshold=999` drops `complexity` → set differs from golden).
+- **Collection guard:** `tests/golden/conftest.py` `collect_ignore_glob=["fixture/*"]` so the fixture's
+  stub `test_*.py` files (needed for the `missing_test` convention) are NOT collected as real tests
+  (verified: 0 fixture tests collected).
+**Verified:** full suite `188 passed, 4 skipped, 2 failed` — the 2 = SAME pre-existing/environmental
+`test_security.py` (identical with changes stashed). +3 golden tests; golden regen idempotent. **NEXT:**
+operator reviews/merges this draft PR. Then runway **(d)** doc the frozen core in CLAUDE.md (§VIII: I
+PROPOSE the diff, operator approves — NOT an ultracode job) → **T2** (propose-diff, YELLOW + no-self-
+approval guard + two-snapshot check, §6.3) → T3 → T4. **OPS (unchanged):** the local root `.coverage` is
+stale (1 file) + gitignored → live `self_analyze` emits low-value `uncovered` until a full `pytest --cov`
+regenerates it (or `rm .coverage` → dormant). BREATHE track (Ollama `qwen2.5-coder:7b`) still parallel.
+
+**▶ PRIOR 2026-06-08: PRE-T2 RUNWAY (b) — STATIC TOOLING (radon cyclomatic complexity + coverage join) —
 MERGED to `master` (`f1b5e36`, PR #7); suite 190 passed / 1 skipped on Windows; reviewed on evidence +
 independent live-tree smoke (radon active, 11 real CC findings, read-only) — no patch.**
 Implemented `.aios/state/ULTRACODE_TASK.md` (b) directly in Claude Code. SHARPENS T1 before T2 turns
@@ -458,13 +489,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Runway (b) static tooling — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/agents/self_analysis_agent.py` (fail-soft `radon`/`coverage` imports · `_complexity_findings` radon `cc_visit` + `_complexity_proxy_findings` fallback · `__init__ coverage_data_path` + `_measured_files` + `uncovered` in `diagnose` · docstrings/`_BRANCH_NODES` comment updated, TODOs resolved) · `aios/memory/schema.sql` (`finding_type` comment lists `uncovered`) · `requirements.txt` (+`radon==6.0.1`, +transitive `mando==0.7.1`) · `tests/test_self_analysis.py` (+5 static-tooling tests). NO `tool_agent.py` / frontend / `aios/security/` change.
-- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6).
+## Active files  (Runway (c) golden harness — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `tests/golden/fixture/` (NEW frozen fixture: `pkg/{__init__,orphan,tidy,bloated,tangled}.py` + `tests/test_{tidy,bloated,tangled}.py`) · `tests/golden/expected_findings.json` (NEW golden, 4 findings) · `tests/golden/conftest.py` (NEW — `collect_ignore_glob` keeps fixture stubs out of collection) · `tests/test_golden_analysis.py` (NEW — golden match + T0 invariant + load-bearing drift test; `AIOS_UPDATE_GOLDEN=1` regen). NO `aios/` change, NO new deps.
+- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6) · radon+coverage static tooling (PR #7).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code ((b) static tooling MERGED — PR #7 `f1b5e36`, 190/1; next BUILD = (c) golden tests)_
+_Last updated: 2026-06-08 by Claude Code (runway (c) golden-regression harness for the analyzer — draft PR, 188/4/2)_

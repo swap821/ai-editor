@@ -1,0 +1,26 @@
+[
+  {
+    "evidence": "function 'bloated' is 18 lines long (> 15)",
+    "finding_type": "smell",
+    "symbol": "bloated",
+    "target_path": "pkg/bloated.py"
+  },
+  {
+    "evidence": "TODO marker at line 1",
+    "finding_type": "todo",
+    "symbol": "# TODO: refactor this oversized helper",
+    "target_path": "pkg/bloated.py"
+  },
+  {
+    "evidence": "no tests/test_orphan.py for a module defining 1 function(s)/0 class(es)",
+    "finding_type": "missing_test",
+    "symbol": "",
+    "target_path": "pkg/orphan.py"
+  },
+  {
+    "evidence": "cyclomatic complexity 8 (> 5)",
+    "finding_type": "complexity",
+    "symbol": "tangled",
+    "target_path": "pkg/tangled.py"
+  }
+]
