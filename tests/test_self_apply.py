@@ -210,6 +210,22 @@ def test_apply_missing_proposal_refused(tmp_path) -> None:
     assert res.status == "refused" and "no proposal" in res.reason
 
 
+def test_apply_blocked_when_audit_fails(tmp_path) -> None:
+    # Fail-closed: the APPLY is audited BEFORE the write, so an audit failure must
+    # refuse and leave the file untouched + the row 'proposed' + verify never run.
+    pr, db, pid = _seed(tmp_path)
+
+    def boom_audit(*a, **k):
+        raise RuntimeError("ledger locked")
+
+    fake_v = _FakeVerifier(passed=True)
+    res = _engine(pr, db, verifier=fake_v, audit=boom_audit).apply(pid, approved_by="alice")
+    assert res.status == "refused" and "audit failed" in res.reason
+    assert (pr / _TARGET).read_text(encoding="utf-8") == _BEFORE  # never written
+    assert _row(db, pid)["status"] == "proposed"
+    assert fake_v.calls == [], "verify must never run when the apply is refused"
+
+
 def test_apply_two_snapshot_integrity_mismatch_refused(tmp_path, monkeypatch) -> None:
     # If the on-disk bytes after the write don't equal the independently-computed
     # before+diff, the integrity check restores and refuses (catches unintended edits).

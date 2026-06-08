@@ -6,6 +6,7 @@ import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
 import DiffView from './components/DiffView';
+import ProposalsPanel from './components/ProposalsPanel';
 import { API_BASE } from './config';
 import { parseSseBuffer } from './lib/sse';
 
@@ -1479,6 +1480,7 @@ export default function App() {
                 { id: 'terminal', icon: <Terminal size={13} />, label: 'Terminal' },
                 { id: 'git',      icon: <GitBranch size={13} />, label: 'Git Bash' },
                 { id: 'tester',   icon: <Network size={13} />,  label: 'API & Test Hub' },
+                { id: 'self-analysis', icon: <Sparkles size={13} />, label: 'Self-Analysis' },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -1599,6 +1601,8 @@ export default function App() {
               )}
 
               {activeBottomTab === 'tester' && <TestingDashboard />}
+
+              {activeBottomTab === 'self-analysis' && <ProposalsPanel />}
 
             </div>
           </Panel>
