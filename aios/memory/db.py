@@ -96,6 +96,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # so T3 can require a human approver != the proposer). Nullable, no backfill.
     if cols and "proposed_by" not in cols:
         conn.execute("ALTER TABLE self_analysis_report ADD COLUMN proposed_by TEXT")
+    # self_analysis_report.approved_by (added for T3 apply; the HUMAN approver of an
+    # applied/rolled_back proposal — enforced != proposed_by, §6.3). Nullable.
+    if cols and "approved_by" not in cols:
+        conn.execute("ALTER TABLE self_analysis_report ADD COLUMN approved_by TEXT")
     # Enforce the invariant — at most one OPEN row per fingerprint. Created HERE
     # (not in schema.sql) so it runs only after the column is guaranteed to exist on
     # both fresh and migrated DBs. (``cols`` is empty only if the table is somehow

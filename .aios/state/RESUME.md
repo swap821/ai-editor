@@ -28,7 +28,48 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T2 — PROPOSE-DIFF (generate fix proposals; NEVER apply) —
+**▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T3a — GUARDED APPLY ENGINE (apply approved proposals to `aios/`,
+verify + auto-rollback) — DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review
+→ merge → `git pull`).** Implemented `.aios/state/ULTRACODE_TASK.md` (T3a) directly in Claude Code — THE
+HIGHEST-RISK TIER (first automated write to the OS's OWN source). This PR = backend engine + endpoints +
+tests (the review/approve UI is T3b, next).
+- **SECURITY MODEL (the core):** (1) **NO agent tool can apply** — there is NO `apply_*` in `tool_agent`
+  TOOL_SPECS, so the agent can never apply its own proposal; applying is reachable ONLY via a human HTTP
+  endpoint (the structural no-self-approval guard). (2) **No-self-approval (defensive, §6.3):** apply takes
+  `approved_by`; refuse if empty or == row's `proposed_by`/`PROPOSER_ID`. (3) **Zone gate:** RE-DERIVE zone
+  from `target_path` (shared `classify_target`, never trust stored) → `aios/security/*` = RED = REFUSE
+  (that's T4); only YELLOW applies. (4) **Single-file confinement:** parse the diff; it must touch EXACTLY
+  the row's `target_path` (else multi-file/foreign/`..`/abs → refuse), target must `_resolve_within`
+  PROJECT_ROOT. (5) **Snapshot→git apply→two-snapshot integrity→verify→audit→AUTO-ROLLBACK**, fail-closed.
+- **`aios/core/self_apply.py` (NEW) `SelfApplyEngine.apply(proposal_id, *, approved_by) -> ApplyResult`:**
+  before_bytes snapshot; `git apply --check` then `git apply` (no new dep; git strips `a/`/`b/` `-p1`,
+  works outside a repo); two-snapshot integrity = re-read + compare to before+diff computed INDEPENDENTLY
+  in an isolated temp copy (mismatch → restore+refuse); verify via injected `Verifier`/gated `Executor`
+  (cmd `.venv/Scripts/python -m pytest tests/ -q` — scoped to `tests/` so the `training_ground/` breath
+  seed can't force spurious rollbacks); pass → keep, `log_action`, `status='applied'`, `applied_audit_id`,
+  `approved_by`; fail/timeout/blocked → restore + `log_action` rollback + `status='rolled_back'`. **FLAG
+  (deviation-for-correctness, resolves a spec flow-vs-test mismatch):** I audit the APPLY *before* verify
+  (the write really happened) and the ROLLBACK after a fail, so the fail path has BOTH on the ledger (the
+  test bullet wants "both apply+rollback audited") — more faithful than the flow text's single audit.
+- **`api/main.py`:** `GET /api/v1/self-analysis/proposals[?status=]` (list, read-only) · `POST …/{id}/apply`
+  `{approvedBy}` → `ApplyResult` JSON (engine via `Depends(get_self_apply_engine)` = `Verifier(Executor())`)
+  · `POST …/{id}/reject` → `status='rejected'`. The ONLY apply path; no SSE/agent.
+- **schema/db:** `approved_by TEXT` added (after `proposed_by`) + idempotent `_migrate` ALTER. `classify_target`
+  factored to a module-level fn in `self_analysis_agent.py` (shared by T2 record + T3 gate, can't diverge).
+- NO `tool_agent.py` change · NO frontend (T3b) · NO `aios/security/` change.
+**Verified:** full suite `210 passed, 4 skipped, 2 failed` — the 2 = SAME pre-existing/environmental
+`test_security.py` (identical with changes stashed). +16 engine tests (happy apply · verify-fail rollback
+byte-identical + both audited · no-self-approval empty/proposer · RED refused (verify never runs) · diff
+doesn't apply → refused, stays proposed · multi-file/foreign-path/`..` refused · two-snapshot mismatch →
+restore+refuse · non-proposed/missing refused · `approved_by` legacy migration). **HTTP smoke** (TestClient,
+fake verifier): list → apply (file written `return 1`→`2`, audited, applied) → reject all work.
+**NEXT:** operator reviews/merges this draft PR. Then **T3b — review/approve UI** (list `proposed` rows +
+`DiffView` + Approve → the apply endpoint w/ human `approvedBy` / Reject) → **T4** (core edit, `aios/security/*`
+already RED-refused by T3a's gate; T4 = explicit policy + surfacing). BREATHE retry parallel. **OPS tech-debt:**
+set `testpaths=["tests"]` so bare `pytest` ignores the `training_ground/` seed (T3a's verify already scopes
+to `tests/`).
+
+**▶ PRIOR 2026-06-08: SELF-ANALYSIS TIER T2 — PROPOSE-DIFF (generate fix proposals; NEVER apply) —
 MERGED to `master` (`6a6d5d7`, PR #9); suite 199 passed / 1 skipped on Windows; reviewed on evidence +
 independent live-tree smoke (50 proposed, RED for `aios/security`, REAL_SOURCE_UNCHANGED) — no patch.**
 Implemented `.aios/state/ULTRACODE_TASK.md` (T2) directly in Claude Code. THE MARQUEE TIER's first half:
@@ -530,13 +571,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Self-Analysis T2 propose-diff — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/agents/self_analysis_agent.py` (`__init__ llm/frozen_subdirs` · `_classify_target` RED/YELLOW · `propose_fix` scrubbed diff via injected `.complete()`, fail-soft · `propose_open` open→proposed, report-only · `PROPOSER_ID`) · `aios/agents/tool_agent.py` (`self_analysis_llm` inject · `propose_fixes` TOOL_SPECS/docstring/_dispatch/`_propose_fixes`) · `aios/api/main.py` (`self_analysis_llm=planner_llm` into ToolAgent) · `aios/memory/schema.sql` (+`proposed_by`) · `aios/memory/db.py` (`_migrate` +`proposed_by` ALTER) · `tests/test_self_analysis.py` (+6 T2 tests). NO `aios/security/` / frontend change.
-- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6) · radon+coverage static tooling (PR #7) · golden harness (PR #8).
+## Active files  (Self-Analysis T3a apply engine — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/core/self_apply.py` (NEW — `SelfApplyEngine.apply`: no-self-approval + zone gate + single-file confinement + snapshot/git-apply/two-snapshot-integrity/verify/audit/auto-rollback · `ApplyResult` · `_diff_paths`/`_resolve_within` helpers) · `aios/api/main.py` (3 endpoints: list/apply/reject + `get_self_apply_engine` dep + `ApplyProposalRequest`) · `aios/agents/self_analysis_agent.py` (factored module-level `classify_target`; method delegates) · `aios/memory/schema.sql` (+`approved_by`) · `aios/memory/db.py` (`_migrate` +`approved_by` ALTER) · `tests/test_self_apply.py` (NEW — 16 tests). NO `tool_agent.py` (no apply tool — structural guard) / frontend / `aios/security/` change.
+- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6) · radon+coverage static tooling (PR #7) · golden harness (PR #8) · T2 propose-diff (PR #9).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (T3a apply-engine spec written + CURRENT; chose (A) → T3a then T3b UI; BREATHE retry queued)_
+_Last updated: 2026-06-08 by Claude Code (Self-Analysis T3a guarded apply engine — verify + auto-rollback — draft PR, 210/4/2)_
