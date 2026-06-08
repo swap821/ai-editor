@@ -29,8 +29,10 @@ security-gated, human-supervised, self-correcting.
 
 ## Next action  → do this first on resume
 **▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T3a — GUARDED APPLY ENGINE (apply approved proposals to `aios/`,
-verify + auto-rollback) — DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review
-→ merge → `git pull`).** Implemented `.aios/state/ULTRACODE_TASK.md` (T3a) directly in Claude Code — THE
+verify + auto-rollback) — MERGED to `master` (`173744d`, PR #10); suite 215 passed / 1 skipped on Windows;
+reviewed on evidence + INDEPENDENTLY verified the structural no-self-approval guard (grep: no agent apply
+tool/route; `SelfApplyEngine` reachable ONLY from the human endpoint) — no patch (audit-before-write
+hardening carried).** Implemented `.aios/state/ULTRACODE_TASK.md` (T3a) directly in Claude Code — THE
 HIGHEST-RISK TIER (first automated write to the OS's OWN source). This PR = backend engine + endpoints +
 tests (the review/approve UI is T3b, next).
 - **SECURITY MODEL (the core):** (1) **NO agent tool can apply** — there is NO `apply_*` in `tool_agent`
@@ -63,7 +65,7 @@ byte-identical + both audited · no-self-approval empty/proposer · RED refused 
 doesn't apply → refused, stays proposed · multi-file/foreign-path/`..` refused · two-snapshot mismatch →
 restore+refuse · non-proposed/missing refused · `approved_by` legacy migration). **HTTP smoke** (TestClient,
 fake verifier): list → apply (file written `return 1`→`2`, audited, applied) → reject all work.
-**NEXT:** operator reviews/merges this draft PR. Then **T3b — review/approve UI** (list `proposed` rows +
+**NEXT:** T3a is MERGED (`173744d`). **NEXT = T3b — review/approve UI** (option A's front half): list `proposed` rows + `DiffView` + Approve (→ the apply endpoint with a human `approvedBy`) / Reject — I draft the spec next. **HARDENING to fold into T3b/follow-up:** audit the APPLY intent BEFORE the git write (or roll back if the audit fails) so a rare audit failure can't leave an applied-but-unlogged change (today it's surfaced as `audit_id=None`). Then **T4** (frozen-core policy; `aios/security/*` already RED-refused by T3a). BREATHE retry (prompt #1) still queued. Then **T3b — review/approve UI** (list `proposed` rows +
 `DiffView` + Approve → the apply endpoint w/ human `approvedBy` / Reject) → **T4** (core edit, `aios/security/*`
 already RED-refused by T3a's gate; T4 = explicit policy + surfacing). BREATHE retry parallel. **OPS tech-debt:**
 set `testpaths=["tests"]` so bare `pytest` ignores the `training_ground/` seed (T3a's verify already scopes
@@ -580,4 +582,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (Self-Analysis T3a guarded apply engine — verify + auto-rollback — draft PR, 210/4/2)_
+_Last updated: 2026-06-08 by Claude Code (T3a apply engine MERGED — PR #10 `173744d`, 215/1; next = T3b review UI; audit-before-write hardening carried)_
