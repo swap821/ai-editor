@@ -29,7 +29,8 @@ security-gated, human-supervised, self-correcting.
 
 ## Next action  → do this first on resume
 **▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T2 — PROPOSE-DIFF (generate fix proposals; NEVER apply) —
-DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+MERGED to `master` (`6a6d5d7`, PR #9); suite 199 passed / 1 skipped on Windows; reviewed on evidence +
+independent live-tree smoke (50 proposed, RED for `aios/security`, REAL_SOURCE_UNCHANGED) — no patch.**
 Implemented `.aios/state/ULTRACODE_TASK.md` (T2) directly in Claude Code. THE MARQUEE TIER's first half:
 turn `open` findings into candidate fix DIFFS a human can review — **without touching source.** GREEN/
 propose-only: T2 READS source (to draft) + WRITES the report's `proposed_diff`, but NEVER writes a source
@@ -61,7 +62,7 @@ file and NEVER applies a diff (apply = T3, behind the full gate).
 proposed w/ diff+proposed_by · RED for `<pkg>/security/` vs YELLOW · read-only source hash · fail-soft
 raise/empty/no-client → 0, stays open · tool unavailable w/o llm · tool with FakeLLM reports count +
 `aios/plain.py` proposed). `proposed_by` migration smoke: fresh has it; legacy gains it, decided row kept.
-**NEXT:** operator reviews/merges this draft PR. Then **T3 — apply** (a human-approved `proposed` row →
+**NEXT:** T2 is MERGED (`6a6d5d7`); reviewed on evidence (199/1 + independent live-tree smoke: 50 proposed, RED for `aios/security`, REAL_SOURCE_UNCHANGED). **T3 is the first tier that writes the OS's OWN source → settle its design decisions with the operator BEFORE the spec.** Then **T3 — apply** (a human-approved `proposed` row →
 snapshot → write the guarded out-of-sandbox `aios/` path → verify (run suite) → audit → **auto-rollback on
 failure**; ENFORCE §6.3: no-self-approval guard + two-snapshot integrity check) → **T4** (core edit,
 `aios/security/*` = RED, applying blocked). BREATHE track (Ollama `qwen2.5-coder:7b`) parallel. **OPS:**
@@ -538,4 +539,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (Self-Analysis T2 propose-diff — generate fix proposals, never apply — draft PR, 194/4/2)_
+_Last updated: 2026-06-08 by Claude Code (T2 propose-diff MERGED — PR #9 `6a6d5d7`, 199/1; next = T3 apply [design decisions pending]; BREATHE: 7B diagnosed but didn't tool-call)_
