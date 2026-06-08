@@ -357,6 +357,50 @@ def test_models_bedrock_lists_when_configured(client: TestClient) -> None:
     assert body["models"][0]["id"] == "amazon.nova-pro-v1:0"
 
 
+def test_apply_endpoint_refuses_red_frozen_core(client: TestClient) -> None:
+    # T4 capstone (full stack): the apply endpoint REFUSES a proposal whose target is
+    # the frozen security core (aios/security/*) — applying it is RED/T4, blocked — and
+    # the real frozen file is never touched (refused at the zone gate, before any write).
+    import hashlib
+
+    from aios.memory.db import get_connection, init_memory_db
+
+    target = "aios/security/gateway.py"
+    gateway = config.PROJECT_ROOT / target
+    before = hashlib.sha256(gateway.read_bytes()).hexdigest()
+
+    diff = (
+        "--- a/aios/security/gateway.py\n"
+        "+++ b/aios/security/gateway.py\n"
+        "@@ -1 +1 @@\n-x\n+y\n"
+    )
+    init_memory_db()
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO self_analysis_report "
+            "(target_path, finding_type, evidence, proposed_diff, proposed_zone, proposed_by, status) "
+            "VALUES (?, 'smell', 'frozen core', ?, 'RED', 'self_analysis_agent', 'proposed')",
+            (target, diff),
+        )
+        pid = int(cur.lastrowid)
+
+    resp = client.post(
+        f"/api/v1/self-analysis/proposals/{pid}/apply", json={"approvedBy": "operator"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "refused"
+    assert "RED" in body["reason"]
+
+    # The frozen-core file is byte-identical, and the row is left 'proposed'.
+    assert hashlib.sha256(gateway.read_bytes()).hexdigest() == before
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT status FROM self_analysis_report WHERE id = ?", (pid,)
+        ).fetchone()
+    assert row["status"] == "proposed"
+
+
 def test_models_bedrock_empty_when_unconfigured(client: TestClient) -> None:
     # No override -> real get_bedrock_client returns None (Bedrock off in tests).
     response = client.get("/api/v1/models/bedrock")
