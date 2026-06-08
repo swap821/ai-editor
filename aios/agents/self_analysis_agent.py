@@ -123,6 +123,27 @@ def finding_fingerprint(target_path: str, finding_type: str, symbol: str) -> str
     ).hexdigest()
 
 
+def classify_target(
+    rel_path: str,
+    *,
+    package: str = "aios",
+    frozen_subdirs: tuple[str, ...] = ("security",),
+) -> str:
+    """Deterministic would-be-apply zone for a project-relative path.
+
+    A file under a frozen subdir of *package* (e.g. ``aios/security/…``, the frozen
+    core in CLAUDE.md §XI) is **RED** — editing the gate that guards the agent is the
+    highest-risk action. Every other path is **YELLOW**. This is the single source of
+    truth shared by T2 (records ``proposed_zone``) and T3 (the apply zone gate), so
+    the two can never diverge.
+    """
+    for sub in frozen_subdirs:
+        base = f"{package}/{sub}"
+        if rel_path == base or rel_path.startswith(base + "/"):
+            return "RED"
+    return "YELLOW"
+
+
 @dataclass(frozen=True)
 class SelfAnalysisReport:
     """The structured result of an analysis run (T0 map + T1 findings)."""
@@ -612,17 +633,12 @@ class SelfAnalysisAgent:
     def _classify_target(self, rel_path: str) -> str:
         """Deterministic would-be-apply zone for *rel_path* (T2 records; T3 enforces).
 
-        A file under a frozen subdir of this package (e.g. ``aios/security/…``,
-        CLAUDE.md §XI) is **RED** — editing the gate that guards the agent is the
-        highest-risk action. Every other ``aios/`` file is **YELLOW**. Nothing is
-        GREEN-to-apply: these findings are on the OS's own source (outside the
-        sandbox), so the apply path (T3/T4) always requires a human.
+        Delegates to the shared :func:`classify_target` so T2's recorded
+        ``proposed_zone`` and T3's apply-time zone gate use IDENTICAL logic.
         """
-        for sub in self.frozen_subdirs:
-            base = f"{self._package}/{sub}"
-            if rel_path == base or rel_path.startswith(base + "/"):
-                return "RED"
-        return "YELLOW"
+        return classify_target(
+            rel_path, package=self._package, frozen_subdirs=self.frozen_subdirs
+        )
 
     def propose_fix(
         self,

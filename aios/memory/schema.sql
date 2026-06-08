@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS self_analysis_report (
     proposed_zone    TEXT,            -- 'GREEN'|'YELLOW'|'RED' if a fix were applied (T2)
     proposed_diff    TEXT,            -- unified diff, NULL until tier T2
     proposed_by      TEXT,            -- who proposed the fix (§6.3 groundwork for T3's no-self-approval guard)
+    approved_by      TEXT,            -- the HUMAN who approved the apply (T3); must differ from proposed_by (§6.3)
     status           TEXT NOT NULL DEFAULT 'open'
                      CHECK (status IN ('open','proposed','approved','applied','rolled_back','rejected')),
     applied_audit_id INTEGER          -- FK into the audit trail once applied (T3)

@@ -36,7 +36,9 @@ from aios.core.executor import Executor
 from aios.core.bedrock import BedrockClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.planner import Planner, PlannerError
-from aios.memory.db import init_memory_db
+from aios.core.self_apply import SelfApplyEngine
+from aios.core.verifier import Verifier
+from aios.memory.db import get_connection, init_memory_db
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
@@ -119,6 +121,18 @@ def get_executor() -> Executor:
 def get_rollback_engine() -> RollbackEngine:
     """Provide the default sandbox rollback engine. Overridden in tests."""
     return RollbackEngine()
+
+
+def get_self_apply_engine(
+    executor: Executor = Depends(get_executor),
+) -> SelfApplyEngine:
+    """Provide the Self-Analysis T3 apply engine (verifies via the gated Executor).
+
+    The engine is the ONLY way an approved proposal reaches the real ``aios/`` source
+    — there is deliberately no agent tool that applies. Overridden in tests with a
+    fake verifier + temp project root so no real shell/suite runs.
+    """
+    return SelfApplyEngine(verifier=Verifier(executor))
 
 
 def get_edit_snapshot() -> Callable[..., object]:
@@ -209,6 +223,14 @@ class RollbackRequest(BaseModel):
     snapshot_id: Optional[str] = Field(
         None, description="Target snapshot SHA; defaults to the previous snapshot."
     )
+
+
+class ApplyProposalRequest(BaseModel):
+    """Body for the Self-Analysis T3 apply endpoint — the HUMAN approver's id."""
+
+    approved_by: str = Field("", alias="approvedBy")
+
+    model_config = {"populate_by_name": True}
 
 
 class GenerateRequest(BaseModel):
@@ -354,6 +376,61 @@ def rollback(
     except RollbackError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return asdict(result)
+
+
+# --------------------------------------------------------------------------- #
+# Self-Analysis T3 — human-gated review + apply of fix proposals
+# The agent has NO tool to apply (see tool_agent); these human-called endpoints
+# are the ONLY path from a 'proposed' row to a real write in aios/.
+# --------------------------------------------------------------------------- #
+@app.get("/api/v1/self-analysis/proposals")
+def list_proposals(status: Optional[str] = "proposed") -> dict[str, Any]:
+    """List Self-Analysis findings (default the ``proposed`` ones) for the review UI."""
+    init_memory_db()
+    sql = (
+        "SELECT id, target_path, finding_type, evidence, proposed_zone, "
+        "proposed_diff, proposed_by, approved_by, status FROM self_analysis_report"
+    )
+    params: list[Any] = []
+    if status:
+        sql += " WHERE status = ?"
+        params.append(status)
+    sql += " ORDER BY id DESC LIMIT 200"
+    with get_connection() as conn:
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    return {"proposals": rows}
+
+
+@app.post("/api/v1/self-analysis/proposals/{proposal_id}/apply")
+def apply_proposal(
+    proposal_id: int,
+    req: ApplyProposalRequest,
+    engine: SelfApplyEngine = Depends(get_self_apply_engine),
+) -> dict[str, Any]:
+    """Apply an approved proposal to ``aios/`` — gated, verified, auto-rollback (T3)."""
+    result = engine.apply(proposal_id, approved_by=req.approved_by)
+    return asdict(result)
+
+
+@app.post("/api/v1/self-analysis/proposals/{proposal_id}/reject")
+def reject_proposal(proposal_id: int) -> dict[str, Any]:
+    """Reject a ``proposed`` finding (status -> ``rejected``); never applies anything."""
+    init_memory_db()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT status FROM self_analysis_report WHERE id = ?", (proposal_id,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"no proposal with id {proposal_id}")
+        if row["status"] != "proposed":
+            raise HTTPException(
+                status_code=409,
+                detail=f"proposal {proposal_id} is '{row['status']}', not 'proposed'",
+            )
+        conn.execute(
+            "UPDATE self_analysis_report SET status = 'rejected' WHERE id = ?", (proposal_id,)
+        )
+    return {"id": proposal_id, "status": "rejected"}
 
 
 # --------------------------------------------------------------------------- #
