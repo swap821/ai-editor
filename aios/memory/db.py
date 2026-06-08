@@ -92,6 +92,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "DELETE FROM self_analysis_report WHERE status = 'open' AND fingerprint IS NULL"
         )
+    # self_analysis_report.proposed_by (added for T2 propose-diff; §6.3 groundwork
+    # so T3 can require a human approver != the proposer). Nullable, no backfill.
+    if cols and "proposed_by" not in cols:
+        conn.execute("ALTER TABLE self_analysis_report ADD COLUMN proposed_by TEXT")
     # Enforce the invariant — at most one OPEN row per fingerprint. Created HERE
     # (not in schema.sql) so it runs only after the column is guaranteed to exist on
     # both fresh and migrated DBs. (``cols`` is empty only if the table is somehow

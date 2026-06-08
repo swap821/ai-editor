@@ -46,7 +46,9 @@ from pathlib import Path
 from typing import Optional
 
 from aios import config
+from aios.core.llm import LLMClient, LLMError
 from aios.memory.db import get_connection, init_memory_db
+from aios.security.secret_scanner import scan_and_redact
 
 # --- Optional static-analysis deps (fail-soft, like the rest of the project) --- #
 try:  # radon gives a real cyclomatic-complexity metric (read-only AST analysis).
@@ -160,6 +162,8 @@ class SelfAnalysisAgent:
         path_root: Optional[Path] = None,
         db_path: Path = config.MEMORY_DB_PATH,
         coverage_data_path: Optional[Path] = None,
+        llm: Optional[LLMClient] = None,
+        frozen_subdirs: tuple[str, ...] = ("security",),
         loc_smell_threshold: int = 40,
         long_function_threshold: int = 80,
         complexity_threshold: int = 12,
@@ -174,6 +178,15 @@ class SelfAnalysisAgent:
         #: Optional coverage data file for the ``uncovered`` join; defaults to a
         #: ``.coverage`` at the path root. Read-only — never written or generated.
         self.coverage_data_path = coverage_data_path
+        #: Optional COMPLETION client (``.complete()``) for T2 propose-diff — the
+        #: same kind the Planner/Reflection use, NOT a chat client. ``None`` ->
+        #: ``propose_*`` is a no-op (fail-soft). It NEVER writes source — only the
+        #: report's ``proposed_diff``.
+        self.llm = llm
+        #: Package subdirs whose files map to a RED would-be-apply zone (the frozen
+        #: core, CLAUDE.md §XI). A proposal against them may be drafted, but applying
+        #: is T4/RED — recorded here only as ``proposed_zone`` groundwork.
+        self.frozen_subdirs = frozen_subdirs
         self.loc_smell_threshold = loc_smell_threshold
         self.long_function_threshold = long_function_threshold
         self.complexity_threshold = complexity_threshold
@@ -584,3 +597,104 @@ class SelfAnalysisAgent:
         params.append(limit)
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
+
+    # ----------------------------------------------------------- T2 propose-diff
+    #: Stable proposer identity stamped on every T2 proposal, so T3's
+    #: no-self-approval guard (§6.3) can require a human approver != the proposer.
+    PROPOSER_ID = "self_analysis_agent"
+
+    #: System prompt for :meth:`propose_fix` — demand a bare unified diff.
+    _PROPOSE_SYSTEM = (
+        "You produce a MINIMAL unified diff that fixes the described issue. "
+        "Output ONLY a unified diff (---/+++/@@ ...), no prose, no code fences."
+    )
+
+    def _classify_target(self, rel_path: str) -> str:
+        """Deterministic would-be-apply zone for *rel_path* (T2 records; T3 enforces).
+
+        A file under a frozen subdir of this package (e.g. ``aios/security/…``,
+        CLAUDE.md §XI) is **RED** — editing the gate that guards the agent is the
+        highest-risk action. Every other ``aios/`` file is **YELLOW**. Nothing is
+        GREEN-to-apply: these findings are on the OS's own source (outside the
+        sandbox), so the apply path (T3/T4) always requires a human.
+        """
+        for sub in self.frozen_subdirs:
+            base = f"{self._package}/{sub}"
+            if rel_path == base or rel_path.startswith(base + "/"):
+                return "RED"
+        return "YELLOW"
+
+    def propose_fix(
+        self,
+        *,
+        target_path: str,
+        finding_type: str,
+        evidence: str,
+        llm: Optional[LLMClient] = None,
+    ) -> Optional[str]:
+        """Draft a unified-diff fix for one finding via the completion LLM; READ-ONLY.
+
+        Reads ``path_root/target_path`` for context, asks the model for a bare
+        unified diff, and returns it **scrubbed of secrets** (a fix must never
+        surface a credential read from the file). Fail-soft → ``None`` (caller
+        leaves the finding ``open``) when: no client, the file is unreadable, the
+        model raises :class:`LLMError`/anything, or the output is empty. NEVER writes
+        a source file and NEVER applies the diff.
+        """
+        client = llm or self.llm
+        if client is None:
+            return None
+        try:
+            source = (self.path_root / target_path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        prompt = (
+            f"File (path: {target_path}):\n```\n{source}\n```\n\n"
+            f"Finding type: {finding_type}\nEvidence: {evidence}\n\n"
+            "Produce a minimal unified diff that fixes this finding."
+        )
+        try:
+            diff = client.complete(prompt, system=self._PROPOSE_SYSTEM)
+        except LLMError:
+            return None
+        except Exception:  # noqa: BLE001 - advisory: any model failure leaves the finding open
+            return None
+        if not diff or not diff.strip():
+            return None
+        return scan_and_redact(diff).scrubbed
+
+    def propose_open(self, *, limit: int = 25, llm: Optional[LLMClient] = None) -> int:
+        """T2: draft + store fix proposals for up to *limit* ``open`` findings.
+
+        For each open row, :meth:`propose_fix` drafts a diff; on success the row is
+        flipped ``open -> proposed`` with ``proposed_diff`` / ``proposed_zone``
+        (:meth:`_classify_target`) / ``proposed_by`` (:data:`PROPOSER_ID`) set. A
+        finding whose proposal fails stays ``open``. **Only the report DB is
+        written — never source, never an apply.** No client → ``0`` (no-op). Returns
+        the number of findings proposed.
+        """
+        init_memory_db(self.db_path)
+        client = llm or self.llm
+        if client is None:
+            return 0
+        rows = self.read_findings(status="open", limit=limit)
+        proposed = 0
+        for row in rows:
+            target_path = row["target_path"]
+            diff = self.propose_fix(
+                target_path=target_path,
+                finding_type=row["finding_type"],
+                evidence=row["evidence"],
+                llm=client,
+            )
+            if not diff:
+                continue  # fail-soft: this finding stays 'open'
+            with get_connection(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE self_analysis_report "
+                    "SET proposed_diff = ?, proposed_zone = ?, proposed_by = ?, status = 'proposed' "
+                    "WHERE id = ?",
+                    (diff, self._classify_target(target_path), self.PROPOSER_ID, int(row["id"])),
+                )
+            proposed += 1
+        return proposed

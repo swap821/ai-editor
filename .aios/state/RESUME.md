@@ -28,7 +28,46 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-08: PRE-T2 RUNWAY (c) — GOLDEN-REGRESSION HARNESS — MERGED to `master` (`7095c25`,
+**▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T2 — PROPOSE-DIFF (generate fix proposals; NEVER apply) —
+DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+Implemented `.aios/state/ULTRACODE_TASK.md` (T2) directly in Claude Code. THE MARQUEE TIER's first half:
+turn `open` findings into candidate fix DIFFS a human can review — **without touching source.** GREEN/
+propose-only: T2 READS source (to draft) + WRITES the report's `proposed_diff`, but NEVER writes a source
+file and NEVER applies a diff (apply = T3, behind the full gate).
+- **`self_analysis_agent.py`:** `__init__(..., llm: Optional[LLMClient]=None, frozen_subdirs=("security",))`.
+  `propose_fix(*, target_path, finding_type, evidence, llm=None)` reads `path_root/target_path`, prompts the
+  injected COMPLETION client (system: "ONLY a unified diff, no prose/fences") via `.complete()`, returns the
+  diff **scrubbed with `scan_and_redact`** (a fix must never surface a secret) — fail-soft → `None` on no
+  client / unreadable / `LLMError` / empty. `propose_open(*, limit=25, llm=None)` reads up to `limit`
+  `open` rows, and on a drafted diff UPDATEs that row `proposed_diff/proposed_zone/proposed_by, status=
+  'proposed'`; a failed proposal stays `open`; only the report DB is written. `_classify_target` →
+  deterministic would-be-apply zone: under `<pkg>/security/` → **RED** (frozen core, §XI), else **YELLOW**
+  (nothing GREEN-to-apply — findings are on `aios/`, outside the sandbox; apply is T3/T4). `PROPOSER_ID=
+  "self_analysis_agent"`.
+- **`tool_agent.py`:** injected `self_analysis_llm` (the completion client, NOT `self.llm`/chat); new
+  `propose_fixes` tool (optional `limit`) → `_propose_fixes` builds a `SelfAnalysisAgent` over
+  `read_root/aios` with the llm and calls `propose_open`; no llm → graceful `[propose unavailable]`;
+  wrapped → `[propose error]`; always `ok`/`failed=False` (advisory, never reflected).
+- **`api/main.py`:** `self_analysis_llm=planner_llm` into `ToolAgent` (same `get_llm_client` completion dep;
+  never `chat_client`).
+- **schema/db:** `proposed_by TEXT` added to `self_analysis_report` (after `proposed_diff`) + idempotent
+  `_migrate` ALTER (mirrors `fingerprint`) — §6.3 GROUNDWORK so T3's no-self-approval guard can require a
+  human approver ≠ proposer. **§6.3 NOTE:** the no-self-approval guard + two-snapshot integrity check are
+  ENFORCED in T3 (apply) — NOT built here; T2 applies nothing.
+- `aios/security/` untouched · NO frontend (a review/approve UI lands with T3) · fingerprint/reconcile
+  (PR #5) preserved · golden (T1) untouched.
+**Verified:** full suite `194 passed, 4 skipped, 2 failed` — the 2 = SAME pre-existing/environmental
+`test_security.py` (identical with changes stashed). +6 self-analysis tests (FakeLLM propose flips open→
+proposed w/ diff+proposed_by · RED for `<pkg>/security/` vs YELLOW · read-only source hash · fail-soft
+raise/empty/no-client → 0, stays open · tool unavailable w/o llm · tool with FakeLLM reports count +
+`aios/plain.py` proposed). `proposed_by` migration smoke: fresh has it; legacy gains it, decided row kept.
+**NEXT:** operator reviews/merges this draft PR. Then **T3 — apply** (a human-approved `proposed` row →
+snapshot → write the guarded out-of-sandbox `aios/` path → verify (run suite) → audit → **auto-rollback on
+failure**; ENFORCE §6.3: no-self-approval guard + two-snapshot integrity check) → **T4** (core edit,
+`aios/security/*` = RED, applying blocked). BREATHE track (Ollama `qwen2.5-coder:7b`) parallel. **OPS:**
+local root `.coverage` stale+gitignored → `uncovered` low-value until full `pytest --cov` (or `rm` → dormant).
+
+**▶ PRIOR 2026-06-08: PRE-T2 RUNWAY (c) — GOLDEN-REGRESSION HARNESS — MERGED to `master` (`7095c25`,
 PR #8); suite 193 passed / 1 skipped on Windows; reviewed on evidence (golden regen = ZERO diff = faithful;
 `pytest tests/golden --collect-only` = 0 fixture tests collected) — no patch.**
 Implemented `.aios/state/ULTRACODE_TASK.md` (c) directly in Claude Code. LOCKS the analyzer's
@@ -490,13 +529,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Runway (c) golden harness — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `tests/golden/fixture/` (NEW frozen fixture: `pkg/{__init__,orphan,tidy,bloated,tangled}.py` + `tests/test_{tidy,bloated,tangled}.py`) · `tests/golden/expected_findings.json` (NEW golden, 4 findings) · `tests/golden/conftest.py` (NEW — `collect_ignore_glob` keeps fixture stubs out of collection) · `tests/test_golden_analysis.py` (NEW — golden match + T0 invariant + load-bearing drift test; `AIOS_UPDATE_GOLDEN=1` regen). NO `aios/` change, NO new deps.
-- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6) · radon+coverage static tooling (PR #7).
+## Active files  (Self-Analysis T2 propose-diff — on branch `claude/sharp-heisenberg-q2C1L`:)
+- `aios/agents/self_analysis_agent.py` (`__init__ llm/frozen_subdirs` · `_classify_target` RED/YELLOW · `propose_fix` scrubbed diff via injected `.complete()`, fail-soft · `propose_open` open→proposed, report-only · `PROPOSER_ID`) · `aios/agents/tool_agent.py` (`self_analysis_llm` inject · `propose_fixes` TOOL_SPECS/docstring/_dispatch/`_propose_fixes`) · `aios/api/main.py` (`self_analysis_llm=planner_llm` into ToolAgent) · `aios/memory/schema.sql` (+`proposed_by`) · `aios/memory/db.py` (`_migrate` +`proposed_by` ALTER) · `tests/test_self_analysis.py` (+6 T2 tests). NO `aios/security/` / frontend change.
+- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6) · radon+coverage static tooling (PR #7) · golden harness (PR #8).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (T2 propose-diff spec written + CURRENT; CLAUDE.md baseline fixed 89→193; BREATHE runbook handed to operator)_
+_Last updated: 2026-06-08 by Claude Code (Self-Analysis T2 propose-diff — generate fix proposals, never apply — draft PR, 194/4/2)_

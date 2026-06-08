@@ -45,6 +45,11 @@ Tools exposed to the model:
     complexity), writes it to the report table, and returns a summary. Strictly
     READ-ONLY/GREEN — it never edits source, runs anything, or loads a model — and
     the analysed ``path`` is confined to the project root like the other reads.
+  * ``propose_fixes``    — Self-Analysis Tier T2: draft candidate fix DIFFS for the
+    ``open`` findings and store them (status open->proposed) for human review.
+    READ-ONLY — it reads source + writes the report's ``proposed_diff``, but NEVER
+    edits source and NEVER applies a diff (apply is T3, behind the full gate). Uses
+    the injected completion LLM; without one it degrades to a graceful "unavailable".
 
 The agent is transport-agnostic: :meth:`ToolAgent.run` *yields* plain event
 dicts so the API layer can forward them as SSE and tests can assert on them
@@ -298,6 +303,27 @@ TOOL_SPECS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "propose_fixes",
+            "description": (
+                "Generate candidate fix diffs (PROPOSALS) for open Self-Analysis "
+                "findings and store them for human review. Read-only: never edits "
+                "source, never applies. Self-Analysis Tier T2."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of open findings to propose fixes for (default 25).",
+                    }
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -370,6 +396,7 @@ class ToolAgent:
         snapshot: Optional[Callable[..., Any]] = None,
         audit_log: Optional[Callable[..., object]] = None,
         planner_llm: Optional[LLMClient] = None,
+        self_analysis_llm: Optional[LLMClient] = None,
     ) -> None:
         self.llm = llm
         self.executor = executor
@@ -437,6 +464,12 @@ class ToolAgent:
         self._planner: Optional[Planner] = (
             Planner(planner_llm) if planner_llm is not None else None
         )
+        #: Completion client for the Self-Analysis T2 ``propose_fixes`` tool — the
+        #: SAME kind as ``planner_llm`` (``.complete()``), deliberately NOT
+        #: ``self.llm`` (the chat client, possibly cloud Bedrock). ``None`` -> the
+        #: tool degrades gracefully. Never used to edit/apply source — only to draft
+        #: proposal diffs stored in the report.
+        self._self_analysis_llm = self_analysis_llm
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Drive the loop, yielding event dicts the API maps to SSE.
@@ -643,6 +676,8 @@ class ToolAgent:
             return self._plan(str(args.get("goal", "")))
         if name == "self_analyze":
             return self._self_analyze(str(args.get("path", "") or "aios"))
+        if name == "propose_fixes":
+            return self._propose_fixes(args.get("limit", 25))
         return (f"Unknown tool '{name}'.", "blocked", False)
 
     def _read_file(self, filepath: str) -> tuple[str, str, bool]:
@@ -988,6 +1023,40 @@ class ToolAgent:
         if len(report.findings) > 8:
             lines.append(f"  … and {len(report.findings) - 8} more.")
         return ("\n".join(lines), "ok", False)
+
+    def _propose_fixes(self, limit: Any) -> tuple[str, str, bool]:
+        """Self-Analysis T2: draft + store fix proposals for open findings; READ-ONLY.
+
+        Runs :meth:`SelfAnalysisAgent.propose_open` over the own-code report (the
+        same MEMORY_DB the report lives in), using the injected COMPLETION client
+        (never ``self.llm``). It reads source + writes proposals (``proposed_diff``,
+        ``open->proposed``) but NEVER edits source and NEVER applies a diff (apply is
+        T3, behind the full gate). Always status ``ok`` / ``failed=False`` — proposing
+        is advisory, never a security block and never reflected on. No client -> a
+        graceful "unavailable" result.
+        """
+        if self._self_analysis_llm is None:
+            return ("[propose unavailable] no completion model configured.", "ok", False)
+        try:
+            n = int(limit)
+        except (TypeError, ValueError):
+            n = 25
+        try:
+            agent = SelfAnalysisAgent(
+                scope_root=self.read_root / "aios",
+                tests_root=self.read_root / "tests",
+                path_root=self.read_root,
+                llm=self._self_analysis_llm,
+            )
+            count = agent.propose_open(limit=n)
+        except Exception as exc:  # noqa: BLE001 - advisory tool must never abort the turn
+            return (f"[propose error] could not propose fixes: {exc}", "ok", False)
+        return (
+            f"Proposed fixes for {count} finding(s) (status open→proposed); "
+            "review with status='proposed' before any apply (T3).",
+            "ok",
+            False,
+        )
 
     def _format_exec_result(self, result: Any) -> tuple[str, str, bool]:
         """Map a *resolved* ExecutionResult to ``(output, status, failed)``.
