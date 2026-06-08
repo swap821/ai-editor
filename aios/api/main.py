@@ -659,6 +659,10 @@ def generate(
             # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
             # so planning always uses the local completion model.
             planner_llm=planner_llm,
+            # Self-Analysis T2 (propose_fixes) drafts diffs with the SAME completion
+            # client (not chat_client). It only writes proposals to the report —
+            # never edits or applies source.
+            self_analysis_llm=planner_llm,
         )
         answer_parts: list[str] = []
         for ev in agent.run(chat_messages):

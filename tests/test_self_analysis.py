@@ -19,6 +19,7 @@ from aios.agents import self_analysis_agent
 from aios.agents.self_analysis_agent import SelfAnalysisAgent, finding_fingerprint
 from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
+from aios.core.llm import LLMError
 from aios.memory.db import connect, get_connection, init_memory_db
 from aios.security.gateway import RateLimiter
 
@@ -503,3 +504,146 @@ def test_self_analyze_tool_refuses_path_escape(tmp_path) -> None:
     blocked = [e for e in events if e["type"] == "tool_blocked" and e.get("tool") == "self_analyze"]
     assert blocked, "a path escaping the project root must be blocked"
     assert "escapes the project root" in blocked[0]["reason"]
+
+
+# --------------------------------------------------------------------------- #
+# T2 — propose-diff (generate fix proposals; NEVER apply / NEVER edit source)
+# --------------------------------------------------------------------------- #
+_CANNED_DIFF = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n"
+
+
+class _FakeLLM:
+    """Fake completion client: .complete() returns a canned diff (or raises/empties)."""
+
+    def __init__(self, response: str = _CANNED_DIFF, *, raises: bool = False) -> None:
+        self.response = response
+        self.raises = raises
+        self.calls: list[tuple] = []
+
+    def complete(self, prompt: str, *, system=None) -> str:
+        self.calls.append((prompt, system))
+        if self.raises:
+            raise LLMError("model down")
+        return self.response
+
+
+def _build_proposable(root) -> None:
+    """Plant a pkg with two testable, untested modules (one under a frozen subdir).
+
+    Each is a `missing_test` finding; one lives under `pkg/security/` so its
+    would-be-apply zone is RED, the other YELLOW.
+    """
+    (root / "pkg").mkdir()
+    (root / "pkg" / "security").mkdir()
+    (root / "tests").mkdir()
+    (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "security" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pkg" / "plain.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    (root / "pkg" / "security" / "gate.py").write_text("def g():\n    return 2\n", encoding="utf-8")
+
+
+def _proposable_agent(tmp_path) -> SelfAnalysisAgent:
+    return SelfAnalysisAgent(
+        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
+        path_root=tmp_path, db_path=tmp_path / "r.db",
+    )
+
+
+def test_propose_open_flips_findings_to_proposed(tmp_path) -> None:
+    _build_proposable(tmp_path)
+    agent = _proposable_agent(tmp_path)
+    res = agent.write_report(list(agent.analyze().findings))
+    assert res.inserted >= 2  # plain + security missing_test
+
+    fake = _FakeLLM()
+    n = agent.propose_open(llm=fake)
+    assert n == res.inserted
+    assert fake.calls, "the completion client (.complete) must be called"
+
+    proposed = agent.read_findings(status="proposed", limit=100)
+    assert len(proposed) == n
+    assert not agent.read_findings(status="open", limit=100)  # all flipped
+    for r in proposed:
+        assert "+new" in r["proposed_diff"]
+        assert r["proposed_by"] == "self_analysis_agent"
+        assert r["status"] == "proposed"
+
+
+def test_propose_zone_red_for_frozen_core(tmp_path) -> None:
+    _build_proposable(tmp_path)
+    agent = _proposable_agent(tmp_path)
+    agent.write_report(list(agent.analyze().findings))
+    agent.propose_open(llm=_FakeLLM())
+
+    zones = {r["target_path"]: r["proposed_zone"]
+             for r in agent.read_findings(status="proposed", limit=100)}
+    assert zones["pkg/security/gate.py"] == "RED"   # frozen core -> RED to apply
+    assert zones["pkg/plain.py"] == "YELLOW"        # ordinary module -> YELLOW
+
+
+def test_propose_open_is_read_only(tmp_path) -> None:
+    _build_proposable(tmp_path)
+    agent = _proposable_agent(tmp_path)
+    agent.write_report(list(agent.analyze().findings))
+    before = _hash_tree(tmp_path)
+    agent.propose_open(llm=_FakeLLM())
+    after = _hash_tree(tmp_path)
+    assert before == after, "propose must NEVER write a source file (only the report DB)"
+
+
+def test_propose_open_fail_soft_leaves_findings_open(tmp_path) -> None:
+    _build_proposable(tmp_path)
+    agent = _proposable_agent(tmp_path)
+    res = agent.write_report(list(agent.analyze().findings))
+
+    # The model raising -> 0 proposed, everything stays open, no exception.
+    assert agent.propose_open(llm=_FakeLLM(raises=True)) == 0
+    assert len(agent.read_findings(status="open", limit=100)) == res.inserted
+    # Empty output -> same.
+    assert agent.propose_open(llm=_FakeLLM(response="")) == 0
+    assert len(agent.read_findings(status="open", limit=100)) == res.inserted
+    # No client at all -> no-op.
+    assert agent.propose_open() == 0
+
+
+def test_propose_fixes_tool_unavailable_without_llm(tmp_path) -> None:
+    _build_fixture(tmp_path)
+    chat = ScriptedChat([
+        _tool_call("propose_fixes", {}),
+        {"role": "assistant", "content": "no model"},
+    ])
+    agent = ToolAgent(chat, _executor(), max_iters=3, read_root=tmp_path)  # no self_analysis_llm
+    events = list(agent.run([{"role": "user", "content": "propose fixes"}]))
+
+    res = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "propose_fixes"]
+    assert res and "[propose unavailable]" in res[0]["output"]
+    assert events[-1]["type"] == "done"
+
+
+def test_propose_fixes_tool_with_llm_reports_count(tmp_path) -> None:
+    # read_root/aios holds a proposable module; self_analyze seeds the report, then
+    # propose_fixes drafts a proposal for it (both use the isolated temp MEMORY_DB).
+    aios_dir = tmp_path / "aios"
+    aios_dir.mkdir()
+    (tmp_path / "tests").mkdir()
+    (aios_dir / "__init__.py").write_text("", encoding="utf-8")
+    (aios_dir / "plain.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+
+    chat = ScriptedChat([
+        _tool_call("self_analyze", {"path": "aios"}),
+        _tool_call("propose_fixes", {"limit": 10}),
+        {"role": "assistant", "content": "done"},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=4, read_root=tmp_path, self_analysis_llm=_FakeLLM(),
+    )
+    events = list(agent.run([{"role": "user", "content": "audit then propose"}]))
+
+    pf = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "propose_fixes"]
+    assert pf and "Proposed fixes for" in pf[0]["output"]
+    assert "open→proposed" in pf[0]["output"]
+    # Our specific finding (aios/plain.py missing_test) is now proposed in the temp DB.
+    check = SelfAnalysisAgent(path_root=tmp_path)  # db_path defaults to the temp MEMORY_DB
+    proposed_paths = {r["target_path"] for r in check.read_findings(status="proposed", limit=1000)}
+    assert "aios/plain.py" in proposed_paths
+    assert events[-1]["type"] == "done"
