@@ -29,7 +29,8 @@ security-gated, human-supervised, self-correcting.
 
 ## Next action  → do this first on resume
 **▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T3b — REVIEW/APPROVE UI + AUDIT-BEFORE-WRITE HARDENING —
-DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+MERGED to `master` (`1167b36`, PR #11); backend 216 passed / 1 skipped, frontend eslint + vitest 14/14 +
+build green; reviewed on evidence (audit-before-write fail-closed verified; UI mirrors the guard) — no patch.**
 Implemented `.aios/state/ULTRACODE_TASK.md` (T3b) directly in Claude Code — two clearly-separated parts.
 **PART 1 (backend hardening, `aios/core/self_apply.py`):** moved the APPLY audit to BEFORE the `git apply`
 write and made it FAIL-CLOSED (mirrors `edit_file`/`create_file`): never write `aios/` without first
@@ -50,7 +51,7 @@ so a doomed request is never sent); **Approve** → `POST …/{id}/apply {approv
 `test_security.py` (identical with changes stashed). Frontend **vitest 14/14** (+4 ProposalsPanel: renders
 proposal+diff · Approve POSTs apply w/ approvedBy + shows result · RED Approve disabled · Reject POSTs) +
 **eslint clean** + **vite build** green. `aios/security/` untouched.
-**NEXT:** operator reviews/merges this draft PR. Then **T4 — core edit (RED, frozen):** `aios/security/*` is
+**NEXT:** T3b is MERGED (`1167b36`) — the self-improvement loop is now fully CLICKABLE (a "Self-Analysis" tab: review `proposed` rows → Approve→apply→verify→auto-rollback / Reject; RED shown but Approve disabled). **T4 (frozen-core RED) is ALREADY ENFORCED** by T3a's zone gate (engine refuses RED) + T3b's RED-disabled UI → the marquee Self-Analysis module **T0–T4 is FUNCTIONALLY COMPLETE.** Optional capstone: an HTTP-level RED-refusal test + declare done. **The real remaining proof = a LIVE end-to-end run** (self_analyze → propose_fixes via Ollama → review in the UI → Approve → apply+verify) — operator-driven, RAM-gated. Also still pending: the BREATHE sandbox retry (prompt #1). Then **T4 — core edit (RED, frozen):** `aios/security/*` is
 already RED-refused by T3a's zone gate + shown review-only in the UI; T4 = the explicit policy + any extra
 surfacing (small). **Then the marquee Self-Analysis module (T0–T4) is COMPLETE.** Parallel: BREATHE retry
 (sandbox, prompt #1 "use the edit_file tool"). OPS tech-debt (tiny PR): `testpaths=["tests"]` so bare
@@ -610,4 +611,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (Self-Analysis T3b: review/approve UI + audit-before-write hardening — draft PR, backend 211/4/2, frontend 14/14)_
+_Last updated: 2026-06-08 by Claude Code (T3b MERGED — PR #11 `1167b36`, 216/1 + FE 14/14; marquee T0–T4 functionally COMPLETE [T4 = the RED gate]; next = live demo + breath)_
