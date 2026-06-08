@@ -65,7 +65,7 @@ byte-identical + both audited · no-self-approval empty/proposer · RED refused 
 doesn't apply → refused, stays proposed · multi-file/foreign-path/`..` refused · two-snapshot mismatch →
 restore+refuse · non-proposed/missing refused · `approved_by` legacy migration). **HTTP smoke** (TestClient,
 fake verifier): list → apply (file written `return 1`→`2`, audited, applied) → reject all work.
-**NEXT:** T3a is MERGED (`173744d`). **NEXT = T3b — review/approve UI** (option A's front half): list `proposed` rows + `DiffView` + Approve (→ the apply endpoint with a human `approvedBy`) / Reject — I draft the spec next. **HARDENING to fold into T3b/follow-up:** audit the APPLY intent BEFORE the git write (or roll back if the audit fails) so a rare audit failure can't leave an applied-but-unlogged change (today it's surfaced as `audit_id=None`). Then **T4** (frozen-core policy; `aios/security/*` already RED-refused by T3a). BREATHE retry (prompt #1) still queued. Then **T3b — review/approve UI** (list `proposed` rows +
+**NEXT:** T3a is MERGED (`173744d`). **NEXT = T3b — review/approve UI** (option A's front half): list `proposed` rows + `DiffView` + Approve (→ the apply endpoint with a human `approvedBy`) / Reject — T3b spec WRITTEN & CURRENT at `.aios/state/ULTRACODE_TASK.md` — Part 1: audit-before-write fail-closed hardening of `SelfApplyEngine`; Part 2: `ProposalsPanel` review UI (list `proposed` → `DiffView` → Approve w/ human `approvedBy` / Reject, RED disabled). Operator launches ultracode → PR → I review+merge. **HARDENING to fold into T3b/follow-up:** audit the APPLY intent BEFORE the git write (or roll back if the audit fails) so a rare audit failure can't leave an applied-but-unlogged change (today it's surfaced as `audit_id=None`). Then **T4** (frozen-core policy; `aios/security/*` already RED-refused by T3a). BREATHE retry (prompt #1) still queued. Then **T3b — review/approve UI** (list `proposed` rows +
 `DiffView` + Approve → the apply endpoint w/ human `approvedBy` / Reject) → **T4** (core edit, `aios/security/*`
 already RED-refused by T3a's gate; T4 = explicit policy + surfacing). BREATHE retry parallel. **OPS tech-debt:**
 set `testpaths=["tests"]` so bare `pytest` ignores the `training_ground/` seed (T3a's verify already scopes
@@ -582,4 +582,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (T3a apply engine MERGED — PR #10 `173744d`, 215/1; next = T3b review UI; audit-before-write hardening carried)_
+_Last updated: 2026-06-08 by Claude Code (T3b spec written + CURRENT: review/approve UI + audit-before-write hardening; BREATHE retry running)_
