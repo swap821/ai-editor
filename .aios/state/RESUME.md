@@ -62,7 +62,7 @@ file and NEVER applies a diff (apply = T3, behind the full gate).
 proposed w/ diff+proposed_by · RED for `<pkg>/security/` vs YELLOW · read-only source hash · fail-soft
 raise/empty/no-client → 0, stays open · tool unavailable w/o llm · tool with FakeLLM reports count +
 `aios/plain.py` proposed). `proposed_by` migration smoke: fresh has it; legacy gains it, decided row kept.
-**NEXT:** T2 is MERGED (`6a6d5d7`); reviewed on evidence (199/1 + independent live-tree smoke: 50 proposed, RED for `aios/security`, REAL_SOURCE_UNCHANGED). **T3 is the first tier that writes the OS's OWN source → settle its design decisions with the operator BEFORE the spec.** Then **T3 — apply** (a human-approved `proposed` row →
+**NEXT:** T2 is MERGED (`6a6d5d7`); reviewed on evidence (199/1 + independent live-tree smoke: 50 proposed, RED for `aios/security`, REAL_SOURCE_UNCHANGED). **T3 is the first tier that writes the OS's OWN source → design settled — operator chose (A); sequenced as **T3a (apply engine) → T3b (review UI)** so the dangerous core gets an isolated review. **T3a ultracode SPEC WRITTEN & CURRENT** at `.aios/state/ULTRACODE_TASK.md`: human-only apply endpoint (NO agent apply tool = structural no-self-approval), zone-gate (`aios/security`=RED refused = T4), single-file confinement, snapshot→`git apply`→two-snapshot integrity→verify(`pytest tests/`)→audit→**auto-rollback** on fail. Operator launches ultracode → PR → I review+merge. Then T3b UI; the BREATHE retry (prompt #1 "use the edit_file tool") is queued after.** Then **T3 — apply** (a human-approved `proposed` row →
 snapshot → write the guarded out-of-sandbox `aios/` path → verify (run suite) → audit → **auto-rollback on
 failure**; ENFORCE §6.3: no-self-approval guard + two-snapshot integrity check) → **T4** (core edit,
 `aios/security/*` = RED, applying blocked). BREATHE track (Ollama `qwen2.5-coder:7b`) parallel. **OPS:**
@@ -539,4 +539,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (T2 propose-diff MERGED — PR #9 `6a6d5d7`, 199/1; next = T3 apply [design decisions pending]; BREATHE: 7B diagnosed but didn't tool-call)_
+_Last updated: 2026-06-08 by Claude Code (T3a apply-engine spec written + CURRENT; chose (A) → T3a then T3b UI; BREATHE retry queued)_

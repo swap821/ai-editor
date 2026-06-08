@@ -1,112 +1,105 @@
 # ULTRACODE TASK — current build hand-off
 
 > Single current task ultracode (Claude-web) implements, then opens one focused PR.
-> Claude Code (local) reviews on evidence + merges (the #1–#8 loop). Overwritten per task.
+> Claude Code (local) reviews on evidence + merges (the #1–#9 loop). Overwritten per task.
 > Architecture is decided below — implement it as written; flag (don't silently change) anything wrong.
+> **This is the highest-risk tier in the project (first automated write to the OS's OWN source). Favour
+> refusing over guessing everywhere; fail-closed is always correct.**
 
 ---
 
-## TASK T2 — Self-Analysis **propose-diff** (generate a fix proposal; NEVER apply)
+## TASK T3a — Self-Analysis **apply engine** (apply an approved proposal to `aios/`, gated + verified + reversible)
 
-**Why:** the marquee tier. Turn `open` findings into candidate fixes a human can review — **without
-touching source.** T0/T1 (index + diagnose) are done; **T2 PROPOSES** a diff and stores it; **T3** (later)
-applies behind the full gate; **T4** is the frozen core (RED). This PR is T2 ONLY.
+**Why:** T2 stores candidate fix diffs (`status='proposed'`). T3 lets a **human** approve one and apply it
+to the real `aios/` source — but ONLY through a dedicated, audited, **reversible** path with a hard safety
+net. This PR is the **backend engine + endpoints + tests** (T3a). The review/approve **UI is T3b**, the
+immediate next PR — do NOT build UI here.
 
-**Hard invariants (do not regress):**
-- **GREEN / propose-only.** T2 may READ source (to draft a fix) and WRITE the `self_analysis_report`
-  table (the proposal), but it **NEVER writes a source file and NEVER applies a diff.** The existing
-  read-only proof must still hold — add one asserting `propose_*` leaves every source file byte-identical.
-- **LLM is injected + fail-soft.** Use the project's completion `LLMClient` (the one the Planner/Reflection
-  use via `get_llm_client` — has `.complete()`), NOT the loop's chat client (`self.llm`, which may be cloud
-  Bedrock with no `.complete()`). No client / an `LLMError` / empty or junk output → **skip that finding
-  (it stays `open`), never crash.** Advisory: T2 is never a security block and is never reflected on.
-- `aios/security/` untouched · **no frontend** (proposals surface via the report + the tool summary; a
-  review/approve UI lands with T3) · fingerprint/reconcile (PR #5) semantics preserved.
+### THE SECURITY MODEL (the core of this task — get this exactly right)
+1. **No agent tool can ever apply.** Do NOT add any `apply_*` entry to `tool_agent.py` `TOOL_SPECS`. The
+   agent proposes (T2 tool) but has **no tool to apply** — so it can never apply its own proposal. Applying
+   is reachable ONLY via a **human-called HTTP endpoint**. This is the structural no-self-approval guard.
+2. **No-self-approval (defensive, §6.3).** The apply endpoint takes `approved_by` (a human id). Refuse if
+   `approved_by` is empty OR equals the row's `proposed_by` (`"self_analysis_agent"`). Record `approved_by`.
+3. **Zone gate.** RE-DERIVE the zone from the row's `target_path` at apply time (never trust the stored
+   `proposed_zone` alone). `aios/security/*` (frozen core, CLAUDE.md §XI) → **RED → REFUSE** (that's T4).
+   Only **YELLOW** (other `aios/`) may apply.
+4. **Single-file confinement.** Parse the `proposed_diff`; it must touch **exactly one file == the row's
+   `target_path`**. Any diff that references another path, multiple files, or escapes `PROJECT_ROOT`
+   (`../`/abs/symlink) → REFUSE. (Reuse the `_resolve_within(PROJECT_ROOT, target_path)` style resolver.)
+5. **Snapshot → apply → verify → audit → auto-rollback (the safety net).**
+   - **before_bytes** = read the target file (snapshot #1).
+   - **apply** via `git apply` (no new dep — git is already used): `git apply --check <diff>` first; if it
+     fails → REFUSE (the diff doesn't apply cleanly; the row stays `proposed`). On check-pass, `git apply`.
+   - **two-snapshot integrity check (§6.3):** after writing, re-read the file (snapshot #2) and assert the
+     on-disk result equals `before_bytes` with the approved diff applied (i.e. nothing other than the
+     approved diff changed). On mismatch → restore `before_bytes`, REFUSE.
+   - **verify:** run the suite through the existing `Verifier`/gated `Executor`. **Verify command =
+     `.venv/Scripts/python -m pytest tests/ -q`** (scoped to `tests/`, NOT bare `pytest` — the
+     `training_ground/` breath seed fails by design and would force spurious rollbacks).
+   - **pass →** keep the change; `log_action` it (SHA-256 audit); set `status='applied'`,
+     `applied_audit_id=<id>`, `approved_by=…`.
+   - **fail/timeout/blocked →** **auto-rollback**: restore `before_bytes` to the file; `log_action` the
+     rollback; set `status='rolled_back'`. The tree is left exactly as before. **Fail-closed everywhere:** a
+     snapshot/audit/apply error → restore + refuse, never leave a half-applied or unlogged change.
 
-### Design (implement exactly)
+### Files
+**1. `aios/core/self_apply.py` (NEW) — `SelfApplyEngine`.** Injectable deps (so tests use fakes, no real
+shell/model/network): a `verifier` (or an executor to build one), an `audit_log` callable, `db_path`,
+`project_root`, and the proposer/verify-command as config. One method:
+`apply(proposal_id: int, *, approved_by: str) -> ApplyResult` implementing the flow above. Return a small
+`ApplyResult` dataclass: `status` (`applied`|`rolled_back`|`refused`), `reason`, `audit_id` (opt),
+`verify` summary (opt). Pure orchestration — all file writes are this engine's, confined to `target_path`.
+- `_classify_target(rel_path)` — reuse the SAME logic as `SelfAnalysisAgent._classify_target` (frozen
+  subdir → RED). Factor it to a shared helper or import it; do not duplicate divergently.
 
-**Scope of proposals:** ALL `open` finding types (operator's choice — the human review is the filter).
+**2. `aios/api/main.py` — three endpoints (read + apply + reject):**
+- `GET /api/v1/self-analysis/proposals` (optional `?status=proposed`) → list rows (id, target_path,
+  finding_type, evidence, proposed_zone, proposed_diff, status). Read-only (for the T3b UI).
+- `POST /api/v1/self-analysis/proposals/{id}/apply` body `{ "approvedBy": "<human id>" }` → call
+  `SelfApplyEngine.apply(id, approved_by=…)`; return the `ApplyResult` as JSON. Inject the engine via
+  `Depends(...)` using the SAME local completion/executor deps the rest of the API uses (the verify
+  Executor is the gated one).
+- `POST /api/v1/self-analysis/proposals/{id}/reject` → set `status='rejected'`; return ok.
+- These are the ONLY way to apply. No SSE, no agent involvement.
 
-**1. `aios/memory/schema.sql`** — add `proposed_by TEXT` to `self_analysis_report` (after
-`proposed_diff`), comment `-- who proposed the fix (§6.3 groundwork for T3's no-self-approval guard)`.
-`finding_type`/CHECK unchanged.
+**3. `aios/memory/` — schema/db:** add an `approved_by TEXT` column to `self_analysis_report` (mirror the
+`proposed_by` idempotent `_migrate` ALTER). `status` CHECK already allows `applied`/`rolled_back`/`rejected`.
 
-**2. `aios/memory/db.py` `_migrate`** — add `proposed_by` to existing DBs idempotently, mirroring the
-`fingerprint` migration exactly (PRAGMA table_info → if absent `ALTER TABLE self_analysis_report ADD
-COLUMN proposed_by TEXT`). No index needed.
+**4. NO `tool_agent.py` change** (no apply tool — see security model #1). **NO frontend** (T3b). **NO
+`aios/security/` change.**
 
-**3. `aios/agents/self_analysis_agent.py`**
-- Import the completion `LLMClient` type (same one the Planner uses; type-only/optional import is fine).
-- `__init__(..., llm: Optional[LLMClient] = None, frozen_subdirs: tuple[str, ...] = ("security",))` — store
-  both. `llm` is the injected completion client; `frozen_subdirs` are package subdirs that map to RED
-  (defaults to `aios/security/`, matching CLAUDE.md §XI frozen core).
-- `_classify_target(self, rel_path: str) -> str` — deterministic would-be-apply zone: if the path is under
-  `<package>/<frozen_subdir>/` (e.g. `aios/security/…`) → `"RED"`; else → `"YELLOW"`. (Findings are on
-  `aios/` code, which is outside the sandbox, so nothing here is GREEN-to-apply — T3/T4 own the apply path.)
-- `propose_fix(self, *, target_path: str, finding_type: str, evidence: str, llm: Optional[LLMClient] = None)
-  -> Optional[str]` — read `path_root/target_path` (read-only; return `None` if unreadable); build a tight
-  prompt — system: *"You produce a MINIMAL unified diff that fixes the described issue. Output ONLY a
-  unified diff (---/+++/@@ …), no prose, no fences."*; user: the rel path + the file content + the
-  `finding_type` + `evidence`. Call `llm.complete(...)`; return the diff string, or `None` on
-  empty/`LLMError`/exception (fail-soft). **Scrub the returned diff with `scan_and_redact(...).scrubbed`
-  before returning** (a fix must never surface a secret read from the file).
-- `propose_open(self, *, limit: int = 25, llm: Optional[LLMClient] = None) -> int` — `init_memory_db`;
-  `client = llm or self.llm`; if `client is None` return `0`. Read up to `limit` rows
-  `WHERE status='open'` (reuse `read_findings(status="open", limit=...)`). For each, call `propose_fix`;
-  when it returns a diff, **UPDATE that row** `SET proposed_diff=?, proposed_zone=?, proposed_by=?,
-  status='proposed'` (proposed_zone = `_classify_target(target_path)`, proposed_by = a stable proposer id,
-  e.g. `"self_analysis_agent"`). Count successes. **Only the report DB is written — never source.** Return
-  the count.
-
-**4. `aios/agents/tool_agent.py`**
-- `__init__`: add `self_analysis_llm: Optional[LLMClient] = None` (the completion client; mirror how
-  `planner_llm` is injected) and store it.
-- `TOOL_SPECS`: add `propose_fixes` — optional `limit` (int, default 25). Description: *"Generate candidate
-  fix diffs (PROPOSALS) for open Self-Analysis findings and store them for human review. Read-only: never
-  edits source, never applies. Self-Analysis Tier T2."* Add the module-docstring tool bullet.
-- `_dispatch`: route `propose_fixes` → `_propose_fixes(limit)`.
-- `_propose_fixes(self, limit)`: construct a `SelfAnalysisAgent(scope_root=self.read_root/"aios",
-  tests_root=self.read_root/"tests", path_root=self.read_root, llm=self._self_analysis_llm)`; if no llm →
-  return `("[propose unavailable] no completion model configured.", "ok", False)` (graceful, not a block);
-  else `n = agent.propose_open(limit=limit)`; return `(f"Proposed fixes for {n} finding(s) (status open→
-  proposed); review with status='proposed' before any apply (T3).", "ok", False)`. Status `ok`,
-  `failed=False` — GREEN, never reflected. Wrap in try/except → graceful `[propose error] …` (advisory).
-
-**5. `aios/api/main.py` (`/api/generate`)** — pass `self_analysis_llm=Depends(get_llm_client)` into
-`ToolAgent` (the SAME completion dep as `planner_llm`; NOT `chat_client`).
-
-### Tests — `tests/test_self_analysis.py` (use a FAKE completion LLM, like the planner tests)
-- a `FakeLLM` whose `.complete()` returns a canned unified diff. After seeding the report with `open`
-  findings (via `write_report`), `propose_open(llm=FakeLLM())` flips them to `proposed` with
-  `proposed_diff` set, `proposed_by` set, and `proposed_zone` correct.
-- **zone classification:** a finding whose `target_path` is under `aios/security/…` (or the fixture's
-  `<pkg>/security/…`) → `proposed_zone == "RED"`; a non-frozen path → `"YELLOW"`.
-- **read-only:** hash the source tree before/after `propose_open`; assert byte-identical (only the DB
-  changed).
-- **fail-soft:** a `FakeLLM` that raises / returns `""` → `propose_open` returns 0, findings stay `open`,
-  no exception.
-- **tool path:** `propose_fixes` with no injected llm → status `ok` + `[propose unavailable]`, never
-  reflects; with a FakeLLM → summary names the proposed count.
-- the existing read-only / reconcile / golden tests stay green (the golden freezes T1 only — T2 adds a
-  separate tool, no T1 change, so the golden is untouched).
-
-### §6.3 note (scope boundary for this PR)
-T2 records `proposed_by` + `proposed_zone` as GROUNDWORK. The **no-self-approval guard** and the
-**two-snapshot integrity check** are ENFORCED in **T3** (apply), because T2 applies nothing — do NOT build
-the apply path or the guard here; just lay the data so T3 can require a *human* (≠ proposer) approval.
+### Tests — `tests/test_self_apply.py` (NEW; use fakes, never a real shell/model)
+Drive `SelfApplyEngine` directly with a seeded temp DB + a tiny temp `project_root` containing a fake
+`aios/` file, a fake `audit_log` (list), and a fake verifier whose verdict is parametrizable:
+- **happy path:** a YELLOW proposal whose diff applies + verify PASSES → file updated, `status='applied'`,
+  `applied_audit_id` set, audited.
+- **verify fails → auto-rollback:** same but verify FAILS → file restored byte-identical to before,
+  `status='rolled_back'`, both apply+rollback audited.
+- **no-self-approval:** `approved_by=""` and `approved_by="self_analysis_agent"` → refused, file untouched.
+- **RED refused:** a proposal whose `target_path` is under `…/security/` → refused (T4), file untouched,
+  verify NEVER run.
+- **diff doesn't apply (`git apply --check` fails):** refused, row stays `proposed`, file untouched.
+- **multi-file / foreign-path / `..` diff:** refused (single-file confinement), file untouched.
+- **two-snapshot integrity:** if the post-write bytes don't equal before+diff → restore + refuse.
+- **not-proposed:** applying a row that is `open`/`applied`/`rejected` → refused.
+- `approved_by` migration smoke (fresh has it; legacy gains it).
 
 ### Acceptance
 - Full `pytest -q` green. **Cloud (Linux) note:** the 2 pre-existing environmental `test_security.py`
-  failures are NOT yours — confirm identical with changes stashed. Windows baseline **193 passed /
-  1 skipped**; new tests add to it. (`radon`+`coverage` already installed.)
-- Read-only-source proof green · `aios/security/` untouched · no frontend · `proposed_by` migration
-  idempotent. One focused PR. Title: `Self-Analysis T2: propose-diff (generate fix proposals, never apply)`.
+  failures are NOT yours — confirm identical with changes stashed. Windows baseline **199 passed /
+  1 skipped**; new tests add to it.
+- `aios/security/` untouched · no `tool_agent.py` change · no frontend · `approved_by` migration idempotent.
+- One focused PR. Title: `Self-Analysis T3a: guarded apply engine (apply approved proposals to aios/, verify + auto-rollback)`.
 
 ---
 
-## Runway after T2 (each its own PR; I review+merge)
-- **T3 — apply:** a human-approved `proposed` row → snapshot → write (the guarded out-of-sandbox path for
-  `aios/`) → verify (run the suite) → audit → **auto-rollback on failure**. ENFORCE §6.3: no-self-approval
-  guard (approver ≠ proposer, human-gated) + two-snapshot integrity check.
-- **T4 — core edit (RED, frozen):** proposals against `aios/security/*` may be shown but applying is RED/blocked.
-- Parallel, anytime: the **BREATHE** sandbox first-breath on Ollama (`qwen2.5-coder:7b`).
+## Runway after T3a (each its own PR; I review+merge)
+- **T3b — review/approve UI:** list `proposed` rows + `DiffView` + Approve (→ the apply endpoint, supplying
+  the human `approvedBy`) / Reject. This is the chosen option (A); it lands right after the engine.
+- **T4 — core edit (RED, frozen):** `aios/security/*` proposals may be shown but applying stays RED/blocked
+  (already enforced by T3a's zone gate; T4 is the explicit policy + any review surfacing).
+- Parallel: the **BREATHE** retry with the explicit "use the `edit_file` tool" prompt.
+- OPS / tech-debt worth a tiny PR sometime: set `testpaths = ["tests"]` so bare `pytest` ignores the
+  `training_ground/` seed (today the seed must be parked before a full-suite count; T3a's verify already
+  scopes to `tests/`).
