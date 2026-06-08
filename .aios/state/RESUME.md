@@ -28,8 +28,9 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-08: PRE-T2 RUNWAY (c) — GOLDEN-REGRESSION HARNESS for the Self-Analysis analyzer —
-DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+**▶ LATEST 2026-06-08: PRE-T2 RUNWAY (c) — GOLDEN-REGRESSION HARNESS — MERGED to `master` (`7095c25`,
+PR #8); suite 193 passed / 1 skipped on Windows; reviewed on evidence (golden regen = ZERO diff = faithful;
+`pytest tests/golden --collect-only` = 0 fixture tests collected) — no patch.**
 Implemented `.aios/state/ULTRACODE_TASK.md` (c) directly in Claude Code. LOCKS the analyzer's
 deterministic T1 findings against a FROZEN committed fixture so any future drift (refactor / threshold
 tweak / radon version bump) fails a test instead of silently shifting the marquee feature's output before
@@ -53,7 +54,7 @@ T2. **Tests + fixture + golden JSON ONLY — NO `aios/` change, NO new deps, no 
   (verified: 0 fixture tests collected).
 **Verified:** full suite `188 passed, 4 skipped, 2 failed` — the 2 = SAME pre-existing/environmental
 `test_security.py` (identical with changes stashed). +3 golden tests; golden regen idempotent. **NEXT:**
-operator reviews/merges this draft PR. Then runway **(d)** doc the frozen core in CLAUDE.md (§VIII: I
+(c) is MERGED — the pre-T2 runway is complete EXCEPT (d), a §VIII `CLAUDE.md` frozen-core doc that Claude Code PROPOSES (operator approves → I apply; NOT an ultracode job) — proposal presented this session, awaiting approval. Frozen core = `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py`. Then runway **(d)** doc the frozen core in CLAUDE.md (§VIII: I
 PROPOSE the diff, operator approves — NOT an ultracode job) → **T2** (propose-diff, YELLOW + no-self-
 approval guard + two-snapshot check, §6.3) → T3 → T4. **OPS (unchanged):** the local root `.coverage` is
 stale (1 file) + gitignored → live `self_analyze` emits low-value `uncovered` until a full `pytest --cov`
@@ -498,4 +499,4 @@ isolates tests from live `data/` (no model side-effects in tests).
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (runway (c) golden-regression harness for the analyzer — draft PR, 188/4/2)_
+_Last updated: 2026-06-08 by Claude Code ((c) golden harness MERGED — PR #8 `7095c25`, 193/1; next = (d) frozen-core CLAUDE.md proposal → T2)_
