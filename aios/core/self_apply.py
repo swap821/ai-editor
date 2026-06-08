@@ -4,8 +4,11 @@ This is the highest-risk component in the system: the FIRST automated write to t
 OS's own ``aios/`` source. A human-approved T2 proposal (``status='proposed'``) is
 applied through one narrow, audited, **reversible** path with a hard safety net:
 
-    snapshot → single-file-confined ``git apply`` → two-snapshot integrity check
-    → gated verify (run the suite) → audit, with **auto-rollback** on any failure.
+    snapshot → ``git apply --check`` → **audit the apply intent (fail-closed,
+    before the write)** → single-file-confined ``git apply`` → two-snapshot
+    integrity check → gated verify (run the suite), with **auto-rollback** on any
+    failure. Auditing before the write mirrors ``edit_file``/``create_file``: ``aios/``
+    is never written without the intent first recorded on the tamper-evident ledger.
 
 **Fail-closed everywhere:** anything unclear → restore the original bytes and refuse;
 never leave a half-applied or unlogged change. Crucially there is **no agent tool to
@@ -174,18 +177,35 @@ class SelfApplyEngine:
         except OSError as exc:
             return ApplyResult("refused", f"could not read target file: {exc}")
 
-        # 6. git apply --check (clean-apply gate), then apply for real.
+        # 6. git apply --check (clean-apply gate) — proves the diff applies before we
+        #    audit or write. A failed check leaves the row 'proposed' and nothing changed.
         ok, out = self._git_apply(diff, self.project_root, check=True)
         if not ok:
             return ApplyResult(
                 "refused", f"diff does not apply cleanly (row stays proposed): {out.strip()[:200]}"
             )
+
+        # 7. Audit the APPLY intent BEFORE the write — fail-closed (mirrors
+        #    edit_file/create_file): never write aios/ without first recording the
+        #    intent on the tamper-evident ledger. An audit error/no-id → refuse and
+        #    do NOT write (nothing has changed on disk yet). `applied_audit_id` = this id.
+        try:
+            apply_entry = self._audit(
+                self.proposer_id, f"APPLY: {target_path} approved_by={approver}", Zone.YELLOW
+            )
+        except Exception as exc:  # noqa: BLE001 - fail-closed: no audit, no write
+            return ApplyResult("refused", f"audit failed; not applied: {exc}")
+        apply_audit_id = _entry_id(apply_entry)
+        if apply_audit_id is None:
+            return ApplyResult("refused", "audit failed (no entry id); not applied")
+
+        # 8. Apply for real.
         ok, out = self._git_apply(diff, self.project_root, check=False)
         if not ok:
             self._restore(resolved, before_bytes)
             return ApplyResult("refused", f"git apply failed; restored: {out.strip()[:200]}")
 
-        # 7. Two-snapshot integrity check (§6.3): the on-disk result must equal the
+        # 9. Two-snapshot integrity check (§6.3): the on-disk result must equal the
         #    original with EXACTLY the approved diff applied (computed independently
         #    in an isolated copy) — catching any unintended/extra change to the file.
         try:
@@ -198,13 +218,10 @@ class SelfApplyEngine:
             self._restore(resolved, before_bytes)
             return ApplyResult("refused", "two-snapshot integrity check failed; restored")
 
-        # 8. The write succeeded and integrity holds. Audit the APPLY now — the write
-        #    really happened, so the ledger records it even if verify later reverts it.
-        apply_entry = self._safe_audit(f"APPLY: {target_path} approved_by={approver}")
-        apply_audit_id = _entry_id(apply_entry)
-
-        # 9. Verify through the gated Verifier (run the suite). A fail/timeout/blocked
-        #    verdict → auto-rollback to the snapshot (also audited), status='rolled_back'.
+        # 10. Verify through the gated Verifier (run the suite). A fail/timeout/blocked
+        #     verdict → auto-rollback to the snapshot, status='rolled_back'. The restore
+        #     already happened, so the ROLLBACK audit is best-effort (a ledger hiccup
+        #     there must not crash — the row is rolled_back regardless).
         result = self.verifier.verify(self.verify_command)
         if not result.passed:
             self._restore(resolved, before_bytes)
@@ -217,7 +234,7 @@ class SelfApplyEngine:
                 verify=result.summary,
             )
 
-        # 10. Verified pass — keep the change; status='applied', applied_audit_id ties
+        # 11. Verified pass — keep the change; status='applied', applied_audit_id ties
         #     the row to the apply ledger entry.
         self._set_status(
             proposal_id, "applied", approved_by=approver, applied_audit_id=apply_audit_id

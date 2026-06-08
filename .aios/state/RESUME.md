@@ -28,7 +28,35 @@ security-gated, human-supervised, self-correcting.
 - **Resumable in-chat approval (Phase 4h)** — a YELLOW command pauses the turn with a `human_required` event; the UI shows the approval card, and on approve the frontend re-sends the turn with the command in `approvedCommands`, so it runs via `executor.execute_approved` (RED still refused). Pausing records no answer, so the resend cleanly replays the same turn. `[aios/agents/tool_agent.py · aios/api/main.py · frontend/src/App.jsx]`
 
 ## Next action  → do this first on resume
-**▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T3a — GUARDED APPLY ENGINE (apply approved proposals to `aios/`,
+**▶ LATEST 2026-06-08: SELF-ANALYSIS TIER T3b — REVIEW/APPROVE UI + AUDIT-BEFORE-WRITE HARDENING —
+DONE & GREEN (branch `claude/sharp-heisenberg-q2C1L`, draft PR → operator review → merge → `git pull`).**
+Implemented `.aios/state/ULTRACODE_TASK.md` (T3b) directly in Claude Code — two clearly-separated parts.
+**PART 1 (backend hardening, `aios/core/self_apply.py`):** moved the APPLY audit to BEFORE the `git apply`
+write and made it FAIL-CLOSED (mirrors `edit_file`/`create_file`): never write `aios/` without first
+recording intent on the ledger. New flow: load → no-self-approval → zone gate → single-file confine →
+`before_bytes` → `git apply --check` → **audit APPLY intent (strict; raise/no-id → refuse, NO write)** →
+`git apply` → two-snapshot integrity → verify → pass `applied`(+`applied_audit_id`) / fail restore +
+best-effort ROLLBACK audit + `rolled_back`. +1 test `test_apply_blocked_when_audit_fails` (audit raises →
+refused, file untouched, row stays `proposed`, verify never runs). Existing 16 stay green.
+**PART 2 (frontend, the review/approve UI = option A front half):** `frontend/src/components/ProposalsPanel.jsx`
+(NEW) — on open GETs `…/proposals?status=proposed`, renders each row (target_path · finding_type · evidence ·
+zone badge RED/amber · `proposed_diff` via the existing `DiffView`); an `approvedBy` input (default
+`"operator"`, Approve disabled when empty or `== self_analysis_agent` — mirrors the backend no-self-approval
+so a doomed request is never sent); **Approve** → `POST …/{id}/apply {approvedBy}` shows the `ApplyResult`
+(applied/rolled_back/refused + reason + verify) then refreshes; **Reject** → `POST …/{id}/reject` + refresh;
+**RED rows show but Approve is disabled** ("RED — apply blocked (T4)"); loading/empty/error states; app
+`var(--*)` tokens (no parked CSS). Wired into `App.jsx` as a new bottom-tab "Self-Analysis" (✨), additive.
+**Verified:** backend full suite `211 passed, 4 skipped, 2 failed` — the 2 = SAME pre-existing/environmental
+`test_security.py` (identical with changes stashed). Frontend **vitest 14/14** (+4 ProposalsPanel: renders
+proposal+diff · Approve POSTs apply w/ approvedBy + shows result · RED Approve disabled · Reject POSTs) +
+**eslint clean** + **vite build** green. `aios/security/` untouched.
+**NEXT:** operator reviews/merges this draft PR. Then **T4 — core edit (RED, frozen):** `aios/security/*` is
+already RED-refused by T3a's zone gate + shown review-only in the UI; T4 = the explicit policy + any extra
+surfacing (small). **Then the marquee Self-Analysis module (T0–T4) is COMPLETE.** Parallel: BREATHE retry
+(sandbox, prompt #1 "use the edit_file tool"). OPS tech-debt (tiny PR): `testpaths=["tests"]` so bare
+`pytest` ignores the `training_ground/` seed.
+
+**▶ PRIOR 2026-06-08: SELF-ANALYSIS TIER T3a — GUARDED APPLY ENGINE (apply approved proposals to `aios/`,
 verify + auto-rollback) — MERGED to `master` (`173744d`, PR #10); suite 215 passed / 1 skipped on Windows;
 reviewed on evidence + INDEPENDENTLY verified the structural no-self-approval guard (grep: no agent apply
 tool/route; `SelfApplyEngine` reachable ONLY from the human endpoint) — no patch (audit-before-write
@@ -573,13 +601,13 @@ isolates tests from live `data/` (no model side-effects in tests).
 ## Open approvals / blockers
 - Live happy-path is gated by host RAM (7.5 GB). Close other apps so `llama3.2:3b` fits (~4 GB free). `AIOS_INDEX_CHAT` and `AIOS_REFLECT_ON_FAILURE` each add an extra model load — set them `false` on tight runs.
 
-## Active files  (Self-Analysis T3a apply engine — on branch `claude/sharp-heisenberg-q2C1L`:)
-- `aios/core/self_apply.py` (NEW — `SelfApplyEngine.apply`: no-self-approval + zone gate + single-file confinement + snapshot/git-apply/two-snapshot-integrity/verify/audit/auto-rollback · `ApplyResult` · `_diff_paths`/`_resolve_within` helpers) · `aios/api/main.py` (3 endpoints: list/apply/reject + `get_self_apply_engine` dep + `ApplyProposalRequest`) · `aios/agents/self_analysis_agent.py` (factored module-level `classify_target`; method delegates) · `aios/memory/schema.sql` (+`approved_by`) · `aios/memory/db.py` (`_migrate` +`approved_by` ALTER) · `tests/test_self_apply.py` (NEW — 16 tests). NO `tool_agent.py` (no apply tool — structural guard) / frontend / `aios/security/` change.
-- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6) · radon+coverage static tooling (PR #7) · golden harness (PR #8) · T2 propose-diff (PR #9).
+## Active files  (Self-Analysis T3b UI + audit-hardening — on branch `claude/sharp-heisenberg-q2C1L`:)
+- **Part 1 (backend):** `aios/core/self_apply.py` (APPLY audit moved BEFORE `git apply`, fail-closed) · `tests/test_self_apply.py` (+`test_apply_blocked_when_audit_fails`). **Part 2 (frontend):** `frontend/src/components/ProposalsPanel.jsx` (NEW — list/diff/zone-badge/approvedBy/Approve/Reject, RED disabled) · `frontend/src/components/ProposalsPanel.test.jsx` (NEW — 4 vitest) · `frontend/src/App.jsx` (import + "Self-Analysis" bottom-tab + panel). NO `aios/security/` change.
+- (all merged:) verify (PR #1) · planner/plan (PR #2) · Tier-2 rollback-DB + DATA_DIR isolation (PR #3) · Self-Analysis T0/T1 (PR #4) · fingerprint-reconcile (PR #5) · create_file (PR #6) · radon+coverage static tooling (PR #7) · golden harness (PR #8) · T2 propose-diff (PR #9) · T3a apply engine (PR #10).
 
 ## Notes not yet promoted to memory
 - Run backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`. Run frontend: `cd frontend; npm run dev` (:5173). Tests: `.venv\Scripts\python -m pytest -q`.
 - The repo uses per-phase commits on `master` (not `main`). Keep that cadence.
 
 ---
-_Last updated: 2026-06-08 by Claude Code (T3b spec written + CURRENT: review/approve UI + audit-before-write hardening; BREATHE retry running)_
+_Last updated: 2026-06-08 by Claude Code (Self-Analysis T3b: review/approve UI + audit-before-write hardening — draft PR, backend 211/4/2, frontend 14/14)_
