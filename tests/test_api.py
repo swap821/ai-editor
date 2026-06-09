@@ -61,7 +61,10 @@ class FakeOllama:
     """Deterministic Ollama stand-in for model discovery + agentic chat."""
 
     def list_models(self) -> dict:
-        return {"available": True, "models": ["llama3.2:3b", "nomic-embed-text:latest"]}
+        return {
+            "available": True,
+            "models": ["llama3.2:3b", "deepseek-r1:8b", "nomic-embed-text:latest"],
+        }
 
     def chat(
         self,
@@ -179,6 +182,15 @@ def test_non_loopback_api_host_requires_token(monkeypatch) -> None:
             pass
 
 
+def test_non_loopback_api_host_requires_strong_token(monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_HOST", "0.0.0.0")
+    monkeypatch.setattr(config, "API_TOKEN", "too-short")
+
+    with pytest.raises(RuntimeError, match="at least 32 characters"):
+        with TestClient(app):
+            pass
+
+
 def test_unauthenticated_remote_client_is_refused(monkeypatch) -> None:
     monkeypatch.setattr(config, "API_HOST", "127.0.0.1")
     monkeypatch.setattr(config, "API_TOKEN", "")
@@ -187,6 +199,16 @@ def test_unauthenticated_remote_client_is_refused(monkeypatch) -> None:
         response = remote.post("/api/v1/security/classify", json={"command": "echo hi"})
 
     assert response.status_code == 403
+
+
+def test_unauthenticated_remote_client_cannot_read_api_schema(monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_HOST", "127.0.0.1")
+    monkeypatch.setattr(config, "API_TOKEN", "")
+
+    with TestClient(app, client=("203.0.113.10", 50000)) as remote:
+        assert remote.get("/openapi.json").status_code == 403
+        assert remote.get("/docs").status_code == 403
+        assert remote.get("/health").status_code == 200
 
 
 def test_authenticated_deployment_allows_cors_preflight(client: TestClient, monkeypatch) -> None:
@@ -242,6 +264,8 @@ def test_models_local_lists_installed(client: TestClient) -> None:
     body = response.json()
     assert body["available"] is True
     assert "llama3.2:3b" in body["models"]
+    assert "deepseek-r1:8b" not in body["models"]
+    assert "nomic-embed-text:latest" not in body["models"]
 
 
 def test_models_auto_picks_best_local(client: TestClient) -> None:
@@ -278,6 +302,11 @@ def test_select_chat_client_auto_prefers_coder_and_falls_back() -> None:
     fb_client, fb_model = _select_chat_client("auto", empty, None)
     assert fb_client is empty and fb_model == config.LLM_MODEL
 
+    # An omitted model id preserves the local-first contract even when Bedrock
+    # happens to be configured; only an explicit cloud id changes providers.
+    default_client, default_model = _select_chat_client(None, ollama, object())
+    assert default_client is ollama and default_model == config.LLM_MODEL
+
 
 def test_select_chat_client_routes_by_task() -> None:
     # The agent routes by PURPOSE: a coder for code, a strong general for chat,
@@ -306,8 +335,21 @@ def test_models_auto_returns_by_task_map(client: TestClient) -> None:
     body = response.json()
     assert body["task"] == "reasoning"
     assert set(body["by_task"]) == {"coding", "reasoning", "general", "fast"}
-    # the fake has only llama3.2:3b, so every purpose resolves to it
+    # The fake's deepseek reasoner cannot accept tool specs, so every actual
+    # agent-loop purpose resolves to the sole tool-capable model.
     assert body["model"] == "llama3.2:3b"
+
+
+def test_generate_refuses_local_model_without_tool_protocol(client: TestClient) -> None:
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+            "modelId": "ollama.deepseek-r1:8b",
+        },
+    )
+    assert response.status_code == 422
+    assert "tool protocol" in response.json()["detail"]
 
 
 def test_generate_streams_text_code_and_done(client: TestClient) -> None:
@@ -347,6 +389,28 @@ def test_terminal_red_command_is_blocked(client: TestClient) -> None:
     body = response.json()
     assert body["isError"] is True
     assert "BLOCKED" in body["output"]
+
+
+def test_terminal_yellow_issues_capability_and_runs_after_approval(client: TestClient) -> None:
+    pending = client.post(
+        "/api/terminal",
+        json={"command": "pip install flask", "sessionId": "terminal-approval"},
+    )
+    assert pending.status_code == 200
+    body = pending.json()
+    assert body["requiresApproval"] is True
+    assert body["approvalToken"]
+
+    approved = client.post(
+        "/api/v1/approval/req",
+        json={
+            "approvalToken": body["approvalToken"],
+            "sessionId": "terminal-approval",
+            "approve": True,
+        },
+    )
+    assert approved.status_code == 200
+    assert approved.json()["result"]["status"] == "OK"
 
 
 def test_generate_persists_episodic_turns(client: TestClient) -> None:
@@ -430,6 +494,26 @@ def test_generate_indexes_completed_turn_into_semantic(client: TestClient) -> No
     assert "User:" in entry and "Assistant:" in entry
 
 
+def test_generate_redacts_secrets_before_memory_persistence(client: TestClient) -> None:
+    session_id = "test-secret-redaction"
+    secret = "sk-" + "a" * 40
+    client.fake_indexer.added.clear()
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": f"explain {secret}"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
+
+    assert response.status_code == 200
+    assert secret not in client.fake_indexer.added[-1]
+    assert "REDACTED" in client.fake_indexer.added[-1]
+    assert all(secret not in row["content"] for row in EpisodicMemory().recent(session_id))
+
+
 def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
     # When the agent hits a YELLOW command, the turn pauses and the UI is asked
     # to authorise it (resumable in-chat approval) instead of completing.
@@ -473,6 +557,7 @@ def test_models_bedrock_lists_when_configured(client: TestClient) -> None:
     response = client.get("/api/v1/models/bedrock")
     assert response.status_code == 200
     body = response.json()
+    assert body["configured"] is True
     assert body["available"] is True
     assert body["models"][0]["id"] == "amazon.nova-pro-v1:0"
 
@@ -525,7 +610,21 @@ def test_models_bedrock_empty_when_unconfigured(client: TestClient) -> None:
     # No override -> real get_bedrock_client returns None (Bedrock off in tests).
     response = client.get("/api/v1/models/bedrock")
     assert response.status_code == 200
-    assert response.json() == {"available": False, "models": []}
+    assert response.json() == {"configured": False, "available": False, "models": []}
+
+
+def test_generate_refuses_explicit_cloud_model_when_bedrock_unconfigured(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+            "modelId": "amazon.nova-pro-v1:0",
+        },
+    )
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]
 
 
 def test_generate_routes_cloud_model_to_bedrock(client: TestClient) -> None:
@@ -647,17 +746,55 @@ def test_execute_endpoint_green_runs_and_red_blocks(client: TestClient) -> None:
     assert rbody["zone"] == "RED"
 
 
-def test_approval_req_approve_runs_yellow(client: TestClient) -> None:
-    token = get_approval_store().issue("command", {"command": "pip install flask"}, "approval-test")
+def test_execute_issues_capability_then_approval_runs_yellow(client: TestClient) -> None:
+    escalated = client.post(
+        "/api/v1/execute",
+        json={"command": "pip install flask", "sessionId": "approval-test"},
+    )
+    assert escalated.status_code == 200
+    pending = escalated.json()
+    assert pending["status"] == "REQUIRE_APPROVAL"
+    assert pending["sessionId"] == "approval-test"
+    assert pending["approvalToken"]
+
     response = client.post(
         "/api/v1/approval/req",
-        json={"approvalToken": token, "sessionId": "approval-test", "approve": True},
+        json={
+            "approvalToken": pending["approvalToken"],
+            "sessionId": "approval-test",
+            "approve": True,
+        },
     )
     assert response.status_code == 200
     body = response.json()
     assert body["decision"] == "approved"
     assert body["executed"] is True
     assert body["result"]["status"] == "OK"
+
+
+def test_execute_yellow_requires_session_for_approval_capability(client: TestClient) -> None:
+    response = client.post("/api/v1/execute", json={"command": "pip install flask"})
+    assert response.status_code == 400
+    assert "sessionId is required" in response.json()["detail"]
+
+
+def test_execute_over_rate_limit_still_issues_fresh_human_capability(
+    client: TestClient,
+) -> None:
+    session_id = "rate-limit-reauthorisation"
+    stable_executor = _fake_executor()
+    app.dependency_overrides[get_executor] = lambda: stable_executor
+    responses = [
+        client.post(
+            "/api/v1/execute",
+            json={"command": "pip install flask", "sessionId": session_id},
+        ).json()
+        for _ in range(config.MAX_RED_ACTIONS_PER_SESSION + 1)
+    ]
+
+    assert all(body["status"] == "REQUIRE_APPROVAL" for body in responses)
+    assert all(body["approvalToken"] for body in responses)
+    assert "re-authorisation required" in responses[-1]["reason"]
 
 
 def test_approval_req_reject_does_not_run(client: TestClient) -> None:
@@ -669,6 +806,25 @@ def test_approval_req_reject_does_not_run(client: TestClient) -> None:
     body = response.json()
     assert body["decision"] == "rejected"
     assert body["executed"] is False
+
+
+def test_approval_req_reject_consumes_non_command_capability(client: TestClient) -> None:
+    token = get_approval_store().issue(
+        "edit",
+        {"filepath": "x.py", "old_string": "a", "new_string": "b"},
+        "approval-test",
+    )
+    response = client.post(
+        "/api/v1/approval/req",
+        json={"approvalToken": token, "sessionId": "approval-test", "approve": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["actionType"] == "edit"
+    replay = client.post(
+        "/api/v1/approval/req",
+        json={"approvalToken": token, "sessionId": "approval-test", "approve": False},
+    )
+    assert replay.status_code == 400
 
 
 def test_approval_req_refuses_red_even_when_approved(client: TestClient) -> None:
@@ -718,7 +874,7 @@ def test_self_apply_verifier_runs_fixed_suite_from_project_root(monkeypatch) -> 
         calls.append({"args": args, **kwargs})
         return SimpleNamespace(stdout="1 passed", stderr="", returncode=0)
 
-    monkeypatch.setattr("aios.api.main.subprocess.run", fake_run)
+    monkeypatch.setattr("aios.api.main._bounded_run", fake_run)
     engine = get_self_apply_engine(_fake_executor())
 
     result = engine.verifier.verify(DEFAULT_VERIFY_COMMAND, approved=True)
@@ -731,7 +887,7 @@ def test_self_apply_verifier_runs_fixed_suite_from_project_root(monkeypatch) -> 
 
 def test_self_apply_verifier_refuses_any_other_runner_command(monkeypatch) -> None:
     monkeypatch.setattr(
-        "aios.api.main.subprocess.run",
+        "aios.api.main._bounded_run",
         lambda *args, **kwargs: pytest.fail("unexpected subprocess"),
     )
     engine = get_self_apply_engine(_fake_executor())

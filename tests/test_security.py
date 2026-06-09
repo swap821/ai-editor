@@ -6,7 +6,9 @@ the critical fail-closed-on-exception guarantee.
 """
 from __future__ import annotations
 
+import sqlite3
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -273,15 +275,45 @@ def test_shell_composition_is_red(command: str) -> None:
 # --------------------------------------------------------------------------- #
 # Rate limiting + decisions
 # --------------------------------------------------------------------------- #
-def test_rate_limit_blocks_after_threshold() -> None:
+def test_rate_limit_requires_fresh_human_reauthorisation_after_threshold() -> None:
     limiter = RateLimiter(max_per_session=3)
     cmd = "pip install flask"
     decisions = [
         validate_command(cmd, session_id="s1", rate_limiter=limiter) for _ in range(4)
     ]
     assert [d.status for d in decisions[:3]] == ["REQUIRE_HUMAN"] * 3
-    assert decisions[3].status == "BLOCK"
-    assert decisions[3].zone is Zone.RED
+    assert decisions[3].status == "REQUIRE_HUMAN"
+    assert decisions[3].zone is Zone.YELLOW
+    assert "re-authorisation required" in decisions[3].reason
+
+
+def test_durable_rate_limiter_coordinates_workers_and_reset(tmp_path) -> None:
+    db_path = tmp_path / "security-state.db"
+    first = RateLimiter(max_per_session=2, db_path=db_path)
+    second = RateLimiter(max_per_session=2, db_path=db_path)
+
+    assert first.record("shared-session") == 1
+    assert second.record("shared-session") == 2
+    assert first.record("shared-session") == 3
+
+    second.reset("shared-session")
+    assert first.record("shared-session") == 1
+    assert b"shared-session" not in db_path.read_bytes()
+
+
+def test_durable_rate_limiter_migrates_legacy_raw_session_id(tmp_path) -> None:
+    db_path = tmp_path / "security-state.db"
+    RateLimiter(db_path=db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO security_rate_limits (session_id, action_count, updated_at) "
+            "VALUES (?, ?, ?)",
+            ("legacy-session", 1, time.time()),
+        )
+
+    RateLimiter(db_path=db_path)
+
+    assert b"legacy-session" not in db_path.read_bytes()
 
 
 def test_green_allows_and_red_blocks() -> None:

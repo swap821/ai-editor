@@ -70,7 +70,9 @@ from __future__ import annotations
 import ast
 import difflib
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
@@ -98,6 +100,35 @@ ConfirmHook = Callable[[int], None]
 
 #: Max reason -> act turns before the loop stops for safety.
 DEFAULT_MAX_ITERS = 5
+
+
+def _atomic_write_text(target: Path, content: str, *, replace: bool) -> None:
+    """Durably stage text beside *target*, then publish it atomically.
+
+    Existing-file edits use ``os.replace`` so a failed publication leaves the
+    original intact. New-file creates use a hard link as an atomic no-clobber
+    operation, preserving ``create_file``'s refusal to overwrite under races.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, staged_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+    )
+    staged = Path(staged_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if replace:
+            os.replace(staged, target)
+        else:
+            os.link(staged, target)
+            staged.unlink()
+    except Exception:
+        staged.unlink(missing_ok=True)
+        raise
 #: Cap on tool output fed back to the model (keeps context small on local models).
 _TOOL_RESULT_LIMIT = 4000
 #: Cap on a single file read.
@@ -971,7 +1002,7 @@ class ToolAgent:
                 False,
             )
         try:
-            target.write_text(updated, encoding="utf-8")
+            _atomic_write_text(target, updated, replace=True)
         except Exception as exc:  # noqa: BLE001 - report write failures cleanly
             return (f"[ERROR] Could not write {filepath}: {exc}", "blocked", False)
         return (f"Edited {filepath}:\n{scrubbed}", "ok", False)
@@ -1052,10 +1083,9 @@ class ToolAgent:
                 False,
             )
         try:
-            # Parent dirs are inside the verified-in-scope target, so creating them
-            # cannot escape the sandbox.
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
+            # The helper creates parents inside the verified-in-scope target and
+            # publishes without clobbering a file created during this operation.
+            _atomic_write_text(target, content, replace=False)
         except Exception as exc:  # noqa: BLE001 - report write failures cleanly
             return (f"[ERROR] Could not create {filepath}: {exc}", "blocked", False)
         n_lines = content.count("\n") + (0 if content.endswith("\n") or not content else 1)

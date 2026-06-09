@@ -21,10 +21,14 @@ matches wins.
 """
 from __future__ import annotations
 
+import hashlib
 import re
+import sqlite3
 import threading
+import time
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Optional, Pattern
 
 from aios import config
@@ -138,28 +142,121 @@ _SAFE_PATTERNS = _compile([
 
 
 class RateLimiter:
-    """Thread-safe per-session counter for sensitive (YELLOW+) actions.
+    """Per-session counter for sensitive actions, optionally multi-process safe.
 
     After ``max_per_session`` sensitive actions, further ones are blocked
     pending human re-authorisation. Anonymous (sessionless) actions are not
-    counted, matching the legacy server contract.
+    counted, matching the legacy server contract. Production supplies a SQLite
+    path so workers share the same counter; tests may retain the in-memory mode.
     """
 
-    def __init__(self, max_per_session: int = config.MAX_RED_ACTIONS_PER_SESSION) -> None:
+    def __init__(
+        self,
+        max_per_session: int = config.MAX_RED_ACTIONS_PER_SESSION,
+        *,
+        db_path: Optional[Path] = None,
+        clock=time.time,
+        retention_s: int = 7 * 24 * 60 * 60,
+    ) -> None:
         self.max_per_session = max_per_session
+        self.db_path = db_path
+        self._clock = clock
+        self.retention_s = max(retention_s, 1)
         self._counts: dict[str, int] = {}
         self._lock = threading.Lock()
+        if self.db_path is not None:
+            self._init_db()
+
+    def _connect(self) -> sqlite3.Connection:
+        assert self.db_path is not None
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = FULL")
+        return conn
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS security_rate_limits ("
+                "session_id TEXT PRIMARY KEY, action_count INTEGER NOT NULL, "
+                "updated_at REAL NOT NULL)"
+            )
+            rows = conn.execute(
+                "SELECT session_id, action_count FROM security_rate_limits"
+            ).fetchall()
+            for row in rows:
+                session_id = str(row[0])
+                digest = self._session_key(session_id)
+                if not re.fullmatch(r"[0-9a-f]{64}", session_id):
+                    existing = conn.execute(
+                        "SELECT action_count FROM security_rate_limits WHERE session_id = ?",
+                        (digest,),
+                    ).fetchone()
+                    if existing is not None:
+                        conn.execute(
+                            "UPDATE security_rate_limits SET action_count = action_count + ? "
+                            "WHERE session_id = ?",
+                            (int(row[1]), digest),
+                        )
+                        conn.execute(
+                            "DELETE FROM security_rate_limits WHERE session_id = ?",
+                            (session_id,),
+                        )
+                        continue
+                    conn.execute(
+                        "UPDATE security_rate_limits SET session_id = ? WHERE session_id = ?",
+                        (digest, session_id),
+                    )
+
+    def _prune_db(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            "DELETE FROM security_rate_limits WHERE updated_at < ?",
+            (self._clock() - self.retention_s,),
+        )
+
+    @staticmethod
+    def _session_key(session_id: str) -> str:
+        """Return a non-reversible durable key for a caller-supplied session id."""
+        return hashlib.sha256(session_id.encode("utf-8")).hexdigest()
 
     def record(self, session_id: Optional[str]) -> int:
         """Increment and return the sensitive-action count for *session_id*."""
         if not session_id:
             return 1
+        if self.db_path is not None:
+            session_key = self._session_key(session_id)
+            with self._connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                self._prune_db(conn)
+                row = conn.execute(
+                    "SELECT action_count FROM security_rate_limits WHERE session_id = ?",
+                    (session_key,),
+                ).fetchone()
+                count = (int(row[0]) if row else 0) + 1
+                conn.execute(
+                    "INSERT INTO security_rate_limits (session_id, action_count, updated_at) "
+                    "VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET "
+                    "action_count = excluded.action_count, updated_at = excluded.updated_at",
+                    (session_key, count, self._clock()),
+                )
+            return count
         with self._lock:
             self._counts[session_id] = self._counts.get(session_id, 0) + 1
             return self._counts[session_id]
 
     def reset(self, session_id: Optional[str] = None) -> None:
         """Reset one session's counter, or all of them when *session_id* is None."""
+        if self.db_path is not None:
+            with self._connect() as conn:
+                if session_id is None:
+                    conn.execute("DELETE FROM security_rate_limits")
+                else:
+                    conn.execute(
+                        "DELETE FROM security_rate_limits WHERE session_id = ?",
+                        (self._session_key(session_id),),
+                    )
+            return
         with self._lock:
             if session_id is None:
                 self._counts.clear()
@@ -262,7 +359,8 @@ def validate_command(
     """Classify *command* and resolve it to an actionable gateway decision.
 
     GREEN -> ALLOW, YELLOW -> REQUIRE_HUMAN (subject to the per-session rate
-    limit, after which it becomes a RED BLOCK), RED -> BLOCK.
+    limit, after which the reason explicitly requires re-authorisation), RED ->
+    BLOCK.
     """
     limiter = rate_limiter if rate_limiter is not None else _default_rate_limiter
     result = classify(command)
@@ -274,11 +372,19 @@ def validate_command(
         count = limiter.record(session_id)
         if count > limiter.max_per_session:
             return GatewayDecision(
-                "BLOCK",
-                Zone.RED,
+                "REQUIRE_HUMAN",
+                Zone.YELLOW,
                 f"[RATE LIMIT] {limiter.max_per_session} sensitive actions already used "
                 f"this session; human re-authorisation required.",
             )
         return GatewayDecision("REQUIRE_HUMAN", Zone.YELLOW, f"[APPROVAL REQUIRED] {result.reason}")
 
     return GatewayDecision("ALLOW", Zone.GREEN, "Command passed the security gateway.")
+
+
+def reset_sensitive_actions(
+    session_id: Optional[str], rate_limiter: Optional[RateLimiter] = None
+) -> None:
+    """Reset a session after a genuine human approval/rejection decision."""
+    limiter = rate_limiter if rate_limiter is not None else _default_rate_limiter
+    limiter.reset(session_id)

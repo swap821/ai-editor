@@ -5,72 +5,81 @@ Ship a trustworthy local-first AI-OS MVP: supervised actions, evidence-backed
 writes, reliable local-model routing, durable memory, and honest failure modes.
 
 ## Last completed and verified
-2026-06-09 security/reliability hardening + live BREATHE proof are implemented
-locally and uncommitted:
-- Server-issued, expiring, session-bound, single-use approval capabilities replace
-  client-authored `approvedCommands` / `approvedEdits` / `approvedCreations`.
-  Redeemed grants exist server-side only for the paused replay chain and clear on
-  completion/fresh turns.
-- Frozen gateway now auto-executes only internally handled `echo`/`pwd`; unknown
-  commands, shell composition, and interpreter/nested-shell escapes (`python -c`,
-  PowerShell `-Command`, `cmd /c`, `node -e`, `sh -c`) are RED. Executor uses
-  structured argv and `shell=False`.
-- Self-apply rollback verifies restored bytes and reports rollback/status failures
-  honestly; a successful source write is restored if status persistence fails.
-- Semantic writes are serialized to prevent in-process FAISS lost updates.
-  Chat-derived semantic memory is labeled/injected as unverified, never evidence.
-- Frontend uses a stable per-browser session id, sends it to chat/terminal, resumes
-  with capability tokens, and no longer overwrites the active virtual file when an
-  ordinary fenced code block arrives.
-- Prior uncommitted work remains: force-verify-after-write, BREATHE fixture fix,
-  auto/task-aware local model routing, self-apply verifier fix, semantic
-  compensation, frontend dependency cleanup.
-- Live BREATHE is now proven end to end on Auto/qwen2.5-coder:7b:
-  failing fixture → read real bytes → exact edit proposal → capability approval →
-  pre-edit snapshot → write → `[VERIFY PASS] 1 passed`. During the proof, added
-  safe recovery for Python-style literal tool mappings and deterministic project-
-  venv preference for sandbox verification.
+2026-06-09 honest-gap closure and whole-system release gate:
+- Approved arbitrary-code execution has an optional fail-closed Docker backend:
+  no network, read-only root, dropped capabilities, resource limits, non-root
+  user, and one scoped read-write mount. Default remains `host` because the local
+  Docker Desktop Linux daemon is unavailable.
+- Server-issued approval capabilities and replay grants are durable, hashed,
+  expiring, exact-payload, session-bound, one-use, and restart-safe. Direct API,
+  chat, and UI terminal approval/rejection paths are complete.
+- New durable approval, rate-limit, and episodic records hash caller-supplied
+  session identifiers; over-limit caution actions require a fresh human decision
+  without permanently locking an expired session. Startup migrates legacy raw
+  session keys in place.
+- Same-host workers coordinate approval state, sensitive-action rate limits,
+  audit appends, FAISS mutation/refresh, fact contradiction checks, reflection
+  recurrence, self-apply, and rollback Git operations.
+- Writes use atomic publication: approved edit/create and self-apply restoration
+  cannot leave partially written target files. Self-apply and rollback operations
+  are serialized and fail closed.
+- Command length and retained output are bounded; every real subprocess path,
+  including self-apply verification and `git apply`, drains output without
+  retaining an unbounded response in backend memory.
+- Chat, facts, mistakes, semantic memory, episodic memory, and self-analysis
+  evidence redact credential-like data before persistence.
+- API/schema surfaces require bearer auth when configured; non-loopback startup
+  requires a token of at least 32 characters. Explicit unavailable cloud routes
+  fail clearly and never silently switch providers.
+- The live local gallery applies an evidence-backed compatibility policy because
+  Ollama metadata alone can overstate tool support. Auto additionally avoids
+  unreliable tool users. No additional model download is needed for this host.
+- Frontend removed the large Three.js chunk, completes terminal approvals, records
+  rejection decisions server-side, and renders preview errors as text rather than
+  HTML. Live Preview has a no-egress CSP and no CDN dependency.
+- Obsolete root `memory.db` and `vector_index.faiss` are no longer tracked, remain
+  preserved locally, and contained no detected credentials.
 
-Evidence:
-- Backend: `278 passed, 1 skipped`; 86% coverage; `git diff --check` clean.
-- Frontend: eslint clean; Vitest `14 passed`; Vite build green (large-chunk warning).
-- Live backend restarted and healthy at `http://127.0.0.1:8000`.
-- Frontend running at `http://127.0.0.1:5173`.
-- Live Auto: coding `qwen2.5-coder:7b`, reasoning `deepseek-r1:8b`, general
-  `llama3.1:8b`, fast `qwen2.5-coder:3b`.
-- Live classifier: `echo hello` GREEN; unknown and `python -c` RED.
-- Raw client-authored approval live probe returns HTTP 400.
-- Live command probes: composition and Git output attempts RED/BLOCKED; shell-free
-  `echo` OK.
-- Tool-use smoke: qwen2.5:7b, llama3.1:8b, and llama3.2:3b called `read_file`;
-  mistral:7b completed without a tool call and remains a general fallback.
-- Audit chain valid: 75 entries.
+## Evidence
+- Backend: `331 passed, 1 skipped`; 90% application / 94% total coverage;
+  compileall, pip check, and pip-audit clean.
+- Frontend: eslint clean; Vitest `16 passed`; Vite production build 324 kB JS,
+  no large-chunk warning; npm audit reports zero vulnerabilities.
+- Self-analysis: 34 modules, 22 maintainability findings, zero missing-test and
+  zero TODO false positives; Radon average complexity A.
+- Live backend healthy at `http://127.0.0.1:8000`.
+- Live Auto routes: coding `qwen2.5-coder:7b`, reasoning/general `llama3.1:8b`,
+  fast `qwen2.5-coder:3b`.
+- Live compatible gallery: qwen2.5-coder 7B/3B, qwen2.5 7B, llama3.1 8B,
+  llama3.2 3B, Mistral 7B. DeepSeek R1 is hidden/refused because Ollama rejects
+  the tool schema.
+- Tool smoke: qwen2.5-coder 7B/3B, qwen2.5 7B, llama3.1 8B, and llama3.2 3B
+  completed; qwen2.5-coder 7B used `read_file` in three repeated final probes.
+- Live adversarial probes: shell composition blocked; GREEN echo works; YELLOW
+  command issued a capability; over-limit caution action issued fresh
+  re-authorisation; rejection consumed it; oversized command blocked without
+  echoing its payload; pending capability survived backend restart; unavailable
+  cloud returned 503.
+- Active durable databases scan with zero credential/high-entropy findings.
+- Audit chain valid at 93 entries before final documentation gate.
+
+## Bounded external/runtime limitations
+- Docker CLI is installed, but the Docker Desktop Linux daemon is not running, so
+  the isolated executor image cannot be built or exercised on this host yet.
+  Container selection validates at startup and fails closed when unavailable.
+- Default `host` mode is not OS isolation; approved arbitrary-code commands run as
+  the backend OS user. Use container mode when Docker is available.
+- TLS termination, external identity/authorization, and secret management are
+  deployment responsibilities. A browser bearer token is not multi-user identity.
+- Same-host coordination is implemented. Multi-host deployments still need a
+  distributed lock/vector service and shared security-state design.
+- Git history still contains the obsolete legacy DB/vector artifacts from the
+  initial commit; the scanned DB had no detected credentials. History rewriting
+  would be a separate coordinated operation.
 
 ## Single next action
-Commit and push the verified release-hardening changes so Claude Code can resume
-from GitHub, then address the remaining non-blocking isolation and deployment
-scaling gaps in a separate slice.
-
-## Open risks / honest gaps
-- Executor scope locking is not OS/container isolation. Human-approved pytest and
-  other arbitrary-code commands run as the backend OS user.
-- API bearer auth is enforced when configured and non-loopback startup requires a
-  token, but production still needs TLS and external secret management.
-- Approval capabilities/grants are process-local; backend restart invalidates a
-  paused approval chain by design. Pending tokens and redeemed grants expire.
-- Semantic-write locking is single-process only; multi-worker deployment needs a
-  dedicated vector writer or inter-process lock.
-- The frontend production build still warns about a ~966 kB SpatialScene chunk.
-- Mistral 7B did not use `read_file` in the live smoke; do not route agentic work to
-  it by default.
-- Release evidence: backend 278/1 with 86% coverage; frontend lint/14/build; npm
-  audit and pip check clean; audit chain valid at 75; live adversarial probes pass.
-
-## Active files
-`aios/core/approvals.py`, `aios/api/main.py`, `aios/security/gateway.py`,
-`aios/core/executor.py`, `aios/core/self_apply.py`, `aios/memory/semantic.py`,
-`aios/agents/tool_agent.py`, `frontend/src/App.jsx`,
-`tests/test_{approvals,api,security,self_apply,memory}.py`, plus prior dirty work.
+Start Docker Desktop, build `aios-executor:local`, select
+`AIOS_APPROVED_EXECUTION_BACKEND=container`, and run the isolated live smoke.
 
 ## Runtime
 Backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`

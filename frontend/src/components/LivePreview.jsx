@@ -54,7 +54,7 @@ export default function LivePreview({ files }) {
       <head>
         <meta charset="UTF-8">
         <meta name="color-scheme" content="light dark">
-        <script src="https://cdn.tailwindcss.com"></script>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">
         <style>
           body {
             margin: 0; min-height: 100vh;
@@ -71,10 +71,13 @@ export default function LivePreview({ files }) {
         ${html}
         <script>
           try { ${js} } catch (e) {
-            document.body.insertAdjacentHTML('beforeend',
-              '<pre style="position:fixed;bottom:0;left:0;right:0;margin:0;padding:10px 14px;' +
+            const error = document.createElement('pre');
+            error.style.cssText =
+              'position:fixed;bottom:0;left:0;right:0;margin:0;padding:10px 14px;' +
               'background:#fef2f2;color:#b91c1c;font:12px/1.5 ui-monospace,monospace;' +
-              'border-top:1px solid #fecaca;white-space:pre-wrap;">⚠ ' + e.message + '</pre>');
+              'border-top:1px solid #fecaca;white-space:pre-wrap;';
+            error.textContent = 'Preview error: ' + String(e?.message || e);
+            document.body.appendChild(error);
           }
         </script>
       </body>

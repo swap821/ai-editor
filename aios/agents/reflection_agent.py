@@ -144,21 +144,14 @@ class ReflectionAgent:
         fix_applied = str(data["fix_applied"]).strip()
         lesson_text = str(data["lesson_text"]).strip()
 
-        existing = self.mistakes.find_recurrence(task_id, error_type)
-        if existing is not None:
-            self.mistakes.increment_occurrence(int(existing["id"]))
-            mistake_id = int(existing["id"])
-            recurrence = True
-        else:
-            mistake_id = self.mistakes.record(
-                task_id=task_id,
-                error_type=error_type,
-                root_cause=root_cause,
-                fix_applied=fix_applied,
-                lesson_text=lesson_text,
-                confidence_delta=confidence_delta,
-            )
-            recurrence = False
+        mistake_id, recurrence = self.mistakes.record_or_increment(
+            task_id=task_id,
+            error_type=error_type,
+            root_cause=root_cause,
+            fix_applied=fix_applied,
+            lesson_text=lesson_text,
+            confidence_delta=confidence_delta,
+        )
 
         # Re-read the stored (clamped) delta so the return value is accurate.
         stored = self.mistakes.get(mistake_id)

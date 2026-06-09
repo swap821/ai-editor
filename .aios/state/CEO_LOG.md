@@ -68,3 +68,19 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
 - Evidence: backend **278 passed / 1 skipped**, 86% coverage; frontend eslint + **14 tests** + build; npm audit and pip check clean; live composition/Git-output attempts RED/BLOCKED; shell-free echo OK; audit chain valid at **75 entries**.
 - Local-model evidence: qwen2.5:7b, llama3.1:8b, and llama3.2:3b used `read_file`; mistral:7b did not and remains a general fallback. The installed gallery is sufficient for the host RAM budget.
 - Honest gap: scope locking is not container isolation. Human-approved arbitrary-code commands run as the backend OS user. Production deployment also still needs TLS/secret management, and semantic locking is single-process.
+
+## 2026-06-09 - CEO note (Codex: honest-gap improvement slice 1)
+- Improved same-host multi-worker semantic durability: FAISS writers now share an inter-process file lock, reload the durable index before mutation, and long-lived readers detect and reload externally persisted replacements.
+- Hardened deployment startup: non-loopback `AIOS_API_TOKEN` values must be at least 32 characters. Documentation now states that browser-delivered bearer tokens are not multi-user identity and TLS must terminate in a maintained reverse proxy.
+- Routing evidence is now policy: legacy `mistral:7b` remains available for general chat but is excluded from automatic tool-loop routing after it skipped a required live `read_file` call.
+- Evidence: backend **282 passed / 1 skipped**, 86% coverage; frontend eslint + **14 tests** + build.
+- Remaining highest-risk gap: approved arbitrary-code execution still runs as the backend OS user. The next architecture slice should be an optional container/VM executor with a deliberately narrow mount and no network by default.
+- Runtime check: Docker CLI exists, but the Docker Desktop Linux daemon was unavailable. Do not make container mode mandatory until startup/runtime failure behavior is implemented and tested.
+
+## 2026-06-09 - CEO note (Codex: honest-gap closure release gate)
+- Shipped locally: optional fail-closed container execution; durable hashed approvals/grants and rate limits; same-host coordination for audit/vector/facts/reflection/self-apply/rollback; atomic guarded writes; bounded command/output handling; legacy session-key migration; no-egress Live Preview; evidence-backed local-model routing.
+- Release evidence: backend **331 passed / 1 skipped**, 90% application and 94% total coverage; frontend eslint + **16 tests** + build; pip-audit, npm audit, pip check, compileall, and diff check clean; active persistence scan zero findings; live audit chain valid at **93 entries**.
+- Live runtime: backend and frontend healthy; Auto routes coding to qwen2.5-coder:7b, reasoning/general to llama3.1:8b, fast to qwen2.5-coder:3b; shell composition and oversized commands blocked; over-limit caution action remains human-recoverable; DeepSeek incompatible route 422; unavailable cloud 503.
+- Decision: no remaining actionable repository-level high/medium release gaps found in this pass. Do not call the system perfect or 100%.
+- Bounded limits: Docker Desktop Linux daemon is unavailable, so container runtime behavior is not live-proven; default host mode is not OS isolation; TLS/external identity/secret management and multi-host coordination remain deployment architecture.
+- Highest-leverage next move: start Docker Desktop, build `aios-executor:local`, select container mode, and run the isolated live smoke before any non-loopback deployment.

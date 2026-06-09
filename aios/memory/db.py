@@ -8,6 +8,8 @@ defined declaratively in ``schema.sql`` and applied idempotently by
 """
 from __future__ import annotations
 
+import hashlib
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -108,3 +110,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_sar_open_fp "
         "ON self_analysis_report(fingerprint) WHERE status = 'open'"
     )
+
+    # Episodic session identifiers were historically stored raw. Convert them
+    # in-place to the same non-reversible lookup key used by current writes.
+    for row in conn.execute("SELECT DISTINCT session_id FROM episodic_memory"):
+        session_id = str(row["session_id"])
+        if re.fullmatch(r"[0-9a-f]{64}", session_id):
+            continue
+        digest = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
+        conn.execute(
+            "UPDATE episodic_memory SET session_id = ? WHERE session_id = ?",
+            (digest, session_id),
+        )

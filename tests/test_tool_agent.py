@@ -728,6 +728,31 @@ def test_agent_edit_blocked_when_audit_fails(sandbox) -> None:
     assert f.read_text(encoding="utf-8") == "hello world\n"   # not applied
 
 
+def test_agent_edit_atomic_publish_failure_preserves_original(sandbox, monkeypatch) -> None:
+    f = sandbox / "greeting.txt"
+    f.write_text("hello world\n", encoding="utf-8")
+
+    def fail_replace(*args, **kwargs):
+        raise OSError("disk publication failed")
+
+    monkeypatch.setattr("aios.agents.tool_agent.os.replace", fail_replace)
+    chat = ScriptedChat([
+        _tool_call("edit_file", {"filepath": "greeting.txt",
+                                 "old_string": "world", "new_string": "there"}),
+        {"role": "assistant", "content": "x"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "greeting.txt", "old_string": "world", "new_string": "there"}],
+        snapshot=lambda msg="": None, audit_log=lambda *a, **k: None,
+    ).run([{"role": "user", "content": "edit"}]))
+
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "could not write" in blocked[0]["reason"].lower()
+    assert f.read_text(encoding="utf-8") == "hello world\n"
+    assert not list(sandbox.glob(".greeting.txt.*.tmp"))
+
+
 # --------------------------------------------------------------------------- #
 # create_file — author a NEW file in the sandbox, behind the same human gate
 # --------------------------------------------------------------------------- #
@@ -889,6 +914,27 @@ def test_agent_create_blocked_when_snapshot_fails(sandbox) -> None:
     blocked = [e for e in events if e["type"] == "tool_blocked"]
     assert blocked and "snapshot failed" in blocked[0]["reason"].lower()
     assert not (sandbox / "new.py").exists()   # not created
+
+
+def test_agent_create_atomic_publish_failure_leaves_target_absent(sandbox, monkeypatch) -> None:
+    def fail_link(*args, **kwargs):
+        raise OSError("disk publication failed")
+
+    monkeypatch.setattr("aios.agents.tool_agent.os.link", fail_link)
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "sub/new.py", "content": "x = 1\n"}),
+        {"role": "assistant", "content": "x"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_creations=[{"filepath": "sub/new.py", "content": "x = 1\n"}],
+        snapshot=lambda msg="": None, audit_log=lambda *a, **k: None,
+    ).run([{"role": "user", "content": "create"}]))
+
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "could not create" in blocked[0]["reason"].lower()
+    assert not (sandbox / "sub" / "new.py").exists()
+    assert not list((sandbox / "sub").glob(".new.py.*.tmp"))
 
 
 # --------------------------------------------------------------------------- #

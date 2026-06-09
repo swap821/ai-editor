@@ -1,6 +1,8 @@
 """Rollback engine tests — snapshot/restore over an isolated temp git repo."""
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from aios import config
@@ -62,6 +64,33 @@ def test_list_snapshots_newest_first(tmp_path) -> None:
     snaps = engine.list_snapshots(limit=5)
     assert len(snaps) >= 3  # baseline + first + second
     assert "second" in snaps[0].message
+
+
+def test_concurrent_snapshot_workers_share_repository_lock(tmp_path) -> None:
+    first = RollbackEngine(repo_dir=tmp_path)
+    second = RollbackEngine(repo_dir=tmp_path)
+    barrier = threading.Barrier(2)
+    errors = []
+
+    def snapshot(engine: RollbackEngine, name: str) -> None:
+        try:
+            (tmp_path / name).write_text(name, encoding="utf-8")
+            barrier.wait()
+            engine.create_snapshot(name)
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=snapshot, args=(first, "one.txt")),
+        threading.Thread(target=snapshot, args=(second, "two.txt")),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert first.list_snapshots()
 
 
 # --------------------------------------------------------------------------- #

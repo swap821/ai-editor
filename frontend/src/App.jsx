@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { Terminal, Code, Play, Send, GitBranch, Network, Mic, FolderOpen, FileCode2, PanelLeftClose, PanelLeft, Check, X, Plus, Trash2, Sparkles, Bot } from "lucide-react";
 import CodeCanvas from './components/CodeCanvas';
@@ -7,12 +7,9 @@ import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
 import DiffView from './components/DiffView';
 import ProposalsPanel from './components/ProposalsPanel';
+import AmbientVoid from './components/AmbientVoid';
 import { API_BASE, API_HEADERS } from './config';
 import { parseSseBuffer } from './lib/sse';
-
-// The 3D spatial backdrop pulls in three.js — lazy-load it as its own chunk so
-// the app shell stays light and a 3D failure never white-screens the UI.
-const SpatialScene = lazy(() => import('./components/SpatialScene'));
 
 /* ─── Premium Resize Handles ─────────────────────────────────────────── */
 const ResizeHandle = () => (
@@ -552,7 +549,7 @@ export default function App() {
   const [gitInput,    setGitInput]    = useState('');
   const [isListening, setIsListening] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState({ available: false, models: [] });
-  const [bedrockStatus, setBedrockStatus] = useState({ available: false, models: [] });
+  const [bedrockStatus, setBedrockStatus] = useState({ configured: false, available: false, models: [] });
   const [autoModel, setAutoModel] = useState(null); // model the agent auto-selects (Auto badge)
 
   const terminalEndRef  = useRef(null);
@@ -576,7 +573,7 @@ export default function App() {
     const probeBedrock = () => fetch(`${API_BASE}/api/v1/models/bedrock`, { headers: API_HEADERS })
       .then(r => r.json())
       .then(s => setBedrockStatus(s))
-      .catch(() => setBedrockStatus({ available: false, models: [] }));
+      .catch(() => setBedrockStatus({ configured: false, available: false, models: [] }));
     // Ask the backend which model the agent would auto-select right now.
     const probeAuto = () => fetch(`${API_BASE}/api/v1/models/auto`, { headers: API_HEADERS })
       .then(r => r.json())
@@ -600,7 +597,7 @@ export default function App() {
     const bedrockModels = bedrockStatus.models || [];
     const cloudGroups = bedrockModels.length
       ? [{ group: 'Cloud (Bedrock)', models: bedrockModels.map(m => ({ id: m.id, name: m.name })) }]
-      : BEDROCK_MODELS;
+      : (bedrockStatus.configured ? BEDROCK_MODELS : []);
     // The agent auto-picks the best installed model — surfaced as the default
     // "Auto" entry (only when there are local models to choose among).
     const autoGroup = chatModels.length
@@ -626,6 +623,32 @@ export default function App() {
   }, []);
 
   /* ─── Handlers ─────────────────────────────────────────────── */
+  const appendTerminalLines = (target, lines) => {
+    const append = prev => [...prev, ...lines];
+    if (target === 'git') setGitHistory(append);
+    else setTermHistory(append);
+  };
+
+  const runTerminalCommand = async (cmd, target) => {
+    const res = await fetch(`${API_BASE}/api/terminal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+      body: JSON.stringify({ command: cmd, sessionId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `Server error ${res.status}`);
+    appendTerminalLines(target, data.output.split('\n').filter(l => l.length > 0));
+    if (data.requiresApproval && data.approvalToken) {
+      setPendingAction({
+        source: 'terminal',
+        terminalTarget: target,
+        approvalToken: data.approvalToken,
+        commands: [cmd],
+        explanation: 'This terminal command requires explicit approval before it can run.',
+      });
+    }
+  };
+
   const handleTerminalSubmit = async (e) => {
     e.preventDefault();
     if (!termInput.trim()) return;
@@ -634,11 +657,9 @@ export default function App() {
     setTermInput('');
     if (cmd.toLowerCase() === 'clear') return setTermHistory([]);
     try {
-      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...API_HEADERS }, body: JSON.stringify({ command: cmd, sessionId }) });
-      const data = await res.json();
-      setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
-    } catch {
-      setTermHistory(prev => [...prev, 'Error: Could not connect to local execution server.']);
+      await runTerminalCommand(cmd, 'terminal');
+    } catch (err) {
+      setTermHistory(prev => [...prev, `Error: ${err.message}`]);
     }
   };
 
@@ -650,11 +671,9 @@ export default function App() {
     setGitInput('');
     if (cmd.toLowerCase() === 'clear') return setGitHistory([]);
     try {
-      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...API_HEADERS }, body: JSON.stringify({ command: cmd, sessionId }) });
-      const data = await res.json();
-      setGitHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
-    } catch {
-      setGitHistory(prev => [...prev, 'Error: Could not execute git command.']);
+      await runTerminalCommand(cmd, 'git');
+    } catch (err) {
+      setGitHistory(prev => [...prev, `Error: ${err.message}`]);
     }
   };
 
@@ -743,6 +762,33 @@ export default function App() {
 
   const handleApproveAction = async () => {
     if (!pendingAction || isStreaming) return;
+    if (pendingAction.source === 'terminal') {
+      const action = pendingAction;
+      setIsStreaming(true);
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/approval/req`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+          body: JSON.stringify({
+            approvalToken: action.approvalToken,
+            sessionId,
+            approve: true,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || `Server error ${response.status}`);
+        const result = data.result || {};
+        const output = `${result.stdout || ''}${result.stderr || ''}`.trim()
+          || `[${result.status || 'OK'}] ${result.reason || '(no output)'}`;
+        appendTerminalLines(action.terminalTarget, output.split('\n'));
+        setPendingAction(null);
+      } catch (err) {
+        appendTerminalLines(action.terminalTarget, [`Error: ${err.message}`]);
+      } finally {
+        setIsStreaming(false);
+      }
+      return;
+    }
     const commandsToRun = pendingAction.commands || [];
     const editsToApply = pendingAction.edits || [];
     const creationsToApply = pendingAction.creations || [];
@@ -763,13 +809,31 @@ export default function App() {
     await streamGenerate(convHistory, newTokens);
   };
 
-  const handleRejectAction = () => {
+  const handleRejectAction = async () => {
     if (!pendingAction) return;
-    // Reject ends the paused turn: clear both the pending action and the approval
-    // whitelist, so an authorised-but-unrun command can't linger into a later turn.
-    setApprovalTokens([]);
-    setPendingAction(null);
-    setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Rejected — the command was not run.' }]);
+    const action = pendingAction;
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/approval/req`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+        body: JSON.stringify({ approvalToken: action.approvalToken, sessionId, approve: false }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || `Server error ${response.status}`);
+      setApprovalTokens([]);
+      setPendingAction(null);
+      if (action.source === 'terminal') {
+        appendTerminalLines(action.terminalTarget, ['[REJECTED] Command was not run.']);
+      } else {
+        setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: 'Rejected - the action was not run.' }]);
+      }
+    } catch (err) {
+      if (action.source === 'terminal') {
+        appendTerminalLines(action.terminalTarget, [`Error: Could not record rejection: ${err.message}`]);
+      } else {
+        setMessages(prev => [...prev, { id: Date.now(), sender: 'ai', text: `Error: Could not record rejection: ${err.message}` }]);
+      }
+    }
   };
 
   const toggleVoice = () => {
@@ -866,9 +930,7 @@ export default function App() {
         '--red':   'var(--danger)',
       }}
     >
-      <Suspense fallback={null}>
-        <SpatialScene energy={isStreaming ? 1 : 0.15} />
-      </Suspense>
+      <AmbientVoid energy={isStreaming ? 1 : 0.15} />
 
       {/* ══ TITLE BAR ══════════════════════════════════════════ */}
       <header

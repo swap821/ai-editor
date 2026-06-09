@@ -7,6 +7,7 @@ and the no-secret-persistence guarantee.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 
 import pytest
@@ -106,3 +107,25 @@ def test_empty_chain_is_valid(audit_db: Path) -> None:
     assert status.valid is True
     assert status.total_entries == 0
     assert status.head_hash == config.AUDIT_GENESIS_HASH
+
+
+def test_concurrent_appends_keep_one_valid_chain(audit_db: Path) -> None:
+    errors: list[Exception] = []
+
+    def append_many(actor: str) -> None:
+        try:
+            for i in range(20):
+                log_action(actor, f"event {i}", Zone.GREEN, db_path=audit_db)
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=append_many, args=(f"worker-{i}",)) for i in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    status = verify_chain(db_path=audit_db)
+    assert status.valid is True
+    assert status.total_entries == 80

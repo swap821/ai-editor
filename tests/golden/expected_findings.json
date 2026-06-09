@@ -12,7 +12,7 @@
     "target_path": "pkg/bloated.py"
   },
   {
-    "evidence": "no tests/test_orphan.py for a module defining 1 function(s)/0 class(es)",
+    "evidence": "no conventional or import-linked test for a module defining 1 function(s)/0 class(es)",
     "finding_type": "missing_test",
     "symbol": "",
     "target_path": "pkg/orphan.py"

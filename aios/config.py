@@ -97,6 +97,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 #: SQLite database backing the working/episodic/semantic/mistake memory layers.
 MEMORY_DB_PATH: Final[Path] = DATA_DIR / "aios_memory.db"
+#: Short-lived approval capabilities. Bearer tokens are persisted only as hashes.
+APPROVAL_DB_PATH: Final[Path] = DATA_DIR / "aios_approvals.db"
 #: SQLite database backing the tamper-evident, hash-chained audit trail.
 AUDIT_DB_PATH: Final[Path] = DATA_DIR / "aios_audit.db"
 #: On-disk FAISS index for semantic/episodic embeddings.
@@ -169,6 +171,19 @@ SCOPE_ROOTS: Final[tuple[Path, ...]] = _env_scope_roots(
 #: venv); if it isn't, verification simply fails closed — an unrunnable check is
 #: reported FAIL/UNVERIFIED, never a false PASS.
 VERIFY_RUNNER: Final[str] = _env_str("AIOS_VERIFY_RUNNER", "python -m pytest")
+#: Backend for human-approved arbitrary-code commands. ``host`` preserves the
+#: local-first default; ``container`` uses the fail-closed Docker runner.
+APPROVED_EXECUTION_BACKEND: Final[str] = _env_str(
+    "AIOS_APPROVED_EXECUTION_BACKEND", "host"
+).strip().lower()
+CONTAINER_RUNTIME: Final[str] = _env_str("AIOS_CONTAINER_RUNTIME", "docker")
+CONTAINER_IMAGE: Final[str] = _env_str("AIOS_CONTAINER_IMAGE", "aios-executor:local")
+CONTAINER_MEMORY_MB: Final[int] = _env_int("AIOS_CONTAINER_MEMORY_MB", 1024)
+CONTAINER_CPUS: Final[float] = _env_float("AIOS_CONTAINER_CPUS", 1.0)
+CONTAINER_PIDS_LIMIT: Final[int] = _env_int("AIOS_CONTAINER_PIDS_LIMIT", 128)
+#: Resource caps applied before/while executing any command.
+MAX_COMMAND_CHARS: Final[int] = _env_int("AIOS_MAX_COMMAND_CHARS", 8192)
+MAX_COMMAND_OUTPUT_BYTES: Final[int] = _env_int("AIOS_MAX_COMMAND_OUTPUT_BYTES", 1_048_576)
 
 # --------------------------------------------------------------------------- #
 # Local LLM (Ollama) — reflection agent + planner
@@ -240,6 +255,7 @@ __all__ = [
     "PROJECT_ROOT",
     "DATA_DIR",
     "MEMORY_DB_PATH",
+    "APPROVAL_DB_PATH",
     "AUDIT_DB_PATH",
     "FAISS_INDEX_PATH",
     "ROLLBACK_DIR",
@@ -258,6 +274,14 @@ __all__ = [
     "INJECTION_VECTOR_THRESHOLD",
     "SCOPE_ROOTS",
     "VERIFY_RUNNER",
+    "APPROVED_EXECUTION_BACKEND",
+    "CONTAINER_RUNTIME",
+    "CONTAINER_IMAGE",
+    "CONTAINER_MEMORY_MB",
+    "CONTAINER_CPUS",
+    "CONTAINER_PIDS_LIMIT",
+    "MAX_COMMAND_CHARS",
+    "MAX_COMMAND_OUTPUT_BYTES",
     "OLLAMA_HOST",
     "LLM_MODEL",
     "LLM_REQUEST_TIMEOUT_S",

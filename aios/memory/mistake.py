@@ -15,6 +15,7 @@ from typing import Optional
 
 from aios import config
 from aios.memory.db import get_connection
+from aios.security.secret_scanner import scan_and_redact
 
 
 class MistakeMemory:
@@ -39,6 +40,11 @@ class MistakeMemory:
         make the Planner more sure of itself.
         """
         clamped_delta = max(-1.0, min(0.0, float(confidence_delta)))
+        task_id = scan_and_redact(task_id).scrubbed
+        error_type = scan_and_redact(error_type).scrubbed
+        root_cause = scan_and_redact(root_cause).scrubbed
+        fix_applied = scan_and_redact(fix_applied).scrubbed
+        lesson_text = scan_and_redact(lesson_text).scrubbed
         with get_connection(self.db_path) as conn:
             cur = conn.execute(
                 "INSERT INTO mistake_pool "
@@ -103,6 +109,51 @@ class MistakeMemory:
                 "ORDER BY timestamp DESC LIMIT 1",
                 (task_id, error_type),
             ).fetchone()
+
+    def record_or_increment(
+        self,
+        task_id: str,
+        error_type: str,
+        root_cause: str,
+        fix_applied: str,
+        lesson_text: str,
+        confidence_delta: float,
+    ) -> tuple[int, bool]:
+        """Atomically record a lesson or increment its active recurrence.
+
+        Returns ``(mistake_id, recurrence)``. The immediate transaction prevents
+        concurrent reflection workers from inserting duplicate active lessons.
+        """
+        clamped_delta = max(-1.0, min(0.0, float(confidence_delta)))
+        task_id = scan_and_redact(task_id).scrubbed
+        error_type = scan_and_redact(error_type).scrubbed
+        root_cause = scan_and_redact(root_cause).scrubbed
+        fix_applied = scan_and_redact(fix_applied).scrubbed
+        lesson_text = scan_and_redact(lesson_text).scrubbed
+        with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT id FROM mistake_pool "
+                "WHERE task_id = ? AND error_type = ? "
+                "AND verification_status != 'superseded' "
+                "ORDER BY timestamp DESC LIMIT 1",
+                (task_id, error_type),
+            ).fetchone()
+            if existing is not None:
+                mistake_id = int(existing["id"])
+                conn.execute(
+                    "UPDATE mistake_pool SET occurrence_count = occurrence_count + 1 "
+                    "WHERE id = ?",
+                    (mistake_id,),
+                )
+                return mistake_id, True
+            cur = conn.execute(
+                "INSERT INTO mistake_pool "
+                "(task_id, error_type, root_cause, fix_applied, lesson_text, confidence_delta) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (task_id, error_type, root_cause, fix_applied, lesson_text, clamped_delta),
+            )
+            return int(cur.lastrowid), False
 
     def increment_occurrence(self, mistake_id: int) -> None:
         """Bump the occurrence counter for a repeated mistake."""

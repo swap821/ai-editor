@@ -12,6 +12,7 @@ import time
 import threading
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from aios.memory import db as memdb
@@ -75,6 +76,39 @@ def test_episodic_records_and_returns_in_chronological_order(db_path: Path) -> N
     assert ep.count() == 3
 
 
+def test_episodic_memory_redacts_secrets_before_persistence(db_path: Path) -> None:
+    secret = "sk-" + "a" * 40
+    ep = EpisodicMemory(db_path)
+    ep.record("sess", "user", f"use {secret}")
+
+    stored = ep.recent("sess")[0]["content"]
+    assert secret not in stored
+    assert "REDACTED" in stored
+
+
+def test_episodic_memory_hashes_session_id_before_persistence(db_path: Path) -> None:
+    session_id = "private-session-id"
+    ep = EpisodicMemory(db_path)
+    ep.record(session_id, "user", "hello")
+
+    assert ep.count(session_id) == 1
+    assert session_id.encode() not in db_path.read_bytes()
+
+
+def test_memory_migration_hashes_legacy_episodic_session_id(db_path: Path) -> None:
+    session_id = "legacy-session"
+    with memdb.get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT INTO episodic_memory (session_id, role, content) VALUES (?, ?, ?)",
+            (session_id, "user", "hello"),
+        )
+
+    memdb.init_memory_db(db_path)
+
+    assert EpisodicMemory(db_path).count(session_id) == 1
+    assert session_id.encode() not in db_path.read_bytes()
+
+
 # --------------------------------------------------------------------------- #
 # L4 Mistake pool
 # --------------------------------------------------------------------------- #
@@ -109,6 +143,17 @@ def test_mistake_clamps_delta_and_lifecycle_transitions(db_path: Path) -> None:
     mm.supersede(mid, mid2)
     assert mm.get(mid)["verification_status"] == "superseded"
     assert mm.get(mid)["superseded_by"] == mid2
+
+
+def test_mistake_memory_redacts_secrets_before_persistence(db_path: Path) -> None:
+    secret = "sk-" + "a" * 40
+    mm = MistakeMemory(db_path)
+    mistake_id = mm.record("t1", "Failure", secret, "fixed", secret, -0.1)
+
+    row = mm.get(mistake_id)
+    assert secret not in row["root_cause"]
+    assert secret not in row["lesson_text"]
+    assert "REDACTED" in row["root_cause"]
 
 
 # --------------------------------------------------------------------------- #
@@ -165,6 +210,32 @@ def test_semantic_add_removes_db_row_when_embedding_fails(db_path: Path) -> None
         sem.add("must not remain in the database")
 
     assert sem.count() == 0
+
+
+def test_semantic_add_redacts_secrets_before_embedding_and_persistence(db_path: Path) -> None:
+    seen: list[str] = []
+
+    class FakeEmbedder:
+        def encode(self, text):
+            seen.append(text)
+            return np.asarray([[0.0, 1.0]], dtype="float32")
+
+    class FakeIndex:
+        path = db_path.with_suffix(".faiss")
+
+        def add(self, vector_id, vector):
+            pass
+
+        def persist(self):
+            pass
+
+    secret = "sk-" + "a" * 40
+    sem = SemanticMemory(db_path, index=FakeIndex(), embedder=FakeEmbedder())
+    mem_id = sem.add(f"remember {secret}")
+
+    assert secret not in seen[0]
+    assert "REDACTED" in seen[0]
+    assert secret not in sem.get(mem_id)["text_content"]
 
 
 def test_semantic_add_removes_db_row_when_index_persist_fails(db_path: Path) -> None:
@@ -224,6 +295,34 @@ def test_semantic_add_serialises_index_mutations(db_path: Path) -> None:
     assert memories[0].count() == 2
 
 
+def test_semantic_add_reloads_durable_index_before_each_write(db_path: Path, tmp_path: Path) -> None:
+    class FakeEmbedder:
+        def encode(self, text):
+            return np.asarray([[0.0, 1.0]], dtype="float32")
+
+    path = tmp_path / "shared.faiss"
+    first = SemanticMemory(db_path, index=VectorIndex(path=path, dim=2), embedder=FakeEmbedder())
+    second = SemanticMemory(db_path, index=VectorIndex(path=path, dim=2), embedder=FakeEmbedder())
+
+    first.add("first process")
+    second.add("second process")
+
+    durable = VectorIndex(path=path, dim=2)
+    assert durable.size == 2
+    assert {vector_id for vector_id, _ in durable.search(np.asarray([0.0, 1.0]), 2)} == {1, 2}
+
+
+def test_long_lived_vector_reader_refreshes_after_external_persist(tmp_path: Path) -> None:
+    path = tmp_path / "shared.faiss"
+    reader = VectorIndex(path=path, dim=2)
+    writer = VectorIndex(path=path, dim=2)
+
+    writer.add(7, np.asarray([0.0, 1.0], dtype="float32"))
+    writer.persist()
+
+    assert reader.search(np.asarray([0.0, 1.0], dtype="float32"), 1)[0][0] == 7
+
+
 def test_recency_term_decays_over_time() -> None:
     """The exponential recency term must be monotonically decreasing in dt."""
     from aios import config
@@ -259,6 +358,17 @@ def test_fact_exact_duplicate_is_idempotent(db_path: Path) -> None:
     assert len(facts.facts_for("user", "prefers")) == 1
 
 
+def test_semantic_facts_redact_secrets_before_persistence(db_path: Path) -> None:
+    secret = "sk-" + "a" * 40
+    facts = SemanticFacts(db_path)
+    result = facts.add_fact("service", "credential", secret)
+
+    assert result.committed is True
+    stored = facts.get(result.fact_id)
+    assert secret not in stored["object"]
+    assert "REDACTED" in stored["object"]
+
+
 def test_contradiction_is_detected_and_not_committed(db_path: Path) -> None:
     facts = SemanticFacts(db_path)
     facts.add_fact("api", "listens_on_port", "8000")
@@ -268,6 +378,24 @@ def test_contradiction_is_detected_and_not_committed(db_path: Path) -> None:
     assert conflict.conflict_object == "8000"
     # The conflicting fact was NOT silently written; only the original stays active.
     assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["8000"]
+
+
+def test_concurrent_fact_writers_cannot_commit_contradictions(db_path: Path) -> None:
+    barrier = threading.Barrier(2)
+    results = []
+
+    def write(obj: str) -> None:
+        barrier.wait()
+        results.append(SemanticFacts(db_path).add_fact("api", "listens_on_port", obj))
+
+    threads = [threading.Thread(target=write, args=(obj,)) for obj in ("8000", "9000")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(result.reason for result in results) == ["committed", "contradiction"]
+    assert len(SemanticFacts(db_path).facts_for("api", "listens_on_port")) == 1
 
 
 def test_reconcile_supersedes_old_and_commits_new(db_path: Path) -> None:

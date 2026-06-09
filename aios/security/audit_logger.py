@@ -52,8 +52,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_zone ON tamper_audit_trail(security_zone);
 CREATE INDEX IF NOT EXISTS idx_audit_time ON tamper_audit_trail(timestamp);
 """
 
-#: Serialises appends within a process so two concurrent writers cannot read the
-#: same "last hash" and fork the chain. (Local-first => single process.)
+#: Serialises appends within a process; SQLite BEGIN IMMEDIATE below extends the
+#: same head-read + append critical section across local worker processes.
 _append_lock = threading.Lock()
 #: Databases whose schema has already been ensured this process.
 _initialized: set[str] = set()
@@ -90,7 +90,7 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path), timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute("PRAGMA synchronous = NORMAL;")
+    conn.execute("PRAGMA synchronous = FULL;")
     return conn
 
 
@@ -164,6 +164,9 @@ def log_action(
             _ensure_initialized(db_path)
             conn = _connect(db_path)
             try:
+                # Cross-process chain lock: no other writer can read the same
+                # head and append a sibling link until this transaction commits.
+                conn.execute("BEGIN IMMEDIATE")
                 row = conn.execute(
                     "SELECT current_hash FROM tamper_audit_trail "
                     "ORDER BY entry_id DESC LIMIT 1"

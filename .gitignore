@@ -1,6 +1,8 @@
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+memory.db
+vector_index.faiss
 node_modules/
 .env
 

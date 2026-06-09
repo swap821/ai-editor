@@ -13,11 +13,15 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+from filelock import FileLock
+
 from aios import config
 from aios.memory.db import get_connection
 from aios.memory.embeddings import EmbeddingModel, VectorIndex
+from aios.security.secret_scanner import scan_and_redact
 
 _SEMANTIC_WRITE_LOCK = threading.Lock()
+_LOCK_TIMEOUT_S = 30
 
 
 class SemanticMemory:
@@ -33,6 +37,12 @@ class SemanticMemory:
         self.db_path = db_path
         self._index = index
         self._embedder = embedder
+
+    @property
+    def write_lock_path(self) -> Path:
+        """Lock file shared by every process writing this durable vector index."""
+        index_path = getattr(self.index, "path", config.FAISS_INDEX_PATH)
+        return Path(index_path).with_suffix(Path(index_path).suffix + ".lock")
 
     @property
     def index(self) -> VectorIndex:
@@ -56,7 +66,9 @@ class SemanticMemory:
         relational store never claims a semantic memory that cannot be retrieved.
         Returns the new row/vector id.
         """
-        with _SEMANTIC_WRITE_LOCK:
+        text = scan_and_redact(text).scrubbed
+        self.write_lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with _SEMANTIC_WRITE_LOCK, FileLock(str(self.write_lock_path), timeout=_LOCK_TIMEOUT_S):
             with get_connection(self.db_path) as conn:
                 cur = conn.execute(
                     "INSERT INTO semantic_memory (text_content) VALUES (?)",
@@ -70,6 +82,11 @@ class SemanticMemory:
                 )
             try:
                 vector = self.embedder.encode(text)[0]
+                # Another process may have persisted since this object loaded.
+                # Reload under the shared lock before mutating to avoid lost updates.
+                reload_index = getattr(self.index, "reload", None)
+                if callable(reload_index):
+                    reload_index()
                 self.index.add(mem_id, vector)
                 self.index.persist()
             except Exception:

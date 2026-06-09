@@ -16,6 +16,7 @@ from typing import Optional
 
 from aios import config
 from aios.memory.db import get_connection
+from aios.security.secret_scanner import scan_and_redact
 
 
 @dataclass(frozen=True)
@@ -56,21 +57,31 @@ class SemanticFacts:
           returns the existing id.
         - Otherwise -> inserted.
         """
-        subject, predicate, obj = subject.strip(), predicate.strip(), obj.strip()
+        subject = scan_and_redact(subject.strip()).scrubbed
+        predicate = scan_and_redact(predicate.strip()).scrubbed
+        obj = scan_and_redact(obj.strip()).scrubbed
         if not (subject and predicate and obj):
             return FactWriteResult(False, None, "empty subject/predicate/object")
 
-        conflict = self.find_conflict(subject, predicate, obj)
-        if conflict is not None:
-            return FactWriteResult(
-                committed=False,
-                fact_id=None,
-                reason="contradiction",
-                conflict_id=int(conflict["id"]),
-                conflict_object=str(conflict["object"]),
-            )
-
         with get_connection(self.db_path) as conn:
+            # Serialize contradiction check + insert across local workers. Without
+            # this transaction, two concurrent writers can both observe no active
+            # fact and commit conflicting objects.
+            conn.execute("BEGIN IMMEDIATE")
+            conflict = conn.execute(
+                "SELECT * FROM semantic_facts "
+                "WHERE subject = ? AND predicate = ? AND object <> ? AND status = 'active' "
+                "ORDER BY id DESC LIMIT 1",
+                (subject, predicate, obj),
+            ).fetchone()
+            if conflict is not None:
+                return FactWriteResult(
+                    committed=False,
+                    fact_id=None,
+                    reason="contradiction",
+                    conflict_id=int(conflict["id"]),
+                    conflict_object=str(conflict["object"]),
+                )
             existing = conn.execute(
                 "SELECT id FROM semantic_facts "
                 "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'active'",
@@ -87,7 +98,9 @@ class SemanticFacts:
     def reconcile(self, subject: str, predicate: str, new_obj: str) -> FactWriteResult:
         """Resolve a contradiction: supersede every active fact on this
         subject+predicate and commit *new_obj* as the active fact."""
-        subject, predicate, new_obj = subject.strip(), predicate.strip(), new_obj.strip()
+        subject = scan_and_redact(subject.strip()).scrubbed
+        predicate = scan_and_redact(predicate.strip()).scrubbed
+        new_obj = scan_and_redact(new_obj.strip()).scrubbed
         if not (subject and predicate and new_obj):
             return FactWriteResult(False, None, "empty subject/predicate/object")
         with get_connection(self.db_path) as conn:

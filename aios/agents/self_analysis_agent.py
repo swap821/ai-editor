@@ -38,9 +38,11 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import io
 import os
 import re
 import sqlite3
+import tokenize
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -299,7 +301,8 @@ class SelfAnalysisAgent:
 
         Findings (all deterministic facts, never model opinion):
           * ``missing_test`` — a testable module (defines a function/class, not an
-            ``__init__``) with no ``tests/test_<stem>.py`` by convention.
+            ``__init__``) with neither a conventional ``tests/test_<stem>.py`` nor
+            a test module that imports it.
           * ``smell`` — a substantial module (> ``loc_smell_threshold`` LOC) that
             defines nothing, or a function longer than ``long_function_threshold``.
           * ``todo`` — a TODO/FIXME/XXX/HACK marker (file + line).
@@ -317,15 +320,16 @@ class SelfAnalysisAgent:
         #: Realpaths the coverage data recorded as executed, or ``None`` when the
         #: join is dormant (no coverage installed / no ``.coverage`` file).
         measured = self._measured_files()
+        test_imports = self._test_imports()
         for rel_path, m in facts.items():
             path = (self.path_root / rel_path)
             stem = Path(rel_path).stem
             testable = stem != "__init__" and bool(m.functions or m.classes)
 
-            if testable and not self._has_test(stem):
+            if testable and not self._has_test(rel_path, test_imports):
                 findings.append(
                     Finding(rel_path, "missing_test",
-                            f"no tests/test_{stem}.py for a module defining "
+                            f"no conventional or import-linked test for a module defining "
                             f"{len(m.functions)} function(s)/{len(m.classes)} class(es)")
                 )
 
@@ -364,11 +368,34 @@ class SelfAnalysisAgent:
         except Exception:  # noqa: BLE001 - fail-soft: a corrupt/locked DB -> no coverage findings
             return None
 
-    def _has_test(self, stem: str) -> bool:
-        """True if a ``test_<stem>.py`` exists anywhere under the tests root."""
+    def _test_imports(self) -> set[str]:
+        """Return dotted modules imported by test files, ignoring unreadable tests."""
+        imports: set[str] = set()
         if not self.tests_root.is_dir():
-            return False
-        return any(self.tests_root.rglob(f"test_{stem}.py"))
+            return imports
+        for test_path in self.tests_root.rglob("test_*.py"):
+            try:
+                tree = ast.parse(test_path.read_text(encoding="utf-8"))
+            except (OSError, SyntaxError, ValueError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imports.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imports.add(node.module)
+                    imports.update(f"{node.module}.{alias.name}" for alias in node.names)
+        return imports
+
+    def _has_test(self, rel_path: str, test_imports: set[str]) -> bool:
+        """True when a conventional or import-linked test covers *rel_path*."""
+        stem = Path(rel_path).stem
+        if any(self.tests_root.rglob(f"test_{stem}.py")):
+            return True
+        module_parts = Path(rel_path).with_suffix("").parts
+        if module_parts and module_parts[-1] == "__init__":
+            module_parts = module_parts[:-1]
+        module_name = ".".join(module_parts)
+        return bool(module_name and module_name in test_imports)
 
     def _scan_source_findings(self, path: Path, rel_path: str) -> list[Finding]:
         """Per-module findings that need the source/AST: TODOs, long funcs, complexity."""
@@ -378,14 +405,20 @@ class SelfAnalysisAgent:
         except OSError:
             return out
 
-        for lineno, line in enumerate(src.splitlines(), start=1):
-            marker = _TODO_MARKER.search(line)
-            if marker is not None:
-                out.append(
-                    Finding(rel_path, "todo",
-                            f"{marker.group(1)} marker at line {lineno}",
-                            symbol=line.strip())  # the marker LINE TEXT — stable when it moves
-                )
+        try:
+            tokens = tokenize.generate_tokens(io.StringIO(src).readline)
+            for token in tokens:
+                if token.type != tokenize.COMMENT:
+                    continue
+                marker = _TODO_MARKER.search(token.string)
+                if marker is not None:
+                    out.append(
+                        Finding(rel_path, "todo",
+                                f"{marker.group(1)} marker at line {token.start[0]}",
+                                symbol=token.string.strip())
+                    )
+        except (IndentationError, tokenize.TokenError):
+            return out
 
         try:
             tree = ast.parse(src)
@@ -559,7 +592,7 @@ class SelfAnalysisAgent:
                 elif fp in open_by_fp:
                     conn.execute(
                         "UPDATE self_analysis_report SET evidence = ? WHERE id = ?",
-                        (f.evidence, open_by_fp[fp]),
+                        (scan_and_redact(f.evidence).scrubbed, open_by_fp[fp]),
                     )
                     updated += 1
                 else:
@@ -567,7 +600,12 @@ class SelfAnalysisAgent:
                         "INSERT INTO self_analysis_report "
                         "(target_path, finding_type, evidence, fingerprint) "
                         "VALUES (?, ?, ?, ?)",
-                        (f.target_path, f.finding_type, f.evidence, fp),
+                        (
+                            f.target_path,
+                            f.finding_type,
+                            scan_and_redact(f.evidence).scrubbed,
+                            fp,
+                        ),
                     )
                     inserted += 1
 

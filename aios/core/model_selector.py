@@ -51,6 +51,10 @@ _WEAKER_GENERAL = (
 )
 #: Families that do NOT reliably tool-call (the agentic loop must avoid these).
 _NON_TOOL_FAMILIES = _REASONING_FAMILIES
+# Live release smoke on this host showed the legacy `mistral:7b` family completing
+# a read request without calling the required tool. Keep it available for general
+# chat, but do not auto-route the agentic loop to it.
+_UNRELIABLE_TOOL_FAMILIES = ("mistral",)
 
 #: Substrings marking a model that should never drive the chat/agent loop.
 _EXCLUDE_SUBSTR = (
@@ -115,7 +119,21 @@ def is_tool_capable(tag: str) -> bool:
 
     Reasoning-only families (chain-of-thought models) and base models are not.
     """
-    return not _matches(_family(tag), _NON_TOOL_FAMILIES) and not is_base_model(tag)
+    return supports_tool_protocol(tag) and _family(tag) not in _UNRELIABLE_TOOL_FAMILIES
+
+
+def supports_tool_protocol(tag: str) -> bool:
+    """Whether policy considers *tag* compatible with this agent's tool schema.
+
+    Ollama metadata alone is insufficient because some models advertise tools
+    but reject or ignore this agent's actual tool request.
+    """
+    family = _family(tag)
+    return (
+        not _matches(family, _NON_TOOL_FAMILIES)
+        and not is_base_model(tag)
+        and not is_excluded(tag)
+    )
 
 
 def parse_size_b(tag: str) -> float:

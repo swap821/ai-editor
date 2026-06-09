@@ -6,6 +6,7 @@ so these tests need neither Ollama nor a network connection.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -100,6 +101,30 @@ def test_recurrence_increments_instead_of_duplicating(db_path: Path) -> None:
     assert first.mistake_id == second.mistake_id
     assert mistakes.get(first.mistake_id)["occurrence_count"] == 2
     assert mistakes.count() == 1
+
+
+def test_concurrent_reflections_increment_one_active_lesson(db_path: Path) -> None:
+    barrier = threading.Barrier(2)
+    reflections = []
+
+    def reflect() -> None:
+        barrier.wait()
+        reflections.append(
+            ReflectionAgent(FakeLLM(_VALID), mistakes=MistakeMemory(db_path)).reflect(
+                "cmd", "err", task_id="shared-task"
+            )
+        )
+
+    threads = [threading.Thread(target=reflect) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    mistakes = MistakeMemory(db_path)
+    assert mistakes.count() == 1
+    assert mistakes.get(reflections[0].mistake_id)["occurrence_count"] == 2
+    assert sorted(reflection.recurrence for reflection in reflections) == [False, True]
 
 
 def test_recall_pending_returns_session_lessons_until_verified(db_path: Path) -> None:

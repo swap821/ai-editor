@@ -6,10 +6,19 @@ audit sink keeps the real tamper-evident ledger untouched.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
 import pytest
 
-from aios.core.executor import Executor, _default_runner
+from aios.core.executor import (
+    DockerRunner,
+    Executor,
+    approved_runner_from_config,
+    validate_approved_execution_backend,
+    _bounded_run,
+    _default_runner,
+)
 from aios.security.gateway import RateLimiter
 
 
@@ -105,6 +114,128 @@ def test_execute_approved_runs_yellow_command() -> None:
     assert result.status == "OK"
     assert result.zone == "YELLOW"
     assert len(runner.calls) == 1
+
+
+def test_execute_approved_uses_isolated_runner_when_configured() -> None:
+    host = RecordingRunner()
+    isolated = RecordingRunner(out="isolated")
+    result = Executor(
+        runner=host,
+        approved_runner=isolated,
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+    ).execute_approved("python -m pytest test_greeter.py -q")
+
+    assert result.status == "OK"
+    assert result.stdout == "isolated"
+    assert "isolated container" in result.reason
+    assert host.calls == []
+    assert len(isolated.calls) == 1
+
+
+def test_real_runner_retains_only_bounded_output() -> None:
+    result = _bounded_run(
+        [sys.executable, "-c", "print('x' * 10000)"],
+        timeout=10,
+        max_output_bytes=1024,
+    )
+
+    assert result.returncode == 0
+    assert len(result.stdout) < 1200
+    assert "[OUTPUT TRUNCATED]" in result.stdout
+
+
+def test_executor_truncates_output_from_injected_runner(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.MAX_COMMAND_OUTPUT_BYTES", 1024)
+    result = _executor(RecordingRunner(out="x" * 10000)).execute("echo hello")
+
+    assert len(result.stdout) < 1200
+    assert "[OUTPUT TRUNCATED]" in result.stdout
+
+
+def test_executor_refuses_oversized_command_without_auditing_payload(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.MAX_COMMAND_CHARS", 8)
+    audit = RecordingAudit()
+    result = Executor(
+        runner=RecordingRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=audit,
+    ).execute("echo " + "x" * 100)
+
+    assert result.status == "BLOCKED"
+    assert result.command == ""
+    assert "x" * 100 not in audit.entries[0][1]
+
+
+def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    runner = DockerRunner(image="test-image", process_runner=fake_run)
+    result = runner(
+        "python -m pytest test_greeter.py -q",
+        cwd=str(tmp_path),
+        env={"PATH": "safe"},
+        timeout_s=9,
+    )
+
+    assert result == ("ok", "", 0)
+    argv, kwargs = calls[0]
+    assert argv[:3] == ["docker", "run", "--rm"]
+    assert ["--network", "none"] == argv[argv.index("--network"):argv.index("--network") + 2]
+    assert "--read-only" in argv
+    assert ["--cap-drop", "ALL"] == argv[argv.index("--cap-drop"):argv.index("--cap-drop") + 2]
+    assert ["--security-opt", "no-new-privileges"] == argv[
+        argv.index("--security-opt"):argv.index("--security-opt") + 2
+    ]
+    assert "test-image" in argv
+    assert argv[-5:] == ["python", "-m", "pytest", "test_greeter.py", "-q"]
+    assert kwargs["shell"] is False
+    assert kwargs["timeout"] == 9
+
+
+def test_docker_backend_validation_fails_when_image_is_unavailable(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor._bounded_run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, stdout="", stderr="missing"),
+    )
+
+    with pytest.raises(RuntimeError, match="isolated execution unavailable: missing"):
+        validate_approved_execution_backend()
+
+
+def test_invalid_approved_execution_backend_fails_closed(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "unknown")
+    result = Executor(
+        runner=RecordingRunner(),
+        approved_runner=approved_runner_from_config(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+    ).execute_approved("python -m pytest test_greeter.py -q")
+
+    assert result.status == "ERROR"
+    assert "unsupported AIOS_APPROVED_EXECUTION_BACKEND" in result.reason
+
+
+def test_human_reauthorisation_resets_sensitive_action_budget() -> None:
+    limiter = RateLimiter(max_per_session=1)
+    executor = Executor(
+        runner=RecordingRunner(),
+        rate_limiter=limiter,
+        audit_log=RecordingAudit(),
+    )
+    assert executor.execute("pip install flask", session_id="s1").status == "REQUIRE_APPROVAL"
+    second = executor.execute("pip install flask", session_id="s1")
+    assert second.status == "REQUIRE_APPROVAL"
+    assert "re-authorisation required" in second.reason
+
+    executor.reset_sensitive_actions("s1")
+
+    assert executor.execute("pip install flask", session_id="s1").status == "REQUIRE_APPROVAL"
 
 
 def test_execute_approved_still_refuses_red() -> None:

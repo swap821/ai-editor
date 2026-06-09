@@ -33,7 +33,7 @@ it right where you left off.**
 
 ## Verify the build is healthy anytime
 ```powershell
-.venv\Scripts\python -m pytest -q          # expect: 278 passed, 1 skipped
+.venv\Scripts\python -m pytest -q          # expect: 331 passed, 1 skipped
 ```
 
 ## Run the actual app (to see it work)
@@ -43,8 +43,8 @@ it right where you left off.**
 # terminal 2 — frontend
 cd frontend; npm run dev                   # http://localhost:5173
 ```
-Pick `llama3.2:3b` in the model dropdown. (Close other apps first so it fits in
-RAM. `ollama pull llama3.2:3b` if you haven't.)
+Leave the model dropdown on `Auto`; it routes to the best installed compatible
+local model for the task.
 
 ---
 

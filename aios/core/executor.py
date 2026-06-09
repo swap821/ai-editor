@@ -12,8 +12,11 @@ tamper-evident audit ledger. Execution itself is constrained:
     subprocess or its output.
   * **Structured argv** — shell composition is rejected and processes launch
     with ``shell=False``.
-  * **Hard timeout** — a runaway process is killed and reported, never left
-    orphaned.
+  * **Hard timeout** — the launched process is killed and reported. Host mode
+    cannot guarantee process-tree containment; use the container backend for
+    the stronger execution boundary.
+  * **Bounded command/output size** — oversized commands are refused and process
+    pipes are drained without retaining unbounded output in backend memory.
 
 This is not an OS/container isolation boundary. Approved arbitrary-code
 commands run as the backend OS user. The process spawn is injected
@@ -25,6 +28,7 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,12 +36,19 @@ from typing import Callable, Optional, Protocol
 
 from aios import config
 from aios.security.audit_logger import log_action
-from aios.security.gateway import RateLimiter, Zone, classify, validate_command
+from aios.security.gateway import (
+    RateLimiter,
+    Zone,
+    classify,
+    reset_sensitive_actions,
+    validate_command,
+)
 
 #: Environment variables whose *names* indicate a secret; stripped from children.
 _SECRET_NAME_HINTS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "BEARER")
 #: Variables removed regardless of value (no home/identity propagation).
 _STRIPPED_NAMES = ("HOME", "USERPROFILE", "AWS_BEARER_TOKEN_BEDROCK")
+_OUTPUT_TRUNCATED = "\n[OUTPUT TRUNCATED]\n"
 
 
 @dataclass(frozen=True)
@@ -71,6 +82,192 @@ class Runner(Protocol):
         ...
 
 
+def _bounded_run(
+    argv: list[str],
+    *,
+    shell: bool = False,
+    cwd: Optional[str] = None,
+    env: Optional[dict[str, str]] = None,
+    capture_output: bool = True,
+    text: bool = True,
+    timeout: Optional[int] = None,
+    max_output_bytes: Optional[int] = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run argv while draining pipes but retaining only a bounded prefix."""
+    if shell or not capture_output or not text:
+        raise ValueError("bounded runner requires shell=False, capture_output=True, text=True")
+    limit = max(max_output_bytes or config.MAX_COMMAND_OUTPUT_BYTES, 1024)
+    process = subprocess.Popen(
+        argv,
+        shell=False,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    streams = [process.stdout, process.stderr]
+    captured = [bytearray(), bytearray()]
+    truncated = [False, False]
+
+    def drain(index: int) -> None:
+        stream = streams[index]
+        assert stream is not None
+        try:
+            while True:
+                chunk = stream.read(64 * 1024)
+                if not chunk:
+                    return
+                remaining = limit - len(captured[index])
+                if remaining > 0:
+                    captured[index].extend(chunk[:remaining])
+                if len(chunk) > max(remaining, 0):
+                    truncated[index] = True
+        except (OSError, ValueError):
+            return
+
+    readers = [
+        threading.Thread(target=drain, args=(index,), daemon=True)
+        for index in range(2)
+    ]
+    for reader in readers:
+        reader.start()
+    try:
+        return_code = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+        raise
+    finally:
+        for reader in readers:
+            reader.join(timeout=2)
+        for stream in streams:
+            if stream is not None:
+                stream.close()
+
+    outputs = []
+    for index in range(2):
+        output = captured[index].decode("utf-8", "replace")
+        outputs.append(output + (_OUTPUT_TRUNCATED if truncated[index] else ""))
+    return subprocess.CompletedProcess(argv, return_code, outputs[0], outputs[1])
+
+
+class DockerRunner:
+    """Run an approved command in a locked-down, ephemeral Docker container."""
+
+    def __init__(
+        self,
+        *,
+        runtime: str = config.CONTAINER_RUNTIME,
+        image: str = config.CONTAINER_IMAGE,
+        memory_mb: int = config.CONTAINER_MEMORY_MB,
+        cpus: float = config.CONTAINER_CPUS,
+        pids_limit: int = config.CONTAINER_PIDS_LIMIT,
+        process_runner: Optional[Callable[..., subprocess.CompletedProcess[str]]] = None,
+    ) -> None:
+        self.runtime = runtime
+        self.image = image
+        self.memory_mb = max(memory_mb, 128)
+        self.cpus = max(cpus, 0.1)
+        self.pids_limit = max(pids_limit, 16)
+        self._process_runner = process_runner or _bounded_run
+
+    def ensure_available(self) -> None:
+        """Fail clearly when the configured daemon or executor image is unavailable."""
+        try:
+            completed = self._process_runner(
+                [self.runtime, "image", "inspect", self.image],
+                shell=False,
+                env=_sanitise_env(),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception as exc:  # noqa: BLE001 - converted to configuration failure
+            raise RuntimeError(f"isolated execution unavailable: {exc}") from exc
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "image inspection failed").strip()
+            raise RuntimeError(f"isolated execution unavailable: {detail}")
+
+    def __call__(
+        self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
+    ) -> tuple[str, str, int]:
+        argv = _parse_argv(command)
+        mount = f"type=bind,src={Path(cwd).resolve()},dst=/workspace,rw"
+        docker_argv = [
+            self.runtime,
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--pids-limit",
+            str(self.pids_limit),
+            "--memory",
+            f"{self.memory_mb}m",
+            "--cpus",
+            str(self.cpus),
+            "--user",
+            "65534:65534",
+            "--mount",
+            mount,
+            "--tmpfs",
+            "/tmp:rw,noexec,nosuid,nodev,size=64m",
+            "--workdir",
+            "/workspace",
+            "--env",
+            "PYTHONDONTWRITEBYTECODE=1",
+            "--env",
+            "PYTEST_ADDOPTS=-p no:cacheprovider",
+            self.image,
+            *argv,
+        ]
+        completed = self._process_runner(
+            docker_argv,
+            shell=False,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+        return completed.stdout or "", completed.stderr or "", completed.returncode
+
+
+class UnavailableIsolationRunner:
+    """Fail closed for invalid isolated-execution configuration."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+    def __call__(
+        self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
+    ) -> tuple[str, str, int]:
+        raise RuntimeError(self.reason)
+
+
+def approved_runner_from_config() -> Optional[Runner]:
+    """Build the configured runner for human-approved arbitrary-code commands."""
+    if config.APPROVED_EXECUTION_BACKEND == "host":
+        return None
+    if config.APPROVED_EXECUTION_BACKEND == "container":
+        return DockerRunner()
+    return UnavailableIsolationRunner(
+        f"unsupported AIOS_APPROVED_EXECUTION_BACKEND: {config.APPROVED_EXECUTION_BACKEND}"
+    )
+
+
+def validate_approved_execution_backend() -> None:
+    """Validate an explicitly selected isolated backend during API startup."""
+    runner = approved_runner_from_config()
+    if isinstance(runner, DockerRunner):
+        runner.ensure_available()
+    elif isinstance(runner, UnavailableIsolationRunner):
+        raise RuntimeError(runner.reason)
+
+
 def _sanitise_env() -> dict[str, str]:
     """Return a copy of the environment with secret-bearing vars removed."""
     clean: dict[str, str] = {}
@@ -94,6 +291,8 @@ def _sanitise_env() -> dict[str, str]:
 
 def _parse_argv(command: str) -> list[str]:
     """Parse one already-classified command into argv without invoking a shell."""
+    if len(command) > max(config.MAX_COMMAND_CHARS, 1):
+        raise ValueError(f"command exceeds {config.MAX_COMMAND_CHARS} character limit")
     if not command or any(ch in command for ch in ";&|<>`\r\n"):
         raise ValueError("shell composition is not permitted")
     argv = shlex.split(command, posix=os.name != "nt")
@@ -117,7 +316,7 @@ def _default_runner(
         return " ".join(argv[1:]) + "\n", "", 0
     if executable == "pwd":
         return cwd + "\n", "", 0
-    completed = subprocess.run(
+    completed = _bounded_run(
         argv,
         shell=False,
         cwd=cwd,
@@ -129,6 +328,15 @@ def _default_runner(
     return completed.stdout or "", completed.stderr or "", completed.returncode
 
 
+def _truncate_output(value: str) -> str:
+    """Bound output returned by injected runners as well as the real runner."""
+    limit = max(config.MAX_COMMAND_OUTPUT_BYTES, 1024)
+    encoded = value.encode("utf-8", "replace")
+    if len(encoded) <= limit:
+        return value
+    return encoded[:limit].decode("utf-8", "replace") + _OUTPUT_TRUNCATED
+
+
 class Executor:
     """Gateway-guarded, scope-locked, audited command executor."""
 
@@ -136,12 +344,14 @@ class Executor:
         self,
         *,
         runner: Optional[Runner] = None,
+        approved_runner: Optional[Runner] = None,
         rate_limiter: Optional[RateLimiter] = None,
         timeout_s: int = 30,
         actor: str = "executor",
         audit_log: Optional[Callable[..., object]] = None,
     ) -> None:
         self.runner: Runner = runner or _default_runner
+        self.approved_runner = approved_runner
         self.rate_limiter = rate_limiter
         self.timeout_s = timeout_s
         self.actor = actor
@@ -163,6 +373,15 @@ class Executor:
         requiring approval and never run here (use the approval flow); a GREEN
         command runs inside the configured scope. Every outcome is audited.
         """
+        if len(command) > max(config.MAX_COMMAND_CHARS, 1):
+            reason = f"[SECURITY BLOCK] command exceeds {config.MAX_COMMAND_CHARS} character limit"
+            self._audit(self.actor, reason, Zone.RED)
+            return ExecutionResult(
+                status="BLOCKED",
+                zone=Zone.RED.value,
+                command="",
+                reason=reason,
+            )
         decision = validate_command(
             command, session_id=session_id, rate_limiter=self.rate_limiter
         )
@@ -197,6 +416,10 @@ class Executor:
         approval. GREEN/YELLOW commands are audited as approved and run inside
         the configured scope.
         """
+        if len(command) > max(config.MAX_COMMAND_CHARS, 1):
+            reason = f"Approved command exceeds {config.MAX_COMMAND_CHARS} character limit"
+            self._audit(self.actor, reason, Zone.RED)
+            return ExecutionResult("BLOCKED", Zone.RED.value, "", reason=reason)
         result = classify(command)
         if result.zone is Zone.RED:
             self._audit(self.actor, f"APPROVAL DENIED (RED): {command}", Zone.RED)
@@ -207,16 +430,32 @@ class Executor:
                 reason=f"Human approval cannot authorise a RED action: {result.reason}",
             )
         self._audit(self.actor, f"APPROVED+EXECUTING: {command}", result.zone)
-        return self._run_in_sandbox(command, result.zone)
+        return self._run_in_sandbox(
+            command,
+            result.zone,
+            runner=self.approved_runner or self.runner,
+            isolated=self.approved_runner is not None,
+        )
 
-    def _run_in_sandbox(self, command: str, zone: Zone) -> ExecutionResult:
+    def reset_sensitive_actions(self, session_id: Optional[str]) -> None:
+        """Record that a human re-authorised this session's caution budget."""
+        reset_sensitive_actions(session_id, self.rate_limiter)
+
+    def _run_in_sandbox(
+        self,
+        command: str,
+        zone: Zone,
+        *,
+        runner: Optional[Runner] = None,
+        isolated: bool = False,
+    ) -> ExecutionResult:
         """Run *command* in the scope-locked working directory."""
         cwd = self._scope_cwd()
         env = _sanitise_env()
         started = time.monotonic()
         try:
             _parse_argv(command)
-            stdout, stderr, exit_code = self.runner(
+            stdout, stderr, exit_code = (runner or self.runner)(
                 command, cwd=str(cwd), env=env, timeout_s=self.timeout_s
             )
         except subprocess.TimeoutExpired:
@@ -239,6 +478,8 @@ class Executor:
                 reason=f"Execution failed to launch: {exc}",
             )
 
+        stdout = _truncate_output(stdout)
+        stderr = _truncate_output(stderr)
         duration_ms = int((time.monotonic() - started) * 1000)
         return ExecutionResult(
             status="OK",
@@ -248,5 +489,9 @@ class Executor:
             stderr=stderr,
             exit_code=exit_code,
             duration_ms=duration_ms,
-            reason="Executed within configured scope.",
+            reason=(
+                "Executed in isolated container with configured scope."
+                if isolated
+                else "Executed within configured scope."
+            ),
         )

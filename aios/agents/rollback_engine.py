@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from filelock import FileLock, Timeout
 from git import Actor, Repo  # GitPython
 
 from aios import config
@@ -58,7 +59,11 @@ class RollbackEngine:
     """Snapshot/restore over an isolated git repo in the sandbox scope root."""
 
     def __init__(
-        self, repo_dir: Optional[Path] = None, *, git_dir: Optional[Path] = None
+        self,
+        repo_dir: Optional[Path] = None,
+        *,
+        git_dir: Optional[Path] = None,
+        lock_path: Optional[Path] = None,
     ) -> None:
         roots = config.SCOPE_ROOTS
         target = Path(repo_dir).resolve() if repo_dir else (
@@ -85,7 +90,19 @@ class RollbackEngine:
         else:
             self._git_dir = self.repo_dir / ".git"
 
-        self.repo = self._ensure_repo()
+        if lock_path is not None:
+            resolved_lock = Path(lock_path)
+        elif repo_dir is None:
+            resolved_lock = Path(config.ROLLBACK_DIR).parent / "rollback.lock"
+        else:
+            resolved_lock = self.repo_dir.parent / f".{self.repo_dir.name}.rollback.lock"
+        resolved_lock.parent.mkdir(parents=True, exist_ok=True)
+        self._repo_lock = FileLock(str(resolved_lock), timeout=30)
+        try:
+            with self._repo_lock:
+                self.repo = self._ensure_repo()
+        except Timeout as exc:
+            raise RollbackError("Rollback repository is busy; initialization refused") from exc
 
     def _ensure_repo(self) -> Repo:
         """Open the sandbox repo, initialising it with a baseline commit if new.
@@ -124,14 +141,15 @@ class RollbackEngine:
         snapshot (no empty commit is created).
         """
         try:
-            self.repo.git.add(A=True)
-            if not self.repo.is_dirty(untracked_files=True):
-                head = self.repo.head.commit
-                return Snapshot(sha=head.hexsha, message=f"(clean) {message}")
-            commit = self.repo.index.commit(
-                f"[SNAPSHOT] {message}", author=_AUTHOR, committer=_AUTHOR
-            )
-            return Snapshot(sha=commit.hexsha, message=message)
+            with self._repo_lock:
+                self.repo.git.add(A=True)
+                if not self.repo.is_dirty(untracked_files=True):
+                    head = self.repo.head.commit
+                    return Snapshot(sha=head.hexsha, message=f"(clean) {message}")
+                commit = self.repo.index.commit(
+                    f"[SNAPSHOT] {message}", author=_AUTHOR, committer=_AUTHOR
+                )
+                return Snapshot(sha=commit.hexsha, message=message)
         except Exception as exc:  # noqa: BLE001
             raise RollbackError(f"Snapshot failed: {exc}") from exc
 
@@ -142,30 +160,35 @@ class RollbackEngine:
         tree exactly matches the target snapshot.
         """
         try:
-            if sha is None:
-                commits = list(self.repo.iter_commits(max_count=2))
-                if len(commits) < 2:
-                    return RollbackResult(
-                        restored=False,
-                        head_sha=self.repo.head.commit.hexsha,
-                        reason="No previous snapshot to roll back to.",
-                    )
-                sha = commits[1].hexsha
+            with self._repo_lock:
+                if sha is None:
+                    commits = list(self.repo.iter_commits(max_count=2))
+                    if len(commits) < 2:
+                        return RollbackResult(
+                            restored=False,
+                            head_sha=self.repo.head.commit.hexsha,
+                            reason="No previous snapshot to roll back to.",
+                        )
+                    sha = commits[1].hexsha
 
-            self.repo.git.reset("--hard", sha)
-            self.repo.git.clean("-fd")
-            head = self.repo.head.commit.hexsha
-            return RollbackResult(
-                restored=(head == sha),
-                head_sha=head,
-                reason=f"Workspace restored to {sha[:10]}.",
-            )
+                self.repo.git.reset("--hard", sha)
+                self.repo.git.clean("-fd")
+                head = self.repo.head.commit.hexsha
+                return RollbackResult(
+                    restored=(head == sha),
+                    head_sha=head,
+                    reason=f"Workspace restored to {sha[:10]}.",
+                )
         except Exception as exc:  # noqa: BLE001
             raise RollbackError(f"Rollback failed: {exc}") from exc
 
     def list_snapshots(self, limit: int = 10) -> list[Snapshot]:
         """Return the most recent snapshot commits, newest first."""
-        out: list[Snapshot] = []
-        for commit in self.repo.iter_commits(max_count=limit):
-            out.append(Snapshot(sha=commit.hexsha, message=str(commit.message).strip()))
-        return out
+        try:
+            with self._repo_lock:
+                out: list[Snapshot] = []
+                for commit in self.repo.iter_commits(max_count=limit):
+                    out.append(Snapshot(sha=commit.hexsha, message=str(commit.message).strip()))
+                return out
+        except Exception as exc:  # noqa: BLE001
+            raise RollbackError(f"Snapshot listing failed: {exc}") from exc

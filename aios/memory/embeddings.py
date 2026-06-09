@@ -75,7 +75,7 @@ class VectorIndex:
 
     Loaded from :data:`aios.config.FAISS_INDEX_PATH` if present, otherwise
     created empty. Not internally locked: callers that mutate it concurrently
-    must serialise their own access (the semantic layer does so per process).
+    must serialise access and reload after acquiring their cross-process lock.
     """
 
     def __init__(
@@ -85,7 +85,16 @@ class VectorIndex:
     ) -> None:
         self.path: Path = path
         self.dim: int = dim
+        self._lock = threading.RLock()
         self._index = self._load_or_create()
+        self._loaded_mtime_ns = self._mtime_ns()
+
+    def _mtime_ns(self) -> Optional[int]:
+        """Current durable index timestamp, or ``None`` when it does not exist."""
+        try:
+            return self.path.stat().st_mtime_ns
+        except FileNotFoundError:
+            return None
 
     def _load_or_create(self) -> "faiss.Index":
         """Read the index from disk, or build a fresh empty IDMap+HNSW index."""
@@ -100,7 +109,19 @@ class VectorIndex:
         """Add one ``dim``-length vector under an explicit integer id."""
         row = np.ascontiguousarray(vector.reshape(1, -1), dtype="float32")
         ids = np.asarray([vector_id], dtype="int64")
-        self._index.add_with_ids(row, ids)
+        with self._lock:
+            self._index.add_with_ids(row, ids)
+
+    def reload(self) -> None:
+        """Reload the latest durable index while the caller holds its write lock."""
+        with self._lock:
+            self._index = self._load_or_create()
+            self._loaded_mtime_ns = self._mtime_ns()
+
+    def _refresh_if_changed(self) -> None:
+        """Make long-lived readers observe an index persisted by another process."""
+        if self._mtime_ns() != self._loaded_mtime_ns:
+            self.reload()
 
     def search(self, query_vector: np.ndarray, k: int) -> list[tuple[int, float]]:
         """Return up to ``k`` ``(semantic_memory.id, cosine_similarity)`` pairs.
@@ -108,24 +129,29 @@ class VectorIndex:
         Returns an empty list when the index is empty. Sentinel ids of ``-1``
         (FAISS "no result") are filtered out.
         """
-        if self.size == 0 or k <= 0:
-            return []
-        query = np.ascontiguousarray(query_vector.reshape(1, -1), dtype="float32")
-        scores, ids = self._index.search(query, min(k, self.size))
-        return [
-            (int(idx), float(score))
-            for idx, score in zip(ids[0], scores[0])
-            if idx != -1
-        ]
+        with self._lock:
+            self._refresh_if_changed()
+            if self.size == 0 or k <= 0:
+                return []
+            query = np.ascontiguousarray(query_vector.reshape(1, -1), dtype="float32")
+            scores, ids = self._index.search(query, min(k, self.size))
+            return [
+                (int(idx), float(score))
+                for idx, score in zip(ids[0], scores[0])
+                if idx != -1
+            ]
 
     def persist(self) -> None:
         """Atomically flush the index to its on-disk path."""
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
-        faiss.write_index(self._index, str(tmp))
-        tmp.replace(self.path)
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+            faiss.write_index(self._index, str(tmp))
+            tmp.replace(self.path)
+            self._loaded_mtime_ns = self._mtime_ns()
 
     @property
     def size(self) -> int:
         """Number of vectors currently stored in the index."""
-        return int(self._index.ntotal)
+        with self._lock:
+            return int(self._index.ntotal)

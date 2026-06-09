@@ -9,6 +9,7 @@ the throwaway temp root.
 from __future__ import annotations
 
 import pytest
+from filelock import FileLock
 
 from aios.core.self_apply import SelfApplyEngine
 from aios.core.verifier import VerifierResult
@@ -93,6 +94,7 @@ def _engine(project_root, db_path, *, verifier=None, audit=None) -> SelfApplyEng
         project_root=project_root,
         audit_log=audit or _FakeAudit(),
         verify_command="fake-verify",
+        lock_path=project_root.parent / "self_apply.lock",
     )
 
 
@@ -119,6 +121,30 @@ def test_apply_happy_path(tmp_path) -> None:
     assert row["approved_by"] == "alice"
     assert audit.entries, "the applied change must be audited"
     assert res.audit_id is not None
+
+
+def test_apply_refuses_while_another_local_worker_holds_lock(tmp_path) -> None:
+    pr, db, pid = _seed(tmp_path)
+    eng = _engine(pr, db)
+
+    with FileLock(str(pr.parent / "self_apply.lock")):
+        res = eng.apply(pid, approved_by="alice")
+
+    assert res.status == "refused"
+    assert "already in progress" in res.reason
+    assert (pr / _TARGET).read_text(encoding="utf-8") == _BEFORE
+
+
+def test_apply_refuses_credential_like_approver_identity(tmp_path) -> None:
+    pr, db, pid = _seed(tmp_path)
+    secret = "sk-" + "a" * 40
+
+    res = _engine(pr, db).apply(pid, approved_by=secret)
+
+    assert res.status == "refused"
+    assert "identity" in res.reason
+    assert secret.encode() not in db.read_bytes()
+    assert (pr / _TARGET).read_text(encoding="utf-8") == _BEFORE
 
 
 def test_apply_verify_fail_rolls_back(tmp_path) -> None:
@@ -248,6 +274,22 @@ def test_apply_reports_rollback_failure_honestly(tmp_path, monkeypatch) -> None:
     assert res.status == "refused"
     assert "rollback failed" in res.reason
     assert "restored" not in res.reason
+
+
+def test_atomic_restore_publish_failure_preserves_current_file(tmp_path, monkeypatch) -> None:
+    pr, db, _ = _seed(tmp_path, content=_AFTER)
+    eng = _engine(pr, db)
+    target = pr / _TARGET
+    monkeypatch.setattr(
+        "aios.core.self_apply.os.replace",
+        lambda *a, **k: (_ for _ in ()).throw(OSError("disk publication failed")),
+    )
+
+    error = eng._restore(target, _BEFORE.encode("utf-8"))
+
+    assert error and "disk publication failed" in error
+    assert target.read_text(encoding="utf-8") == _AFTER
+    assert not list(target.parent.glob(".widget.py.restore.*.tmp"))
 
 
 def test_apply_restores_when_status_persistence_fails(tmp_path, monkeypatch) -> None:

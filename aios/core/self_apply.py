@@ -23,18 +23,21 @@ the gate that guards the agent is T4, not T3.
 from __future__ import annotations
 
 import os
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from filelock import FileLock, Timeout
+
 from aios import config
 from aios.agents.self_analysis_agent import classify_target
+from aios.core.executor import _bounded_run
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.audit_logger import log_action
 from aios.security.gateway import Zone
+from aios.security.secret_scanner import scan_and_redact
 
 #: Identity that authored T2 proposals — a human approver may never equal it (§6.3).
 PROPOSER_ID = "self_analysis_agent"
@@ -104,6 +107,7 @@ class SelfApplyEngine:
         verify_command: str = DEFAULT_VERIFY_COMMAND,
         proposer_id: str = PROPOSER_ID,
         frozen_subdirs: tuple[str, ...] = ("security",),
+        lock_path: Optional[Path] = None,
     ) -> None:
         self.verifier = verifier
         self.db_path = db_path
@@ -112,8 +116,20 @@ class SelfApplyEngine:
         self.verify_command = verify_command
         self.proposer_id = proposer_id
         self.frozen_subdirs = frozen_subdirs
+        self._apply_lock = FileLock(
+            str(lock_path or (config.DATA_DIR / "self_apply.lock")),
+            timeout=0,
+        )
 
     def apply(self, proposal_id: int, *, approved_by: str) -> ApplyResult:
+        """Serialize self-apply across local workers and fail closed when busy."""
+        try:
+            with self._apply_lock.acquire(timeout=0):
+                return self._apply_serialized(proposal_id, approved_by=approved_by)
+        except Timeout:
+            return ApplyResult("refused", "another self-apply operation is already in progress")
+
+    def _apply_serialized(self, proposal_id: int, *, approved_by: str) -> ApplyResult:
         """Apply proposal *proposal_id* on behalf of human *approved_by*.
 
         Implements snapshot → confine → ``git apply`` → integrity → verify → audit
@@ -144,6 +160,10 @@ class SelfApplyEngine:
         approver = (approved_by or "").strip()
         if not approver:
             return ApplyResult("refused", "approved_by is required (a human approver)")
+        if len(approver) > 128:
+            return ApplyResult("refused", "approved_by is too long")
+        if scan_and_redact(approver).detected:
+            return ApplyResult("refused", "approved_by must be an identity, not credential-like data")
         if approver == proposed_by or approver == self.proposer_id:
             return ApplyResult(
                 "refused", "the proposer may not approve its own proposal (no self-approval)"
@@ -310,13 +330,27 @@ class SelfApplyEngine:
 
     @staticmethod
     def _restore(path: Path, before_bytes: bytes) -> Optional[str]:
-        """Restore and verify original bytes; return an error instead of hiding failure."""
+        """Atomically restore and verify original bytes; return any failure."""
+        staged: Optional[Path] = None
         try:
-            path.write_bytes(before_bytes)
+            fd, staged_name = tempfile.mkstemp(
+                prefix=f".{path.name}.restore.",
+                suffix=".tmp",
+                dir=path.parent,
+            )
+            staged = Path(staged_name)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(before_bytes)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(staged, path)
             if path.read_bytes() != before_bytes:
                 return "restored bytes did not match the snapshot"
         except OSError as exc:
             return str(exc)
+        finally:
+            if staged is not None:
+                staged.unlink(missing_ok=True)
         return None
 
     def _expected_after(self, before_bytes: bytes, diff: str, rel_path: str) -> Optional[bytes]:
@@ -361,7 +395,7 @@ class SelfApplyEngine:
             if check:
                 args.append("--check")
             args.append(diff_file)
-            proc = subprocess.run(
+            proc = _bounded_run(
                 args, cwd=str(cwd), capture_output=True, text=True, timeout=30
             )
             return proc.returncode == 0, (proc.stdout + proc.stderr)

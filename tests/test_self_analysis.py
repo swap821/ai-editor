@@ -135,6 +135,48 @@ def test_t1_detects_todo_smell_and_missing_test(tmp_path) -> None:
     assert f"line {marks['todo_line']}" in todo[0].evidence
 
 
+def test_t1_recognizes_domain_named_test_that_imports_module(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    tests = tmp_path / "tests"
+    pkg.mkdir()
+    tests.mkdir()
+    (pkg / "domain_agent.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    (tests / "test_workflow.py").write_text(
+        "from pkg.domain_agent import run\n\n"
+        "def test_run():\n"
+        "    assert run() == 1\n",
+        encoding="utf-8",
+    )
+    agent = SelfAnalysisAgent(
+        scope_root=pkg, tests_root=tests, path_root=tmp_path, db_path=tmp_path / "report.db",
+    )
+
+    missing = {f.target_path for f in agent.diagnose() if f.finding_type == "missing_test"}
+
+    assert "pkg/domain_agent.py" not in missing
+
+
+def test_t1_only_reports_todo_markers_in_comments(tmp_path) -> None:
+    pkg = tmp_path / "pkg"
+    tests = tmp_path / "tests"
+    pkg.mkdir()
+    tests.mkdir()
+    (pkg / "markers.py").write_text(
+        '"""TODO in documentation is not deferred work."""\n'
+        'VALUE = "FIXME in runtime data"\n'
+        "# TODO: this is actionable\n",
+        encoding="utf-8",
+    )
+    agent = SelfAnalysisAgent(
+        scope_root=pkg, tests_root=tests, path_root=tmp_path, db_path=tmp_path / "report.db",
+    )
+
+    todos = [f for f in agent.diagnose() if f.finding_type == "todo"]
+
+    assert len(todos) == 1
+    assert todos[0].symbol == "# TODO: this is actionable"
+
+
 def test_t1_flags_overlong_function_as_smell(tmp_path) -> None:
     # A single long function trips the long-function 'smell' rule (low threshold).
     pkg = tmp_path / "pkg"

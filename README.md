@@ -72,8 +72,8 @@ npm test
 npm run build
 ```
 
-Current local verification target: Python suite `278 passed, 1 skipped`, plus
-frontend Vitest `14 passed`.
+Current local verification target: Python suite `331 passed, 1 skipped` at 90%
+application / 94% total coverage, plus frontend Vitest `16 passed`.
 
 ## Security Invariants
 
@@ -86,13 +86,34 @@ frontend Vitest `14 passed`.
   command/edit/create payload.
 - Audit-before-write on guarded edits and self-apply.
 - Verification is evidence-based; model narration does not count as success.
+- Semantic FAISS writes are coordinated across local worker processes with a
+  shared file lock; writers reload before mutation and long-lived readers
+  refresh after another process persists.
+- Approval capabilities, redeemed grants, sensitive-action rate limits, audit
+  appends, facts, reflection recurrence, self-apply, and rollback Git operations
+  coordinate across local worker processes.
+- New durable approval, rate-limit, and episodic records hash caller-supplied
+  session identifiers instead of storing them raw.
+- Approved edits/creates and self-apply rollback restoration publish atomically;
+  a failed write cannot leave a partially written target.
 - Commands are parsed into structured argv, shell composition is rejected, and
   child processes launch with `shell=False`.
-- Scope locking is not OS/container isolation. Human-approved arbitrary-code
-  commands run as the backend OS user.
+- Oversized commands are refused and command output is drained with a bounded
+  retained prefix, preventing unbounded response-memory growth.
+- Live Preview runs in a script-only sandbox with a restrictive CSP and no CDN
+  or network egress.
+- Default `host` execution is scope locking, not OS isolation. Set
+  `AIOS_APPROVED_EXECUTION_BACKEND=container` after building `Dockerfile.executor`
+  to run approved arbitrary-code commands in a fail-closed, no-network,
+  read-only-root Docker container with a single scoped read-write mount.
 - Unauthenticated API requests are accepted only from loopback. Non-loopback API
-  deployment requires `AIOS_API_TOKEN`; configure the same value as
+  deployment requires a random `AIOS_API_TOKEN` of at least 32 characters;
+  configure the same value as
   `VITE_AIOS_API_TOKEN` only for a trusted/private frontend deployment.
+
+For production-style exposure, terminate TLS in a maintained reverse proxy and
+keep AI-OS bound to a private interface. A browser-delivered bearer token is
+recoverable by that browser's user; it is not multi-user identity or authorization.
 
 ## Local Model Gallery
 
@@ -100,10 +121,14 @@ The system works best with several Ollama models installed. A good local set is:
 
 - `qwen2.5-coder:7b` - primary coding/tool-loop model
 - `qwen2.5:7b` - general/reasoning-capable tool model
-- `deepseek-r1:8b` - reasoning reference model, not preferred for tool calls
 - `mistral:7b` - general fallback
+- `llama3.1:8b` - strong general/reasoning tool-loop model
 - `llama3.2:3b` or `qwen2.5-coder:3b` - small RAM-friendly fallback
 - `nomic-embed-text:latest` - embedding utility
 
-The backend filters embedding/vision/base-only models out of chat routing and
-keeps the agent loop on tool-capable models.
+The live gallery exposes only models considered compatible by the tested local
+policy. Ollama capability metadata alone is insufficient: some models advertise
+tools but reject or ignore this agent's actual tool request. Auto additionally
+avoids models such as legacy Mistral that accept tools but do not use them
+reliably. `deepseek-r1:8b` remains useful directly in Ollama, but is hidden from
+AI-OS because its live request rejected this agent's tool schema.

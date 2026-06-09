@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import secrets
-import subprocess
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -36,10 +35,21 @@ from aios import config
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.tool_agent import ToolAgent
-from aios.core.executor import Executor
+from aios.core.executor import (
+    Executor,
+    _bounded_run,
+    approved_runner_from_config,
+    validate_approved_execution_backend,
+)
 from aios.core.bedrock import BedrockClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
-from aios.core.model_selector import TASKS, describe_choice, infer_task, select_model
+from aios.core.model_selector import (
+    TASKS,
+    describe_choice,
+    infer_task,
+    select_model,
+    supports_tool_protocol,
+)
 from aios.core.approvals import ApprovalError, ApprovalStore
 from aios.core.planner import Planner, PlannerError
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
@@ -49,16 +59,22 @@ from aios.memory.episodic import EpisodicMemory
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
-from aios.security.gateway import Zone, classify
+from aios.security.gateway import RateLimiter, Zone, classify
+from aios.security.secret_scanner import scan_and_redact
 
-_APPROVALS = ApprovalStore()
+_APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
+_RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ensure both databases exist before the app serves traffic."""
-    if config.API_HOST not in {"127.0.0.1", "localhost", "::1"} and not config.API_TOKEN:
-        raise RuntimeError("AIOS_API_TOKEN is required when AIOS_API_HOST is non-loopback")
+    if config.API_HOST not in {"127.0.0.1", "localhost", "::1"}:
+        if not config.API_TOKEN:
+            raise RuntimeError("AIOS_API_TOKEN is required when AIOS_API_HOST is non-loopback")
+        if len(config.API_TOKEN) < 32:
+            raise RuntimeError("AIOS_API_TOKEN must be at least 32 characters for non-loopback use")
+    validate_approved_execution_backend()
     init_memory_db()
     init_audit_db()
     # Opt-in second injection layer: install the vector blocklist when enabled.
@@ -94,8 +110,13 @@ app.add_middleware(
 
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
-    """Keep unauthenticated API use loopback-only; enforce configured tokens."""
-    if request.url.path.startswith("/api/") and request.method != "OPTIONS":
+    """Protect API and schema surfaces; keep unauthenticated use loopback-only."""
+    protected = request.url.path.startswith("/api/") or request.url.path in {
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    }
+    if protected and request.method != "OPTIONS":
         if config.API_TOKEN:
             auth = request.headers.get("authorization", "")
             expected = f"Bearer {config.API_TOKEN}"
@@ -143,10 +164,13 @@ def get_bedrock_client() -> Optional[BedrockClient]:
 
 def get_executor() -> Executor:
     """Provide the default scope-constrained executor. Overridden in tests."""
-    return Executor()
+    return Executor(
+        approved_runner=approved_runner_from_config(),
+        rate_limiter=_RATE_LIMITER,
+    )
 
 def get_approval_store() -> ApprovalStore:
-    """Provide the process-local store of pending human approval capabilities."""
+    """Provide the durable local multi-worker approval capability store."""
     return _APPROVALS
 
 
@@ -164,6 +188,8 @@ def get_self_apply_engine(
     — there is deliberately no agent tool that applies. Overridden in tests with a
     fake verifier + temp project root so no real shell/suite runs.
     """
+    isolated_runner = approved_runner_from_config()
+
     def project_root_runner(
         command: str, *, cwd: str, env: dict[str, str], timeout_s: int
     ) -> tuple[str, str, int]:
@@ -177,7 +203,14 @@ def get_self_apply_engine(
         """
         if command != DEFAULT_VERIFY_COMMAND:
             raise ValueError("self-apply verifier accepts only the fixed project test command")
-        completed = subprocess.run(
+        if isolated_runner is not None:
+            return isolated_runner(
+                command,
+                cwd=str(config.PROJECT_ROOT),
+                env=env,
+                timeout_s=timeout_s,
+            )
+        completed = _bounded_run(
             [sys.executable, "-m", "pytest", "tests/", "-q"],
             cwd=str(config.PROJECT_ROOT),
             env=env,
@@ -267,7 +300,13 @@ class ExecuteRequest(BaseModel):
     """Body for ``/execute``."""
 
     command: str = Field(..., description="Command to classify, gate, and run.")
-    session_id: Optional[str] = Field(None, description="Session id for rate limiting.")
+    session_id: Optional[str] = Field(
+        None,
+        alias="sessionId",
+        description="Required for a YELLOW command's server-issued approval capability.",
+    )
+
+    model_config = {"populate_by_name": True}
 
 
 class ApprovalRequest(BaseModel):
@@ -302,8 +341,8 @@ class GenerateRequest(BaseModel):
     ``messages`` is the front-end's running history in the shape
     ``[{"role": "user"|"assistant", "content": [{"text": "..."}]}]``.
     ``model_id`` is the UI's selected model id (e.g. ``ollama.llama3.2:3b``);
-    the ``ollama.`` prefix is stripped, and any non-local id falls back to the
-    configured default local model.
+    the ``ollama.`` prefix is stripped, while an explicit non-local id requires
+    configured Bedrock and never silently changes providers.
     """
 
     messages: list[dict[str, Any]] = Field(default_factory=lambda: cast(list[dict[str, Any]], []))
@@ -404,10 +443,25 @@ def plan(req: PlanRequest, llm: LLMClient = Depends(get_llm_client)) -> dict[str
 
 
 @app.post("/api/v1/execute")
-def execute(req: ExecuteRequest, executor: Executor = Depends(get_executor)) -> dict[str, Any]:
+def execute(
+    req: ExecuteRequest,
+    executor: Executor = Depends(get_executor),
+    approvals: ApprovalStore = Depends(get_approval_store),
+) -> dict[str, Any]:
     """Classify, gate, audit, and (if GREEN) run a command in the sandbox."""
     result = executor.execute(req.command, session_id=req.session_id)
-    return asdict(result)
+    response = asdict(result)
+    if result.status == "REQUIRE_APPROVAL":
+        if not req.session_id:
+            raise HTTPException(
+                status_code=400,
+                detail="sessionId is required to approve a YELLOW command",
+            )
+        response["approvalToken"] = approvals.issue(
+            "command", {"command": req.command}, req.session_id
+        )
+        response["sessionId"] = req.session_id
+    return response
 
 
 @app.post("/api/v1/approval/req")
@@ -425,12 +479,21 @@ def approval_req(
         action = approvals.consume(req.approval_token, req.session_id)
     except ApprovalError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if action.action_type != "command":
-        raise HTTPException(status_code=400, detail="approval token is not for a command")
     command = str(action.payload.get("command", ""))
     if not req.approve:
-        log_action("human-approval", f"REJECTED: {command}", Zone.YELLOW)
-        return {"decision": "rejected", "command": command, "executed": False}
+        if action.action_type == "command":
+            executor.reset_sensitive_actions(req.session_id)
+        target = command or str(action.payload.get("filepath", action.action_type))
+        log_action("human-approval", f"REJECTED {action.action_type}: {target}", Zone.YELLOW)
+        return {
+            "decision": "rejected",
+            "actionType": action.action_type,
+            "command": command,
+            "executed": False,
+        }
+    if action.action_type != "command":
+        raise HTTPException(status_code=400, detail="approval token is not for a command")
+    executor.reset_sensitive_actions(req.session_id)
 
     result = executor.execute_approved(command)
     return {
@@ -515,8 +578,15 @@ def reject_proposal(proposal_id: int) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 @app.get("/api/v1/models/local")
 def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict[str, Any]:
-    """List models installed in the local Ollama engine (for the model picker)."""
-    return client.list_models()
+    """List installed models policy-compatible with this conversational UI."""
+    info = client.list_models()
+    models = info.get("models") or []
+    chat_models = [
+        model
+        for model in models
+        if isinstance(model, str) and supports_tool_protocol(model)
+    ]
+    return {**info, "models": chat_models}
 
 
 @app.get("/api/v1/models/bedrock")
@@ -530,9 +600,9 @@ def models_bedrock(
     case the UI falls back to a curated cloud list.
     """
     if bedrock is None:
-        return {"available": False, "models": []}
+        return {"configured": False, "available": False, "models": []}
     models = bedrock.list_models()
-    return {"available": bool(models), "models": models}
+    return {"configured": True, "available": bool(models), "models": models}
 
 
 @app.get("/api/v1/models/auto")
@@ -545,12 +615,12 @@ def models_auto(
     Choosing the best local model is the agent's job, not the user's. Returns the
     pick for *task* plus a ``by_task`` map (coding/reasoning/general/fast) over the
     LIVE installed set, so the UI can show "Auto · <model>" and surface how the
-    agent routes by purpose. (The live loop additionally requires tool-capability;
-    this discovery view shows the best model per purpose unconstrained.)
+    agent routes by purpose. Selection applies the live loop's tool-capability
+    requirement, so discovery never advertises a different Auto route than runtime.
     """
     models = client.list_models().get("models") or []
-    by_task = {t: select_model(models, task=t) for t in TASKS}
-    chosen = select_model(models, task=task)
+    by_task = {t: select_model(models, task=t, require_tools=True) for t in TASKS}
+    chosen = select_model(models, task=task, require_tools=True)
     if not chosen:
         return {"available": False, "model": None, "task": task,
                 "reason": "no local chat model installed", "by_task": by_task}
@@ -598,9 +668,9 @@ def _select_chat_client(
     """Pick the ``(chat_client, model)`` for the requested UI model id.
 
     ``auto`` lets the AGENT choose the best installed local model for *task* (the
-    user never has to). ``ollama.x`` always runs locally on ``x``. Any other id is
-    a "use cloud" signal: it routes to Bedrock (on the configured
-    :data:`BEDROCK_MODEL`) when available, otherwise falls back to the local default.
+    user never has to). ``ollama.x`` always runs locally on ``x``. An explicit
+    non-local id routes to Bedrock and fails clearly when Bedrock is unavailable;
+    it never silently changes providers. No id means the configured local default.
     """
     if model_id in _AUTO_IDS:
         # Agent-chosen model for the agentic loop. Fail-soft: if Ollama is
@@ -612,11 +682,22 @@ def _select_chat_client(
             return bedrock, config.BEDROCK_MODEL
         return ollama, config.LLM_MODEL
     if model_id and model_id.startswith("ollama."):
-        return ollama, _resolve_local_model(model_id)
-    if bedrock is not None:
+        local_model = _resolve_local_model(model_id)
+        if not supports_tool_protocol(local_model):
+            raise HTTPException(
+                status_code=422,
+                detail=f"local model '{local_model}' cannot accept the agent tool protocol",
+            )
+        return ollama, local_model
+    if model_id and bedrock is not None:
         # Pass the selected Bedrock model id straight through (so each dropdown
-        # choice runs that actual model); fall back to the configured default.
-        return bedrock, (model_id or config.BEDROCK_MODEL)
+        # choice runs that actual model).
+        return bedrock, model_id
+    if model_id:
+        raise HTTPException(
+            status_code=503,
+            detail="cloud model selected but AWS Bedrock is not configured",
+        )
     return ollama, config.LLM_MODEL
 
 
@@ -692,7 +773,7 @@ def _record_episode(session_id: str, role: str, content: str) -> None:
     if not content or not content.strip():
         return
     try:
-        _EPISODIC.record(session_id, role, content)
+        _EPISODIC.record(session_id, role, scan_and_redact(content).scrubbed)
     except Exception:  # noqa: BLE001 - persistence must not break the chat
         pass
 
@@ -726,7 +807,8 @@ def _index_turn(
     if indexer is None or not answer:
         return
     try:
-        indexer.add(f"UNVERIFIED_CHAT\nUser: {user_text}\nAssistant: {answer}")
+        payload = f"UNVERIFIED_CHAT\nUser: {user_text}\nAssistant: {answer}"
+        indexer.add(scan_and_redact(payload).scrubbed)
     except Exception:  # noqa: BLE001 - indexing must not break the chat
         pass
 
@@ -821,7 +903,9 @@ def generate(
         if not req.approval_tokens:
             approvals.clear_session(session_id)
         for token in req.approval_tokens:
-            approvals.redeem(token, session_id)
+            action = approvals.redeem(token, session_id)
+            if action.action_type == "command":
+                executor.reset_sensitive_actions(session_id)
         for action in approvals.grants(session_id):
             if action.action_type == "command":
                 approved_commands.append(str(action.payload["command"]))
@@ -994,7 +1078,9 @@ def generate(
 
 @app.post("/api/terminal")
 def terminal(
-    req: TerminalRequest, executor: Executor = Depends(get_executor)
+    req: TerminalRequest,
+    executor: Executor = Depends(get_executor),
+    approvals: ApprovalStore = Depends(get_approval_store),
 ) -> dict[str, Any]:
     """Run a UI-terminal command through the security gateway + sandbox.
 
@@ -1012,10 +1098,18 @@ def terminal(
             "isError": bool(result.exit_code),
         }
     if result.status == "REQUIRE_APPROVAL":
+        if not req.session_id:
+            raise HTTPException(
+                status_code=400,
+                detail="sessionId is required to approve a YELLOW command",
+            )
+        token = approvals.issue("command", {"command": req.command}, req.session_id)
         return {
             "output": f"[APPROVAL REQUIRED] {result.reason}",
             "isError": False,
             "requiresApproval": True,
+            "approvalToken": token,
+            "command": req.command,
         }
     # BLOCKED / TIMEOUT / ERROR
     return {"output": f"[{result.status}] {result.reason}", "isError": True}

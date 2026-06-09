@@ -100,9 +100,13 @@ resume yourself — say so if asked). Don't report a task done without evidence
 ## XI. PROJECT-SPECIFIC FACTS (this repo)
 - **Run backend:** `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
 - **Run frontend:** `cd frontend; npm run dev`  (Vite, http://localhost:5173)
-- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **278 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
+- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **331 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
 - **Commits:** per-phase on `master` (not `main`); end messages with the Co-Authored-By line. Commit only when the operator asks.
-- **Local LLM:** Ollama. Host RAM is ~7.5 GB — prefer `llama3.2:3b`; `llama3.1:8b` OOMs. Flags `AIOS_INDEX_CHAT` / `AIOS_REFLECT_ON_FAILURE` each add a model load; set `false` on tight runs.
+- **Local LLM:** Ollama. Prefer the UI's `Auto` route. Live-compatible gallery:
+  qwen2.5-coder 7B/3B, qwen2.5 7B, llama3.1 8B, llama3.2 3B, and Mistral 7B.
+  DeepSeek R1 is installed but its Ollama endpoint rejects the agent tool schema,
+  so AI-OS hides it. Flags `AIOS_INDEX_CHAT` / `AIOS_REFLECT_ON_FAILURE` each add
+  a model load; set `false` on tight runs.
 - **Config is centralized** in `aios/config.py` (single source of truth). Subsystems are injected via FastAPI `Depends(...)` so tests override them with fakes — never add network/model/shell side-effects to a test path.
 - **Frozen core (§VIII controlled self-modification).** The security spine — `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py` — is FROZEN. Any change to it follows the full §VIII flow (Observe→Analyse→Propose→Test→Verify→Human Review→Approve→Deploy) and is treated as **RED**: the product agent literally cannot touch it (`SCOPE_ROOTS` = `training_ground/` only → an attempt classifies RED/refused), and the Self-Analysis module treats it as **Tier T4 = RED + frozen** (a fix may be *proposed* for human review, but *applying* one is RED/blocked). Never weaken a guardrail to make a test pass; keep these modules deterministic and fail-closed.
 - **Build vs blueprint:** the blueprint says "~35%"; the *code* is ~75–80% of MVP. Trust the code. See `.aios/state/RESUME.md`.
