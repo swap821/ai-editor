@@ -5,6 +5,14 @@ Develop the AI-OS brain through evidence-backed memory and behavior change while
 keeping every action supervised, inspectable, local-first, and fail-closed.
 
 ## Last completed and verified
+2026-06-09 shared agent rulebook:
+- Renamed the canonical repository instruction file to `AGENTS.md` so Claude
+  Code, OpenAI Codex, and future coding agents use one neutral rulebook.
+- Kept `CLAUDE.md` only as a minimal Claude Code compatibility loader that
+  immediately delegates to `AGENTS.md`.
+- Updated active code comments, resume helpers, kickoff instructions, and
+  quickstart documentation to reference `AGENTS.md`.
+
 2026-06-09 Brain Growth Loop v1:
 - Implemented the developmental loop:
   `experience -> outcome -> candidate -> verification/approval -> trusted

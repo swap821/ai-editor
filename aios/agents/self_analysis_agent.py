@@ -134,7 +134,7 @@ def classify_target(
     """Deterministic would-be-apply zone for a project-relative path.
 
     A file under a frozen subdir of *package* (e.g. ``aios/security/…``, the frozen
-    core in CLAUDE.md §XI) is **RED** — editing the gate that guards the agent is the
+    core in AGENTS.md §XI) is **RED** — editing the gate that guards the agent is the
     highest-risk action. Every other path is **YELLOW**. This is the single source of
     truth shared by T2 (records ``proposed_zone``) and T3 (the apply zone gate), so
     the two can never diverge.
@@ -207,7 +207,7 @@ class SelfAnalysisAgent:
         #: report's ``proposed_diff``.
         self.llm = llm
         #: Package subdirs whose files map to a RED would-be-apply zone (the frozen
-        #: core, CLAUDE.md §XI). A proposal against them may be drafted, but applying
+        #: core, AGENTS.md §XI). A proposal against them may be drafted, but applying
         #: is T4/RED — recorded here only as ``proposed_zone`` groundwork.
         self.frozen_subdirs = frozen_subdirs
         self.loc_smell_threshold = loc_smell_threshold

@@ -17,7 +17,7 @@ own proposal — applying is reachable ONLY via the human-called HTTP endpoint t
 constructs this engine. That structural gap is the real no-self-approval guard; the
 ``approved_by != proposed_by`` check here is the defensive second layer (§6.3).
 
-The RED frozen core (``aios/security/*``, CLAUDE.md §XI) is refused outright — editing
+The RED frozen core (``aios/security/*``, AGENTS.md §XI) is refused outright — editing
 the gate that guards the agent is T4, not T3.
 """
 from __future__ import annotations

@@ -1,8 +1,8 @@
-# START HERE — running the AI-OS build with Claude Code
+# START HERE — running the AI-OS build with coding agents
 
-Plain-language quickstart. The idea in one line: **Claude Code keeps a notebook on
-disk (`.aios/`) so it never forgets where you stopped, and a small helper reopens
-it right where you left off.**
+Plain-language quickstart. The idea in one line: **coding agents share a notebook
+on disk (`.aios/`) so they can continue where the previous agent stopped, and a
+small helper can reopen Claude Code right where it left off.**
 
 > Note on brains: the web (Opus) chat and Claude Code (in VS Code) are *separate*
 > — nothing auto-carries between them. This repo is the Claude Code side.
@@ -10,8 +10,8 @@ it right where you left off.**
 ---
 
 ## The pieces (one line each)
-- **`CLAUDE.md`** — the rulebook Claude Code reads automatically (how it remembers
-  + stays safe). Auto-loaded; you never paste it.
+- **`AGENTS.md`** — the canonical shared rulebook for Claude Code, Codex, and
+  future coding agents. `CLAUDE.md` is only Claude Code's compatibility loader.
 - **`.aios/`** — the notebook on disk. `state/RESUME.md` = "where we are / do this
   next"; `memory/` = lessons and experiences.
 - **`aios-resume.ps1`** (Windows) / **`aios-resume.sh`** (Git Bash) — the helper
@@ -49,8 +49,8 @@ local model for the task.
 ---
 
 ## The honest part (so you're never surprised)
-- **A prompt can't wake itself.** When your usage limit is hit, no Claude is
-  running, so nothing in `CLAUDE.md` can "auto-resume." The helper script does the
+- **A prompt can't wake itself.** When your usage limit is hit, no agent is
+  running, so nothing in `AGENTS.md` can "auto-resume." The helper script does the
   clock-watching *outside* the model. The script resumes your **context and plan**
   with **approvals ON** — it never runs edits/installs/deletes by itself.
 - **Auto-run-on-open is OFF by default, on purpose.** Silently auto-launching a

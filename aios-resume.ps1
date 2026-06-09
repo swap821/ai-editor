@@ -8,7 +8,7 @@
 # WHAT IT DOES:
 #   1. Probes whether your Claude usage window is currently available.
 #   2. If AVAILABLE  -> resumes your last Claude Code session and asks it to run
-#                       the Session Bootstrap Protocol from CLAUDE.md (read
+#                       the Session Bootstrap Protocol from AGENTS.md (read
 #                       RESUME.md, summarise, propose the next step for approval).
 #   3. If NOT yet    -> prints the usage/reset message and exits (default), or
 #                       polls until reset if you pass  -Wait.
@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 $ProjectDir = $PSScriptRoot
 $StateDir   = Join-Path $ProjectDir '.aios/state'
 $SidFile    = Join-Path $StateDir 'last_session_id'
-$ResumePrompt = 'Run the Session Bootstrap Protocol from CLAUDE.md: read .aios/state/RESUME.md, summarise where we left off in one short paragraph, then present the single next step for my approval. Do NOT execute YELLOW or RED actions yet.'
+$ResumePrompt = 'Run the Session Bootstrap Protocol from AGENTS.md: read .aios/state/RESUME.md, summarise where we left off in one short paragraph, then present the single next step for my approval. Do NOT execute YELLOW or RED actions yet.'
 
 # Update this if Anthropic changes the limit wording. The probe is a heuristic.
 $LimitPattern = 'usage limit|rate limit|limit reached|reset|try again later|out of (usage|capacity)'

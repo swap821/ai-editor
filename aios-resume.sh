@@ -20,7 +20,7 @@ set -euo pipefail
 PROJECT_DIR="${AIOS_PROJECT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 STATE_DIR="$PROJECT_DIR/.aios/state"
 SID_FILE="$STATE_DIR/last_session_id"
-RESUME_PROMPT="${AIOS_RESUME_PROMPT:-Run the Session Bootstrap Protocol from CLAUDE.md: read .aios/state/RESUME.md, summarise where we left off in one short paragraph, then present the single next step for my approval. Do NOT execute YELLOW or RED actions yet.}"
+RESUME_PROMPT="${AIOS_RESUME_PROMPT:-Run the Session Bootstrap Protocol from AGENTS.md: read .aios/state/RESUME.md, summarise where we left off in one short paragraph, then present the single next step for my approval. Do NOT execute YELLOW or RED actions yet.}"
 
 WAIT=false
 RETRY_SECONDS="${AIOS_RETRY_SECONDS:-900}"

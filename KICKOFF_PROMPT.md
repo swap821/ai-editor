@@ -1,14 +1,14 @@
 # KICKOFF PROMPT
 
-The `.aios/` brain and `CLAUDE.md` already exist in this repo (set up on
+The `.aios/` brain and shared `AGENTS.md` already exist in this repo (set up on
 2026-06-02), so you normally do **not** need a kickoff — just open the folder and
-Claude Code runs the Bootstrap Protocol from `CLAUDE.md`.
+Coding agents run the Bootstrap Protocol from `AGENTS.md`.
 
 Use the block below only to **re-anchor** a session (e.g. after a long gap, or if
 `RESUME.md` looks stale). Paste it into Claude Code:
 
 ```
-You operate under CLAUDE.md in this repo (the local-first AI-OS: Python `aios/`
+You operate under AGENTS.md in this repo (the local-first AI-OS: Python `aios/`
 backend + React `frontend/`).
 
 Do exactly this, in order:

@@ -108,3 +108,15 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   unverified smoke turns or claim autonomous intelligence.
 - Risk to watch: data volume is not development. The brain earns trust only when
   verified promotion changes future behavior and later regressions can revoke it.
+
+## 2026-06-09 - CEO note (Codex: shared agent rulebook)
+- Decision: project governance belongs to the repository, not to one model
+  vendor. `AGENTS.md` is now the canonical shared rulebook for Claude Code,
+  OpenAI Codex, and future coding agents.
+- Compatibility: `CLAUDE.md` remains only as a minimal loader because Claude
+  Code auto-discovers that filename; it immediately delegates to `AGENTS.md`.
+- Updated active runtime helpers, code references, kickoff instructions, and
+  quickstart documentation. Historical blueprint/assessment references remain
+  unchanged because they document the original design state.
+- Risk to watch: never let compatibility loaders diverge into duplicate policy.
+  All substantive instruction changes belong only in `AGENTS.md`.
