@@ -19,6 +19,8 @@ from aios.api.main import (
     app,
     get_bedrock_client,
     get_edit_snapshot,
+    get_curriculum_manager,
+    get_development_tracker,
     get_executor,
     get_llm_client,
     get_ollama_client,
@@ -27,11 +29,14 @@ from aios.api.main import (
     get_rollback_engine,
     get_semantic_indexer,
     get_self_apply_engine,
+    get_skill_memory,
+    get_memory_consolidator,
 )
 from aios.security import scope_lock
 from aios.core.executor import Executor
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND
 from aios.memory.episodic import EpisodicMemory
+from aios.memory.facts import FactWriteResult
 from aios.security.gateway import RateLimiter
 
 
@@ -978,3 +983,160 @@ def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_pa
         assert "event: done" in body
     finally:
         scope_lock.set_scope_roots(list(original))
+
+
+# --------------------------------------------------------------------------- #
+# Brain Growth Loop v1 — evidence-backed live integration + API surfaces
+# --------------------------------------------------------------------------- #
+class FakeOllamaVerify:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(self, messages, *, tools=None, model=None) -> dict:
+        self.calls += 1
+        if self.calls == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "verify", "arguments": {"command": "pytest -q"}}}
+                ],
+            }
+        return {"role": "assistant", "content": "Verified."}
+
+
+class RecordingDevelopment:
+    def __init__(self) -> None:
+        self.records: list[tuple[str, str, dict]] = []
+
+    def record(self, task_text, outcome, **kwargs):
+        self.records.append((task_text, outcome, kwargs))
+        return len(self.records)
+
+    def summary(self):
+        return {"tasks": len(self.records)}
+
+
+class RecordingSkills:
+    def __init__(self) -> None:
+        self.attempts: list[tuple[str, list[str], bool]] = []
+
+    def relevant_verified(self, query, limit=3):
+        return []
+
+    def record_attempt(self, goal, steps, *, success):
+        self.attempts.append((goal, steps, success))
+        return 1
+
+    def list(self, *, status=None):
+        return [{"status": status or "verified"}]
+
+
+class RecordingCurriculum:
+    def __init__(self) -> None:
+        self.matches: list[tuple[str, bool, str]] = []
+        self.tasks: list[dict] = []
+
+    def record_matching(self, prompt, *, passed, evidence):
+        self.matches.append((prompt, passed, evidence))
+        return [1]
+
+    def add_task(self, skill_name, level, prompt, *, held_out=False):
+        self.tasks.append(
+            {"skill_name": skill_name, "level": level, "prompt": prompt, "held_out": held_out}
+        )
+        return len(self.tasks)
+
+    def list(self, skill_name=None):
+        return self.tasks
+
+
+class RecordingConsolidator:
+    def run(self):
+        return {"verified_lessons_consolidated": 2, "active_facts_consolidated": 1}
+
+    def consolidate_lesson(self, mistake_id):
+        return mistake_id
+
+    def promote_fact(self, subject, predicate, obj, *, approved_by):
+        return FactWriteResult(True, 7, "committed")
+
+    def reconcile_fact(self, subject, predicate, obj, *, approved_by):
+        return FactWriteResult(True, 8, "reconciled")
+
+
+def test_generate_records_verifier_backed_development_and_skill_evidence(
+    client: TestClient,
+) -> None:
+    development = RecordingDevelopment()
+    skills = RecordingSkills()
+    curriculum = RecordingCurriculum()
+    app.dependency_overrides[get_ollama_client] = FakeOllamaVerify
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
+    token = get_approval_store().issue(
+        "command", {"command": "pytest -q"}, "growth-verification"
+    )
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "growth-verification",
+            "approvalTokens": [token],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "[VERIFY PASS]" in response.text
+    assert development.records[-1][1] == "verified_success"
+    assert skills.attempts[-1][2] is True
+    assert curriculum.matches[-1][1] is True
+
+
+def test_growth_api_surfaces_are_non_autonomous(client: TestClient) -> None:
+    development = RecordingDevelopment()
+    skills = RecordingSkills()
+    curriculum = RecordingCurriculum()
+    consolidator = RecordingConsolidator()
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
+    app.dependency_overrides[get_memory_consolidator] = lambda: consolidator
+
+    assert client.get("/api/v1/development/metrics").json()["tasks"] == 0
+    assert client.get("/api/v1/development/skills").status_code == 200
+    created = client.post(
+        "/api/v1/development/curriculum",
+        json={"skillName": "python", "level": 1, "prompt": "write a parser"},
+    ).json()
+    assert created == {"id": 1, "executed": False}
+    assert client.get("/api/v1/development/curriculum").json()["tasks"]
+    assert client.post("/api/v1/memory/consolidate").json()["active_facts_consolidated"] == 1
+    fact = client.post(
+        "/api/v1/memory/facts",
+        json={
+            "subject": "user",
+            "predicate": "prefers",
+            "object": "concise output",
+            "approvedBy": "operator",
+        },
+    )
+    assert fact.status_code == 200
+    assert fact.json()["fact_id"] == 7
+    reconciled = client.post(
+        "/api/v1/memory/facts/reconcile",
+        json={
+            "subject": "user",
+            "predicate": "prefers",
+            "object": "detailed output",
+            "approvedBy": "operator",
+        },
+    )
+    assert reconciled.status_code == 200
+    assert reconciled.json()["fact_id"] == 8

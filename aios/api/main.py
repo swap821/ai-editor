@@ -55,9 +55,13 @@ from aios.core.planner import Planner, PlannerError
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.consolidation import MemoryConsolidator
+from aios.memory.curriculum import CurriculumManager
+from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
+from aios.memory.skills import SkillMemory
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import RateLimiter, Zone, classify
 from aios.security.secret_scanner import scan_and_redact
@@ -266,6 +270,26 @@ def get_reflection_agent(
     return ReflectionAgent(llm) if config.REFLECT_ON_FAILURE else None
 
 
+def get_development_tracker() -> DevelopmentTracker:
+    """Provide the evidence-backed developmental metrics store."""
+    return DevelopmentTracker()
+
+
+def get_skill_memory() -> SkillMemory:
+    """Provide verification-backed procedural skill memory."""
+    return SkillMemory()
+
+
+def get_curriculum_manager() -> CurriculumManager:
+    """Provide the non-autonomous curriculum evidence store."""
+    return CurriculumManager()
+
+
+def get_memory_consolidator() -> MemoryConsolidator:
+    """Provide the evidence-gated trusted-memory promotion service."""
+    return MemoryConsolidator()
+
+
 # --------------------------------------------------------------------------- #
 # Request models
 # --------------------------------------------------------------------------- #
@@ -372,6 +396,28 @@ class TerminalRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class FactPromotionRequest(BaseModel):
+    """Body for human-approved contradiction-aware fact promotion."""
+
+    subject: str
+    predicate: str
+    object: str
+    approved_by: str = Field(..., alias="approvedBy")
+
+    model_config = {"populate_by_name": True}
+
+
+class CurriculumTaskRequest(BaseModel):
+    """Body for defining a safe curriculum task; definitions never auto-run."""
+
+    skill_name: str = Field(..., alias="skillName")
+    level: int = Field(..., ge=1)
+    prompt: str
+    held_out: bool = Field(False, alias="heldOut")
+
+    model_config = {"populate_by_name": True}
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -386,6 +432,92 @@ def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
     """Hybrid BM25 + FAISS + temporal-decay retrieval over semantic memory."""
     results = hybrid_search(req.query, top_k=req.top_k)
     return {"query": req.query, "results": [asdict(r) for r in results]}
+
+
+@app.post("/api/v1/memory/consolidate")
+def memory_consolidate(
+    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
+) -> dict[str, Any]:
+    """Idempotently index current verified lessons and active approved facts."""
+    return consolidator.run()
+
+
+@app.post("/api/v1/memory/facts")
+def promote_fact(
+    req: FactPromotionRequest,
+    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
+) -> dict[str, Any]:
+    """Promote one human-approved fact, refusing unresolved contradictions."""
+    result = consolidator.promote_fact(
+        req.subject, req.predicate, req.object, approved_by=req.approved_by
+    )
+    if result.reason == "contradiction":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason": result.reason,
+                "conflictId": result.conflict_id,
+                "conflictObject": result.conflict_object,
+            },
+        )
+    if not result.committed:
+        raise HTTPException(status_code=422, detail=result.reason)
+    return asdict(result)
+
+
+@app.post("/api/v1/memory/facts/reconcile")
+def reconcile_fact(
+    req: FactPromotionRequest,
+    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
+) -> dict[str, Any]:
+    """Human-approved replacement of a contradictory fact and its vector."""
+    result = consolidator.reconcile_fact(
+        req.subject, req.predicate, req.object, approved_by=req.approved_by
+    )
+    if not result.committed:
+        raise HTTPException(status_code=422, detail=result.reason)
+    return asdict(result)
+
+
+@app.get("/api/v1/development/metrics")
+def development_metrics(
+    tracker: DevelopmentTracker = Depends(get_development_tracker),
+) -> dict[str, Any]:
+    """Return measured behavior-change and verification coverage metrics."""
+    return tracker.summary()
+
+
+@app.get("/api/v1/development/skills")
+def development_skills(
+    status: Optional[str] = None,
+    skills: SkillMemory = Depends(get_skill_memory),
+) -> dict[str, Any]:
+    """List candidate and verified procedural skills."""
+    return {"skills": skills.list(status=status)}
+
+
+@app.get("/api/v1/development/curriculum")
+def development_curriculum(
+    skill_name: Optional[str] = None,
+    curriculum: CurriculumManager = Depends(get_curriculum_manager),
+) -> dict[str, Any]:
+    """List safe curriculum definitions and evidence state."""
+    return {"tasks": curriculum.list(skill_name)}
+
+
+@app.post("/api/v1/development/curriculum")
+def add_curriculum_task(
+    req: CurriculumTaskRequest,
+    curriculum: CurriculumManager = Depends(get_curriculum_manager),
+) -> dict[str, Any]:
+    """Define a curriculum task without executing it."""
+    try:
+        task_id = curriculum.add_task(
+            req.skill_name, req.level, req.prompt, held_out=req.held_out
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"id": task_id, "executed": False}
 
 
 @app.post("/api/v1/security/classify")
@@ -428,6 +560,7 @@ def _serialize_plan(plan: Any) -> dict[str, Any]:
             {"step": asdict(e["step"]), "reason": e["reason"], "action": e["action"]}
             for e in plan.escalate
         ],
+        "calibrations": [asdict(c) for c in plan.calibrations],
     }
 
 
@@ -760,12 +893,23 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
         return None
     if not hits:
         return None
-    lines = "\n".join(f"- {hit.text}" for hit in hits)
-    return (
-        "UNVERIFIED PRIOR CHAT MEMORY (may be stale or wrong; use only as a lead, "
-        "never as evidence, and verify against tools/files before acting):\n"
-        f"{lines}"
-    )
+    trusted = [
+        hit for hit in hits if getattr(hit, "verification_status", "unverified") == "verified"
+    ]
+    unverified = [hit for hit in hits if hit not in trusted]
+    blocks: list[str] = []
+    if trusted:
+        blocks.append(
+            "VERIFIED TRUSTED MEMORY (still prefer current tool evidence when available):\n"
+            + "\n".join(f"- {hit.text}" for hit in trusted)
+        )
+    if unverified:
+        blocks.append(
+            "UNVERIFIED PRIOR CHAT MEMORY (may be stale or wrong; use only as a lead, "
+            "never as evidence, and verify against tools/files before acting):\n"
+            + "\n".join(f"- {hit.text}" for hit in unverified)
+        )
+    return "\n\n".join(blocks)
 
 
 def _record_episode(session_id: str, role: str, content: str) -> None:
@@ -779,19 +923,45 @@ def _record_episode(session_id: str, role: str, content: str) -> None:
 
 
 def _recall_lessons(
-    reflector: Optional[ReflectionAgent], session_id: str, limit: int = 5
+    reflector: Optional[ReflectionAgent], session_id: str, query: str, limit: int = 5
 ) -> list[dict[str, Any]]:
-    """Best-effort recall of this session's still-pending lessons (L4).
+    """Best-effort recall of pending same-task and verified cross-task lessons.
 
     Carries lessons learned in earlier turns into the current one so the agent
-    reasons with them — and can verify them when it now succeeds. Never fatal.
+    reasons with them. Recalled pending lessons remain advisory. Never fatal.
     """
     if reflector is None:
         return []
     try:
+        recall_relevant = getattr(reflector, "recall_relevant", None)
+        if callable(recall_relevant):
+            return recall_relevant(query, session_id, limit)
         return reflector.recall_pending(session_id, limit)
     except Exception:  # noqa: BLE001 - lesson recall is an enhancement, never fatal
         return []
+
+
+def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict[str, Any]]:
+    """Best-effort recall of reusable workflows backed by repeated verification."""
+    try:
+        return skills.relevant_verified(query, limit)
+    except Exception:  # noqa: BLE001 - skill recall is an enhancement, never fatal
+        return []
+
+
+def _workflow_step(event: dict[str, Any]) -> str:
+    """Create a compact, redacted procedural step from one tool-call event."""
+    name = str(event.get("tool", ""))
+    raw_input = event.get("input")
+    if not isinstance(raw_input, dict):
+        return name
+    useful = []
+    for key in ("command", "filepath", "path", "goal"):
+        value = raw_input.get(key)
+        if value is not None and str(value).strip():
+            useful.append(f"{key}={str(value).strip()[:160]}")
+    detail = ", ".join(useful)
+    return scan_and_redact(f"{name}: {detail}" if detail else name).scrubbed
 
 
 def _index_turn(
@@ -808,7 +978,11 @@ def _index_turn(
         return
     try:
         payload = f"UNVERIFIED_CHAT\nUser: {user_text}\nAssistant: {answer}"
-        indexer.add(scan_and_redact(payload).scrubbed)
+        clean = scan_and_redact(payload).scrubbed
+        try:
+            indexer.add(clean, memory_type="chat", verification_status="unverified")
+        except TypeError:
+            indexer.add(clean)
     except Exception:  # noqa: BLE001 - indexing must not break the chat
         pass
 
@@ -840,7 +1014,10 @@ def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str) ->
     return hook
 
 
-def _make_confirm_hook(reflector: Optional[ReflectionAgent]):
+def _make_confirm_hook(
+    reflector: Optional[ReflectionAgent],
+    consolidator: Optional[MemoryConsolidator] = None,
+):
     """Build the agent's lesson-confirmation hook (promotes pending->verified).
 
     Guarded so promotion can never break the chat; ``None`` when reflection is
@@ -852,6 +1029,8 @@ def _make_confirm_hook(reflector: Optional[ReflectionAgent]):
     def confirm(mistake_id: int) -> None:
         try:
             reflector.confirm_lesson(mistake_id)
+            if consolidator is not None:
+                consolidator.consolidate_lesson(mistake_id)
         except Exception:  # noqa: BLE001 - confirmation must never break the chat
             pass
 
@@ -869,6 +1048,10 @@ def generate(
     snapshot: Callable[..., object] = Depends(get_edit_snapshot),
     planner_llm: LLMClient = Depends(get_llm_client),
     approvals: ApprovalStore = Depends(get_approval_store),
+    development: DevelopmentTracker = Depends(get_development_tracker),
+    skills: SkillMemory = Depends(get_skill_memory),
+    curriculum: CurriculumManager = Depends(get_curriculum_manager),
+    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -936,11 +1119,12 @@ def generate(
                 },
             )
 
-        lessons = _recall_lessons(reflector, session_id)
-        prior_lesson_ids = [int(le["mistake_id"]) for le in lessons]
+        lessons = _recall_lessons(reflector, session_id, user_text)
         if lessons:
-            block = "PAST LESSONS FROM THIS SESSION (do not repeat these mistakes):\n" + "\n".join(
-                f"- [{le['error_type']}] {le['lesson_text']}" for le in lessons
+            block = "RELEVANT LESSONS (verified cross-task or pending from this task):\n" + "\n".join(
+                f"- [{le.get('verification_status', 'pending')}; {le['error_type']}] "
+                f"{le['lesson_text']}"
+                for le in lessons
             )
             context_parts.append(block)
             yield _sse(
@@ -948,8 +1132,26 @@ def generate(
                 {
                     "type": "tool_result",
                     "tool": "reflect",
-                    "output": f"Recalled {len(lessons)} past lesson(s) from this session.",
+                    "output": f"Recalled {len(lessons)} past lesson(s); filtered for relevance.",
                     "id": "lesson-recall",
+                },
+            )
+
+        recalled_skills = _recall_skills(skills, user_text)
+        if recalled_skills:
+            skill_block = "VERIFIED REUSABLE WORKFLOWS:\n" + "\n".join(
+                f"- For {skill['goal_pattern']}: {' -> '.join(skill['steps'])} "
+                f"(verified success rate {skill['success_rate']:.0%})"
+                for skill in recalled_skills
+            )
+            context_parts.append(skill_block)
+            yield _sse(
+                "step",
+                {
+                    "type": "tool_result",
+                    "tool": "query_skills",
+                    "output": f"Recalled {len(recalled_skills)} verified workflow(s).",
+                    "id": "skill-recall",
                 },
             )
 
@@ -967,8 +1169,7 @@ def generate(
             session_id=session_id,
             memory_context=memory_context,
             on_failure=_make_failure_hook(reflector, session_id),
-            confirm_lesson=_make_confirm_hook(reflector),
-            prior_lesson_ids=prior_lesson_ids,
+            confirm_lesson=_make_confirm_hook(reflector, consolidator),
             approved_commands=approved_commands,
             approved_edits=approved_edits,
             approved_creations=approved_creations,
@@ -983,9 +1184,65 @@ def generate(
             self_analysis_llm=planner_llm,
         )
         answer_parts: list[str] = []
+        workflow_steps: list[str] = []
+        blocked_actions = 0
+        verification_evidence: list[str] = []
+
+        def record_outcome(outcome: str) -> None:
+            """Best-effort development, skill, and curriculum evidence write."""
+            try:
+                development.record(
+                    user_text,
+                    outcome,
+                    tool_calls=len(workflow_steps),
+                    human_interventions=len(req.approval_tokens),
+                    blocked_actions=blocked_actions,
+                    metadata={"model": model, "task": task},
+                )
+            except Exception:  # noqa: BLE001 - metrics must never break chat
+                pass
+            if outcome not in {"verified_success", "verified_failure"}:
+                return
+            passed = outcome == "verified_success"
+            if passed:
+                evidence = next(
+                    (
+                        item
+                        for item in reversed(verification_evidence)
+                        if item.startswith("[VERIFY PASS]")
+                    ),
+                    "",
+                )
+            else:
+                evidence = next(
+                    (
+                        item
+                        for item in reversed(verification_evidence)
+                        if item.startswith("[VERIFY FAIL]")
+                    ),
+                    "",
+                )
+            if workflow_steps:
+                try:
+                    skills.record_attempt(user_text, workflow_steps, success=passed)
+                except Exception:  # noqa: BLE001 - skill learning is best-effort
+                    pass
+            try:
+                curriculum.record_matching(user_text, passed=passed, evidence=evidence)
+            except Exception:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
+                pass
+
         for ev in agent.run(chat_messages):
             kind = ev["type"]
             if kind in _STEP_EVENTS:
+                if kind == "tool_call":
+                    workflow_steps.append(_workflow_step(ev))
+                elif kind == "tool_blocked":
+                    blocked_actions += 1
+                if kind == "tool_result":
+                    output = str(ev.get("output", ""))
+                    if output.startswith("[VERIFY PASS]") or output.startswith("[VERIFY FAIL]"):
+                        verification_evidence.append(output)
                 yield _sse("step", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])
@@ -1060,12 +1317,29 @@ def generate(
                         "text": f"Approval required to run: {cmd}",
                         "requiresApproval": True,
                     }
+                try:
+                    development.record(
+                        user_text,
+                        "paused",
+                        tool_calls=len(workflow_steps),
+                        human_interventions=len(req.approval_tokens),
+                        blocked_actions=blocked_actions,
+                        metadata={"model": model, "task": task},
+                    )
+                except Exception:  # noqa: BLE001 - metrics must never break approval
+                    pass
                 yield _sse("human_required", payload)
             elif kind == "done":
                 # 4. Persist the answer (L2) and consolidate the turn into L3.
                 answer = "".join(answer_parts)
                 _record_episode(session_id, "assistant", answer)
                 _index_turn(indexer, user_text, answer)
+                if any(item.startswith("[VERIFY FAIL]") for item in verification_evidence):
+                    record_outcome("verified_failure")
+                elif any(item.startswith("[VERIFY PASS]") for item in verification_evidence):
+                    record_outcome("verified_success")
+                else:
+                    record_outcome("unverified")
                 approvals.clear_session(session_id)
                 yield _sse("done", {})
 

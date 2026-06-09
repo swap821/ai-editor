@@ -28,7 +28,14 @@ CREATE TABLE IF NOT EXISTS semantic_memory (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     text_content  TEXT NOT NULL,
     vector_id     INTEGER,
-    timestamp     DATETIME DEFAULT CURRENT_TIMESTAMP
+    timestamp     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    content_hash  TEXT,
+    memory_type   TEXT NOT NULL DEFAULT 'chat'
+                  CHECK (memory_type IN ('chat','lesson','fact','preference','procedure')),
+    verification_status TEXT NOT NULL DEFAULT 'unverified'
+                  CHECK (verification_status IN ('unverified','verified','superseded')),
+    occurrence_count INTEGER NOT NULL DEFAULT 1,
+    last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- == L4: Mistake pool ========================================================
@@ -59,6 +66,7 @@ CREATE TABLE IF NOT EXISTS semantic_facts (
     subject     TEXT NOT NULL,
     predicate   TEXT NOT NULL,
     object      TEXT NOT NULL,
+    approved_by TEXT,
     status      TEXT NOT NULL DEFAULT 'active'
                 CHECK (status IN ('active','superseded'))
 );
@@ -88,6 +96,57 @@ CREATE TABLE IF NOT EXISTS self_analysis_report (
     applied_audit_id INTEGER          -- FK into the audit trail once applied (T3)
 );
 
+-- == Development evidence ====================================================
+-- One row per completed/paused agent turn. Only verified_success and
+-- verified_failure outcomes may calibrate future planning or procedural skills.
+CREATE TABLE IF NOT EXISTS development_events (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    task_text           TEXT NOT NULL,
+    task_signature      TEXT NOT NULL,
+    outcome             TEXT NOT NULL
+                        CHECK (outcome IN ('verified_success','verified_failure',
+                                           'unverified','paused')),
+    tool_calls           INTEGER NOT NULL DEFAULT 0,
+    human_interventions INTEGER NOT NULL DEFAULT 0,
+    blocked_actions     INTEGER NOT NULL DEFAULT 0,
+    metadata_json       TEXT NOT NULL DEFAULT '{}'
+);
+
+-- == Procedural skill memory =================================================
+-- Workflows become verified only after repeated verification-backed success.
+CREATE TABLE IF NOT EXISTS procedural_skills (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    signature       TEXT NOT NULL UNIQUE,
+    goal_pattern    TEXT NOT NULL,
+    steps_json      TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'candidate'
+                    CHECK (status IN ('candidate','verified','superseded')),
+    success_count   INTEGER NOT NULL DEFAULT 0,
+    failure_count   INTEGER NOT NULL DEFAULT 0
+);
+
+-- == Safe curriculum =========================================================
+-- Curriculum tasks never auto-execute. Verified live outcomes matching a task
+-- update its evidence; a level is mastered only after training passes plus a
+-- held-out pass.
+CREATE TABLE IF NOT EXISTS curriculum_tasks (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    skill_name      TEXT NOT NULL,
+    level           INTEGER NOT NULL CHECK (level >= 1),
+    prompt          TEXT NOT NULL,
+    held_out        INTEGER NOT NULL DEFAULT 0 CHECK (held_out IN (0,1)),
+    status          TEXT NOT NULL DEFAULT 'available'
+                    CHECK (status IN ('locked','available','mastered')),
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    successes       INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(skill_name, level, prompt)
+);
+
 -- == Indexes =================================================================
 CREATE INDEX IF NOT EXISTS idx_episodic_session ON episodic_memory(session_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_time    ON episodic_memory(timestamp);
@@ -98,6 +157,10 @@ CREATE INDEX IF NOT EXISTS idx_mistake_time     ON mistake_pool(timestamp);
 CREATE INDEX IF NOT EXISTS idx_mistake_verified ON mistake_pool(verification_status)
     WHERE verification_status = 'verified';
 CREATE INDEX IF NOT EXISTS idx_facts_sp         ON semantic_facts(subject, predicate);
+CREATE INDEX IF NOT EXISTS idx_development_sig  ON development_events(task_signature);
+CREATE INDEX IF NOT EXISTS idx_development_outcome ON development_events(outcome);
+CREATE INDEX IF NOT EXISTS idx_skills_status    ON procedural_skills(status);
+CREATE INDEX IF NOT EXISTS idx_curriculum_skill ON curriculum_tasks(skill_name, level);
 -- Self-analysis hot paths: triaging by status, and looking up a file's history.
 CREATE INDEX IF NOT EXISTS idx_sar_status       ON self_analysis_report(status);
 CREATE INDEX IF NOT EXISTS idx_sar_path         ON self_analysis_report(target_path);

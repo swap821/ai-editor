@@ -33,7 +33,7 @@ it right where you left off.**
 
 ## Verify the build is healthy anytime
 ```powershell
-.venv\Scripts\python -m pytest -q          # expect: 331 passed, 1 skipped
+.venv\Scripts\python -m pytest -q          # expect: 350 passed, 1 skipped
 ```
 
 ## Run the actual app (to see it work)

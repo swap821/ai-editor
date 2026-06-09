@@ -84,3 +84,27 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
 - Decision: no remaining actionable repository-level high/medium release gaps found in this pass. Do not call the system perfect or 100%.
 - Bounded limits: Docker Desktop Linux daemon is unavailable, so container runtime behavior is not live-proven; default host mode is not OS isolation; TLS/external identity/secret management and multi-host coordination remain deployment architecture.
 - Highest-leverage next move: start Docker Desktop, build `aios-executor:local`, select container mode, and run the isolated live smoke before any non-loopback deployment.
+
+## 2026-06-09 - CEO note (Codex: Brain Growth Loop v1)
+- Decision: the "small human baby that develops with experience" direction is
+  sound only when development means measurable behavior change from verified
+  evidence, not accumulating chat text or silently trusting repetition.
+- Shipped: cross-session verified lesson recall; evidence-calibrated planner
+  confidence; semantic trust/type lifecycle and deduplication; human-approved,
+  contradiction-aware facts with stale-vector supersession; verifier-backed
+  procedural skills with regression; developmental metrics; and a curriculum
+  that never auto-runs and requires training plus held-out passes.
+- Safety correction: recalled pending lessons can no longer become verified from
+  an unrelated successful command. Unverified chat remains a lead, never truth.
+- Live migration: online backup plus rehearsal succeeded; exact duplicate
+  semantic rows consolidated from 44 to 37 with SQLite integrity `ok`.
+- Evidence: backend **350 passed / 1 skipped**, 89% application / 94% total
+  coverage, zero missing-test/TODO self-analysis findings; frontend lint + **16 tests** +
+  build; live planner/memory/development/consolidation endpoints healthy; audit
+  chain valid at **93 entries**; all six exposed local gallery models completed
+  an end-to-end `read_directory` tool-call turn without stream errors.
+- Highest-leverage next move: create a small human-reviewed curriculum and gather
+  repeated verifier-backed outcomes. Do not tune confidence thresholds from six
+  unverified smoke turns or claim autonomous intelligence.
+- Risk to watch: data volume is not development. The brain earns trust only when
+  verified promotion changes future behavior and later regressions can revoke it.

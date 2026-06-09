@@ -188,3 +188,18 @@ class ReflectionAgent:
             }
             for row in rows
         ]
+
+    def recall_relevant(
+        self, task_text: str, task_id: str, limit: int = 5
+    ) -> list[dict[str, Any]]:
+        """Recall same-task pending lessons plus verified cross-session lessons."""
+        pending = [
+            {**lesson, "verification_status": "pending", "relevance": 1.0}
+            for lesson in self.recall_pending(task_id, limit)
+        ]
+        remaining = max(limit - len(pending), 0)
+        verified = self.mistakes.relevant_verified(task_text, remaining)
+        pending_ids = {lesson["mistake_id"] for lesson in pending}
+        return pending + [
+            lesson for lesson in verified if lesson["mistake_id"] not in pending_ids
+        ]

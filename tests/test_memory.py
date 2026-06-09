@@ -199,6 +199,42 @@ def test_hybrid_search_empty_index_returns_empty(
     )
 
 
+def test_hybrid_search_expands_past_inactive_vector_candidates(db_path: Path) -> None:
+    with memdb.get_connection(db_path) as conn:
+        cur = conn.execute(
+            "INSERT INTO semantic_memory "
+            "(text_content, vector_id, content_hash, memory_type, verification_status) "
+            "VALUES ('active memory', 1, 'active-hash', 'fact', 'verified')"
+        )
+        active_id = int(cur.lastrowid)
+        conn.execute(
+            "UPDATE semantic_memory SET vector_id = ? WHERE id = ?",
+            (active_id, active_id),
+        )
+
+    class FakeEmbedder:
+        def encode(self, text):
+            return np.asarray([[0.0, 1.0]], dtype="float32")
+
+    class StaleFirstIndex:
+        size = 5
+
+        def search(self, vector, k):
+            candidates = [(99, 1.0), (98, 0.9), (97, 0.8), (96, 0.7), (active_id, 0.6)]
+            return candidates[:k]
+
+    results = hybrid_search(
+        "active memory",
+        top_k=1,
+        candidate_multiplier=1,
+        db_path=db_path,
+        index=StaleFirstIndex(),
+        embedder=FakeEmbedder(),
+    )
+
+    assert results and results[0].id == active_id
+
+
 def test_semantic_add_removes_db_row_when_embedding_fails(db_path: Path) -> None:
     class BrokenEmbedder:
         def encode(self, text):

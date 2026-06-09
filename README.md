@@ -25,6 +25,8 @@ FastAPI backend (`aios.api.main`)
         +-- Audit ledger: SHA-256 hash chain, secret-scrubbed payloads
         +-- Memory: SQLite episodic/semantic/mistake/facts + FAISS retrieval
         +-- Reflection: failed command -> structured lesson
+        +-- Development: verified outcomes, calibrated plans, reusable skills
+        +-- Curriculum: held-out, verifier-gated progression; never auto-runs
         +-- Self-analysis: scan -> propose diffs -> human apply -> verify/rollback
         |
         +-- Ollama local models by default
@@ -44,7 +46,7 @@ FastAPI backend (`aios.api.main`)
 | `aios/core/verifier.py` | Evidence-based verification of test/build commands |
 | `aios/core/model_selector.py` | Task-aware local model auto-selection |
 | `aios/core/self_apply.py` | Human-approved self-analysis proposal apply/verify/rollback |
-| `aios/memory/` | Episodic, semantic, mistake, fact, and retrieval layers |
+| `aios/memory/` | Episodic, semantic, lessons, facts, development, skills, curriculum |
 | `frontend/src/App.jsx` | Main IDE/chat shell |
 
 ## Run
@@ -72,8 +74,32 @@ npm test
 npm run build
 ```
 
-Current local verification target: Python suite `331 passed, 1 skipped` at 90%
+Current local verification target: Python suite `350 passed, 1 skipped` at 89%
 application / 94% total coverage, plus frontend Vitest `16 passed`.
+
+## Brain Growth Loop
+
+The system develops through durable, inspectable evidence rather than changing
+model weights or trusting repeated model narration:
+
+```text
+Experience -> outcome evaluation -> candidate lesson/fact/skill
+-> verification or human approval -> trusted promotion
+-> similar-task retrieval -> measurable behavior change -> regression monitoring
+```
+
+- Prior chat remains explicitly `unverified`; repetition alone never makes it true.
+- Verified cross-session lessons calibrate similar future planner steps.
+- Historical success/failure changes confidence only after at least three relevant
+  verifier-backed outcomes.
+- Procedures become reusable skills after repeated verified success and regress
+  to candidate status when later verified failures reduce their success rate.
+- Facts require a human approver, surface contradictions, and supersede stale
+  vectors when reconciled.
+- Curriculum tasks never execute themselves. Progress requires authoritative
+  verifier evidence, repeated training passes, and a held-out pass.
+- Development metrics, skills, curriculum, trusted facts, and consolidation are
+  exposed under `/api/v1/development/*` and `/api/v1/memory/*`.
 
 ## Security Invariants
 
@@ -132,3 +158,8 @@ tools but reject or ignore this agent's actual tool request. Auto additionally
 avoids models such as legacy Mistral that accept tools but do not use them
 reliably. `deepseek-r1:8b` remains useful directly in Ollama, but is hidden from
 AI-OS because its live request rejected this agent's tool schema.
+
+On June 9, 2026, all six exposed gallery models completed a live
+`read_directory` tool-call turn through `/api/generate`: Mistral 7B, Qwen 2.5
+7B, Qwen 2.5 Coder 7B/3B, Llama 3.1 8B, and Llama 3.2 3B. Auto still applies
+the stricter task-routing policy.

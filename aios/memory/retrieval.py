@@ -47,6 +47,8 @@ class RetrievalResult:
     bm25: float
     faiss: float
     recency: float
+    memory_type: str = "chat"
+    verification_status: str = "unverified"
 
 
 def _hours_since(timestamp: str, now: datetime) -> float:
@@ -90,7 +92,7 @@ def hybrid_search(
         Up to *top_k* :class:`RetrievalResult` objects, highest score first.
         Empty when the query is blank or the index holds no vectors.
     """
-    if not query or not query.strip():
+    if not query or not query.strip() or top_k <= 0:
         return []
 
     # Construct the index first and short-circuit on an empty store, so we never
@@ -101,20 +103,26 @@ def hybrid_search(
     embedder = embedder or EmbeddingModel.instance()
 
     query_vector = embedder.encode(query)[0]
-    candidates = index.search(query_vector, top_k * candidate_multiplier)
-    if not candidates:
-        return []
-
-    faiss_by_id: dict[int, float] = {cid: score for cid, score in candidates}
-    candidate_ids = list(faiss_by_id.keys())
-
-    placeholders = ",".join("?" * len(candidate_ids))
-    with get_connection(db_path) as conn:
-        rows = conn.execute(
-            f"SELECT id, text_content, timestamp FROM semantic_memory "
-            f"WHERE id IN ({placeholders})",
-            candidate_ids,
-        ).fetchall()
+    candidate_count = min(max(top_k * candidate_multiplier, top_k, 1), index.size)
+    rows = []
+    faiss_by_id: dict[int, float] = {}
+    while candidate_count > 0:
+        candidates = index.search(query_vector, candidate_count)
+        if not candidates:
+            return []
+        faiss_by_id = {cid: score for cid, score in candidates}
+        candidate_ids = list(faiss_by_id.keys())
+        placeholders = ",".join("?" * len(candidate_ids))
+        with get_connection(db_path) as conn:
+            rows = conn.execute(
+                f"SELECT id, text_content, timestamp, memory_type, verification_status "
+                f"FROM semantic_memory WHERE id IN ({placeholders}) "
+                f"AND verification_status != 'superseded'",
+                candidate_ids,
+            ).fetchall()
+        if len(rows) >= top_k or candidate_count >= index.size:
+            break
+        candidate_count = min(index.size, candidate_count * 2)
     if not rows:
         return []
 
@@ -149,6 +157,8 @@ def hybrid_search(
                 bm25=round(s_bm25, 6),
                 faiss=round(s_faiss, 6),
                 recency=round(s_recency, 6),
+                memory_type=str(row["memory_type"]),
+                verification_status=str(row["verification_status"]),
             )
         )
 

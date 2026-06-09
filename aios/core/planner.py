@@ -22,6 +22,8 @@ from typing import Any, Optional
 from aios import config
 from aios.core.confidence_filter import TaskStep, filter_steps
 from aios.core.llm import LLMClient
+from aios.memory.development import DevelopmentTracker
+from aios.memory.mistake import MistakeMemory
 
 PLAN_SYSTEM_PROMPT = """You are the planning module of a supervised AI operating system.
 Decompose the user's goal into 3 to 6 concrete, ordered sub-tasks. For each sub-task,
@@ -55,11 +57,26 @@ class Plan:
     steps: list[TaskStep]
     approved: list[TaskStep]
     escalate: list[dict[str, Any]]
+    calibrations: list["Calibration"]
 
     @property
     def requires_human(self) -> bool:
         """True if any step fell below the confidence threshold."""
         return len(self.escalate) > 0
+
+
+@dataclass(frozen=True)
+class Calibration:
+    """Explainable evidence used to adjust one model-reported confidence."""
+
+    step_id: str
+    raw_confidence: float
+    lesson_adjustment: float
+    history_adjustment: float
+    final_confidence: float
+    lesson_ids: list[int]
+    outcome_attempts: int = 0
+    outcome_success_rate: Optional[float] = None
 
 
 def _clamp_confidence(value: Any) -> float:
@@ -114,9 +131,57 @@ class Planner:
         llm: LLMClient,
         *,
         threshold: float = config.CONFIDENCE_THRESHOLD,
+        mistakes: Optional[MistakeMemory] = None,
+        development: Optional[DevelopmentTracker] = None,
     ) -> None:
         self.llm = llm
         self.threshold = threshold
+        self.mistakes = mistakes or MistakeMemory()
+        self.development = development or DevelopmentTracker()
+
+    def _calibrate(self, goal: str, step: TaskStep) -> tuple[TaskStep, Calibration]:
+        """Adjust self-reported confidence using only verified external evidence."""
+        query = f"{goal} {step.description}"
+        lessons: list[dict[str, Any]] = []
+        outcome = None
+        try:
+            lessons = self.mistakes.relevant_verified(query, limit=5)
+        except Exception:  # noqa: BLE001 - planning remains available if memory is down
+            pass
+        try:
+            outcome = self.development.relevant_success_rate(query)
+        except Exception:  # noqa: BLE001 - planning remains available if metrics are down
+            pass
+
+        lesson_adjustment = max(
+            -0.4,
+            sum(float(item["confidence_delta"]) * float(item["relevance"]) for item in lessons),
+        )
+        history_adjustment = 0.0
+        if outcome is not None:
+            history_adjustment = max(
+                -0.15,
+                min(
+                    0.15,
+                    (outcome.success_rate - 0.5) * 0.3 * outcome.relevance,
+                ),
+            )
+        final = round(
+            _clamp_confidence(step.confidence + lesson_adjustment + history_adjustment),
+            6,
+        )
+        calibrated = TaskStep(step.step_id, step.description, final)
+        evidence = Calibration(
+            step_id=step.step_id,
+            raw_confidence=step.confidence,
+            lesson_adjustment=round(lesson_adjustment, 6),
+            history_adjustment=round(history_adjustment, 6),
+            final_confidence=round(final, 6),
+            lesson_ids=[int(item["mistake_id"]) for item in lessons],
+            outcome_attempts=outcome.attempts if outcome is not None else 0,
+            outcome_success_rate=outcome.success_rate if outcome is not None else None,
+        )
+        return calibrated, evidence
 
     def plan(self, goal: str) -> Plan:
         """Decompose *goal* into steps and partition them by confidence.
@@ -136,7 +201,10 @@ class Planner:
 
         prompt = PLAN_USER_TEMPLATE.format(goal=goal.strip())
         raw = self.llm.complete(prompt, system=PLAN_SYSTEM_PROMPT)
-        steps = _parse_steps(raw)
+        raw_steps = _parse_steps(raw)
+        calibrated = [self._calibrate(goal.strip(), step) for step in raw_steps]
+        steps = [item[0] for item in calibrated]
+        calibrations = [item[1] for item in calibrated]
 
         partition = filter_steps(steps, self.threshold)
         return Plan(
@@ -144,4 +212,5 @@ class Planner:
             steps=steps,
             approved=partition["approved"],
             escalate=partition["escalate"],
+            calibrations=calibrations,
         )

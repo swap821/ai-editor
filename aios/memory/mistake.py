@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Optional
 
 from aios import config
-from aios.memory.db import get_connection
+from aios.memory.db import get_connection, init_memory_db
+from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
 
 
@@ -80,6 +81,49 @@ class MistakeMemory:
         params.append(limit)
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
+
+    def relevant_verified(self, query: str, limit: int = 5) -> list[dict]:
+        """Return verified lessons relevant to *query*, regardless of session.
+
+        The score is deterministic lexical overlap. A lesson must already be
+        verified before it can influence a different future task.
+        """
+        if not query or not query.strip() or limit <= 0:
+            return []
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM mistake_pool WHERE verification_status = 'verified'"
+            ).fetchall()
+        ranked: list[dict] = []
+        for row in rows:
+            document = " ".join(
+                str(row[key])
+                for key in ("error_type", "root_cause", "fix_applied", "lesson_text")
+            )
+            score = relevance(query, document)
+            if score <= 0:
+                continue
+            ranked.append(
+                {
+                    "mistake_id": int(row["id"]),
+                    "error_type": str(row["error_type"]),
+                    "lesson_text": str(row["lesson_text"]),
+                    "confidence_delta": float(row["confidence_delta"]),
+                    "occurrence_count": int(row["occurrence_count"]),
+                    "verification_status": "verified",
+                    "relevance": score,
+                }
+            )
+        ranked.sort(
+            key=lambda item: (
+                item["relevance"],
+                item["occurrence_count"],
+                item["mistake_id"],
+            ),
+            reverse=True,
+        )
+        return ranked[:limit]
 
     def pending_for_task(self, task_id: str, limit: int = 5) -> list[sqlite3.Row]:
         """Return this task's still-``pending`` lessons, newest first.

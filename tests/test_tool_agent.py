@@ -363,7 +363,7 @@ def test_agent_promotes_lesson_after_corrective_success() -> None:
     # Fail a command (records lesson 7), then succeed on the retry -> verify it.
     chat = ScriptedChat([
         _tool_call("execute_terminal", {"command": "echo tests"}),
-        _tool_call("execute_terminal", {"command": "echo fixed"}),
+        _tool_call("execute_terminal", {"command": "echo tests"}),
         {"role": "assistant", "content": "Fixed and passing."},
     ])
 
@@ -384,21 +384,27 @@ def test_agent_promotes_lesson_after_corrective_success() -> None:
     assert verify_steps, "a 'lesson verified' step should be surfaced"
 
 
-def test_agent_verifies_prior_session_lesson_on_success() -> None:
-    # A lesson carried in from an earlier turn is verified when a command now
-    # succeeds — no failure needed this run.
+def test_agent_does_not_verify_failed_command_lesson_on_unrelated_success() -> None:
+    # Even in the same run, an unrelated success is not evidence that the failed
+    # command was corrected.
     chat = ScriptedChat([
-        _tool_call("execute_terminal", {"command": "echo ok"}),
+        _tool_call("execute_terminal", {"command": "echo tests"}),
+        _tool_call("execute_terminal", {"command": "echo unrelated"}),
         {"role": "assistant", "content": "looks good"},
     ])
+
+    def on_failure(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "guard the input",
+                "recurrence": False, "mistake_id": 42}
+
     confirmed: list[int] = []
     list(
         ToolAgent(
-            chat, _executor(), max_iters=3,
-            confirm_lesson=confirmed.append, prior_lesson_ids=[42],
+            chat, _flaky_executor(), max_iters=4,
+            on_failure=on_failure, confirm_lesson=confirmed.append,
         ).run([{"role": "user", "content": "continue"}])
     )
-    assert confirmed == [42], "a recalled prior-session lesson should verify on a success"
+    assert confirmed == [], "unrelated success must not verify the failed-command lesson"
 
 
 def test_agent_does_not_promote_without_prior_failure() -> None:

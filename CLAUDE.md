@@ -27,8 +27,9 @@
 Accumulated experience is irreplaceable; models and tools are disposable.
 
 ## II. MEMORY LAYOUT — exact paths
-`.aios/` is **Claude Code's notebook about building this project** — distinct
-from `aios/`, which is the product's own memory engine. Do not confuse them.
+`.aios/` is the **shared builder notebook for Claude Code, Codex, and future
+engineering agents** — distinct from `aios/`, which is the product's own memory
+engine. Do not confuse them.
 ```
 .aios/
   state/RESUME.md            # live handoff manifest (rewritten every checkpoint)
@@ -100,8 +101,8 @@ resume yourself — say so if asked). Don't report a task done without evidence
 ## XI. PROJECT-SPECIFIC FACTS (this repo)
 - **Run backend:** `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
 - **Run frontend:** `cd frontend; npm run dev`  (Vite, http://localhost:5173)
-- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **331 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
-- **Commits:** per-phase on `master` (not `main`); end messages with the Co-Authored-By line. Commit only when the operator asks.
+- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **350 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
+- **Commits:** per-phase on `master` (not `main`); credit only actual contributors. Codex-only work uses `Co-Authored-By: OpenAI Codex <noreply@openai.com>`; use a Claude trailer only when Claude genuinely contributed. Commit only when the operator asks.
 - **Local LLM:** Ollama. Prefer the UI's `Auto` route. Live-compatible gallery:
   qwen2.5-coder 7B/3B, qwen2.5 7B, llama3.1 8B, llama3.2 3B, and Mistral 7B.
   DeepSeek R1 is installed but its Ollama endpoint rejects the agent tool schema,

@@ -16,8 +16,9 @@ from typing import Optional
 from filelock import FileLock
 
 from aios import config
-from aios.memory.db import get_connection
+from aios.memory.db import get_connection, init_memory_db
 from aios.memory.embeddings import EmbeddingModel, VectorIndex
+from aios.memory.relevance import content_hash
 from aios.security.secret_scanner import scan_and_redact
 
 _SEMANTIC_WRITE_LOCK = threading.Lock()
@@ -58,21 +59,59 @@ class SemanticMemory:
             self._embedder = EmbeddingModel.instance()
         return self._embedder
 
-    def add(self, text: str) -> int:
+    def add(
+        self,
+        text: str,
+        *,
+        memory_type: str = "chat",
+        verification_status: str = "unverified",
+        count_occurrence: bool = True,
+    ) -> int:
         """Persist *text*, embed it, and add the vector to the index.
+
+        Exact active duplicates are consolidated into the existing row without
+        adding a second vector. New observations increment ``occurrence_count``;
+        maintenance callers can disable that with ``count_occurrence=False``.
+        Repetition never upgrades verification status.
 
         The SQLite row supplies the stable vector id. If embedding, vector add,
         or index persistence fails afterward, the row is deleted again so the
         relational store never claims a semantic memory that cannot be retrieved.
         Returns the new row/vector id.
         """
+        if memory_type not in {"chat", "lesson", "fact", "preference", "procedure"}:
+            raise ValueError(f"unsupported semantic memory type: {memory_type}")
+        if verification_status not in {"unverified", "verified", "superseded"}:
+            raise ValueError(f"unsupported semantic verification status: {verification_status}")
         text = scan_and_redact(text).scrubbed
+        if not text.strip():
+            raise ValueError("semantic memory text must be non-empty")
+        digest = content_hash(text)
+        init_memory_db(self.db_path)
         self.write_lock_path.parent.mkdir(parents=True, exist_ok=True)
         with _SEMANTIC_WRITE_LOCK, FileLock(str(self.write_lock_path), timeout=_LOCK_TIMEOUT_S):
             with get_connection(self.db_path) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                existing = conn.execute(
+                    "SELECT id FROM semantic_memory "
+                    "WHERE content_hash = ? AND verification_status != 'superseded'",
+                    (digest,),
+                ).fetchone()
+                if existing is not None:
+                    mem_id = int(existing["id"])
+                    if count_occurrence:
+                        conn.execute(
+                            "UPDATE semantic_memory "
+                            "SET occurrence_count = occurrence_count + 1, "
+                            "last_seen_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            (mem_id,),
+                        )
+                    return mem_id
                 cur = conn.execute(
-                    "INSERT INTO semantic_memory (text_content) VALUES (?)",
-                    (text,),
+                    "INSERT INTO semantic_memory "
+                    "(text_content, content_hash, memory_type, verification_status) "
+                    "VALUES (?, ?, ?, ?)",
+                    (text, digest, memory_type, verification_status),
                 )
                 mem_id = int(cur.lastrowid)
                 # Denormalise vector_id == id for legacy-tool compatibility.
@@ -104,7 +143,8 @@ class SemanticMemory:
         """Return the row for *mem_id*, or ``None`` if it does not exist."""
         with get_connection(self.db_path) as conn:
             return conn.execute(
-                "SELECT id, text_content, vector_id, timestamp "
+                "SELECT id, text_content, vector_id, timestamp, content_hash, "
+                "memory_type, verification_status, occurrence_count, last_seen_at "
                 "FROM semantic_memory WHERE id = ?",
                 (mem_id,),
             ).fetchone()
@@ -113,9 +153,45 @@ class SemanticMemory:
         """Return every semantic row (used to assemble the BM25 corpus)."""
         with get_connection(self.db_path) as conn:
             return conn.execute(
-                "SELECT id, text_content, vector_id, timestamp "
-                "FROM semantic_memory ORDER BY id ASC"
+                "SELECT id, text_content, vector_id, timestamp, content_hash, "
+                "memory_type, verification_status, occurrence_count, last_seen_at "
+                "FROM semantic_memory WHERE verification_status != 'superseded' "
+                "ORDER BY id ASC"
             ).fetchall()
+
+    def promote(self, mem_id: int) -> None:
+        """Mark an active semantic memory verified without changing its content."""
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            conn.execute(
+                "UPDATE semantic_memory SET verification_status = 'verified', "
+                "last_seen_at = CURRENT_TIMESTAMP "
+                "WHERE id = ? AND verification_status = 'unverified'",
+                (mem_id,),
+            )
+
+    def supersede(self, mem_id: int) -> None:
+        """Remove a semantic memory from active retrieval without deleting lineage."""
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            conn.execute(
+                "UPDATE semantic_memory SET verification_status = 'superseded', "
+                "last_seen_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (mem_id,),
+            )
+
+    def supersede_text(self, text: str) -> int:
+        """Supersede active memories matching normalized *text*; return row count."""
+        digest = content_hash(scan_and_redact(text).scrubbed)
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            cur = conn.execute(
+                "UPDATE semantic_memory SET verification_status = 'superseded', "
+                "last_seen_at = CURRENT_TIMESTAMP "
+                "WHERE content_hash = ? AND verification_status != 'superseded'",
+                (digest,),
+            )
+            return int(cur.rowcount)
 
     def count(self) -> int:
         """Return the number of stored semantic chunks."""

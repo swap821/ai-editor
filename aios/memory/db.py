@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Iterator
 
 from aios import config
+from aios.memory.relevance import content_hash
 
 #: Location of the declarative DDL applied by :func:`init_memory_db`.
 _SCHEMA_PATH: Path = Path(__file__).resolve().parent / "schema.sql"
@@ -122,3 +123,48 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "UPDATE episodic_memory SET session_id = ? WHERE session_id = ?",
             (digest, session_id),
         )
+
+    # Semantic memories originally stored only text/vector ids. Add lifecycle
+    # metadata, backfill stable hashes, and merge exact normalized duplicates.
+    semantic_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_memory)")}
+    semantic_additions = {
+        "content_hash": "TEXT",
+        "memory_type": "TEXT NOT NULL DEFAULT 'chat'",
+        "verification_status": "TEXT NOT NULL DEFAULT 'unverified'",
+        "occurrence_count": "INTEGER NOT NULL DEFAULT 1",
+        "last_seen_at": "DATETIME",
+    }
+    for name, ddl in semantic_additions.items():
+        if semantic_cols and name not in semantic_cols:
+            conn.execute(f"ALTER TABLE semantic_memory ADD COLUMN {name} {ddl}")
+
+    semantic_rows = conn.execute(
+        "SELECT id, text_content, occurrence_count FROM semantic_memory "
+        "WHERE verification_status != 'superseded' ORDER BY id"
+    ).fetchall()
+    keeper_by_hash: dict[str, int] = {}
+    for row in semantic_rows:
+        digest = content_hash(str(row["text_content"]))
+        keeper = keeper_by_hash.get(digest)
+        if keeper is None:
+            keeper_by_hash[digest] = int(row["id"])
+            conn.execute(
+                "UPDATE semantic_memory SET content_hash = ?, "
+                "last_seen_at = COALESCE(last_seen_at, timestamp) WHERE id = ?",
+                (digest, int(row["id"])),
+            )
+            continue
+        conn.execute(
+            "UPDATE semantic_memory SET occurrence_count = occurrence_count + ? "
+            "WHERE id = ?",
+            (int(row["occurrence_count"] or 1), keeper),
+        )
+        conn.execute("DELETE FROM semantic_memory WHERE id = ?", (int(row["id"]),))
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_semantic_active_hash "
+        "ON semantic_memory(content_hash) WHERE verification_status != 'superseded'"
+    )
+
+    fact_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_facts)")}
+    if fact_cols and "approved_by" not in fact_cols:
+        conn.execute("ALTER TABLE semantic_facts ADD COLUMN approved_by TEXT")

@@ -47,7 +47,9 @@ class SemanticFacts:
                 (subject, predicate, obj),
             ).fetchone()
 
-    def add_fact(self, subject: str, predicate: str, obj: str) -> FactWriteResult:
+    def add_fact(
+        self, subject: str, predicate: str, obj: str, *, approved_by: Optional[str] = None
+    ) -> FactWriteResult:
         """Commit a fact unless it contradicts an existing active fact.
 
         - Empty component -> not committed.
@@ -60,6 +62,7 @@ class SemanticFacts:
         subject = scan_and_redact(subject.strip()).scrubbed
         predicate = scan_and_redact(predicate.strip()).scrubbed
         obj = scan_and_redact(obj.strip()).scrubbed
+        approved_by = scan_and_redact((approved_by or "").strip()).scrubbed or None
         if not (subject and predicate and obj):
             return FactWriteResult(False, None, "empty subject/predicate/object")
 
@@ -88,30 +91,47 @@ class SemanticFacts:
                 (subject, predicate, obj),
             ).fetchone()
             if existing is not None:
+                if approved_by is not None:
+                    conn.execute(
+                        "UPDATE semantic_facts SET approved_by = COALESCE(approved_by, ?) "
+                        "WHERE id = ?",
+                        (approved_by, int(existing["id"])),
+                    )
                 return FactWriteResult(True, int(existing["id"]), "already present")
             cur = conn.execute(
-                "INSERT INTO semantic_facts (subject, predicate, object) VALUES (?, ?, ?)",
-                (subject, predicate, obj),
+                "INSERT INTO semantic_facts (subject, predicate, object, approved_by) "
+                "VALUES (?, ?, ?, ?)",
+                (subject, predicate, obj, approved_by),
             )
             return FactWriteResult(True, int(cur.lastrowid), "committed")
 
-    def reconcile(self, subject: str, predicate: str, new_obj: str) -> FactWriteResult:
+    def reconcile(
+        self,
+        subject: str,
+        predicate: str,
+        new_obj: str,
+        *,
+        approved_by: Optional[str] = None,
+    ) -> FactWriteResult:
         """Resolve a contradiction: supersede every active fact on this
         subject+predicate and commit *new_obj* as the active fact."""
         subject = scan_and_redact(subject.strip()).scrubbed
         predicate = scan_and_redact(predicate.strip()).scrubbed
         new_obj = scan_and_redact(new_obj.strip()).scrubbed
+        approved_by = scan_and_redact((approved_by or "").strip()).scrubbed or None
         if not (subject and predicate and new_obj):
             return FactWriteResult(False, None, "empty subject/predicate/object")
         with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 "UPDATE semantic_facts SET status = 'superseded' "
                 "WHERE subject = ? AND predicate = ? AND status = 'active'",
                 (subject, predicate),
             )
             cur = conn.execute(
-                "INSERT INTO semantic_facts (subject, predicate, object) VALUES (?, ?, ?)",
-                (subject, predicate, new_obj),
+                "INSERT INTO semantic_facts (subject, predicate, object, approved_by) "
+                "VALUES (?, ?, ?, ?)",
+                (subject, predicate, new_obj, approved_by),
             )
             return FactWriteResult(True, int(cur.lastrowid), "reconciled")
 

@@ -94,8 +94,9 @@ from aios.security.secret_scanner import scan_and_redact
 FailureHook = Callable[[str, str], Optional[dict[str, Any]]]
 
 #: A confirmation hook: given a lesson's mistake id, promote it pending->verified.
-#: Called when a command succeeds after an earlier failure in the same task —
-#: evidence the recorded lesson proved itself (blueprint Q6).
+#: Called only when a command succeeds after a failure observed in the same live
+#: run. Recalled pending lessons remain advisory; unrelated later success is not
+#: evidence that they were fixed.
 ConfirmHook = Callable[[int], None]
 
 #: Max reason -> act turns before the loop stops for safety.
@@ -497,7 +498,6 @@ class ToolAgent:
         memory_context: Optional[str] = None,
         on_failure: Optional[FailureHook] = None,
         confirm_lesson: Optional[ConfirmHook] = None,
-        prior_lesson_ids: Optional[list[int]] = None,
         approved_commands: Optional[list[str]] = None,
         approved_edits: Optional[list[dict[str, str]]] = None,
         approved_creations: Optional[list[dict[str, str]]] = None,
@@ -520,12 +520,9 @@ class ToolAgent:
         #: Optional reflection hook fired when a command genuinely fails (not when
         #: it is merely blocked by the gateway) — blueprint stage 9.
         self.on_failure = on_failure
-        #: Optional confirmation hook: promotes a pending lesson to verified once
-        #: a later command succeeds within the same task (blueprint Q6).
+        #: Optional confirmation hook: promotes a pending lesson only when the
+        #: same failed command later succeeds in this live run (blueprint Q6).
         self.confirm_lesson = confirm_lesson
-        #: Pending lesson ids recalled from earlier turns of this session; carried
-        #: into the loop so a success here can verify a lesson learned before.
-        self.prior_lesson_ids = list(prior_lesson_ids or [])
         #: Commands a human has explicitly authorised this turn (blueprint Q5).
         #: A YELLOW command listed here runs via ``execute_approved`` instead of
         #: pausing again — this is what makes in-chat approval *resumable*. RED is
@@ -594,11 +591,10 @@ class ToolAgent:
         required_tools = _explicit_tool_requests(messages)
         nudged_tools: set[str] = set()
 
-        #: Lesson ids awaiting a success to confirm them (blueprint Q6: a lesson
-        #: is verified once a later command succeeds, showing the fix was applied).
-        #: Seeded with lessons recalled from earlier turns of this session, then
-        #: extended with any recorded from failures during this run.
-        pending_lessons: list[int] = list(self.prior_lesson_ids)
+        #: Lesson ids awaiting corrective evidence. Only failures observed during
+        #: this live run enter the list; recalled pending lessons never become
+        #: verified merely because an unrelated command later succeeds.
+        pending_lessons: list[tuple[int, str]] = []
 
         for _ in range(self.max_iters):
             try:
@@ -708,9 +704,11 @@ class ToolAgent:
                             args.get("command", ""), output, index, pending_lessons
                         )
                     elif not failed and status == "ok" and pending_lessons:
-                        # A command succeeded after an earlier failure this task:
-                        # the recorded lesson(s) proved themselves (blueprint Q6).
-                        yield from self._confirm(pending_lessons, index)
+                        # Only a successful retry of the SAME failed command is
+                        # evidence that its lesson proved itself.
+                        yield from self._confirm(
+                            pending_lessons, str(args.get("command", "")), index
+                        )
                 elif name in ("edit_file", "create_file") and status == "ok":
                     # A write actually landed. Force a verification so the
                     # AUTHORITATIVE PASS/FAIL — not the model's narration — is the
@@ -728,7 +726,7 @@ class ToolAgent:
         command: str,
         error_output: str,
         index: int,
-        pending_lessons: list[int],
+        pending_lessons: list[tuple[int, str]],
     ) -> Iterator[dict[str, Any]]:
         """Run the failure hook, track the lesson id, and surface it as a step."""
         try:
@@ -739,7 +737,7 @@ class ToolAgent:
             return
         mistake_id = lesson.get("mistake_id")
         if isinstance(mistake_id, int):
-            pending_lessons.append(mistake_id)
+            pending_lessons.append((mistake_id, command))
         summary = f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
         if lesson.get("recurrence"):
             summary = f"(recurring) {summary}"
@@ -751,12 +749,14 @@ class ToolAgent:
         }
 
     def _confirm(
-        self, pending_lessons: list[int], index: int
+        self, pending_lessons: list[tuple[int, str]], command: str, index: int
     ) -> Iterator[dict[str, Any]]:
-        """Promote pending lessons to verified after a corrective success."""
-        promoted = list(pending_lessons)
-        pending_lessons.clear()
-        if self.confirm_lesson is None:
+        """Promote lessons only after their exact failed command succeeds."""
+        promoted = [mistake_id for mistake_id, failed in pending_lessons if failed == command]
+        pending_lessons[:] = [
+            item for item in pending_lessons if item[1] != command
+        ]
+        if self.confirm_lesson is None or not promoted:
             return
         for mistake_id in promoted:
             try:
