@@ -3,7 +3,7 @@
 Sits after the Executor in the pipeline and embodies the "Trust Evidence, Not the
 Model" principle — never assume an action worked because the LLM said so. The
 Verifier runs a verification command (``pytest``, ``npm test``, …) through the
-same security-gated, sandboxed :class:`~aios.core.executor.Executor` the rest of
+same security-gated, scope-constrained :class:`~aios.core.executor.Executor` the rest of
 the OS uses, then judges the outcome by exit code and, when present, parsed
 pass/fail counts. A failure yields a bounded negative confidence delta and — when
 a reflection hook is wired — feeds the failure to it, closing the
@@ -57,7 +57,13 @@ class Verifier:
         #: Optional reflection hook fired on a genuine verification failure.
         self.on_failure = on_failure
 
-    def verify(self, command: str, *, session_id: Optional[str] = None) -> VerifierResult:
+    def verify(
+        self,
+        command: str,
+        *,
+        session_id: Optional[str] = None,
+        approved: bool = False,
+    ) -> VerifierResult:
         """Run *command* in the sandbox and return a structured verdict.
 
         Exit code 0 with no parsed failures => pass (delta 0.0). A non-zero exit,
@@ -65,7 +71,11 @@ class Verifier:
         fail, fail-closed, with a bounded negative delta. On failure a reflection
         hook (if wired) is invoked with the command and captured output.
         """
-        result = self.executor.execute(command, session_id=session_id)
+        result = (
+            self.executor.execute_approved(command)
+            if approved
+            else self.executor.execute(command, session_id=session_id)
+        )
         output = ((result.stdout or "") + (result.stderr or "")).strip()
 
         if result.status != "OK":

@@ -33,7 +33,7 @@ class _FakeVerifier:
         self.summary = summary
         self.calls: list[str] = []
 
-    def verify(self, command: str, *, session_id=None) -> VerifierResult:
+    def verify(self, command: str, *, session_id=None, approved=False) -> VerifierResult:
         self.calls.append(command)
         return VerifierResult(
             passed=self._passed, summary=self.summary,
@@ -236,6 +236,30 @@ def test_apply_two_snapshot_integrity_mismatch_refused(tmp_path, monkeypatch) ->
     assert res.status == "refused" and "integrity" in res.reason.lower()
     assert (pr / _TARGET).read_text(encoding="utf-8") == _BEFORE  # restored
     assert _row(db, pid)["status"] == "proposed"
+
+
+def test_apply_reports_rollback_failure_honestly(tmp_path, monkeypatch) -> None:
+    pr, db, pid = _seed(tmp_path)
+    eng = _engine(pr, db, verifier=_FakeVerifier(passed=False, summary="failed"))
+    monkeypatch.setattr(eng, "_restore", lambda *a, **k: "disk is read-only")
+
+    res = eng.apply(pid, approved_by="alice")
+
+    assert res.status == "refused"
+    assert "rollback failed" in res.reason
+    assert "restored" not in res.reason
+
+
+def test_apply_restores_when_status_persistence_fails(tmp_path, monkeypatch) -> None:
+    pr, db, pid = _seed(tmp_path)
+    eng = _engine(pr, db, verifier=_FakeVerifier(passed=True))
+    monkeypatch.setattr(eng, "_set_status", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db locked")))
+
+    res = eng.apply(pid, approved_by="alice")
+
+    assert res.status == "refused"
+    assert "status persistence failed" in res.reason
+    assert (pr / _TARGET).read_text(encoding="utf-8") == _BEFORE
 
 
 def test_approved_by_migration_on_legacy_db(tmp_path) -> None:

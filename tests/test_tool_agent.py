@@ -162,6 +162,115 @@ def test_agent_runs_tool_then_answers() -> None:
     assert types[-1] == "done"
 
 
+def test_agent_recovers_allowlisted_tool_call_emitted_as_json_text() -> None:
+    chat = ScriptedChat([
+        {
+            "role": "assistant",
+            "content": (
+                "```json\n"
+                '{"name":"read_file","arguments":{"filepath":"training_ground/greeter.py"}}'
+                "\n```"
+            ),
+        },
+        {"role": "assistant", "content": "The file was inspected."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "inspect greeter.py"}]
+    ))
+
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_call" for e in events)
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_result" for e in events)
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_recovers_python_style_mapping_tool_call_from_local_model() -> None:
+    chat = ScriptedChat([
+        {
+            "role": "assistant",
+            "content": (
+                "```json\n"
+                "{'name': 'read_file', 'arguments': "
+                "{'filepath': 'training_ground/greeter.py'}}"
+                "\n```"
+            ),
+        },
+        {"role": "assistant", "content": "The file was inspected."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "inspect greeter.py"}]
+    ))
+
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_call" for e in events)
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_never_executes_python_expression_in_text_tool_fallback() -> None:
+    chat = ScriptedChat([
+        {
+            "role": "assistant",
+            "content": (
+                "{'name': 'read_file', 'arguments': "
+                "__import__('os').system('echo unsafe')}"
+            ),
+        },
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=2).run(
+        [{"role": "user", "content": "show this text"}]
+    ))
+
+    assert not any(e["type"] == "tool_call" for e in events)
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_does_not_execute_unknown_json_text_as_a_tool() -> None:
+    chat = ScriptedChat([
+        {"role": "assistant", "content": '{"name":"delete_everything","arguments":{}}'},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=2).run(
+        [{"role": "user", "content": "show JSON"}]
+    ))
+
+    assert not any(e["type"] == "tool_call" for e in events)
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_retries_once_when_user_explicitly_requests_a_tool() -> None:
+    chat = ScriptedChat([
+        {"role": "assistant", "content": "I can answer without reading it."},
+        _tool_call("read_file", {"filepath": "training_ground/greeter.py"}),
+        {"role": "assistant", "content": "I inspected the file."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=4).run(
+        [{"role": "user", "content": "Use the read_file tool to inspect greeter.py"}]
+    ))
+
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_call" for e in events)
+    assert any(
+        "explicitly requested tool" in str(msg.get("content", ""))
+        for msg in chat.calls[1]
+    )
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_does_not_force_tools_for_normal_chat() -> None:
+    chat = ScriptedChat([
+        {"role": "assistant", "content": "A direct answer."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "What does read_file do?"}]
+    ))
+
+    assert len(chat.calls) == 1
+    assert not any(e["type"] == "tool_call" for e in events)
+    assert events[-1]["type"] == "done"
+
+
 def test_agent_blocks_red_command() -> None:
     chat = ScriptedChat([
         _tool_call("execute_terminal", {"command": "rm -rf /"}),
@@ -231,7 +340,7 @@ def test_agent_injects_memory_context_into_system_prompt() -> None:
 
 def test_agent_reflects_on_command_failure() -> None:
     chat = ScriptedChat([
-        _tool_call("execute_terminal", {"command": "pytest"}),
+        _tool_call("execute_terminal", {"command": "echo tests"}),
         {"role": "assistant", "content": "The tests failed; noted."},
     ])
     seen: list[tuple[str, str]] = []
@@ -245,7 +354,7 @@ def test_agent_reflects_on_command_failure() -> None:
         [{"role": "user", "content": "run the tests"}]
     ))
 
-    assert seen and seen[0][0] == "pytest"          # the hook saw the failed command
+    assert seen and seen[0][0] == "echo tests"          # the hook saw the failed command
     reflect_steps = [e for e in events if e.get("tool") == "reflect"]
     assert reflect_steps and "add a guard clause" in reflect_steps[0]["output"]
 
@@ -253,8 +362,8 @@ def test_agent_reflects_on_command_failure() -> None:
 def test_agent_promotes_lesson_after_corrective_success() -> None:
     # Fail a command (records lesson 7), then succeed on the retry -> verify it.
     chat = ScriptedChat([
-        _tool_call("execute_terminal", {"command": "pytest"}),
-        _tool_call("execute_terminal", {"command": "pytest --fixed"}),
+        _tool_call("execute_terminal", {"command": "echo tests"}),
+        _tool_call("execute_terminal", {"command": "echo fixed"}),
         {"role": "assistant", "content": "Fixed and passing."},
     ])
 
@@ -797,6 +906,7 @@ def test_agent_verify_reports_pass_and_does_not_reflect() -> None:
     events = list(
         ToolAgent(
             chat, _passing_executor(), max_iters=3,
+            approved_commands=["pytest"],
             on_failure=lambda c, o: reflected.append((c, o)),
         ).run([{"role": "user", "content": "verify the tests pass"}])
     )
@@ -807,6 +917,16 @@ def test_agent_verify_reports_pass_and_does_not_reflect() -> None:
     assert "3 passed" in results[0]["output"]          # parsed pass count is shown
     assert reflected == [], "a passing verification must not trigger reflection"
     assert events[-1]["type"] == "done"
+
+
+def test_agent_verify_requires_human_approval() -> None:
+    chat = ScriptedChat([_tool_call("verify", {"command": "pytest"})])
+    events = list(ToolAgent(chat, _passing_executor(), max_iters=2).run(
+        [{"role": "user", "content": "verify the tests"}]
+    ))
+
+    required = [e for e in events if e["type"] == "human_required"]
+    assert required and required[0]["command"] == "pytest"
 
 
 def test_agent_verify_reports_fail_and_reflects_once() -> None:
@@ -825,7 +945,10 @@ def test_agent_verify_reports_fail_and_reflects_once() -> None:
                 "recurrence": False, "mistake_id": 11}
 
     events = list(
-        ToolAgent(chat, _failing_executor(), max_iters=3, on_failure=hook).run(
+        ToolAgent(
+            chat, _failing_executor(), max_iters=3,
+            approved_commands=["pytest"], on_failure=hook,
+        ).run(
             [{"role": "user", "content": "verify the change"}]
         )
     )
@@ -987,3 +1110,121 @@ def test_agent_plan_survives_planner_llm_error() -> None:
     assert not any(e.get("tool") == "reflect" for e in events)
     assert reflected == [], "a planner failure is advisory, not a reflectable mistake"
     assert events[-1]["type"] == "done"
+
+
+# --------------------------------------------------------------------------- #
+# force verify-after-write — a successful sandbox write AUTO-runs its sibling
+# test so PASS/FAIL (not the model's narration) is the authoritative signal.
+# --------------------------------------------------------------------------- #
+def test_agent_auto_verifies_after_edit_and_reports_pass(sandbox, monkeypatch) -> None:
+    # The model never calls verify; the loop forces it after the approved write.
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [sandbox])
+    (sandbox / "greeter.py").write_text(
+        'def greet(name):\n    return "Hello, !"\n', encoding="utf-8"
+    )
+    (sandbox / "test_greeter.py").write_text(
+        'from greeter import greet\n\n\ndef test_greet():\n'
+        '    assert greet("Ada") == "Hello, Ada!"\n',
+        encoding="utf-8",
+    )
+    approved = {"filepath": "greeter.py",
+                "old_string": 'return "Hello, !"',
+                "new_string": 'return f"Hello, {name}!"'}
+    chat = ScriptedChat([
+        _tool_call("edit_file", dict(approved)),
+        {"role": "assistant", "content": "I fixed greet()."},
+    ])
+    agent = ToolAgent(
+        chat, _passing_executor(), max_iters=3,
+        approved_edits=[approved],
+        snapshot=lambda msg="": None, audit_log=lambda *a, **k: None,
+    )
+    events = list(agent.run([{"role": "user", "content": "fix greet"}]))
+
+    verify = [e for e in events if e.get("tool") == "verify" and e["type"] == "tool_result"]
+    assert verify, "an approved .py edit must AUTO-run its sibling test"
+    assert "VERIFY PASS" in verify[0]["output"]
+    assert verify[0]["id"].startswith("autoverify-"), "the verify was forced by the loop, not the model"
+    assert (sandbox / "greeter.py").read_text(encoding="utf-8") == (
+        'def greet(name):\n    return f"Hello, {name}!"\n'
+    )
+
+
+def test_agent_auto_verify_fail_overrides_false_success_and_reflects_once(sandbox, monkeypatch) -> None:
+    # Even when the model NARRATES success, the forced verify reports FAIL — and a
+    # genuine failure reflects exactly once (inside the Verifier), with no separate
+    # 'reflect' step from the write path (no double-reflect).
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [sandbox])
+    (sandbox / "greeter.py").write_text(
+        'def greet(name):\n    return "Hello, !"\n', encoding="utf-8"
+    )
+    (sandbox / "test_greeter.py").write_text(
+        'from greeter import greet\n\n\ndef test_greet():\n'
+        '    assert greet("Ada") == "Hello, Ada!"\n',
+        encoding="utf-8",
+    )
+    approved = {"filepath": "greeter.py",
+                "old_string": 'return "Hello, !"', "new_string": 'return "Hi, !"'}
+    chat = ScriptedChat([
+        _tool_call("edit_file", dict(approved)),
+        {"role": "assistant", "content": "Done — the bug is fixed and it passes now."},
+    ])
+    reflected: list[tuple[str, str]] = []
+
+    def hook(command: str, error_output: str):
+        reflected.append((command, error_output))
+        return {"error_type": "AssertionError", "lesson_text": "greet still drops the name",
+                "recurrence": False, "mistake_id": 5}
+
+    agent = ToolAgent(
+        chat, _failing_executor(), max_iters=3,
+        approved_edits=[approved],
+        snapshot=lambda msg="": None, audit_log=lambda *a, **k: None,
+        on_failure=hook,
+    )
+    events = list(agent.run([{"role": "user", "content": "fix greet"}]))
+
+    verify = [e for e in events if e.get("tool") == "verify" and e["type"] == "tool_result"]
+    assert verify and "VERIFY FAIL" in verify[0]["output"], "the forced verify must contradict the model's prose"
+    assert len(reflected) == 1, "a genuine verify FAIL must reflect exactly once"
+    assert "pytest" in reflected[0][0]
+    assert not any(e.get("tool") == "reflect" for e in events), "no double-reflect from the write path"
+
+
+def test_agent_auto_verify_reports_unverified_when_no_test(sandbox, monkeypatch) -> None:
+    # A .py change with no sibling test is reported UNVERIFIED — never a false pass.
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [sandbox])
+    (sandbox / "lonely.py").write_text("x = 1\n", encoding="utf-8")
+    approved = {"filepath": "lonely.py", "old_string": "x = 1", "new_string": "x = 2"}
+    chat = ScriptedChat([
+        _tool_call("edit_file", dict(approved)),
+        {"role": "assistant", "content": "Changed it."},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3, approved_edits=[approved],
+        snapshot=lambda msg="": None, audit_log=lambda *a, **k: None,
+    )
+    events = list(agent.run([{"role": "user", "content": "bump"}]))
+
+    verify = [e for e in events if e.get("tool") == "verify"]
+    assert verify and "UNVERIFIED" in verify[0]["output"] and "SKIPPED" in verify[0]["output"]
+
+
+def test_agent_no_auto_verify_for_non_python_write(sandbox, monkeypatch) -> None:
+    # Non-code writes (.txt/.json/config) aren't pytest-verifiable — the loop is
+    # left exactly as it was for them (no verify step).
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [sandbox])
+    (sandbox / "notes.txt").write_text("hello world\n", encoding="utf-8")
+    approved = {"filepath": "notes.txt", "old_string": "world", "new_string": "there"}
+    chat = ScriptedChat([
+        _tool_call("edit_file", dict(approved)),
+        {"role": "assistant", "content": "Done."},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3, approved_edits=[approved],
+        snapshot=lambda msg="": None, audit_log=lambda *a, **k: None,
+    )
+    events = list(agent.run([{"role": "user", "content": "edit notes"}]))
+
+    assert (sandbox / "notes.txt").read_text(encoding="utf-8") == "hello there\n"
+    assert not any(e.get("tool") == "verify" for e in events), "text edits aren't auto-verified"

@@ -6,6 +6,7 @@ Ollama, spawns a shell, or touches the real sandbox/ledger.
 from __future__ import annotations
 
 import json
+import sys
 from types import SimpleNamespace
 from typing import Iterator, Optional
 
@@ -21,12 +22,15 @@ from aios.api.main import (
     get_executor,
     get_llm_client,
     get_ollama_client,
+    get_approval_store,
     get_reflection_agent,
     get_rollback_engine,
     get_semantic_indexer,
+    get_self_apply_engine,
 )
 from aios.security import scope_lock
 from aios.core.executor import Executor
+from aios.core.self_apply import DEFAULT_VERIFY_COMMAND
 from aios.memory.episodic import EpisodicMemory
 from aios.security.gateway import RateLimiter
 
@@ -139,6 +143,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = FakeOllama
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
+    get_approval_store().clear()
     with TestClient(app) as test_client:
         test_client.fake_indexer = fake_indexer  # exposed for indexing assertions
         yield test_client
@@ -149,6 +154,54 @@ def test_health(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_configured_api_token_protects_api_routes(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_TOKEN", "release-test-token")
+
+    denied = client.get("/api/v1/models/local")
+    allowed = client.get(
+        "/api/v1/models/local",
+        headers={"Authorization": "Bearer release-test-token"},
+    )
+
+    assert denied.status_code == 401
+    assert allowed.status_code == 200
+    assert client.get("/health").status_code == 200
+
+
+def test_non_loopback_api_host_requires_token(monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_HOST", "0.0.0.0")
+    monkeypatch.setattr(config, "API_TOKEN", "")
+
+    with pytest.raises(RuntimeError, match="AIOS_API_TOKEN is required"):
+        with TestClient(app):
+            pass
+
+
+def test_unauthenticated_remote_client_is_refused(monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_HOST", "127.0.0.1")
+    monkeypatch.setattr(config, "API_TOKEN", "")
+
+    with TestClient(app, client=("203.0.113.10", 50000)) as remote:
+        response = remote.post("/api/v1/security/classify", json={"command": "echo hi"})
+
+    assert response.status_code == 403
+
+
+def test_authenticated_deployment_allows_cors_preflight(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(config, "API_TOKEN", "release-test-token")
+
+    response = client.options(
+        "/api/v1/security/classify",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert response.status_code == 200
 
 
 def test_classify_red_and_yellow(client: TestClient) -> None:
@@ -189,6 +242,72 @@ def test_models_local_lists_installed(client: TestClient) -> None:
     body = response.json()
     assert body["available"] is True
     assert "llama3.2:3b" in body["models"]
+
+
+def test_models_auto_picks_best_local(client: TestClient) -> None:
+    # The agent's auto-pick endpoint excludes the embedder and returns the best
+    # installed chat model (here llama3.2:3b is the only one) plus a human reason —
+    # so the UI can show "Auto · <model>" and the user never has to choose.
+    response = client.get("/api/v1/models/auto")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["available"] is True
+    assert body["model"] == "llama3.2:3b"
+    assert body["reason"]
+
+
+def test_select_chat_client_auto_prefers_coder_and_falls_back() -> None:
+    # The agent's selection is the source of truth, not the user: 'auto' picks the
+    # best local model and runs it on the local client; with nothing usable it
+    # fails soft to the configured default (never crashes a turn).
+    from aios import config
+    from aios.api.main import _select_chat_client
+
+    class _O:
+        def __init__(self, models: list) -> None:
+            self._m = models
+
+        def list_models(self) -> dict:
+            return {"available": True, "models": self._m}
+
+    ollama = _O(["llama3.1:8b", "qwen2.5-coder:3b", "nomic-embed-text:latest"])
+    chat_client, model = _select_chat_client("auto", ollama, None)
+    assert chat_client is ollama and model == "qwen2.5-coder:3b"
+
+    empty = _O(["nomic-embed-text:latest"])
+    fb_client, fb_model = _select_chat_client("auto", empty, None)
+    assert fb_client is empty and fb_model == config.LLM_MODEL
+
+
+def test_select_chat_client_routes_by_task() -> None:
+    # The agent routes by PURPOSE: a coder for code, a strong general for chat,
+    # and — because the loop needs tools — the best TOOL-CAPABLE model for
+    # reasoning (the non-tool reasoner is skipped, never breaking the loop).
+    from aios.api.main import _select_chat_client
+
+    class _O:
+        def __init__(self, models: list) -> None:
+            self._m = models
+
+        def list_models(self) -> dict:
+            return {"available": True, "models": self._m}
+
+    o = _O(["qwen2.5-coder:7b", "qwen2.5:7b", "deepseek-r1:8b", "llama3.2:3b"])
+    assert _select_chat_client("auto", o, None, task="coding")[1] == "qwen2.5-coder:7b"
+    assert _select_chat_client("auto", o, None, task="general")[1] == "qwen2.5:7b"
+    assert _select_chat_client("auto", o, None, task="reasoning")[1] == "qwen2.5:7b"
+    assert _select_chat_client("auto", o, None, task="fast")[1] == "llama3.2:3b"
+
+
+def test_models_auto_returns_by_task_map(client: TestClient) -> None:
+    # The discovery endpoint surfaces how the agent routes by purpose.
+    response = client.get("/api/v1/models/auto?task=reasoning")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["task"] == "reasoning"
+    assert set(body["by_task"]) == {"coding", "reasoning", "general", "fast"}
+    # the fake has only llama3.2:3b, so every purpose resolves to it
+    assert body["model"] == "llama3.2:3b"
 
 
 def test_generate_streams_text_code_and_done(client: TestClient) -> None:
@@ -326,6 +445,7 @@ def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.text
     assert "event: human_required" in body
+    assert "approvalToken" in body
     assert "pip install flask" in body          # the command to authorise is surfaced
     assert "Approval required to run: pip install flask" in body  # plain-language prompt
     # The raw classifier reason (which embeds a regex like "\bpip\s+install\b")
@@ -431,13 +551,16 @@ def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
     # Re-sending the turn with the command whitelisted runs it via the sandbox
     # (FakeRunner), so the turn now completes instead of pausing.
     app.dependency_overrides[get_ollama_client] = FakeOllamaYellow
+    token = get_approval_store().issue(
+        "command", {"command": "pip install flask"}, "test-yellow-approved"
+    )
     response = client.post(
         "/api/generate",
         json={
             "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": "test-yellow-approved",
-            "approvedCommands": ["pip install flask"],
+            "approvalTokens": [token],
         },
     )
     assert response.status_code == 200
@@ -445,6 +568,42 @@ def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
     assert "event: human_required" not in body
     assert "ran: pip install flask" in body     # executed in the sandbox
     assert "event: done" in body
+
+
+def test_generate_rejects_client_authored_approval_payload(client: TestClient) -> None:
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "sessionId": "raw-approval",
+            "approvedCommands": ["pip install flask"],
+        },
+    )
+    assert response.status_code == 400
+    assert "raw approved payloads are not accepted" in response.json()["detail"]
+
+
+def test_generate_rejects_replayed_or_cross_session_token(client: TestClient) -> None:
+    store = get_approval_store()
+    cross = store.issue("command", {"command": "pip install flask"}, "session-a")
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "sessionId": "session-b",
+            "approvalTokens": [cross],
+        },
+    )
+    assert response.status_code == 400
+
+    replay = store.issue("command", {"command": "pip install flask"}, "session-a")
+    payload = {
+        "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+        "sessionId": "session-a",
+        "approvalTokens": [replay],
+    }
+    assert client.post("/api/generate", json=payload).status_code == 200
+    assert client.post("/api/generate", json=payload).status_code == 400
 
 
 # --------------------------------------------------------------------------- #
@@ -489,9 +648,10 @@ def test_execute_endpoint_green_runs_and_red_blocks(client: TestClient) -> None:
 
 
 def test_approval_req_approve_runs_yellow(client: TestClient) -> None:
+    token = get_approval_store().issue("command", {"command": "pip install flask"}, "approval-test")
     response = client.post(
         "/api/v1/approval/req",
-        json={"command": "pip install flask", "approve": True},
+        json={"approvalToken": token, "sessionId": "approval-test", "approve": True},
     )
     assert response.status_code == 200
     body = response.json()
@@ -501,9 +661,10 @@ def test_approval_req_approve_runs_yellow(client: TestClient) -> None:
 
 
 def test_approval_req_reject_does_not_run(client: TestClient) -> None:
+    token = get_approval_store().issue("command", {"command": "pip install flask"}, "approval-test")
     response = client.post(
         "/api/v1/approval/req",
-        json={"command": "pip install flask", "approve": False},
+        json={"approvalToken": token, "sessionId": "approval-test", "approve": False},
     )
     body = response.json()
     assert body["decision"] == "rejected"
@@ -513,9 +674,10 @@ def test_approval_req_reject_does_not_run(client: TestClient) -> None:
 def test_approval_req_refuses_red_even_when_approved(client: TestClient) -> None:
     # D1 invariant at the HTTP boundary: one-click approval can never run a RED
     # command — execute_approved refuses it.
+    token = get_approval_store().issue("command", {"command": "rm -rf /"}, "approval-test")
     response = client.post(
         "/api/v1/approval/req",
-        json={"command": "rm -rf /", "approve": True},
+        json={"approvalToken": token, "sessionId": "approval-test", "approve": True},
     )
     body = response.json()
     assert body["executed"] is False
@@ -547,6 +709,38 @@ def test_rollback_endpoint_maps_error_to_500(client: TestClient) -> None:
     app.dependency_overrides[get_rollback_engine] = lambda: BoomEngine()
     response = client.post("/api/v1/rollback", json={})
     assert response.status_code == 500
+
+
+def test_self_apply_verifier_runs_fixed_suite_from_project_root(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    def fake_run(args, **kwargs):
+        calls.append({"args": args, **kwargs})
+        return SimpleNamespace(stdout="1 passed", stderr="", returncode=0)
+
+    monkeypatch.setattr("aios.api.main.subprocess.run", fake_run)
+    engine = get_self_apply_engine(_fake_executor())
+
+    result = engine.verifier.verify(DEFAULT_VERIFY_COMMAND, approved=True)
+
+    assert result.passed is True
+    assert calls[0]["args"] == [sys.executable, "-m", "pytest", "tests/", "-q"]
+    assert calls[0]["cwd"] == str(config.PROJECT_ROOT)
+    assert "shell" not in calls[0]
+
+
+def test_self_apply_verifier_refuses_any_other_runner_command(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "aios.api.main.subprocess.run",
+        lambda *args, **kwargs: pytest.fail("unexpected subprocess"),
+    )
+    engine = get_self_apply_engine(_fake_executor())
+
+    result = engine.verifier.verify("echo hello")
+
+    assert result.passed is False
+    assert result.status == "ERROR"
+    assert "fixed project test command" in result.summary
 
 
 # --------------------------------------------------------------------------- #
@@ -609,11 +803,16 @@ def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_pa
     app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
     app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": snaps.append(message))
     try:
+        token = get_approval_store().issue(
+            "edit",
+            {"filepath": "note.txt", "old_string": "world", "new_string": "there"},
+            "test-edit-apply",
+        )
         response = client.post("/api/generate", json={
             "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": "test-edit-apply",
-            "approvedEdits": [{"filepath": "note.txt", "old_string": "world", "new_string": "there"}],
+            "approvalTokens": [token],
         })
         assert response.status_code == 200
         body = response.text

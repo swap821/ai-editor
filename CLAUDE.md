@@ -100,7 +100,7 @@ resume yourself — say so if asked). Don't report a task done without evidence
 ## XI. PROJECT-SPECIFIC FACTS (this repo)
 - **Run backend:** `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
 - **Run frontend:** `cd frontend; npm run dev`  (Vite, http://localhost:5173)
-- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **193 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
+- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **278 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
 - **Commits:** per-phase on `master` (not `main`); end messages with the Co-Authored-By line. Commit only when the operator asks.
 - **Local LLM:** Ollama. Host RAM is ~7.5 GB — prefer `llama3.2:3b`; `llama3.1:8b` OOMs. Flags `AIOS_INDEX_CHAT` / `AIOS_REFLECT_ON_FAILURE` each add a model load; set `false` on tight runs.
 - **Config is centralized** in `aios/config.py` (single source of truth). Subsystems are injected via FastAPI `Depends(...)` so tests override them with fakes — never add network/model/shell side-effects to a test path.

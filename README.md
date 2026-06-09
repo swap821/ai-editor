@@ -1,99 +1,109 @@
-# AI-OS — Supervised, Security-Gated, Memory-Driven Agent
+# AI-OS - Supervised, Security-Gated, Memory-Driven Agent
 
-A local-workspace AI operating system modeled on the Jarvis paradigm: an LLM agent
-that plans, executes, and edits inside an IDE workspace, but **never** modifies the
-host without passing a deterministic security gateway and (for sensitive actions)
-explicit human approval. Every gated action is recorded in a tamper-evident,
-SHA-256 hash-chained audit ledger.
+A local-workspace AI operating system modeled on the Jarvis pattern: an LLM agent
+that can inspect, plan, execute, edit, verify, and learn inside an IDE workspace,
+while every risky action passes through deterministic security gates and explicit
+human approval.
 
-> **Honest status:** This is an actively-implemented MVP (~60%+ of the blueprint).
-> Inference runs on **AWS Bedrock** (not local Ollama as the original blueprint
-> described). The working story is "cloud inference + local-first memory & security."
+> Honest status: this is an active Python/FastAPI MVP with a React/Vite UI. The
+> current runtime is local-first Ollama with optional AWS Bedrock fallback. The
+> older Node/Express implementation is retained under `legacy_node/` for history,
+> but it is not the active backend.
 
-## Architecture (what actually runs)
+## Architecture
 
+```text
+React/Vite UI + Monaco
+        |
+        | HTTP + SSE
+        v
+FastAPI backend (`aios.api.main`)
+        |
+        +-- ToolAgent: read, edit/create sandbox files, execute, verify, plan
+        +-- Security gateway: deterministic GREEN/YELLOW/RED, fail-closed
+        +-- Scope lock: path canonicalization against configured roots
+        +-- Audit ledger: SHA-256 hash chain, secret-scrubbed payloads
+        +-- Memory: SQLite episodic/semantic/mistake/facts + FAISS retrieval
+        +-- Reflection: failed command -> structured lesson
+        +-- Self-analysis: scan -> propose diffs -> human apply -> verify/rollback
+        |
+        +-- Ollama local models by default
+        +-- Bedrock Converse when cloud inference is explicitly configured
 ```
-Frontend (React/Vite + Monaco)  ──HTTP──▶  Express server (server.js)
-                                              │
-        ┌──────────────┬──────────────┬──────┴───────┬──────────────┐
-        ▼              ▼              ▼              ▼              ▼
- Security Gateway  Confidence    Memory (SQLite   Audit Log     Reflection
- (fail-closed,     Filter        + FAISS hybrid   (SHA-256      (LLM root-cause
-  3-zone)          (0.72 gate)   retrieval)       hash chain)    → Mistake DB)
-        │                                                          │
-        ▼                                                          ▼
- Bedrock LLM (Converse API) ◀── agent tool-use loop (terminal, files, KB graph, web)
-```
 
-## Core modules
+## Core Modules
 
 | File | Responsibility |
 |------|----------------|
-| `server.js` | Express API + agentic tool-use loop (Bedrock Converse) |
-| `securityGateway.js` | Deterministic **fail-closed** 3-zone classifier (GREEN/YELLOW/RED), prompt-injection + secret + network + traversal detection, per-session rate limiting |
-| `scopeLock.js` | Path canonicalization + scope-root enforcement (blocks `../../etc/passwd`, symlink escape, out-of-scope absolute paths) |
-| `confidenceFilter.js` | Independent 0.72 confidence gate — low-confidence steps escalate to human review regardless of zone |
-| `auditLogger.js` | Append-only SHA-256 hash-chained ledger + `verify_chain()` tamper detection |
-| `secretScanner.js` | Entropy/regex credential redaction before any payload is logged |
-| `reflectionEngine.js` | Post-failure root-cause analysis → structured lesson in the Mistake DB |
-| `rollbackEngine.js` | git-stash / snapshot + restore |
-| `knowledgeGraph.js` | SQLite entity-relation triples |
-| `database.js` | SQLite schema: episodic, semantic, mistake_pool, audit ledger (WAL mode) |
-| `hybrid_search.py` | BM25 + FAISS + temporal-decay hybrid retrieval (`R = 0.25·BM25 + 0.45·FAISS + 0.30·recency`) |
+| `aios/api/main.py` | FastAPI routes, SSE chat bridge, dependency injection |
+| `aios/agents/tool_agent.py` | Bounded tool loop, approval pause/resume, auto-verify after writes |
+| `aios/security/gateway.py` | Deterministic fail-closed zone classifier |
+| `aios/security/scope_lock.py` | Path and command scope enforcement |
+| `aios/security/audit_logger.py` | Tamper-evident audit ledger |
+| `aios/core/executor.py` | Gated, scope-constrained command execution |
+| `aios/core/verifier.py` | Evidence-based verification of test/build commands |
+| `aios/core/model_selector.py` | Task-aware local model auto-selection |
+| `aios/core/self_apply.py` | Human-approved self-analysis proposal apply/verify/rollback |
+| `aios/memory/` | Episodic, semantic, mistake, fact, and retrieval layers |
+| `frontend/src/App.jsx` | Main IDE/chat shell |
 
-## API endpoints
+## Run
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/generate` | Main agent loop (tool use, memory recall, security gating) |
-| POST | `/api/terminal` | Human-issued command, security-gated + audited |
-| POST | `/api/v1/security/classify` | Deterministic zone classification for an action |
-| POST | `/api/v1/memory/search` | Hybrid BM25+FAISS memory retrieval |
-| POST | `/api/v1/plan` | Goal → sub-tasks with per-step confidence, gated at 0.72 |
-| POST | `/api/v1/reflect` | Analyse a failed command, store a lesson |
-| GET  | `/api/v1/audit/verify` | Verify the hash chain has not been tampered with |
+```powershell
+# Backend
+.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000
 
-## Setup
-
-```bash
-# 1. Backend deps
-npm install
-
-# 2. Environment (.env)
-#    AWS_REGION=us-east-1
-#    AWS_BEARER_TOKEN_BEDROCK=...
-
-# 3. (One-time) build the vector memory + ingest the blueprint
-npm run memory:init      # python vector_memory_setup.py
-npm run memory:ingest    # python ingest_knowledge.py
-
-# 4. Run
-npm start                # backend on :5000  (override with PORT=5077 npm start)
-cd frontend && npm install && npm run dev
+# Frontend
+cd frontend
+npm run dev
 ```
+
+Open `http://localhost:5173`. The model picker defaults to `Auto`, which lets
+the backend choose the best installed Ollama model for the task. Optional Bedrock
+usage is configured with env vars such as `AIOS_BEDROCK_REGION` and
+`AWS_BEARER_TOKEN_BEDROCK`; secrets stay server-side.
 
 ## Tests
 
-```bash
-npm test     # node --test: 23 cases across security, audit, confidence, scope
+```powershell
+.venv\Scripts\python -m pytest -q
+cd frontend
+npm test
+npm run build
 ```
 
-Covered: deterministic zoning, fail-closed defaults, prompt-injection/secret/traversal
-blocking, rate limiting, hash-chain integrity + tamper detection, the 0.72 confidence
-boundary (0.719 escalates, 0.720 passes), and scope enforcement.
+Current local verification target: Python suite `278 passed, 1 skipped`, plus
+frontend Vitest `14 passed`.
 
-## Security invariants (verified by tests)
+## Security Invariants
 
-- **Fail-closed:** empty/ambiguous/exception → RED, never permissive.
-- **Deterministic:** same input always yields the same zone (no LLM judgement).
-- **Immutable audit:** altering any ledger entry breaks `verify_chain()` at that entry.
-- **Scope-locked:** all file paths resolved to absolute + real path before the scope check.
-- **Orthogonal gating:** security zone and confidence (0.72) are independent layers.
+- Fail-closed: empty, ambiguous, exception, or out-of-scope actions do not run.
+- Deterministic gateway: no LLM decides whether a command is safe.
+- Scope-locked writes/exec: the agent writes and runs only inside configured roots
+  unless a narrower human self-apply path is used.
+- RED cannot be one-click approved.
+- YELLOW pauses for human approval and resumes the same turn with the approved
+  command/edit/create payload.
+- Audit-before-write on guarded edits and self-apply.
+- Verification is evidence-based; model narration does not count as success.
+- Commands are parsed into structured argv, shell composition is rejected, and
+  child processes launch with `shell=False`.
+- Scope locking is not OS/container isolation. Human-approved arbitrary-code
+  commands run as the backend OS user.
+- Unauthenticated API requests are accepted only from loopback. Non-loopback API
+  deployment requires `AIOS_API_TOKEN`; configure the same value as
+  `VITE_AIOS_API_TOKEN` only for a trusted/private frontend deployment.
 
-## Notes
+## Local Model Gallery
 
-- `reset_audit_chain.py` — opt-in, non-destructive reset of the live ledger to a clean
-  genesis (archives existing rows first). The app itself will **refuse** to clear the
-  ledger via any agent action — audit immutability is enforced, not optional.
-- `semantic_memory` schema is shared between `database.js` and the Python scripts; keep
-  the columns (`text_content`, `vector_id`) in sync or FAISS retrieval breaks.
+The system works best with several Ollama models installed. A good local set is:
+
+- `qwen2.5-coder:7b` - primary coding/tool-loop model
+- `qwen2.5:7b` - general/reasoning-capable tool model
+- `deepseek-r1:8b` - reasoning reference model, not preferred for tool calls
+- `mistral:7b` - general fallback
+- `llama3.2:3b` or `qwen2.5-coder:3b` - small RAM-friendly fallback
+- `nomic-embed-text:latest` - embedding utility
+
+The backend filters embedding/vision/base-only models out of chat routing and
+keeps the agent loop on tool-capable models.

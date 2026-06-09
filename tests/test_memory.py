@@ -9,6 +9,7 @@ gracefully if the model cannot be obtained (e.g. fully offline first run).
 from __future__ import annotations
 
 import time
+import threading
 from pathlib import Path
 
 import pytest
@@ -151,6 +152,76 @@ def test_hybrid_search_empty_index_returns_empty(
         hybrid_search("anything", db_path=db_path, index=index, embedder=embedder)
         == []
     )
+
+
+def test_semantic_add_removes_db_row_when_embedding_fails(db_path: Path) -> None:
+    class BrokenEmbedder:
+        def encode(self, text):
+            raise RuntimeError("embedding failed")
+
+    sem = SemanticMemory(db_path, index=object(), embedder=BrokenEmbedder())
+
+    with pytest.raises(RuntimeError, match="embedding failed"):
+        sem.add("must not remain in the database")
+
+    assert sem.count() == 0
+
+
+def test_semantic_add_removes_db_row_when_index_persist_fails(db_path: Path) -> None:
+    class FakeEmbedder:
+        def encode(self, text):
+            return [[0.0, 1.0]]
+
+    class BrokenIndex:
+        def add(self, vector_id, vector):
+            pass
+
+        def persist(self):
+            raise RuntimeError("persist failed")
+
+    sem = SemanticMemory(db_path, index=BrokenIndex(), embedder=FakeEmbedder())
+
+    with pytest.raises(RuntimeError, match="persist failed"):
+        sem.add("must be compensated")
+
+    assert sem.count() == 0
+
+
+def test_semantic_add_serialises_index_mutations(db_path: Path) -> None:
+    active = 0
+    max_active = 0
+    guard = threading.Lock()
+
+    class FakeEmbedder:
+        def encode(self, text):
+            return [[0.0, 1.0]]
+
+    class RecordingIndex:
+        def add(self, vector_id, vector):
+            nonlocal active, max_active
+            with guard:
+                active += 1
+                max_active = max(max_active, active)
+            time.sleep(0.03)
+            with guard:
+                active -= 1
+
+        def persist(self):
+            pass
+
+    index = RecordingIndex()
+    memories = [
+        SemanticMemory(db_path, index=index, embedder=FakeEmbedder()),
+        SemanticMemory(db_path, index=index, embedder=FakeEmbedder()),
+    ]
+    threads = [threading.Thread(target=mem.add, args=(f"row-{i}",)) for i, mem in enumerate(memories)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert max_active == 1
+    assert memories[0].count() == 2
 
 
 def test_recency_term_decays_over_time() -> None:

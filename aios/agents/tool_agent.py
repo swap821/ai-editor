@@ -51,6 +51,15 @@ Tools exposed to the model:
     edits source and NEVER applies a diff (apply is T3, behind the full gate). Uses
     the injected completion LLM; without one it degrades to a graceful "unavailable".
 
+Force-verify-after-write: whenever an approved ``edit_file``/``create_file``
+actually lands, the loop AUTONOMOUSLY runs the written file's sibling pytest
+through the same gated :class:`~aios.core.verifier.Verifier` and surfaces the
+verdict — so an authoritative PASS/FAIL, not the model's narration, is what the
+model and the UI see next (the weak local model otherwise gets the last word and
+can confabulate success). A Python file with no sibling test is reported
+UNVERIFIED; non-Python writes are left untouched. Fail-closed: an unrunnable or
+failing check is a FAIL, never an implied pass.
+
 The agent is transport-agnostic: :meth:`ToolAgent.run` *yields* plain event
 dicts so the API layer can forward them as SSE and tests can assert on them
 without HTTP. The chat client and executor are injected, so tests drive the full
@@ -58,6 +67,7 @@ loop with a scripted fake and touch neither Ollama nor a shell.
 """
 from __future__ import annotations
 
+import ast
 import difflib
 import json
 import re
@@ -326,6 +336,13 @@ TOOL_SPECS: list[dict[str, Any]] = [
     },
 ]
 
+#: Exact allowlist used by the textual-tool-call fallback. A local model that
+#: emits ``{"name":"read_file","arguments":{...}}`` as prose may still use a
+#: real advertised tool, but can never invent a new dispatcher route.
+_TOOL_NAMES = frozenset(
+    str(spec["function"]["name"]) for spec in TOOL_SPECS
+)
+
 
 class ChatClient(Protocol):
     """Anything that can run one tool-aware chat turn (see ``OllamaClient.chat``)."""
@@ -351,6 +368,66 @@ def _coerce_args(raw: object) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return cast(dict[str, Any], parsed) if isinstance(parsed, dict) else {}
+
+
+def _extract_text_tool_calls(content: object) -> list[dict[str, Any]]:
+    """Recover one allowlisted tool call emitted as JSON prose by a local model.
+
+    Some otherwise-capable Ollama models print a fenced JSON call instead of
+    populating the native ``tool_calls`` field. Accept only a whole JSON object
+    in one of three common shapes and only when its name is in ``TOOL_SPECS``.
+    Everything else remains ordinary assistant text.
+    """
+    if not isinstance(content, str) or not content.strip():
+        return []
+    cleaned = content.strip()
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z0-9_+-]*\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        try:
+            # Some local models emit a Python-style mapping inside a `json`
+            # fence (single-quoted string values). `literal_eval` parses only
+            # literals/containers and never executes calls or expressions.
+            data = ast.literal_eval(cleaned)
+        except (SyntaxError, ValueError):
+            return []
+    if not isinstance(data, dict):
+        return []
+
+    function = data.get("function")
+    if isinstance(function, dict):
+        name = str(function.get("name", ""))
+        raw_args = function.get("arguments")
+    else:
+        name = str(data.get("name") or data.get("tool") or "")
+        raw_args = data.get("arguments", data.get("input"))
+    if name not in _TOOL_NAMES:
+        return []
+    args = _coerce_args(raw_args)
+    return [{"function": {"name": name, "arguments": args}}]
+
+
+def _explicit_tool_requests(messages: list[dict[str, Any]]) -> set[str]:
+    """Tools the latest user message explicitly says to ``use`` or ``call``.
+
+    This is not general intent inference. It only catches literal instructions
+    such as "use read_file" / "call the verify tool", which lets the loop give a
+    weak local model one compliance retry without forcing tools on normal chat.
+    """
+    latest = ""
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            latest = str(msg.get("content", ""))
+            break
+    requested: set[str] = set()
+    for name in _TOOL_NAMES:
+        pattern = rf"\b(?:use|call)\s+(?:the\s+)?{re.escape(name)}(?:\s+tool)?\b"
+        if re.search(pattern, latest, re.IGNORECASE):
+            requested.add(name)
+    return requested
 
 
 def _resolve_within(root: Path, candidate: str) -> Optional[Path]:
@@ -483,6 +560,8 @@ class ToolAgent:
             system = f"{SYSTEM_PROMPT}\n\n{self.memory_context}"
         convo: list[dict[str, Any]] = [{"role": "system", "content": system}]
         convo.extend(messages)
+        required_tools = _explicit_tool_requests(messages)
+        nudged_tools: set[str] = set()
 
         #: Lesson ids awaiting a success to confirm them (blueprint Q6: a lesson
         #: is verified once a later command succeeds, showing the fix was applied).
@@ -497,18 +576,39 @@ class ToolAgent:
                 yield {"type": "error", "text": f"Local inference error: {exc}"}
                 return
             tool_calls: list[dict[str, Any]] = msg.get("tool_calls") or []
+            if not tool_calls:
+                tool_calls = _extract_text_tool_calls(msg.get("content"))
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.get("content", "")}
             if tool_calls:
                 assistant_msg["tool_calls"] = tool_calls
             convo.append(assistant_msg)
 
             if not tool_calls:
+                pending = sorted(required_tools - nudged_tools)
+                if pending:
+                    # Some local models answer from memory despite a literal
+                    # "use/call <tool>" request. Give one narrow retry; if the
+                    # model still declines, accept its answer rather than loop.
+                    nudged_tools.update(pending)
+                    convo.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "The previous response did not call the explicitly "
+                                f"requested tool(s): {', '.join(pending)}. Call the "
+                                "tool now using the provided tool interface; do not "
+                                "describe or print a tool call."
+                            ),
+                        }
+                    )
+                    continue
                 yield from self._finish(str(msg.get("content", "")))
                 return
 
             for index, call in enumerate(tool_calls):
                 function = cast(dict[str, Any], call.get("function", {}))
                 name = str(function.get("name", ""))
+                required_tools.discard(name)
                 args: dict[str, Any] = _coerce_args(function.get("arguments"))
                 call_id = f"{name}-{index}"
 
@@ -580,6 +680,13 @@ class ToolAgent:
                         # A command succeeded after an earlier failure this task:
                         # the recorded lesson(s) proved themselves (blueprint Q6).
                         yield from self._confirm(pending_lessons, index)
+                elif name in ("edit_file", "create_file") and status == "ok":
+                    # A write actually landed. Force a verification so the
+                    # AUTHORITATIVE PASS/FAIL — not the model's narration — is the
+                    # next signal the model and UI see ("trust evidence, not the
+                    # model"). Reuses the gated Verifier; fail-closed, and a genuine
+                    # FAIL reflects exactly once (inside the Verifier).
+                    yield from self._auto_verify(str(args.get("filepath", "")), index, convo)
 
         # Step cap reached without a final answer.
         yield {"type": "text", "text": "Reached the step limit and stopped for safety."}
@@ -631,6 +738,74 @@ class ToolAgent:
             "output": f"Verified {len(promoted)} earlier lesson(s) — the fix worked.",
             "id": f"verify-{index}",
         }
+
+    def _auto_verify(
+        self, filepath: str, index: int, convo: list[dict[str, Any]]
+    ) -> Iterator[dict[str, Any]]:
+        """Force a verification after a successful write — evidence over narration.
+
+        The live loop's real danger is a weak model *narrating* success after a
+        write that never landed or never worked (it gets the last word). So when an
+        approved ``edit_file``/``create_file`` actually writes, we run the file's
+        sibling pytest OURSELVES, surface the authoritative verdict as a visible
+        step, and feed it back into ``convo`` so the model's next turn is anchored
+        to PASS/FAIL — not its own prose.
+
+        Scope (all fail-closed — never lets an unverified change look verified):
+          * a non-Python write (``.txt``/``.json``/config) has no test to run, so
+            we stay silent and leave the loop exactly as it was for those;
+          * a Python write with NO sibling test is reported ``[VERIFY SKIPPED] …
+            UNVERIFIED``;
+          * a Python write WITH a sibling test (or a written ``test_*.py`` itself)
+            is run through the SAME gated :class:`Verifier` the ``verify`` tool
+            uses — so a genuine FAIL reflects exactly once (inside the Verifier),
+            and a refused/unrunnable command is a FAIL, never a silent pass.
+
+        The verify command is a BARE runner (``config.VERIFY_RUNNER``) plus a
+        *sandbox-relative* test path: the executor runs from the sandbox cwd, and
+        the gateway classifies any absolute / ``..`` path in a command as
+        out-of-scope (RED), so an absolute interpreter path would be refused.
+        """
+        p = Path(filepath)
+        if p.suffix != ".py":
+            return  # not a pytest-verifiable artifact; leave the loop untouched
+
+        abs_file = (self.read_root / filepath).resolve()
+        test_abs = (
+            abs_file if p.stem.startswith("test_")
+            else abs_file.with_name(f"test_{p.stem}.py")
+        )
+        if not test_abs.is_file():
+            note = (
+                f"[VERIFY SKIPPED] no sibling test for {filepath} "
+                f"(looked for {test_abs.name}); the change is UNVERIFIED — "
+                "do not assume it works."
+            )
+            yield {"type": "tool_result", "tool": "verify",
+                   "output": note[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
+            convo.append({"role": "tool", "content": note})
+            return
+
+        # Express the test path relative to the executor's sandbox cwd
+        # (SCOPE_ROOTS[0]) so the command carries no out-of-scope absolute path;
+        # fall back to the absolute path only if it lies outside that root (then
+        # the gateway's scope check judges it — still fail-closed).
+        roots = config.SCOPE_ROOTS
+        cwd = roots[0].resolve() if roots else self.read_root
+        try:
+            test_arg = test_abs.relative_to(cwd).as_posix()
+        except ValueError:
+            test_arg = str(test_abs)
+        command = f'{config.VERIFY_RUNNER} "{test_arg}" -q'
+
+        output, status, _failed = self._verify(command, approved=True)
+        if status == "blocked":
+            yield {"type": "tool_blocked", "tool": "verify",
+                   "reason": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
+        else:
+            yield {"type": "tool_result", "tool": "verify",
+                   "output": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
+        convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
 
     # ----------------------------------------------------------------- finish
     def _finish(self, content: str) -> Iterator[dict[str, Any]]:
@@ -890,7 +1065,7 @@ class ToolAgent:
             False,
         )
 
-    def _verify(self, command: str) -> tuple[str, str, bool]:
+    def _verify(self, command: str, *, approved: bool = False) -> tuple[str, str, bool]:
         """Run *command* as a verification through the Verifier; map its verdict.
 
         Closes the execute -> verify -> reflect loop (blueprint stage 8). The
@@ -910,8 +1085,15 @@ class ToolAgent:
             pass/fail counts, exit code, and the captured summary so the model
             (and the UI) plainly see the verdict.
         """
-        result = self._verifier.verify(command, session_id=self.session_id)
+        is_approved = approved or command in self.approved_commands
+        result = self._verifier.verify(
+            command,
+            session_id=self.session_id,
+            approved=is_approved,
+        )
 
+        if result.status == "REQUIRE_APPROVAL":
+            return (result.summary, "approval", False)
         if result.status == "BLOCKED":
             return (
                 result.summary or f"[BLOCKED] Verification command refused: {command}",

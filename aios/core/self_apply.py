@@ -202,8 +202,9 @@ class SelfApplyEngine:
         # 8. Apply for real.
         ok, out = self._git_apply(diff, self.project_root, check=False)
         if not ok:
-            self._restore(resolved, before_bytes)
-            return ApplyResult("refused", f"git apply failed; restored: {out.strip()[:200]}")
+            restore_error = self._restore(resolved, before_bytes)
+            suffix = f"; restore failed: {restore_error}" if restore_error else "; restored"
+            return ApplyResult("refused", f"git apply failed{suffix}: {out.strip()[:200]}")
 
         # 9. Two-snapshot integrity check (§6.3): the on-disk result must equal the
         #    original with EXACTLY the approved diff applied (computed independently
@@ -211,22 +212,39 @@ class SelfApplyEngine:
         try:
             after_bytes = resolved.read_bytes()
         except OSError as exc:
-            self._restore(resolved, before_bytes)
-            return ApplyResult("refused", f"could not re-read target after apply: {exc}")
+            restore_error = self._restore(resolved, before_bytes)
+            suffix = f"; restore failed: {restore_error}" if restore_error else "; restored"
+            return ApplyResult("refused", f"could not re-read target after apply: {exc}{suffix}")
         expected = self._expected_after(before_bytes, diff, target_path)
         if expected is None or after_bytes != expected:
-            self._restore(resolved, before_bytes)
-            return ApplyResult("refused", "two-snapshot integrity check failed; restored")
+            restore_error = self._restore(resolved, before_bytes)
+            suffix = f"; restore failed: {restore_error}" if restore_error else "; restored"
+            return ApplyResult("refused", f"two-snapshot integrity check failed{suffix}")
 
         # 10. Verify through the gated Verifier (run the suite). A fail/timeout/blocked
         #     verdict → auto-rollback to the snapshot, status='rolled_back'. The restore
         #     already happened, so the ROLLBACK audit is best-effort (a ledger hiccup
         #     there must not crash — the row is rolled_back regardless).
-        result = self.verifier.verify(self.verify_command)
+        result = self.verifier.verify(self.verify_command, approved=True)
         if not result.passed:
-            self._restore(resolved, before_bytes)
+            restore_error = self._restore(resolved, before_bytes)
+            if restore_error:
+                return ApplyResult(
+                    "refused",
+                    f"verify failed and rollback failed: {restore_error}. {result.summary[:200]}",
+                    audit_id=apply_audit_id,
+                    verify=result.summary,
+                )
             self._safe_audit(f"ROLLBACK (verify failed): {target_path}")
-            self._set_status(proposal_id, "rolled_back", approved_by=approver)
+            try:
+                self._set_status(proposal_id, "rolled_back", approved_by=approver)
+            except Exception as exc:  # noqa: BLE001 - bytes are restored; report DB drift honestly
+                return ApplyResult(
+                    "rolled_back",
+                    f"verify failed; bytes restored, but status persistence failed: {exc}",
+                    audit_id=apply_audit_id,
+                    verify=result.summary,
+                )
             return ApplyResult(
                 "rolled_back",
                 f"verify failed; restored to the pre-apply bytes. {result.summary[:200]}",
@@ -236,9 +254,26 @@ class SelfApplyEngine:
 
         # 11. Verified pass — keep the change; status='applied', applied_audit_id ties
         #     the row to the apply ledger entry.
-        self._set_status(
-            proposal_id, "applied", approved_by=approver, applied_audit_id=apply_audit_id
-        )
+        try:
+            self._set_status(
+                proposal_id, "applied", approved_by=approver, applied_audit_id=apply_audit_id
+            )
+        except Exception as exc:  # noqa: BLE001 - never keep an untracked applied change
+            restore_error = self._restore(resolved, before_bytes)
+            if restore_error:
+                return ApplyResult(
+                    "refused",
+                    f"status persistence failed and rollback failed: {exc}; {restore_error}",
+                    audit_id=apply_audit_id,
+                    verify=result.summary,
+                )
+            self._safe_audit(f"ROLLBACK (status persistence failed): {target_path}")
+            return ApplyResult(
+                "refused",
+                f"status persistence failed; restored pre-apply bytes: {exc}",
+                audit_id=apply_audit_id,
+                verify=result.summary,
+            )
         return ApplyResult(
             "applied",
             f"applied and verified: {target_path}",
@@ -274,12 +309,15 @@ class SelfApplyEngine:
             return None
 
     @staticmethod
-    def _restore(path: Path, before_bytes: bytes) -> None:
-        """Best-effort restore of the original bytes (auto-rollback / fail-closed)."""
+    def _restore(path: Path, before_bytes: bytes) -> Optional[str]:
+        """Restore and verify original bytes; return an error instead of hiding failure."""
         try:
             path.write_bytes(before_bytes)
-        except OSError:
-            pass
+            if path.read_bytes() != before_bytes:
+                return "restored bytes did not match the snapshot"
+        except OSError as exc:
+            return str(exc)
+        return None
 
     def _expected_after(self, before_bytes: bytes, diff: str, rel_path: str) -> Optional[bytes]:
         """Apply *diff* to a fresh copy of *before_bytes* in an isolated temp dir.

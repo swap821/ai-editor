@@ -18,11 +18,15 @@ any network, model, or host side effects.
 from __future__ import annotations
 
 import json
+import secrets
+import subprocess
+import sys
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Callable, Iterator, Optional, Any, cast
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -35,8 +39,10 @@ from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
 from aios.core.bedrock import BedrockClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
+from aios.core.model_selector import TASKS, describe_choice, infer_task, select_model
+from aios.core.approvals import ApprovalError, ApprovalStore
 from aios.core.planner import Planner, PlannerError
-from aios.core.self_apply import SelfApplyEngine
+from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.episodic import EpisodicMemory
@@ -45,10 +51,14 @@ from aios.memory.semantic import SemanticMemory
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import Zone, classify
 
+_APPROVALS = ApprovalStore()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ensure both databases exist before the app serves traffic."""
+    if config.API_HOST not in {"127.0.0.1", "localhost", "::1"} and not config.API_TOKEN:
+        raise RuntimeError("AIOS_API_TOKEN is required when AIOS_API_HOST is non-loopback")
     init_memory_db()
     init_audit_db()
     # Opt-in second injection layer: install the vector blocklist when enabled.
@@ -82,6 +92,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def require_api_token(request: Request, call_next):
+    """Keep unauthenticated API use loopback-only; enforce configured tokens."""
+    if request.url.path.startswith("/api/") and request.method != "OPTIONS":
+        if config.API_TOKEN:
+            auth = request.headers.get("authorization", "")
+            expected = f"Bearer {config.API_TOKEN}"
+            if not secrets.compare_digest(auth, expected):
+                return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
+        else:
+            client_host = request.client.host if request.client else ""
+            if client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "unauthenticated API access is loopback-only"},
+                )
+    return await call_next(request)
+
 
 def get_llm_client() -> LLMClient:
     """Provide the default local LLM client. Overridden in tests."""
@@ -114,8 +142,12 @@ def get_bedrock_client() -> Optional[BedrockClient]:
 
 
 def get_executor() -> Executor:
-    """Provide the default sandboxed executor. Overridden in tests."""
+    """Provide the default scope-constrained executor. Overridden in tests."""
     return Executor()
+
+def get_approval_store() -> ApprovalStore:
+    """Provide the process-local store of pending human approval capabilities."""
+    return _APPROVALS
 
 
 def get_rollback_engine() -> RollbackEngine:
@@ -132,7 +164,35 @@ def get_self_apply_engine(
     — there is deliberately no agent tool that applies. Overridden in tests with a
     fake verifier + temp project root so no real shell/suite runs.
     """
-    return SelfApplyEngine(verifier=Verifier(executor))
+    def project_root_runner(
+        command: str, *, cwd: str, env: dict[str, str], timeout_s: int
+    ) -> tuple[str, str, int]:
+        """Run self-apply verification from the project root, after gateway approval.
+
+        ``SelfApplyEngine`` verifies changes to ``aios/`` with ``pytest tests/``.
+        The ordinary agent executor intentionally runs in ``training_ground/``;
+        using that cwd would look for ``training_ground/tests`` and roll back good
+        proposals. The command still passes through the same Executor gateway and
+        audit path before this runner is invoked.
+        """
+        if command != DEFAULT_VERIFY_COMMAND:
+            raise ValueError("self-apply verifier accepts only the fixed project test command")
+        completed = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests/", "-q"],
+            cwd=str(config.PROJECT_ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+        return completed.stdout or "", completed.stderr or "", completed.returncode
+
+    verify_executor = Executor(
+        runner=project_root_runner,
+        timeout_s=120,
+        actor="self-apply-verifier",
+    )
+    return SelfApplyEngine(verifier=Verifier(verify_executor))
 
 
 def get_edit_snapshot() -> Callable[..., object]:
@@ -213,8 +273,11 @@ class ExecuteRequest(BaseModel):
 class ApprovalRequest(BaseModel):
     """Body for ``/approval/req`` — a human's decision on an escalated action."""
 
-    command: str = Field(..., description="The escalated command being decided on.")
+    approval_token: str = Field(..., alias="approvalToken")
+    session_id: str = Field(..., alias="sessionId")
     approve: bool = Field(..., description="True to authorise execution, False to reject.")
+
+    model_config = {"populate_by_name": True}
 
 
 class RollbackRequest(BaseModel):
@@ -246,6 +309,7 @@ class GenerateRequest(BaseModel):
     messages: list[dict[str, Any]] = Field(default_factory=lambda: cast(list[dict[str, Any]], []))
     model_id: Optional[str] = Field(None, alias="modelId")
     session_id: str = Field("ui-session", alias="sessionId")
+    approval_tokens: list[str] = Field(default_factory=list, alias="approvalTokens")
     #: Commands the human has authorised for this turn. When the agent pauses on
     #: a YELLOW command, the frontend re-sends the turn with that command added
     #: here so it actually runs (resumable in-chat approval — blueprint Q5).
@@ -347,20 +411,31 @@ def execute(req: ExecuteRequest, executor: Executor = Depends(get_executor)) -> 
 
 
 @app.post("/api/v1/approval/req")
-def approval_req(req: ApprovalRequest, executor: Executor = Depends(get_executor)) -> dict[str, Any]:
+def approval_req(
+    req: ApprovalRequest,
+    executor: Executor = Depends(get_executor),
+    approvals: ApprovalStore = Depends(get_approval_store),
+) -> dict[str, Any]:
     """Resolve a human decision on an escalated (YELLOW) action.
 
     Approve -> run the command in the sandbox (RED is still refused). Reject ->
     audit the rejection and return without running.
     """
+    try:
+        action = approvals.consume(req.approval_token, req.session_id)
+    except ApprovalError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if action.action_type != "command":
+        raise HTTPException(status_code=400, detail="approval token is not for a command")
+    command = str(action.payload.get("command", ""))
     if not req.approve:
-        log_action("human-approval", f"REJECTED: {req.command}", Zone.YELLOW)
-        return {"decision": "rejected", "command": req.command, "executed": False}
+        log_action("human-approval", f"REJECTED: {command}", Zone.YELLOW)
+        return {"decision": "rejected", "command": command, "executed": False}
 
-    result = executor.execute_approved(req.command)
+    result = executor.execute_approved(command)
     return {
         "decision": "approved",
-        "command": req.command,
+        "command": command,
         "executed": result.status == "OK",
         "result": asdict(result),
     }
@@ -460,6 +535,29 @@ def models_bedrock(
     return {"available": bool(models), "models": models}
 
 
+@app.get("/api/v1/models/auto")
+def models_auto(
+    task: str = "coding",
+    client: OllamaClient = Depends(get_ollama_client),
+) -> dict[str, Any]:
+    """What the agent would auto-select, per task (drives the 'Auto' picker entry).
+
+    Choosing the best local model is the agent's job, not the user's. Returns the
+    pick for *task* plus a ``by_task`` map (coding/reasoning/general/fast) over the
+    LIVE installed set, so the UI can show "Auto · <model>" and surface how the
+    agent routes by purpose. (The live loop additionally requires tool-capability;
+    this discovery view shows the best model per purpose unconstrained.)
+    """
+    models = client.list_models().get("models") or []
+    by_task = {t: select_model(models, task=t) for t in TASKS}
+    chosen = select_model(models, task=task)
+    if not chosen:
+        return {"available": False, "model": None, "task": task,
+                "reason": "no local chat model installed", "by_task": by_task}
+    return {"available": True, "model": chosen, "task": task,
+            "reason": describe_choice(chosen), "by_task": by_task}
+
+
 def _resolve_local_model(model_id: Optional[str]) -> str:
     """Map a UI model id to a local Ollama tag (``ollama.x`` -> ``x``).
 
@@ -471,17 +569,48 @@ def _resolve_local_model(model_id: Optional[str]) -> str:
     return config.LLM_MODEL
 
 
+#: UI model ids meaning "let the agent choose the best installed local model".
+_AUTO_IDS = frozenset({"auto", "auto.best", "ollama.auto"})
+
+
+def _auto_local_model(ollama: Any, task: str = "coding") -> Optional[str]:
+    """Best installed TOOL-CAPABLE local model for *task*, or ``None``.
+
+    ``require_tools=True``: the agentic loop must never route to a model that
+    can't function-call (reasoning-only/base families), even when the request
+    reads like reasoning. Fail-soft: discovery/selection failing must never break
+    a turn, so the caller falls back to the configured default.
+    """
+    try:
+        info = ollama.list_models()
+        return select_model(info.get("models") or [], task=task, require_tools=True)
+    except Exception:  # noqa: BLE001 - discovery/selection must never raise
+        return None
+
+
 def _select_chat_client(
     model_id: Optional[str],
     ollama: Any,
     bedrock: Optional[Any],
+    *,
+    task: str = "coding",
 ) -> tuple[Any, str]:
     """Pick the ``(chat_client, model)`` for the requested UI model id.
 
-    ``ollama.x`` always runs locally on ``x``. Any other id is a "use cloud"
-    signal: it routes to Bedrock (on the configured :data:`BEDROCK_MODEL`) when a
-    Bedrock client is available, otherwise falls back to the local default model.
+    ``auto`` lets the AGENT choose the best installed local model for *task* (the
+    user never has to). ``ollama.x`` always runs locally on ``x``. Any other id is
+    a "use cloud" signal: it routes to Bedrock (on the configured
+    :data:`BEDROCK_MODEL`) when available, otherwise falls back to the local default.
     """
+    if model_id in _AUTO_IDS:
+        # Agent-chosen model for the agentic loop. Fail-soft: if Ollama is
+        # unreachable or has no usable model, fall through to cloud/default below.
+        chosen = _auto_local_model(ollama, task)
+        if chosen:
+            return ollama, chosen
+        if bedrock is not None:
+            return bedrock, config.BEDROCK_MODEL
+        return ollama, config.LLM_MODEL
     if model_id and model_id.startswith("ollama."):
         return ollama, _resolve_local_model(model_id)
     if bedrock is not None:
@@ -552,7 +681,8 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
         return None
     lines = "\n".join(f"- {hit.text}" for hit in hits)
     return (
-        "RELEVANT PROJECT MEMORY (recalled from past sessions; use if helpful):\n"
+        "UNVERIFIED PRIOR CHAT MEMORY (may be stale or wrong; use only as a lead, "
+        "never as evidence, and verify against tools/files before acting):\n"
         f"{lines}"
     )
 
@@ -596,7 +726,7 @@ def _index_turn(
     if indexer is None or not answer:
         return
     try:
-        indexer.add(f"User: {user_text}\nAssistant: {answer}")
+        indexer.add(f"UNVERIFIED_CHAT\nUser: {user_text}\nAssistant: {answer}")
     except Exception:  # noqa: BLE001 - indexing must not break the chat
         pass
 
@@ -656,6 +786,7 @@ def generate(
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
     snapshot: Callable[..., object] = Depends(get_edit_snapshot),
     planner_llm: LLMClient = Depends(get_llm_client),
+    approvals: ApprovalStore = Depends(get_approval_store),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -671,9 +802,35 @@ def generate(
          completed turn into L3 semantic memory (self-reinforcing recall).
     """
     chat_messages = _to_chat_messages(req.messages)
-    chat_client, model = _select_chat_client(req.model_id, client, bedrock)
-    session_id = req.session_id
     user_text = _latest_user(chat_messages)
+    # The agent routes by PURPOSE: infer the task from the user's message so 'auto'
+    # picks a coder for code, a reasoner for analysis, etc. (require_tools still
+    # keeps the loop on a tool-capable model regardless of the inferred task).
+    task = infer_task(user_text)
+    chat_client, model = _select_chat_client(req.model_id, client, bedrock, task=task)
+    session_id = req.session_id
+    if req.approved_commands or req.approved_edits or req.approved_creations:
+        raise HTTPException(
+            status_code=400,
+            detail="raw approved payloads are not accepted; use server-issued approvalTokens",
+        )
+    approved_commands: list[str] = []
+    approved_edits: list[dict[str, Any]] = []
+    approved_creations: list[dict[str, Any]] = []
+    try:
+        if not req.approval_tokens:
+            approvals.clear_session(session_id)
+        for token in req.approval_tokens:
+            approvals.redeem(token, session_id)
+        for action in approvals.grants(session_id):
+            if action.action_type == "command":
+                approved_commands.append(str(action.payload["command"]))
+            elif action.action_type == "edit":
+                approved_edits.append(action.payload)
+            elif action.action_type == "create":
+                approved_creations.append(action.payload)
+    except (ApprovalError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=f"invalid approval token: {exc}") from exc
 
     def event_stream() -> Iterator[str]:
         if not user_text:
@@ -728,9 +885,9 @@ def generate(
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(reflector),
             prior_lesson_ids=prior_lesson_ids,
-            approved_commands=req.approved_commands,
-            approved_edits=req.approved_edits,
-            approved_creations=req.approved_creations,
+            approved_commands=approved_commands,
+            approved_edits=approved_edits,
+            approved_creations=approved_creations,
             snapshot=snapshot,
             # The Planner needs a COMPLETION client (.complete()); pass the local
             # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
@@ -765,22 +922,26 @@ def generate(
                 edit = ev.get("edit")
                 creation = ev.get("creation")
                 if edit is not None:
+                    token = approvals.issue("edit", edit, session_id)
                     # An edit_file approval: surface the unified diff + the edit
                     # triple so the UI shows the diff and re-sends it as an
                     # approved edit on resume (a snapshot is taken before writing).
                     payload = {
                         "input": {
                             "edits": [edit],
+                            "approvalToken": token,
                             "diff": ev.get("diff", ""),
                             "explanation": (
                                 "The agent wants to edit a file. Review the diff "
-                                "and approve to apply it (a snapshot is taken first)."
+                                "and approve to apply it. A snapshot is taken first, "
+                                "then an available sibling test runs automatically."
                             ),
                         },
                         "text": f"Approval required to apply an edit to {ev.get('filepath', '')}",
                         "requiresApproval": True,
                     }
                 elif creation is not None:
+                    token = approvals.issue("create", creation, session_id)
                     # A create_file approval: surface the all-additions diff + the
                     # {filepath, content} pair so the UI shows the new file and
                     # re-sends it as an approved creation on resume (a snapshot is
@@ -788,20 +949,24 @@ def generate(
                     payload = {
                         "input": {
                             "creations": [creation],
+                            "approvalToken": token,
                             "diff": ev.get("diff", ""),
                             "explanation": (
                                 "The agent wants to create a new file. Review the "
-                                "contents and approve to write it (a snapshot is "
-                                "taken first)."
+                                "contents and approve to write it. A snapshot is "
+                                "taken first, then an available sibling test runs "
+                                "automatically."
                             ),
                         },
                         "text": f"Approval required to create {ev.get('filepath', '')}",
                         "requiresApproval": True,
                     }
                 else:
+                    token = approvals.issue("command", {"command": cmd}, session_id)
                     payload = {
                         "input": {
                             "commands": [cmd],
+                            "approvalToken": token,
                             "explanation": (
                                 "The agent wants to run a caution-level command "
                                 "(e.g. a package install, git write, or file "
@@ -817,6 +982,7 @@ def generate(
                 answer = "".join(answer_parts)
                 _record_episode(session_id, "assistant", answer)
                 _index_turn(indexer, user_text, answer)
+                approvals.clear_session(session_id)
                 yield _sse("done", {})
 
     return StreamingResponse(

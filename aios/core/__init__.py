@@ -1,1 +1,1 @@
-"""Cognitive core: planner, confidence filter, sandboxed executor, verifier."""
+"""Cognitive core: planner, confidence filter, scope-constrained executor, verifier."""

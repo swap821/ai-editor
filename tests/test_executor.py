@@ -5,9 +5,11 @@ audit sink keeps the real tamper-evident ledger untouched.
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 
-from aios.core.executor import Executor
+from aios.core.executor import Executor, _default_runner
 from aios.security.gateway import RateLimiter
 
 
@@ -66,6 +68,12 @@ def test_green_command_runs_in_sandbox() -> None:
     assert result.exit_code == 0
     assert result.stdout == "hello\n"
     assert len(runner.calls) == 1
+    assert runner.calls[0]["command"] == "echo hello"
+
+
+def test_default_runner_handles_safe_builtin_without_a_shell(tmp_path) -> None:
+    result = _default_runner("echo hello world", cwd=str(tmp_path), env={}, timeout_s=1)
+    assert result == ("hello world\n", "", 0)
 
 
 def test_sandbox_strips_secret_env_vars(monkeypatch) -> None:
@@ -80,6 +88,17 @@ def test_sandbox_strips_secret_env_vars(monkeypatch) -> None:
     assert env.get("SAFE_VAR") == "fine"
 
 
+def test_sandbox_prefers_project_venv_tools(monkeypatch, tmp_path) -> None:
+    venv_bin = tmp_path / ".venv" / ("Scripts" if os.name == "nt" else "bin")
+    venv_bin.mkdir(parents=True)
+    monkeypatch.setattr("aios.core.executor.config.PROJECT_ROOT", tmp_path)
+    runner = RecordingRunner()
+
+    _executor(runner).execute("echo hi")
+
+    assert runner.calls[0]["env"]["PATH"].split(os.pathsep)[0] == str(venv_bin)
+
+
 def test_execute_approved_runs_yellow_command() -> None:
     runner = RecordingRunner(out="installed")
     result = _executor(runner).execute_approved("pip install flask")
@@ -92,6 +111,23 @@ def test_execute_approved_still_refuses_red() -> None:
     runner = RecordingRunner()
     result = _executor(runner).execute_approved("rm -rf /")
     assert result.status == "BLOCKED"
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo hello > x.txt",
+        "echo hello & some-new-tool",
+        "cat notes.txt | some-new-tool",
+        "pytest & some-new-tool",
+    ],
+)
+def test_shell_composition_is_blocked_and_never_runs(command: str) -> None:
+    runner = RecordingRunner()
+    result = _executor(runner).execute(command)
+    assert result.status == "BLOCKED"
+    assert result.zone == "RED"
     assert runner.calls == []
 
 

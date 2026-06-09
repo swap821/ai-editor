@@ -30,3 +30,10 @@ training_ground/.gitkeep
 # Keep the brain + handoff (RESUME.md, memory logs) tracked for continuity,
 # but the session id is machine-specific and script-written.
 .aios/state/last_session_id
+
+# --- Parked / source-reference artifacts (not active runtime) ---
+frontend/src/styles/App.css
+frontend/src/styles/design-system.css
+frontend/src/styles/nexgen-3d.css
+frontend/src/styles/nexgen-layout.css
+AI-OS v6 Assessment and Self-Analysis Design.pdf

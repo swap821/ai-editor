@@ -99,6 +99,24 @@ _ENV_MUTATION_PATTERNS = _compile([
     r"\$env:\w+\s*=", r"\bset-item\s+env:",
 ])
 
+# 5. Shell/interpreter escape hatches -> RED. These can hide arbitrary writes,
+# network access, or process launches behind an otherwise innocent executable.
+_SHELL_ESCAPE_PATTERNS = _compile([
+    r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?\s+-c\b",
+    r"(?:^|[;&|]\s*)node\s+-e\b",
+    r"(?:^|[;&|]\s*)(?:powershell|pwsh)\b[^\n]*\s-(?:command|encodedcommand)\b",
+    r"(?:^|[;&|]\s*)cmd(?:\.exe)?\s+/c\b",
+    r"(?:^|[;&|]\s*)(?:bash|sh)\s+-c\b",
+])
+
+# No shell composition is accepted, even after human approval. Executor launches
+# structured argv with shell=False; rejecting metacharacters here keeps the
+# classification contract aligned with that execution boundary.
+_SHELL_COMPOSITION_PATTERNS = _compile([
+    r"[;&|<>`]",
+    r"[\r\n]",
+])
+
 # 5. Caution operations requiring human approval -> YELLOW.
 _CAUTION_PATTERNS = _compile([
     r"\bpip\s+install\b", r"\bnpm\s+install\b", r"\byarn\s+add\b",
@@ -108,6 +126,14 @@ _CAUTION_PATTERNS = _compile([
     r"\bmkdir\b", r"\bmd\b\s", r"\bmv\s+", r"\bmove-item\b",
     r"\bcp\s+", r"\bcopy-item\b", r"\btouch\s+",
     r"open\([^)]*['\"][rwa]?\+?b?['\"]",  # python file write mode
+    r"^\s*(?:(?:\.venv[\\/]+scripts[\\/]+)?python(?:\.exe)?\s+-m\s+)?pytest\b",
+])
+
+# Explicit auto-execute allowlist. Everything else that survives the RED and
+# YELLOW checks is refused rather than handed to a shell by default.
+_SAFE_PATTERNS = _compile([
+    r"^\s*echo(?:\s+[^;&|<>`\r\n]*)?\s*$",
+    r"^\s*pwd\s*$",
 ])
 
 
@@ -202,6 +228,14 @@ def classify(command: str, *, injection_shield: object = None) -> Classification
             if pat.search(command):
                 return ClassificationResult(Zone.RED, 1.0, f"Environment/secret mutation: {pat.pattern}")
 
+        for pat in _SHELL_ESCAPE_PATTERNS:
+            if pat.search(command):
+                return ClassificationResult(Zone.RED, 1.0, f"Shell/interpreter escape blocked: {pat.pattern}")
+
+        for pat in _SHELL_COMPOSITION_PATTERNS:
+            if pat.search(command):
+                return ClassificationResult(Zone.RED, 1.0, f"Shell composition blocked: {pat.pattern}")
+
         scope = command_stays_in_scope(command)
         if not scope.in_scope:
             return ClassificationResult(Zone.RED, 1.0, f"Scope violation: {scope.reason}")
@@ -210,7 +244,11 @@ def classify(command: str, *, injection_shield: object = None) -> Classification
             if pat.search(command):
                 return ClassificationResult(Zone.YELLOW, 0.9, f"Caution operation requires approval: {pat.pattern}")
 
-        return ClassificationResult(Zone.GREEN, 1.0, "No dangerous patterns; within scope.")
+        for pat in _SAFE_PATTERNS:
+            if pat.search(command):
+                return ClassificationResult(Zone.GREEN, 1.0, "Known read-only/test command; within scope.")
+
+        return ClassificationResult(Zone.RED, 1.0, "Unknown command is not on the auto-execute allowlist.")
     except Exception as exc:  # noqa: BLE001 - fail-closed on any classifier error
         return ClassificationResult(Zone.RED, 1.0, f"Fail-closed on classifier exception: {exc}")
 

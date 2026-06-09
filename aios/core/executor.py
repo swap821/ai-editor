@@ -1,4 +1,4 @@
-"""Sandboxed, scope-locked command executor (Blueprint Section 06 / stage 7).
+"""Scope-constrained, approval-gated command executor (Blueprint stage 7).
 
 No command reaches the host without first clearing the security gateway, and
 every decision — blocked, escalated, or executed — is written to the
@@ -10,15 +10,20 @@ tamper-evident audit ledger. Execution itself is constrained:
     ``*TOKEN*``, ``*SECRET*``, ``*PASSWORD*``) and ``HOME``/``USERPROFILE`` are
     stripped before the child process starts, so credentials cannot leak into a
     subprocess or its output.
+  * **Structured argv** — shell composition is rejected and processes launch
+    with ``shell=False``.
   * **Hard timeout** — a runaway process is killed and reported, never left
     orphaned.
 
-The actual process spawn is injected (:class:`Runner`) so tests can drive the
-full gateway+audit pipeline deterministically without spawning a shell.
+This is not an OS/container isolation boundary. Approved arbitrary-code
+commands run as the backend OS user. The process spawn is injected
+(:class:`Runner`) so tests can drive the full gateway+audit pipeline
+deterministically without spawning a process.
 """
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass
@@ -58,7 +63,7 @@ class ExecutionResult:
 
 
 class Runner(Protocol):
-    """Spawns a command and returns ``(stdout, stderr, exit_code)``."""
+    """Spawns a classified command and returns ``(stdout, stderr, exit_code)``."""
 
     def __call__(
         self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
@@ -76,16 +81,45 @@ def _sanitise_env() -> dict[str, str]:
         if any(hint in upper for hint in _SECRET_NAME_HINTS):
             continue
         clean[name] = value
+    # Commands such as the force-verify runner intentionally use a bare
+    # `python`/`pytest` so the scope lock never has to permit an absolute or `..`
+    # interpreter path. Prefer this project's existing venv deterministically,
+    # independent of how uvicorn itself was launched.
+    venv_bin = config.PROJECT_ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin")
+    if venv_bin.is_dir():
+        current_path = clean.get("PATH", "")
+        clean["PATH"] = str(venv_bin) + (os.pathsep + current_path if current_path else "")
     return clean
+
+
+def _parse_argv(command: str) -> list[str]:
+    """Parse one already-classified command into argv without invoking a shell."""
+    if not command or any(ch in command for ch in ";&|<>`\r\n"):
+        raise ValueError("shell composition is not permitted")
+    argv = shlex.split(command, posix=os.name != "nt")
+    if os.name == "nt":
+        argv = [
+            arg[1:-1] if len(arg) >= 2 and arg[0] == arg[-1] and arg[0] in "\"'" else arg
+            for arg in argv
+        ]
+    if not argv:
+        raise ValueError("empty command")
+    return argv
 
 
 def _default_runner(
     command: str, *, cwd: str, env: dict[str, str], timeout_s: int
 ) -> tuple[str, str, int]:
-    """Real subprocess runner: shell execution with captured output + timeout."""
+    """Real subprocess runner: structured argv, captured output, and timeout."""
+    argv = _parse_argv(command)
+    executable = argv[0].lower()
+    if executable == "echo":
+        return " ".join(argv[1:]) + "\n", "", 0
+    if executable == "pwd":
+        return cwd + "\n", "", 0
     completed = subprocess.run(
-        command,
-        shell=True,
+        argv,
+        shell=False,
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -127,7 +161,7 @@ class Executor:
 
         A RED command is blocked and never run; a YELLOW command is reported as
         requiring approval and never run here (use the approval flow); a GREEN
-        command runs in the sandbox. Every outcome is audited.
+        command runs inside the configured scope. Every outcome is audited.
         """
         decision = validate_command(
             command, session_id=session_id, rate_limiter=self.rate_limiter
@@ -151,7 +185,7 @@ class Executor:
                 reason=decision.reason,
             )
 
-        # GREEN -> ALLOW: run it in the sandbox.
+        # GREEN -> ALLOW: run it inside the configured scope.
         self._audit(self.actor, f"EXECUTING: {command}", Zone.GREEN)
         return self._run_in_sandbox(command, Zone.GREEN)
 
@@ -160,8 +194,8 @@ class Executor:
 
         Used by the approval flow after a YELLOW escalation. RED commands are
         still refused — destructive actions cannot be granted by one-click
-        approval. GREEN/YELLOW commands are audited as approved and run in the
-        sandbox.
+        approval. GREEN/YELLOW commands are audited as approved and run inside
+        the configured scope.
         """
         result = classify(command)
         if result.zone is Zone.RED:
@@ -176,11 +210,12 @@ class Executor:
         return self._run_in_sandbox(command, result.zone)
 
     def _run_in_sandbox(self, command: str, zone: Zone) -> ExecutionResult:
-        """Run *command* in the scope-locked sandbox with a sanitised env."""
+        """Run *command* in the scope-locked working directory."""
         cwd = self._scope_cwd()
         env = _sanitise_env()
         started = time.monotonic()
         try:
+            _parse_argv(command)
             stdout, stderr, exit_code = self.runner(
                 command, cwd=str(cwd), env=env, timeout_s=self.timeout_s
             )
@@ -213,5 +248,5 @@ class Executor:
             stderr=stderr,
             exit_code=exit_code,
             duration_ms=duration_ms,
-            reason="Executed within sandbox.",
+            reason="Executed within configured scope.",
         )

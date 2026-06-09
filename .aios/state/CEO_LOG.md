@@ -46,3 +46,25 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
 - Shipped this session: the full **(a) fingerprint-reconcile** spec (`.aios/state/ULTRACODE_TASK.md`) — the pre-T2 unblocker — with the migration-ordering trap called out (`CREATE TABLE IF NOT EXISTS` won't add a column to the live PR-#4 table; needs a guarded `ALTER` before any fingerprint index). RESUME updated to the active runway.
 - Highest-leverage next move: get (a) built + merged, THEN sharpen diagnosis (b) before any T2. Resist the temptation to spec T2 in parallel — its data model depends on (a) landing.
 - Risk to watch: the round-trip. Specs must be airtight or the cloud build drifts and I burn a review cycle. And honesty (§0): I can't push the button on ultracode — if the operator is away, nothing builds; I stay plan-only, never fake progress.
+
+## 2026-06-09 - CEO note (Codex: live BREATHE proof + local-runtime hardening)
+- Shipped: the first fully evidenced local BREATHE cycle on **Auto → qwen2.5-coder:7b**. The product agent read the real failing fixture, proposed the exact one-line edit, paused behind a server-issued approval capability, snapshotted and wrote only after approval, then produced authoritative `[VERIFY PASS] 1 passed`. Rollback history contains the pre-edit snapshots.
+- Learned and fixed during the proof: (1) capable local models sometimes emit a fenced Python-style mapping instead of strict JSON tool calls, so the parser now recovers literal mappings via non-executing `ast.literal_eval` while retaining the tool allowlist and all downstream gates; (2) forced verification depended on host `PATH`, so sandbox subprocesses now deterministically prefer the existing project venv without permitting absolute/`..` command paths.
+- Evidence: backend **262 passed / 1 skipped**; frontend eslint + **14 tests** + build green; audit chain valid at **70 entries**; backend and UI running on loopback.
+- Highest-leverage next move: design and implement the API deployment boundary. Keep the service on `127.0.0.1` until authenticated non-loopback use is explicitly supported and tested.
+- Risk to watch: do not let a successful demo turn into a "perfect system" claim. API auth, multi-process semantic locking, process-local approval continuity, and frontend chunk size remain honest gaps.
+
+## 2026-06-09 - CEO note (Codex: release-gate whole-system review)
+- Decision: **DO NOT PUSH** the current dirty tree. It is well-tested but not releasable, and no serious system can honestly be assured "100%."
+- Critical blocker: the new GREEN command allowlist checks only the command prefix while Executor still uses `shell=True`. Live probes classified `echo hello > file`, `echo hello & arbitrary-tool`, `cat file | arbitrary-tool`, and `pytest & arbitrary-tool` as GREEN. This bypasses the intended approval boundary and contradicts fail-closed execution.
+- High architectural blocker: Executor is not an OS sandbox; it provides cwd scope, sanitized env, and timeout. A GREEN `pytest` executes arbitrary Python test code with the backend user's host filesystem/network privileges. Command-string classification cannot contain code executed by an allowed interpreter/test runner.
+- Other blockers: no API authentication if exposed beyond loopback; redeemed approval grants do not retain an expiry; current tree mixes 24 tracked changes with untracked parked CSS/PDF/demo artifacts; README/START_HERE/CLAUDE test counts are stale at 247/1 versus 262/1.
+- Positive evidence: backend 262/1, 86% coverage, frontend lint/14 tests/build, npm audit clean (all dependencies), pip check clean, average Radon complexity A, audit chain valid at 70, live BREATHE passed.
+- Highest-leverage next move: redesign execution as structured argv/no-shell for allowed commands and establish a real isolation boundary for untrusted verification. Add adversarial regression tests before considering a release commit.
+
+## 2026-06-09 - CEO note (Codex: release blockers closed)
+- Shipped locally: command execution now rejects all shell composition, launches structured argv with `shell=False`, and auto-runs only internally handled `echo`/`pwd`; pytest requires explicit approval or an already-approved write/self-apply verification chain.
+- Deployment boundary: non-loopback startup now requires `AIOS_API_TOKEN`, all `/api/*` routes enforce the configured bearer token, and frontend API calls support the matching build-time token. Approval grants now expire.
+- Evidence: backend **278 passed / 1 skipped**, 86% coverage; frontend eslint + **14 tests** + build; npm audit and pip check clean; live composition/Git-output attempts RED/BLOCKED; shell-free echo OK; audit chain valid at **75 entries**.
+- Local-model evidence: qwen2.5:7b, llama3.1:8b, and llama3.2:3b used `read_file`; mistral:7b did not and remains a general fallback. The installed gallery is sufficient for the host RAM budget.
+- Honest gap: scope locking is not container isolation. Human-approved arbitrary-code commands run as the backend OS user. Production deployment also still needs TLS/secret management, and semantic locking is single-process.

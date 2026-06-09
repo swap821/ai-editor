@@ -2,7 +2,7 @@
 
 Package layout
 --------------
-``aios.core``      Planner, confidence filter, sandboxed executor, verifier.
+``aios.core``      Planner, confidence filter, scope-constrained executor, verifier.
 ``aios.memory``    Four-layer memory (working/episodic/semantic/mistake) plus
                    hybrid BM25 + FAISS retrieval — the "hippocampus".
 ``aios.security``  Deterministic 3-zone gateway, scope lock, secret scanner, and

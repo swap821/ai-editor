@@ -7,7 +7,7 @@ import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
 import DiffView from './components/DiffView';
 import ProposalsPanel from './components/ProposalsPanel';
-import { API_BASE } from './config';
+import { API_BASE, API_HEADERS } from './config';
 import { parseSseBuffer } from './lib/sse';
 
 // The 3D spatial backdrop pulls in three.js — lazy-load it as its own chunk so
@@ -73,6 +73,7 @@ const getExt = (name) => name.split('.').pop();
 
 /* ─── Model Selector (2026 Standard) ───────────────────────── */
 const PROVIDER_META = {
+  "Agent (automatic)": { color: "#a855f7", icon: "✨", tags: ["Auto", "Smart"] },
   "Local (Ollama)": { color: "#34d399", icon: "⬡", tags: ["Offline", "Private"] },
   "Cloud (Bedrock)": { color: "#ff9900", icon: "☁", tags: ["AWS", "Cloud"] },
   "Anthropic Claude (Next-Gen)": { color: "#d97757", icon: "◆", tags: ["Vision", "Reasoning"] },
@@ -88,7 +89,14 @@ const PROVIDER_META = {
 
 const MODEL_TAGS = {
   "ollama.llama3.2": ["Offline", "Fast", "Local"],
+  "ollama.llama3.2:3b": ["Offline", "Fast", "3B"],
+  "ollama.llama3.1:8b": ["Offline", "General", "8B"],
   "ollama.qwen2.5-coder": ["Offline", "Coding", "Local"],
+  "ollama.qwen2.5-coder:7b": ["Coding", "Tool Use", "7B"],
+  "ollama.qwen2.5-coder:3b": ["Coding", "Fast", "3B"],
+  "ollama.qwen2.5:7b": ["General", "Tool Use", "7B"],
+  "ollama.deepseek-r1:8b": ["Reasoning", "8B", "Local"],
+  "ollama.mistral:7b": ["General", "Fallback", "7B"],
   "ollama.mistral": ["Offline", "Reasoning", "Local"],
   "anthropic.claude-4-8-opus-v1:0": ["Reasoning", "Vision", "Coding"],
   "anthropic.claude-4-7-opus-v1:0": ["Reasoning", "Vision"],
@@ -120,6 +128,20 @@ const MODEL_TAGS = {
   "us.meta.llama3-1-8b-instruct-v1:0": ["8B", "Edge"]
 };
 
+function inferModelTags(id) {
+  const known = MODEL_TAGS[id];
+  if (known) return known;
+  if (!id.startsWith("ollama.")) return [];
+  const lower = id.toLowerCase();
+  const tags = ["Offline"];
+  if (lower.includes("coder")) tags.push("Coding");
+  else if (lower.includes("r1") || lower.includes("qwq")) tags.push("Reasoning");
+  else tags.push("General");
+  const size = lower.match(/:(\d+(?:\.\d+)?)b/);
+  if (size) tags.push(`${size[1]}B`);
+  return tags.slice(0, 3);
+}
+
 function ModelSelector({ value, onChange, models }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -139,7 +161,7 @@ function ModelSelector({ value, onChange, models }) {
     ? allModels.filter(m =>
         m.name.toLowerCase().includes(search.toLowerCase()) ||
         m.group.toLowerCase().includes(search.toLowerCase()) ||
-        (MODEL_TAGS[m.id] || []).some(t => t.toLowerCase().includes(search.toLowerCase()))
+        inferModelTags(m.id).some(t => t.toLowerCase().includes(search.toLowerCase()))
       )
     : allModels;
 
@@ -372,7 +394,7 @@ function ModelSelector({ value, onChange, models }) {
 
 function ModelRow({ model, group, isActive, isHighlighted, onClick }) {
   const meta = PROVIDER_META[group] || { color: "var(--text-3)" };
-  const tags = MODEL_TAGS[model.id] || [];
+  const tags = inferModelTags(model.id);
   return (
     <button
       onClick={onClick}
@@ -511,14 +533,18 @@ export default function App() {
   const [input, setInput]              = useState('');
   const [isStreaming, setIsStreaming]   = useState(false);
 
-  const [selectedModel, setSelectedModel] = useState('amazon.nova-lite-v1:0');
+  // Default to "Auto": the agent picks the best installed model — the user
+  // doesn't have to. They can still override via the picker.
+  const [selectedModel, setSelectedModel] = useState('auto');
   const [pendingAction, setPendingAction] = useState(null);
-  // Commands the human has authorised for the in-flight request. Reset when a
-  // new message is sent; grown when an approval resumes a paused turn so the
-  // agent can actually run the YELLOW command (resumable in-chat approval).
-  const [approvedCommands, setApprovedCommands] = useState([]);
-  const [approvedEdits, setApprovedEdits] = useState([]);
-  const [approvedCreations, setApprovedCreations] = useState([]);
+  const [, setApprovalTokens] = useState([]);
+  const [sessionId] = useState(() => {
+    const existing = window.localStorage.getItem('aios_session_id');
+    if (existing) return existing;
+    const created = window.crypto.randomUUID();
+    window.localStorage.setItem('aios_session_id', created);
+    return created;
+  });
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
   const [termHistory, setTermHistory] = useState(['AI Editor OS v2.0', 'Type "help" for available commands.']);
   const [termInput,   setTermInput]   = useState('');
@@ -527,6 +553,7 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState({ available: false, models: [] });
   const [bedrockStatus, setBedrockStatus] = useState({ available: false, models: [] });
+  const [autoModel, setAutoModel] = useState(null); // model the agent auto-selects (Auto badge)
 
   const terminalEndRef  = useRef(null);
   const gitEndRef       = useRef(null);
@@ -542,15 +569,20 @@ export default function App() {
   // Probe both engines for available models. Runs on mount and on window focus,
   // so a model pulled locally or enabled in Bedrock shows up without a refresh.
   useEffect(() => {
-    const probeLocal = () => fetch(`${API_BASE}/api/v1/models/local`)
+    const probeLocal = () => fetch(`${API_BASE}/api/v1/models/local`, { headers: API_HEADERS })
       .then(r => r.json())
       .then(s => setOllamaStatus(s))
       .catch(() => setOllamaStatus({ available: false, models: [] }));
-    const probeBedrock = () => fetch(`${API_BASE}/api/v1/models/bedrock`)
+    const probeBedrock = () => fetch(`${API_BASE}/api/v1/models/bedrock`, { headers: API_HEADERS })
       .then(r => r.json())
       .then(s => setBedrockStatus(s))
       .catch(() => setBedrockStatus({ available: false, models: [] }));
-    const probe = () => { probeLocal(); probeBedrock(); };
+    // Ask the backend which model the agent would auto-select right now.
+    const probeAuto = () => fetch(`${API_BASE}/api/v1/models/auto`, { headers: API_HEADERS })
+      .then(r => r.json())
+      .then(s => setAutoModel(s.available ? s.model : null))
+      .catch(() => setAutoModel(null));
+    const probe = () => { probeLocal(); probeBedrock(); probeAuto(); };
     probe();
     window.addEventListener('focus', probe);
     return () => window.removeEventListener('focus', probe);
@@ -569,8 +601,13 @@ export default function App() {
     const cloudGroups = bedrockModels.length
       ? [{ group: 'Cloud (Bedrock)', models: bedrockModels.map(m => ({ id: m.id, name: m.name })) }]
       : BEDROCK_MODELS;
-    return [...localGroup, ...cloudGroups];
-  }, [ollamaStatus, bedrockStatus]);
+    // The agent auto-picks the best installed model — surfaced as the default
+    // "Auto" entry (only when there are local models to choose among).
+    const autoGroup = chatModels.length
+      ? [{ group: 'Agent (automatic)', models: [{ id: 'auto', name: autoModel ? `Auto · ${autoModel}` : 'Auto — best installed' }] }]
+      : [];
+    return [...autoGroup, ...localGroup, ...cloudGroups];
+  }, [ollamaStatus, bedrockStatus, autoModel]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -597,7 +634,7 @@ export default function App() {
     setTermInput('');
     if (cmd.toLowerCase() === 'clear') return setTermHistory([]);
     try {
-      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
+      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...API_HEADERS }, body: JSON.stringify({ command: cmd, sessionId }) });
       const data = await res.json();
       setTermHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
     } catch {
@@ -613,7 +650,7 @@ export default function App() {
     setGitInput('');
     if (cmd.toLowerCase() === 'clear') return setGitHistory([]);
     try {
-      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
+      const res  = await fetch(`${API_BASE}/api/terminal`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...API_HEADERS }, body: JSON.stringify({ command: cmd, sessionId }) });
       const data = await res.json();
       setGitHistory(prev => [...prev, ...data.output.split('\n').filter(l => l.length > 0)]);
     } catch {
@@ -627,7 +664,7 @@ export default function App() {
   // the user turn; the paused assistant turn is never recorded (no `done`), so
   // resuming simply replays the same history with the approved command(s) now
   // whitelisted in `approvedCmds`.
-  const streamGenerate = async (historyMessages, approvedCmds, approvedEdts = [], approvedCrts = []) => {
+  const streamGenerate = async (historyMessages, tokens = []) => {
     const aiMsgId = Date.now() + 1;
     setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', loading: true, steps: [], streaming: false }]);
     setIsStreaming(true);
@@ -638,8 +675,8 @@ export default function App() {
     try {
       const response = await fetch(`${API_BASE}/api/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, approvedCommands: approvedCmds, approvedEdits: approvedEdts, approvedCreations: approvedCrts })
+        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+        body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, sessionId, approvalTokens: tokens })
       });
 
       if (!response.ok) throw new Error(`Server error ${response.status}`);
@@ -663,8 +700,8 @@ export default function App() {
             m.id === aiMsgId ? { ...m, text: accText, loading: false, streaming: true } : m
           ));
         } else if (eventType === 'code') {
-          setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: data.code } }));
-          setWorkspaceOpen(true);   // summon the editor/preview when code arrives
+          // Fenced code is part of the answer, not authority to overwrite the
+          // currently selected virtual editor file.
         } else if (eventType === 'done') {
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId ? { ...m, text: accText || 'Done.', loading: false, streaming: false, settled: true } : m
@@ -707,19 +744,12 @@ export default function App() {
   const handleApproveAction = async () => {
     if (!pendingAction || isStreaming) return;
     const commandsToRun = pendingAction.commands || [];
-    // Whitelist the approved command(s) and resume the *same* turn through the
-    // agent loop — so it runs under the gateway (execute_approved), stays in the
-    // chat transcript, and its outcome can still be reflected on. convHistory
-    // ends at the user message (the paused turn recorded no answer), so replaying
-    // it with the command(s) authorised continues exactly where we left off.
     const editsToApply = pendingAction.edits || [];
     const creationsToApply = pendingAction.creations || [];
-    const newApproved = [...approvedCommands, ...commandsToRun];
-    const newApprovedEdits = [...approvedEdits, ...editsToApply];
-    const newApprovedCreations = [...approvedCreations, ...creationsToApply];
-    setApprovedCommands(newApproved);
-    setApprovedEdits(newApprovedEdits);
-    setApprovedCreations(newApprovedCreations);
+    const token = pendingAction.approvalToken;
+    if (!token) return;
+    const newTokens = [token];
+    setApprovalTokens(newTokens);
     setPendingAction(null);
     const approvedSummary = creationsToApply.length
       ? `${creationsToApply.length} new file(s)`
@@ -730,16 +760,14 @@ export default function App() {
       id: Date.now(), sender: 'ai', steps: [],
       text: `✅ Approved — resuming with ${approvedSummary} authorised…`,
     }]);
-    await streamGenerate(convHistory, newApproved, newApprovedEdits, newApprovedCreations);
+    await streamGenerate(convHistory, newTokens);
   };
 
   const handleRejectAction = () => {
     if (!pendingAction) return;
     // Reject ends the paused turn: clear both the pending action and the approval
     // whitelist, so an authorised-but-unrun command can't linger into a later turn.
-    setApprovedCommands([]);
-    setApprovedEdits([]);
-    setApprovedCreations([]);
+    setApprovalTokens([]);
     setPendingAction(null);
     setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: '❌ Rejected — the command was not run.' }]);
   };
@@ -804,9 +832,7 @@ export default function App() {
 
     // A fresh request starts with a clean approval whitelist, then streams the
     // turn (which pauses for human approval if it hits a YELLOW command).
-    setApprovedCommands([]);
-    setApprovedEdits([]);
-    setApprovedCreations([]);
+    setApprovalTokens([]);
     await streamGenerate(newHistory, []);
   };
 
@@ -919,22 +945,28 @@ export default function App() {
 
           {/* Local / Cloud inference indicator */}
           {(() => {
-            const local = selectedModel.startsWith('ollama.');
-            const tag = selectedModel.replace(/^ollama\./, '');
+            const isAuto = selectedModel === 'auto';
+            const local = isAuto || selectedModel.startsWith('ollama.');
+            const tag = isAuto ? (autoModel || '') : selectedModel.replace(/^ollama\./, '');
             const ready = local && ollamaStatus.available &&
-              ollamaStatus.models.some(m => m === tag || m.startsWith(tag + ':'));
+              (isAuto ? !!autoModel
+                      : ollamaStatus.models.some(m => m === tag || m.startsWith(tag + ':')));
             const color = local ? (ollamaStatus.available ? '#34d399' : '#fbbf24') : '#60a5fa';
-            const label = local
-              ? (ollamaStatus.available ? (ready ? 'Local · ready' : 'Local · not pulled') : 'Local · offline')
-              : 'Cloud';
+            const label = isAuto
+              ? (ollamaStatus.available ? (autoModel ? `Auto · ${tag}` : 'Auto · picking…') : 'Local · offline')
+              : (local
+                  ? (ollamaStatus.available ? (ready ? 'Local · ready' : 'Local · not pulled') : 'Local · offline')
+                  : 'Cloud');
             return (
               <div
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                title={local
-                  ? (ollamaStatus.available
-                      ? (ready ? `Running offline on ${tag}` : `Ollama is up, but "${tag}" isn't pulled. Run: ollama pull ${tag}`)
-                      : 'Ollama not reachable on :11434. Start it to run offline.')
-                  : 'Inference runs on Amazon Bedrock (cloud).'}
+                title={isAuto
+                  ? (autoModel ? `Agent auto-selected ${tag} (best installed model)` : 'The agent will pick the best installed model when you send a message.')
+                  : (local
+                      ? (ollamaStatus.available
+                          ? (ready ? `Running offline on ${tag}` : `Ollama is up, but "${tag}" isn't pulled. Run: ollama pull ${tag}`)
+                          : 'Ollama not reachable on :11434. Start it to run offline.')
+                      : 'Inference runs on Amazon Bedrock (cloud).')}
                 style={{
                   background: `${color}10`,
                   border: `1px solid ${color}28`,

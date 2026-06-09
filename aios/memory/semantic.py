@@ -9,12 +9,15 @@ no heavy model loads until the first semantic write or search.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Optional
 
 from aios import config
 from aios.memory.db import get_connection
 from aios.memory.embeddings import EmbeddingModel, VectorIndex
+
+_SEMANTIC_WRITE_LOCK = threading.Lock()
 
 
 class SemanticMemory:
@@ -48,23 +51,36 @@ class SemanticMemory:
     def add(self, text: str) -> int:
         """Persist *text*, embed it, and add the vector to the index.
 
-        The SQLite row is committed first; the vector is then added under the
-        same id and the index flushed to disk. Returns the new row/vector id.
+        The SQLite row supplies the stable vector id. If embedding, vector add,
+        or index persistence fails afterward, the row is deleted again so the
+        relational store never claims a semantic memory that cannot be retrieved.
+        Returns the new row/vector id.
         """
-        with get_connection(self.db_path) as conn:
-            cur = conn.execute(
-                "INSERT INTO semantic_memory (text_content) VALUES (?)",
-                (text,),
-            )
-            mem_id = int(cur.lastrowid)
-            # Denormalise vector_id == id for legacy-tool compatibility.
-            conn.execute(
-                "UPDATE semantic_memory SET vector_id = ? WHERE id = ?",
-                (mem_id, mem_id),
-            )
-        vector = self.embedder.encode(text)[0]
-        self.index.add(mem_id, vector)
-        self.index.persist()
+        with _SEMANTIC_WRITE_LOCK:
+            with get_connection(self.db_path) as conn:
+                cur = conn.execute(
+                    "INSERT INTO semantic_memory (text_content) VALUES (?)",
+                    (text,),
+                )
+                mem_id = int(cur.lastrowid)
+                # Denormalise vector_id == id for legacy-tool compatibility.
+                conn.execute(
+                    "UPDATE semantic_memory SET vector_id = ? WHERE id = ?",
+                    (mem_id, mem_id),
+                )
+            try:
+                vector = self.embedder.encode(text)[0]
+                self.index.add(mem_id, vector)
+                self.index.persist()
+            except Exception:
+                # Compensate the already-committed id allocation. A failed persist is
+                # atomic on disk (VectorIndex writes a temp file then replaces), so
+                # removing the DB row prevents durable DB/index drift. An in-process
+                # orphan vector is harmless because retrieval joins candidates back
+                # to existing DB rows and therefore filters it out.
+                with get_connection(self.db_path) as conn:
+                    conn.execute("DELETE FROM semantic_memory WHERE id = ?", (mem_id,))
+                raise
         return mem_id
 
     def get(self, mem_id: int) -> Optional[sqlite3.Row]:

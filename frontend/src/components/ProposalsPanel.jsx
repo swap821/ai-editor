@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import DiffView from './DiffView';
-import { API_BASE } from '../config';
+import { API_BASE, API_HEADERS } from '../config';
 
 // The agent's proposer identity — the backend refuses an apply approved by it
 // (no self-approval, §6.3). Mirror it here so the UI never sends a doomed request.
@@ -62,7 +62,7 @@ export default function ProposalsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/self-analysis/proposals?status=proposed`);
+      const res = await fetch(`${API_BASE}/api/v1/self-analysis/proposals?status=proposed`, { headers: API_HEADERS });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setProposals(data.proposals || []);
@@ -84,7 +84,7 @@ export default function ProposalsPanel() {
     try {
       const res = await fetch(`${API_BASE}/api/v1/self-analysis/proposals/${id}/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
         body: JSON.stringify({ approvedBy: approvedBy.trim() }),
       });
       const data = await res.json();
@@ -100,7 +100,7 @@ export default function ProposalsPanel() {
   const handleReject = async (id) => {
     setBusyId(id);
     try {
-      await fetch(`${API_BASE}/api/v1/self-analysis/proposals/${id}/reject`, { method: 'POST' });
+      await fetch(`${API_BASE}/api/v1/self-analysis/proposals/${id}/reject`, { method: 'POST', headers: API_HEADERS });
       await load();
     } catch (e) {
       setResults(prev => ({ ...prev, [id]: { status: 'error', reason: e.message } }));

@@ -159,6 +159,17 @@ SCOPE_ROOTS: Final[tuple[Path, ...]] = _env_scope_roots(
     "AIOS_SCOPE_ROOTS", (PROJECT_ROOT / "training_ground",)
 )
 
+#: Command prefix the agent uses to AUTO-VERIFY a just-written sandbox file by
+#: running its sibling pytest (tool_agent's force-verify-after-write — evidence
+#: over the model's narration). Must stay SCOPE-LEGAL: a BARE runner with no
+#: absolute interpreter path, because the security gateway classifies any
+#: absolute / ``..`` path in a command as out-of-scope -> RED. The sandbox-
+#: relative test path is appended at call time. The default assumes the backend
+#: runs with the project venv's ``python`` on PATH (start it from the activated
+#: venv); if it isn't, verification simply fails closed — an unrunnable check is
+#: reported FAIL/UNVERIFIED, never a false PASS.
+VERIFY_RUNNER: Final[str] = _env_str("AIOS_VERIFY_RUNNER", "python -m pytest")
+
 # --------------------------------------------------------------------------- #
 # Local LLM (Ollama) — reflection agent + planner
 # --------------------------------------------------------------------------- #
@@ -210,6 +221,9 @@ BEDROCK_ENABLED: Final[bool] = bool(BEDROCK_REGION and BEDROCK_MODEL)
 #: Interface and port uvicorn binds to when serving the API.
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
+#: Optional bearer token protecting every /api/* route. Required by startup
+#: policy whenever API_HOST is configured beyond loopback.
+API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
 #: Browser origins permitted to call the API (the Vite dev server by default).
 #: Comma-separated via ``AIOS_CORS_ORIGINS`` to add deployed front-end origins.
 API_CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
@@ -243,6 +257,7 @@ __all__ = [
     "INJECTION_VECTOR_SHIELD",
     "INJECTION_VECTOR_THRESHOLD",
     "SCOPE_ROOTS",
+    "VERIFY_RUNNER",
     "OLLAMA_HOST",
     "LLM_MODEL",
     "LLM_REQUEST_TIMEOUT_S",
@@ -256,5 +271,6 @@ __all__ = [
     "BEDROCK_ENABLED",
     "API_HOST",
     "API_PORT",
+    "API_TOKEN",
     "API_CORS_ORIGINS",
 ]
