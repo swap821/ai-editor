@@ -211,6 +211,15 @@ INDEX_CHAT: Final[bool] = _env_bool("AIOS_INDEX_CHAT", True)
 #: disable on RAM-tight hosts.
 REFLECT_ON_FAILURE: Final[bool] = _env_bool("AIOS_REFLECT_ON_FAILURE", True)
 
+#: When True, every generated turn runs the advisory alignment interpreter —
+#: one extra local LLM completion per turn — to build, persist, and stream the
+#: shared-understanding frame (plus its diagnostic observation). Set
+#: ``AIOS_INTERPRET_ALIGNMENT=false`` on RAM-tight hosts to skip interpretation
+#: entirely: chat proceeds without alignment frames, observations, or
+#: ask-pauses, while correction/evaluation endpoints keep serving previously
+#: recorded state.
+INTERPRET_ALIGNMENT: Final[bool] = _env_bool("AIOS_INTERPRET_ALIGNMENT", True)
+
 # --------------------------------------------------------------------------- #
 # Cloud LLM (AWS Bedrock) — optional, for when the local GPU can't host a model
 # --------------------------------------------------------------------------- #
@@ -289,6 +298,7 @@ __all__ = [
     "LLM_NUM_CTX",
     "INDEX_CHAT",
     "REFLECT_ON_FAILURE",
+    "INTERPRET_ALIGNMENT",
     "BEDROCK_REGION",
     "BEDROCK_MODEL",
     "BEDROCK_MAX_TOKENS",

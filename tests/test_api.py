@@ -720,6 +720,29 @@ def test_alignment_feedback_requires_observation_and_supported_outcome(
     assert unsupported.status_code == 422
 
 
+def test_alignment_interpreter_flag_off_skips_frame_and_observation(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "INTERPRET_ALIGNMENT", False)
+    before = client.get("/api/v1/alignment/evaluation").json()["total_turns"]
+
+    generated = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "plan the API"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "alignment-flag-off",
+        },
+    )
+
+    assert generated.status_code == 200
+    assert "event: alignment" not in generated.text
+    assert "event: done" in generated.text
+    summary = client.get("/api/v1/alignment/evaluation")
+    assert summary.status_code == 200
+    assert summary.json()["total_turns"] == before
+
+
 def test_conversation_correction_rejects_authority_and_requires_current_frame(
     client: TestClient,
 ) -> None:

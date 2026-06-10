@@ -310,6 +310,18 @@ def get_alignment_evaluation_store() -> AlignmentEvaluationStore:
     return AlignmentEvaluationStore()
 
 
+def get_alignment_interpreter(
+    llm: LLMClient = Depends(get_llm_client),
+) -> Optional[AlignmentInterpreter]:
+    """Provide the advisory per-turn alignment interpreter.
+
+    Returns ``None`` when :data:`aios.config.INTERPRET_ALIGNMENT` is disabled,
+    so a generated turn costs no extra local completion. Reuses the injected
+    LLM client so tests override it with fakes.
+    """
+    return AlignmentInterpreter(llm) if config.INTERPRET_ALIGNMENT else None
+
+
 # --------------------------------------------------------------------------- #
 # Request models
 # --------------------------------------------------------------------------- #
@@ -1232,6 +1244,7 @@ def generate(
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
     alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
+    alignment_interpreter: Optional[AlignmentInterpreter] = Depends(get_alignment_interpreter),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -1288,58 +1301,63 @@ def generate(
         # 1. Understand + apply the deterministic communication policy + recall.
         #    The alignment frame is advisory. Its communication policy may pause
         #    a context-free request to ask a question, but it has no execution or
-        #    approval authority and is never treated as evidence.
-        base_alignment = AlignmentInterpreter(planner_llm).understand(chat_messages)
-        alignment = base_alignment
-        active_correction = conversation_state.active_correction(session_id)
-        if active_correction is not None:
+        #    approval authority and is never treated as evidence. When the
+        #    interpreter is disabled (AIOS_INTERPRET_ALIGNMENT=false) the turn
+        #    skips interpretation entirely: no frame, observation, or ask-pause.
+        context_parts: list[str] = []
+        alignment = None
+        if alignment_interpreter is not None:
+            base_alignment = alignment_interpreter.understand(chat_messages)
+            alignment = base_alignment
+            active_correction = conversation_state.active_correction(session_id)
+            if active_correction is not None:
+                try:
+                    alignment = apply_user_corrections(
+                        alignment,
+                        active_correction["corrections"],
+                        revision=int(active_correction["revision"]),
+                    )
+                except (TypeError, ValueError):
+                    # Corrupt optional continuity state must never break chat or
+                    # silently gain authority.
+                    pass
+            context_parts.append(alignment.to_prompt_block())
+            alignment_payload = alignment.as_dict()
+            base_alignment_payload = base_alignment.as_dict()
             try:
-                alignment = apply_user_corrections(
-                    alignment,
-                    active_correction["corrections"],
-                    revision=int(active_correction["revision"]),
+                observation_id = (
+                    alignment_evaluation.latest_observation_id(session_id)
+                    if req.approval_tokens
+                    else alignment_evaluation.record(session_id, alignment_payload)
                 )
-            except (TypeError, ValueError):
-                # Corrupt optional continuity state must never break chat or
-                # silently gain authority.
+                if observation_id is not None:
+                    alignment_payload["evaluation"] = {
+                        "observation_id": observation_id,
+                        "automatic_policy_updates": False,
+                    }
+                    base_alignment_payload["evaluation"] = alignment_payload["evaluation"]
+            except Exception:  # noqa: BLE001 - evaluation must never break the chat
                 pass
-        context_parts: list[str] = [alignment.to_prompt_block()]
-        alignment_payload = alignment.as_dict()
-        base_alignment_payload = base_alignment.as_dict()
-        try:
-            observation_id = (
-                alignment_evaluation.latest_observation_id(session_id)
-                if req.approval_tokens
-                else alignment_evaluation.record(session_id, alignment_payload)
-            )
-            if observation_id is not None:
-                alignment_payload["evaluation"] = {
-                    "observation_id": observation_id,
-                    "automatic_policy_updates": False,
-                }
-                base_alignment_payload["evaluation"] = alignment_payload["evaluation"]
-        except Exception:  # noqa: BLE001 - evaluation must never break the chat
-            pass
-        try:
-            if active_correction is not None and alignment.correction.active:
-                conversation_state.refresh_active_correction(
-                    session_id,
-                    base_frame=base_alignment_payload,
-                    corrected_frame=alignment_payload,
-                )
-            else:
-                conversation_state.save(session_id, alignment_payload)
-        except Exception:  # noqa: BLE001 - continuity must never break the chat
-            pass
-        yield _sse("alignment", alignment_payload)
-        if alignment.communication.ambiguity_action == "ask":
-            question = alignment.communication.clarifying_question
-            _record_episode(session_id, "user", user_text)
-            _record_episode(session_id, "assistant", question)
-            approvals.clear_session(session_id)
-            yield _sse("text_chunk", {"text": question})
-            yield _sse("done", {})
-            return
+            try:
+                if active_correction is not None and alignment.correction.active:
+                    conversation_state.refresh_active_correction(
+                        session_id,
+                        base_frame=base_alignment_payload,
+                        corrected_frame=alignment_payload,
+                    )
+                else:
+                    conversation_state.save(session_id, alignment_payload)
+            except Exception:  # noqa: BLE001 - continuity must never break the chat
+                pass
+            yield _sse("alignment", alignment_payload)
+            if alignment.communication.ambiguity_action == "ask":
+                question = alignment.communication.clarifying_question
+                _record_episode(session_id, "user", user_text)
+                _record_episode(session_id, "assistant", question)
+                approvals.clear_session(session_id)
+                yield _sse("text_chunk", {"text": question})
+                yield _sse("done", {})
+                return
 
         semantic = _recall_memory(user_text)
         if semantic:
@@ -1422,7 +1440,9 @@ def generate(
         workflow_steps: list[str] = []
         blocked_actions = 0
         verification_evidence: list[str] = []
-        communication_notice = alignment.communication_notice()
+        communication_notice = (
+            alignment.communication_notice() if alignment is not None else ""
+        )
         if communication_notice:
             answer_parts.append(communication_notice)
             yield _sse("text_chunk", {"text": communication_notice})
