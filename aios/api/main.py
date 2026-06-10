@@ -10,6 +10,8 @@ Exposes the subsystems behind versioned HTTP endpoints. Phase 3a + 3b are live:
     POST /api/v1/execute           gateway-guarded, scope-locked execution
     POST /api/v1/approval/req      human approval of an escalated action
     POST /api/v1/rollback          restore the sandbox to a prior snapshot
+    GET  /api/v1/alignment/evaluation diagnostic human-alignment evidence
+    POST /api/v1/alignment/feedback explicit human label for a visible frame
 
 Collaborators (LLM client, executor, rollback engine) are supplied via
 dependency injection so tests can override them with fakes/sandboxes and avoid
@@ -61,6 +63,7 @@ from aios.core.planner import Planner, PlannerError
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
@@ -302,6 +305,11 @@ def get_conversation_state_store() -> ConversationStateStore:
     return ConversationStateStore()
 
 
+def get_alignment_evaluation_store() -> AlignmentEvaluationStore:
+    """Provide diagnostic human-alignment evidence; it never changes policy."""
+    return AlignmentEvaluationStore()
+
+
 # --------------------------------------------------------------------------- #
 # Request models
 # --------------------------------------------------------------------------- #
@@ -448,6 +456,18 @@ class ConversationCorrectionRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class AlignmentFeedbackRequest(BaseModel):
+    """Explicit human evaluation of the latest visible understanding frame."""
+
+    session_id: str = Field(..., min_length=1, alias="sessionId")
+    observation_id: Optional[int] = Field(None, ge=1, alias="observationId")
+    outcome: str
+    issues: list[str] = Field(default_factory=list)
+    notes: str = Field("", max_length=2000)
+
+    model_config = {"populate_by_name": True}
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -496,6 +516,7 @@ def restore_conversation_session(
 def correct_conversation_alignment(
     req: ConversationCorrectionRequest,
     state: ConversationStateStore = Depends(get_conversation_state_store),
+    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
 ) -> dict[str, Any]:
     """Apply user-authored interpretation overrides; never grant authority."""
     current_payload = state.get(req.session_id)
@@ -508,16 +529,33 @@ def correct_conversation_alignment(
         merged.update(incoming)
         current = frame_from_state(current_payload)
         corrected = apply_user_corrections(current, merged, revision=1)
+        corrected_payload = corrected.as_dict()
+        evaluation_payload = current_payload.get("evaluation")
+        if isinstance(evaluation_payload, dict):
+            corrected_payload["evaluation"] = evaluation_payload
         revision, persisted = state.record_correction(
             req.session_id,
             before_frame=current_payload,
-            after_frame=corrected.as_dict(),
+            after_frame=corrected_payload,
             corrections=merged,
             corrected_fields=sorted(merged),
             expected_revision=(int(active["revision"]) if active is not None else None),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        observation_id = (
+            evaluation_payload.get("observation_id")
+            if isinstance(evaluation_payload, dict)
+            else None
+        )
+        evaluation.mark_latest_corrected(
+            req.session_id,
+            sorted(merged),
+            observation_id=int(observation_id) if observation_id else None,
+        )
+    except Exception:  # noqa: BLE001 - diagnostic evidence must never break correction
+        pass
     return {
         "alignment": persisted,
         "activeCorrection": {
@@ -526,6 +564,37 @@ def correct_conversation_alignment(
             "fields": sorted(merged),
         },
         "correctionHistory": state.correction_history(req.session_id),
+    }
+
+
+@app.get("/api/v1/alignment/evaluation")
+def alignment_evaluation_summary(
+    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
+) -> dict[str, Any]:
+    """Return diagnostic alignment evidence without changing policy."""
+    return evaluation.summary()
+
+
+@app.post("/api/v1/alignment/feedback")
+def record_alignment_feedback(
+    req: AlignmentFeedbackRequest,
+    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
+) -> dict[str, Any]:
+    """Record explicit operator feedback on the latest session observation."""
+    try:
+        observation_id = evaluation.record_feedback(
+            req.session_id,
+            outcome=req.outcome,
+            issues=req.issues,
+            notes=req.notes,
+            observation_id=req.observation_id,
+        )
+    except ValueError as exc:
+        status = 404 if "no alignment observation" in str(exc) else 422
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return {
+        "observationId": observation_id,
+        "automaticPolicyUpdates": False,
     }
 
 
@@ -538,6 +607,9 @@ def clear_conversation_alignment_correction(
     try:
         restored = state.clear_correction(req.session_id)
         alignment = frame_from_state(restored).as_dict()
+        evaluation_payload = restored.get("evaluation")
+        if isinstance(evaluation_payload, dict):
+            alignment["evaluation"] = evaluation_payload
         state.save(req.session_id, alignment)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -1159,6 +1231,7 @@ def generate(
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
+    alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -1231,18 +1304,34 @@ def generate(
                 # silently gain authority.
                 pass
         context_parts: list[str] = [alignment.to_prompt_block()]
+        alignment_payload = alignment.as_dict()
+        base_alignment_payload = base_alignment.as_dict()
+        try:
+            observation_id = (
+                alignment_evaluation.latest_observation_id(session_id)
+                if req.approval_tokens
+                else alignment_evaluation.record(session_id, alignment_payload)
+            )
+            if observation_id is not None:
+                alignment_payload["evaluation"] = {
+                    "observation_id": observation_id,
+                    "automatic_policy_updates": False,
+                }
+                base_alignment_payload["evaluation"] = alignment_payload["evaluation"]
+        except Exception:  # noqa: BLE001 - evaluation must never break the chat
+            pass
         try:
             if active_correction is not None and alignment.correction.active:
                 conversation_state.refresh_active_correction(
                     session_id,
-                    base_frame=base_alignment.as_dict(),
-                    corrected_frame=alignment.as_dict(),
+                    base_frame=base_alignment_payload,
+                    corrected_frame=alignment_payload,
                 )
             else:
-                conversation_state.save(session_id, alignment.as_dict())
+                conversation_state.save(session_id, alignment_payload)
         except Exception:  # noqa: BLE001 - continuity must never break the chat
             pass
-        yield _sse("alignment", alignment.as_dict())
+        yield _sse("alignment", alignment_payload)
         if alignment.communication.ambiguity_action == "ask":
             question = alignment.communication.clarifying_question
             _record_episode(session_id, "user", user_text)

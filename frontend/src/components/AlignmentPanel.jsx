@@ -69,11 +69,13 @@ export default function AlignmentPanel({
   correctionHistory = [],
   onCorrect,
   onClearCorrection,
+  onFeedback,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
   const [error, setError] = useState('');
+  const [feedbackStatus, setFeedbackStatus] = useState('');
   if (!frame) return null;
 
   const confidence = Number.isFinite(Number(frame.confidence))
@@ -111,6 +113,16 @@ export default function AlignmentPanel({
       setError('');
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const submitFeedback = async (outcome, issues = []) => {
+    setFeedbackStatus('');
+    try {
+      await onFeedback?.({ outcome, issues });
+      setFeedbackStatus('Feedback recorded for this understanding frame.');
+    } catch (err) {
+      setFeedbackStatus(`Feedback error: ${err.message}`);
     }
   };
 
@@ -320,6 +332,35 @@ export default function AlignmentPanel({
                   Revision {item.revision}: {words(item.status)} · {(item.corrected_fields || []).map(words).join(', ')}
                 </div>
               ))}
+            </div>
+          )}
+          {onFeedback && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{
+                color: 'var(--text-3)', fontSize: 9, fontWeight: 800,
+                letterSpacing: '0.09em', textTransform: 'uppercase', marginBottom: 4,
+              }}>
+                Human evaluation
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                <button type="button" onClick={() => submitFeedback('aligned')}>Mark aligned</button>
+                <button type="button" onClick={() => submitFeedback('misaligned', ['wrong_goal'])}>Wrong goal</button>
+                <button type="button" onClick={() => submitFeedback('misaligned', ['wrong_intent'])}>Wrong intent</button>
+                <button type="button" onClick={() => submitFeedback('misaligned', ['unnecessary_question'])}>Unnecessary question</button>
+                <button type="button" onClick={() => submitFeedback('misaligned', ['risky_assumption'])}>Risky assumption</button>
+                <button type="button" onClick={() => submitFeedback('misaligned', ['wrong_mode'])}>Wrong mode</button>
+                {correction.active && (
+                  <>
+                    <button type="button" onClick={() => submitFeedback('correction_helped')}>Correction helped</button>
+                    <button type="button" onClick={() => submitFeedback('correction_not_helpful')}>Correction not helpful</button>
+                  </>
+                )}
+              </div>
+              {feedbackStatus && (
+                <div role="status" style={{ color: 'var(--text-3)', fontSize: 9, marginTop: 4 }}>
+                  {feedbackStatus}
+                </div>
+              )}
             </div>
           )}
           <div style={{ color: 'var(--text-3)', fontSize: 9, lineHeight: 1.4 }}>

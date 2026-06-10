@@ -196,3 +196,66 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
 - Reflection/pivot: explicit correction closed the largest communication gap.
   Do not add broader automatic ambiguity blocking next; collect human correction
   evidence first and tune only from observed failure patterns.
+
+## 2026-06-10 - CEO note (Claude: concurrency call — one writer, one reviewer)
+- Situation: Codex is mid-flight on the alignment-evaluation evidence layer
+  (direct proof, final review, continuity checkpoint, repository-state check).
+  The tree is dirty with exactly that work (13 paths); no commit since 3b4b4b1.
+- Decision: **one writer per working tree.** Claude stands down from execution
+  until Codex's checkpoint lands. Concurrent edits to one dirty tree — plus
+  wholesale RESUME.md rewrites from two agents — is how a continuity system
+  corrupts itself. No exceptions for "small" fixes.
+- Division of labor (re-affirming the 06-07 model): Codex BUILDS, Claude
+  REVIEWS on evidence and gates the merge. "The other agent already proved it"
+  is never a reason to skip my own evidence pass.
+- Review gate I will run once Codex checkpoints: full backend suite (must meet
+  or beat the 375/1 baseline), focused alignment/evaluation suites, frontend
+  eslint + tests (src/... paths from frontend/) + production build,
+  `git diff --check` + secret scan, and a fresh-eyes diff review of the new
+  feedback endpoints (validation/auth posture, fail-closed behavior, and the
+  count>=3 promotion threshold's dedup semantics).
+- Risk to watch: each generated turn now adds one local completion request for
+  alignment, and `aios/config.py` has no `AIOS_ALIGNMENT*` flag — unlike
+  `AIOS_INDEX_CHAT`/`AIOS_REFLECT_ON_FAILURE`, it cannot be disabled on tight
+  runs of a 16GB Ollama box. Flag-gate it before it becomes an always-on tax.
+  And keep the layer diagnostic-only: repeated patterns are review candidates,
+  never automatic policy.
+- Queued next (after this lands, not now): return to the marquee Self-Analysis
+  pre-T2 runway — report-row dedup → coverage+radon → golden regression tests →
+  frozen-core doc → T2 propose-diff behind the YELLOW gate.
+- Gate result (11:25, addendum): Codex's closeout turn died without a
+  checkpoint — worker process exited after 100+ min with zero writes since
+  07:43, ollama idle, proof traffic stopped. The work itself was already
+  complete in the tree, so I ran the gate on the hash-pinned tree under a
+  tripwire watch: backend **383/1**, frontend eslint clean / **29 tests** /
+  build green, `diff --check` + secret scan clean, zero static-review
+  blockers. **VERDICT: PASS — recommend operator commit** (code Codex-authored;
+  credit per actual contribution). Correction to my morning risk note: the
+  per-turn model call is the slice-1 interpreter, not this evaluation layer —
+  flag-gating stays a follow-up, not a blocker. New follow-ups: clean up five
+  orphaned proof-server pythons (~1.6 cores burning); check Codex's terminal
+  for its un-persisted findings. Lesson: trigger cross-agent handoffs on
+  disk-state signals with a timeout fallback, never on a UI "working" badge.
+
+## 2026-06-10 - CEO note (Codex: Human Alignment Evaluation complete)
+- Shipped a diagnostic evidence loop before any ambiguity-policy tuning:
+  one hashed-session observation per visible understanding frame, explicit
+  human outcome/issue labels, correction attribution, aggregate metrics, and
+  repeated review candidates only after three observations.
+- Race boundary: each emitted frame carries a non-authoritative observation id;
+  feedback and correction evidence must prove that id belongs to the caller's
+  hashed session. Cross-session labels fail.
+- Trust boundary: no raw dialogue is stored in observations, optional notes are
+  secret-scrubbed and bounded, and `automatic_policy_updates` is structurally
+  false. Evidence can inform later human review but cannot authorize actions,
+  establish facts, or change communication policy.
+- Operator UX: the Alignment Panel records explicit labels; the bottom-drawer
+  Alignment Eval dashboard exposes correction, ask, assumption, outcome, issue,
+  and repeated-pattern metrics.
+- Evidence: backend **383 passed / 1 skipped** at **90%** application coverage;
+  alignment evaluation module 90% in the full gate; frontend eslint clean,
+  **29 tests passed**, and production build green; independent review found
+  zero blockers.
+- Reflection/pivot: a redundant ad-hoc proof command delayed closeout after the
+  stronger integration gate was already green. Future release gates should use
+  bounded test targets and checkpoint immediately if execution telemetry stops.

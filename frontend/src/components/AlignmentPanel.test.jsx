@@ -82,4 +82,18 @@ describe('AlignmentPanel', () => {
 
     await waitFor(() => expect(onClearCorrection).toHaveBeenCalledTimes(1));
   });
+
+  it('records explicit human alignment feedback', async () => {
+    const onFeedback = vi.fn().mockResolvedValue(undefined);
+    render(<AlignmentPanel frame={FRAME} onFeedback={onFeedback} />);
+    fireEvent.click(screen.getByRole('button', { name: /inspect details/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: /wrong goal/i }));
+
+    await waitFor(() => expect(onFeedback).toHaveBeenCalledWith({
+      outcome: 'misaligned',
+      issues: ['wrong_goal'],
+    }));
+    expect(screen.getByRole('status')).toHaveTextContent(/feedback recorded/i);
+  });
 });

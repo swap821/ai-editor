@@ -646,6 +646,80 @@ def test_user_correction_persists_reapplies_and_can_be_cleared(client: TestClien
     assert cleared_body["correctionHistory"][0]["status"] == "cleared"
 
 
+def test_alignment_evaluation_records_feedback_and_correction_evidence(
+    client: TestClient,
+) -> None:
+    before = client.get("/api/v1/alignment/evaluation").json()["total_turns"]
+    session_id = "test-alignment-evaluation"
+    generated = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "plan the API"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
+    assert generated.status_code == 200
+    alignment_event = next(
+        line[6:]
+        for line in generated.text.splitlines()
+        if line.startswith("data: ") and '"evaluation"' in line
+    )
+    observation_id = json.loads(alignment_event)["evaluation"]["observation_id"]
+
+    feedback = client.post(
+        "/api/v1/alignment/feedback",
+        json={
+            "sessionId": session_id,
+            "observationId": observation_id,
+            "outcome": "misaligned",
+            "issues": ["wrong_goal"],
+        },
+    )
+    corrected = client.post(
+        "/api/v1/conversation/correction",
+        json={"sessionId": session_id, "corrections": {"goal": "Review the API"}},
+    )
+    summary = client.get("/api/v1/alignment/evaluation")
+
+    assert feedback.status_code == 200
+    assert feedback.json()["automaticPolicyUpdates"] is False
+    assert corrected.status_code == 200
+    assert corrected.json()["alignment"]["evaluation"]["observation_id"] == observation_id
+    assert summary.status_code == 200
+    body = summary.json()
+    assert body["total_turns"] == before + 1
+    assert body["recent"][0]["corrected"] is True
+    assert body["recent"][0]["human_outcome"] == "misaligned"
+    assert body["recent"][0]["issues"] == ["wrong_goal"]
+
+    wrong_session = client.post(
+        "/api/v1/alignment/feedback",
+        json={
+            "sessionId": "another-session",
+            "observationId": observation_id,
+            "outcome": "aligned",
+        },
+    )
+    assert wrong_session.status_code == 404
+
+
+def test_alignment_feedback_requires_observation_and_supported_outcome(
+    client: TestClient,
+) -> None:
+    missing = client.post(
+        "/api/v1/alignment/feedback",
+        json={"sessionId": "missing-observation", "outcome": "aligned"},
+    )
+    unsupported = client.post(
+        "/api/v1/alignment/feedback",
+        json={"sessionId": "missing-observation", "outcome": "approved"},
+    )
+
+    assert missing.status_code == 404
+    assert unsupported.status_code == 422
+
+
 def test_conversation_correction_rejects_authority_and_requires_current_frame(
     client: TestClient,
 ) -> None:

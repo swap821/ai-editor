@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
-import { Terminal, Code, Play, Send, GitBranch, Network, Mic, FolderOpen, FileCode2, PanelLeftClose, PanelLeft, Check, X, Plus, Trash2, Sparkles, Bot } from "lucide-react";
+import { Terminal, Code, Play, Send, GitBranch, Network, Mic, FolderOpen, FileCode2, PanelLeftClose, PanelLeft, Check, X, Plus, Trash2, Sparkles, Bot, Activity } from "lucide-react";
 import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
 import AlignmentPanel from './components/AlignmentPanel';
+import AlignmentEvaluationPanel from './components/AlignmentEvaluationPanel';
 import DiffView from './components/DiffView';
 import ProposalsPanel from './components/ProposalsPanel';
 import AmbientVoid from './components/AmbientVoid';
@@ -16,6 +17,7 @@ import {
   restoreConversationSession,
 } from './lib/conversation';
 import { parseSseBuffer } from './lib/sse';
+import { submitAlignmentFeedback } from './lib/alignmentEvaluation';
 
 /* ─── Premium Resize Handles ─────────────────────────────────────────── */
 const ResizeHandle = () => (
@@ -535,6 +537,7 @@ export default function App() {
   const [convHistory, setConvHistory]  = useState([]); // Bedrock-format conversation history
   const [alignmentFrame, setAlignmentFrame] = useState(null);
   const [correctionHistory, setCorrectionHistory] = useState([]);
+  const [alignmentEvaluationRevision, setAlignmentEvaluationRevision] = useState(0);
   const [input, setInput]              = useState('');
   const [isStreaming, setIsStreaming]   = useState(false);
 
@@ -943,6 +946,14 @@ export default function App() {
     setCorrectionHistory(result.correctionHistory);
   };
 
+  const handleAlignmentFeedback = async (feedback) => {
+    await submitAlignmentFeedback(sessionId, {
+      observationId: alignmentFrame?.evaluation?.observation_id,
+      ...feedback,
+    });
+    setAlignmentEvaluationRevision(value => value + 1);
+  };
+
   /* ─── Textarea key handler ──────────────────────────────────── */
   const handleInputKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1268,10 +1279,12 @@ export default function App() {
                 </div>
 
                 <AlignmentPanel
+                  key={alignmentFrame?.evaluation?.observation_id || 'alignment-frame'}
                   frame={alignmentFrame}
                   correctionHistory={correctionHistory}
                   onCorrect={handleCorrectAlignment}
                   onClearCorrection={handleClearAlignmentCorrection}
+                  onFeedback={handleAlignmentFeedback}
                 />
 
                 {/* Messages */}
@@ -1624,6 +1637,7 @@ export default function App() {
                 { id: 'terminal', icon: <Terminal size={13} />, label: 'Terminal' },
                 { id: 'git',      icon: <GitBranch size={13} />, label: 'Git Bash' },
                 { id: 'tester',   icon: <Network size={13} />,  label: 'API & Test Hub' },
+                { id: 'alignment-evaluation', icon: <Activity size={13} />, label: 'Alignment Eval' },
                 { id: 'self-analysis', icon: <Sparkles size={13} />, label: 'Self-Analysis' },
               ].map(tab => (
                 <button
@@ -1745,6 +1759,10 @@ export default function App() {
               )}
 
               {activeBottomTab === 'tester' && <TestingDashboard />}
+
+              {activeBottomTab === 'alignment-evaluation' && (
+                <AlignmentEvaluationPanel refreshKey={alignmentEvaluationRevision} />
+              )}
 
               {activeBottomTab === 'self-analysis' && <ProposalsPanel />}
 

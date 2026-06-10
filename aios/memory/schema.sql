@@ -49,6 +49,33 @@ CREATE INDEX IF NOT EXISTS idx_conversation_corrections_session
 CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_corrections_active
     ON conversation_corrections(session_id) WHERE status = 'active';
 
+-- Human-labelled evidence about how well each visible understanding frame
+-- matched the operator's intent. This evidence is diagnostic only: it never
+-- grants authority, verifies facts, or automatically changes alignment policy.
+CREATE TABLE IF NOT EXISTS alignment_observations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id          TEXT NOT NULL,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    intent              TEXT NOT NULL,
+    communication_mode  TEXT NOT NULL,
+    ambiguity_action    TEXT NOT NULL,
+    confidence          REAL NOT NULL,
+    assumptions_count   INTEGER NOT NULL DEFAULT 0,
+    unknowns_count      INTEGER NOT NULL DEFAULT 0,
+    corrected           INTEGER NOT NULL DEFAULT 0 CHECK (corrected IN (0,1)),
+    corrected_fields_json TEXT NOT NULL DEFAULT '[]',
+    human_outcome       TEXT
+                        CHECK (human_outcome IS NULL OR human_outcome IN
+                               ('aligned','misaligned','correction_helped',
+                                'correction_not_helpful')),
+    issues_json         TEXT NOT NULL DEFAULT '[]',
+    notes               TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alignment_observations_session
+    ON alignment_observations(session_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_alignment_observations_outcome
+    ON alignment_observations(human_outcome);
+
 -- == L3: Semantic memory =====================================================
 -- Durable knowledge chunks, each bound to a FAISS vector. semantic_memory.id
 -- IS the FAISS vector id (via IndexIDMap); vector_id is kept denormalised for
