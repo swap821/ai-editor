@@ -85,6 +85,23 @@ class FakeOllama:
         }
 
 
+class CapturingOllama(FakeOllama):
+    """Chat fake that exposes the system context received by the live pipeline."""
+
+    def __init__(self) -> None:
+        self.calls: list[list] = []
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        self.calls.append(messages)
+        return super().chat(messages, tools=tools, model=model)
+
+
 class FakeOllamaYellow:
     """Ollama stand-in whose first turn calls a YELLOW (needs-approval) command."""
 
@@ -451,6 +468,211 @@ def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> Non
     body = response.text
     assert "query_knowledge" in body          # the recall step is surfaced
     assert "serves the API on port 8000" in body
+
+
+def test_generate_injects_validated_advisory_understanding_frame(client: TestClient) -> None:
+    chat = CapturingOllama()
+    app.dependency_overrides[get_ollama_client] = lambda: chat
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "start implementation"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-understanding-frame",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "event: alignment" in response.text
+    system = chat.calls[0][0]["content"]
+    assert "UNVERIFIED ADVISORY UNDERSTANDING FRAME" in system
+    assert "never authorization" in system
+    assert '"intent": "execute"' in system
+    assert '"ambiguity_action": "proceed"' in system
+
+
+def test_generate_asks_before_agent_tools_when_policy_finds_blocking_ambiguity(
+    client: TestClient,
+) -> None:
+    chat = CapturingOllama()
+    app.dependency_overrides[get_ollama_client] = lambda: chat
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "Do not assume; ask me first"}]}
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-clarify-first",
+        },
+    )
+
+    assert response.status_code == 200
+    assert '"ambiguity_action": "ask"' in response.text
+    assert "What should I clarify before proceeding?" in response.text
+    assert "event: done" in response.text
+    assert chat.calls == []
+
+
+def test_generate_states_unverified_assumptions_then_runs_normal_agent(
+    client: TestClient,
+) -> None:
+    class AssumptionLLM:
+        def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+            return json.dumps(
+                {
+                    "intent": "execute",
+                    "assumptions": ["Use the existing API shape"],
+                    "unknowns": ["Preferred response length"],
+                    "confidence": 0.72,
+                }
+            )
+
+    chat = CapturingOllama()
+    app.dependency_overrides[get_llm_client] = AssumptionLLM
+    app.dependency_overrides[get_ollama_client] = lambda: chat
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"text": "Implement the endpoint using your best judgment"}],
+                }
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-state-assumptions",
+        },
+    )
+
+    assert response.status_code == 200
+    assert '"ambiguity_action": "state_assumptions"' in response.text
+    assert "Unverified assumptions before proceeding: Use the existing API shape" in response.text
+    assert "event: code" in response.text
+    assert len(chat.calls) == 1
+
+
+def test_conversation_session_restores_alignment_and_recent_dialogue(client: TestClient) -> None:
+    session_id = "test-conversation-restore"
+    generated = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "start implementation"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
+    assert generated.status_code == 200
+
+    restored = client.post(
+        "/api/v1/conversation/session",
+        json={"sessionId": session_id},
+    )
+
+    assert restored.status_code == 200
+    body = restored.json()
+    assert body["alignment"]["intent"] == "execute"
+    assert body["alignment"]["communication"]["ambiguity_action"] == "proceed"
+    assert [message["role"] for message in body["messages"]] == ["user", "assistant"]
+    assert body["messages"][0]["content"][0]["text"] == "start implementation"
+
+
+def test_user_correction_persists_reapplies_and_can_be_cleared(client: TestClient) -> None:
+    session_id = "test-conversation-correction"
+    generated = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "plan the API"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
+    assert generated.status_code == 200
+
+    corrected = client.post(
+        "/api/v1/conversation/correction",
+        json={
+            "sessionId": session_id,
+            "corrections": {
+                "goal": "Review only the public API",
+                "intent": "review",
+                "communication_mode": "collaborative",
+                "unknowns": [],
+            },
+        },
+    )
+    assert corrected.status_code == 200
+    corrected_body = corrected.json()
+    assert corrected_body["alignment"]["goal"] == "Review only the public API"
+    assert corrected_body["alignment"]["correction"]["active"] is True
+    assert corrected_body["activeCorrection"]["fields"] == [
+        "communication_mode",
+        "goal",
+        "intent",
+        "unknowns",
+    ]
+    assert corrected_body["correctionHistory"][0]["status"] == "active"
+
+    chat = CapturingOllama()
+    app.dependency_overrides[get_ollama_client] = lambda: chat
+    continued = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "plan the API"}]},
+                {"role": "assistant", "content": [{"text": "A plan"}]},
+                {"role": "user", "content": [{"text": "continue"}]},
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
+    assert continued.status_code == 200
+    assert '"goal": "Review only the public API"' in continued.text
+    assert "USER-AUTHORED INTERPRETATION CORRECTIONS" in chat.calls[0][0]["content"]
+
+    cleared = client.post(
+        "/api/v1/conversation/correction/clear",
+        json={"sessionId": session_id},
+    )
+    assert cleared.status_code == 200
+    cleared_body = cleared.json()
+    assert cleared_body["alignment"]["goal"] != "Review only the public API"
+    assert cleared_body["alignment"]["correction"]["active"] is False
+    assert cleared_body["activeCorrection"] is None
+    assert cleared_body["correctionHistory"][0]["status"] == "cleared"
+
+
+def test_conversation_correction_rejects_authority_and_requires_current_frame(
+    client: TestClient,
+) -> None:
+    missing = client.post(
+        "/api/v1/conversation/correction",
+        json={"sessionId": "missing-frame", "corrections": {"goal": "anything"}},
+    )
+    assert missing.status_code == 404
+
+    client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "review the API"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "reject-authority-correction",
+        },
+    )
+    rejected = client.post(
+        "/api/v1/conversation/correction",
+        json={
+            "sessionId": "reject-authority-correction",
+            "corrections": {"approval": "granted"},
+        },
+    )
+
+    assert rejected.status_code == 422
+    assert "unsupported correction fields" in rejected.json()["detail"]
 
 
 class FakeReflector:

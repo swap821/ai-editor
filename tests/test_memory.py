@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 from aios.memory import db as memdb
+from aios.memory.conversation import ConversationStateStore
 from aios.memory.embeddings import EmbeddingModel, VectorIndex
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
@@ -107,6 +108,128 @@ def test_memory_migration_hashes_legacy_episodic_session_id(db_path: Path) -> No
 
     assert EpisodicMemory(db_path).count(session_id) == 1
     assert session_id.encode() not in db_path.read_bytes()
+
+
+def test_conversation_state_persists_latest_frame_under_hashed_session(db_path: Path) -> None:
+    session_id = "private-conversation-session"
+    store = ConversationStateStore(db_path)
+    store.save(session_id, {"goal": "first", "intent": "plan"})
+    store.save(session_id, {"goal": "second", "intent": "execute"})
+
+    assert store.get(session_id) == {"goal": "second", "intent": "execute"}
+    assert session_id.encode() not in db_path.read_bytes()
+
+
+def test_conversation_state_redacts_secrets_before_persistence(db_path: Path) -> None:
+    secret = "sk-" + "c" * 40
+    store = ConversationStateStore(db_path)
+    store.save("sess", {"goal": f"do not persist {secret}"})
+
+    restored = store.get("sess")
+    assert restored is not None
+    assert secret not in restored["goal"]
+    assert "REDACTED" in restored["goal"]
+    assert secret.encode() not in db_path.read_bytes()
+
+
+def test_conversation_correction_revision_supersedes_and_clears_to_base(
+    db_path: Path,
+) -> None:
+    session_id = "correction-session"
+    store = ConversationStateStore(db_path)
+    base = {"goal": "Plan the API", "correction": {"active": False}}
+    first = {"goal": "Implement the API", "correction": {"active": True, "revision": 1}}
+    revision, persisted = store.record_correction(
+        session_id,
+        before_frame=base,
+        after_frame=first,
+        corrections={"goal": "Implement the API"},
+        corrected_fields=["goal"],
+    )
+    second = {
+        "goal": "Implement the public API",
+        "correction": {"active": True, "revision": 1},
+    }
+    second_revision, second_persisted = store.record_correction(
+        session_id,
+        before_frame=persisted,
+        after_frame=second,
+        corrections={"goal": "Implement the public API"},
+        corrected_fields=["goal"],
+        expected_revision=revision,
+    )
+
+    assert persisted["correction"]["revision"] == revision
+    assert second_persisted["correction"]["revision"] == second_revision
+    assert store.active_correction(session_id)["corrections"]["goal"] == "Implement the public API"
+    assert [item["status"] for item in store.correction_history(session_id)] == [
+        "active",
+        "superseded",
+    ]
+    assert store.clear_correction(session_id) == base
+    assert store.get(session_id) == base
+    assert store.active_correction(session_id) is None
+    assert store.correction_history(session_id)[0]["status"] == "cleared"
+    assert session_id.encode() not in db_path.read_bytes()
+
+
+def test_active_correction_refresh_makes_clear_restore_latest_interpretation(
+    db_path: Path,
+) -> None:
+    store = ConversationStateStore(db_path)
+    store.record_correction(
+        "sess",
+        before_frame={"goal": "Old base"},
+        after_frame={"goal": "Corrected old base", "correction": {"active": True}},
+        corrections={"goal": "Corrected goal"},
+        corrected_fields=["goal"],
+    )
+
+    store.refresh_active_correction(
+        "sess",
+        base_frame={"goal": "Latest interpreted base"},
+        corrected_frame={"goal": "Corrected goal", "correction": {"active": True}},
+    )
+
+    assert store.clear_correction("sess") == {"goal": "Latest interpreted base"}
+
+
+def test_conversation_correction_rejects_stale_concurrent_revision(db_path: Path) -> None:
+    store = ConversationStateStore(db_path)
+    revision, _ = store.record_correction(
+        "sess",
+        before_frame={"goal": "base"},
+        after_frame={"goal": "first", "correction": {"active": True}},
+        corrections={"goal": "first"},
+        corrected_fields=["goal"],
+    )
+
+    with pytest.raises(ValueError, match="changed; retry"):
+        store.record_correction(
+            "sess",
+            before_frame={"goal": "first"},
+            after_frame={"goal": "stale", "correction": {"active": True}},
+            corrections={"goal": "stale"},
+            corrected_fields=["goal"],
+            expected_revision=revision + 1,
+        )
+
+
+def test_conversation_correction_redacts_secrets_in_history(db_path: Path) -> None:
+    secret = "sk-" + "d" * 40
+    store = ConversationStateStore(db_path)
+    store.record_correction(
+        "sess",
+        before_frame={"goal": "base"},
+        after_frame={"goal": f"use {secret}", "correction": {"active": True}},
+        corrections={"goal": f"use {secret}"},
+        corrected_fields=["goal"],
+    )
+
+    history = store.correction_history("sess")
+    assert secret not in history[0]["corrections"]["goal"]
+    assert "REDACTED" in history[0]["corrections"]["goal"]
+    assert secret.encode() not in db_path.read_bytes()
 
 
 # --------------------------------------------------------------------------- #

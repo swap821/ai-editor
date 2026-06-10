@@ -20,6 +20,35 @@ CREATE TABLE IF NOT EXISTS episodic_memory (
     content     TEXT NOT NULL
 );
 
+-- == Durable conversation alignment =========================================
+-- The latest validated UnderstandingFrame for a session. It remains advisory
+-- and unverified; persistence only restores continuity after refresh/restart.
+-- session_id is a SHA-256 digest, never the caller-supplied raw identifier.
+CREATE TABLE IF NOT EXISTS conversation_state (
+    session_id  TEXT PRIMARY KEY,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    frame_json  TEXT NOT NULL
+);
+
+-- User-authored corrections to the system's interpretation. These revisions
+-- remain communication context only, never approval or verified evidence.
+CREATE TABLE IF NOT EXISTS conversation_corrections (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id          TEXT NOT NULL,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    superseded_at       DATETIME,
+    status              TEXT NOT NULL
+                        CHECK (status IN ('active','superseded','cleared')),
+    overrides_json      TEXT NOT NULL,
+    corrected_fields_json TEXT NOT NULL,
+    before_frame_json   TEXT NOT NULL,
+    after_frame_json    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_conversation_corrections_session
+    ON conversation_corrections(session_id, id DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_corrections_active
+    ON conversation_corrections(session_id) WHERE status = 'active';
+
 -- == L3: Semantic memory =====================================================
 -- Durable knowledge chunks, each bound to a FAISS vector. semantic_memory.id
 -- IS the FAISS vector id (via IndexIDMap); vector_id is kept denormalised for

@@ -51,11 +51,18 @@ from aios.core.model_selector import (
     supports_tool_protocol,
 )
 from aios.core.approvals import ApprovalError, ApprovalStore
+from aios.core.alignment import (
+    AlignmentInterpreter,
+    apply_user_corrections,
+    frame_from_state,
+    validate_user_corrections,
+)
 from aios.core.planner import Planner, PlannerError
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.consolidation import MemoryConsolidator
+from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
@@ -290,6 +297,11 @@ def get_memory_consolidator() -> MemoryConsolidator:
     return MemoryConsolidator()
 
 
+def get_conversation_state_store() -> ConversationStateStore:
+    """Provide durable, unverified shared-understanding state."""
+    return ConversationStateStore()
+
+
 # --------------------------------------------------------------------------- #
 # Request models
 # --------------------------------------------------------------------------- #
@@ -418,6 +430,24 @@ class CurriculumTaskRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ConversationSessionRequest(BaseModel):
+    """Request restoration of one durable conversation session."""
+
+    session_id: str = Field(..., min_length=1, alias="sessionId")
+    limit: int = Field(50, ge=1, le=100)
+
+    model_config = {"populate_by_name": True}
+
+
+class ConversationCorrectionRequest(BaseModel):
+    """User-authored corrections to the current advisory interpretation."""
+
+    session_id: str = Field(..., min_length=1, alias="sessionId")
+    corrections: dict[str, Any]
+
+    model_config = {"populate_by_name": True}
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -440,6 +470,82 @@ def memory_consolidate(
 ) -> dict[str, Any]:
     """Idempotently index current verified lessons and active approved facts."""
     return consolidator.run()
+
+
+@app.post("/api/v1/conversation/session")
+def restore_conversation_session(
+    req: ConversationSessionRequest,
+    state: ConversationStateStore = Depends(get_conversation_state_store),
+) -> dict[str, Any]:
+    """Restore recent dialogue and the latest unverified alignment frame."""
+    rows = _EPISODIC.recent(req.session_id, req.limit)
+    messages = [
+        {"role": str(row["role"]), "content": [{"text": str(row["content"])}]}
+        for row in rows
+        if row["role"] in {"user", "assistant"}
+    ]
+    return {
+        "alignment": state.get(req.session_id),
+        "activeCorrection": state.active_correction(req.session_id),
+        "correctionHistory": state.correction_history(req.session_id),
+        "messages": messages,
+    }
+
+
+@app.post("/api/v1/conversation/correction")
+def correct_conversation_alignment(
+    req: ConversationCorrectionRequest,
+    state: ConversationStateStore = Depends(get_conversation_state_store),
+) -> dict[str, Any]:
+    """Apply user-authored interpretation overrides; never grant authority."""
+    current_payload = state.get(req.session_id)
+    if current_payload is None:
+        raise HTTPException(status_code=404, detail="no alignment frame exists for session")
+    try:
+        incoming = validate_user_corrections(req.corrections)
+        active = state.active_correction(req.session_id)
+        merged = dict(active["corrections"]) if active is not None else {}
+        merged.update(incoming)
+        current = frame_from_state(current_payload)
+        corrected = apply_user_corrections(current, merged, revision=1)
+        revision, persisted = state.record_correction(
+            req.session_id,
+            before_frame=current_payload,
+            after_frame=corrected.as_dict(),
+            corrections=merged,
+            corrected_fields=sorted(merged),
+            expected_revision=(int(active["revision"]) if active is not None else None),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "alignment": persisted,
+        "activeCorrection": {
+            "revision": revision,
+            "corrections": merged,
+            "fields": sorted(merged),
+        },
+        "correctionHistory": state.correction_history(req.session_id),
+    }
+
+
+@app.post("/api/v1/conversation/correction/clear")
+def clear_conversation_alignment_correction(
+    req: ConversationSessionRequest,
+    state: ConversationStateStore = Depends(get_conversation_state_store),
+) -> dict[str, Any]:
+    """Clear active user corrections and restore the superseded base frame."""
+    try:
+        restored = state.clear_correction(req.session_id)
+        alignment = frame_from_state(restored).as_dict()
+        state.save(req.session_id, alignment)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "alignment": alignment,
+        "activeCorrection": None,
+        "correctionHistory": state.correction_history(req.session_id),
+    }
 
 
 @app.post("/api/v1/memory/facts")
@@ -1052,6 +1158,7 @@ def generate(
     skills: SkillMemory = Depends(get_skill_memory),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
+    conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -1061,8 +1168,9 @@ def generate(
       2. Persist the user turn to L2 episodic memory.
       3. Run the agentic tool loop (``read_file``/``read_directory``/
          ``execute_terminal``, all gated + audited), forwarding tool activity as
-         ``step`` frames, the answer as ``text_chunk`` frames, any code as a
-         ``code`` frame, and finishing with ``done`` (or ``error``).
+         ``step`` frames, the validated advisory interpretation as an
+         ``alignment`` frame, the answer as ``text_chunk`` frames, any code as
+         a ``code`` frame, and finishing with ``done`` (or ``error``).
       4. Persist the assistant's final answer to L2 episodic memory and embed the
          completed turn into L3 semantic memory (self-reinforcing recall).
     """
@@ -1104,8 +1212,46 @@ def generate(
             yield _sse("error", {"text": "No user message provided."})
             return
 
-        # 1. Recall: relevant semantic memory + this session's pending lessons.
-        context_parts: list[str] = []
+        # 1. Understand + apply the deterministic communication policy + recall.
+        #    The alignment frame is advisory. Its communication policy may pause
+        #    a context-free request to ask a question, but it has no execution or
+        #    approval authority and is never treated as evidence.
+        base_alignment = AlignmentInterpreter(planner_llm).understand(chat_messages)
+        alignment = base_alignment
+        active_correction = conversation_state.active_correction(session_id)
+        if active_correction is not None:
+            try:
+                alignment = apply_user_corrections(
+                    alignment,
+                    active_correction["corrections"],
+                    revision=int(active_correction["revision"]),
+                )
+            except (TypeError, ValueError):
+                # Corrupt optional continuity state must never break chat or
+                # silently gain authority.
+                pass
+        context_parts: list[str] = [alignment.to_prompt_block()]
+        try:
+            if active_correction is not None and alignment.correction.active:
+                conversation_state.refresh_active_correction(
+                    session_id,
+                    base_frame=base_alignment.as_dict(),
+                    corrected_frame=alignment.as_dict(),
+                )
+            else:
+                conversation_state.save(session_id, alignment.as_dict())
+        except Exception:  # noqa: BLE001 - continuity must never break the chat
+            pass
+        yield _sse("alignment", alignment.as_dict())
+        if alignment.communication.ambiguity_action == "ask":
+            question = alignment.communication.clarifying_question
+            _record_episode(session_id, "user", user_text)
+            _record_episode(session_id, "assistant", question)
+            approvals.clear_session(session_id)
+            yield _sse("text_chunk", {"text": question})
+            yield _sse("done", {})
+            return
+
         semantic = _recall_memory(user_text)
         if semantic:
             context_parts.append(semantic)
@@ -1187,6 +1333,10 @@ def generate(
         workflow_steps: list[str] = []
         blocked_actions = 0
         verification_evidence: list[str] = []
+        communication_notice = alignment.communication_notice()
+        if communication_notice:
+            answer_parts.append(communication_notice)
+            yield _sse("text_chunk", {"text": communication_notice})
 
         def record_outcome(outcome: str) -> None:
             """Best-effort development, skill, and curriculum evidence write."""

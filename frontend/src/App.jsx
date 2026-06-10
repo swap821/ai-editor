@@ -5,10 +5,16 @@ import CodeCanvas from './components/CodeCanvas';
 import LivePreview from './components/LivePreview';
 import TestingDashboard from './components/TestingDashboard';
 import MessageBubble from './components/MessageBubble';
+import AlignmentPanel from './components/AlignmentPanel';
 import DiffView from './components/DiffView';
 import ProposalsPanel from './components/ProposalsPanel';
 import AmbientVoid from './components/AmbientVoid';
 import { API_BASE, API_HEADERS } from './config';
+import {
+  clearConversationCorrection,
+  correctConversationAlignment,
+  restoreConversationSession,
+} from './lib/conversation';
 import { parseSseBuffer } from './lib/sse';
 
 /* ─── Premium Resize Handles ─────────────────────────────────────────── */
@@ -527,6 +533,8 @@ export default function App() {
 
   const [messages, setMessages]        = useState([{ id: 1, sender: 'ai', text: 'Amazon Bedrock connected. What shall we build today?', steps: [] }]);
   const [convHistory, setConvHistory]  = useState([]); // Bedrock-format conversation history
+  const [alignmentFrame, setAlignmentFrame] = useState(null);
+  const [correctionHistory, setCorrectionHistory] = useState([]);
   const [input, setInput]              = useState('');
   const [isStreaming, setIsStreaming]   = useState(false);
 
@@ -562,6 +570,26 @@ export default function App() {
   useEffect(() => { terminalEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termHistory]);
   useEffect(() => { gitEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [gitHistory]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    restoreConversationSession(sessionId)
+      .then(restored => {
+        if (cancelled) return;
+        if (restored.alignment) {
+          setAlignmentFrame(current => current || restored.alignment);
+        }
+        setCorrectionHistory(restored.correctionHistory);
+        if (restored.history.length > 0) {
+          setConvHistory(current => current.length > 0 ? current : restored.history);
+          setMessages(current => current.length > 1 ? current : restored.messages);
+        }
+      })
+      .catch(() => {
+        // A fresh or temporarily unavailable session is a normal startup state.
+      });
+    return () => { cancelled = true; };
+  }, [sessionId]);
 
   // Probe both engines for available models. Runs on mount and on window focus,
   // so a model pulled locally or enabled in Bedrock shows up without a refresh.
@@ -708,7 +736,9 @@ export default function App() {
         let data;
         try { data = JSON.parse(rawData); } catch { return; }
 
-        if (eventType === 'step') {
+        if (eventType === 'alignment') {
+          setAlignmentFrame(data);
+        } else if (eventType === 'step') {
           accSteps = [...accSteps, data];
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId ? { ...m, steps: accSteps, loading: false } : m
@@ -881,6 +911,7 @@ export default function App() {
     if (!userText || isStreaming || pendingAction) return;
 
     setInput('');
+    setAlignmentFrame(null);
     if (isListening) recognitionRef.current?.stop();
 
     // Add user message to UI
@@ -898,6 +929,18 @@ export default function App() {
     // turn (which pauses for human approval if it hits a YELLOW command).
     setApprovalTokens([]);
     await streamGenerate(newHistory, []);
+  };
+
+  const handleCorrectAlignment = async (corrections) => {
+    const result = await correctConversationAlignment(sessionId, corrections);
+    setAlignmentFrame(result.alignment);
+    setCorrectionHistory(result.correctionHistory);
+  };
+
+  const handleClearAlignmentCorrection = async () => {
+    const result = await clearConversationCorrection(sessionId);
+    setAlignmentFrame(result.alignment);
+    setCorrectionHistory(result.correctionHistory);
   };
 
   /* ─── Textarea key handler ──────────────────────────────────── */
@@ -1223,6 +1266,13 @@ export default function App() {
                     {convHistory.length > 0 && `${Math.ceil(convHistory.length / 2)} turn${convHistory.length > 2 ? 's' : ''}`}
                   </span>
                 </div>
+
+                <AlignmentPanel
+                  frame={alignmentFrame}
+                  correctionHistory={correctionHistory}
+                  onCorrect={handleCorrectAlignment}
+                  onClearCorrection={handleClearAlignmentCorrection}
+                />
 
                 {/* Messages */}
                 <div style={{

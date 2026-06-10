@@ -28,6 +28,13 @@ describe('parseSseBuffer', () => {
     expect(frames[0].event).toBe('human_required');
   });
 
+  it('recognises an alignment frame', () => {
+    const { frames } = parseSseBuffer(
+      'event: alignment\ndata: {"goal":"understand the request","intent":"discuss"}\n\n'
+    );
+    expect(frames[0].event).toBe('alignment');
+  });
+
   it('skips a frame that has no data line', () => {
     const { frames } = parseSseBuffer('event: ping\n\nevent: done\ndata: {}\n\n');
     expect(frames).toEqual([{ event: 'done', data: '{}' }]);

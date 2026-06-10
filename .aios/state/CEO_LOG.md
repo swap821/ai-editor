@@ -120,3 +120,79 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   unchanged because they document the original design state.
 - Risk to watch: never let compatibility loaders diverge into duplicate policy.
   All substantive instruction changes belong only in `AGENTS.md`.
+
+## 2026-06-09 - CEO note (Codex: Communication Alignment slice 1)
+- Decision: better communication requires an explicit shared-understanding
+  object, but model interpretation must never become execution authority.
+- Shipped: `UnderstandingFrame` plus a fail-safe `AlignmentInterpreter` that
+  uses recent dialogue, secret-scrubs before inference, validates and bounds all
+  model output, and injects the result into live chat as unverified advisory data.
+- Evidence: backend **358 passed / 1 skipped**, 89% application coverage; the
+  new alignment module is 94% covered; focused alignment/API suite **61 passed**.
+- Highest-leverage next move: expose the validated frame over SSE and render an
+  inspectable Alignment Panel so the human can see what the system understood.
+- Risk to watch: a polished interpretation can still be wrong. Never treat frame
+  confidence, assumptions, or decisions as truth, approval, or verifier evidence.
+
+## 2026-06-09 - CEO note (Codex: Communication Alignment slice 2)
+- Shipped: every generated turn now emits its validated understanding as a
+  dedicated `alignment` SSE event, and the UI renders an inspectable Alignment
+  Panel with goal, intent, confidence, next action, and expandable details.
+- Trust boundary: the panel says plainly that the interpretation is advisory,
+  not approval or verified evidence; no correction or execution authority was added.
+- Evidence: backend **358 passed / 1 skipped**; frontend eslint clean, **19 tests**
+  passed, and production build green.
+- Highest-leverage next move: make shared conversation state durable and restore
+  it by session so refreshes/restarts do not erase alignment.
+- Risk to watch: visibility without persistence still produces repeated context,
+  and persistence without an explicit correction path can preserve bad assumptions.
+
+## 2026-06-09 - CEO note (Codex: Communication Alignment slice 3)
+- Shipped: the latest validated frame now persists under a hashed session key,
+  and a restoration API combines it with recent secret-scrubbed episodic turns.
+  The frontend restores both conversation flow and the Alignment Panel on reload.
+- Trust boundary: persistence restores unverified context only; it does not
+  promote assumptions, decisions, or confidence to facts or approvals.
+- Evidence: backend **361 passed / 1 skipped** at 89% application coverage;
+  frontend eslint clean, **21 tests** passed, and production build green.
+- Highest-leverage next move: add explicit communication modes and a deterministic
+  ambiguity policy so the system knows when to proceed versus ask.
+- Risk to watch: durable misunderstanding is worse than temporary misunderstanding.
+  Correction and reconciliation must arrive before persisted context gains influence.
+
+## 2026-06-10 - CEO note (Codex: Communication Alignment slice 4)
+- Shipped: every validated understanding frame now carries one explicit
+  communication mode (`direct`, `collaborative`, or `explanatory`) and one
+  deterministic ambiguity action (`proceed`, `state_assumptions`, or `ask`).
+- Policy: only an explicit user request to clarify first or a context-free vague
+  request can pause the agent to ask. Model-proposed uncertainty may produce an
+  explicitly unverified assumptions notice, but cannot force a pause, choose the
+  clarification wording, authorize tools, approve actions, or establish facts.
+- UX: the Alignment Panel exposes the mode, ambiguity action, policy reasons, and
+  any deterministic clarifying question.
+- Evidence: backend **366 passed / 1 skipped** at 89% application coverage;
+  alignment module 93%; focused alignment/API suite **67 passed**; frontend eslint
+  clean, **21 tests** passed, and production build green.
+- Highest-leverage next move: add a user-authored correction workflow with
+  deterministic reconciliation and durable supersession of stale frame fields.
+- Risk to watch: the narrow policy intentionally under-detects semantic ambiguity.
+  Do not broaden blocking decisions using model confidence or model-proposed unknowns.
+
+## 2026-06-10 - CEO note (Codex: Communication Alignment slices 5-6 complete)
+- Shipped: users can now correct goal, intent, desired outcome, next action,
+  communication mode, constraints, assumptions, unknowns, and decisions directly
+  from the Alignment Panel.
+- Lifecycle: corrections persist as hashed-session revisions with active,
+  superseded, and cleared states. Active overrides reapply across future turns;
+  clearing restores the latest underlying uncorrected interpretation.
+- Concurrency: optimistic revision checking refuses stale simultaneous correction
+  writes instead of silently losing a user revision.
+- Trust boundary: correction fields override interpretation for communication
+  only. They never approve tools/actions, establish facts, or become verifier
+  evidence. Unsupported authority-like fields are rejected.
+- Evidence: backend **375 passed / 1 skipped** at 89% application coverage;
+  alignment module 95%; frontend eslint clean, **24 tests** passed, and production
+  build green. Isolated live FastAPI correction/apply/clear/restore proof passed.
+- Reflection/pivot: explicit correction closed the largest communication gap.
+  Do not add broader automatic ambiguity blocking next; collect human correction
+  evidence first and tune only from observed failure patterns.

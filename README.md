@@ -39,6 +39,8 @@ FastAPI backend (`aios.api.main`)
 |------|----------------|
 | `aios/api/main.py` | FastAPI routes, SSE chat bridge, dependency injection |
 | `aios/agents/tool_agent.py` | Bounded tool loop, approval pause/resume, auto-verify after writes |
+| `aios/core/alignment.py` | Validated understanding frame plus deterministic communication/ambiguity policy |
+| `aios/memory/conversation.py` | Hashed durable alignment state for session restoration |
 | `aios/security/gateway.py` | Deterministic fail-closed zone classifier |
 | `aios/security/scope_lock.py` | Path and command scope enforcement |
 | `aios/security/audit_logger.py` | Tamper-evident audit ledger |
@@ -74,8 +76,25 @@ npm test
 npm run build
 ```
 
-Current local verification target: Python suite `350 passed, 1 skipped` at 89%
-application / 94% total coverage, plus frontend Vitest `16 passed`.
+Current local verification target: Python suite `375 passed, 1 skipped` at 89%
+application / 94% total coverage, plus frontend Vitest `24 passed`.
+
+## Communication Alignment Loop
+
+Every chat turn creates a visible, advisory `UnderstandingFrame` for the current
+goal, intent, desired outcome, constraints, assumptions, unknowns, decisions,
+confidence, next action, communication mode, and ambiguity policy.
+
+- Model-proposed interpretation is secret-scrubbed, bounded, validated, and
+  explicitly unverified.
+- Deterministic policy chooses whether to proceed, state assumptions, or ask.
+- The Alignment Panel exposes the interpretation and policy at the point of action.
+- Conversation alignment survives refresh/restart under a hashed session key.
+- Users can directly correct fields; active corrections override interpretation
+  only and never approve actions or become verified evidence.
+- Corrections are reversible and revisioned as active, superseded, or cleared.
+- Active corrections reapply across turns until cleared; clearing restores the
+  latest uncorrected interpretation.
 
 ## Brain Growth Loop
 
