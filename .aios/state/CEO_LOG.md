@@ -236,6 +236,21 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   orphaned proof-server pythons (~1.6 cores burning); check Codex's terminal
   for its un-persisted findings. Lesson: trigger cross-agent handoffs on
   disk-state signals with a timeout fallback, never on a UI "working" badge.
+- Post-commit verification (addendum 2): operator committed `ed3a5eb`. All 12
+  code files byte-identical to the gated snapshot, tree clean, dual trailers
+  present. Codex's own closeout (below) independently reconverged on the same
+  evidence (383/1, 29 tests, build green, +90% coverage). Loop closed; next:
+  flag-gate the interpreter call, then the pre-T2 runway. Orphan cleanup still
+  awaiting operator confirmation.
+- Shipped (addendum 3): orphans killed with operator approval (they were
+  Codex's five stuck proof one-liners — cmdlines confirmed), then the
+  `AIOS_INTERPRET_ALIGNMENT` flag-gate slice: provider-returns-None pattern,
+  whole alignment block (frame/SSE/observation/ask-pause) skipped when off,
+  endpoints unaffected. Evidence: focused **68 passed**, full backend **384/1**,
+  diff-check clean; frontend untouched. The off-mode test caught a real
+  UnboundLocalError pre-commit (post-loop notice used the frame
+  unconditionally) — the skip path was never walked by any prior test. One
+  AGENTS.md §XI factual line added — operator reviews it at commit per §VIII.
 
 ## 2026-06-10 - CEO note (Codex: Human Alignment Evaluation complete)
 - Shipped a diagnostic evidence loop before any ambiguity-policy tuning:
@@ -259,3 +274,61 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
 - Reflection/pivot: a redundant ad-hoc proof command delayed closeout after the
   stronger integration gate was already green. Future release gates should use
   bounded test targets and checkpoint immediately if execution telemetry stops.
+
+## 2026-06-10 - CEO note (Codex: Claude/Codex coordination v1)
+- Shipped a local disk-based coordination control plane: deterministic
+  task routing, exactly one atomic worktree writer lease, bounded
+  cross-agent inboxes, explicit dirty-tree adoption, hash-pinned handoffs, and
+  stale-tree verdict refusal.
+- Structural independence: builders cannot review or hand off to themselves;
+  reviewers remain read-only and verdicts bind to the exact handed-off tree.
+- Ease of use: `agent_coord.py brief --agent <name>` provides writer/task/inbox
+  state in one call; Claude's resume scripts and VS Code task surface its brief.
+- Honest limit: the control plane cannot wake either agent. The operator or
+  external automation still starts the recipient.
+- Live proof: this slice was routed to Codex, claimed with explicit dirty-tree
+  adoption, and Claude received an unread review-preview message through the
+  new inbox.
+- Evidence: coordination focused **12 passed** at **92%** module coverage;
+  focused coordination+API **69 passed**; full backend **396 passed / 1
+  skipped**; average radon complexity A; PowerShell syntax, compileall, and diff
+  checks clean. Bash parsing could not start because both WSL and Git Bash were
+  denied by the host before parsing.
+- Next: Claude performs a read-only hash-pinned review, then the operator decides
+  how to commit the pre-existing flag-gate slice and this coordination slice.
+
+## 2026-06-10 - CEO directive (equal Claude/Codex priority)
+- Operator directive: Claude and Codex are equally capable and receive equal
+  50/50 priority. Task categories describe work; they do not rank either agent.
+- Automatic routing now selects the currently less-used builder and alternates
+  deterministically on ties. Explicit operator assignment remains authoritative;
+  later automatic assignments rebalance toward 50/50.
+- Either agent may review the other agent's work at any time. Review remains
+  read-only, and final approval still requires the non-builder against the exact
+  hash-pinned handoff.
+- Safety clarification: inbox messages are advisory data, and agent identity is
+  honor-system metadata rather than a security boundary.
+- Evidence: coordination **13 passed**; coordination+API **75 passed**; full
+  backend **397 passed / 1 skipped**; compileall and diff checks clean.
+
+## 2026-06-10 - CEO note (Claude: both coordination slices reviewed + approved)
+- Reviewed and APPROVED two Codex slices through the new control plane itself:
+  coordination v1 (route/lease/inbox/hash-pinned handoff/drift-refused verdict;
+  396/1 reproduced; 12 invariant tests) and the operator-directed equal-priority
+  routing (397/1 reproduced; alternation + post-override rebalance proven;
+  create_task made transactional; my two doc follow-ups incorporated).
+- The protocol completed its first REAL cycles, including auto-routing my own
+  checkpoint task to me (counts 2-0 → claude). Verdicts were recorded BEFORE any
+  reviewer tree writes so the hash pins stayed valid — sequencing that matters
+  and is now reflex.
+- CEO position on 50/50: acceptable because the quality invariant was never who
+  builds — it is that the non-builder always approves against a hash-pinned
+  tree, and that survived intact (structurally tested in both directions).
+- Risk to watch: three slices are stacked uncommitted in one tree, and the
+  AGENTS.md §III-A governance text still lacks explicit operator approval
+  (§VIII). Highest-leverage next move: approve + land the three-commit plan in
+  RESUME.md before any further building.
+- Honest note: this morning's 4-hour stall was diagnosed from process forensics
+  because no protocol state existed. With leases + heartbeats live, the same
+  failure would be visible in one `brief` call. The system improved from its own
+  incident — that is the loop working.
