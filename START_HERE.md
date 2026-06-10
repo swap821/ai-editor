@@ -17,6 +17,8 @@ small helper can reopen Claude Code right where it left off.**
 - **`aios-resume.ps1`** (Windows) / **`aios-resume.sh`** (Git Bash) — the helper
   that checks "can I work right now?" and reopens Claude Code where you stopped.
 - **`.vscode/tasks.json`** — lets you run that helper from VS Code's Run Task menu.
+- **`agent_coord.py`** — local Claude/Codex inboxes, task routing, one-writer
+  lease, and hash-pinned review handoffs.
 
 ---
 
@@ -30,6 +32,22 @@ small helper can reopen Claude Code right where it left off.**
    tests) and **pauses to ask** before anything risky (edit, install, delete).
 4. Out of usage for now? Just stop — your spot is already saved in `RESUME.md`.
    When the window resets (~5 h on Pro), open the folder again and continue.
+
+## Claude + Codex working together
+
+They communicate through the ignored local control plane at
+`.aios/state/coordination.db`; neither can directly wake the other.
+
+```powershell
+.venv\Scripts\python agent_coord.py brief --agent codex
+.venv\Scripts\python agent_coord.py brief --agent claude
+```
+
+Only the active builder lease may edit. The reviewer stays read-only and records
+a verdict against the exact hash-pinned handoff tree. Claude and Codex are
+equally prioritized; automatic builder assignments balance toward 50/50, and
+either may review the other's work at any time. Full commands are in
+`.aios/coordination/README.md`.
 
 ## Verify the build is healthy anytime
 ```powershell

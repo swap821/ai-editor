@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 $ProjectDir = $PSScriptRoot
 $StateDir   = Join-Path $ProjectDir '.aios/state'
 $SidFile    = Join-Path $StateDir 'last_session_id'
-$ResumePrompt = 'Run the Session Bootstrap Protocol from AGENTS.md: read .aios/state/RESUME.md, summarise where we left off in one short paragraph, then present the single next step for my approval. Do NOT execute YELLOW or RED actions yet.'
+$ResumePrompt = 'Run the Session Bootstrap Protocol from AGENTS.md. Also run python agent_coord.py brief --agent claude and surface any inbox/handoff item. Read .aios/state/RESUME.md, summarise where we left off in one short paragraph, then present the single next step for my approval. Do NOT execute YELLOW or RED actions yet.'
 
 # Update this if Anthropic changes the limit wording. The probe is a heuristic.
 $LimitPattern = 'usage limit|rate limit|limit reached|reset|try again later|out of (usage|capacity)'

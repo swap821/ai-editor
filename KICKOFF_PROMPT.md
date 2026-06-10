@@ -17,16 +17,20 @@ Do exactly this, in order:
    entries of .aios/memory/experiences.jsonl. Summarise in one short paragraph:
    the goal, the last completed+verified step, and the single next action.
 
-2. VERIFY STATE. Run `.venv\Scripts\python -m pytest -q` and report the exact
+2. COORDINATE. Run `python agent_coord.py brief --agent claude`. Surface any
+   inbox/handoff item. Do not edit unless Claude holds the active builder lease;
+   reviewers stay read-only.
+
+3. VERIFY STATE. Run `.venv\Scripts\python -m pytest -q` and report the exact
    pass/skip/fail counts. If anything is red, that becomes the next action — fix
    it before any new feature.
 
-3. REAL INVENTORY (trust the code, not the blueprint's "~35%"). Confirm BUILT /
+4. REAL INVENTORY (trust the code, not the blueprint's "~35%"). Confirm BUILT /
    PARTIAL / MISSING with a file path + one line of evidence for: memory L2/L3/L4,
    hybrid retrieval, security gateway, audit hash-chain, reflection + mistake DB,
    planner, executor, rollback, the agentic /api/generate loop, and the React↔FastAPI wiring.
 
-4. PROPOSE the next task and a short plan. STOP and show me the plan before
+5. PROPOSE the next task and a short plan. STOP and show me the plan before
    writing any code.
 
 OPERATING RULES (every session):

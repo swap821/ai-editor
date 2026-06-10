@@ -34,6 +34,19 @@
         "clear": true
       },
       "problemMatcher": []
+    },
+    {
+      "label": "AI-OS: Claude coordination brief",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "args": ["agent_coord.py", "brief", "--agent", "claude"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
     }
   ]
 }

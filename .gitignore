@@ -32,6 +32,9 @@ training_ground/.gitkeep
 # Keep the brain + handoff (RESUME.md, memory logs) tracked for continuity,
 # but the session id is machine-specific and script-written.
 .aios/state/last_session_id
+.aios/state/coordination.db
+.aios/state/coordination.db-shm
+.aios/state/coordination.db-wal
 
 # --- Parked / source-reference artifacts (not active runtime) ---
 frontend/src/styles/App.css
