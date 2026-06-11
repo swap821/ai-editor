@@ -128,3 +128,39 @@ learned through them:
   `GET /api/v1/development/skills` · metrics: `GET /api/v1/development/metrics`
 - Planner proof: `.venv\Scripts\python curriculum_evidence_driver.py plan-proof`
 - Full frame log: `.aios/audit/curriculum-evidence-run.jsonl`
+
+---
+
+# Trail Mechanics — same day, second slice (2026-06-11 evening)
+
+Stigmergy completion slices 1-3 (reinforcement-on-reuse, negative pheromone,
+trail consolidation), designed by a 3-lens judge panel (ant-fidelity /
+evidence-integrity / minimal-diff; the evidence-integrity design won with
+grafts — the judge empirically falsified the run-length-collapse rule against
+this DB before any code was written) and live-proven immediately after:
+
+- **Migration on the live DB**: predicted no-op, observed no-op — all 10 rows
+  backfilled with `signature_v2`, zero merges, id=10 still verified 3/0,
+  every count byte-identical. (Backup at `data/backup-pre-trail-mechanics/`.)
+- **Negative pheromone, live**: a novel echo_utils prompt recalled trail
+  id=10; the turn flailed (verify-before-create) and ended verified_failure →
+  id=10 took `reuse_failure_count=1`; direct counts and verified status
+  untouched. The flail arc was honestly recorded as candidate id=11 (0/1).
+- **Reinforcement-on-reuse, live**: the retry succeeded cleanly →
+  id=10 `reuse_success_count=1`; the novel clean arc minted candidate id=12.
+- **Planner unchanged**: plan-proof still returns skill_adjustment=0.2 (cap
+  binding), skill_ids=[10].
+
+Mechanics (all env-tunable, see config.py): trail identity is now the
+arc-level `signature_v2` (goal tokens + argument-stripped tool sequence) so
+redaction noise reinforces ONE trail; ranking strength becomes
+`min(1.0, success_rate * freshness * reuse_factor)` where `reuse_factor` is a
+saturating, asymmetric (~7:1 failure:success), floored multiplier from reuse
+counters; reuse failures never refresh the evaporation clock; 3 net reuse
+failures quarantine a verified trail (recovery = fresh direct verified
+success); promotion stays direct-evidence-only and the 0.2 planner cap and
+0.72 human gate are byte-identical. Suite: **423 passed, 1 skipped**
+(15 new behavioral tests incl. old-schema migration fixtures).
+
+Known follow-ups: per-target outcome classification, dropped-grant replay
+fix, quarantine watermark if rank-thrashing is observed, lambda tuning.

@@ -394,3 +394,23 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   and only then choose the next front (container live-proof or the UI call).
   The dropped-approved-grant replay quirk deserves a product fix soon - it
   silently discards human-approved work.
+
+## 2026-06-11 - CEO note (Claude: trail mechanics landed in tree - stigmergy core complete)
+- Operator chose "100% stigmergy in core"; trail mechanics was the agreed
+  first block. Built same-session on the curriculum evidence momentum:
+  reuse reinforcement, asymmetric negative pheromone with quarantine, and
+  arc-level trail consolidation - the missing feedback loop that made skill
+  promotion need 3 artificial reps this morning.
+- Process worth keeping: the 3-lens design panel EMPIRICALLY tested its
+  consolidation rules against the live DB before code (run-length collapse
+  would have buried clean success arcs under flail arcs - rejected on data,
+  not taste). Then every mechanism was live-proven the same hour: id=10
+  stained by a failing reuse turn, credited by the succeeding retry, planner
+  cap still binding. Suite 423/1 (was 408/1 this morning).
+- CEO advice: commit as two slices, then STOP building for the day - Codex
+  returns 2026-06-16 to a large review surface (e773768 + 4 loop fixes +
+  trail mechanics). Remaining stigmergy roadmap, in order: role-pass castes
+  (Slice 2 proper, needs design), loop-integrity fixes (dropped grants,
+  per-target classification), pheromone observability endpoint, lambda
+  tuning from accumulating live data. Watch: the quarantine ratchet may
+  thrash on a recovered trail - the watermark fix is specced if observed.

@@ -1,65 +1,63 @@
 # RESUME MANIFEST
 
 ## Current goal
-Curriculum evidence front EXECUTED 2026-06-11 (task curriculum-evidence-v1,
-operator-approved). The first live brain-growth proof exists:
-`.aios/state/EVIDENCE_CURRICULUM.md` (report) +
-`.aios/audit/curriculum-evidence-run.jsonl` (raw frames). Working tree holds
-UNCOMMITTED product fixes + evidence artifacts awaiting the operator's commit
-decision. Next: operator decides commit, then picks the next front.
+Stigmergy core: operator directed "implement it 100% in core" (2026-06-11,
+scope = full stigmergy, NO concurrent agents — that verdict stands). Trail
+mechanics (task stigmergy-trail-mechanics-v1) are BUILT and LIVE-PROVEN in
+the working tree, awaiting the operator's commit decision. Evidence:
+`.aios/state/EVIDENCE_CURRICULUM.md` (Trail Mechanics section).
 
 ## Last completed and verified
-2026-06-11 (this session):
-- Live curriculum run: 6/6 tasks mastered (both held-out gates), level unlock
-  observed, first verified procedural skill (id=10, 3/3), Slice 1 foraging
-  reward live-proven (skill_adjustment=0.2 cap binding, skill_ids=[10]).
-- 4 product gaps found by the run and fixed, each test-covered:
-  1. `aios/agents/tool_agent.py` — prose tool-call rescue: multi-fenced-block,
-     `parameters`-keyed, and bare unfenced JSON shapes; first allowlisted call
-     only.
-  2. `aios/agents/tool_agent.py` — `_create_file` replay tolerance:
-     byte-identical existing content is a no-op success.
-  3. `aios/core/executor.py` — bare argv[0] now resolves through the sanitised
-     PATH (venv-first); closes Windows base-interpreter fallback AND a latent
-     sandbox-binary-planting hole.
-  4. `aios/api/main.py` — turn outcome = FINAL verify verdict (last evidence
-     wins; operator decision 2026-06-11). Was FAIL-dominant, which made any
-     task needing the verify->fix loop unmasterable.
-- New driver tooling at repo root: `curriculum_seed.json`,
-  `curriculum_evidence_driver.py` (fail-closed allowlist delegate; 2 live
-  rejections logged).
-- Full suite BEFORE closeout: **408 passed, 1 skipped** (baseline 400/1).
-  Audit chain valid (182 entries, head d0ce65b4…).
+2026-06-11 evening (this session, after the curriculum evidence run landed as
+eaafb70 + f2d3d63):
+- Trail mechanics implemented per a 3-lens judge-panel design (the panel
+  empirically tested consolidation rules against the live DB before code):
+  - `aios/memory/relevance.py`: `skill_signature_v2` (goal tokens +
+    argument-stripped tool sequence; `||` separator).
+  - `aios/memory/schema.sql` + `aios/memory/db.py::_migrate`: 5 new
+    procedural_skills columns, NULL-only backfill, verified-keeper
+    consolidation (losers → 'superseded' + superseded_by lineage, never
+    deleted), partial unique index on active signature_v2.
+  - `aios/config.py`: 6 env-tunable SKILL_REUSE_* constants (in __all__).
+  - `aios/memory/skills.py`: record_attempt keyed by signature_v2 (+
+    recipe refresh on fewer redaction markers); NEW record_reuse (verified-
+    only, success refreshes evaporation clock / failure does NOT, quarantine
+    at net 3 reuse failures); pure `_reuse_factor` (saturating, asymmetric
+    ~7:1, floored); strength = min(1.0, rate*freshness*reuse_factor).
+  - `aios/api/main.py`: record_outcome threads reuse credit to recalled
+    trails, excluding the direct-credited walked trail (direct_id).
+- 15 new behavioral tests (incl. old-schema migration fixtures). Full suite:
+  **423 passed, 1 skipped** (morning baseline 400/1; 408/1 after loop fixes).
+- LIVE proofs: migration no-op on the real DB (10 rows backfilled, zero
+  merges, id=10 verified 3/0 intact; backup at
+  `data/backup-pre-trail-mechanics/`); negative pheromone (id=10
+  reuse_failure_count=1 from a failing novel-task turn); reinforcement
+  (reuse_success_count=1 from the succeeding retry); planner cap unchanged
+  (plan-proof: skill_adjustment=0.2, skill_ids=[10]).
 
 ## Single next action
-Operator: authorize commit (suggested: slice A = product fixes + tests,
-slice B = driver/seed + .aios evidence/state) — then pick the next front:
-container live-proof, premium UI (his deferred call), or stigmergy Slice 2.
+Operator: authorize commit of the trail-mechanics slice (suggested: product
+code + tests in one commit, .aios state checkpoint in another). Then pick the
+next stigmergy block: 1) role-pass castes (Slice 2 proper — needs design),
+2) loop-integrity fixes (dropped-grant replay bug + per-target outcome
+classification), 3) pheromone observability endpoint/panel.
 
 ## Open approvals/blockers
-- Commit authorization PENDING (tree is dirty with the work above).
-- Codex POST-HOC reviews due ~2026-06-16 (inbox notified):
-  (a) e773768 (stigmergy Slice 1) — now also LIVE-PROVEN, see evidence report;
-  (b) this session's 4 product fixes (esp. the executor PATH-resolution
-      security improvement and the last-evidence-wins classification change);
-  (c) stale `correct-resume-stale-runway` verdict — findings-by-message.
+- Commit authorization PENDING for trail mechanics (tree dirty with it).
+- Codex POST-HOC reviews queued for ~2026-06-16 (inbox msgs 14 + this
+  session's trail-mechanics notice): e773768, the 4 loop fixes (eaafb70),
+  the evidence run (f2d3d63), and trail mechanics.
 - `premium-ui-v1`: still queued/deferred; operator's call.
 
 ## Notes not yet promoted
-- Replay mechanics can DROP an approved-but-not-re-issued grant (the
-  `__init__.py` case). Product follow-up: pre-apply granted writes on resume
-  or surface dropped grants. This silently discards human-approved work.
-- Last-evidence-wins should become per-target once evidence strings carry the
-  verified file/command (noted in main.py comment).
-- Skill signatures fragment across arc shapes; trail consolidation across
-  near-identical workflows is an open design question.
-- `record_matching` misses stay silent server-side; only the driver's
-  post-turn poll catches them. Consider logging unmatched verified turns.
-- Backend for live runs: start from venv with
-  `$env:AIOS_INTERPRET_ALIGNMENT='false'` (RAM lever + deterministic prompts).
-- `training_ground/__init__.py` now exists (agent-authored, delegate-applied):
-  both package-style and plain imports pass under `python -m pytest` from the
-  sandbox cwd.
+- Quarantine ratchet: a recovered trail re-quarantines after ONE more reuse
+  failure (net stays >= 3). Intended short-leash; watermark column is the
+  specced fix if rank-thrashing is observed.
+- Reuse attribution is recall-based (recalled => influenced). If over-credit
+  shows up in live data, gate on the model actually following the steps.
+- Dropped-grant replay bug + per-target classification: still open, specced.
+- SKILL_LAMBDA_DECAY + reuse constants: tune from accumulating live data.
+- Backend for live runs: venv + `$env:AIOS_INTERPRET_ALIGNMENT='false'`.
 
 ## Runtime
 Brief: `.venv\Scripts\python agent_coord.py brief --agent claude`
