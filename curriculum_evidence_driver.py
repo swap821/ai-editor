@@ -110,19 +110,23 @@ def reject_and_abort(token: str | None, session_id: str, reason: str, payload: d
     sys.exit(f"FAIL-CLOSED: rejected out-of-allowlist action — {reason}")
 
 
-def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
-    """Run one curriculum turn to completion, replaying through approvals."""
+def run_prompt(
+    prompt: str, session_id: str, model_id: str = "auto", *, role_pass: bool = False
+) -> dict[str, Any]:
+    """Run one supervised turn to completion, replaying through approvals."""
     tokens: list[str] = []
     approvals_granted: list[str] = []
     evidence: list[str] = []
     answer_parts: list[str] = []
-    log_event({"kind": "turn-start", "session": session_id, "prompt": prompt, "model": model_id})
+    log_event({"kind": "turn-start", "session": session_id, "prompt": prompt,
+               "model": model_id, "role_pass": role_pass})
     for replay in range(MAX_REPLAYS):
         body = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
             "modelId": model_id,
             "sessionId": session_id,
             "approvalTokens": tokens,
+            "rolePass": role_pass,
         }
         resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
         resp.raise_for_status()
@@ -305,6 +309,25 @@ def cmd_reps(args: argparse.Namespace) -> None:
     cmd_status(args)
 
 
+def cmd_trails(_: argparse.Namespace) -> None:
+    """Print the pheromone map: computed trail strengths, decay, reuse, lineage."""
+    resp = requests.get(f"{BASE}/api/v1/development/trails", timeout=60)
+    resp.raise_for_status()
+    data = resp.json()
+    print(f"summary: {json.dumps(data['summary'])}")
+    print(f"constants: {json.dumps(data['constants'])}")
+    for t in data["trails"]:
+        mark = "Q" if t["quarantined"] else ("V" if t["status"] == "verified" else "c")
+        print(
+            f"  [{mark}] #{t['skill_id']} strength={t['strength']:.4f} "
+            f"(rate={t['success_rate']:.2f} fresh={t['freshness']:.4f} "
+            f"reuse={t['reuse_factor']:.4f} [{t['reuse_success_count']}+/"
+            f"{t['reuse_failure_count']}-]) :: {t['goal_pattern'][:70]}"
+        )
+    for f in data["superseded_fragments"]:
+        print(f"  [s] #{f['skill_id']} -> #{f['superseded_by']} ({f['success_count']}/{f['failure_count']})")
+
+
 def cmd_plan_proof(_: argparse.Namespace) -> None:
     """Live-prove the Slice 1 foraging reward via POST /api/v1/plan."""
     seed = load_seed()
@@ -334,9 +357,10 @@ def main() -> None:
     p_reps = sub.add_parser("reps", help="extra runs of the promotion task (resets its sandbox files)")
     p_reps.add_argument("--model", default="auto", help="modelId for the turn (e.g. ollama.llama3.1:8b)")
     sub.add_parser("plan-proof", help="show the planner's live skill_adjustment for the proof goal")
+    sub.add_parser("trails", help="print the pheromone map (computed strengths, decay, reuse, lineage)")
     args = parser.parse_args()
     {"seed": cmd_seed, "status": cmd_status, "run": cmd_run,
-     "reps": cmd_reps, "plan-proof": cmd_plan_proof}[args.cmd](args)
+     "reps": cmd_reps, "plan-proof": cmd_plan_proof, "trails": cmd_trails}[args.cmd](args)
 
 
 if __name__ == "__main__":

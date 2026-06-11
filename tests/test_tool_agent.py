@@ -261,6 +261,28 @@ def test_agent_recovers_first_of_multiple_bare_json_tool_calls() -> None:
     assert events[-1]["type"] == "done"
 
 
+def test_agent_recovers_react_style_action_line() -> None:
+    # ReAct narration ("Thought: ... Action: tool {json}") — recover the call.
+    chat = ScriptedChat([
+        {
+            "role": "assistant",
+            "content": (
+                "Thought: I should inspect the file first.\n"
+                'Action: read_file {"filepath": "training_ground/greeter.py"}'
+            ),
+        },
+        {"role": "assistant", "content": "The file was inspected."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "inspect greeter.py"}]
+    ))
+
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_call" for e in events)
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_result" for e in events)
+    assert events[-1]["type"] == "done"
+
+
 def test_agent_recovers_parameters_keyed_json_tool_call() -> None:
     # llama3.1-style prose call: arguments keyed as "parameters".
     chat = ScriptedChat([
@@ -947,6 +969,85 @@ def test_agent_create_is_noop_for_existing_identical_content(sandbox) -> None:
     ]
     assert results and "nothing to write" in results[0]["output"]
     assert f.read_text(encoding="utf-8") == "x = 1\n"   # untouched
+    assert types[-1] == "done"
+
+
+def test_agent_pre_applies_granted_creation_when_model_ignores_it(sandbox) -> None:
+    # The dropped-grant bug: a human-approved write must land even when the
+    # replayed model takes a different path and never re-issues the call.
+    chat = ScriptedChat([
+        {"role": "assistant", "content": "Everything is already in order."},
+    ])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=2,
+        approved_creations=[{"filepath": "granted.py", "content": "x = 1\n"}],
+    )
+    events = list(agent.run([{"role": "user", "content": "create granted.py"}]))
+    types = [e["type"] for e in events]
+
+    assert (sandbox / "granted.py").read_text(encoding="utf-8") == "x = 1\n"
+    pre_applied = [
+        e for e in events
+        if e["type"] == "tool_result" and str(e.get("id", "")).startswith("grant-create")
+    ]
+    assert pre_applied and "granted.py" in pre_applied[0]["output"]
+    assert "human_required" not in types
+    assert types[-1] == "done"
+
+
+def test_agent_pre_applies_granted_edit_and_skips_when_landed(sandbox) -> None:
+    f = sandbox / "mod.py"
+    f.write_text("value = 1\n", encoding="utf-8")
+    grant = [{"filepath": "mod.py", "old_string": "value = 1", "new_string": "value = 2"}]
+    chat = ScriptedChat([
+        {"role": "assistant", "content": "Nothing further to do."},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=2, approved_edits=grant,
+    ).run([{"role": "user", "content": "bump the value"}]))
+
+    assert f.read_text(encoding="utf-8") == "value = 2\n"
+    assert any(str(e.get("id", "")).startswith("grant-edit") for e in events)
+
+    # Second replay with the same grant: the edit already landed — stay quiet.
+    chat2 = ScriptedChat([
+        {"role": "assistant", "content": "Confirmed."},
+    ])
+    events2 = list(ToolAgent(
+        chat2, _executor(), max_iters=2, approved_edits=grant,
+    ).run([{"role": "user", "content": "bump the value"}]))
+
+    assert f.read_text(encoding="utf-8") == "value = 2\n"
+    assert not any(str(e.get("id", "")).startswith("grant-edit") for e in events2)
+    assert not any(e["type"] == "tool_blocked" for e in events2)
+
+
+def test_agent_edit_is_noop_when_replacement_already_present(sandbox) -> None:
+    # Replay tolerance, edit analog of the create no-op: the model re-issues
+    # an edit an earlier replay already applied; the replacement being present
+    # is success, not a dead end.
+    f = sandbox / "done.py"
+    f.write_text("value = 2\n", encoding="utf-8")
+    chat = ScriptedChat([
+        _tool_call("edit_file", {
+            "filepath": "done.py", "old_string": "value = 1", "new_string": "value = 2",
+        }),
+        {"role": "assistant", "content": "continuing"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3,
+        approved_edits=[{"filepath": "done.py", "old_string": "value = 1", "new_string": "value = 2"}],
+    ).run([{"role": "user", "content": "bump the value"}]))
+    types = [e["type"] for e in events]
+
+    assert "human_required" not in types
+    results = [
+        e for e in events
+        if e["type"] == "tool_result" and e.get("tool") == "edit_file"
+        and "nothing to change" in e.get("output", "")
+    ]
+    assert results, "an already-applied edit must report success, not block"
+    assert f.read_text(encoding="utf-8") == "value = 2\n"
     assert types[-1] == "done"
 
 

@@ -102,6 +102,10 @@ ConfirmHook = Callable[[int], None]
 #: Max reason -> act turns before the loop stops for safety.
 DEFAULT_MAX_ITERS = 5
 
+#: The loop's step-cap sentinel answer. Exported so composition layers (the
+#: role-pass conductor) can recognise it as a non-answer at a leg boundary.
+STEP_LIMIT_TEXT = "Reached the step limit and stopped for safety."
+
 
 def _atomic_write_text(target: Path, content: str, *, replace: bool) -> None:
     """Durably stage text beside *target*, then publish it atomically.
@@ -432,6 +436,15 @@ def _extract_text_tool_calls(content: object) -> list[dict[str, Any]]:
                 candidates.append(first)
         except json.JSONDecodeError:
             pass
+    for match in re.finditer(r"(?ims)^\s*action:\s*([a-z0-9_]+)\s*(\{.*)", content):
+        # ReAct-style narration ("Action: create_file {…}") — the fourth prose
+        # shape observed live. raw_decode stops at the first complete object.
+        try:
+            args_obj, _ = json.JSONDecoder().raw_decode(match.group(2))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(args_obj, dict):
+            candidates.append({"name": match.group(1), "arguments": args_obj})
     for candidate in candidates:
         if isinstance(candidate, dict):
             data: object = candidate
@@ -531,8 +544,17 @@ class ToolAgent:
         audit_log: Optional[Callable[..., object]] = None,
         planner_llm: Optional[LLMClient] = None,
         self_analysis_llm: Optional[LLMClient] = None,
+        system_prompt: Optional[str] = None,
+        allowed_tools: Optional[frozenset[str]] = None,
     ) -> None:
         self.llm = llm
+        #: Caste view (role-pass): an alternative system prompt and a hard tool
+        #: subset. ``allowed_tools`` is enforced mechanically — the specs
+        #: advertised to the model are filtered AND ``_dispatch`` denies any
+        #: disallowed name first-line, which also covers calls recovered from
+        #: prose by ``_extract_text_tool_calls``. ``None`` -> full registry.
+        self.system_prompt = system_prompt
+        self.allowed_tools = allowed_tools
         self.executor = executor
         self.model = model
         self.max_iters = max_iters
@@ -609,11 +631,24 @@ class ToolAgent:
         ``human_required`` (pauses the turn for YELLOW approval), ``text``,
         ``code``, ``done``, ``error``.
         """
-        system = SYSTEM_PROMPT
+        system = self.system_prompt or SYSTEM_PROMPT
         if self.memory_context:
-            system = f"{SYSTEM_PROMPT}\n\n{self.memory_context}"
+            system = f"{system}\n\n{self.memory_context}"
+        specs = TOOL_SPECS
+        if self.allowed_tools is not None:
+            specs = [
+                spec for spec in TOOL_SPECS
+                if str(spec["function"]["name"]) in self.allowed_tools
+            ]
         convo: list[dict[str, Any]] = [{"role": "system", "content": system}]
         convo.extend(messages)
+        if self.approved_creations or self.approved_edits:
+            # Approved writes land deterministically BEFORE the model speaks.
+            # An approval is the human deciding the write happens; it must not
+            # depend on the replayed model re-issuing the same tool call (the
+            # dropped-grant bug: a granted write silently vanished whenever the
+            # replay chose a different path).
+            yield from self._pre_apply_grants(convo)
         required_tools = _explicit_tool_requests(messages)
         nudged_tools: set[str] = set()
 
@@ -624,7 +659,7 @@ class ToolAgent:
 
         for _ in range(self.max_iters):
             try:
-                msg: dict[str, Any] = self.llm.chat(convo, tools=TOOL_SPECS, model=self.model)
+                msg: dict[str, Any] = self.llm.chat(convo, tools=specs, model=self.model)
             except LLMError as exc:
                 yield {"type": "error", "text": f"Local inference error: {exc}"}
                 return
@@ -713,12 +748,17 @@ class ToolAgent:
                         "id": call_id,
                     }
                 else:
-                    yield {
+                    result_event: dict[str, Any] = {
                         "type": "tool_result",
                         "tool": name,
                         "output": output[:_PREVIEW_LIMIT],
                         "id": call_id,
                     }
+                    if name == "verify":
+                        # The raw verified command; the API derives a per-target
+                        # classification key from it (per-target last verdict).
+                        result_event["target"] = str(args.get("command", ""))
+                    yield result_event
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
 
                 if name == "execute_terminal":
@@ -744,8 +784,50 @@ class ToolAgent:
                     yield from self._auto_verify(str(args.get("filepath", "")), index, convo)
 
         # Step cap reached without a final answer.
-        yield {"type": "text", "text": "Reached the step limit and stopped for safety."}
+        yield {"type": "text", "text": STEP_LIMIT_TEXT}
         yield {"type": "done"}
+
+    def _pre_apply_grants(self, convo: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
+        """Apply granted-but-unlanded writes through the same gated paths.
+
+        Runs at the start of a replayed turn, before the first model call.
+        Every granted creation/edit goes through ``_create_file``/``_edit_file``
+        unchanged (scope check, snapshot, audit, then the forced verify), and
+        the results are fed into ``convo`` so the replayed model starts
+        anchored to the on-disk truth. Grants that already landed on an
+        earlier replay are skipped silently; a grant that can no longer apply
+        (the file drifted after approval) surfaces as ``tool_blocked`` rather
+        than vanishing.
+        """
+        for index, (filepath, content) in enumerate(self.approved_creations.items()):
+            output, status, _ = self._create_file(filepath, content)
+            if status == "noop":
+                continue  # landed on an earlier replay
+            call_id = f"grant-create-{index}"
+            if status == "ok":
+                yield {"type": "tool_result", "tool": "create_file",
+                       "output": output[:_PREVIEW_LIMIT], "id": call_id}
+                convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
+                yield from self._auto_verify(filepath, index, convo)
+            else:
+                yield {"type": "tool_blocked", "tool": "create_file",
+                       "reason": output[:_PREVIEW_LIMIT], "id": call_id}
+                convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
+        for index, (filepath, _grant) in enumerate(self.approved_edits.items()):
+            # _edit_file substitutes the approved (old, new) pair itself.
+            output, status, _ = self._edit_file(filepath, "", "")
+            if status == "noop":
+                continue  # landed on an earlier replay
+            call_id = f"grant-edit-{index}"
+            if status == "ok":
+                yield {"type": "tool_result", "tool": "edit_file",
+                       "output": output[:_PREVIEW_LIMIT], "id": call_id}
+                convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
+                yield from self._auto_verify(filepath, index, convo)
+            else:
+                yield {"type": "tool_blocked", "tool": "edit_file",
+                       "reason": output[:_PREVIEW_LIMIT], "id": call_id}
+                convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
 
     def _reflect(
         self,
@@ -861,7 +943,8 @@ class ToolAgent:
                    "reason": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
         else:
             yield {"type": "tool_result", "tool": "verify",
-                   "output": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
+                   "output": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}",
+                   "target": command}
         convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
 
     # ----------------------------------------------------------------- finish
@@ -885,6 +968,17 @@ class ToolAgent:
         non-zero exit, timeout, or launch error) — never a security block or a
         scope denial, which are correct behaviour rather than mistakes.
         """
+        if self.allowed_tools is not None and name not in self.allowed_tools:
+            # Caste enforcement happens where tools execute, not where prompts
+            # hope — this also catches prose-rescued calls, which flow through
+            # the same dispatcher.
+            return (
+                f"[BLOCKED] tool '{name}' is not permitted for the current role. "
+                "Complete your role with the tools you have, then give your "
+                "final answer.",
+                "blocked",
+                False,
+            )
         if name == "read_file":
             return self._read_file(str(args.get("filepath", "")))
         if name == "read_directory":
@@ -983,6 +1077,18 @@ class ToolAgent:
 
         occurrences = current.count(old_string)
         if occurrences == 0:
+            if new_string and new_string in current:
+                # Replay tolerance (the edit analog of create_file's no-op): the
+                # resumable approval flow re-runs the whole turn, so the model
+                # legitimately re-issues an edit an earlier replay already
+                # applied. The replacement being present (and the original
+                # gone) means there is nothing left to write or approve.
+                return (
+                    f"{filepath} already contains the requested replacement; "
+                    "nothing to change.",
+                    "noop",
+                    False,
+                )
             return (f"[ERROR] old_string not found in {filepath}.", "blocked", False)
         if occurrences > 1:
             return (
@@ -1076,10 +1182,13 @@ class ToolAgent:
                 # Byte-identical content means nothing is written (and nothing
                 # new needs approving); report success so the loop continues to
                 # the task's remaining steps instead of dead-ending.
+                # "noop" (not "ok") so the loop reports success without forcing
+                # a redundant re-verification: auto-verify exists to verify a
+                # write that LANDED, and nothing changed on disk here.
                 return (
                     f"{filepath} already exists with exactly the requested "
                     "content; nothing to write.",
-                    "ok",
+                    "noop",
                     False,
                 )
             return (

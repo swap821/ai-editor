@@ -1418,8 +1418,10 @@ def test_generate_records_verifier_backed_development_and_skill_evidence(
     assert curriculum.matches[-1][1] is True
 
 
-class FakeOllamaVerifyFixLoop:
-    """Models the loop's own thesis: verify FAILs, the model fixes, re-verify PASSes."""
+class FakeOllamaVerifySequence:
+    """Calls verify once per configured command, then answers."""
+
+    commands: tuple[str, ...] = ("pytest -q", "pytest -q")
 
     def __init__(self) -> None:
         self.calls = 0
@@ -1429,26 +1431,49 @@ class FakeOllamaVerifyFixLoop:
 
     def chat(self, messages, *, tools=None, model=None) -> dict:
         self.calls += 1
+        if self.calls <= len(self.commands):
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "verify",
+                            "arguments": {"command": self.commands[self.calls - 1]},
+                        }
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "Verification rounds complete."}
+
+
+class FlakyThenGreenRunner:
+    """Fails the first spawned command, passes every later one."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        self.calls += 1
         if self.calls == 1:
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {"function": {"name": "verify", "arguments": {"command": "pytest broken -q"}}}
-                ],
-            }
-        if self.calls == 2:
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {"function": {"name": "verify", "arguments": {"command": "pytest -q"}}}
-                ],
-            }
-        return {"role": "assistant", "content": "Fixed and verified."}
+            return "", "1 failed", 1
+        return "1 passed", "", 0
 
 
-class SelectiveRunner:
+class GreenThenFlakyRunner:
+    """Passes the first spawned command, fails every later one."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        self.calls += 1
+        if self.calls == 1:
+            return "1 passed", "", 0
+        return "", "1 failed", 1
+
+
+class BrokenFileRunner:
     """Fails any command mentioning 'broken'; passes everything else."""
 
     def __call__(self, command, *, cwd, env, timeout_s):
@@ -1460,22 +1485,22 @@ class SelectiveRunner:
 def test_generate_self_corrected_turn_counts_as_verified_success(
     client: TestClient,
 ) -> None:
-    # Last evidence wins: a turn that fails verification, self-corrects, and
-    # ends [VERIFY PASS] is a verified_success — fail-dominant classification
-    # would make every task that needs the verify->fix loop unmasterable.
+    # Per-target last verdict: a turn that fails verification, self-corrects,
+    # and re-verifies the SAME target green is a verified_success —
+    # fail-dominant classification would make every task that needs the
+    # verify->fix loop unmasterable.
     development = RecordingDevelopment()
     skills = RecordingSkills()
     curriculum = RecordingCurriculum()
-    app.dependency_overrides[get_ollama_client] = FakeOllamaVerifyFixLoop
+    app.dependency_overrides[get_ollama_client] = FakeOllamaVerifySequence
     app.dependency_overrides[get_executor] = lambda: Executor(
-        runner=SelectiveRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=FlakyThenGreenRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
     app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
     session = "growth-self-correction"
     tokens = [
-        get_approval_store().issue("command", {"command": "pytest broken -q"}, session),
         get_approval_store().issue("command", {"command": "pytest -q"}, session),
     ]
 
@@ -1579,40 +1604,17 @@ def test_record_outcome_threads_reuse_credit_excluding_direct_trail(
 def test_generate_turn_ending_in_failure_stays_verified_failure(
     client: TestClient,
 ) -> None:
-    # The mirror case: PASS followed by a FINAL FAIL is a verified_failure —
-    # last evidence wins in both directions.
+    # The mirror case: the SAME target passing first and failing last is a
+    # verified_failure — the final verdict per target wins in both directions.
     development = RecordingDevelopment()
-
-    class FakeOllamaPassThenFail(FakeOllamaVerifyFixLoop):
-        def chat(self, messages, *, tools=None, model=None) -> dict:
-            self.calls += 1
-            if self.calls == 1:
-                return {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        {"function": {"name": "verify", "arguments": {"command": "pytest -q"}}}
-                    ],
-                }
-            if self.calls == 2:
-                return {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        {"function": {"name": "verify", "arguments": {"command": "pytest broken -q"}}}
-                    ],
-                }
-            return {"role": "assistant", "content": "Still broken."}
-
-    app.dependency_overrides[get_ollama_client] = FakeOllamaPassThenFail
+    app.dependency_overrides[get_ollama_client] = FakeOllamaVerifySequence
     app.dependency_overrides[get_executor] = lambda: Executor(
-        runner=SelectiveRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=GreenThenFlakyRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     session = "growth-regression"
     tokens = [
         get_approval_store().issue("command", {"command": "pytest -q"}, session),
-        get_approval_store().issue("command", {"command": "pytest broken -q"}, session),
     ]
 
     response = client.post(
@@ -1627,6 +1629,93 @@ def test_generate_turn_ending_in_failure_stays_verified_failure(
 
     assert response.status_code == 200
     assert development.records[-1][1] == "verified_failure"
+
+
+def test_final_pass_on_one_target_cannot_mask_anothers_failure(
+    client: TestClient,
+) -> None:
+    # PASS(test_ok.py) -> FAIL(test_broken.py) -> PASS(test_ok.py): the LAST
+    # evidence in the turn is green, but test_broken.py was never resolved —
+    # the turn must classify verified_failure (per-target, not global-last).
+    development = RecordingDevelopment()
+
+    class FakeOllamaThreeVerifies(FakeOllamaVerifySequence):
+        commands = (
+            "pytest test_ok.py -q",
+            "pytest test_broken.py -q",
+            "pytest test_ok.py -q",
+        )
+
+    app.dependency_overrides[get_ollama_client] = FakeOllamaThreeVerifies
+    app.dependency_overrides[get_executor] = lambda: Executor(
+        runner=BrokenFileRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+    )
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    session = "growth-cross-target"
+    tokens = [
+        get_approval_store().issue("command", {"command": "pytest test_ok.py -q"}, session),
+        get_approval_store().issue("command", {"command": "pytest test_broken.py -q"}, session),
+    ]
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session,
+            "approvalTokens": tokens,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.text.count("[VERIFY PASS]") >= 2
+    assert "[VERIFY FAIL]" in response.text
+    assert development.records[-1][1] == "verified_failure"
+
+
+def test_generate_role_pass_flag_runs_castes(client: TestClient) -> None:
+    # Opt-in castes: with rolePass true the turn streams the role markers and
+    # each caste's answer; one done; one development row. (The flag absent is
+    # covered by every other /api/generate test — byte-identical default.)
+    development = RecordingDevelopment()
+
+    class FakeOllamaTalkOnly:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def list_models(self) -> dict:
+            return {"available": True, "models": ["llama3.2:3b"]}
+
+        def chat(self, messages, *, tools=None, model=None) -> dict:
+            self.calls += 1
+            return {"role": "assistant", "content": f"caste answer {self.calls}"}
+
+    app.dependency_overrides[get_ollama_client] = FakeOllamaTalkOnly
+    app.dependency_overrides[get_development_tracker] = lambda: development
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "assess the request"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "role-pass-api",
+            "rolePass": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "caste: planner" in response.text
+    assert "caste: coder" in response.text
+    assert "caste: reviewer" not in response.text        # nothing written -> no review
+    answer_text = "".join(
+        json.loads(line[len("data: "):]).get("text", "")
+        for line in response.text.splitlines()
+        if line.startswith("data: ") and '"text"' in line
+    )
+    assert "caste answer 1" in answer_text and "caste answer 2" in answer_text
+    assert response.text.count("event: done") == 1
+    assert len(development.records) == 1                 # one development row per turn
+    assert development.records[-1][1] == "unverified"
 
 
 def test_growth_api_surfaces_are_non_autonomous(client: TestClient) -> None:

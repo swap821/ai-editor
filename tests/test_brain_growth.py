@@ -710,3 +710,54 @@ def test_weakened_trail_outcompeted_not_deleted(tmp_path: Path) -> None:
         SkillMemory._reuse_factor(0, 2), abs=1e-6
     )
     assert len(skills.list()) == 2                               # never deleted
+
+
+def test_trail_map_reports_computed_field_and_quarantine(tmp_path: Path) -> None:
+    skills = SkillMemory(_db(tmp_path))
+    healthy = _verified_trail(skills, "fix parser bug", ["read_file: a", "verify: p"])
+    quarantined = _verified_trail(skills, "tune the cache", ["edit_file: b", "verify: p"])
+    moment = datetime.now(timezone.utc)
+    skills.record_reuse([healthy], success=True, now=moment)
+    for _ in range(3):
+        skills.record_reuse([quarantined], success=False, now=moment)
+
+    trail_map = skills.trail_map(now=moment)
+
+    by_id = {t["skill_id"]: t for t in trail_map["trails"]}
+    assert by_id[healthy]["status"] == "verified"
+    assert by_id[healthy]["quarantined"] is False
+    assert by_id[healthy]["strength"] == pytest.approx(
+        min(1.0, 1.0 * by_id[healthy]["freshness"] * SkillMemory._reuse_factor(1, 0)),
+        abs=2e-6,
+    )
+    assert by_id[quarantined]["status"] == "candidate"
+    assert by_id[quarantined]["quarantined"] is True        # demoted by reuse, not evidence
+    assert trail_map["summary"]["quarantined"] == 1
+    assert trail_map["summary"]["verified"] == 1
+    assert trail_map["constants"]["reuse_demote_net_failures"] == (
+        config.SKILL_REUSE_DEMOTE_NET_FAILURES
+    )
+    # Strength-sorted: the healthy reinforced trail ranks first.
+    assert trail_map["trails"][0]["skill_id"] == healthy
+
+
+def test_trail_map_lists_superseded_fragments_with_lineage(tmp_path: Path) -> None:
+    path = _old_schema_db(tmp_path)
+    keeper = _insert_old_skill(path, "s1", "create the shout helper",
+                               ["create_file: noisy", "create_file: b"],
+                               status="candidate", successes=2, failures=0)
+    dupe = _insert_old_skill(path, "s2", "create the shout helper",
+                             ["create_file: clean", "create_file: b"],
+                             status="candidate", successes=1, failures=0)
+    init_memory_db(path)
+
+    trail_map = SkillMemory(path).trail_map()
+
+    assert [t["skill_id"] for t in trail_map["trails"]] == [keeper]
+    assert trail_map["superseded_fragments"] == [{
+        "skill_id": dupe,
+        "goal_pattern": "create the shout helper",
+        "superseded_by": keeper,
+        "success_count": 1,
+        "failure_count": 0,
+    }]

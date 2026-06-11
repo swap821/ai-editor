@@ -298,6 +298,86 @@ class SkillMemory:
         )
         return ranked[:limit]
 
+    def trail_map(self, *, now: Optional[datetime] = None) -> dict[str, Any]:
+        """The observable pheromone field — every trail, computed, as of *now*.
+
+        Read-only introspection for the operator: per-trail computed
+        freshness/reuse_factor/strength (candidates included, so weak and
+        quarantined trails are visible, not just the recall pool), superseded
+        fragments with their lineage, and the constants in effect — the
+        evidence base for tuning the decay/reuse constants from real usage.
+        A trail is reported ``quarantined`` when its direct evidence meets the
+        promotion rule but its status is ``candidate`` (the reuse-failure
+        demotion is the only path that produces that state).
+        """
+        moment = (now or datetime.now(timezone.utc)).replace(tzinfo=None)
+        trails: list[dict[str, Any]] = []
+        fragments: list[dict[str, Any]] = []
+        for row in self.list():
+            successes = int(row["success_count"])
+            failures = int(row["failure_count"])
+            rate = successes / max(successes + failures, 1)
+            if row["status"] == "superseded":
+                fragments.append(
+                    {
+                        "skill_id": int(row["id"]),
+                        "goal_pattern": str(row["goal_pattern"]),
+                        "superseded_by": row["superseded_by"],
+                        "success_count": successes,
+                        "failure_count": failures,
+                    }
+                )
+                continue
+            reuse_successes = int(row["reuse_success_count"] or 0)
+            reuse_failures = int(row["reuse_failure_count"] or 0)
+            freshness = math.exp(
+                -config.SKILL_LAMBDA_DECAY_PER_HOUR
+                * _hours_since(str(row["updated_at"]), moment)
+            )
+            reuse_factor = self._reuse_factor(reuse_successes, reuse_failures)
+            meets_promotion = (
+                successes >= self.min_successes and rate >= self.min_success_rate
+            )
+            trails.append(
+                {
+                    "skill_id": int(row["id"]),
+                    "goal_pattern": str(row["goal_pattern"]),
+                    "steps": row["steps"],
+                    "status": str(row["status"]),
+                    "quarantined": str(row["status"]) == "candidate" and meets_promotion,
+                    "success_count": successes,
+                    "failure_count": failures,
+                    "success_rate": round(rate, 6),
+                    "reuse_success_count": reuse_successes,
+                    "reuse_failure_count": reuse_failures,
+                    "freshness": round(freshness, 6),
+                    "reuse_factor": round(reuse_factor, 6),
+                    "strength": round(min(1.0, rate * freshness * reuse_factor), 6),
+                    "updated_at": str(row["updated_at"]),
+                    "last_reused_at": row["last_reused_at"],
+                }
+            )
+        trails.sort(key=lambda t: t["strength"], reverse=True)
+        return {
+            "trails": trails,
+            "superseded_fragments": fragments,
+            "summary": {
+                "verified": sum(1 for t in trails if t["status"] == "verified"),
+                "candidate": sum(1 for t in trails if t["status"] == "candidate"),
+                "quarantined": sum(1 for t in trails if t["quarantined"]),
+                "superseded": len(fragments),
+            },
+            "constants": {
+                "lambda_decay_per_hour": config.SKILL_LAMBDA_DECAY_PER_HOUR,
+                "reuse_boost_max": config.SKILL_REUSE_BOOST_MAX,
+                "reuse_penalty_max": config.SKILL_REUSE_PENALTY_MAX,
+                "reuse_success_k": config.SKILL_REUSE_SUCCESS_K,
+                "reuse_failure_k": config.SKILL_REUSE_FAILURE_K,
+                "reuse_factor_floor": config.SKILL_REUSE_FACTOR_FLOOR,
+                "reuse_demote_net_failures": config.SKILL_REUSE_DEMOTE_NET_FAILURES,
+            },
+        }
+
     def list(self, *, status: str | None = None) -> list[dict[str, Any]]:
         """Return skill rows as JSON-safe dictionaries."""
         init_memory_db(self.db_path)

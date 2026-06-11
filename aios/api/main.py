@@ -36,6 +36,7 @@ import aios
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
+from aios.agents.role_pass import run_role_pass
 from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import (
     Executor,
@@ -415,6 +416,10 @@ class GenerateRequest(BaseModel):
     #: New files the human has authorised this turn (the create analog of
     #: ``approvedEdits``), each ``{filepath, content}``.
     approved_creations: list[dict[str, Any]] = Field(default_factory=list, alias="approvedCreations")
+    #: Opt-in sequential role-pass castes (planner -> coder -> reviewer over
+    #: the one supervised loop). Absent/false -> the endpoint behaves
+    #: byte-identically to the single-agent loop.
+    role_pass: bool = Field(False, alias="rolePass")
 
     model_config = {"populate_by_name": True}
 
@@ -684,6 +689,16 @@ def development_skills(
 ) -> dict[str, Any]:
     """List candidate and verified procedural skills."""
     return {"skills": skills.list(status=status)}
+
+
+@app.get("/api/v1/development/trails")
+def development_trails(
+    skills: SkillMemory = Depends(get_skill_memory),
+) -> dict[str, Any]:
+    """The pheromone map: every trail's computed strength, decay, and reuse
+    evidence as of now, plus superseded-fragment lineage and the constants in
+    effect — read-only observability and the tuning evidence base."""
+    return skills.trail_map()
 
 
 @app.get("/api/v1/development/curriculum")
@@ -1139,6 +1154,21 @@ def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict
         return []
 
 
+def _verify_target_key(command: str) -> str:
+    """Classification key for one verification target.
+
+    The same file is legitimately verified through different command
+    spellings within one turn (the forced auto-verify vs the model's own
+    pytest call), so the key is the basename of the first ``.py`` token. A
+    suite-wide verify with no file token keys on the whole command — a
+    whole-suite FAIL must be resolved by a whole-suite PASS.
+    """
+    for token in command.replace('"', " ").replace("'", " ").split():
+        if token.endswith(".py"):
+            return token.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return command.strip().lower() or "unattributed"
+
+
 def _workflow_step(event: dict[str, Any]) -> str:
     """Create a compact, redacted procedural step from one tool-call event."""
     name = str(event.get("tool", ""))
@@ -1415,31 +1445,36 @@ def generate(
 
         # 3. Agentic loop with recalled context + lessons + reflection + confirmation.
         #    `chat_client` is local Ollama or cloud Bedrock per the selected model.
-        agent = ToolAgent(
-            chat_client,
-            executor,
-            model=model,
-            session_id=session_id,
-            memory_context=memory_context,
-            on_failure=_make_failure_hook(reflector, session_id),
-            confirm_lesson=_make_confirm_hook(reflector, consolidator),
-            approved_commands=approved_commands,
-            approved_edits=approved_edits,
-            approved_creations=approved_creations,
-            snapshot=snapshot,
-            # The Planner needs a COMPLETION client (.complete()); pass the local
-            # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
-            # so planning always uses the local completion model.
-            planner_llm=planner_llm,
-            # Self-Analysis T2 (propose_fixes) drafts diffs with the SAME completion
-            # client (not chat_client). It only writes proposals to the report —
-            # never edits or applies source.
-            self_analysis_llm=planner_llm,
-        )
+        #    The factory exists so the role-pass castes can stamp out per-role
+        #    views (system prompt + tool subset) over the SAME gated wiring.
+        def make_agent(**overrides: Any) -> ToolAgent:
+            return ToolAgent(
+                chat_client,
+                executor,
+                model=model,
+                session_id=session_id,
+                memory_context=memory_context,
+                on_failure=_make_failure_hook(reflector, session_id),
+                confirm_lesson=_make_confirm_hook(reflector, consolidator),
+                approved_commands=approved_commands,
+                approved_edits=approved_edits,
+                approved_creations=approved_creations,
+                snapshot=snapshot,
+                # The Planner needs a COMPLETION client (.complete()); pass the local
+                # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
+                # so planning always uses the local completion model.
+                planner_llm=planner_llm,
+                # Self-Analysis T2 (propose_fixes) drafts diffs with the SAME completion
+                # client (not chat_client). It only writes proposals to the report —
+                # never edits or applies source.
+                self_analysis_llm=planner_llm,
+                **overrides,
+            )
         answer_parts: list[str] = []
         workflow_steps: list[str] = []
         blocked_actions = 0
         verification_evidence: list[str] = []
+        verify_verdicts: dict[str, str] = {}
         communication_notice = (
             alignment.communication_notice() if alignment is not None else ""
         )
@@ -1507,7 +1542,12 @@ def generate(
             except Exception:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 pass
 
-        for ev in agent.run(chat_messages):
+        event_source = (
+            run_role_pass(make_agent, chat_messages)
+            if req.role_pass
+            else make_agent().run(chat_messages)
+        )
+        for ev in event_source:
             kind = ev["type"]
             if kind in _STEP_EVENTS:
                 if kind == "tool_call":
@@ -1518,6 +1558,18 @@ def generate(
                     output = str(ev.get("output", ""))
                     if output.startswith("[VERIFY PASS]") or output.startswith("[VERIFY FAIL]"):
                         verification_evidence.append(output)
+                        raw_target = str(ev.get("target") or "")
+                        key = (
+                            _verify_target_key(raw_target)
+                            if raw_target
+                            # Unattributed evidence keys uniquely: its verdict
+                            # can never be cleared by a later PASS elsewhere
+                            # (fail-closed).
+                            else f"unattributed-{len(verification_evidence)}"
+                        )
+                        verify_verdicts[key] = (
+                            "PASS" if output.startswith("[VERIFY PASS]") else "FAIL"
+                        )
                 yield _sse("step", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])
@@ -1609,21 +1661,20 @@ def generate(
                 answer = "".join(answer_parts)
                 _record_episode(session_id, "assistant", answer)
                 _index_turn(indexer, user_text, answer)
-                # The turn's outcome is its FINAL verification verdict ("last
-                # evidence wins"): the loop's whole design is verify -> reflect
-                # -> fix, so a turn that fails, self-corrects, and ends green IS
-                # a verified success — under fail-dominant classification the
-                # agent could never bank a success on any task that needed its
-                # own verifier feedback (operator decision 2026-06-11).
-                # Follow-up: make this per-target once evidence carries the
-                # verified file/command, so a final PASS on one target cannot
-                # mask an earlier unresolved FAIL on another.
+                # The turn's outcome is the PER-TARGET final verdict: for every
+                # target that was verified this turn, its LAST verdict must be
+                # PASS. A turn that fails, self-corrects, and re-verifies the
+                # same target green IS a verified success — the loop's whole
+                # design is verify -> reflect -> fix (operator decision
+                # 2026-06-11, refined the same day from global last-evidence-
+                # wins) — but a final PASS on one target can no longer mask an
+                # unresolved FAIL on another.
                 if not verification_evidence:
                     record_outcome("unverified")
-                elif verification_evidence[-1].startswith("[VERIFY PASS]"):
-                    record_outcome("verified_success")
-                else:
+                elif any(v == "FAIL" for v in verify_verdicts.values()):
                     record_outcome("verified_failure")
+                else:
+                    record_outcome("verified_success")
                 approvals.clear_session(session_id)
                 yield _sse("done", {})
 
