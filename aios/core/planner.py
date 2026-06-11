@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from aios import config
@@ -24,6 +24,7 @@ from aios.core.confidence_filter import TaskStep, filter_steps
 from aios.core.llm import LLMClient
 from aios.memory.development import DevelopmentTracker
 from aios.memory.mistake import MistakeMemory
+from aios.memory.skills import SkillMemory
 
 PLAN_SYSTEM_PROMPT = """You are the planning module of a supervised AI operating system.
 Decompose the user's goal into 3 to 6 concrete, ordered sub-tasks. For each sub-task,
@@ -77,6 +78,8 @@ class Calibration:
     lesson_ids: list[int]
     outcome_attempts: int = 0
     outcome_success_rate: Optional[float] = None
+    skill_adjustment: float = 0.0
+    skill_ids: list[int] = field(default_factory=list)
 
 
 def _clamp_confidence(value: Any) -> float:
@@ -133,17 +136,20 @@ class Planner:
         threshold: float = config.CONFIDENCE_THRESHOLD,
         mistakes: Optional[MistakeMemory] = None,
         development: Optional[DevelopmentTracker] = None,
+        skills: Optional[SkillMemory] = None,
     ) -> None:
         self.llm = llm
         self.threshold = threshold
         self.mistakes = mistakes or MistakeMemory()
         self.development = development or DevelopmentTracker()
+        self.skills = skills or SkillMemory()
 
     def _calibrate(self, goal: str, step: TaskStep) -> tuple[TaskStep, Calibration]:
         """Adjust self-reported confidence using only verified external evidence."""
         query = f"{goal} {step.description}"
         lessons: list[dict[str, Any]] = []
         outcome = None
+        verified_skills: list[dict[str, Any]] = []
         try:
             lessons = self.mistakes.relevant_verified(query, limit=5)
         except Exception:  # noqa: BLE001 - planning remains available if memory is down
@@ -151,6 +157,10 @@ class Planner:
         try:
             outcome = self.development.relevant_success_rate(query)
         except Exception:  # noqa: BLE001 - planning remains available if metrics are down
+            pass
+        try:
+            verified_skills = self.skills.relevant_verified(query, limit=3)
+        except Exception:  # noqa: BLE001 - planning remains available if memory is down
             pass
 
         lesson_adjustment = max(
@@ -166,8 +176,25 @@ class Planner:
                     (outcome.success_rate - 0.5) * 0.3 * outcome.relevance,
                 ),
             )
+        # Foraging reward: a step matching strong, fresh verified workflows is
+        # encouraged upward. Bounded by SKILL_CONFIDENCE_BONUS_MAX so a trail
+        # can never single-handedly clear the human-review gate, and gated on
+        # verification (SkillMemory counts only verification-backed successes)
+        # so mere repetition cannot manufacture confidence.
+        skill_adjustment = min(
+            config.SKILL_CONFIDENCE_BONUS_MAX,
+            sum(
+                float(item["strength"]) * float(item["relevance"])
+                for item in verified_skills
+            ),
+        )
         final = round(
-            _clamp_confidence(step.confidence + lesson_adjustment + history_adjustment),
+            _clamp_confidence(
+                step.confidence
+                + lesson_adjustment
+                + history_adjustment
+                + skill_adjustment
+            ),
             6,
         )
         calibrated = TaskStep(step.step_id, step.description, final)
@@ -180,6 +207,8 @@ class Planner:
             lesson_ids=[int(item["mistake_id"]) for item in lessons],
             outcome_attempts=outcome.attempts if outcome is not None else 0,
             outcome_success_rate=outcome.success_rate if outcome is not None else None,
+            skill_adjustment=round(skill_adjustment, 6),
+            skill_ids=[int(item["skill_id"]) for item in verified_skills],
         )
         return calibrated, evidence
 

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 import pytest
 
+from aios import config
 from aios.core.planner import Planner
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.curriculum import CurriculumManager
@@ -258,6 +260,83 @@ def test_skill_memory_promotes_after_repeated_verified_success_and_regresses(
     skills.record_attempt("fix parser bug", steps, success=False)
     assert skills.relevant_verified("fix parser bug") == []
     assert skills.list()[0]["status"] == "candidate"
+
+
+def test_skill_trail_evaporates_with_disuse(tmp_path: Path) -> None:
+    skills = SkillMemory(_db(tmp_path))
+    steps = ["read_file", "edit_file", "verify"]
+    for _ in range(3):
+        skills.record_attempt("fix parser bug", steps, success=True)
+
+    fresh = skills.relevant_verified("fix parser bug")
+    assert fresh and fresh[0]["freshness"] >= 0.99
+    assert fresh[0]["strength"] == pytest.approx(fresh[0]["success_rate"], abs=1e-2)
+
+    last_used = datetime.fromisoformat(skills.list()[0]["updated_at"])
+    stale = skills.relevant_verified(
+        "fix parser bug", now=last_used + timedelta(hours=2000)
+    )
+    # Disuse evaporates the trail's pull but never deletes the verified skill.
+    assert stale and stale[0]["freshness"] < 0.05
+    assert stale[0]["strength"] < stale[0]["success_rate"]
+    assert stale[0]["skill_id"] == fresh[0]["skill_id"]
+
+
+def test_planner_rewards_matching_verified_skill() -> None:
+    class NoLessons:
+        def relevant_verified(self, query: str, limit: int = 5):
+            return []
+
+    class NoHistory:
+        def relevant_success_rate(self, query: str):
+            return None
+
+    class TrustedTrail:
+        def relevant_verified(self, query: str, limit: int = 3):
+            return [{"skill_id": 4, "strength": 0.9, "relevance": 1.0}]
+
+    plan = Planner(
+        PlanningLLM(0.6),
+        mistakes=NoLessons(),
+        development=NoHistory(),
+        skills=TrustedTrail(),
+    ).plan("deploy the api")
+
+    # 0.6 raw + min(0.2, 0.9 * 1.0) -> 0.8, lifting the step over the gate.
+    assert plan.calibrations[0].skill_ids == [4]
+    assert plan.calibrations[0].skill_adjustment == pytest.approx(0.2, abs=1e-6)
+    assert plan.steps[0].confidence == pytest.approx(0.8, abs=1e-6)
+    assert plan.requires_human is False
+
+
+def test_planner_skill_reward_is_bounded() -> None:
+    class NoLessons:
+        def relevant_verified(self, query: str, limit: int = 5):
+            return []
+
+    class NoHistory:
+        def relevant_success_rate(self, query: str):
+            return None
+
+    class ManyStrongTrails:
+        def relevant_verified(self, query: str, limit: int = 3):
+            return [
+                {"skill_id": 1, "strength": 1.0, "relevance": 1.0},
+                {"skill_id": 2, "strength": 1.0, "relevance": 1.0},
+            ]
+
+    plan = Planner(
+        PlanningLLM(0.7),
+        mistakes=NoLessons(),
+        development=NoHistory(),
+        skills=ManyStrongTrails(),
+    ).plan("deploy the api")
+
+    # sum(strength * relevance) = 2.0, capped at SKILL_CONFIDENCE_BONUS_MAX.
+    assert plan.calibrations[0].skill_adjustment == pytest.approx(
+        config.SKILL_CONFIDENCE_BONUS_MAX, abs=1e-6
+    )
+    assert plan.steps[0].confidence == pytest.approx(0.9, abs=1e-6)
 
 
 def test_curriculum_requires_training_and_held_out_verifier_evidence(

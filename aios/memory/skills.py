@@ -8,13 +8,40 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, tokens
 from aios.security.secret_scanner import scan_and_redact
+
+#: SQLite ``CURRENT_TIMESTAMP`` formats emitted for ``updated_at``. Parsed
+#: locally rather than importing the twin helper in retrieval.py so this module
+#: stays free of the heavy rank-bm25/embeddings import graph.
+_TIMESTAMP_FORMATS: tuple[str, ...] = (
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S.%f",
+)
+
+
+def _hours_since(timestamp: str, now: datetime) -> float:
+    """Hours between a SQLite UTC timestamp and *now* (clamped to >= 0)."""
+    parsed: Optional[datetime] = None
+    for fmt in _TIMESTAMP_FORMATS:
+        try:
+            parsed = datetime.strptime(timestamp, fmt)
+            break
+        except ValueError:
+            continue
+    if parsed is None:
+        try:
+            parsed = datetime.fromisoformat(timestamp)
+        except ValueError:
+            return 0.0
+    return max((now - parsed).total_seconds() / 3600.0, 0.0)
 
 
 class SkillMemory:
@@ -89,10 +116,27 @@ class SkillMemory:
             )
             return skill_id
 
-    def relevant_verified(self, query: str, limit: int = 3) -> list[dict[str, Any]]:
-        """Return verified procedures relevant to a future goal."""
+    def relevant_verified(
+        self,
+        query: str,
+        limit: int = 3,
+        *,
+        now: Optional[datetime] = None,
+    ) -> list[dict[str, Any]]:
+        """Return verified procedures relevant to a future goal.
+
+        Ranking blends lexical relevance with a pheromone-style strength term:
+        ``strength = success_rate * freshness``, where ``freshness`` decays
+        exponentially with the hours since the skill was last reinforced
+        (``updated_at``). :meth:`record_attempt` bumps ``updated_at`` on every
+        attempt, so re-use keeps a trail fresh while disuse lets it evaporate
+        down the ranking — verified skills are never deleted, only out-competed
+        by fresher, higher-success peers. *now* is injectable for deterministic
+        tests.
+        """
         if not query or limit <= 0:
             return []
+        moment = (now or datetime.now(timezone.utc)).replace(tzinfo=None)
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             rows = conn.execute(
@@ -105,6 +149,9 @@ class SkillMemory:
                 continue
             successes = int(row["success_count"])
             failures = int(row["failure_count"])
+            success_rate = successes / max(successes + failures, 1)
+            age_hours = _hours_since(str(row["updated_at"]), moment)
+            freshness = math.exp(-config.SKILL_LAMBDA_DECAY_PER_HOUR * age_hours)
             ranked.append(
                 {
                     "skill_id": int(row["id"]),
@@ -112,14 +159,16 @@ class SkillMemory:
                     "steps": json.loads(str(row["steps_json"])),
                     "success_count": successes,
                     "failure_count": failures,
-                    "success_rate": round(successes / max(successes + failures, 1), 6),
+                    "success_rate": round(success_rate, 6),
+                    "freshness": round(freshness, 6),
+                    "strength": round(success_rate * freshness, 6),
                     "relevance": score,
                 }
             )
         ranked.sort(
             key=lambda item: (
                 item["relevance"],
-                item["success_rate"],
+                item["strength"],
                 item["success_count"],
             ),
             reverse=True,

@@ -130,6 +130,21 @@ RETRIEVAL_GAMMA_RECENCY: Final[float] = _env_float("AIOS_GAMMA_RECENCY", 0.30)
 RETRIEVAL_LAMBDA_DECAY_PER_HOUR: Final[float] = _env_float("AIOS_LAMBDA_DECAY", 0.05)
 
 # --------------------------------------------------------------------------- #
+# Procedural-skill "pheromone" dynamics  ->  reinforced trails persist, unused
+# ones evaporate. Mirrors the retrieval recency term but decays far slower: a
+# verified workflow is meant to outlive a single chat memory, so the default
+# half-life is ~6 days (lambda 0.005/hr) rather than ~14 hours. Every recorded
+# attempt resets a skill's clock (record_attempt bumps updated_at), so repeated
+# use keeps a trail fresh while disuse lets it fade from ranking.
+# --------------------------------------------------------------------------- #
+#: Exponential decay constant per hour for a verified skill's freshness term.
+SKILL_LAMBDA_DECAY_PER_HOUR: Final[float] = _env_float("AIOS_SKILL_LAMBDA_DECAY", 0.005)
+#: Maximum positive confidence bonus the planner may add for a step matching
+#: strong, fresh verified workflows. Bounded so a trusted trail can encourage a
+#: step but never single-handedly clear the human-review gate.
+SKILL_CONFIDENCE_BONUS_MAX: Final[float] = _env_float("AIOS_SKILL_BONUS_MAX", 0.2)
+
+# --------------------------------------------------------------------------- #
 # Security & human-in-the-loop gating
 # --------------------------------------------------------------------------- #
 #: Planner steps scoring below this confidence escalate to human review,
@@ -274,6 +289,8 @@ __all__ = [
     "RETRIEVAL_BETA_FAISS",
     "RETRIEVAL_GAMMA_RECENCY",
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",
+    "SKILL_LAMBDA_DECAY_PER_HOUR",
+    "SKILL_CONFIDENCE_BONUS_MAX",
     "CONFIDENCE_THRESHOLD",
     "MAX_RED_ACTIONS_PER_SESSION",
     "YELLOW_APPROVAL_TIMEOUT_MS",
