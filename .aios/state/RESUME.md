@@ -1,67 +1,61 @@
 # RESUME MANIFEST
 
 ## Current goal
-Stigmergy core: operator directed "implement it 100% in core" (2026-06-11,
-scope = full stigmergy, NO concurrent agents — that verdict stands). Trail
-mechanics (task stigmergy-trail-mechanics-v1) are BUILT and LIVE-PROVEN in
-the working tree, awaiting the operator's commit decision. Evidence:
-`.aios/state/EVIDENCE_CURRICULUM.md` (Trail Mechanics section).
+Stigmergy core COMPLETE per the operator's "100% in core" directive
+(2026-06-11/12, task stigmergy-core-completion-v1): trail mechanics (landed
+87fd511), loop-integrity fixes, pheromone observability, and role-pass
+castes are all built and live-exercised. Working tree holds the UNCOMMITTED
+completion slice awaiting the operator's commit decision. Evidence:
+`.aios/state/EVIDENCE_CURRICULUM.md` (Stigmergy Core Completion section).
 
 ## Last completed and verified
-2026-06-11 evening (this session, after the curriculum evidence run landed as
-eaafb70 + f2d3d63):
-- Trail mechanics implemented per a 3-lens judge-panel design (the panel
-  empirically tested consolidation rules against the live DB before code):
-  - `aios/memory/relevance.py`: `skill_signature_v2` (goal tokens +
-    argument-stripped tool sequence; `||` separator).
-  - `aios/memory/schema.sql` + `aios/memory/db.py::_migrate`: 5 new
-    procedural_skills columns, NULL-only backfill, verified-keeper
-    consolidation (losers → 'superseded' + superseded_by lineage, never
-    deleted), partial unique index on active signature_v2.
-  - `aios/config.py`: 6 env-tunable SKILL_REUSE_* constants (in __all__).
-  - `aios/memory/skills.py`: record_attempt keyed by signature_v2 (+
-    recipe refresh on fewer redaction markers); NEW record_reuse (verified-
-    only, success refreshes evaporation clock / failure does NOT, quarantine
-    at net 3 reuse failures); pure `_reuse_factor` (saturating, asymmetric
-    ~7:1, floored); strength = min(1.0, rate*freshness*reuse_factor).
-  - `aios/api/main.py`: record_outcome threads reuse credit to recalled
-    trails, excluding the direct-credited walked trail (direct_id).
-- 15 new behavioral tests (incl. old-schema migration fixtures). Full suite:
-  **423 passed, 1 skipped** (morning baseline 400/1; 408/1 after loop fixes).
-- LIVE proofs: migration no-op on the real DB (10 rows backfilled, zero
-  merges, id=10 verified 3/0 intact; backup at
-  `data/backup-pre-trail-mechanics/`); negative pheromone (id=10
-  reuse_failure_count=1 from a failing novel-task turn); reinforcement
-  (reuse_success_count=1 from the succeeding retry); planner cap unchanged
-  (plan-proof: skill_adjustment=0.2, skill_ids=[10]).
+2026-06-12 overnight (this session):
+- Loop integrity: grant pre-apply in ToolAgent.run (approved writes land
+  deterministically at replay start; dropped-grant trust bug closed); edit
+  replay tolerance + `noop` write status (no redundant re-verification);
+  per-target outcome classification in main.py (`_verify_target_key`,
+  verify events carry `target`).
+- Observability: `SkillMemory.trail_map` + GET /api/v1/development/trails +
+  driver `trails` subcommand (computed strengths, quarantine flags,
+  lineage, constants — the tuning evidence base).
+- Role-pass castes: `aios/agents/role_pass.py` (conductor over unchanged
+  ToolAgent; `system_prompt`/`allowed_tools` params; dispatch-level caste
+  enforcement; stigmergic handoff with sentinel suppression + plan-artifact
+  salvage; evidence-only review verdict; one bounded retry; opt-in
+  `rolePass` flag, default byte-identical). LIVE: architecture proven
+  (enforcement, approvals, replays, classification all correct across 6
+  attempts); 7B/8B models cannot sustain the roles — honest negative
+  result, castes await a stronger local model.
+- Rescue parser: 4th prose shape (ReAct `Action: tool {json}`).
+- Full suite: **438 passed, 1 skipped** (yesterday morning's baseline 400/1).
 
 ## Single next action
-Operator: authorize commit of the trail-mechanics slice (suggested: product
-code + tests in one commit, .aios state checkpoint in another). Then pick the
-next stigmergy block: 1) role-pass castes (Slice 2 proper — needs design),
-2) loop-integrity fixes (dropped-grant replay bug + per-target outcome
-classification), 3) pheromone observability endpoint/panel.
+Operator: authorize commit of the completion slice (suggested: product
+code + tests, then .aios state). After that: REST the codebase — Codex's
+post-hoc review queue (~2026-06-16) now holds e773768, the 4 loop fixes
+(eaafb70), trail mechanics (87fd511), and this slice. Remaining open fronts
+are unchanged: container live-proof, premium UI (operator's deferred call).
 
 ## Open approvals/blockers
-- Commit authorization PENDING for trail mechanics (tree dirty with it).
-- Codex POST-HOC reviews queued for ~2026-06-16 (inbox msgs 14 + this
-  session's trail-mechanics notice): e773768, the 4 loop fixes (eaafb70),
-  the evidence run (f2d3d63), and trail mechanics.
+- Commit authorization PENDING for the completion slice (tree dirty).
+- Codex POST-HOC reviews due ~2026-06-16 (inbox msgs 14, 15 + this slice's
+  notice when committed).
 - `premium-ui-v1`: still queued/deferred; operator's call.
+- Role-pass live capability: gated on a stronger local model (14B+ class
+  when RAM allows) — hardware/model decision, not a code task.
 
 ## Notes not yet promoted
-- Quarantine ratchet: a recovered trail re-quarantines after ONE more reuse
-  failure (net stays >= 3). Intended short-leash; watermark column is the
-  specced fix if rank-thrashing is observed.
-- Reuse attribution is recall-based (recalled => influenced). If over-credit
-  shows up in live data, gate on the model actually following the steps.
-- Dropped-grant replay bug + per-target classification: still open, specced.
-- SKILL_LAMBDA_DECAY + reuse constants: tune from accumulating live data.
-- Backend for live runs: venv + `$env:AIOS_INTERPRET_ALIGNMENT='false'`.
+- Castes follow-ups: per-role model routing once a role-capable local model
+  exists; consider planner-skip heuristic for trivial requests.
+- Quarantine watermark fix is specced if rank-thrashing is observed.
+- Constant tuning (lambda, reuse Ks): data-bound; the trails surface
+  accumulates the evidence — revisit after real usage.
+- The rescue parser now covers 4 emission shapes; if a 5th appears, consider
+  a structured grammar instead of accreting cases.
 
 ## Runtime
 Brief: `.venv\Scripts\python agent_coord.py brief --agent claude`
 Backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
 Frontend: `cd frontend; npm run dev`
 Tests: `.venv\Scripts\python -m pytest -q`
-Driver: `.venv\Scripts\python curriculum_evidence_driver.py status|run|reps|plan-proof`
+Driver: `.venv\Scripts\python curriculum_evidence_driver.py status|run|reps|plan-proof|trails`

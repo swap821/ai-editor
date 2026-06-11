@@ -164,3 +164,71 @@ success); promotion stays direct-evidence-only and the 0.2 planner cap and
 
 Known follow-ups: per-target outcome classification, dropped-grant replay
 fix, quarantine watermark if rank-thrashing is observed, lambda tuning.
+
+---
+
+# Stigmergy Core Completion — 2026-06-12 (overnight session)
+
+The remaining three roadmap blocks, built and live-exercised. Suite:
+**438 passed, 1 skipped** (this morning's baseline was 400/1).
+
+## 1. Loop-integrity fixes (the trust layer pheromone depends on)
+- **Grant pre-apply**: approved writes now land deterministically at replay
+  start through the same gated paths (scope/snapshot/audit/forced verify) —
+  an approval no longer depends on the model re-issuing the call. The
+  dropped-grant trust bug is closed. Edits got the same replay tolerance as
+  creates (a present replacement is a no-op success), and no-op writes no
+  longer force redundant re-verification (new `noop` status).
+- **Per-target outcome classification**: verify evidence now carries its
+  target; a turn is verified_success only when EVERY verified target's LAST
+  verdict is PASS. Same-target fail->fix->pass still banks success; a final
+  green on one file can no longer mask an unresolved failure on another.
+  (Refines yesterday's last-evidence-wins operator decision; key = basename
+  of the first .py token so auto-verify and model-spelled commands match.)
+
+## 2. Pheromone observability (and the tuning evidence base)
+`GET /api/v1/development/trails` + `curriculum_evidence_driver.py trails`:
+every trail's computed strength/freshness/reuse factor, quarantine flags
+(derived: direct evidence meets promotion but status is candidate),
+superseded-fragment lineage, and the constants in effect. Live snapshot
+showed the full ecology: verified #10 at strength 0.749 with its reuse stain
+visibly biting, clean candidates ranked, flail arcs at zero. Constant tuning
+itself remains data-bound by definition — the surface to do it from now
+exists and accumulates evidence with every run.
+
+## 3. Role-pass castes (Slice 2) — architecture proven, model-limited
+Built per a 3-lens design panel (the judge leg died on a session limit; the
+builder synthesized from three strongly-convergent designs, recorded for
+Codex review): `aios/agents/role_pass.py` conductor over the unchanged
+ToolAgent; caste = system prompt + hard tool subset enforced at _dispatch
+(catches prose-rescued calls); stigmergic handoff (final answers + disk
+only; step-limit sentinel never crosses; plan-tool artifact salvaged when a
+small model fails to summarize); replay restarts at the planner with grants
+pre-applied; reviewer verdict computed from verifier evidence only; one
+bounded retry; opt-in `rolePass: true` (default byte-identical).
+
+**Live verdict (6 attempts, qwen2.5-coder:7b + llama3.1:8b):** the
+machinery worked end-to-end — full planner->coder->reviewer progression
+across 4 replays with 3 real approvals, every out-of-caste attempt denied
+(planner/reviewer create_file, prose-rescued included), coder doing real
+gated work, per-target classification honest. But the 7B/8B class cannot
+SUSTAIN the roles: planner and reviewer mode-collapse into create_file
+regardless of prompt and denial feedback; the reviewer burned its leg on
+denied writes instead of verifying. The original swarm verdict ("ten 7B
+ants != one 70B brain") holds at the role level: division of labor needs
+role-capable models. The castes ship test-proven (8 deterministic tests)
+and opt-in, awaiting a stronger local model — this is recorded as an honest
+negative result, not a failure of the design.
+
+Bonus product fix from the live attempts: a FOURTH prose tool-call shape
+(ReAct-style `Action: tool {json}`) joined the rescue parser, test-covered.
+
+## Where this leaves the ant-swarm ("100% in core")
+Accepted-design coverage: trail deposit/evaporation/foraging (live-proven),
+reuse reinforcement + negative pheromone + quarantine (live-proven),
+consolidation (live no-op migration + tests), observability (live), loop
+integrity (tested), castes (architecture proven; execution gated on model
+capability), tuning (tooling live, data accumulating). Open follow-ups:
+quarantine watermark if thrashing observed; per-role model routing for the
+castes when a stronger local model lands; lambda/reuse-constant tuning once
+trails age in real use.

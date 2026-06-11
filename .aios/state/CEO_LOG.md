@@ -414,3 +414,24 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   per-target classification), pheromone observability endpoint, lambda
   tuning from accumulating live data. Watch: the quarantine ratchet may
   thrash on a recovered trail - the watermark fix is specced if observed.
+
+## 2026-06-12 - CEO note (Claude: stigmergy core completion - overnight push)
+- Operator directed completing the remaining roadmap "today". Delivered:
+  loop-integrity (dropped-grant pre-apply closes a real trust bug;
+  per-target verdicts close the masking hole), pheromone observability
+  (trails endpoint + CLI; the live map is genuinely informative), and the
+  role-pass castes - built, 8 deterministic tests, but live-limited: 7B/8B
+  models mode-collapse out of their roles. Recorded as an honest negative
+  result; the castes are opt-in and waiting for a stronger local model.
+  Suite 438/1 (from 400/1 yesterday morning - 38 new tests in two days).
+- A fourth prose tool-call emission shape (ReAct "Action:") surfaced live
+  and joined the rescue parser. The rescue now covers every shape observed
+  across two days of live runs - this parser is quietly becoming one of the
+  most valuable robustness layers in the product.
+- CEO advice: STOP here. This was a long, productive push and the review
+  surface for Codex (2026-06-16) is now substantial: e773768, the 4 loop
+  fixes, trail mechanics, and this completion slice. Next session should be
+  short: commit-verify, then rest the codebase until Codex's review or the
+  operator's UI call. Watch: role-pass live evidence argues the next
+  hardware/model upgrade (qwen2.5-coder:14B or 32B-class when RAM allows)
+  unlocks more value than any near-term code change.
