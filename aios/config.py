@@ -144,6 +144,28 @@ SKILL_LAMBDA_DECAY_PER_HOUR: Final[float] = _env_float("AIOS_SKILL_LAMBDA_DECAY"
 #: step but never single-handedly clear the human-review gate.
 SKILL_CONFIDENCE_BONUS_MAX: Final[float] = _env_float("AIOS_SKILL_BONUS_MAX", 0.2)
 
+# Reuse pheromone: when recalled verified trails are injected into a turn's
+# context and the turn ends with a verifier verdict, those trails gain reuse
+# credit (success) or reuse stain (failure). Reuse counters influence RANKING
+# only — promotion to 'verified' reads direct verifier-backed counts alone —
+# and the derived reuse factor is asymmetric by design: one failure bites
+# roughly as hard as seven successes reward, because in a fail-closed system a
+# misleading trail costs more than a missed reuse.
+#: Maximum multiplicative ranking boost from accumulated reuse successes.
+SKILL_REUSE_BOOST_MAX: Final[float] = _env_float("AIOS_SKILL_REUSE_BOOST_MAX", 0.15)
+#: Maximum multiplicative ranking penalty from accumulated reuse failures.
+SKILL_REUSE_PENALTY_MAX: Final[float] = _env_float("AIOS_SKILL_REUSE_PENALTY_MAX", 0.60)
+#: Saturation constant for reuse successes (higher = slower saturation).
+SKILL_REUSE_SUCCESS_K: Final[float] = _env_float("AIOS_SKILL_REUSE_SUCCESS_K", 3.0)
+#: Saturation constant for reuse failures (lower than successes: bites faster).
+SKILL_REUSE_FAILURE_K: Final[float] = _env_float("AIOS_SKILL_REUSE_FAILURE_K", 1.5)
+#: Hard floor for the reuse factor — a stained trail weakens but never zeroes.
+SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.25)
+#: Net reuse failures (failures - successes) at which a 'verified' trail is
+#: quarantined back to 'candidate'; recovery needs a fresh DIRECT verified
+#: success through record_attempt.
+SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
+
 # --------------------------------------------------------------------------- #
 # Security & human-in-the-loop gating
 # --------------------------------------------------------------------------- #
@@ -291,6 +313,12 @@ __all__ = [
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",
     "SKILL_LAMBDA_DECAY_PER_HOUR",
     "SKILL_CONFIDENCE_BONUS_MAX",
+    "SKILL_REUSE_BOOST_MAX",
+    "SKILL_REUSE_PENALTY_MAX",
+    "SKILL_REUSE_SUCCESS_K",
+    "SKILL_REUSE_FAILURE_K",
+    "SKILL_REUSE_FACTOR_FLOOR",
+    "SKILL_REUSE_DEMOTE_NET_FAILURES",
     "CONFIDENCE_THRESHOLD",
     "MAX_RED_ACTIONS_PER_SESSION",
     "YELLOW_APPROVAL_TIMEOUT_MS",

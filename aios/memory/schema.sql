@@ -181,7 +181,13 @@ CREATE TABLE IF NOT EXISTS procedural_skills (
     status          TEXT NOT NULL DEFAULT 'candidate'
                     CHECK (status IN ('candidate','verified','superseded')),
     success_count   INTEGER NOT NULL DEFAULT 0,
-    failure_count   INTEGER NOT NULL DEFAULT 0
+    failure_count   INTEGER NOT NULL DEFAULT 0,
+    -- Trail mechanics (stigmergy): arc-level identity + reuse pheromone.
+    signature_v2        TEXT,                       -- goal tokens + argument-stripped tool sequence
+    reuse_success_count INTEGER NOT NULL DEFAULT 0, -- ranking input; NEVER read by status logic
+    reuse_failure_count INTEGER NOT NULL DEFAULT 0,
+    last_reused_at      DATETIME,                   -- failure timestamps land here, never on updated_at
+    superseded_by       INTEGER                     -- lineage pointer for consolidated fragments
 );
 
 -- == Safe curriculum =========================================================

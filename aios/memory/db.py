@@ -9,6 +9,7 @@ defined declaratively in ``schema.sql`` and applied idempotently by
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Iterator
 
 from aios import config
-from aios.memory.relevance import content_hash
+from aios.memory.relevance import content_hash, skill_signature_v2
 
 #: Location of the declarative DDL applied by :func:`init_memory_db`.
 _SCHEMA_PATH: Path = Path(__file__).resolve().parent / "schema.sql"
@@ -168,3 +169,88 @@ def _migrate(conn: sqlite3.Connection) -> None:
     fact_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_facts)")}
     if fact_cols and "approved_by" not in fact_cols:
         conn.execute("ALTER TABLE semantic_facts ADD COLUMN approved_by TEXT")
+
+    # Procedural skills: trail mechanics (arc-level signature_v2 + reuse
+    # pheromone columns), backfill, and consolidation of fragmented trails.
+    skill_cols = {row[1] for row in conn.execute("PRAGMA table_info(procedural_skills)")}
+    skill_additions = {
+        "signature_v2": "TEXT",
+        "reuse_success_count": "INTEGER NOT NULL DEFAULT 0",
+        "reuse_failure_count": "INTEGER NOT NULL DEFAULT 0",
+        "last_reused_at": "DATETIME",
+        "superseded_by": "INTEGER",
+    }
+    for name, ddl in skill_additions.items():
+        if skill_cols and name not in skill_cols:
+            conn.execute(f"ALTER TABLE procedural_skills ADD COLUMN {name} {ddl}")
+
+    # Backfill arc identities (NULL-only => idempotent; pure function of stored
+    # data, no clock).
+    for row in conn.execute(
+        "SELECT id, goal_pattern, steps_json FROM procedural_skills "
+        "WHERE signature_v2 IS NULL"
+    ).fetchall():
+        sig_v2 = skill_signature_v2(
+            str(row["goal_pattern"]), list(json.loads(str(row["steps_json"])))
+        )
+        conn.execute(
+            "UPDATE procedural_skills SET signature_v2 = ? WHERE id = ?",
+            (sig_v2, int(row["id"])),
+        )
+
+    # Consolidate active fragments that share an arc identity. The keeper is
+    # the verified row if any (a verified trail must never be buried under a
+    # candidate), then the row with the most direct evidence, then the oldest.
+    # Losers become 'superseded' with a lineage pointer — counts, signature,
+    # and steps stay intact as provenance; nothing is DELETEd (deliberate
+    # divergence from the semantic-memory merge above: trail rows are
+    # irreplaceable verifier evidence).
+    groups: dict[str, list[sqlite3.Row]] = {}
+    for row in conn.execute(
+        "SELECT * FROM procedural_skills WHERE status != 'superseded' ORDER BY id"
+    ).fetchall():
+        groups.setdefault(str(row["signature_v2"]), []).append(row)
+    for sig_v2, rows in groups.items():
+        if len(rows) < 2:
+            continue
+        keeper = min(
+            rows,
+            key=lambda r: (
+                str(r["status"]) != "verified",
+                -(int(r["success_count"]) + int(r["failure_count"])),
+                int(r["id"]),
+            ),
+        )
+        keeper_id = int(keeper["id"])
+        successes = sum(int(r["success_count"]) for r in rows)
+        failures = sum(int(r["failure_count"]) for r in rows)
+        reuse_s = sum(int(r["reuse_success_count"] or 0) for r in rows)
+        reuse_f = sum(int(r["reuse_failure_count"] or 0) for r in rows)
+        # Status is recomputed from DIRECT counts only, with the same rule as
+        # SkillMemory.record_attempt (min_successes=3, min_success_rate=0.8 —
+        # the ctor defaults in aios/memory/skills.py).
+        rate = successes / max(successes + failures, 1)
+        status = "verified" if successes >= 3 and rate >= 0.8 else "candidate"
+        conn.execute(
+            "UPDATE procedural_skills SET success_count = ?, failure_count = ?, "
+            "reuse_success_count = ?, reuse_failure_count = ?, status = ?, "
+            "updated_at = (SELECT MAX(updated_at) FROM procedural_skills "
+            "WHERE signature_v2 = ? AND status != 'superseded') WHERE id = ?",
+            (successes, failures, reuse_s, reuse_f, status, sig_v2, keeper_id),
+        )
+        for row in rows:
+            if int(row["id"]) == keeper_id:
+                continue
+            conn.execute(
+                "UPDATE procedural_skills SET status = 'superseded', "
+                "superseded_by = ? WHERE id = ?",
+                (keeper_id, int(row["id"])),
+            )
+            print(
+                f"[migrate] procedural_skills: consolidated trail {int(row['id'])} "
+                f"into {keeper_id} (shared arc {sig_v2[:12]}…)"
+            )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_active_sig_v2 "
+        "ON procedural_skills(signature_v2) WHERE status != 'superseded'"
+    )

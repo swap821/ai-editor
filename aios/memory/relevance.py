@@ -47,3 +47,24 @@ def content_hash(text: str) -> str:
     """Hash text after whitespace/case normalization for exact consolidation."""
     normalized = " ".join((text or "").lower().split())
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def skill_signature_v2(goal: str, steps: list[str]) -> str:
+    """Arc-level identity for a procedural skill: goal tokens + tool sequence.
+
+    Two workflow attempts reinforce ONE trail iff this key matches: identical
+    goal-token key (same construction as the goal half of the legacy exact
+    signature) AND identical tool-name sequence — order and multiplicity
+    preserved, all step ARGUMENTS ignored. Live evidence motivated both halves:
+    secret-scanner redaction noise lives only in argument tails (so exact-step
+    signatures fragment trails that are the same arc), while arc LENGTH is
+    verdict signal (flail arcs with extra repeated steps are failure records;
+    collapsing them into clean siblings would launder failures into verified
+    trails). ``||`` separates the halves so v2 keys can never collide with the
+    legacy single-``|`` signature space.
+    """
+    goal_key = " ".join(sorted(tokens(goal))[:12])
+    arc = "|".join(
+        step.split(":", 1)[0].strip().lower() for step in steps if step.strip()
+    )
+    return hashlib.sha256(f"{goal_key}||{arc}".encode("utf-8")).hexdigest()

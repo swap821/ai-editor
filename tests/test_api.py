@@ -1496,6 +1496,86 @@ def test_generate_self_corrected_turn_counts_as_verified_success(
     assert curriculum.matches[-1][1] is True
 
 
+class ReuseRecordingSkills:
+    """Recalls two verified trails; records direct attempts and reuse credit."""
+
+    def __init__(self) -> None:
+        self.attempts: list[tuple[str, list[str], bool]] = []
+        self.reuse_calls: list[tuple[list[int], bool]] = []
+
+    def relevant_verified(self, query, limit=3):
+        return [
+            {
+                "skill_id": 1,
+                "goal_pattern": "verify the project",
+                "steps": ["verify: pytest -q"],
+                "success_rate": 1.0,
+                "strength": 1.0,
+                "relevance": 1.0,
+            },
+            {
+                "skill_id": 2,
+                "goal_pattern": "verify the project thoroughly",
+                "steps": ["read_file: a", "verify: pytest -q"],
+                "success_rate": 1.0,
+                "strength": 1.0,
+                "relevance": 0.9,
+            },
+        ]
+
+    def record_attempt(self, goal, steps, *, success):
+        self.attempts.append((goal, steps, success))
+        return 1  # same id as the first recalled trail: the re-walked arc
+
+    def record_reuse(self, skill_ids, *, success):
+        self.reuse_calls.append((list(skill_ids), success))
+        return list(skill_ids)
+
+    def list(self, *, status=None):
+        return []
+
+
+def test_record_outcome_threads_reuse_credit_excluding_direct_trail(
+    client: TestClient,
+) -> None:
+    skills = ReuseRecordingSkills()
+    app.dependency_overrides[get_ollama_client] = FakeOllamaVerify
+    app.dependency_overrides[get_skill_memory] = lambda: skills
+    token = get_approval_store().issue(
+        "command", {"command": "pytest -q"}, "reuse-threading"
+    )
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "reuse-threading",
+            "approvalTokens": [token],
+        },
+    )
+
+    assert response.status_code == 200
+    # The walked trail (direct_id == 1) got direct credit; only the OTHER
+    # recalled trail receives a reuse tick — no double-crediting.
+    assert len(skills.attempts) == 1 and skills.attempts[0][2] is True
+    assert skills.reuse_calls == [([2], True)]
+
+    # An unverified turn (no verify evidence) must credit nothing.
+    app.dependency_overrides[get_ollama_client] = FakeOllama
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "reuse-threading-2",
+        },
+    )
+    assert response.status_code == 200
+    assert len(skills.attempts) == 1
+    assert skills.reuse_calls == [([2], True)]
+
+
 def test_generate_turn_ending_in_failure_stays_verified_failure(
     client: TestClient,
 ) -> None:

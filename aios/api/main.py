@@ -1481,10 +1481,26 @@ def generate(
                     ),
                     "",
                 )
+            direct_id: Optional[int] = None
             if workflow_steps:
                 try:
-                    skills.record_attempt(user_text, workflow_steps, success=passed)
+                    direct_id = skills.record_attempt(
+                        user_text, workflow_steps, success=passed
+                    )
                 except Exception:  # noqa: BLE001 - skill learning is best-effort
+                    pass
+            # Reuse pheromone: trails that were recalled into this turn's
+            # context share its verifier verdict — minus the trail the agent
+            # re-walked directly, which record_attempt already credited.
+            reused_ids = [
+                int(s["skill_id"])
+                for s in recalled_skills
+                if int(s["skill_id"]) != direct_id
+            ]
+            if reused_ids:
+                try:
+                    skills.record_reuse(reused_ids, success=passed)
+                except Exception:  # noqa: BLE001 - reuse credit is best-effort
                     pass
             try:
                 curriculum.record_matching(user_text, passed=passed, evidence=evidence)
