@@ -206,6 +206,85 @@ def test_agent_recovers_python_style_mapping_tool_call_from_local_model() -> Non
     assert events[-1]["type"] == "done"
 
 
+def test_agent_recovers_first_of_multiple_fenced_json_tool_calls() -> None:
+    # Local models often narrate EVERY step of a multi-step task as a series of
+    # fenced JSON calls in one message. Only the first allowlisted call may run;
+    # its tool result re-anchors the model before it continues.
+    chat = ScriptedChat([
+        {
+            "role": "assistant",
+            "content": (
+                "I'll do both steps now.\n"
+                "```json\n"
+                '{"name":"read_directory","arguments":{"path":"."}}'
+                "\n```\n\n"
+                "```json\n"
+                '{"name":"read_file","arguments":{"filepath":"training_ground/greeter.py"}}'
+                "\n```"
+            ),
+        },
+        {"role": "assistant", "content": "Both inspected."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "list the directory then read greeter.py"}]
+    ))
+
+    calls = [e for e in events if e["type"] == "tool_call"]
+    assert len(calls) == 1, "only the FIRST fenced call may be recovered per message"
+    assert calls[0]["tool"] == "read_directory"
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_recovers_first_of_multiple_bare_json_tool_calls() -> None:
+    # No fences at all: some models emit several raw JSON objects back-to-back.
+    # A message BEGINNING with a JSON object is a call, not prose — recover the
+    # first allowlisted one only.
+    chat = ScriptedChat([
+        {
+            "role": "assistant",
+            "content": (
+                '{"name": "read_directory", "arguments": {"path": "."}}\n\n'
+                '{"name": "read_file", "arguments": {"filepath": "training_ground/greeter.py"}}'
+            ),
+        },
+        {"role": "assistant", "content": "Both inspected."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "list then read"}]
+    ))
+
+    calls = [e for e in events if e["type"] == "tool_call"]
+    assert len(calls) == 1
+    assert calls[0]["tool"] == "read_directory"
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_recovers_parameters_keyed_json_tool_call() -> None:
+    # llama3.1-style prose call: arguments keyed as "parameters".
+    chat = ScriptedChat([
+        {
+            "role": "assistant",
+            "content": (
+                "```json\n"
+                '{"name": "read_file", "parameters": '
+                '{"filepath": "training_ground/greeter.py"}}'
+                "\n```"
+            ),
+        },
+        {"role": "assistant", "content": "The file was inspected."},
+    ])
+
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "inspect greeter.py"}]
+    ))
+
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_call" for e in events)
+    assert any(e.get("tool") == "read_file" and e["type"] == "tool_result" for e in events)
+    assert events[-1]["type"] == "done"
+
+
 def test_agent_never_executes_python_expression_in_text_tool_fallback() -> None:
     chat = ScriptedChat([
         {
@@ -842,6 +921,33 @@ def test_agent_create_refuses_existing_file(sandbox) -> None:
     assert blocked and "already exists" in blocked[0]["reason"].lower()
     assert "edit_file" in blocked[0]["reason"]
     assert f.read_text(encoding="utf-8") == "original\n"   # not overwritten
+
+
+def test_agent_create_is_noop_for_existing_identical_content(sandbox) -> None:
+    # Replay tolerance: the resumable approval flow re-runs the whole turn, so the
+    # model legitimately re-issues a create for a file an earlier replay already
+    # wrote. Byte-identical content writes nothing and needs no approval — the
+    # loop continues to the task's remaining steps instead of dead-ending.
+    f = sandbox / "made.py"
+    f.write_text("x = 1\n", encoding="utf-8")
+    chat = ScriptedChat([
+        _tool_call("create_file", {"filepath": "made.py", "content": "x = 1\n"}),
+        {"role": "assistant", "content": "continuing"},
+    ])
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "create made.py"}]
+    ))
+    types = [e["type"] for e in events]
+
+    assert "human_required" not in types, "no write happens, so nothing needs approval"
+    assert "tool_blocked" not in types
+    results = [
+        e for e in events
+        if e["type"] == "tool_result" and e.get("tool") == "create_file"
+    ]
+    assert results and "nothing to write" in results[0]["output"]
+    assert f.read_text(encoding="utf-8") == "x = 1\n"   # untouched
+    assert types[-1] == "done"
 
 
 def test_agent_create_blocked_out_of_scope(tmp_path, monkeypatch) -> None:

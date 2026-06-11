@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import threading
 import time
@@ -316,6 +317,17 @@ def _default_runner(
         return " ".join(argv[1:]) + "\n", "", 0
     if executable == "pwd":
         return cwd + "\n", "", 0
+    if not Path(argv[0]).is_absolute() and os.sep not in argv[0]:
+        # Resolve a bare program name through the SANITISED env's PATH (where
+        # _sanitise_env put this project's venv first). Without this, Windows'
+        # CreateProcess searches the parent executable's directory and the
+        # scope-locked cwd BEFORE the child PATH — so a bare `python` could hit
+        # the base interpreter (venv silently ignored) or even a binary planted
+        # inside the writable sandbox. Resolving via PATH alone is deterministic
+        # and removes both. Unresolvable names keep the old spawn behaviour.
+        resolved = shutil.which(argv[0], path=env.get("PATH", ""))
+        if resolved:
+            argv[0] = resolved
     completed = _bounded_run(
         argv,
         shell=False,

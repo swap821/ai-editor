@@ -1418,6 +1418,137 @@ def test_generate_records_verifier_backed_development_and_skill_evidence(
     assert curriculum.matches[-1][1] is True
 
 
+class FakeOllamaVerifyFixLoop:
+    """Models the loop's own thesis: verify FAILs, the model fixes, re-verify PASSes."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(self, messages, *, tools=None, model=None) -> dict:
+        self.calls += 1
+        if self.calls == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "verify", "arguments": {"command": "pytest broken -q"}}}
+                ],
+            }
+        if self.calls == 2:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "verify", "arguments": {"command": "pytest -q"}}}
+                ],
+            }
+        return {"role": "assistant", "content": "Fixed and verified."}
+
+
+class SelectiveRunner:
+    """Fails any command mentioning 'broken'; passes everything else."""
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        if "broken" in command:
+            return "", "1 failed", 1
+        return "1 passed", "", 0
+
+
+def test_generate_self_corrected_turn_counts_as_verified_success(
+    client: TestClient,
+) -> None:
+    # Last evidence wins: a turn that fails verification, self-corrects, and
+    # ends [VERIFY PASS] is a verified_success — fail-dominant classification
+    # would make every task that needs the verify->fix loop unmasterable.
+    development = RecordingDevelopment()
+    skills = RecordingSkills()
+    curriculum = RecordingCurriculum()
+    app.dependency_overrides[get_ollama_client] = FakeOllamaVerifyFixLoop
+    app.dependency_overrides[get_executor] = lambda: Executor(
+        runner=SelectiveRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+    )
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
+    session = "growth-self-correction"
+    tokens = [
+        get_approval_store().issue("command", {"command": "pytest broken -q"}, session),
+        get_approval_store().issue("command", {"command": "pytest -q"}, session),
+    ]
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session,
+            "approvalTokens": tokens,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "[VERIFY FAIL]" in response.text and "[VERIFY PASS]" in response.text
+    assert development.records[-1][1] == "verified_success"
+    assert skills.attempts[-1][2] is True
+    assert curriculum.matches[-1][1] is True
+
+
+def test_generate_turn_ending_in_failure_stays_verified_failure(
+    client: TestClient,
+) -> None:
+    # The mirror case: PASS followed by a FINAL FAIL is a verified_failure —
+    # last evidence wins in both directions.
+    development = RecordingDevelopment()
+
+    class FakeOllamaPassThenFail(FakeOllamaVerifyFixLoop):
+        def chat(self, messages, *, tools=None, model=None) -> dict:
+            self.calls += 1
+            if self.calls == 1:
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"function": {"name": "verify", "arguments": {"command": "pytest -q"}}}
+                    ],
+                }
+            if self.calls == 2:
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"function": {"name": "verify", "arguments": {"command": "pytest broken -q"}}}
+                    ],
+                }
+            return {"role": "assistant", "content": "Still broken."}
+
+    app.dependency_overrides[get_ollama_client] = FakeOllamaPassThenFail
+    app.dependency_overrides[get_executor] = lambda: Executor(
+        runner=SelectiveRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+    )
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    session = "growth-regression"
+    tokens = [
+        get_approval_store().issue("command", {"command": "pytest -q"}, session),
+        get_approval_store().issue("command", {"command": "pytest broken -q"}, session),
+    ]
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session,
+            "approvalTokens": tokens,
+        },
+    )
+
+    assert response.status_code == 200
+    assert development.records[-1][1] == "verified_failure"
+
+
 def test_growth_api_surfaces_are_non_autonomous(client: TestClient) -> None:
     development = RecordingDevelopment()
     skills = RecordingSkills()

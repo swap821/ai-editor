@@ -1593,12 +1593,21 @@ def generate(
                 answer = "".join(answer_parts)
                 _record_episode(session_id, "assistant", answer)
                 _index_turn(indexer, user_text, answer)
-                if any(item.startswith("[VERIFY FAIL]") for item in verification_evidence):
-                    record_outcome("verified_failure")
-                elif any(item.startswith("[VERIFY PASS]") for item in verification_evidence):
+                # The turn's outcome is its FINAL verification verdict ("last
+                # evidence wins"): the loop's whole design is verify -> reflect
+                # -> fix, so a turn that fails, self-corrects, and ends green IS
+                # a verified success — under fail-dominant classification the
+                # agent could never bank a success on any task that needed its
+                # own verifier feedback (operator decision 2026-06-11).
+                # Follow-up: make this per-target once evidence carries the
+                # verified file/command, so a final PASS on one target cannot
+                # mask an earlier unresolved FAIL on another.
+                if not verification_evidence:
+                    record_outcome("unverified")
+                elif verification_evidence[-1].startswith("[VERIFY PASS]"):
                     record_outcome("verified_success")
                 else:
-                    record_outcome("unverified")
+                    record_outcome("verified_failure")
                 approvals.clear_session(session_id)
                 yield _sse("done", {})
 

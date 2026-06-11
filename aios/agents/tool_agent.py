@@ -405,41 +405,67 @@ def _coerce_args(raw: object) -> dict[str, Any]:
 def _extract_text_tool_calls(content: object) -> list[dict[str, Any]]:
     """Recover one allowlisted tool call emitted as JSON prose by a local model.
 
-    Some otherwise-capable Ollama models print a fenced JSON call instead of
-    populating the native ``tool_calls`` field. Accept only a whole JSON object
-    in one of three common shapes and only when its name is in ``TOOL_SPECS``.
-    Everything else remains ordinary assistant text.
+    Some otherwise-capable Ollama models print fenced JSON calls instead of
+    populating the native ``tool_calls`` field — sometimes several blocks in a
+    single message, and sometimes keying the arguments as ``parameters``
+    (llama3.1 style) rather than ``arguments``. Candidates are the whole
+    message plus each ```-fenced block, in order. Accept only a whole JSON
+    object whose name is in ``TOOL_SPECS``, and recover at most the FIRST such
+    call: the loop's tool result re-anchors the model before it continues, so
+    the one-call-at-a-time protocol is preserved. Everything else remains
+    ordinary assistant text.
     """
     if not isinstance(content, str) or not content.strip():
         return []
-    cleaned = content.strip()
-    if cleaned.startswith("```") and cleaned.endswith("```"):
-        cleaned = re.sub(r"^```[a-zA-Z0-9_+-]*\s*", "", cleaned)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
-    try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError:
+    candidates: list[object] = [content.strip()]
+    candidates += [
+        match.group(1).strip()
+        for match in re.finditer(r"```[a-zA-Z0-9_+-]*\s*(.*?)```", content, re.DOTALL)
+    ]
+    if content.strip().startswith("{"):
+        # A message that BEGINS with a JSON object is a call, not prose — some
+        # models emit several bare objects back-to-back with no fences at all.
+        # Decode just the first object; the loop's result re-anchors the rest.
         try:
-            # Some local models emit a Python-style mapping inside a `json`
-            # fence (single-quoted string values). `literal_eval` parses only
-            # literals/containers and never executes calls or expressions.
-            data = ast.literal_eval(cleaned)
-        except (SyntaxError, ValueError):
-            return []
-    if not isinstance(data, dict):
-        return []
+            first, _ = json.JSONDecoder().raw_decode(content.strip())
+            if isinstance(first, dict):
+                candidates.append(first)
+        except json.JSONDecodeError:
+            pass
+    for candidate in candidates:
+        if isinstance(candidate, dict):
+            data: object = candidate
+        else:
+            cleaned = str(candidate)
+            if cleaned.startswith("```") and cleaned.endswith("```"):
+                cleaned = re.sub(r"^```[a-zA-Z0-9_+-]*\s*", "", cleaned)
+                cleaned = re.sub(r"\s*```$", "", cleaned)
+            try:
+                data = json.loads(cleaned)
+            except json.JSONDecodeError:
+                try:
+                    # Some local models emit a Python-style mapping inside a
+                    # `json` fence (single-quoted string values). `literal_eval`
+                    # parses only literals/containers and never executes calls
+                    # or expressions.
+                    data = ast.literal_eval(cleaned)
+                except (SyntaxError, ValueError):
+                    continue
+        if not isinstance(data, dict):
+            continue
 
-    function = data.get("function")
-    if isinstance(function, dict):
-        name = str(function.get("name", ""))
-        raw_args = function.get("arguments")
-    else:
-        name = str(data.get("name") or data.get("tool") or "")
-        raw_args = data.get("arguments", data.get("input"))
-    if name not in _TOOL_NAMES:
-        return []
-    args = _coerce_args(raw_args)
-    return [{"function": {"name": name, "arguments": args}}]
+        function = data.get("function")
+        if isinstance(function, dict):
+            name = str(function.get("name", ""))
+            raw_args = function.get("arguments", function.get("parameters"))
+        else:
+            name = str(data.get("name") or data.get("tool") or "")
+            raw_args = data.get("arguments", data.get("parameters", data.get("input")))
+        if name not in _TOOL_NAMES:
+            continue
+        args = _coerce_args(raw_args)
+        return [{"function": {"name": name, "arguments": args}}]
+    return []
 
 
 def _explicit_tool_requests(messages: list[dict[str, Any]]) -> set[str]:
@@ -1039,6 +1065,23 @@ class ToolAgent:
             )
         target = Path(scope.resolved)
         if target.exists():
+            try:
+                existing: str | None = target.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                existing = None
+            if existing is not None and existing == content:
+                # Replay tolerance: the resumable approval flow re-runs the whole
+                # turn after each human approval, so the model legitimately
+                # re-issues a create for a file an earlier replay already wrote.
+                # Byte-identical content means nothing is written (and nothing
+                # new needs approving); report success so the loop continues to
+                # the task's remaining steps instead of dead-ending.
+                return (
+                    f"{filepath} already exists with exactly the requested "
+                    "content; nothing to write.",
+                    "ok",
+                    False,
+                )
             return (
                 f"[ERROR] {filepath} already exists; use edit_file to modify it "
                 "(create_file only authors new files).",

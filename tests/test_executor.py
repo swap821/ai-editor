@@ -108,6 +108,57 @@ def test_sandbox_prefers_project_venv_tools(monkeypatch, tmp_path) -> None:
     assert runner.calls[0]["env"]["PATH"].split(os.pathsep)[0] == str(venv_bin)
 
 
+def test_default_runner_resolves_bare_program_via_sanitised_path(monkeypatch, tmp_path) -> None:
+    # Windows' CreateProcess searches the parent exe's directory and the cwd
+    # BEFORE the child PATH, so a bare `python` could silently ignore the venv
+    # that _sanitise_env put first — or hit a binary planted inside the writable
+    # sandbox. The runner must resolve bare names through the sanitised PATH.
+    captured: dict = {}
+
+    def fake_bounded_run(argv, **kwargs):
+        captured["argv"] = list(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    sentinel = str(tmp_path / "venv-python.exe")
+    monkeypatch.setattr("aios.core.executor._bounded_run", fake_bounded_run)
+    monkeypatch.setattr(
+        "aios.core.executor.shutil.which", lambda name, path=None: sentinel
+    )
+
+    _default_runner("python -m pytest -q", cwd=str(tmp_path), env={"PATH": "x"}, timeout_s=1)
+
+    assert captured["argv"][0] == sentinel
+    assert captured["argv"][1:] == ["-m", "pytest", "-q"]
+
+
+def test_default_runner_keeps_pathed_and_unresolvable_programs_unchanged(
+    monkeypatch, tmp_path
+) -> None:
+    spawned: list[list[str]] = []
+    which_calls: list[str] = []
+
+    def fake_bounded_run(argv, **kwargs):
+        spawned.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr("aios.core.executor._bounded_run", fake_bounded_run)
+    monkeypatch.setattr(
+        "aios.core.executor.shutil.which",
+        lambda name, path=None: which_calls.append(name) or None,
+    )
+
+    # Unresolvable bare name: keep the old spawn behaviour (argv untouched).
+    _default_runner("python --version", cwd=str(tmp_path), env={}, timeout_s=1)
+    assert spawned[-1][0] == "python"
+    assert which_calls == ["python"]
+
+    # A program reference that already carries a path is never re-resolved.
+    pathed = f".venv{os.sep}Scripts{os.sep}python.exe --version"
+    _default_runner(pathed, cwd=str(tmp_path), env={}, timeout_s=1)
+    assert spawned[-1][0] == f".venv{os.sep}Scripts{os.sep}python.exe"
+    assert which_calls == ["python"]
+
+
 def test_execute_approved_runs_yellow_command() -> None:
     runner = RecordingRunner(out="installed")
     result = _executor(runner).execute_approved("pip install flask")
