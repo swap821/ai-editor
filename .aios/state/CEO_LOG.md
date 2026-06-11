@@ -332,3 +332,41 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   because no protocol state existed. With leases + heartbeats live, the same
   failure would be visible in one `brief` call. The system improved from its own
   incident — that is the loop working.
+
+## 2026-06-10 - CEO note (Claude: UI front opened then deferred by operator)
+- Session resumed at max effort; Codex's two findings on the stale-runway
+  correction were folded in and the RESUME-only tree handed off hash-pinned,
+  so the formal verdict is finally recordable (the process blocker Codex
+  flagged is resolved).
+- Operator initially went with the recommended premium-UI front; groundwork
+  established three durable facts: 1741 lines of CSS (5 files incl. both
+  nexgen layers) are dead code never imported; the live design-token layer is
+  actually solid; and the workspace is never agent-summoned because the `code`
+  SSE event handler is a deliberate no-op. Whenever the UI front reopens, the
+  highest-leverage move is wiring agent-summon + deleting dead CSS - before
+  any visual redesign.
+- Operator then deferred the UI decision mid-flight. Right call to respect it
+  immediately: background design workflow stopped, artifacts pinned in RESUME,
+  lease released. Nothing was lost - the design pass is resumable.
+- CEO advice: next session, decide between UI (demo impact) and curriculum
+  evidence (Reflection/Memory hierarchy fit, Codex's pick). Both are ready to
+  start; deciding beats parallel-starting both.
+
+## 2026-06-11 - CEO note (Claude: swarm idea assessed; stigmergy slice landed in tree)
+- Operator proposed an ant-colony swarm orchestrator. Verdict after a grounded
+  3-angle workflow (substrate map, adversarial skeptic, product fit): the
+  *stigmergy* half of the metaphor is real and largely already built (decay
+  term in retrieval, reinforce/demote in SkillMemory, file-based coordination);
+  the *many-concurrent-agents* half dies on 16GB RAM, the serial approval gate,
+  and the one-writer-per-worktree lesson. Recommendation accepted by operator:
+  deepen the memory differentiator instead of building concurrency.
+- Slice 1 applied and verified this session (task pheromone-skill-trail-v1):
+  skill-trail evaporation (strength = success_rate * exp(-lambda*age)) plus a
+  bounded, verification-gated planner foraging reward (cap 0.2 - can nudge a
+  step upward but never single-handedly clear the 0.72 human gate, and only
+  verified successes deposit pheromone). 400 passed / 1 skipped (was 397/1).
+- CEO advice: this was a well-scoped detour, but it WAS a detour - the open
+  fronts (curriculum evidence, container live-proof, UI call) still await a
+  decision. Next session: Codex verdict on this slice, commit if approved,
+  then pick a front. Watch for: SKILL_LAMBDA_DECAY needs real-usage tuning -
+  6-day half-life is a first guess, not evidence.
