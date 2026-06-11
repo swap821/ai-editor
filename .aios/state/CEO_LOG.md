@@ -370,3 +370,27 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   decision. Next session: Codex verdict on this slice, commit if approved,
   then pick a front. Watch for: SKILL_LAMBDA_DECAY needs real-usage tuning -
   6-day half-life is a first guess, not evidence.
+
+## 2026-06-11 - CEO note (Claude: curriculum evidence front EXECUTED - first live brain-growth proof)
+- Operator picked curriculum evidence (Codex concurred). Result: the entire
+  growth chain ran live for the first time - seeded 2-level curriculum, real
+  supervised chat turns vs local Ollama, verifier-gated progression, BOTH
+  held-out gates passed, level unlock observed, first verified procedural
+  skill minted (3/3 clean arcs), and the Slice 1 foraging reward fired live
+  (skill_adjustment = 0.2 cap binding, skill_ids=[10]) - e773768 is now
+  evidence-backed, not just test-backed. Full report:
+  .aios/state/EVIDENCE_CURRICULUM.md; raw frames in
+  .aios/audit/curriculum-evidence-run.jsonl.
+- The run earned its keep by FAILING first: it surfaced and fixed 4 real
+  product gaps (prose tool-call rescue x3 shapes, replay-tolerant create_file,
+  Windows venv/PATH resolution in the executor - a latent sandbox-planting
+  hole - and FAIL-dominant turn classification that made self-correcting tasks
+  unmasterable; operator approved last-evidence-wins). Suite 408/1 (was 400/1).
+- Watch: the held-out first-try passes (L1-H1 clean, L2-T2 after the agent's
+  own __init__.py fix) are the strongest growth signal we have - but one model
+  family, delegated approvals, and 6 tasks is a small n. Resist over-claiming.
+- CEO advice: commit this as two clean slices (product fixes + evidence/state),
+  queue Codex post-hoc review of BOTH e773768 and these fixes for 2026-06-16,
+  and only then choose the next front (container live-proof or the UI call).
+  The dropped-approved-grant replay quirk deserves a product fix soon - it
+  silently discards human-approved work.

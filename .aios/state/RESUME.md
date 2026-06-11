@@ -1,60 +1,69 @@
 # RESUME MANIFEST
 
 ## Current goal
-Stigmergy Slice 1 is LANDED on master (commit e773768, 2026-06-11) under
-operator authority. Codex independent review is deferred POST-HOC: his usage
-window reopens 2026-06-16; he should `git show e773768` and send findings via
-inbox (the pinned handoff snapshot 194522ae is stale by design — the formal
-verdict mechanism will refuse it; findings-by-message is the agreed path).
-Next: operator picks the next front.
-
-## Context: swarm decision (2026-06-11)
-Operator proposed an ant-colony swarm orchestrator. Assessed via grounded
-3-angle workflow; verdict: keep the stigmergy half (mostly already built),
-reject concurrent agent spawning (16GB RAM, serial approval gate, one-writer
-lesson). Operator accepted; Slice 1 was the agreed first concrete step.
-Sequential role-pass ("castes") is the candidate Slice 2 — not started, needs
-operator go.
+Curriculum evidence front EXECUTED 2026-06-11 (task curriculum-evidence-v1,
+operator-approved). The first live brain-growth proof exists:
+`.aios/state/EVIDENCE_CURRICULUM.md` (report) +
+`.aios/audit/curriculum-evidence-run.jsonl` (raw frames). Working tree holds
+UNCOMMITTED product fixes + evidence artifacts awaiting the operator's commit
+decision. Next: operator decides commit, then picks the next front.
 
 ## Last completed and verified
-2026-06-11 (this session), commit e773768:
-- `aios/config.py`: SKILL_LAMBDA_DECAY_PER_HOUR (0.005/hr, ~6-day half-life)
-  + SKILL_CONFIDENCE_BONUS_MAX (0.2), env-overridable, in __all__.
-- `aios/memory/skills.py`: relevant_verified() ranks by
-  strength = success_rate * exp(-lambda * hours_since_updated_at); skills are
-  never deleted, only out-competed. `now` injectable for deterministic tests.
-- `aios/core/planner.py`: _calibrate() adds a verification-gated foraging
-  reward capped at SKILL_CONFIDENCE_BONUS_MAX; Calibration gains
-  skill_adjustment + skill_ids.
-- `tests/test_brain_growth.py`: 3 new behavioral tests.
-- Verified BEFORE commit: full suite 400 passed, 1 skipped (baseline 397/1 +
-  3 new); git diff --check clean; compileall clean.
+2026-06-11 (this session):
+- Live curriculum run: 6/6 tasks mastered (both held-out gates), level unlock
+  observed, first verified procedural skill (id=10, 3/3), Slice 1 foraging
+  reward live-proven (skill_adjustment=0.2 cap binding, skill_ids=[10]).
+- 4 product gaps found by the run and fixed, each test-covered:
+  1. `aios/agents/tool_agent.py` — prose tool-call rescue: multi-fenced-block,
+     `parameters`-keyed, and bare unfenced JSON shapes; first allowlisted call
+     only.
+  2. `aios/agents/tool_agent.py` — `_create_file` replay tolerance:
+     byte-identical existing content is a no-op success.
+  3. `aios/core/executor.py` — bare argv[0] now resolves through the sanitised
+     PATH (venv-first); closes Windows base-interpreter fallback AND a latent
+     sandbox-binary-planting hole.
+  4. `aios/api/main.py` — turn outcome = FINAL verify verdict (last evidence
+     wins; operator decision 2026-06-11). Was FAIL-dominant, which made any
+     task needing the verify->fix loop unmasterable.
+- New driver tooling at repo root: `curriculum_seed.json`,
+  `curriculum_evidence_driver.py` (fail-closed allowlist delegate; 2 live
+  rejections logged).
+- Full suite BEFORE closeout: **408 passed, 1 skipped** (baseline 400/1).
+  Audit chain valid (182 entries, head d0ce65b4…).
 
 ## Single next action
-Operator picks the front: 1) curriculum evidence gathering, 2) container
-live-proof (needs Docker daemon), 3) premium UI (his deferred call),
-4) stigmergy Slice 2 (sequential role-pass: planner/coder/reviewer personas
-over the one ToolAgent loop). Route the choice through agent_coord.py.
+Operator: authorize commit (suggested: slice A = product fixes + tests,
+slice B = driver/seed + .aios evidence/state) — then pick the next front:
+container live-proof, premium UI (his deferred call), or stigmergy Slice 2.
 
 ## Open approvals/blockers
-- Codex POST-HOC reviews due when he returns 2026-06-16:
-  (a) commit e773768 (this slice) — findings via inbox, not formal verdict;
-  (b) `correct-resume-stale-runway` verdict, pending since 2026-06-10 — its
-  pinned tree has since changed (this session's work), so that verdict will
-  also fail closed; treat as findings-by-message too.
-- `premium-ui-v1`: queued, DEFERRED by operator. Leave until he decides.
-- No commit authorization outstanding (e773768 + state checkpoint were the
-  authorized scope).
+- Commit authorization PENDING (tree is dirty with the work above).
+- Codex POST-HOC reviews due ~2026-06-16 (inbox notified):
+  (a) e773768 (stigmergy Slice 1) — now also LIVE-PROVEN, see evidence report;
+  (b) this session's 4 product fixes (esp. the executor PATH-resolution
+      security improvement and the last-evidence-wins classification change);
+  (c) stale `correct-resume-stale-runway` verdict — findings-by-message.
+- `premium-ui-v1`: still queued/deferred; operator's call.
 
 ## Notes not yet promoted
-- SKILL_LAMBDA_DECAY 0.005/hr is a first guess; tune from real usage evidence.
-- `_hours_since` duplicated in skills.py and retrieval.py (deliberate, keeps
-  skills.py off the rank-bm25 import graph); shared util = reviewer follow-up.
-- Never reinforce skills on mere repetition — promotion must stay
-  verification-gated or bad patterns launder into trusted status.
+- Replay mechanics can DROP an approved-but-not-re-issued grant (the
+  `__init__.py` case). Product follow-up: pre-apply granted writes on resume
+  or surface dropped grants. This silently discards human-approved work.
+- Last-evidence-wins should become per-target once evidence strings carry the
+  verified file/command (noted in main.py comment).
+- Skill signatures fragment across arc shapes; trail consolidation across
+  near-identical workflows is an open design question.
+- `record_matching` misses stay silent server-side; only the driver's
+  post-turn poll catches them. Consider logging unmatched verified turns.
+- Backend for live runs: start from venv with
+  `$env:AIOS_INTERPRET_ALIGNMENT='false'` (RAM lever + deterministic prompts).
+- `training_ground/__init__.py` now exists (agent-authored, delegate-applied):
+  both package-style and plain imports pass under `python -m pytest` from the
+  sandbox cwd.
 
 ## Runtime
 Brief: `.venv\Scripts\python agent_coord.py brief --agent claude`
 Backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
 Frontend: `cd frontend; npm run dev`
 Tests: `.venv\Scripts\python -m pytest -q`
+Driver: `.venv\Scripts\python curriculum_evidence_driver.py status|run|reps|plan-proof`

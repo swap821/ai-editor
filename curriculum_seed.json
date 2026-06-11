@@ -1,0 +1,54 @@
+{
+  "skill": "python-tdd-basics",
+  "note": "Human-reviewed curriculum for the first live evidence run (2026-06-11). Tasks never auto-run; each prompt is sent verbatim through the supervised chat loop. Every prompt orders module-before-test so the forced auto-verify never runs a test against a missing module (turn outcome is FAIL-dominant). Prompts must stay unique across all tasks and are semi-permanent once seeded.",
+  "tasks": [
+    {
+      "key": "L1-T1",
+      "level": 1,
+      "held_out": false,
+      "files": ["training_ground/text_utils.py", "training_ground/test_text_utils.py"],
+      "prompt": "Create training_ground/text_utils.py with a function shout(text) that returns the text upper-cased with a single exclamation mark appended. Then create training_ground/test_text_utils.py with pytest tests covering shout. Then verify that the tests pass."
+    },
+    {
+      "key": "L1-T2",
+      "level": 1,
+      "held_out": false,
+      "files": ["training_ground/math_utils.py", "training_ground/test_math_utils.py"],
+      "prompt": "Create training_ground/math_utils.py with a function clamp(value, low, high) that returns value limited to the inclusive range from low to high. Then create training_ground/test_math_utils.py with pytest tests covering clamp. Then verify that the tests pass."
+    },
+    {
+      "key": "L1-H1",
+      "level": 1,
+      "held_out": true,
+      "files": ["training_ground/list_utils.py", "training_ground/test_list_utils.py"],
+      "prompt": "Create training_ground/list_utils.py with a function dedupe(items) that returns a new list with duplicates removed while preserving first-seen order. Then create training_ground/test_list_utils.py with pytest tests covering dedupe. Then verify that the tests pass."
+    },
+    {
+      "key": "L2-T1",
+      "level": 2,
+      "held_out": false,
+      "files": ["training_ground/slug_utils.py", "training_ground/test_slug_utils.py"],
+      "prompt": "Create training_ground/slug_utils.py with a function slugify(title) that lower-cases the title, replaces runs of whitespace with single hyphens, and removes every character other than letters, digits, and hyphens. Then create training_ground/test_slug_utils.py with pytest tests covering slugify including at least one edge case. Then verify that the tests pass."
+    },
+    {
+      "key": "L2-T2",
+      "level": 2,
+      "held_out": false,
+      "files": ["training_ground/stats_utils.py", "training_ground/test_stats_utils.py"],
+      "prompt": "Create training_ground/stats_utils.py with a function moving_average(values, window) that returns a list with the arithmetic mean of each consecutive window and raises ValueError if window is less than 1 or larger than the number of values. Then create training_ground/test_stats_utils.py with pytest tests covering both the normal case and the error cases. Then verify that the tests pass."
+    },
+    {
+      "key": "L2-H1",
+      "level": 2,
+      "held_out": true,
+      "files": ["training_ground/date_utils.py", "training_ground/test_date_utils.py"],
+      "prompt": "Create training_ground/date_utils.py with a function days_between(start_iso, end_iso) that parses two ISO format date strings and returns the absolute number of days between them as an integer. Then create training_ground/test_date_utils.py with pytest tests covering days_between. Then verify that the tests pass."
+    }
+  ],
+  "skill_promotion_reps": {
+    "task": "L1-T1",
+    "extra_runs": 3,
+    "why": "procedural_skills promotes to 'verified' at success_count >= 3 with rate >= 0.8 on the same goal+steps signature; the curriculum run provides the first success, these reps provide the rest. Task files are reset between reps so each turn replays identically."
+  },
+  "plan_proof_goal": "Create training_ground/text_utils.py with a function shout(text) that returns the text upper-cased with a single exclamation mark appended. Then create training_ground/test_text_utils.py with pytest tests covering shout. Then verify that the tests pass."
+}
