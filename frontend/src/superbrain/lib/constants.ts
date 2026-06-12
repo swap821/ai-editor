@@ -201,7 +201,10 @@ export const POST_FX = {
   grade: {
     contrast: 1.06, // log-space contrast around the mid-grey pivot
     shadowTint: [0.42, 0.52, 0.55] as [number, number, number], // teal — binds canvas shadows to the HUD cyan
-    highTint: [0.55, 0.53, 0.47] as [number, number, number], // amber — turns the muddy nebula golden
+    // Amber — turns the muddy nebula golden. Luma-neutral (Rec.709 0.4999,
+    // like the shadow side): soft-light then shifts CHROMA only, so the
+    // split-tone never re-brightens the crown's path back to a plateau.
+    highTint: [0.52, 0.5, 0.44] as [number, number, number],
     balance: -0.08, // shifts the split point; keeps the bright rose brain clean of orange
     vibrance: 0.21, // restores AgX-flattened nebula chroma; (1-sat) protects saturated filaments
   },

@@ -152,9 +152,15 @@ export default function PostFX() {
   );
 
   return (
-    <EffectComposer multisampling={0}>
-      {/* Bloom: 0.55 threshold catches stars/aura glow; intensity raised to
-          0.65 because AgX compresses the highlights bloom feeds on */}
+    // 4x MSAA on the composer's input buffer (high tier only — a lift,
+    // never a degrade): with the composer mounted, geometry never touches
+    // the canvas backbuffer, so this is the only AA that reaches edges.
+    <EffectComposer multisampling={tier === 'high' ? 4 : 0}>
+      {/* Bloom: threshold 1.0 + smoothing 0.9 → knee = smoothstep(1.0, 1.9,
+          sceneLuma), sampled PRE-exposure (Bloom runs before the AgX
+          ToneMapping that consumes exposure). Co-designed with the cortex
+          luminance ladder: rim 1.2-1.6 blooms 13-74%, filaments ~2.2 bloom
+          fully; everything clamped ≤0.5 stays dark. intensity 2.5. */}
       <>{tier !== 'low' && (
         <Bloom
           intensity={POST_FX.bloom.intensity}

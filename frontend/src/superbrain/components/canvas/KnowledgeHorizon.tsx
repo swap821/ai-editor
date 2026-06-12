@@ -222,7 +222,7 @@ const SKY_FRAGMENT_SHADER = `
     // Calm the exact view center — the brain owns that real estate.
     float centerCalm = 1.0 - 0.35 * smoothstep(0.92, 0.995, -dir.z);
     // Gain audited so the absolute peak (t=1, striation=1, band=1, full
-    // activity) stays below the 0.55 bloom threshold: C_WHITE luma 0.812
+    // activity) stays far under the 1.0 bloom knee: C_WHITE luma 0.812
     // * 0.58 = 0.47. The gas NEVER blooms; only stars may sparkle.
     vec3 nebula = gas * density * dustNebula * bandAmp * centerCalm
       * (0.52 + uActivity * 0.06);

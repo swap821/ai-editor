@@ -61,8 +61,9 @@ const TARGET_PALETTES = [
 
 /**
  * Scales a color so its relative luminance never exceeds `maxLuminance`.
- * Post bloom threshold is 0.55: every launch flare, ring and packet material
- * is built from these clamped colors (≤ ~0.5) so the transfer choreography
+ * The bloom knee starts at 1.0 (smoothstep(1.0, 1.9, L) — see PostFX):
+ * every launch flare, ring and packet material is built from these clamped
+ * colors (≤ ~0.5, 2x headroom under the knee) so the transfer choreography
  * can never bloom into the white-magenta glare the judges flagged. The pale
  * gold glint cores (palette.core / palette.glow) are intentionally NOT
  * clamped — they are the round-2 glint targets the judges asked to keep.
@@ -289,8 +290,8 @@ const routeFragmentShader = `
     float alpha = revealed * uOpacity * packetTrain * (0.15 + uActivity * 0.08);
     alpha += travelingFocus * uOpacity * (0.24 + uActivity * 0.08);
     // Restrained white mix + hard clamp: the post-multiplied (additive)
-    // luminance of any packet fragment stays <= 0.5, under the 0.55 bloom
-    // threshold, so the traveling focus can never flash into a glare.
+    // luminance of any packet fragment stays <= 0.5 — 2x headroom under the
+    // 1.0 bloom knee — so the traveling focus can never flash into a glare.
     vec3 color = mix(uColor, vec3(1.0), travelingFocus * 0.12);
     float outAlpha = alpha * disc;
     float emitted = dot(color, vec3(0.2126, 0.7152, 0.0722)) * outAlpha;
@@ -443,12 +444,12 @@ function TransferRoute({
       launch.rotation.z -= delta * (0.7 + launchStrength);
       launch.scale.setScalar(0.72 + launchStrength * (0.8 + intensity * 0.28));
     }
-    // Launch flare luminance halved: with bloom threshold at 0.55 the old
-    // values bloomed into a hard white flash above the brain.
+    // Launch flare luminance halved (a historical fix: the unclamped values
+    // once bloomed into a hard white flash above the brain).
     // Absorb acknowledgment: the receive rings at the contact point brighten
     // ~20% for 0.5s after the packet lands. Opacity-only lift on the already
-    // luminance-clamped (<= 0.5) colors — peak emission stays under the 0.55
-    // bloom threshold.
+    // luminance-clamped (<= 0.5) colors — peak emission keeps 2x headroom
+    // under the 1.0 bloom knee.
     const absorbLift = 1 + absorbPulse * 0.2;
     if (launchRingMaterialRef.current) {
       launchRingMaterialRef.current.opacity = launchStrength * (0.09 + intensity * 0.04) * absorbLift;
@@ -503,7 +504,7 @@ function TransferRoute({
       </points>
 
       {/* Launch flare, packets and halos all use luminance-clamped colors —
-          peak emitted luminance stays under the 0.55 bloom threshold. */}
+          peak emitted luminance keeps 2x headroom under the 1.0 bloom knee. */}
       <group ref={launchRef} position={target.origin} visible={false}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[0.12, 0.008, 5, 18]} />

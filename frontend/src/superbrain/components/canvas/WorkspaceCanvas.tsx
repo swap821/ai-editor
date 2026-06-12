@@ -210,7 +210,10 @@ function WorkspaceInner() {
             dpr={TIER_DPR[perfTier]}
             onCreated={handleCreated}
             gl={{
-              antialias: true,
+              // The composer owns AA (4x MSAA on its input buffer at high
+              // tier — PostFX.tsx): the canvas backbuffer only ever shows
+              // the final fullscreen quad, so its own MSAA bought nothing.
+              antialias: false,
               alpha: false,
               powerPreference: 'high-performance',
               // EffectComposer forces renderer.toneMapping = NoToneMapping, so
