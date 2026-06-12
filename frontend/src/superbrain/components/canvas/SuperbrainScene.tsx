@@ -743,7 +743,12 @@ function BrainModel({
         );
       };
       
-      mat.customProgramCacheKey = () => "superbrain_v6";
+      // The GLSL varies by tier, so the compiled-program cache key MUST too —
+      // a constant key made THREE reuse the first-compiled (possibly
+      // degraded) program for the whole session, no matter what FIDELITY
+      // said. The operator's eyes caught what three rounds of instruments
+      // missed.
+      mat.customProgramCacheKey = () => `superbrain_v6_${tier}`;
 
       clone.traverse((object) => {
         if (object instanceof THREE.Mesh) {
