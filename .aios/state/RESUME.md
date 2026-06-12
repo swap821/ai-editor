@@ -36,7 +36,7 @@ AIOS_CORS_ORIGINS to include localhost:3000).
 
 ## Single next action
 Operator + Claude continue the UI roadmap from the review (full plan in the
-gag-demo-review workflow output, pinned in experiences): ALL LAB BLOCKS DONE (lab repo history: be68d2f snapshot -> 41ace3e adapter+P0 -> cf9899d quality tier -> f2392f8 amber hold -> 5c6cf53 canon/KnowledgeHorizon -> 03d7caf trails-bound recall stream; 13/13 tests, 0 lint errors). The ONLY remaining UI step is the extraction into frontend/ (Vite) once the operator is happy with the lab look.
+gag-demo-review workflow output, pinned in experiences): ALL LAB BLOCKS DONE (lab repo history: be68d2f snapshot -> 41ace3e adapter+P0 -> cf9899d quality tier -> f2392f8 amber hold -> 5c6cf53 canon/KnowledgeHorizon -> 03d7caf trails-bound recall stream; 13/13 tests, 0 lint errors). EXTRACTION DONE (b55edbb): the experience runs byte-faithful in the product frontend behind ?ui=superbrain (lazy, classic UI default). Aesthetic-regression complaint root-caused and fixed (58dc1c2 fidelity honesty: structural vs perf tier, warmup-guarded governor, visible FIDELITY readout + one-click restore). UI follow-ups: approval/diff panel inside the experience, GLB texture strip (4.6MB to ~150KB), lab-to-frontend port script.
 
 ## Open approvals/blockers
 - Parent-tree commit PENDING: `.gitignore` (GAG demo/ exclusion) + this
