@@ -472,6 +472,7 @@ aside.right-console {
 .region-pin {
   display: inline-flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 7px;
   padding: 5px 9px;
   background: rgba(5, 10, 18, 0.62);
@@ -482,7 +483,37 @@ aside.right-console {
   letter-spacing: 0.14em;
   color: var(--text-2);
   white-space: nowrap;
-  pointer-events: none;
+  /* Drill-in: the chip is a real control (click = unfold true history). */
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.region-pin--open {
+  border-color: rgba(159, 240, 255, 0.4);
+}
+
+.region-pin-graph {
+  flex-basis: 100%;
+  margin-top: 4px;
+}
+
+.region-pin-graph svg {
+  display: block;
+  width: 84px;
+  height: 24px;
+}
+
+.region-pin-graph path {
+  fill: none;
+  stroke: #9ff0ff;
+  stroke-width: 1.2;
+  stroke-opacity: 0.85;
+}
+
+.region-pin-graph em {
+  font-style: normal;
+  font-size: 9px;
+  opacity: 0.6;
 }
 
 .region-pin strong {

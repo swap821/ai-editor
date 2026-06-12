@@ -21,10 +21,10 @@
  * in SuperbrainScene to remove it without a trace.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
-import { useMetric, type MetricKey } from '@/lib/metricsStore';
+import { useMetric, useMetricHistory, type MetricKey } from '@/lib/metricsStore';
 
 /** Group-local brain centroid (from the measured GLB bounds). */
 const CENTER = new THREE.Vector3(0.0015, 0.2055, 0.057);
@@ -80,11 +80,45 @@ function labelPointFor(pin: PinDef): THREE.Vector3 {
 
 function PinChip({ pin, label }: { pin: PinDef; label: THREE.Vector3 }) {
   const value = useMetric(pin.key);
+  /* Drill-in: a click unfolds the channel's REAL per-poll history. */
+  const history = useMetricHistory(pin.key);
+  const [open, setOpen] = useState(false);
+  const path = useMemo(() => {
+    if (history.length < 2) return null;
+    const width = 84;
+    const height = 24;
+    const step = width / (history.length - 1);
+    return history
+      .map((v, i) => {
+        const x = (i * step).toFixed(1);
+        const y = (height - (Math.max(0, Math.min(99, v)) / 99) * height).toFixed(1);
+        return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+      })
+      .join(' ');
+  }, [history]);
   return (
     <Html position={label} zIndexRange={[60, 0]}>
-      <div className="region-pin" style={{ transform: 'translate(-50%, -50%)' }}>
+      <div
+        className={`region-pin${open ? ' region-pin--open' : ''}`}
+        style={{ transform: 'translate(-50%, -50%)' }}
+        role="button"
+        tabIndex={0}
+        title={`${pin.name} — click for real sample history`}
+        onClick={() => setOpen((prev) => !prev)}
+      >
         <span>{pin.name}</span>
         <strong>{value}%</strong>
+        {open ? (
+          <span className="region-pin-graph">
+            {path ? (
+              <svg viewBox="0 0 84 24" aria-label={`${pin.name} history`}>
+                <path d={path} />
+              </svg>
+            ) : (
+              <em>no real samples yet</em>
+            )}
+          </span>
+        ) : null}
       </div>
     </Html>
   );
