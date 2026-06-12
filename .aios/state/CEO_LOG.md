@@ -464,3 +464,12 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   product (CosmicBackground missing). Lab 13e5324 / product 7e6a927, all
   pushed, 16/16 green. Next: his verdicts via the toggles themselves; then
   organ tuning (flesh tone/web glow) if he adopts it.
+- Addendum 2 (same day, "continue till limit"): the WOW ladder shipped end
+  to end - truth pass (HUD 100% backend-true, from a 15-agent audit), THE
+  LIVING TURN, synapse storms on verified/mastered work, TRUE BOOT, THE
+  MEMORY GALAXY (a star per real trail, place fixed by skill_id), cursor
+  attention, approval time-dilation, SOUND (sovereign, default OFF), pin
+  drill-ins. Lab d3b94cb / product bfea0b4. 18/18 tests; every layer
+  flag-guarded; canon goldens intact throughout. Remaining menu: galaxy
+  tuning after his eye reports, production-build perf script, rAF
+  coalescing under heavy SSE load.
