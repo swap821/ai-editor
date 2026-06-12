@@ -15,6 +15,7 @@ import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
 import KnowledgeHorizon from './KnowledgeHorizon';
+import MemoryGalaxy from './MemoryGalaxy';
 import OrganSurface from './OrganSurface';
 import RegionPins from './RegionPins';
 import type { QualityTier } from '@/components/QualityTierProvider';
@@ -33,6 +34,12 @@ export type SkyMode = 'voyage' | 'layered';
  *  the same live channels as the intake rows). Additive layer — the
  *  operator's call (VISION.md): flip to false to remove without a trace. */
 const SHOW_REGION_PINS = true;
+
+/** The memory galaxy: every REAL trail a persistent star orbiting the mind
+ *  (strength = brightness, walks = size, quarantine = red pulse; recalls
+ *  flash their star). Additive layer, honest dormancy — the operator's
+ *  call (VISION.md): flip to false to remove without a trace. */
+const SHOW_MEMORY_GALAXY = true;
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -1241,6 +1248,11 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           cortical burst at the matching anatomical region. Dormant when no
           trails are known — nothing pretends to arrive. */}
       {tier !== 'low' && <CognitiveGrasp activity={activeBoost} />}
+
+      {/* The brain's life written in stars — real trails only, see the
+          component header. Outside Float: the galaxy is the world the mind
+          moves through, not a passenger on its bob. */}
+      {SHOW_MEMORY_GALAXY && <MemoryGalaxy />}
 
       {/* Post-processing lives ONLY in <PostFX/> (mounted below). A second
           EffectComposer here used to render the entire scene twice per frame
