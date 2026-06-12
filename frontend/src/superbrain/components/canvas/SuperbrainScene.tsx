@@ -24,8 +24,9 @@ import type { QualityTier } from '@/components/QualityTierProvider';
  *  field FLYING PAST the camera carries the forward motion. Any sky change
  *  that removes that motion breaks the product. 'voyage' = the operator's
  *  original moving field alone; 'layered' = his field in front of his
- *  photographic dome (motion + depth) — operator's choice. */
-const SKY_MODE: 'voyage' | 'layered' = 'voyage';
+ *  photographic dome (motion + depth) — a LIVE topbar control now: only the
+ *  operator's own click chooses, and voyage stays the default. */
+export type SkyMode = 'voyage' | 'layered';
 
 /** Anatomical region pins (RESEARCH/MEMORY/TOOLS/SIGNALS callouts bound to
  *  the same live channels as the intake rows). Additive layer — the
@@ -38,6 +39,8 @@ interface SuperbrainSceneProps {
   /** Effective quality tier — governs particle counts, shells, and the
    *  cortex shader's octave/animation budget. */
   tier?: QualityTier;
+  /** Operator-chosen sky (topbar control; persisted). */
+  sky?: SkyMode;
 }
 
 const BRAIN_SCALE = 3.02;
@@ -919,7 +922,7 @@ function CameraDrift({
   return null;
 }
 
-export default function SuperbrainScene({ mode, activity, tier = 'high' }: SuperbrainSceneProps) {
+export default function SuperbrainScene({ mode, activity, tier = 'high', sky = 'voyage' }: SuperbrainSceneProps) {
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
@@ -1153,7 +1156,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high' }: Super
           photographic dome sits far behind it for depth — it may add to the
           voyage, never replace it. (Dome skipped on low tier: the
           full-screen fbm pass is the budget, and the brain is the show.) */}
-      {SKY_MODE === 'layered' && tier !== 'low' && (
+      {sky === 'layered' && tier !== 'low' && (
         <KnowledgeHorizon activity={activeBoost} />
       )}
       <CosmicBackground tier={tier} />

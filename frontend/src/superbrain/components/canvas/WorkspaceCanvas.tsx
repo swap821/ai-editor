@@ -5,7 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
-import SuperbrainScene from './SuperbrainScene';
+import SuperbrainScene, { type SkyMode } from './SuperbrainScene';
 import SuperbrainHUD, { type CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import BootSequence from '@/components/ui/BootSequence';
 import {
@@ -37,6 +37,20 @@ export default function WorkspaceCanvas() {
  *  organism back. */
 const CONTEXT_RESTORE_GRACE_MS = 4000;
 
+/** Like the fidelity tier: only the operator's own click is ever stored.
+ *  Voyage (his original moving field, canon) is the default. */
+const SKY_STORAGE_KEY = 'gag-sky-mode-v1';
+
+function readStoredSky(): SkyMode | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage.getItem(SKY_STORAGE_KEY);
+    return stored === 'voyage' || stored === 'layered' ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
 function WorkspaceInner() {
   const { tier, perfTier } = useQualityTier();
   const [mode, setMode] = useState<CognitiveMode>('orchestrate');
@@ -52,6 +66,16 @@ function WorkspaceInner() {
   // a machine where Ollama can evict the GPU at any moment.
   const [glEpoch, setGlEpoch] = useState(0);
   const restoreTimerRef = useRef<number | null>(null);
+  const [skyMode, setSkyMode] = useState<SkyMode>(() => readStoredSky() ?? 'voyage');
+
+  const handleSkyModeChange = useCallback((next: SkyMode) => {
+    setSkyMode(next);
+    try {
+      window.localStorage.setItem(SKY_STORAGE_KEY, next);
+    } catch {
+      // Private mode etc. — the session still gets the chosen sky.
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -177,13 +201,15 @@ function WorkspaceInner() {
             <fog attach="fog" args={['#010307', 50, 150]} />
             <TierGovernor />
             <Suspense fallback={null}>
-              <SuperbrainScene mode={mode} activity={activity} tier={tier} />
+              <SuperbrainScene mode={mode} activity={activity} tier={tier} sky={skyMode} />
               <SuperbrainHUD
                 mode={mode}
                 activity={activity}
                 lastDirective={lastDirective}
                 onModeChange={handleModeChange}
                 onDirective={handleDirective}
+                skyMode={skyMode}
+                onSkyModeChange={handleSkyModeChange}
               />
             </Suspense>
           </Canvas>

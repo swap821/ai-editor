@@ -18,6 +18,10 @@ interface SuperbrainHUDProps {
   lastDirective: string;
   onModeChange: (mode: CognitiveMode) => void;
   onDirective: (directive: string) => void;
+  /** Operator's sky choice (voyage = canon default; layered adds his
+   *  photographic dome BEHIND the moving field). Persisted by the click. */
+  skyMode?: 'voyage' | 'layered';
+  onSkyModeChange?: (sky: 'voyage' | 'layered') => void;
 }
 
 const modeCopy: Record<CognitiveMode, { title: string; detail: string }> = {
@@ -540,6 +544,8 @@ export default function SuperbrainHUD({
   lastDirective,
   onModeChange,
   onDirective,
+  skyMode = 'voyage',
+  onSkyModeChange,
 }: SuperbrainHUDProps) {
   const [directive, setDirective] = useState('');
   // Seed from the adapter, not from blank: the adapter outlives this component,
@@ -739,6 +745,22 @@ export default function SuperbrainHUD({
                 FIDELITY <strong>{baseTier.toUpperCase()}</strong>
                 {generating ? <em className="fidelity-thinking"> · thinking</em> : null}
               </button>
+              {onSkyModeChange ? (
+                <>
+                  <span className="topbar-divider" />
+                  {/* The sky is the operator's canon: voyage (his moving field,
+                      default) or layered (his photographic dome deep behind it).
+                      Only this click chooses; the choice persists. */}
+                  <button
+                    className="fidelity-button"
+                    type="button"
+                    title="Sky — voyage (moving field) or layered (field + nebula dome behind)"
+                    onClick={() => onSkyModeChange(skyMode === 'voyage' ? 'layered' : 'voyage')}
+                  >
+                    SKY <strong>{skyMode.toUpperCase()}</strong>
+                  </button>
+                </>
+              ) : null}
             </div>
 
             <button className="secure-button" type="button">
