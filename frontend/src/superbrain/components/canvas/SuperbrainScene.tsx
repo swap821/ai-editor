@@ -15,6 +15,7 @@ import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
 import KnowledgeHorizon from './KnowledgeHorizon';
+import OrganSurface from './OrganSurface';
 import RegionPins from './RegionPins';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
@@ -32,6 +33,13 @@ export type SkyMode = 'voyage' | 'layered';
  *  the same live channels as the intake rows). Additive layer — the
  *  operator's call (VISION.md): flip to false to remove without a trace. */
 const SHOW_REGION_PINS = true;
+
+/** The cortex surface itself (VISION.md — the operator decides):
+ *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
+ *  'organ' = his hand-painted flesh textures (from the GLB he made) under the
+ *            SAME living web/aura/signal layers — reference-supermind look.
+ *  Canon stays the default; 'organ' is look-dev until his eye rules. */
+const BRAIN_SURFACE: 'web' | 'organ' = 'web';
 
 interface SuperbrainSceneProps {
   mode: CognitiveMode;
@@ -831,7 +839,13 @@ function BrainModel({
   return (
     <group ref={groupRef} rotation={[0.04, -0.82, 0]} position={[0, -0.35, -1.2]}>
       
-      <primitive object={brainAsset.object} />
+      {/* The base surface: canon emission shell, or the operator's painted
+          flesh — the energy skin below breathes over BOTH. */}
+      {BRAIN_SURFACE === 'organ' ? (
+        <OrganSurface />
+      ) : (
+        <primitive object={brainAsset.object} />
+      )}
       <primitive object={neuralSkin.object} scale={1.004} />
       
       {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
