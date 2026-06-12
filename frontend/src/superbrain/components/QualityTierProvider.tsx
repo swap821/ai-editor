@@ -31,7 +31,12 @@ import { subscribeCognition } from '@/lib/cognitionBus';
 
 export type QualityTier = 'low' | 'medium' | 'high';
 
-const STORAGE_KEY = 'gag-quality-tier';
+/** v2: verdicts recorded by the pre-warmup governor (which demoted on boot
+ *  shader-compile jank and mid-generation dips) are INVALID evidence — the
+ *  key bump discards them for every browser, and the legacy key is removed
+ *  on load so the poison cannot linger. */
+const STORAGE_KEY = 'gag-quality-tier-v2';
+const LEGACY_STORAGE_KEYS = ['gag-quality-tier'];
 const TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
 
 export function isQualityTier(value: unknown): value is QualityTier {
@@ -51,6 +56,9 @@ export function effectiveTier(base: QualityTier, generating: boolean): QualityTi
 function readStoredTier(): QualityTier | null {
   if (typeof window === 'undefined') return null;
   try {
+    for (const legacy of LEGACY_STORAGE_KEYS) {
+      window.localStorage.removeItem(legacy);
+    }
     const stored = window.localStorage.getItem(STORAGE_KEY);
     return isQualityTier(stored) ? stored : null;
   } catch {
