@@ -31,12 +31,12 @@ import { subscribeCognition } from '@/lib/cognitionBus';
 
 export type QualityTier = 'low' | 'medium' | 'high';
 
-/** v2: verdicts recorded by the pre-warmup governor (which demoted on boot
- *  shader-compile jank and mid-generation dips) are INVALID evidence — the
- *  key bump discards them for every browser, and the legacy key is removed
- *  on load so the poison cannot linger. */
-const STORAGE_KEY = 'gag-quality-tier-v2';
-const LEGACY_STORAGE_KEYS = ['gag-quality-tier'];
+/** v3: FIDELITY IS SACRED (the operator's law — see VISION.md). Only the
+ *  operator's own click is ever stored here; the governor lost its write
+ *  access entirely (it advises in the terminal, never acts). All earlier
+ *  keys held machine-written verdicts — removed on load. */
+const STORAGE_KEY = 'gag-quality-tier-v3';
+const LEGACY_STORAGE_KEYS = ['gag-quality-tier', 'gag-quality-tier-v2'];
 const TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
 
 export function isQualityTier(value: unknown): value is QualityTier {
@@ -132,9 +132,11 @@ export function QualityTierProvider({
 
   const value = useMemo(
     () => ({
-      // Structure follows proven capability only — never the moment.
+      // FIDELITY IS SACRED: the operator's chosen tier is THE tier — for
+      // structure AND continuous costs alike. Nothing automatic dims it;
+      // `generating` is pure status (the HUD shows '· thinking').
       tier: baseTier,
-      perfTier: effectiveTier(baseTier, generating),
+      perfTier: baseTier,
       baseTier,
       generating,
       setTier,

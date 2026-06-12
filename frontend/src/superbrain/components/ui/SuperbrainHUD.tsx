@@ -720,15 +720,15 @@ export default function SuperbrainHUD({
                 LATENCY <strong>{latency}ms</strong>
               </span>
               <span className="topbar-divider" />
-              {/* Honesty over mystery: the current fidelity tier is always
-                  visible, and one click promotes/restores it (the governor
-                  may demote it again only with fresh evidence). */}
+              {/* FIDELITY IS SACRED: only this click ever changes the tier
+                  (cycles high -> medium -> low -> high). The governor may
+                  whisper advice in the terminal; it cannot act. */}
               <button
                 className="fidelity-button"
                 type="button"
-                title="Visual fidelity tier — click to raise/restore"
+                title="Visual fidelity — yours alone; click to cycle high/medium/low"
                 onClick={() =>
-                  setTier(baseTier === 'high' ? 'high' : baseTier === 'medium' ? 'high' : 'medium')
+                  setTier(baseTier === 'high' ? 'medium' : baseTier === 'medium' ? 'low' : 'high')
                 }
               >
                 FIDELITY <strong>{baseTier.toUpperCase()}</strong>
