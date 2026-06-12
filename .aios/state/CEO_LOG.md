@@ -454,3 +454,13 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   organ BRAIN_SURFACE) presented as A/B screenshots for HIS pick, never
   shipped unilaterally. Watch: every visual diff now requires
   before/after screenshots delivered to the operator (VISION.md law).
+- Addendum (same session, operator delegated "i trust u"): instead of
+  deciding his aesthetics, shipped the sovereignty row - FIDELITY | SKY |
+  SURFACE topbar controls, persisted, canon defaults. Organ mode renders
+  his hand-painted GLB flesh (spec-gloss extension had hidden his textures
+  from the loader entirely - they had NEVER rendered before today). Region
+  pins live on the lobes, bound to the real metric channels. Port script
+  gained a manifest-drift tripwire after it silently shipped a broken
+  product (CosmicBackground missing). Lab 13e5324 / product 7e6a927, all
+  pushed, 16/16 green. Next: his verdicts via the toggles themselves; then
+  organ tuning (flesh tone/web glow) if he adopts it.
