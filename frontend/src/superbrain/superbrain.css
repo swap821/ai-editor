@@ -1,0 +1,1519 @@
+/* Font variables the lab provided via next/font — here via Google Fonts with
+   honest system fallbacks (the product is local-first; offline gets clean
+   system type, not broken layout). */
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..700&family=Outfit:wght@300..700&family=JetBrains+Mono:wght@300..600&display=swap');
+
+:root {
+  --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-outfit: 'Outfit', system-ui, sans-serif;
+  --font-jetbrains-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@layer base {
+/* ---------- One-accent discipline ----------
+ * The accent (#5ce1e6) is used ONLY for: the status dot, the Execute button,
+ * and the active mode item (plus the brief acquisition flash and the intake
+ * sparklines at reduced opacity). Everything else is neutral: the brain
+ * supplies the color in this composition; the HUD is the instrument. */
+:root {
+  --bg: #010307;
+  --bg-panel: rgba(11, 14, 20, 0.5);
+  --text-1: rgba(232, 238, 250, 0.92);
+  --text-2: rgba(160, 170, 190, 0.6);
+  --text-3: rgba(120, 130, 150, 0.38);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --accent: #5ce1e6;
+  --state-ok: #58d68d;
+  --state-busy: #e0a84f;
+  --mono: var(--font-jetbrains-mono), monospace;
+  --display: var(--font-outfit), sans-serif;
+
+  /* Motion tokens — every transition/animation in this file rides on these.
+   * expo: entrances (600-900ms) · quart: hovers (200-300ms) · soft: exits. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-soft: cubic-bezier(0.55, 0, 1, 0.45);
+
+  /* Edge-lit rim: top stop brightness. Focus states TOGGLE this variable —
+   * never animate paint properties on a backdrop-filtered element. */
+  --rim-top: 0.16;
+
+  /* Static feTurbulence grain tile, shared by panel grain and frame grain. */
+  --grain-noise: url("/grain.svg");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Type optics: case-sensitive forms + alternate l/I disambiguation (cv05).
+ * If Google Fonts strips cv05 from the subset it fails silently — fine. */
+html {
+  font-feature-settings: "case" 1, "cv05" 1;
+}
+
+/* Let Inter's opsz axis track rendered size (loaded via axes:["opsz"]). */
+body {
+  font-optical-sizing: auto;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+}
+
+@layer utilities {
+/* ---------- Vibrancy tiers ---------- */
+
+.t1 {
+  color: var(--text-1);
+  font-weight: 510;
+}
+
+.t2 {
+  color: var(--text-2);
+  font-weight: 450;
+}
+
+.t3 {
+  color: var(--text-3);
+  font-weight: 400;
+}
+}
+
+@layer components {
+.superbrain-experience {
+  position: fixed;
+  inset: 0;
+  isolation: isolate;
+  overflow: hidden;
+  background: #010307;
+}
+
+.scene-layer,
+.atmosphere-layer,
+.grid-layer,
+.hud-shell {
+  position: absolute;
+  inset: 0;
+}
+
+.scene-layer {
+  z-index: 0;
+}
+
+.atmosphere-layer {
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 48%, transparent 16%, rgba(34, 10, 68, 0.07) 48%, rgba(1, 3, 7, 0.8) 100%),
+    linear-gradient(90deg, rgba(1, 3, 7, 0.72), transparent 25%, transparent 75%, rgba(1, 3, 7, 0.72));
+}
+
+.grid-layer {
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.065;
+  background-image:
+    linear-gradient(rgba(95, 188, 220, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(95, 188, 220, 0.025) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, transparent 10%, black 82%);
+}
+
+.hud-shell {
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hud-shell button,
+.hud-shell input,
+.hud-shell form {
+  pointer-events: auto;
+}
+
+/* ---------- Glass system ---------- */
+
+/* Resaturated glass: blur + saturate(140%) + brightness lift pulls the
+ * nebula's color INTO the panes (saturate capped ~140% on near-black scenes
+ * so the glass never goes milky). */
+.glass-surface {
+  position: relative;
+  background: var(--bg-panel);
+  border: 1px solid transparent;
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -14px 28px -18px rgba(0, 0, 0, 0.5),
+    0 24px 70px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+}
+
+/* Edge-lit rim (visionOS light-from-above): a 1px masked gradient frame
+ * replaces the flat hairline border. The top stop rides --rim-top so focus
+ * brightening is a variable toggle on a STATIC gradient, never a paint
+ * animation. Consoles keep ::after for the scanline — ::before is free. */
+.glass-surface::before,
+.command-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, var(--rim-top)),
+    rgba(255, 255, 255, 0.055) 20%,
+    rgba(255, 255, 255, 0.035) 62%,
+    rgba(255, 255, 255, 0.07) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Static photographic grain INSIDE each pane — kills banding, sells material.
+ * Never animated. */
+.glass-grain {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: var(--grain-noise);
+  background-size: 128px 128px;
+}
+
+/* Full-frame grain above the entire stack (canvas + DOM): one shared optical
+ * substrate, like film over a composite. Static, pointer-transparent. */
+.frame-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: var(--grain-noise);
+  background-size: 128px 128px;
+}
+
+/* Bottom scrim behind the terminal-log/command region — guarantees log
+ * legibility when the nebula flares underneath. */
+.bottom-scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 220px;
+  background: linear-gradient(to top, rgba(2, 4, 10, 0.55), transparent 160px);
+  pointer-events: none;
+}
+
+/* ---------- Top bar ---------- */
+
+.topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  padding: 0 28px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.brand-lockup,
+.system-summary,
+.secure-button {
+  display: flex;
+  align-items: center;
+}
+
+.brand-lockup {
+  gap: 11px;
+}
+
+.brand-mark,
+.command-chip,
+.command-search {
+  display: grid;
+  place-items: center;
+}
+
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.brand-mark svg {
+  width: 15px;
+  fill: none;
+  stroke: var(--text-1);
+  stroke-width: 1.6;
+}
+
+.brand-wordmark {
+  color: var(--text-1);
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.brand-wordmark span {
+  color: var(--text-2);
+}
+
+.build-tag {
+  margin-left: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.system-summary {
+  gap: 18px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.system-summary span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.system-summary strong {
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--hairline);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-dot--live {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(92, 225, 230, 0.7);
+  animation: breathe 2.2s ease-in-out infinite;
+}
+
+.secure-button {
+  justify-self: end;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-2);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);
+}
+
+.secure-button:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-1);
+}
+
+.secure-button svg {
+  width: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+/* ---------- Center hero title (the ONLY Display-role text) ---------- */
+
+.core-readout {
+  position: absolute;
+  top: 88px;
+  left: 50%;
+  width: 860px;
+  max-width: 92vw;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.core-readout h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--text-1);
+  text-shadow: 0 0 24px rgba(150, 200, 255, 0.12);
+}
+
+.core-readout h2 span {
+  color: var(--text-3);
+  text-shadow: none;
+}
+
+.core-sub {
+  margin: 8px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* ---------- Side consoles ---------- */
+
+.left-console,
+.right-console {
+  position: relative;
+  width: 350px;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+@keyframes powerSurge {
+  0% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
+  33% { box-shadow: 0 15px 30px -5px rgba(25, 212, 240, 0.7); border-bottom-color: rgba(25, 212, 240, 1.0); }
+  66% { box-shadow: 0 15px 35px -5px rgba(168, 230, 43, 0.8); border-bottom-color: rgba(168, 230, 43, 1.0); }
+  100% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
+}
+
+aside.left-console {
+  padding: 22px;
+  border-bottom: 4px solid transparent;
+  animation: powerSurge 6s infinite linear !important;
+}
+
+aside.right-console {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 4px solid transparent;
+  animation: powerSurge 6s infinite linear reverse !important;
+}
+
+@keyframes wireGlowSurge {
+  0% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
+  50% { opacity: 0.6; transform: translateY(-5px) scaleX(1.1); }
+  100% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
+}
+
+/* Multi-colored light surging UP into the bottom of the panels from the wires */
+.left-console::before,
+.right-console::before {
+  content: '';
+  position: absolute;
+  bottom: -5px; /* Stay inside bounds so it isn't clipped by overflow: hidden */
+  left: 10%;
+  right: 10%;
+  height: 60px;
+  background: linear-gradient(90deg, rgba(255,59,40,0.8), rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
+  filter: blur(30px);
+  z-index: -1;
+  animation: wireGlowSurge 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ---------- Scanline sweep ----------
+ * Animates transform (compositor) — animating `top` forces layout + re-blur
+ * inside a backdrop-filtered panel every frame. */
+.left-console::after,
+.right-console::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 14%;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+  transform: translateY(-120%);
+  will-change: transform;
+  animation: hud-scan 9s linear infinite;
+  pointer-events: none;
+}
+
+.right-console::after {
+  animation-delay: 4.5s;
+}
+
+@keyframes hud-scan {
+  0% {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  52% {
+    transform: translateY(820%);
+    opacity: 1;
+  }
+  56% {
+    transform: translateY(820%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(820%);
+    opacity: 0;
+  }
+}
+
+/* ---------- Eyebrow (the ONLY all-caps role) ---------- */
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 510;
+  letter-spacing: 0.12em;
+}
+
+.eyebrow > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+/* ---------- Left console: cognition title ---------- */
+
+.left-console h1 {
+  margin: 14px 0 0;
+  max-width: 260px;
+  color: var(--text-1);
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 510;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+.cognition-detail {
+  margin: 8px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.4;
+}
+
+/* ---------- Mode rail ---------- */
+
+.mode-rail {
+  position: relative;
+  margin-top: 22px;
+  display: grid;
+  gap: 6px;
+}
+
+.mode-rail::before {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 20px;
+  bottom: 20px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+.mode-button {
+  position: relative;
+  width: 100%;
+  padding: 8px 12px 8px 0;
+  display: grid;
+  grid-template-columns: 36px 1fr 12px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: 200ms var(--ease-out-quart);
+}
+
+.mode-num {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  background: rgba(4, 8, 20, 0.92);
+  /* Specular: same light-from-above as every other raised element. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-copy strong,
+.mode-copy small {
+  display: block;
+}
+
+.mode-copy strong {
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 510;
+  letter-spacing: 0.08em;
+}
+
+.mode-copy small {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.mode-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+/* Hovers brighten toward white-alpha, never toward a hue. */
+.mode-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mode-button.is-active {
+  padding-left: 10px;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.mode-button.is-active .mode-num {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text-1);
+}
+
+.mode-button.is-active .mode-copy strong {
+  color: var(--text-1);
+}
+
+.mode-button.is-active .mode-dot {
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(92, 225, 230, 0.8);
+}
+
+/* ---------- Objective card ---------- */
+
+.objective-card {
+  margin-top: 20px;
+  padding: 13px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.objective-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-2);
+}
+
+.objective-head strong {
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 510;
+  font-variant-numeric: tabular-nums;
+}
+
+.objective-bar {
+  overflow: hidden;
+  height: 3px;
+  margin: 9px 0 11px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.objective-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(232, 238, 250, 0.6);
+  transition: width 500ms var(--ease-out-quart);
+}
+
+.objective-tree {
+  display: grid;
+  gap: 5px;
+}
+
+.objective-tree p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+.objective-tree p.is-lead {
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 510;
+}
+
+/* ---------- Right console ---------- */
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-heading h3 {
+  margin: 10px 0 0;
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 510;
+}
+
+.ghost-plus {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);
+}
+
+.ghost-plus:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-1);
+}
+
+.ghost-plus--small {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.source-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 13px;
+}
+
+.source-block {
+  min-width: 0;
+  transition: transform 200ms var(--ease-out-quart);
+}
+
+.source-block:hover {
+  transform: translateY(-1px);
+}
+
+.source-block:hover .source-spark-track {
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Neutral at rest; flashes accent for a beat when a knowledge packet lands
+ * (re-triggered via React key change). */
+.source-orb {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+.source-orb--flash {
+  animation: orb-flash 0.9s var(--ease-out-quart);
+}
+
+@keyframes orb-flash {
+  0% {
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(92, 225, 230, 0.8);
+    transform: scale(1.45);
+  }
+  100% {
+    background: var(--text-2);
+    box-shadow: none;
+    transform: scale(1);
+  }
+}
+
+.source-name strong,
+.source-name small {
+  display: block;
+}
+
+.source-name strong {
+  color: var(--text-1);
+  font-size: 10px;
+  font-weight: 510;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.source-name small {
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.source-value {
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.source-spark-track {
+  position: relative;
+  height: 34px;
+  margin-top: 6px;
+  padding: 3px 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 200ms var(--ease-out-quart);
+}
+
+.source-spark {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Endpoint dot: anchors the % readout to the trend line's last sample.
+ * 3px — the tiny-motes ceiling. Vertical position computed per-row in JSX
+ * from the LAST point of that row's SPARKLINES data. */
+.spark-dot {
+  position: absolute;
+  right: 4px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 5px rgba(92, 225, 230, 0.55);
+  pointer-events: none;
+}
+
+/* ---------- Agent mesh ---------- */
+
+.agent-heading {
+  position: relative;
+  margin-top: 18px;
+  padding-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+/* End-faded gradient hairline: dividers breathe out at the edges instead of
+ * hitting the panel walls flat. */
+.agent-heading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.015),
+    rgba(255, 255, 255, 0.1) 18%,
+    rgba(255, 255, 255, 0.1) 82%,
+    rgba(255, 255, 255, 0.015)
+  );
+}
+
+.agent-heading span {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.agent-heading strong {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.agent-card {
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 38px 1fr 22px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: transform 200ms var(--ease-out-quart), border-color 200ms var(--ease-out-quart);
+}
+
+.agent-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.agent-avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+  /* Specular: one light direction everywhere. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.agent-avatar svg {
+  width: 16px;
+  fill: none;
+  stroke: var(--text-1);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.agent-info strong,
+.agent-info small {
+  display: block;
+}
+
+.agent-info strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 510;
+}
+
+.agent-info small {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* Semantic 6px dot + quiet label: green=active, amber=processing, neutral=standby. */
+.agent-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 450;
+}
+
+.agent-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+.agent-state--active::before {
+  background: var(--state-ok);
+}
+
+.agent-state--processing::before {
+  background: var(--state-busy);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+.agent-state--standby {
+  opacity: 0.8;
+}
+
+/* ---------- Terminal log ---------- */
+
+.terminal-log {
+  position: absolute;
+  left: calc(50% - 372px);
+  bottom: 104px;
+  display: grid;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.terminal-log span {
+  margin-bottom: 3px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.terminal-log p {
+  margin: 0;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.terminal-log p.is-bright {
+  color: var(--text-1);
+}
+
+/* Mono timestamps stay quiet while the line text flashes and dims. */
+.terminal-log p em {
+  font-style: normal;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Live feed lines mount bright, then settle into the archive tone. */
+.terminal-log p.term-fresh {
+  animation: term-dim 2s var(--ease-in-soft) forwards;
+}
+
+@keyframes term-dim {
+  from {
+    color: var(--text-1);
+  }
+  to {
+    color: var(--text-2);
+  }
+}
+
+/* ---------- Command bar ---------- */
+
+.command-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  transform: translateX(-50%);
+  width: min(880px, calc(100vw - 56px));
+  height: 70px;
+  padding: 0 9px 0 13px;
+  display: grid;
+  grid-template-columns: 38px 1fr auto auto;
+  align-items: center;
+  column-gap: 13px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: rgba(6, 9, 22, 0.74);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -14px 28px -18px rgba(0, 0, 0, 0.5),
+    0 24px 70px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  pointer-events: auto;
+}
+
+/* Multi-colored light surging DOWN into the top of the command bar from the wires */
+.command-bar::before {
+  content: '';
+  position: absolute;
+  top: -5px; /* Stay inside bounds */
+  left: 20%;
+  right: 20%;
+  height: 60px;
+  background: linear-gradient(90deg, rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
+  filter: blur(30px);
+  z-index: -1;
+  animation: wireGlowSurge 3s ease-in-out infinite reverse;
+  pointer-events: none;
+}
+
+/* Directive focus: the rim's TOP stop brightens via variable toggle on a
+ * static gradient — never a paint-property animation on a blurred element. */
+.command-bar:focus-within {
+  --rim-top: 0.24;
+}
+
+.command-chip {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: -0.04em;
+}
+
+.command-field {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.command-field label {
+  color: var(--text-1);
+  font-size: 11px;
+  font-weight: 510;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.command-field input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+.command-field input::placeholder {
+  color: var(--text-2);
+}
+
+.command-search svg {
+  width: 17px;
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+/* Execute: one of the three accent elements on screen.
+ * The wrapper carries the magnetic-pull transform (written straight to the
+ * ref each rAF); the button itself keeps press scale + hover sweep. */
+.execute-wrap {
+  display: inline-block;
+  will-change: transform;
+}
+
+.command-bar .execute-button {
+  position: relative;
+  overflow: hidden;
+  height: 42px;
+  padding: 0 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #04181a;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 6px 22px rgba(92, 225, 230, 0.22);
+  transition: box-shadow 200ms var(--ease-out-quart);
+}
+
+/* Hover fill sweep: a transform-only scaleX wash — NOT a background
+ * animation (the bar beneath is backdrop-filtered). */
+.command-bar .execute-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.06));
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 300ms var(--ease-out-quart);
+  pointer-events: none;
+}
+
+.command-bar .execute-button:hover::before {
+  transform: scaleX(1);
+}
+
+.command-bar .execute-button:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 24px rgba(92, 225, 230, 0.38),
+    0 6px 26px rgba(92, 225, 230, 0.28);
+}
+
+/* Dim return-key affordance inside Execute. */
+.execute-return {
+  opacity: 0.4;
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* ---------- Footer: one quiet line ---------- */
+
+.hud-footer {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---------- Shared animation ---------- */
+
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Panel border idle-breathe was removed deliberately: animating border-color
+ * on a backdrop-filtered element forces a full re-blur repaint every frame
+ * (~9 FPS on the probe machine) for a barely perceptible effect. */
+
+/* ---------- Boot entrance choreography ----------
+ * Keys off the WorkspaceCanvas boot contract: <main class="superbrain-experience">
+ * gets .is-booting during the boot overlay, then .is-booted once it finishes.
+ * Default state (no boot classes) keeps every element visible, so the HUD
+ * still renders if the boot overlay is ever absent. The keyframes only
+ * declare a `from` state, so each element animates back to its OWN natural
+ * opacity/transform (centered translateX elements included). */
+
+.superbrain-experience.is-booting .topbar,
+.superbrain-experience.is-booting .core-readout,
+.superbrain-experience.is-booting .left-console,
+.superbrain-experience.is-booting .right-console,
+.superbrain-experience.is-booting .command-bar,
+.superbrain-experience.is-booting .terminal-log,
+.superbrain-experience.is-booting .hud-footer {
+  opacity: 0;
+}
+
+@keyframes hud-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes hud-enter-centered {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px);
+  }
+}
+
+.superbrain-experience.is-booted .topbar {
+  animation: hud-enter 650ms var(--ease-out-expo) 0ms both;
+}
+
+.superbrain-experience.is-booted .core-readout {
+  animation: hud-enter-centered 650ms var(--ease-out-expo) 0ms both;
+}
+
+.superbrain-experience.is-booted .left-console {
+  animation: hud-enter 650ms var(--ease-out-expo) 120ms both;
+}
+
+.superbrain-experience.is-booted .right-console {
+  animation: hud-enter 650ms var(--ease-out-expo) 260ms both;
+}
+
+.superbrain-experience.is-booted .command-bar {
+  animation: hud-enter-centered 650ms var(--ease-out-expo) 420ms both;
+}
+
+.superbrain-experience.is-booted .hud-footer {
+  animation: hud-enter-centered 650ms var(--ease-out-expo) 560ms both;
+}
+
+.superbrain-experience.is-booted .terminal-log {
+  animation: hud-enter 650ms var(--ease-out-expo) 560ms both;
+}
+
+/* One-time diagonal light sweep across the title once the OS is booted.
+ * The clip/gradient properties live INSIDE the keyframes so the title
+ * reverts to its normal solid color the instant the sweep completes. */
+.superbrain-experience.is-booted .core-readout h2 {
+  animation: title-shimmer 1.2s ease-in-out 760ms 1;
+}
+
+@keyframes title-shimmer {
+  from {
+    color: transparent;
+    background-image: linear-gradient(
+      118deg,
+      #f7fbff 42%,
+      #ffffff 48%,
+      #d9f4ff 50%,
+      #ffffff 52%,
+      #f7fbff 58%
+    );
+    background-size: 240% 100%;
+    background-position: 130% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  to {
+    color: transparent;
+    background-image: linear-gradient(
+      118deg,
+      #f7fbff 42%,
+      #ffffff 48%,
+      #d9f4ff 50%,
+      #ffffff 52%,
+      #f7fbff 58%
+    );
+    background-size: 240% 100%;
+    background-position: -130% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1280px) {
+  .left-console,
+  .right-console {
+    width: 300px;
+  }
+
+  .core-readout h2 {
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .terminal-log,
+  .hud-footer {
+    display: none;
+  }
+
+  .system-summary span:nth-last-child(-n + 2) {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    padding: 0 16px;
+    grid-template-columns: 1fr auto;
+  }
+
+  .system-summary,
+  .right-console {
+    display: none;
+  }
+
+  .left-console {
+    top: auto;
+    bottom: 120px;
+    left: 14px;
+    width: 250px;
+    padding: 15px;
+  }
+
+  .left-console h1 {
+    font-size: 19px;
+  }
+
+  .cognition-detail,
+  .objective-card {
+    display: none;
+  }
+
+  .mode-rail {
+    margin-top: 12px;
+  }
+
+  .command-bar {
+    bottom: 14px;
+    width: calc(100vw - 28px);
+  }
+
+  .core-readout {
+    top: 80px;
+  }
+
+  .core-readout h2 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 620px) {
+  .build-tag,
+  .secure-button,
+  .left-console,
+  .command-search {
+    display: none;
+  }
+
+  .topbar {
+    height: 54px;
+  }
+
+  .core-readout {
+    top: 66px;
+    width: 100%;
+  }
+
+  .core-readout h2 {
+    font-size: 20px;
+  }
+
+  .command-bar {
+    grid-template-columns: 38px 1fr auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Entrance transforms and shimmer fully off; elements appear instantly
+   * at their natural styles (no staggered delays). */
+  .left-console,
+  .right-console,
+  .superbrain-experience.is-booted .topbar,
+  .superbrain-experience.is-booted .core-readout,
+  .superbrain-experience.is-booted .left-console,
+  .superbrain-experience.is-booted .right-console,
+  .superbrain-experience.is-booted .command-bar,
+  .superbrain-experience.is-booted .terminal-log,
+  .superbrain-experience.is-booted .hud-footer,
+  .superbrain-experience.is-booted .core-readout h2 {
+    animation: none;
+  }
+
+  .mode-button:hover,
+  .agent-card:hover,
+  .source-block:hover {
+    transform: none;
+  }
+
+  /* New motion collapses to instant end states: the hover sweep appears
+   * fully drawn, the magnetic wrapper never displaces (its JS hook also
+   * bails on reduced motion — this is the belt to that suspender). */
+  .command-bar .execute-button::before {
+    transition: none;
+  }
+
+  .execute-wrap {
+    transform: none !important;
+  }
+}
+}
+
+/* -------------------------------------------------------------------------- */
+/* Approval hold - the command bar wears YELLOW-zone amber while the mind     */
+/* defers to its operator. Static class swap only: never animated paint on a  */
+/* backdrop-filtered panel (see the rule at the top of this file).            */
+/* -------------------------------------------------------------------------- */
+.command-bar.is-approval-hold {
+  border-color: rgba(255, 180, 84, 0.65);
+  box-shadow: 0 0 22px rgba(255, 180, 84, 0.16);
+}
+
+.command-bar.is-approval-hold .command-field label {
+  color: #ffb454;
+}
+
+.command-bar.is-approval-hold .command-chip {
+  color: #ffb454;
+}
+
+/* Fidelity readout - degradation is never a mystery. Inherits the topbar
+   stat styling; the strong tints by tier state via currentColor only. */
+.fidelity-button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.fidelity-button strong {
+  color: #9ff0ff;
+}
+
+.fidelity-button:hover strong {
+  color: #ffffff;
+}
+
+.fidelity-thinking {
+  font-style: normal;
+  opacity: 0.65;
+}

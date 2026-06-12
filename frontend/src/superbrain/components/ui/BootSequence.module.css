@@ -1,0 +1,185 @@
+/*
+ * BootSequence — GAGOS kernel boot overlay.
+ * Fullscreen, above the HUD, fully unmounted once complete.
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  background: #010307;
+  font-family: var(--mono, monospace);
+  opacity: 1;
+  transition: opacity 0.5s ease;
+  cursor: default;
+  user-select: none;
+}
+
+.isFading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- GAGOS hex mark ------------------------------------------------------ */
+
+.mark {
+  width: 58px;
+  height: 58px;
+  color: #5ee1ff;
+  filter: drop-shadow(0 0 16px rgba(94, 225, 255, 0.35));
+  animation: bootPulse 2.2s ease-in-out infinite;
+}
+
+.mark svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+@keyframes bootPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.82;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+/* --- Boot log + progress stage ------------------------------------------ */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  width: min(430px, 82vw);
+  min-height: 196px;
+}
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: 0.08em;
+  color: rgba(159, 178, 214, 0.82);
+}
+
+.line {
+  margin: 0;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.lineVisible {
+  opacity: 1;
+  transform: none;
+}
+
+.head {
+  color: #e8ecff;
+  letter-spacing: 0.16em;
+}
+
+.dots {
+  color: rgba(127, 141, 176, 0.55);
+}
+
+.status {
+  color: #2fe6c8;
+}
+
+/* --- Progress bar --------------------------------------------------------- */
+
+.track {
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(94, 225, 255, 0.13);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(90deg, #2fe6c8, #5ee1ff);
+  box-shadow: 0 0 8px rgba(94, 225, 255, 0.45);
+  will-change: transform;
+}
+
+/* --- Finale --------------------------------------------------------------- */
+
+.finale {
+  margin: 0;
+  font-family: var(--display, sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.46em;
+  text-indent: 0.46em;
+  text-align: center;
+  color: #e9f6ff;
+  background: linear-gradient(
+    100deg,
+    rgba(233, 246, 255, 0.5) 18%,
+    #ffffff 50%,
+    rgba(233, 246, 255, 0.5) 82%
+  );
+  background-size: 240% 100%;
+  background-position: 130% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: bootSweep 0.42s ease-out forwards;
+}
+
+@keyframes bootSweep {
+  from {
+    background-position: 130% 0;
+    filter: brightness(0.65);
+  }
+  to {
+    background-position: -30% 0;
+    filter: brightness(1.18);
+  }
+}
+
+/* --- Reduced motion ------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    transition-duration: 0.3s;
+  }
+
+  .mark {
+    animation: none;
+  }
+
+  .line {
+    transition: none;
+    transform: none;
+  }
+
+  .finale {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: #e9f6ff;
+  }
+}

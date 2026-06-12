@@ -1,0 +1,91 @@
+/* CyberCursor — canonical award-site dot + ring.
+ *
+ * Performance contract:
+ * - The rAF loop writes translate3d to the two ROOT elements only.
+ * - The hover morph lives on INNER shape elements so the CSS transition
+ *   never fights the per-frame transform write.
+ * - Transitions are transform/opacity ONLY (the documented paint-property
+ *   trap: never animate border-color / box-shadow / background-position).
+ *   The hover "fill" is a child layer whose OPACITY fades, not a
+ *   background-color animation.
+ */
+
+/* Hide the native cursor only for fine pointers, and only while the
+ * component has marked <html> as cursor-active. The component REMOVES the
+ * class while hovering text inputs so the native I-beam returns and the
+ * command bar stays usable. */
+@media (pointer: fine) {
+  :global(html.cursor-active),
+  :global(html.cursor-active *) {
+    cursor: none !important;
+  }
+}
+
+.dot,
+.ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  will-change: transform;
+  z-index: 100; /* above the DOM grain overlay (~90); dot is after ring in DOM */
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Visible once the pointer has actually moved (never parked at 0,0). */
+.dot.isVisible,
+.ring.isVisible {
+  opacity: 1;
+}
+
+/* Over text inputs the native I-beam takes over — fade the custom cursor.
+ * Declared after isVisible so it wins when both classes are present. */
+.dot.isText,
+.ring.isText {
+  opacity: 0;
+}
+
+/* 4px solid accent dot, tracking the pointer 1:1. */
+.dotShape {
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px; /* static centering offset — never animated */
+  border-radius: 50%;
+  background: #5ce1e6;
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 28px ring, trailing via frame-rate-independent lerp. */
+.ringShape {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px; /* static centering offset — never animated */
+  border-radius: 50%;
+  border: 1px solid rgba(92, 225, 230, 0.6);
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover fill as an opacity-faded child layer (no background animation). */
+.ringFill {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(92, 225, 230, 0.08);
+  opacity: 0;
+  transition: opacity 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover morph: ring swells 1.6x and fills; dot shrinks 4px -> 2px. */
+.isHover .dotShape {
+  transform: scale(0.5);
+}
+
+.isHover .ringShape {
+  transform: scale(1.6);
+}
+
+.isHover .ringFill {
+  opacity: 1;
+}
