@@ -15,6 +15,7 @@ import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
 import KnowledgeHorizon from './KnowledgeHorizon';
+import RegionPins from './RegionPins';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -25,6 +26,11 @@ import type { QualityTier } from '@/components/QualityTierProvider';
  *  original moving field alone; 'layered' = his field in front of his
  *  photographic dome (motion + depth) — operator's choice. */
 const SKY_MODE: 'voyage' | 'layered' = 'voyage';
+
+/** Anatomical region pins (RESEARCH/MEMORY/TOOLS/SIGNALS callouts bound to
+ *  the same live channels as the intake rows). Additive layer — the
+ *  operator's call (VISION.md): flip to false to remove without a trace. */
+const SHOW_REGION_PINS = true;
 
 interface SuperbrainSceneProps {
   mode: CognitiveMode;
@@ -843,6 +849,9 @@ function BrainModel({
         uniforms={uniforms}
         count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
       />
+      {/* Anatomical callouts ride INSIDE the group: pinned to the lobes,
+          breathing and banking with the organism. */}
+      {SHOW_REGION_PINS && <RegionPins />}
     </group>
   );
 }

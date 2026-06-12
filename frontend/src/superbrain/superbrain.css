@@ -464,6 +464,38 @@ aside.right-console {
   opacity: 0;
 }
 
+/* ---------- Region pins (anatomical callouts) ----------
+ * Bound to the same metricsStore channels as the intake rows — one number,
+ * every surface. NO backdrop-filter here: these chips ride the breathing
+ * brain and move every frame, and continuous re-blur on a moving element is
+ * exactly the paint trap the rest of this file avoids. */
+.region-pin {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 9px;
+  background: rgba(5, 10, 18, 0.62);
+  border: 1px solid rgba(159, 240, 255, 0.2);
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.region-pin strong {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ff0ff;
+}
+
+/* The pins belong to the booted experience like every other readout. */
+.superbrain-experience.is-booting .region-pin {
+  opacity: 0;
+}
+
 @keyframes wireGlowSurge {
   0% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
   50% { opacity: 0.6; transform: translateY(-5px) scaleX(1.1); }
