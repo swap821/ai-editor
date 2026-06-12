@@ -496,6 +496,25 @@ aside.right-console {
   opacity: 0;
 }
 
+/* ---------- Truthful status states ----------
+ * The link dot and shield only ever show computed reality: amber link-down,
+ * amber approval hold, red audit-chain tamper. Static class swaps only. */
+.status-dot--down {
+  background: #e0a84f;
+  box-shadow: 0 0 8px rgba(224, 168, 79, 0.7);
+}
+
+.secure-button--hold {
+  color: #ffb454;
+  border-color: rgba(255, 180, 84, 0.55);
+}
+
+.secure-button--tamper {
+  color: #ff5c5c;
+  border-color: rgba(255, 92, 92, 0.65);
+  box-shadow: 0 0 14px rgba(255, 92, 92, 0.25);
+}
+
 @keyframes wireGlowSurge {
   0% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
   50% { opacity: 0.6; transform: translateY(-5px) scaleX(1.1); }

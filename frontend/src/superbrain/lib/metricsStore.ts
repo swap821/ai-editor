@@ -32,13 +32,45 @@ type Snapshot = Record<MetricKey, number>;
  *  drift/bump animation suddenly tells the truth. */
 const bases: Snapshot = { ...METRIC_BASES };
 
+/** True while the adapter's link is up. Online, the idle drift is zeroed —
+ *  the displayed number only moves on real polls and real acquisition
+ *  bumps. Offline, the demo imagination keeps its gentle wander. */
+let linkUp = false;
+
+export function setMetricLink(up: boolean): void {
+  linkUp = up;
+}
+
+/** Real history per channel (one sample per successful adapter poll), the
+ *  truth source for the HUD sparklines. Arrays are replaced, not mutated,
+ *  so useSyncExternalStore sees referential change. */
+const HISTORY_MAX = 8;
+let history: Record<MetricKey, number[]> = {
+  research: [],
+  memory: [],
+  tools: [],
+  signals: [],
+};
+
+export function getMetricHistory(): Record<MetricKey, number[]> {
+  return history;
+}
+
 /** Point the metric channels at real data (NaN/undefined entries ignored). */
 export function setMetricBases(next: Partial<Record<MetricKey, number>>): void {
+  let historyChanged = false;
+  const nextHistory = { ...history };
   for (const key of METRIC_KEYS) {
     const value = next[key];
     if (typeof value === 'number' && Number.isFinite(value)) {
       bases[key] = Math.round(Math.max(5, Math.min(99, value)));
+      nextHistory[key] = [...nextHistory[key], bases[key]].slice(-HISTORY_MAX);
+      historyChanged = true;
     }
+  }
+  if (historyChanged) {
+    history = nextHistory;
+    emit();
   }
 }
 
@@ -64,7 +96,9 @@ function startTicker() {
     const next: Snapshot = { ...current };
     for (const key of METRIC_KEYS) {
       bumps[key] *= 0.82; // acquisition bumps ease back to baseline
-      const drift = (Math.random() - 0.5) * 1.6; // gentle idle wander
+      // Online the number is REAL — it moves only on polls and bumps.
+      // Offline the demo imagination keeps its gentle wander.
+      const drift = linkUp ? 0 : (Math.random() - 0.5) * 1.6;
       const target = bases[key] + bumps[key] + drift;
       next[key] = Math.round(Math.max(1, Math.min(99, target)));
     }
@@ -115,5 +149,17 @@ function getServerSnapshot(): Snapshot {
 /** React hook — one live value, identical everywhere it is displayed. */
 export function useMetric(key: MetricKey): number {
   const snapshot = useSyncExternalStore(subscribeMetrics, getMetricsSnapshot, getServerSnapshot);
+  return snapshot[key];
+}
+
+const EMPTY_HISTORY: number[] = [];
+
+function getServerHistory(): Record<MetricKey, number[]> {
+  return { research: EMPTY_HISTORY, memory: EMPTY_HISTORY, tools: EMPTY_HISTORY, signals: EMPTY_HISTORY };
+}
+
+/** React hook — the channel's REAL sample history (one point per poll). */
+export function useMetricHistory(key: MetricKey): number[] {
+  const snapshot = useSyncExternalStore(subscribeMetrics, getMetricHistory, getServerHistory);
   return snapshot[key];
 }

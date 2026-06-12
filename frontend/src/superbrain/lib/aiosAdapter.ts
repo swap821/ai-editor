@@ -16,7 +16,7 @@
  */
 
 import { publishCognition } from './cognitionBus';
-import { setMetricBases } from './metricsStore';
+import { setMetricBases, setMetricLink } from './metricsStore';
 
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://127.0.0.1:8000';
@@ -132,6 +132,10 @@ export interface PendingApproval {
   diff: string;
   /** The exact command, when the ask is a command. */
   command: string;
+  /** What kind of action is being authorized. */
+  kind: 'create' | 'edit' | 'command' | 'other';
+  /** Target file for write approvals (empty for commands). */
+  filepath: string;
 }
 
 let pendingApproval: PendingApproval | null = null;
@@ -144,6 +148,17 @@ export function getPendingApproval(): PendingApproval | null {
 function captureApproval(text: string, data: Record<string, unknown>): void {
   const input = (data.input ?? {}) as Record<string, unknown>;
   const commands = Array.isArray(input.commands) ? input.commands : [];
+  // The backend names the exact target: creations carry {filepath, content},
+  // edits carry the structured edit triple. Surface it so the panel can
+  // title the decision precisely.
+  const creations = Array.isArray(input.creations) ? input.creations : [];
+  const edits = Array.isArray(input.edits) ? input.edits : [];
+  const firstPath = (rows: unknown[]): string => {
+    const head = (rows[0] ?? {}) as Record<string, unknown>;
+    return String(head.filepath ?? head.path ?? '');
+  };
+  const kind: PendingApproval['kind'] =
+    creations.length > 0 ? 'create' : edits.length > 0 ? 'edit' : commands.length > 0 ? 'command' : 'other';
   pendingApproval = {
     token: String(input.approvalToken ?? ''),
     prompt: text,
@@ -151,6 +166,8 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
     explanation: String(input.explanation ?? ''),
     diff: String(input.diff ?? ''),
     command: commands.length > 0 ? String(commands[0]) : '',
+    kind,
+    filepath: kind === 'create' ? firstPath(creations) : kind === 'edit' ? firstPath(edits) : '',
   };
 }
 
@@ -190,6 +207,38 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
             source: 'aios',
           });
           break;
+        case 'code': {
+          // Generated code used to vanish into the default branch — at
+          // minimum the organism announces the artifact honestly.
+          const code = String(frame.data.code ?? '');
+          const language = String(frame.data.language ?? 'text');
+          publishCognition({
+            type: 'knowledge-acquired',
+            label: 'CODE EMITTED',
+            detail: `${language} · ${code.split('\n').length} line(s)`,
+            intensity: 0.7,
+            source: 'aios',
+          });
+          break;
+        }
+        case 'alignment': {
+          // The mind declares its understanding every turn; show it.
+          const intent = String(frame.data.intent ?? '');
+          const confidence = frame.data.confidence;
+          if (intent) {
+            publishCognition({
+              type: 'agent-dispatch',
+              label: `INTENT ${intent.toUpperCase()}`,
+              detail:
+                typeof confidence === 'number'
+                  ? `declared understanding · confidence ${(confidence * 100).toFixed(0)}%`
+                  : 'declared understanding',
+              intensity: 0.3,
+              source: 'aios',
+            });
+          }
+          break;
+        }
         case 'error':
           publishCognition({
             type: 'synthesis',
@@ -251,13 +300,16 @@ export async function approvePendingApproval(): Promise<DirectiveResult> {
 }
 
 /** The operator declines: the rejection is recorded through the real
- *  endpoint (audited server-side) and the organism stands down. */
+ *  endpoint (audited server-side) and the organism stands down. The bus
+ *  only announces 'rejected' when the server CONFIRMED the decision —
+ *  an unreachable backend gets the honest 'rejected (unconfirmed)'. */
 export async function rejectPendingApproval(): Promise<void> {
   const pending = pendingApproval;
   if (!pending?.token) return;
   pendingApproval = null;
+  let confirmed = false;
   try {
-    await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
+    const response = await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -266,12 +318,16 @@ export async function rejectPendingApproval(): Promise<void> {
         approve: false,
       }),
     });
+    if (response.ok) {
+      const result = (await response.json()) as { decision?: string };
+      confirmed = result.decision === 'rejected';
+    }
   } catch {
     // The token simply expires unredeemed; the visual still stands down.
   }
   publishCognition({
     type: 'approval-resolved',
-    label: 'rejected',
+    label: confirmed ? 'rejected' : 'rejected (unconfirmed — token will expire)',
     detail: pending.summary.slice(0, 140),
     intensity: 0.5,
     source: 'operator',
@@ -287,8 +343,37 @@ export interface TrailRow {
   quarantined: boolean;
   success_count: number;
   reuse_success_count: number;
+  failure_count: number;
+  reuse_failure_count: number;
   strength: number;
   freshness: number;
+}
+
+interface TrailMapResponse {
+  trails?: TrailRow[];
+  summary?: { verified: number; candidate: number; quarantined: number; superseded: number };
+}
+
+/** One successful poll's worth of REAL system truth — everything the HUD
+ *  shows about link/latency/trails/metrics flows from this snapshot. */
+export interface AiosTelemetry {
+  link: boolean;
+  latencyMs: number;
+  trails: number;
+  verified: number;
+  candidate: number;
+  quarantined: number;
+  superseded: number;
+  tasks: number;
+  lessons: number;
+  repeatedMistakes: number;
+  blockedActions: number;
+  interventionRate: number;
+  avgToolCalls: number;
+  /** Audit hash-chain status (sampled every few polls): true = intact,
+   *  false = TAMPER, null = not yet checked / unavailable. */
+  chainValid: boolean | null;
+  chainEntries: number;
 }
 
 export function trailLabel(goal: string): string {
@@ -296,54 +381,81 @@ export function trailLabel(goal: string): string {
 }
 
 const seenTrailTotals = new Map<number, number>();
+const seenTrailFailures = new Map<number, number>();
 let linkUp = false;
 /** The live pheromone map as of the last successful poll (empty offline). */
 let knownTrails: TrailRow[] = [];
+let lastTelemetry: AiosTelemetry | null = null;
+let pollCount = 0;
+let chainValid: boolean | null = null;
+let chainEntries = 0;
 
 /** The brain's actual trail field — what the grasp system may recall. */
 export function getKnownTrails(): readonly TrailRow[] {
   return knownTrails;
 }
 
+/** True while the last poll reached the real backend. */
+export function getLinkState(): boolean {
+  return linkUp;
+}
+
+/** The most recent telemetry snapshot (null before the first successful poll). */
+export function getLastTelemetry(): AiosTelemetry | null {
+  return lastTelemetry;
+}
+
 /** Test seam: clear the module's poll memory between test cases. */
 export function __resetAiosAdapterForTests(): void {
   seenTrailTotals.clear();
+  seenTrailFailures.clear();
   linkUp = false;
   knownTrails = [];
   pendingApproval = null;
+  lastTelemetry = null;
+  pollCount = 0;
+  chainValid = null;
+  chainEntries = 0;
 }
+
+/** Audit hash-chain probe — sampled every few polls (it walks the ledger). */
+const CHAIN_PROBE_EVERY = 5;
 
 /** One trails+metrics poll. Exported for tests; production runs it through
  *  {@link startAiosPolling}. */
 export async function pollOnce(): Promise<void> {
   try {
+    const startedAt = performance.now();
     const [trailsRes, metricsRes] = await Promise.all([
       fetch(`${AIOS_BASE}/api/v1/development/trails`),
       fetch(`${AIOS_BASE}/api/v1/development/metrics`),
     ]);
     if (!trailsRes.ok || !metricsRes.ok) throw new Error('bad status');
-    const trailMap = (await trailsRes.json()) as { trails: TrailRow[] };
-    const metrics = (await metricsRes.json()) as Record<string, number>;
+    const trailMap = (await trailsRes.json()) as TrailMapResponse;
+    const metrics = (await metricsRes.json()) as Record<string, unknown>;
+    const latencyMs = Math.max(1, Math.round(performance.now() - startedAt));
+    const trails = trailMap.trails ?? [];
 
     if (!linkUp) {
       linkUp = true;
+      setMetricLink(true);
       publishCognition({
         type: 'synthesis',
         label: 'AI-OS LINK ESTABLISHED',
-        detail: `live cognition: ${trailMap.trails.length} trail(s) on the pheromone map`,
+        detail: `live cognition: ${trails.length} trail(s) on the pheromone map`,
         intensity: 0.7,
         source: 'aios',
       });
     }
 
-    const trails = trailMap.trails ?? [];
     knownTrails = trails;
     const verified = trails.filter((t) => t.status === 'verified');
     const avg = (rows: TrailRow[], pick: (t: TrailRow) => number) =>
       rows.length ? rows.reduce((sum, t) => sum + pick(t), 0) / rows.length : NaN;
+    const num = (value: unknown): number => (typeof value === 'number' ? value : NaN);
     setMetricBases({
-      research: (metrics.verified_success_rate ?? NaN) * 100,
-      tools: (metrics.verification_coverage ?? NaN) * 100,
+      research: num(metrics.verified_success_rate) * 100,
+      tools: num(metrics.verification_coverage) * 100,
       memory: avg(verified, (t) => t.strength) * 100,
       signals: avg(trails, (t) => t.freshness) * 100,
     });
@@ -361,16 +473,87 @@ export async function pollOnce(): Promise<void> {
         });
       }
       seenTrailTotals.set(trail.skill_id, total);
+
+      // The dark side of stigmergy is signal too: failures weaken a trail.
+      const failures = (trail.failure_count ?? 0) + (trail.reuse_failure_count ?? 0);
+      const previousFailures = seenTrailFailures.get(trail.skill_id);
+      if (previousFailures !== undefined && failures > previousFailures) {
+        publishCognition({
+          type: 'agent-dispatch',
+          label: 'TRAIL WEAKENED',
+          detail: `trail #${trail.skill_id} took a failure — strength ${trail.strength.toFixed(3)}`,
+          intensity: 0.4,
+          source: 'aios',
+        });
+      }
+      seenTrailFailures.set(trail.skill_id, failures);
     }
+
+    // Tamper-evidence: walk the audit hash-chain every few polls (it scans
+    // the ledger — not a per-poll cost; first verdict ~5 polls after boot).
+    pollCount += 1;
+    if (pollCount % CHAIN_PROBE_EVERY === 0) {
+      try {
+        const chainRes = await fetch(`${AIOS_BASE}/api/v1/audit/verify`);
+        if (chainRes.ok) {
+          const chain = (await chainRes.json()) as { valid?: boolean; total_entries?: number };
+          const wasValid = chainValid;
+          chainValid = chain.valid === true ? true : chain.valid === false ? false : null;
+          chainEntries = typeof chain.total_entries === 'number' ? chain.total_entries : 0;
+          if (chainValid === false && wasValid !== false) {
+            publishCognition({
+              type: 'synthesis',
+              label: 'AUDIT CHAIN BROKEN',
+              detail: 'tamper-evidence check FAILED — inspect the audit ledger',
+              intensity: 1,
+              source: 'aios',
+            });
+          }
+        }
+      } catch {
+        chainValid = null; // unknown, never asserted
+      }
+    }
+
+    const summary = trailMap.summary;
+    lastTelemetry = {
+      link: true,
+      latencyMs,
+      trails: trails.length,
+      verified: summary?.verified ?? verified.length,
+      candidate: summary?.candidate ?? trails.filter((t) => t.status === 'candidate').length,
+      quarantined: summary?.quarantined ?? trails.filter((t) => t.quarantined).length,
+      superseded: summary?.superseded ?? 0,
+      tasks: num(metrics.tasks) || 0,
+      lessons: num(metrics.lessons) || 0,
+      repeatedMistakes: num(metrics.repeated_mistakes) || 0,
+      blockedActions: num(metrics.blocked_actions) || 0,
+      interventionRate: num(metrics.human_intervention_rate) || 0,
+      avgToolCalls: num(metrics.average_tool_calls) || 0,
+      chainValid,
+      chainEntries,
+    };
+    publishCognition({
+      type: 'telemetry',
+      source: 'aios',
+      data: lastTelemetry as unknown as Record<string, unknown>,
+    });
   } catch {
     if (linkUp) {
       linkUp = false;
+      setMetricLink(false);
+      lastTelemetry = lastTelemetry ? { ...lastTelemetry, link: false } : null;
       publishCognition({
         type: 'synthesis',
         label: 'AI-OS LINK LOST',
         detail: 'pheromone map unreachable — cognition running on imagination.',
         intensity: 0.3,
         source: 'aios',
+      });
+      publishCognition({
+        type: 'telemetry',
+        source: 'aios',
+        data: { link: false },
       });
     }
   }

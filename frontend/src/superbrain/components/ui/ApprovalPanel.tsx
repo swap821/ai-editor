@@ -71,7 +71,13 @@ export default function ApprovalPanel({
   return (
     <section className="approval-panel" role="alertdialog" aria-label="Operator approval required">
       <header className="approval-head">
-        <span className="approval-title">OPERATOR APPROVAL REQUIRED</span>
+        <span className="approval-title">
+          OPERATOR APPROVAL REQUIRED
+          {/* The backend names the exact action — the title says precisely
+              what is being authorized, never a vague ask. */}
+          {pending.kind !== 'other' ? ` · ${pending.kind.toUpperCase()}` : ''}
+          {pending.filepath ? ` · ${pending.filepath}` : ''}
+        </span>
         <span className="approval-summary">{pending.summary}</span>
       </header>
 

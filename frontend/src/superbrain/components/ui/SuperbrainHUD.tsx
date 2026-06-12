@@ -1,12 +1,18 @@
 'use client';
 
-import { FormEvent, RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Html } from '@react-three/drei';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
-import { useMetric, type MetricKey } from '@/lib/metricsStore';
-import { getPendingApproval, type PendingApproval } from '@/lib/aiosAdapter';
+import { useMetric, useMetricHistory, type MetricKey } from '@/lib/metricsStore';
+import {
+  getLastTelemetry,
+  getLinkState,
+  getPendingApproval,
+  type AiosTelemetry,
+  type PendingApproval,
+} from '@/lib/aiosAdapter';
 import { useQualityTier } from '@/components/QualityTierProvider';
 import ApprovalPanel from './ApprovalPanel';
 
@@ -140,6 +146,14 @@ const FORCED_ON_DIRECTIVE: Record<string, AgentState> = {
   Researcher: 'processing',
 };
 
+/** Route a REAL dispatched tool to the card that owns that kind of work. */
+function agentRowForTool(tool: string): number {
+  const t = tool.toLowerCase();
+  if (/plan|orchestr|skill|recall|memory|lesson/.test(t)) return 0; // Planner
+  if (/read|search|list|web|fetch|grep|inspect/.test(t)) return 1; // Researcher
+  return 2; // Builder — create/edit/execute/verify
+}
+
 /* ---------- Rotating knowledge intake labels ---------- */
 const SOURCE_MESH_LABELS = [
   'Live source mesh',
@@ -226,19 +240,6 @@ const AgentIcon = ({ kind }: { kind: AgentIconKind }) => {
     </svg>
   );
 };
-
-/* ---------- Utility: jittered value with smooth transitions ---------- */
-function useJitteredValue(base: number, range: number, intervalMs: number, min = 0, max = 100) {
-  const [value, setValue] = useState(base);
-  useEffect(() => {
-    const id = setInterval(() => {
-      const jitter = (Math.random() - 0.5) * 2 * range;
-      setValue(Math.max(min, Math.min(max, base + jitter)));
-    }, intervalMs);
-    return () => clearInterval(id);
-  }, [base, range, intervalMs, min, max]);
-  return Math.round(value);
-}
 
 /* ---------- Utility: cycling agent state (staggered per agent so state words never align) ---------- */
 function useCyclingAgent(name: string, index: number, forcedState: AgentState | null) {
@@ -467,10 +468,21 @@ function SourceRow({
   pulse: SourcePulse | null;
 }) {
   const value = useTweenedMetric(useMetric(metricKey));
-  const { line, area } = SPARK_PATHS[index];
+  /* The sparkline is REAL history (one sample per adapter poll, 0..99 →
+   * scaled into the 28px viewBox band) once at least two samples exist;
+   * before that — or offline forever — the imagination's static hills. */
+  const realHistory = useMetricHistory(metricKey);
+  const { line, area, lastPoint } = useMemo(() => {
+    if (realHistory.length >= 2) {
+      const scaled = realHistory.map((v) => 4 + (Math.max(0, Math.min(99, v)) / 99) * 22);
+      const paths = buildSparkPaths(scaled);
+      return { ...paths, lastPoint: scaled[scaled.length - 1] };
+    }
+    const canned = SPARKLINES[index];
+    return { ...SPARK_PATHS[index], lastPoint: canned[canned.length - 1] };
+  }, [realHistory, index]);
   /* Endpoint dot: track has 3px top padding, svg maps viewBox y 1:1 onto its
    * 28px height; center the 3px dot on the LAST point of this row's data. */
-  const lastPoint = SPARKLINES[index][SPARKLINES[index].length - 1];
   const dotTop = 3 + (28 - lastPoint) - 1.5;
 
   return (
@@ -513,13 +525,17 @@ function AgentCard({
   icon,
   index,
   forcedState,
+  forcedDetail = null,
 }: {
   name: string;
   icon: AgentIconKind;
   index: number;
   forcedState: AgentState | null;
+  /** Real work detail (e.g. "running create_file") — outranks the cycle. */
+  forcedDetail?: string | null;
 }) {
-  const { state, detail } = useCyclingAgent(name, index, forcedState);
+  const { state, detail: cycledDetail } = useCyclingAgent(name, index, forcedState);
+  const detail = forcedDetail ?? cycledDetail;
   const { display: decodedName, start: startDecode } = useDecodeOnHover(name);
   return (
     <div className="agent-card">
@@ -566,11 +582,34 @@ export default function SuperbrainHUD({
   }, []);
   const magnetRef = useRef<HTMLSpanElement>(null);
   useMagneticPull(magnetRef);
-  const latency = useJitteredValue(21, 5, 1200);
   const { baseTier, generating, setTier } = useQualityTier();
   const sourceMeshLabel = useCyclingLabel(SOURCE_MESH_LABELS, 6000);
-  const engaged = useJitteredValue(9, 1, 5000, 8, 11);
-  const objectivePct = Math.round(60 + activity * 19);
+
+  /* ----- real system truth (adapter telemetry; seeded for remount safety) ----- */
+  const [linkUp, setLinkUp] = useState(() => getLinkState());
+  const [telemetry, setTelemetry] = useState<AiosTelemetry | null>(() => getLastTelemetry());
+  const heartbeatCountRef = useRef(0);
+  /* Real work this turn: distinct tools dispatched (and ever, this session). */
+  const turnToolsRef = useRef<Set<string>>(new Set());
+  const sessionToolsRef = useRef<Set<string>>(new Set());
+  const [engagedLive, setEngagedLive] = useState(0);
+  const [knownTools, setKnownTools] = useState(0);
+  /* The last two REAL dispatches become the objective sub-steps. */
+  const [recentSteps, setRecentSteps] = useState<string[]>([]);
+  /* A real tool pulse routes to the card that owns that kind of work. */
+  const [toolPulse, setToolPulse] = useState<{ row: number; detail: string } | null>(null);
+  const toolPulseTimerRef = useRef<number | null>(null);
+
+  /* LATENCY: the measured trails+metrics round-trip, '--' when offline. */
+  const latency = linkUp && telemetry ? telemetry.latencyMs : null;
+
+  /* CURRENT OBJECTIVE: while a turn streams, progress follows REAL dispatched
+   * steps; idle, it is the verified share of the live pheromone map. */
+  const objectivePct = generating
+    ? Math.min(95, 35 + engagedLive * 12)
+    : telemetry && telemetry.trails > 0
+      ? Math.round((100 * telemetry.verified) / telemetry.trails)
+      : Math.round(60 + activity * 19);
 
   /* ----- living terminal buffer ----- */
   const [termLines, setTermLines] = useState<TermLine[]>(SEED_TERM_LINES);
@@ -622,6 +661,10 @@ export default function SuperbrainHUD({
         case 'directive': {
           appendTermLine(`Directive received · ${event.label ?? 'unspecified'}`, true);
           setApprovalHold(false);
+          // A new turn begins: the live work counters start from zero.
+          turnToolsRef.current = new Set();
+          setEngagedLive(0);
+          setRecentSteps([]);
           setDirectiveSurge(true);
           if (surgeTimeoutRef.current !== null) window.clearTimeout(surgeTimeoutRef.current);
           surgeTimeoutRef.current = window.setTimeout(() => {
@@ -630,9 +673,47 @@ export default function SuperbrainHUD({
           }, 5000);
           break;
         }
-        case 'agent-dispatch':
+        case 'agent-dispatch': {
           appendTermLine(`Mesh · ${event.label ?? 'agent dispatched'}`);
+          // Real tool dispatches (adapter marks them 'tool engaged: <name>')
+          // drive the mesh truthfully: engaged counts, objective sub-steps,
+          // and a processing pulse on the card that owns that work.
+          const detail = event.detail ?? '';
+          if (detail.startsWith('tool engaged: ')) {
+            const tool = detail.slice('tool engaged: '.length).trim();
+            turnToolsRef.current.add(tool);
+            sessionToolsRef.current.add(tool);
+            setEngagedLive(turnToolsRef.current.size);
+            setKnownTools(sessionToolsRef.current.size);
+            setRecentSteps((prev) => [...prev.slice(-1), tool.replace(/_/g, ' ')]);
+            setToolPulse({ row: agentRowForTool(tool), detail: `running ${tool}` });
+            if (toolPulseTimerRef.current !== null) window.clearTimeout(toolPulseTimerRef.current);
+            toolPulseTimerRef.current = window.setTimeout(() => {
+              setToolPulse(null);
+              toolPulseTimerRef.current = null;
+            }, 4000);
+          }
           break;
+        }
+        case 'telemetry': {
+          const data = (event.data ?? {}) as Record<string, unknown>;
+          if (data.link === false) {
+            setLinkUp(false);
+          } else {
+            setLinkUp(true);
+            setTelemetry(data as unknown as AiosTelemetry);
+            // A quiet real heartbeat every few polls — telemetry owns the
+            // idle channel while the link is alive.
+            heartbeatCountRef.current += 1;
+            if (heartbeatCountRef.current % 3 === 1) {
+              const t = data as unknown as AiosTelemetry;
+              appendTermLine(
+                `Telemetry · ${t.trails} trail(s) · ${t.verified} verified · ${t.latencyMs}ms`,
+              );
+            }
+          }
+          break;
+        }
         case 'synthesis':
           appendTermLine(`Synthesis · ${event.detail ?? event.label ?? 'cycle complete'}`);
           setApprovalHold(false);
@@ -656,16 +737,24 @@ export default function SuperbrainHUD({
         window.clearTimeout(surgeTimeoutRef.current);
         surgeTimeoutRef.current = null;
       }
+      if (toolPulseTimerRef.current !== null) {
+        window.clearTimeout(toolPulseTimerRef.current);
+        toolPulseTimerRef.current = null;
+      }
     };
   }, [appendTermLine]);
 
-  /* ----- idle ticker: quiet lines on a staggered 6-9s cadence ----- */
+  /* ----- idle ticker: imagination lore ONLY while the link is down -----
+   * Online, real telemetry heartbeats own the quiet channel — lore would
+   * dilute telemetry with fiction. */
   useEffect(() => {
     let timeoutId: number;
     let step = 0;
     const tick = () => {
-      appendTermLine(IDLE_LORE[step % IDLE_LORE.length]);
-      step += 1;
+      if (!getLinkState()) {
+        appendTermLine(IDLE_LORE[step % IDLE_LORE.length]);
+        step += 1;
+      }
       timeoutId = window.setTimeout(tick, IDLE_DELAYS[step % IDLE_DELAYS.length]);
     };
     timeoutId = window.setTimeout(tick, IDLE_DELAYS[0]);
@@ -729,12 +818,16 @@ export default function SuperbrainHUD({
             </div>
 
             <div className="system-summary">
+              {/* The dot tells the truth: green only while the adapter's
+                  last poll genuinely reached the AI-OS. */}
               <span>
-                <i className="status-dot status-dot--live" /> CORE ONLINE
+                <i className={`status-dot ${linkUp ? 'status-dot--live' : 'status-dot--down'}`} />{' '}
+                {linkUp ? 'CORE ONLINE' : 'LINK OFFLINE'}
               </span>
               <span className="topbar-divider" />
+              {/* Measured trails+metrics round-trip, never invented. */}
               <span>
-                LATENCY <strong>{latency}ms</strong>
+                LATENCY <strong>{latency !== null ? `${latency}ms` : '--'}</strong>
               </span>
               <span className="topbar-divider" />
               {/* FIDELITY IS SACRED: only this click ever changes the tier
@@ -784,8 +877,28 @@ export default function SuperbrainHUD({
               ) : null}
             </div>
 
-            <button className="secure-button" type="button">
-              <ShieldIcon /> Secured
+            {/* The shield asserts only what is computed: amber while a real
+                approval holds; red if the audit hash-chain ever breaks;
+                otherwise the supervised posture with real ledger size. */}
+            <button
+              className={`secure-button${approvalHold ? ' secure-button--hold' : ''}${
+                telemetry?.chainValid === false ? ' secure-button--tamper' : ''
+              }`}
+              type="button"
+              title={
+                telemetry?.chainValid === true
+                  ? `Audit hash-chain intact · ${telemetry.chainEntries} entries`
+                  : telemetry?.chainValid === false
+                    ? 'AUDIT CHAIN BROKEN — inspect the ledger'
+                    : 'Supervised core — audit chain not yet verified'
+              }
+            >
+              <ShieldIcon />{' '}
+              {telemetry?.chainValid === false
+                ? 'TAMPER'
+                : approvalHold
+                  ? 'HOLD'
+                  : 'Supervised'}
             </button>
           </header>
 
@@ -793,7 +906,9 @@ export default function SuperbrainHUD({
             <h2>
               SUPERMIND <span>/ {currentMode.num}</span>
             </h2>
-            <p className="core-sub">COGNITIVE SYNTHESIS CORE — ACTIVE</p>
+            <p className="core-sub">
+              COGNITIVE SYNTHESIS CORE — {linkUp ? 'ACTIVE' : 'OFFLINE · IMAGINATION'}
+            </p>
           </section>
 
           <div className="terminal-log" aria-live="polite" aria-atomic="false">
@@ -899,8 +1014,10 @@ export default function SuperbrainHUD({
               </div>
               <div className="objective-tree">
                 <p className="is-lead">{lastDirective}</p>
-                <p>Identifying semantic clusters in intake signals</p>
-                <p>Evaluating entropy across archive deltas</p>
+                {/* The sub-steps are the REAL last dispatched tools of the
+                    current turn; em-dashes before any turn has run. */}
+                <p>{recentSteps[recentSteps.length - 2] ?? '—'}</p>
+                <p>{recentSteps[recentSteps.length - 1] ?? '—'}</p>
               </div>
             </div>
             <i className="glass-grain" aria-hidden />
@@ -917,7 +1034,11 @@ export default function SuperbrainHUD({
                 <span className="eyebrow">
                   <span /> KNOWLEDGE INTAKE
                 </span>
-                <h3 style={{ transition: 'opacity 0.6s var(--ease-out-quart)' }}>{intakeLabel}</h3>
+                <h3 style={{ transition: 'opacity 0.6s var(--ease-out-quart)' }}>
+                  {linkUp && telemetry
+                    ? `Pheromone map · ${telemetry.trails} trail(s) · ${telemetry.verified} verified`
+                    : intakeLabel}
+                </h3>
               </div>
               <button type="button" className="ghost-plus" aria-label="Add knowledge source">
                 +
@@ -939,7 +1060,13 @@ export default function SuperbrainHUD({
 
             <div className="agent-heading" aria-live="polite" aria-atomic="true">
               <span>AGENT MESH</span>
-              <strong>{engaged} / 15 engaged</strong>
+              {/* Real numbers: distinct tools dispatched this turn over the
+                  distinct tools this session has seen. Zero before the first
+                  real turn — honest, not decorative. */}
+              <strong>
+                {engagedLive} / {knownTools} engaged
+                {telemetry ? ` · avg ${telemetry.avgToolCalls.toFixed(1)}/turn` : ''}
+              </strong>
             </div>
             <div className="agent-list">
               {AGENT_DEFS.map((agent, index) => (
@@ -948,7 +1075,17 @@ export default function SuperbrainHUD({
                   name={agent.name}
                   icon={agent.icon}
                   index={index}
-                  forcedState={directiveSurge ? FORCED_ON_DIRECTIVE[agent.name] ?? null : null}
+                  // Priority: a REAL dispatched tool owns its card; the
+                  // directive surge choreography fills the first 5s; idle
+                  // keeps the ambient cycle.
+                  forcedState={
+                    toolPulse?.row === index
+                      ? 'processing'
+                      : directiveSurge
+                        ? FORCED_ON_DIRECTIVE[agent.name] ?? null
+                        : null
+                  }
+                  forcedDetail={toolPulse?.row === index ? toolPulse.detail : null}
                 />
               ))}
             </div>

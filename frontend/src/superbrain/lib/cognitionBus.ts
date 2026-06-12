@@ -26,7 +26,10 @@ export type CognitionEventType =
    *  visibly deferring to its operator. */
   | 'approval-required'
   /** The operator resolved a pending approval (approve or reject). */
-  | 'approval-resolved';
+  | 'approval-resolved'
+  /** A successful adapter poll: real link/latency/trail/metric snapshot in
+   *  `data` (AiosTelemetry). Link loss publishes one with link=false. */
+  | 'telemetry';
 
 export interface CognitionEvent {
   type: CognitionEventType;
@@ -38,6 +41,8 @@ export interface CognitionEvent {
   intensity?: number;
   /** Originating system, e.g. "grasp", "hud", "scene". */
   source?: string;
+  /** Structured payload for data-carrying events (e.g. telemetry). */
+  data?: Record<string, unknown>;
 }
 
 type Listener = (event: CognitionEvent) => void;
