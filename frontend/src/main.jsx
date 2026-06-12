@@ -3,21 +3,22 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-// The superbrain experience (extracted from the operator's visual lab) mounts
-// behind an explicit flag; the classic frontend stays the default. Lazy: the
-// 3D stack and its CSS load only when summoned.
+// THE SUPERBRAIN IS THE OFFICIAL FRONTEND (operator's decision, 2026-06-12):
+// the experience built in his visual lab is the face of the AI-OS. The
+// classic editor remains reachable behind ?ui=classic. Lazy on both sides:
+// each UI's stack loads only when it is the one being mounted.
 const SuperbrainApp = lazy(() => import('./superbrain/SuperbrainApp.jsx'))
-const wantsSuperbrain =
-  new URLSearchParams(window.location.search).get('ui') === 'superbrain'
+const wantsClassic =
+  new URLSearchParams(window.location.search).get('ui') === 'classic'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {wantsSuperbrain ? (
+    {wantsClassic ? (
+      <App />
+    ) : (
       <Suspense fallback={null}>
         <SuperbrainApp />
       </Suspense>
-    ) : (
-      <App />
     )}
   </StrictMode>,
 )
