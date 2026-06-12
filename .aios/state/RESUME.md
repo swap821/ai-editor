@@ -36,9 +36,7 @@ AIOS_CORS_ORIGINS to include localhost:3000).
 
 ## Single next action
 Operator + Claude continue the UI roadmap from the review (full plan in the
-gag-demo-review workflow output, pinned in experiences): next blocks are
-P1 quality-tier autodetect + LLM-aware degrade, the approval-pause visual
-choreography (amber hold), curating one canon (mount KnowledgeHorizon,
+gag-demo-review workflow output, pinned in experiences): next blocks (P1 quality-tier DONE, cf9899d: demote-ratchet + PerformanceMonitor + LLM-aware dim, tiers govern dpr/stars/fireflies/shells/shader): the approval-pause visual choreography (amber hold), curating one canon (mount KnowledgeHorizon,
 archive dead eras), and binding CognitiveGrasp shards to real trails.
 Extraction into frontend/ (Vite) comes after the lab look stabilizes.
 
