@@ -6,7 +6,9 @@ import { motion } from 'motion/react';
 import { Html } from '@react-three/drei';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import { useMetric, type MetricKey } from '@/lib/metricsStore';
+import { getPendingApproval, type PendingApproval } from '@/lib/aiosAdapter';
 import { useQualityTier } from '@/components/QualityTierProvider';
+import ApprovalPanel from './ApprovalPanel';
 
 export type CognitiveMode = 'observe' | 'synthesize' | 'orchestrate';
 
@@ -541,6 +543,10 @@ export default function SuperbrainHUD({
 }: SuperbrainHUDProps) {
   const [directive, setDirective] = useState('');
   const [approvalHold, setApprovalHold] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  const refreshPendingApproval = useCallback(() => {
+    setPendingApproval(getPendingApproval());
+  }, []);
   const magnetRef = useRef<HTMLSpanElement>(null);
   useMagneticPull(magnetRef);
   const latency = useJitteredValue(21, 5, 1200);
@@ -618,10 +624,12 @@ export default function SuperbrainHUD({
           // The supervised mind defers to its operator — loudest line we have.
           appendTermLine(`HOLD · ${event.detail ?? 'operator approval required'}`, true);
           setApprovalHold(true);
+          setPendingApproval(getPendingApproval());
           break;
         case 'approval-resolved':
           appendTermLine(`Resume · ${event.label ?? 'operator decision received'}`, true);
           setApprovalHold(false);
+          setPendingApproval(getPendingApproval());
           break;
       }
     });
@@ -751,6 +759,10 @@ export default function SuperbrainHUD({
               </p>
             ))}
           </div>
+
+          {pendingApproval ? (
+            <ApprovalPanel pending={pendingApproval} onSettled={refreshPendingApproval} />
+          ) : null}
 
           <form
             className={`command-bar${approvalHold ? ' is-approval-hold' : ''}`}

@@ -946,6 +946,15 @@ export default function SuperbrainScene({ mode, activity, tier = 'high' }: Super
         ) {
           holdRef.current.active = false;
         }
+        if (event.type === 'approval-resolved' && event.label === 'approved') {
+          // The operator's decision executes: a thought-wave fires from the
+          // frontal (planning) anchor. A rejection gets no wave — standing
+          // down is the absence of one.
+          const waves = waveRef.current;
+          if (waves.pending.length < 3) {
+            waves.pending.push(waveOriginForLabel('CAUSAL DECISION', waves.random));
+          }
+        }
         if (event.type === 'directive') {
           directivePendingRef.current = true;
           cameraPushRef.current.value = 1;

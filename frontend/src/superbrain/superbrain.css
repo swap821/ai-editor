@@ -1517,3 +1517,113 @@ aside.right-console {
   font-style: normal;
   opacity: 0.65;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Approval panel - the operator's decision surface. Amber-framed glass       */
+/* above the command bar; the diff IS the content. Static paint only.         */
+/* -------------------------------------------------------------------------- */
+.approval-panel {
+  pointer-events: auto;
+  margin: 0 auto 10px;
+  max-width: 720px;
+  max-height: 42vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(14, 11, 6, 0.78);
+  border: 1px solid rgba(255, 180, 84, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 0 26px rgba(255, 180, 84, 0.14);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+
+.approval-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px 6px;
+}
+
+.approval-title {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: #ffb454;
+}
+
+.approval-summary {
+  font-size: 12.5px;
+  color: var(--text-1);
+}
+
+.approval-explanation {
+  margin: 0;
+  padding: 0 14px 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(232, 238, 250, 0.6);
+}
+
+.approval-diff {
+  margin: 0 14px 8px;
+  padding: 8px 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  background: rgba(2, 4, 8, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  white-space: pre;
+}
+
+.approval-diff .diff-add { color: #7fe2a8; }
+.approval-diff .diff-del { color: #ff8d7e; }
+.approval-diff .diff-hunk { color: rgba(232, 238, 250, 0.45); }
+.approval-diff .diff-file { color: rgba(232, 238, 250, 0.55); }
+.approval-command { color: #ffd9a0; }
+
+.approval-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 0 14px 12px;
+}
+
+.approval-actions button {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  padding: 7px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.approval-actions button:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.approval-authorize {
+  background: rgba(255, 180, 84, 0.16);
+  border: 1px solid rgba(255, 180, 84, 0.7);
+  color: #ffcf8a;
+}
+
+.approval-authorize:hover:not(:disabled) {
+  background: rgba(255, 180, 84, 0.28);
+}
+
+.approval-reject {
+  background: none;
+  border: 1px solid rgba(232, 238, 250, 0.25);
+  color: rgba(232, 238, 250, 0.7);
+}
+
+.approval-reject:hover:not(:disabled) {
+  border-color: rgba(255, 141, 126, 0.6);
+  color: #ff8d7e;
+}

@@ -119,8 +119,42 @@ function publishStep(data: Record<string, unknown>): void {
   });
 }
 
-/** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
-export async function sendDirective(text: string): Promise<DirectiveResult> {
+/** A pause the operator must resolve: the server-issued capability plus
+ *  everything needed to judge it (the diff IS the decision surface). */
+export interface PendingApproval {
+  token: string;
+  /** The directive whose replay redeems the token. */
+  prompt: string;
+  /** Plain-language ask, e.g. "Approval required to create x.py". */
+  summary: string;
+  explanation: string;
+  /** Unified diff for writes; empty for command approvals. */
+  diff: string;
+  /** The exact command, when the ask is a command. */
+  command: string;
+}
+
+let pendingApproval: PendingApproval | null = null;
+
+/** The approval currently awaiting the operator (null when none). */
+export function getPendingApproval(): PendingApproval | null {
+  return pendingApproval;
+}
+
+function captureApproval(text: string, data: Record<string, unknown>): void {
+  const input = (data.input ?? {}) as Record<string, unknown>;
+  const commands = Array.isArray(input.commands) ? input.commands : [];
+  pendingApproval = {
+    token: String(input.approvalToken ?? ''),
+    prompt: text,
+    summary: String(data.text ?? 'Approval required'),
+    explanation: String(input.explanation ?? ''),
+    diff: String(input.diff ?? ''),
+    command: commands.length > 0 ? String(commands[0]) : '',
+  };
+}
+
+async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResult> {
   let answer = '';
   let paused = false;
   try {
@@ -131,6 +165,7 @@ export async function sendDirective(text: string): Promise<DirectiveResult> {
         messages: [{ role: 'user', content: [{ text }] }],
         modelId: 'auto',
         sessionId: SESSION_ID,
+        approvalTokens: tokens,
       }),
     });
     if (!response.ok || !response.body) {
@@ -146,6 +181,7 @@ export async function sendDirective(text: string): Promise<DirectiveResult> {
           break;
         case 'human_required':
           paused = true;
+          captureApproval(text, frame.data);
           publishCognition({
             type: 'approval-required',
             label: 'OPERATOR APPROVAL REQUIRED',
@@ -191,6 +227,57 @@ export async function sendDirective(text: string): Promise<DirectiveResult> {
   }
 }
 
+/** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
+export async function sendDirective(text: string): Promise<DirectiveResult> {
+  pendingApproval = null;
+  return streamTurn(text, []);
+}
+
+/** The operator authorizes: redeem the capability by replaying the turn with
+ *  the server-issued token. The replay may pause again on the NEXT caution
+ *  action — a fresh PendingApproval is captured and the panel continues. */
+export async function approvePendingApproval(): Promise<DirectiveResult> {
+  const pending = pendingApproval;
+  if (!pending?.token) return { ok: false, paused: false, answer: '' };
+  pendingApproval = null;
+  publishCognition({
+    type: 'approval-resolved',
+    label: 'approved',
+    detail: pending.summary.slice(0, 140),
+    intensity: 0.9,
+    source: 'operator',
+  });
+  return streamTurn(pending.prompt, [pending.token]);
+}
+
+/** The operator declines: the rejection is recorded through the real
+ *  endpoint (audited server-side) and the organism stands down. */
+export async function rejectPendingApproval(): Promise<void> {
+  const pending = pendingApproval;
+  if (!pending?.token) return;
+  pendingApproval = null;
+  try {
+    await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        approvalToken: pending.token,
+        sessionId: SESSION_ID,
+        approve: false,
+      }),
+    });
+  } catch {
+    // The token simply expires unredeemed; the visual still stands down.
+  }
+  publishCognition({
+    type: 'approval-resolved',
+    label: 'rejected',
+    detail: pending.summary.slice(0, 140),
+    intensity: 0.5,
+    source: 'operator',
+  });
+}
+
 // -------------------------------------------------------- trails + metrics
 
 export interface TrailRow {
@@ -223,6 +310,7 @@ export function __resetAiosAdapterForTests(): void {
   seenTrailTotals.clear();
   linkUp = false;
   knownTrails = [];
+  pendingApproval = null;
 }
 
 /** One trails+metrics poll. Exported for tests; production runs it through
