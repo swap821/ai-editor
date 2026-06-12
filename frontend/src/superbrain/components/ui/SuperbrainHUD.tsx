@@ -642,7 +642,11 @@ export default function SuperbrainHUD({
       switch (event.type) {
         case 'knowledge-acquired': {
           const label = event.label ?? 'signal shard';
-          appendTermLine(`Acquired · ${label} (+${event.detail ?? 'trace'})`);
+          // Mastery is the loudest line the terminal has.
+          appendTermLine(
+            `Acquired · ${label} (+${event.detail ?? 'trace'})`,
+            label.startsWith('SKILL MASTERED'),
+          );
           pulseIdRef.current += 1;
           setSourcePulse({
             id: pulseIdRef.current,

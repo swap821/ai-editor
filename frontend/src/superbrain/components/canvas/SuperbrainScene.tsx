@@ -471,6 +471,16 @@ function randomWaveOrigin(random: () => number): THREE.Vector3 {
   );
 }
 
+/** THE LIVING TURN: a dispatched tool lights the lobe that owns that kind of
+ *  work — the same anatomy the region pins and wave anchors agree on. */
+function waveLabelForTool(tool: string): string {
+  const t = tool.toLowerCase();
+  if (/plan|orchestr|skill|recall|memory|lesson/.test(t)) return 'CAUSAL';
+  if (/read|search|list|web|fetch|grep|inspect/.test(t)) return 'ARCHIVE';
+  if (/create|edit|write|exec|verify|run|build/.test(t)) return 'LATTICE';
+  return 'SIGNAL';
+}
+
 function waveOriginForLabel(label: string | undefined, random: () => number): THREE.Vector3 {
   if (label) {
     for (const anchor of WAVE_REGION_ANCHORS) {
@@ -1007,6 +1017,48 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         if (event.type === 'directive') {
           directivePendingRef.current = true;
           cameraPushRef.current.value = 1;
+          // The directive lands NOW: the wires surge as the packet enters.
+          burstRef.current.intensity = Math.max(burstRef.current.intensity, 0.6);
+          return;
+        }
+        if (event.type === 'agent-dispatch') {
+          // THE LIVING TURN: each REAL dispatched tool fires a thought-wave
+          // at the lobe that owns that kind of work — the operator watches
+          // the actual turn think, region by region.
+          const detail = event.detail ?? '';
+          if (detail.startsWith('tool engaged: ')) {
+            const tool = detail.slice('tool engaged: '.length);
+            const waves = waveRef.current;
+            if (waves.pending.length < 3) {
+              waves.pending.push(waveOriginForLabel(waveLabelForTool(tool), waves.random));
+            }
+            burstRef.current.intensity = Math.max(burstRef.current.intensity, 0.45);
+          }
+          return;
+        }
+        if (
+          event.type === 'knowledge-acquired' &&
+          /VERIFICATION GREEN|SKILL MASTERED/.test(event.label ?? '')
+        ) {
+          // SYNAPSE STORM — reserved for PROVEN work: a real verifier pass,
+          // or a trail genuinely promoting to verified. Every anatomical
+          // anchor fires at once; mastery hits hardest.
+          const waves = waveRef.current;
+          waves.pending.length = 0;
+          for (const anchor of WAVE_REGION_ANCHORS.slice(0, 3)) {
+            waves.pending.push(
+              new THREE.Vector3(
+                anchor.origin.x + (waves.random() - 0.5) * 0.08,
+                anchor.origin.y + (waves.random() - 0.5) * 0.08,
+                anchor.origin.z + (waves.random() - 0.5) * 0.08,
+              ),
+            );
+          }
+          burstRef.current.intensity = 1;
+          cameraPushRef.current.value = Math.max(
+            cameraPushRef.current.value,
+            /SKILL MASTERED/.test(event.label ?? '') ? 1 : 0.55,
+          );
           return;
         }
         if (event.type !== 'burst' && event.type !== 'knowledge-acquired') return;

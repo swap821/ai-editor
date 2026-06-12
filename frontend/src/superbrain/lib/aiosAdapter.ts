@@ -382,6 +382,7 @@ export function trailLabel(goal: string): string {
 
 const seenTrailTotals = new Map<number, number>();
 const seenTrailFailures = new Map<number, number>();
+const seenTrailStatus = new Map<number, string>();
 let linkUp = false;
 /** The live pheromone map as of the last successful poll (empty offline). */
 let knownTrails: TrailRow[] = [];
@@ -409,6 +410,7 @@ export function getLastTelemetry(): AiosTelemetry | null {
 export function __resetAiosAdapterForTests(): void {
   seenTrailTotals.clear();
   seenTrailFailures.clear();
+  seenTrailStatus.clear();
   linkUp = false;
   knownTrails = [];
   pendingApproval = null;
@@ -473,6 +475,25 @@ export async function pollOnce(): Promise<void> {
         });
       }
       seenTrailTotals.set(trail.skill_id, total);
+
+      // MASTERY: a trail the system itself promoted candidate -> verified is
+      // the rarest, most-earned event the brain has. The scene answers with
+      // the full synapse storm.
+      const previousStatus = seenTrailStatus.get(trail.skill_id);
+      if (
+        previousStatus !== undefined &&
+        previousStatus !== 'verified' &&
+        trail.status === 'verified'
+      ) {
+        publishCognition({
+          type: 'knowledge-acquired',
+          label: `SKILL MASTERED — TRAIL #${trail.skill_id}`,
+          detail: trailLabel(trail.goal_pattern).toLowerCase(),
+          intensity: 1,
+          source: 'aios',
+        });
+      }
+      seenTrailStatus.set(trail.skill_id, trail.status);
 
       // The dark side of stigmergy is signal too: failures weaken a trail.
       const failures = (trail.failure_count ?? 0) + (trail.reuse_failure_count ?? 0);
