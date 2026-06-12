@@ -1,12 +1,17 @@
 # RESUME MANIFEST
 
 ## Current goal
-Stigmergy core COMPLETE per the operator's "100% in core" directive
-(2026-06-11/12, task stigmergy-core-completion-v1): trail mechanics (landed
-87fd511), loop-integrity fixes, pheromone observability, and role-pass
-castes are all built and live-exercised. Working tree holds the UNCOMMITTED
-completion slice awaiting the operator's commit decision. Evidence:
-`.aios/state/EVIDENCE_CURRICULUM.md` (Stigmergy Core Completion section).
+PREMIUM UI FRONT IS LIVE (task premium-ui-v1, claimed 2026-06-12): the
+operator built a 3D "superbrain" demo (`GAG demo/gag-orchestrator`, own
+nested git repo, gitignored from this tree). Four-lens review verdict:
+signature-grade visual ideas, architecture sound, extract-into-Vite is the
+adoption path, perf fixable. P0 fixes + the AI-OS cognition adapter are
+LANDED in the lab repo (41ace3e on top of baseline be68d2f): duplicate
+EffectComposer deleted, cortex Voronoi halved, and the demo now binds to
+the REAL backend - live pheromone map + metrics on the HUD, command bar
+drives real supervised turns via SSE, 'approval-required' event exists.
+Verified end-to-end live (two real turns from the demo UI; backend needs
+AIOS_CORS_ORIGINS to include localhost:3000).
 
 ## Last completed and verified
 2026-06-12 overnight (this session):
@@ -30,19 +35,20 @@ completion slice awaiting the operator's commit decision. Evidence:
 - Full suite: **438 passed, 1 skipped** (yesterday morning's baseline 400/1).
 
 ## Single next action
-Operator: authorize commit of the completion slice (suggested: product
-code + tests, then .aios state). After that: REST the codebase — Codex's
-post-hoc review queue (~2026-06-16) now holds e773768, the 4 loop fixes
-(eaafb70), trail mechanics (87fd511), and this slice. Remaining open fronts
-are unchanged: container live-proof, premium UI (operator's deferred call).
+Operator + Claude continue the UI roadmap from the review (full plan in the
+gag-demo-review workflow output, pinned in experiences): next blocks are
+P1 quality-tier autodetect + LLM-aware degrade, the approval-pause visual
+choreography (amber hold), curating one canon (mount KnowledgeHorizon,
+archive dead eras), and binding CognitiveGrasp shards to real trails.
+Extraction into frontend/ (Vite) comes after the lab look stabilizes.
 
 ## Open approvals/blockers
-- Commit authorization PENDING for the completion slice (tree dirty).
-- Codex POST-HOC reviews due ~2026-06-16 (inbox msgs 14, 15 + this slice's
-  notice when committed).
-- `premium-ui-v1`: still queued/deferred; operator's call.
+- Parent-tree commit PENDING: `.gitignore` (GAG demo/ exclusion) + this
+  state checkpoint — small; ask the operator.
+- Codex POST-HOC reviews due ~2026-06-16 (inbox msgs 14, 15, 16).
 - Role-pass live capability: gated on a stronger local model (14B+ class
-  when RAM allows) — hardware/model decision, not a code task.
+  when RAM allows) — hardware/model decision, not a code task. The same
+  upgrade benefits the UI (caste visuals bound to real role-pass state).
 
 ## Notes not yet promoted
 - Castes follow-ups: per-role model routing once a role-capable local model
