@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { createSeededRandom } from '@/lib/seededRandom';
+import { subscribeCognition } from '@/lib/cognitionBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { useFrame } from '@react-three/fiber';
 
@@ -109,8 +110,30 @@ function Starfield({ count }: { count: number }) {
     uAtlas: { value: getGlyphAtlas() }
   }), []);
 
-  useFrame((state) => {
-    STARFIELD_TIME_UNIFORM.value = state.clock.elapsedTime;
+  // Approval hold: the VOYAGE ITSELF holds its breath — the field's clock
+  // dilates to ~30% while the supervised mind defers to its operator, and
+  // eases back the moment a decision lands. Accumulated time (not absolute
+  // clock) is what makes the dilation seamless.
+  const holdRef = useRef({ target: 0, blend: 0 });
+  useEffect(
+    () =>
+      subscribeCognition((event) => {
+        if (event.type === 'approval-required') holdRef.current.target = 1;
+        else if (
+          event.type === 'approval-resolved' ||
+          event.type === 'directive' ||
+          event.type === 'synthesis'
+        ) {
+          holdRef.current.target = 0;
+        }
+      }),
+    [],
+  );
+
+  useFrame((_, delta) => {
+    const hold = holdRef.current;
+    hold.blend = THREE.MathUtils.damp(hold.blend, hold.target, 2.5, delta);
+    STARFIELD_TIME_UNIFORM.value += delta * (1 - 0.7 * hold.blend);
   });
 
   return (

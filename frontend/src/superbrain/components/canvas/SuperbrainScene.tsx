@@ -35,6 +35,12 @@ export type SkyMode = 'voyage' | 'layered';
  *  operator's call (VISION.md): flip to false to remove without a trace. */
 const SHOW_REGION_PINS = true;
 
+/** THE ORGANISM NOTICES YOU: a damped 1-2 degree attentive lean toward the
+ *  operator's pointer — presence, not control (the voyage motion always
+ *  dominates). Additive micro-motion, operator's call: flip to false to
+ *  remove without a trace. */
+const CURSOR_ATTENTION = true;
+
 /** The memory galaxy: every REAL trail a persistent star orbiting the mind
  *  (strength = brightness, walks = size, quarantine = red pulse; recalls
  *  flash their star). Additive layer, honest dormancy — the operator's
@@ -613,6 +619,8 @@ function BrainModel({
   surface?: BrainSurface;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  /** Damped pointer-attention lean (CURSOR_ATTENTION). */
+  const attendRef = useRef({ x: 0, y: 0 });
   const { scene } = useGLTF('/models/brain.glb');
 
   const brainAsset = useMemo(() => {
@@ -855,6 +863,17 @@ function BrainModel({
       // A slow exploratory drift keeps the intelligence moving through space.
       groupRef.current.position.x = brainDriftX(time);
       groupRef.current.position.y = 0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07;
+
+      // THE ORGANISM NOTICES YOU: a damped attentive lean toward the
+      // pointer, ADDED after the voyage math so it can only ever tilt the
+      // gaze a degree or two — never steer the journey.
+      if (CURSOR_ATTENTION) {
+        const attend = attendRef.current;
+        attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
+        attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
+        groupRef.current.rotation.y += attend.x * 0.035;
+        groupRef.current.rotation.x += -attend.y * 0.022;
+      }
     }
   });
 
