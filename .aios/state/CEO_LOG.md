@@ -435,3 +435,22 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   operator's UI call. Watch: role-pass live evidence argues the next
   hardware/model upgrade (qwen2.5-coder:14B or 32B-class when RAM allows)
   unlocks more value than any near-term code change.
+
+## 2026-06-12 - CEO note (Claude: premium UI - original look restored, enhancement plan)
+- The four-round aesthetic regression closed: root cause was a constant
+  customProgramCacheKey reusing the first-compiled degraded shader across
+  the operator's HMR-alive session. Operator confirmed the original
+  rendered. Lesson institutionalized: parity is proven in the operator's
+  browser, not in fresh-probe instruments; FIDELITY IS SACRED is now
+  enforced in code (advisory-only governor) and tests.
+- CEO advice for the enhancement phase, in order: (0) tag the restored
+  state as canon before touching anything (cheap insurance against the
+  next regression debate); (1) zero-visual-cost perf headroom (DOM blur
+  fixes, HUD out of Canvas, context-loss remount, production build) so
+  HIGH runs smoother - serves the motion thesis without touching pixels;
+  (2) region pins bound to real backend metrics per the operator's
+  reference image - decoration becomes instrumentation; (3) the two
+  design-direction choices (SKY_MODE layered-vs-voyage hybrid, textured
+  organ BRAIN_SURFACE) presented as A/B screenshots for HIS pick, never
+  shipped unilaterally. Watch: every visual diff now requires
+  before/after screenshots delivered to the operator (VISION.md law).

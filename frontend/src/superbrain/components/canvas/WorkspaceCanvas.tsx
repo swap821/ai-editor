@@ -32,6 +32,11 @@ export default function WorkspaceCanvas() {
   );
 }
 
+/** Chrome restores a lost-but-recoverable context well under a second; past
+ *  this grace the context is gone for good and only a remount brings the
+ *  organism back. */
+const CONTEXT_RESTORE_GRACE_MS = 4000;
+
 function WorkspaceInner() {
   const { tier, perfTier } = useQualityTier();
   const [mode, setMode] = useState<CognitiveMode>('orchestrate');
@@ -41,17 +46,63 @@ function WorkspaceInner() {
   // up, "is-booted" once it unmounts — HUD entrance animations key off it.
   const [booted, setBooted] = useState(false);
   const timeoutRef = useRef<number | null>(null);
+  // GPU context-loss resilience: a lost context first gets a grace window to
+  // restore in place (preventDefault opts in); if it never comes back, bumping
+  // this key remounts the Canvas — a black dead screen is never acceptable on
+  // a machine where Ollama can evict the GPU at any moment.
+  const [glEpoch, setGlEpoch] = useState(0);
+  const restoreTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         window.clearTimeout(timeoutRef.current);
       }
+      if (restoreTimerRef.current) {
+        window.clearTimeout(restoreTimerRef.current);
+      }
     };
   }, []);
 
   const handleBootComplete = useCallback(() => {
     setBooted(true);
+  }, []);
+
+  const handleCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
+    if (!gl.capabilities.isWebGL2) {
+      console.warn('WebGL 2 is not available. Falling back to lower quality rendering or failing.');
+    }
+    // Listeners live and die with this canvas element; a remount re-attaches
+    // them via this same onCreated.
+    const el = gl.domElement;
+    el.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault(); // opt in to in-place restoration
+      publishCognition({
+        type: 'synthesis',
+        label: 'RENDERER INTERRUPTED',
+        detail: 'GPU context lost — holding for in-place restore',
+        intensity: 0.4,
+        source: 'renderer',
+      });
+      if (restoreTimerRef.current) window.clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = window.setTimeout(() => {
+        restoreTimerRef.current = null;
+        setGlEpoch((epoch) => epoch + 1);
+      }, CONTEXT_RESTORE_GRACE_MS);
+    });
+    el.addEventListener('webglcontextrestored', () => {
+      if (restoreTimerRef.current) {
+        window.clearTimeout(restoreTimerRef.current);
+        restoreTimerRef.current = null;
+      }
+      publishCognition({
+        type: 'synthesis',
+        label: 'RENDERER RECOVERED',
+        detail: 'GPU context restored in place',
+        intensity: 0.3,
+        source: 'renderer',
+      });
+    });
   }, []);
 
   // Once booted, the organism listens to the REAL AI-OS: trail/metric polling
@@ -106,13 +157,10 @@ function WorkspaceInner() {
         <div className="scene-layer" aria-hidden="true">
         <WebGLErrorBoundary>
           <Canvas
+            key={glEpoch}
             camera={{ position: [0, 0.25, 8.5], fov: CAMERA.fov, near: CAMERA.near, far: CAMERA.far }}
             dpr={TIER_DPR[perfTier]}
-            onCreated={({ gl }) => {
-              if (!gl.capabilities.isWebGL2) {
-                console.warn('WebGL 2 is not available. Falling back to lower quality rendering or failing.');
-              }
-            }}
+            onCreated={handleCreated}
             gl={{
               antialias: true,
               alpha: false,

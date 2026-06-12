@@ -542,8 +542,13 @@ export default function SuperbrainHUD({
   onDirective,
 }: SuperbrainHUDProps) {
   const [directive, setDirective] = useState('');
-  const [approvalHold, setApprovalHold] = useState(false);
-  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  // Seed from the adapter, not from blank: the adapter outlives this component,
+  // so a HUD remount (e.g. GPU context-loss recovery) must not drop a hold the
+  // operator hasn't ruled on yet.
+  const [approvalHold, setApprovalHold] = useState(() => getPendingApproval() !== null);
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(() =>
+    getPendingApproval(),
+  );
   const refreshPendingApproval = useCallback(() => {
     setPendingApproval(getPendingApproval());
   }, []);
@@ -857,6 +862,7 @@ export default function SuperbrainHUD({
             </div>
             <i className="glass-grain" aria-hidden />
           </aside>
+          <span className="console-surge" aria-hidden="true" />
         </div>
       </Html>
 
@@ -905,6 +911,7 @@ export default function SuperbrainHUD({
             </div>
             <i className="glass-grain" aria-hidden />
           </aside>
+          <span className="console-surge console-surge--reverse" aria-hidden="true" />
         </div>
       </Html>
     </>

@@ -419,10 +419,14 @@ button {
   100% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
 }
 
+/* CANON CONTRACT: the old `animation: powerSurge !important` on these asides
+ * also kept the .is-booted hud-enter rules below DEAD — the confirmed canon
+ * has the consoles POP in at boot, never fade. The surge moved to an overlay,
+ * so this `none !important` preserves that exact cascade outcome. */
 aside.left-console {
   padding: 22px;
   border-bottom: 4px solid transparent;
-  animation: powerSurge 6s infinite linear !important;
+  animation: none !important;
 }
 
 aside.right-console {
@@ -430,7 +434,34 @@ aside.right-console {
   display: flex;
   flex-direction: column;
   border-bottom: 4px solid transparent;
-  animation: powerSurge 6s infinite linear reverse !important;
+  animation: none !important;
+}
+
+/* The surge lives on a dedicated empty overlay, NOT on the consoles: the
+ * keyframes animate paint (box-shadow / border-color), and on the
+ * backdrop-filtered asides that re-rastered both glass panels and their
+ * 25-35px shadow blurs every frame. The span copies the aside's exact box
+ * (the drei wrapper is its containing block; 1px frame, 4px bottom, 16px
+ * radius), so the painted surge is pixel-identical — only the per-frame
+ * raster scope shrinks to this empty layer. */
+.console-surge {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid transparent;
+  border-bottom-width: 4px;
+  border-radius: 16px;
+  animation: powerSurge 6s infinite linear;
+}
+
+.console-surge--reverse {
+  animation-direction: reverse;
+}
+
+/* Boot gate: the surging consoles sat at opacity 0 while booting; the
+ * overlay must vanish with them or its glow floats panel-less under boot. */
+.superbrain-experience.is-booting .console-surge {
+  opacity: 0;
 }
 
 @keyframes wireGlowSurge {
@@ -1367,7 +1398,8 @@ aside.right-console {
   }
 
   .system-summary,
-  .right-console {
+  .right-console,
+  .console-surge--reverse {
     display: none;
   }
 
@@ -1377,6 +1409,13 @@ aside.right-console {
     left: 14px;
     width: 250px;
     padding: 15px;
+  }
+
+  /* Mirror the left console's relative nudge above — the overlay is a
+   * sibling, so it must follow by transform (width tracks automatically:
+   * the wrapper shrink-wraps the narrowed aside). */
+  .console-surge {
+    transform: translate(14px, -120px);
   }
 
   .left-console h1 {

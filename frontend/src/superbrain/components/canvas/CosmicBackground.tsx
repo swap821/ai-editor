@@ -1,0 +1,245 @@
+import * as THREE from 'three';
+import { useMemo, useRef } from 'react';
+import { createSeededRandom } from '@/lib/seededRandom';
+import type { QualityTier } from '@/components/QualityTierProvider';
+import { useFrame } from '@react-three/fiber';
+
+// --- KNOWLEDGE GLYPH ATLAS GENERATOR ---
+const GLYPHS = [
+  // Math & Greek
+  '∑', '∆', '∞', '∫', 'π', 'Ω', 'α', 'β', 'µ', 'λ', 'θ', 'σ',
+  // Code & Logic
+  '{', '}', '<', '>', '/', '\\', '&', '#', '@', '%', '!', '?',
+  // Numerals
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+  // Alphabets
+  'A', 'B', 'C', 'D', 'E', 'F', 'X', 'Y', 'Z',
+  // Punctuation / Cyber
+  '+', '-', '=', '*', '^', '~', '|', ':', ';', '.', ',', '"'
+];
+
+const ATLAS_SIZE = 64;
+const atlasChars: string[] = [];
+for (let i = 0; i < ATLAS_SIZE; i++) {
+  atlasChars.push(GLYPHS[i % GLYPHS.length]);
+}
+
+let glyphAtlasTexture: THREE.CanvasTexture | null = null;
+function getGlyphAtlas() {
+  if (!glyphAtlasTexture && typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+    
+    ctx.clearRect(0, 0, 512, 512);
+    
+    // Sleek, high-tech digital font for the matrix decoding effect
+    ctx.font = 'bold 50px "Space Mono", "Roboto Mono", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'white';
+    
+    // Strong, sharp glow for premium feel
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+    ctx.shadowBlur = 8;
+    
+    for (let i = 0; i < 64; i++) {
+      const col = i % 8;
+      const row = Math.floor(i / 8);
+      const char = atlasChars[i];
+      const x = col * 64 + 32;
+      const y = row * 64 + 32; 
+      ctx.fillText(char, x, y + 2);
+    }
+    
+    glyphAtlasTexture = new THREE.CanvasTexture(canvas);
+    glyphAtlasTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    glyphAtlasTexture.magFilter = THREE.LinearFilter;
+  }
+  return glyphAtlasTexture;
+}
+
+/** Module-level uniform leaf (the field mounts once); frame-loop-mutable. */
+const STARFIELD_TIME_UNIFORM = { value: 0 };
+
+/** Star budget per quality tier — the field is pure backdrop, so it thins first. */
+const STAR_COUNTS: Record<QualityTier, number> = {
+  high: 4500,
+  medium: 2500,
+  low: 1200,
+};
+
+function Starfield({ count }: { count: number }) {
+  const pointsRef = useRef<THREE.Points>(null);
+
+  const stars = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const sprites = new Float32Array(count);
+    const sizes = new Float32Array(count);
+    // House rule: never unseeded randomness — identical field every mount,
+    // honest screenshot baselines. Same counts, ranges, and distribution.
+    const random = createSeededRandom(0x564f5941);
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3 + 0] = (random() - 0.5) * 140;
+      positions[i * 3 + 1] = (random() - 0.5) * 140;
+      positions[i * 3 + 2] = (random() - 0.5) * 140 - 35;
+
+      const shade = random() * 0.4 + 0.6; // White/Grey
+      colors[i * 3 + 0] = shade;
+      colors[i * 3 + 1] = shade;
+      colors[i * 3 + 2] = shade;
+
+      sprites[i] = Math.floor(random() * 64);
+      sizes[i] = random() * 2.0 + 0.5;
+    }
+    
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geom.setAttribute('aSpriteIndex', new THREE.BufferAttribute(sprites, 1));
+    geom.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    return geom;
+  }, [count]);
+
+  const uniforms = useMemo(() => ({
+    uTime: STARFIELD_TIME_UNIFORM,
+    uAtlas: { value: getGlyphAtlas() }
+  }), []);
+
+  useFrame((state) => {
+    STARFIELD_TIME_UNIFORM.value = state.clock.elapsedTime;
+  });
+
+  return (
+    <points ref={pointsRef} geometry={stars}>
+      <pointsMaterial 
+        vertexColors 
+        transparent 
+        depthWrite={false}
+        sizeAttenuation={false}
+        blending={THREE.AdditiveBlending}
+        onBeforeCompile={(shader) => {
+          shader.uniforms.uTime = uniforms.uTime;
+          shader.uniforms.uAtlas = uniforms.uAtlas;
+          
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <common>',
+            `#include <common>
+             uniform float uTime;
+             attribute float aSpriteIndex;
+             attribute float aSize;
+             varying float vAlpha;
+             varying float vSpriteIndex;
+             varying float vPull;
+            `
+          );
+          
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+             vSpriteIndex = aSpriteIndex;
+             
+             // Move straight towards camera like classic stars
+             float speed = 1.0 + (aSize * 0.2);
+             transformed.z += uTime * speed;
+             
+             // Infinite wrapping
+             float range = 140.0;
+             transformed.z = mod(transformed.z + 105.0, range) - 105.0;
+             
+             // --- INSTANT GRAVITATIONAL PULL ---
+             // Calculate distance to the brain core (0,0,0)
+             float distToCenter = length(transformed); 
+             
+             // The "grasp" range is 25 units.
+             // As the particle enters this radius, pull goes from 0.0 to 1.0.
+             float pull = smoothstep(25.0, 2.0, distToCenter);
+             
+             if (pull > 0.0) {
+                 // Instant, straight-line gravitational pull directly to the core
+                 // pow() gives it a sharp, accelerating snap rather than a linear slide
+                 float snap = pow(pull, 1.5);
+                 transformed = mix(transformed, vec3(0.0), snap);
+             }
+             
+             vPull = pull;
+             
+             // Smooth fade out as they fly past the camera lens (if they weren't grasped)
+             float cameraDistance = abs(transformed.z - 4.5);
+             vAlpha = smoothstep(0.0, 10.0, cameraDistance);
+            `
+          );
+          
+          shader.vertexShader = shader.vertexShader.replace(
+            'gl_PointSize = size;',
+            `// "Coming close becoming big"
+             // Allow distanceScale to magnify the particle up to 2.5x when very close to camera
+             float distanceScale = clamp(20.0 / length(mvPosition.xyz), 0.2, 1.5);
+             
+             // Base size is large enough to be legible
+             float finalSize = aSize * 15.0 * distanceScale;
+             
+             // As it gets grasped by the brain, it physically shrinks (dissolves)
+             finalSize *= (1.0 - (vPull * 0.8)); 
+             
+             // Cap at 24px so it never completely breaks the screen into giant rectangles
+             gl_PointSize = clamp(finalSize, 2.0, 24.0);`
+          );
+
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>',
+            `#include <common>
+             uniform sampler2D uAtlas;
+             uniform float uTime;
+             varying float vAlpha;
+             varying float vSpriteIndex;
+             varying float vPull;
+            `
+          );
+
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+             float cols = 8.0;
+             float rows = 8.0;
+             
+             // No rotation, no decoding. Just the solid static alphabet.
+             float col = mod(vSpriteIndex, cols);
+             float row = floor(vSpriteIndex / cols);
+             
+             vec2 uv = gl_PointCoord;
+             
+             // Canvas textures have flipY=true by default.
+             // gl_PointCoord.y=0 is top, so we add row and divide to get proper orientation.
+             uv.x = (uv.x + col) / cols;
+             uv.y = (uv.y + row) / rows;
+             
+             vec4 texColor = texture2D(uAtlas, uv);
+             float alpha = texColor.a;
+             if (alpha < 0.1) discard;
+             
+             // Pure white/grey
+             vec3 finalColor = diffuseColor.rgb;
+             
+             // "Dissolves it inside" -> Rapidly fade opacity to 0 as it gets pulled into the brain
+             float dissolve = 1.0 - smoothstep(0.4, 1.0, vPull);
+             
+             diffuseColor = vec4(finalColor, alpha * vAlpha * dissolve);
+            `
+          );
+        }}
+      />
+    </points>
+  );
+}
+
+export default function CosmicBackground({ tier = 'high' }: { tier?: QualityTier }) {
+  return (
+    <group>
+      <Starfield count={STAR_COUNTS[tier]} />
+    </group>
+  );
+}
