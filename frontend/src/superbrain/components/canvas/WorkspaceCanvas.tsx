@@ -5,7 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
-import SuperbrainScene, { type SkyMode } from './SuperbrainScene';
+import SuperbrainScene, { type BrainSurface, type SkyMode } from './SuperbrainScene';
 import SuperbrainHUD, { type CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import BootSequence from '@/components/ui/BootSequence';
 import {
@@ -51,6 +51,19 @@ function readStoredSky(): SkyMode | null {
   }
 }
 
+/** Same sovereignty contract for the cortex surface; canon web is default. */
+const SURFACE_STORAGE_KEY = 'gag-brain-surface-v1';
+
+function readStoredSurface(): BrainSurface | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage.getItem(SURFACE_STORAGE_KEY);
+    return stored === 'web' || stored === 'organ' ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
 function WorkspaceInner() {
   const { tier, perfTier } = useQualityTier();
   const [mode, setMode] = useState<CognitiveMode>('orchestrate');
@@ -74,6 +87,17 @@ function WorkspaceInner() {
       window.localStorage.setItem(SKY_STORAGE_KEY, next);
     } catch {
       // Private mode etc. — the session still gets the chosen sky.
+    }
+  }, []);
+
+  const [surface, setSurface] = useState<BrainSurface>(() => readStoredSurface() ?? 'web');
+
+  const handleSurfaceChange = useCallback((next: BrainSurface) => {
+    setSurface(next);
+    try {
+      window.localStorage.setItem(SURFACE_STORAGE_KEY, next);
+    } catch {
+      // Private mode etc. — the session still gets the chosen surface.
     }
   }, []);
 
@@ -201,7 +225,7 @@ function WorkspaceInner() {
             <fog attach="fog" args={['#010307', 50, 150]} />
             <TierGovernor />
             <Suspense fallback={null}>
-              <SuperbrainScene mode={mode} activity={activity} tier={tier} sky={skyMode} />
+              <SuperbrainScene mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
               <SuperbrainHUD
                 mode={mode}
                 activity={activity}
@@ -210,6 +234,8 @@ function WorkspaceInner() {
                 onDirective={handleDirective}
                 skyMode={skyMode}
                 onSkyModeChange={handleSkyModeChange}
+                surface={surface}
+                onSurfaceChange={handleSurfaceChange}
               />
             </Suspense>
           </Canvas>

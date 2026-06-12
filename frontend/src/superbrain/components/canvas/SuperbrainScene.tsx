@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Float, useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -38,8 +38,9 @@ const SHOW_REGION_PINS = true;
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
  *  'organ' = his hand-painted flesh textures (from the GLB he made) under the
  *            SAME living web/aura/signal layers — reference-supermind look.
- *  Canon stays the default; 'organ' is look-dev until his eye rules. */
-const BRAIN_SURFACE: 'web' | 'organ' = 'web';
+ *  A LIVE topbar control beside FIDELITY and SKY: only the operator's own
+ *  click chooses, and canon 'web' stays the default. */
+export type BrainSurface = 'web' | 'organ';
 
 interface SuperbrainSceneProps {
   mode: CognitiveMode;
@@ -49,6 +50,8 @@ interface SuperbrainSceneProps {
   tier?: QualityTier;
   /** Operator-chosen sky (topbar control; persisted). */
   sky?: SkyMode;
+  /** Operator-chosen cortex surface (topbar control; persisted). */
+  surface?: BrainSurface;
 }
 
 const BRAIN_SCALE = 3.02;
@@ -583,12 +586,14 @@ function BrainModel({
   burst,
   uniforms,
   tier = 'high',
+  surface = 'web',
 }: {
   activity: number;
   mode: CognitiveMode;
   burst: BurstRef;
   uniforms: CognitionUniforms;
   tier?: QualityTier;
+  surface?: BrainSurface;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const { scene } = useGLTF('/models/brain.glb');
@@ -840,9 +845,12 @@ function BrainModel({
     <group ref={groupRef} rotation={[0.04, -0.82, 0]} position={[0, -0.35, -1.2]}>
       
       {/* The base surface: canon emission shell, or the operator's painted
-          flesh — the energy skin below breathes over BOTH. */}
-      {BRAIN_SURFACE === 'organ' ? (
-        <OrganSurface />
+          flesh — the energy skin below breathes over BOTH. While the flesh
+          textures stream in, the canon shell stands in (no blink). */}
+      {surface === 'organ' ? (
+        <Suspense fallback={<primitive object={brainAsset.object} />}>
+          <OrganSurface />
+        </Suspense>
       ) : (
         <primitive object={brainAsset.object} />
       )}
@@ -936,7 +944,7 @@ function CameraDrift({
   return null;
 }
 
-export default function SuperbrainScene({ mode, activity, tier = 'high', sky = 'voyage' }: SuperbrainSceneProps) {
+export default function SuperbrainScene({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web' }: SuperbrainSceneProps) {
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
@@ -1199,7 +1207,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
-        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} />
+        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} />
         <AccretionCore activity={activeBoost} burst={burstRef} />
       </Float>
       

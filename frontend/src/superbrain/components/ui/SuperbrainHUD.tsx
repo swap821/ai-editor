@@ -22,6 +22,10 @@ interface SuperbrainHUDProps {
    *  photographic dome BEHIND the moving field). Persisted by the click. */
   skyMode?: 'voyage' | 'layered';
   onSkyModeChange?: (sky: 'voyage' | 'layered') => void;
+  /** Operator's cortex surface (web = canon shell; organ = his painted
+   *  flesh under the same living layers). Persisted by the click. */
+  surface?: 'web' | 'organ';
+  onSurfaceChange?: (surface: 'web' | 'organ') => void;
 }
 
 const modeCopy: Record<CognitiveMode, { title: string; detail: string }> = {
@@ -546,6 +550,8 @@ export default function SuperbrainHUD({
   onDirective,
   skyMode = 'voyage',
   onSkyModeChange,
+  surface = 'web',
+  onSurfaceChange,
 }: SuperbrainHUDProps) {
   const [directive, setDirective] = useState('');
   // Seed from the adapter, not from blank: the adapter outlives this component,
@@ -758,6 +764,21 @@ export default function SuperbrainHUD({
                     onClick={() => onSkyModeChange(skyMode === 'voyage' ? 'layered' : 'voyage')}
                   >
                     SKY <strong>{skyMode.toUpperCase()}</strong>
+                  </button>
+                </>
+              ) : null}
+              {onSurfaceChange ? (
+                <>
+                  <span className="topbar-divider" />
+                  {/* The cortex itself: canon web shell, or the flesh he
+                      painted into the GLB. His click, his brain. */}
+                  <button
+                    className="fidelity-button"
+                    type="button"
+                    title="Cortex surface — web (canon energy shell) or organ (your painted flesh under the web)"
+                    onClick={() => onSurfaceChange(surface === 'web' ? 'organ' : 'web')}
+                  >
+                    SURFACE <strong>{surface.toUpperCase()}</strong>
                   </button>
                 </>
               ) : null}
