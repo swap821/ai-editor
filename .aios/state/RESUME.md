@@ -36,9 +36,7 @@ AIOS_CORS_ORIGINS to include localhost:3000).
 
 ## Single next action
 Operator + Claude continue the UI roadmap from the review (full plan in the
-gag-demo-review workflow output, pinned in experiences): next blocks (P1 quality-tier DONE, cf9899d: demote-ratchet + PerformanceMonitor + LLM-aware dim, tiers govern dpr/stars/fireflies/shells/shader): the approval-pause visual choreography (amber hold), curating one canon (mount KnowledgeHorizon,
-archive dead eras), and binding CognitiveGrasp shards to real trails.
-Extraction into frontend/ (Vite) comes after the lab look stabilizes.
+gag-demo-review workflow output, pinned in experiences): ALL LAB BLOCKS DONE (lab repo history: be68d2f snapshot -> 41ace3e adapter+P0 -> cf9899d quality tier -> f2392f8 amber hold -> 5c6cf53 canon/KnowledgeHorizon -> 03d7caf trails-bound recall stream; 13/13 tests, 0 lint errors). The ONLY remaining UI step is the extraction into frontend/ (Vite) once the operator is happy with the lab look.
 
 ## Open approvals/blockers
 - Parent-tree commit PENDING: `.gitignore` (GAG demo/ exclusion) + this
