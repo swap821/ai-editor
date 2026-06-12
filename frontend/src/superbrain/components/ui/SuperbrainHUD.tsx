@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import { Html } from '@react-three/drei';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import { useMetric, useMetricHistory, type MetricKey } from '@/lib/metricsStore';
+import { isSoundOn, startSound, stopSound } from '@/lib/soundEngine';
 import {
   getLastTelemetry,
   getLinkState,
@@ -603,6 +604,39 @@ export default function SuperbrainHUD({
   /* LATENCY: the measured trails+metrics round-trip, '--' when offline. */
   const latency = linkUp && telemetry ? telemetry.latencyMs : null;
 
+  /* SOUND: sovereign like its siblings — silent until the operator's own
+   * click (the click doubles as WebAudio's required gesture). A stored ON
+   * re-arms on the first gesture of the next session. */
+  const [soundOn, setSoundOn] = useState(() => isSoundOn());
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('gag-sound-v1') !== 'on' || isSoundOn()) return;
+    } catch {
+      return;
+    }
+    const arm = () => {
+      startSound();
+      setSoundOn(true);
+    };
+    window.addEventListener('pointerdown', arm, { once: true });
+    window.addEventListener('keydown', arm, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', arm);
+      window.removeEventListener('keydown', arm);
+    };
+  }, []);
+  const toggleSound = useCallback(() => {
+    const next = !isSoundOn();
+    if (next) startSound();
+    else stopSound();
+    setSoundOn(next);
+    try {
+      window.localStorage.setItem('gag-sound-v1', next ? 'on' : 'off');
+    } catch {
+      // Private mode etc. — the session still gets the choice.
+    }
+  }, []);
+
   /* CURRENT OBJECTIVE: while a turn streams, progress follows REAL dispatched
    * steps; idle, it is the verified share of the live pheromone map. */
   const objectivePct = generating
@@ -879,6 +913,17 @@ export default function SuperbrainHUD({
                   </button>
                 </>
               ) : null}
+              <span className="topbar-divider" />
+              {/* The organism's voice: synthesized, whisper-quiet, and bound
+                  to the same real bus events the visuals react to. */}
+              <button
+                className="fidelity-button"
+                type="button"
+                title="Sound — breath hum, recall ticks, approval chords; synthesized, your click only"
+                onClick={toggleSound}
+              >
+                SOUND <strong>{soundOn ? 'ON' : 'OFF'}</strong>
+              </button>
             </div>
 
             {/* The shield asserts only what is computed: amber while a real
