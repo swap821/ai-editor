@@ -13,8 +13,18 @@ import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import { createSeededRandom } from '@/lib/seededRandom';
 import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
+import CosmicBackground from './CosmicBackground';
 import KnowledgeHorizon from './KnowledgeHorizon';
 import type { QualityTier } from '@/components/QualityTierProvider';
+
+/** THE VISION (operator's words — the design constitution, see VISION.md):
+ *  "AN AGENTIC AI-OS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
+ *  DEEP VAST KNOWLEDGE SPACE." The voyage is not negotiable: the knowledge
+ *  field FLYING PAST the camera carries the forward motion. Any sky change
+ *  that removes that motion breaks the product. 'voyage' = the operator's
+ *  original moving field alone; 'layered' = his field in front of his
+ *  photographic dome (motion + depth) — operator's choice. */
+const SKY_MODE: 'voyage' | 'layered' = 'voyage';
 
 interface SuperbrainSceneProps {
   mode: CognitiveMode;
@@ -1124,12 +1134,15 @@ export default function SuperbrainScene({ mode, activity, tier = 'high' }: Super
       <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
 
       {/* Cinematic deep space background */}
-      {/* The canon sky: the photographic IQ-warped nebula dome with its own
-          dust-occluded star layers (CosmicBackground's glyph rain is retired
-          to the attic — the absorption metaphor returns later as a sparse
-          intake stream bound to real trails). Skipped on the low tier: the
-          full-screen fbm pass is the budget, and the brain is the show. */}
-      {tier !== 'low' && <KnowledgeHorizon activity={activeBoost} />}
+      {/* The sky serves the VOYAGE: the operator's knowledge field flying
+          past the camera IS the forward motion of the thesis. The optional
+          photographic dome sits far behind it for depth — it may add to the
+          voyage, never replace it. (Dome skipped on low tier: the
+          full-screen fbm pass is the budget, and the brain is the show.) */}
+      {SKY_MODE === 'layered' && tier !== 'low' && (
+        <KnowledgeHorizon activity={activeBoost} />
+      )}
+      <CosmicBackground tier={tier} />
 
       {/* The recall stream: distant glints are REAL trails from the pheromone
           map (strength = core brightness, walks = cage size, freshness =
