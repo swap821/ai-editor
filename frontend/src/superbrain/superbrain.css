@@ -9,6 +9,7 @@
   --font-jetbrains-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+
 @layer base {
 /* ---------- One-accent discipline ----------
  * The accent (#5ce1e6) is used ONLY for: the status dot, the Execute button,
