@@ -110,6 +110,20 @@ function publishStep(data: Record<string, unknown>): void {
     });
     return;
   }
+  if (tool === 'swarm' || tool === 'role_pass') {
+    // Orchestration castes: narrate the mesh forming so a swarm / role-pass turn
+    // reads as the decompose -> workers -> synthesize flow it actually is, rather
+    // than a generic tool ping.
+    const role = String(data.role ?? '').replace(/-/g, ' ').toUpperCase();
+    publishCognition({
+      type: 'agent-dispatch',
+      label: tool === 'swarm' ? 'SWARM' : 'ROLE-PASS',
+      detail: role ? `${role} caste online` : output.slice(0, 80),
+      intensity: 0.5,
+      source: 'aios',
+    });
+    return;
+  }
   publishCognition({
     type: 'knowledge-acquired',
     label: tool ? tool.toUpperCase() : 'SIGNAL',
