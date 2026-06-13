@@ -239,6 +239,20 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
           }
           break;
         }
+        case 'earned_autonomy': {
+          // The mind acted on its OWN earned trust: a write whose class earned
+          // autonomy by repeated verified success, applied with no human pause
+          // (still gated + audited). The rarest, most-grown-up thing it does.
+          const what = String(frame.data.command ?? frame.data.filepath ?? 'a write');
+          publishCognition({
+            type: 'knowledge-acquired',
+            label: 'AUTONOMOUS ACTION',
+            detail: `earned trust applied · ${what}`.slice(0, 140),
+            intensity: 1,
+            source: 'aios',
+          });
+          break;
+        }
         case 'error':
           publishCognition({
             type: 'synthesis',
@@ -391,9 +405,32 @@ let pollCount = 0;
 let chainValid: boolean | null = null;
 let chainEntries = 0;
 
+/** Earned-autonomy ledger snapshot: which YELLOW action classes the brain has
+ *  earned the right to do without a human, by repeated verified success. */
+export interface AutonomySnapshot {
+  enabled: boolean;
+  min_successes: number;
+  entries: Array<{
+    signature: string;
+    action_type: string;
+    target_shape: string;
+    status: string;
+    success_count: number;
+    streak: number;
+  }>;
+  summary: { earned: number; probation: number; revoked: number };
+}
+let lastAutonomy: AutonomySnapshot | null = null;
+const seenAutonomyStatus = new Map<string, string>();
+
 /** The brain's actual trail field — what the grasp system may recall. */
 export function getKnownTrails(): readonly TrailRow[] {
   return knownTrails;
+}
+
+/** The earned-autonomy ledger as of the last poll (null offline / older backend). */
+export function getAutonomy(): AutonomySnapshot | null {
+  return lastAutonomy;
 }
 
 /** True while the last poll reached the real backend. */
@@ -418,6 +455,8 @@ export function __resetAiosAdapterForTests(): void {
   pollCount = 0;
   chainValid = null;
   chainEntries = 0;
+  lastAutonomy = null;
+  seenAutonomyStatus.clear();
 }
 
 /** Audit hash-chain probe — sampled every few polls (it walks the ledger). */
@@ -533,6 +572,35 @@ export async function pollOnce(): Promise<void> {
         }
       } catch {
         chainValid = null; // unknown, never asserted
+      }
+    }
+
+    // Earned autonomy: the brain's GROWN capabilities. A class crossing
+    // probation -> earned means the mind earned the right to act without a human
+    // on that class — the rarest growth. Sampled like the chain probe (the
+    // ledger changes rarely); best-effort, absent on an older backend, never
+    // breaks the poll.
+    if (pollCount % CHAIN_PROBE_EVERY === 0) {
+      try {
+        const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`);
+        if (autRes.ok) {
+          lastAutonomy = (await autRes.json()) as AutonomySnapshot;
+          for (const entry of lastAutonomy.entries ?? []) {
+            const prev = seenAutonomyStatus.get(entry.signature);
+            if (prev !== undefined && prev !== 'earned' && entry.status === 'earned') {
+              publishCognition({
+                type: 'knowledge-acquired',
+                label: 'CAPABILITY EARNED',
+                detail: `${entry.action_type} ${entry.target_shape} — autonomous after ${entry.success_count} verified`,
+                intensity: 1,
+                source: 'aios',
+              });
+            }
+            seenAutonomyStatus.set(entry.signature, entry.status);
+          }
+        }
+      } catch {
+        // autonomy is advisory to the scene; never break the poll on its absence
       }
     }
 
