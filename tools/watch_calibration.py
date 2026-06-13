@@ -42,49 +42,58 @@ def snapshot() -> tuple[dict, dict]:
         ).fetchall()
     finally:
         conn.close()
-    tally: dict[tuple[str, str, str], list[int]] = {}
-    outcomes: dict[str, int] = {}
-    for row in rows:
-        o = str(row["outcome"])
-        outcomes[o] = outcomes.get(o, 0) + 1
-        if o not in ("verified_success", "verified_failure"):
-            continue
+    def route_of(row) -> tuple[str, str, str]:
         try:
             meta = json.loads(row["metadata_json"] or "{}")
         except (TypeError, json.JSONDecodeError):
-            continue
+            meta = {}
         if not isinstance(meta, dict):
-            continue
-        p = str(meta.get("provider") or "").strip()
-        m = str(meta.get("model") or "").strip()
-        t = str(meta.get("task") or "").strip()
-        if not (p and m and t):
-            continue
-        agg = tally.setdefault((p, m, t), [0, 0])
-        agg[1] += 1
-        if o == "verified_success":
-            agg[0] += 1
-    return tally, outcomes
+            meta = {}
+        return (
+            (str(meta.get("provider") or "").strip() or "?"),
+            (str(meta.get("model") or "").strip() or "?"),
+            (str(meta.get("task") or "").strip() or "?"),
+        )
+
+    tally: dict[tuple[str, str, str], list[int]] = {}
+    outcomes: dict[str, int] = {}
+    recent: list[dict] = []
+    for i, row in enumerate(rows):  # rows are newest-first
+        o = str(row["outcome"])
+        outcomes[o] = outcomes.get(o, 0) + 1
+        p, m, t = route_of(row)
+        if i < 8:
+            recent.append({"outcome": o, "provider": p, "model": m, "task": t})
+        if o in ("verified_success", "verified_failure") and "?" not in (p, m, t):
+            agg = tally.setdefault((p, m, t), [0, 0])
+            agg[1] += 1
+            if o == "verified_success":
+                agg[0] += 1
+    return tally, outcomes, recent
 
 
-def render(tally: dict, outcomes: dict) -> str:
+def render(tally: dict, outcomes: dict, recent: list) -> str:
     lines = ["[calib] router evidence (verified per provider/model/task):"]
     if not tally:
-        lines.append("  (none yet — verified turns tag {provider, model, task}; chat-only turns stay 'unverified')")
+        lines.append("  (no calibrating rows yet — only VERIFIED turns count; chat stays 'unverified')")
     for (p, m, t), (s, n) in sorted(tally.items()):
         pct = round(100 * s / n) if n else 0
         flag = " ✓ ACTIVE (re-ranks the route)" if n >= MIN_ATTEMPTS else f" ({MIN_ATTEMPTS - n} more to activate)"
         lines.append(f"  {t} · {p}:{m} · {s}/{n} verified ({pct}%)" + flag)
+    if recent:
+        lines.append("  recent turns (newest first — task · provider:model → outcome):")
+        for e in recent[:6]:
+            lines.append(f"    {e['task']} · {e['provider']}:{e['model']} → {e['outcome']}")
     oc = ", ".join(f"{k}={v}" for k, v in sorted(outcomes.items())) or "none"
-    lines.append(f"  events so far: {oc}")
+    lines.append(f"  totals: {oc}")
     return "\n".join(lines)
 
 
-def sig_of(tally: dict, outcomes: dict) -> str:
+def sig_of(tally: dict, outcomes: dict, recent: list) -> str:
     return (
         json.dumps({f"{p}|{m}|{t}": v for (p, m, t), v in sorted(tally.items())})
-        + "||"
-        + json.dumps(outcomes, sort_keys=True)
+        + "||" + json.dumps(outcomes, sort_keys=True)
+        + "||" + json.dumps(recent)
     )
 
 
@@ -93,7 +102,7 @@ def main() -> None:
     last = None
     while True:
         try:
-            tally, outcomes = snapshot()
+            tally, outcomes, recent = snapshot()
         except Exception as exc:  # noqa: BLE001 - wait for the backend to create the DB
             msg = f"[calib] waiting for backend DB… ({str(exc)[:80]})"
             if msg != last:
@@ -103,9 +112,9 @@ def main() -> None:
                 return
             time.sleep(POLL_S)
             continue
-        sig = sig_of(tally, outcomes)
+        sig = sig_of(tally, outcomes, recent)
         if sig != last:
-            print(render(tally, outcomes), flush=True)
+            print(render(tally, outcomes, recent), flush=True)
             last = sig
         if once:
             return
