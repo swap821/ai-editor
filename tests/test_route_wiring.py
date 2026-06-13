@@ -9,8 +9,20 @@ sent to a cloud client, even when no local model exists. Fakes only; no network.
 """
 from __future__ import annotations
 
+import pytest
+
 from aios import config
-from aios.api.main import _provider_name, _select_chat_client
+from aios.api.main import _build_providers, _provider_name, _select_chat_client
+from aios.core.catalog import clear_catalog_cache
+
+
+@pytest.fixture(autouse=True)
+def _clear_catalog():
+    # The cloud catalog is process-cached; isolate every test (fake clients that
+    # can't list models fall back to the configured default, uncached).
+    clear_catalog_cache()
+    yield
+    clear_catalog_cache()
 
 
 class FakeOllama:
@@ -177,6 +189,39 @@ def test_auto_returns_failover_cascade_with_fallbacks(monkeypatch) -> None:
     assert provs[0] == "gemini"                          # primary first
     assert "bedrock" in provs and "ollama" in provs      # both fallbacks present
     assert len(provs) == 3
+
+
+# --- Breadth: auto spans the provider's model catalog ------------------------
+class FakeBedrock:
+    def __init__(self, ids: list[str]) -> None:
+        self._ids = ids
+
+    def list_models(self):
+        return [{"id": i, "name": i} for i in self._ids]
+
+
+def test_build_providers_spans_the_cloud_catalog() -> None:
+    bed = FakeBedrock(["amazon.nova-lite-v1:0", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"])
+    provs = _build_providers(FakeOllama(["qwen2.5-coder:7b"]), bed, None)
+    bedrock_models = [p.models[0] for p in provs if p.name == "bedrock"]
+    # one candidate per discovered model + the configured default (forced in).
+    assert "amazon.nova-lite-v1:0" in bedrock_models
+    assert "us.anthropic.claude-3-5-sonnet-20241022-v2:0" in bedrock_models
+    assert config.BEDROCK_MODEL in bedrock_models
+    # the frontier (Claude/sonnet) outranks a light model by the capability heuristic.
+    caps = {p.models[0]: p.capability for p in provs if p.name == "bedrock"}
+    assert caps["us.anthropic.claude-3-5-sonnet-20241022-v2:0"] > caps["amazon.nova-lite-v1:0"]
+
+
+def test_auto_failover_cascade_spans_catalog_models(monkeypatch) -> None:
+    # coding opted into cloud + a multi-model Bedrock catalog -> the failover cascade
+    # carries several specific cloud models (not just one per provider).
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("coding",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
+    bed = FakeBedrock(["amazon.nova-pro-v1:0", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"])
+    client, _ = _select_chat_client("auto", FakeOllama(["qwen2.5-coder:7b"]), bed, task="coding")
+    bedrock_in_cascade = [m for (_c, m, p) in client.candidates if p == "bedrock"]
+    assert len(bedrock_in_cascade) >= 2  # multiple Bedrock models are failover candidates
 
 
 def test_provider_name_maps_client_to_provider() -> None:

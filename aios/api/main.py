@@ -46,8 +46,9 @@ from aios.core.executor import (
     approved_runner_from_config,
     validate_approved_execution_backend,
 )
-from aios.core import router
+from aios.core import catalog, router
 from aios.core.bedrock import BedrockClient
+from aios.core.catalog import catalog_models
 from aios.core.failover import FailoverChatClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
@@ -1129,26 +1130,28 @@ def _build_providers(
             models=tuple(m for m in local_models if isinstance(m, str)),
         )
     ]
-    if bedrock is not None:
-        providers.append(
-            router.Provider(
-                name=router.PROVIDER_BEDROCK,
-                privacy=router.PRIVACY_CLOUD,
-                cost=router.COST_HIGH,
-                available=True,
-                models=(config.BEDROCK_MODEL,),
+    # BREADTH: one candidate per model the provider actually offers (its catalog),
+    # not just the configured default — so auto + failover + calibration span the
+    # many models AWS/Vertex expose. Discovery is account-accurate + cached.
+    for cloud, name, default in (
+        (bedrock, router.PROVIDER_BEDROCK, config.BEDROCK_MODEL),
+        (gemini, router.PROVIDER_GEMINI, config.GEMINI_MODEL),
+    ):
+        if cloud is None:
+            continue
+        cost = router.COST_HIGH if name == router.PROVIDER_BEDROCK else router.COST_LOW
+        for mid in catalog_models(cloud, name, default):
+            cap = catalog.cloud_capability(mid) + (catalog.DEFAULT_BONUS if mid == default else 0)
+            providers.append(
+                router.Provider(
+                    name=name,
+                    privacy=router.PRIVACY_CLOUD,
+                    cost=cost,
+                    available=True,
+                    models=(mid,),
+                    capability=cap,
+                )
             )
-        )
-    if gemini is not None:
-        providers.append(
-            router.Provider(
-                name=router.PROVIDER_GEMINI,
-                privacy=router.PRIVACY_CLOUD,
-                cost=router.COST_LOW,
-                available=True,
-                models=(config.GEMINI_MODEL,),
-            )
-        )
     return providers
 
 

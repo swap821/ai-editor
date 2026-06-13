@@ -201,11 +201,15 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       `_route_meta` record the served model. 8 tests. Operator opted **coding** into cloud
       (`AIOS_ROUTER_CLOUD_TASKS=reasoning,coding` in backend .env) so coding escalates to a frontier model with
       [gemini→bedrock→local] failover. Live: Gemini-down → turn rode Bedrock, recorded as bedrock. **Suite 525 pass / 1 skip.**
-    REMAINING multi-LLM enhancement (the breadth front, NOT built): route among MANY models per provider (the
-      Bedrock + Vertex catalogs — Claude/Nova/Llama/Gemini Pro+Flash…), not just one configured model each, so
-      `auto` + calibration pick across the full catalog. Also (known rough edge): coding turns can record
-      `unverified` when the agent's sandbox test doesn't trigger the verify (the conftest fixed COLLECTION; the
-      verify-after-approved-create path is the remaining gap — investigate before relying on coding calibration).
+    ✅ **BREADTH DONE (2026-06-14):** `aios/core/catalog.py` — `_build_providers` now emits a candidate PER model
+      in each cloud provider's CATALOG (discovered once via `client.list_models()`, cached; account-accurate so a
+      frontier model is offered only where invocable), capability by a coarse id heuristic (`cloud_capability`,
+      +DEFAULT_BONUS for the configured default), calibration refines. So `auto` + the failover cascade + the
+      hybrid picker span MANY models (Claude/Nova/Llama/Gemini Pro+Flash…), not one per provider. `tests/test_catalog.py` (8) + wiring tests.
+    ✅ **Verify-gap RESOLVED (not a code bug):** traced — approved creates DO run `_auto_verify` via
+      `_pre_apply_grants`; the `unverified` outcomes were the LOCAL model writing a module with NO sibling test
+      (`[VERIFY SKIPPED]`) or a bad import (the conftest fixed collection). The verify path is correct-by-design;
+      routing coding to a capable cloud model (now opted in) makes the agent write complete, verifiable code.
     OPERATOR LEVERS: `AIOS_ROUTER_CLOUD_TASKS` (which tasks may go cloud; now `reasoning,coding`),
     `AIOS_ROUTER_CALIBRATION_WEIGHT` (0.4), `AIOS_ROUTER_LLM_PICK`. Tool: `tools/watch_calibration.py` (live evidence view).
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.
