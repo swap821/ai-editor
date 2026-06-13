@@ -193,10 +193,21 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       (cognitionBus 'route' type, aiosAdapter publish, SuperbrainHUD segment + subscription, globals.css brain-dot
       green=local/amber=cloud), byte-synced via `npm run port`. ADDITIVE/conditional like AUTONOMY → canon IDLE row
       byte-unchanged (FIDELITY-safe). Before/after goldens in `.aios/state/badge-goldens/` (idle=no badge; cloud=amber
-      gemini; local=green qwen). Proposal: `.aios/state/ACTIVE_BRAIN_BADGE_PROPOSAL.md`. **MULTI-LLM LIBRARY COMPLETE.**
-      Cage verifies regardless of provider.
-    OPEN OPERATOR DECISION (gates cloud going live): set `AIOS_ROUTER_CLOUD_TASKS` (+ `AIOS_GEMINI_PROJECT`,
-    `pip install google-genai`) to allow specific task classes to escalate. Until set, `auto` stays local-only.
+      gemini; local=green qwen). Proposal: `.aios/state/ACTIVE_BRAIN_BADGE_PROPOSAL.md`. Cage verifies regardless of provider.
+    ✅ **FAILOVER layer DONE (2026-06-14, commit fd47482, live-proven):** `aios/core/failover.py`
+      `FailoverChatClient` wraps the router's RANKED candidates and rides the next on an `LLMError`
+      (forward-only + sticky; truthful `active_provider/model` attribution so calibration credits the model that
+      served). `auto` builds the cascade [picked, …rest by rank]; single candidate → raw client. `_active_route`/
+      `_route_meta` record the served model. 8 tests. Operator opted **coding** into cloud
+      (`AIOS_ROUTER_CLOUD_TASKS=reasoning,coding` in backend .env) so coding escalates to a frontier model with
+      [gemini→bedrock→local] failover. Live: Gemini-down → turn rode Bedrock, recorded as bedrock. **Suite 525 pass / 1 skip.**
+    REMAINING multi-LLM enhancement (the breadth front, NOT built): route among MANY models per provider (the
+      Bedrock + Vertex catalogs — Claude/Nova/Llama/Gemini Pro+Flash…), not just one configured model each, so
+      `auto` + calibration pick across the full catalog. Also (known rough edge): coding turns can record
+      `unverified` when the agent's sandbox test doesn't trigger the verify (the conftest fixed COLLECTION; the
+      verify-after-approved-create path is the remaining gap — investigate before relying on coding calibration).
+    OPERATOR LEVERS: `AIOS_ROUTER_CLOUD_TASKS` (which tasks may go cloud; now `reasoning,coding`),
+    `AIOS_ROUTER_CALIBRATION_WEIGHT` (0.4), `AIOS_ROUTER_LLM_PICK`. Tool: `tools/watch_calibration.py` (live evidence view).
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.
 C2. **Default-strong isolation** (PLAN S2: hardened Docker default where available).
 C3. The three genuine gaps: voice (G1), knowledge-graph traversal (G2), observability (G3); + the
