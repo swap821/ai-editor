@@ -30,14 +30,17 @@ RegionPins keyboard+aria-expanded, SOUND/mode aria-pressed, link role=status,
 shield aria-live, ghost-plus tabIndex=-1, source-list aria-live flood removed.
 Dropped the recovered stray-brace 'could' finding — the Next build REFUTED it
 (needed closer; unverified findings must pass the build, not just sound right).
-NEXT = the pixel-touching work, which needs his eye + before/after screenshots
-per FIDELITY laws, in two groups:
-  (a) interaction VISUAL states held back from polish III: :focus-visible,
-      :hover (region-pin), :active press, .fidelity-button strong transition.
-  (b) the remaining lenses: glass, motion, typography, spacing, cortex-shader,
-      space-shaders (recovered findings in RECOVERED_micro_detail_findings.md).
-Method unchanged: recovered findings -> Opus verify vs source -> apply in lab
--> vitest+lint+build green + goldens -> commit -> port -> commit product.
+POLISH IV = interaction VISUAL states LANDED (lab 576cd0c / product 2c23235):
+focus-visible (white-alpha), region-pin hover/active, mode-button active,
+fidelity-button strong transition + active, approval-actions press. Interaction
+lens now COMPLETE. Operator delegated full trust ("100% trust") for the rest +
+authorized workflow fan-out; lab dev server running on :3000 for live preview.
+NEXT = remaining pixel lenses: glass(18) motion(23) typography(19) spacing(10)
+cortex-shader(7) space-shaders(7). Running a READ-ONLY verify workflow first
+(the verify phase the limit killed) -> apply each lens MYSELF (single writer)
+from the vetted list -> lab build+goldens green -> commit -> port -> product
+build -> commit. KEY LESSON: verify every finding vs LIVE source by content,
+never trust cited line numbers (the stray-brace finding was wrong).
 
 --- (historical) POLISH II detail ---
 POLISH II = SOUND was DONE in the lab working tree (now committed), verified:
