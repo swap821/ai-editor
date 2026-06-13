@@ -37,15 +37,27 @@ operator-authorized landing + POST-HOC Codex inbox review.
      then turns 3/4/5 auto-granted writes with ZERO approvals, each VERIFY
      PASS. Ledger: create_file:training_ground/*.py = earned, succ=6.
    Full suite: 456 passed, 1 skipped. Pushed to swap821/ai-editor master.
+6. COORDINATION CATCH-UP done: routed earned-autonomy-and-swarm-v1 (builder
+   claude/reviewer codex), claimed lease -> hash-pinned handoff (msg 17) +
+   review-request (msg 18) to Codex; marked his msg #8 read; gitignored .aios/tmp.
+7. PRESERVED all of Fable 5.0's Jun 9-12 work: parent (backend+docs, 66 commits)
+   + lab superbrain both pushed; his pre-lab .agents/ build-notebooks folded into
+   the lab repo (build-history/) + pushed (off-machine, ab57a99); visual_test/
+   harness in a new local-only GAG demo/ repo (b3bb917) — operator to push to
+   swap821/gag-demo himself (agent blocked by exfil guardrail; one-liner given).
+8. SUPERBRAIN SHOWS ITS CAPABILITIES (lab faaf087 / product 1967fea): API forwards
+   the earned_autonomy SSE event (e9e9e09); aiosAdapter publishes AUTONOMOUS ACTION
+   (the brain acts on its own earned trust) + CAPABILITY EARNED (a class graduates)
+   + getAutonomy() getter. LIVE-PROVEN: ledger persists across restart (earned:1),
+   an earned create_file streams `event: earned_autonomy`. 26 lab + 456 backend tests.
 
 ## Single next action
-COORDINATION CATCH-UP (this session lapsed it): leave Codex a POST-HOC review
-note for the earned-autonomy + swarm features (his to review as non-builder),
-hash-pinned; mark his unread inbox msg #8 read; keep RESUME current. THEN, real
-follow-ups: (a) tag earned-autonomy auto-grants explicitly in the audit
-hash-chain (currently audited as the write, not labelled 'earned-autonomy');
-(b) the swarm/castes need a 14B+ local model to sustain multi-role output
-(7B-limited); (c) decide whether earned autonomy stays on in product.
+Earned autonomy is ON in the live backend (persists in the DB across restart).
+Follow-ups (operator's pick): (a) a persistent earned-autonomy HUD readout
+(getAutonomy() is wired) + a swarm-worker visualization; (b) tag earned-autonomy
+auto-grants explicitly in the audit hash-chain (now audited as the write only);
+(c) the swarm/castes need a 14B+ local model (7B-limited); (d) whether earned
+autonomy ships ON by default. Codex reviews earned-autonomy-and-swarm-v1 ~06-16.
 
 ## Open approvals/blockers
 - Lease discipline: did all the above with `active_writer: null` (no worktree
