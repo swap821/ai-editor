@@ -178,6 +178,10 @@ export interface PendingApproval {
   kind: 'create' | 'edit' | 'command' | 'other';
   /** Target file for write approvals (empty for commands). */
   filepath: string;
+  /** The full proposed file content for a CREATE (empty for edits/commands —
+   *  edits carry only the unified `diff`). Lets a consumer (e.g. the forge
+   *  editor) show the mind's ACTUAL proposed write, not a sample file. */
+  content: string;
 }
 
 let pendingApproval: PendingApproval | null = null;
@@ -199,6 +203,10 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
     const head = (rows[0] ?? {}) as Record<string, unknown>;
     return String(head.filepath ?? head.path ?? '');
   };
+  const firstContent = (rows: unknown[]): string => {
+    const head = (rows[0] ?? {}) as Record<string, unknown>;
+    return String(head.content ?? '');
+  };
   const kind: PendingApproval['kind'] =
     creations.length > 0 ? 'create' : edits.length > 0 ? 'edit' : commands.length > 0 ? 'command' : 'other';
   pendingApproval = {
@@ -210,6 +218,7 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
     command: commands.length > 0 ? String(commands[0]) : '',
     kind,
     filepath: kind === 'create' ? firstPath(creations) : kind === 'edit' ? firstPath(edits) : '',
+    content: kind === 'create' ? firstContent(creations) : '',
   };
 }
 

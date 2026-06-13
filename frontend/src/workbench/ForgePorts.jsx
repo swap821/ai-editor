@@ -3,6 +3,7 @@ import { Html } from '@react-three/drei';
 import CodeCanvas from '../components/CodeCanvas';
 import LivePreview from '../components/LivePreview';
 import { subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { getPendingApproval } from '../superbrain/lib/aiosAdapter';
 
 /* ─── ForgePorts ─────────────────────────────────────────────────────────────
    The work surfaces mounted AS the brain's tools — in-scene <Html> panels placed
@@ -36,6 +37,11 @@ const DEFAULT_FILES = {
 const isWriteEvt = (e) => e.type === 'agent-dispatch' || /WRITE|EDIT|CREATE|CODE|SWARM|ROLE/.test(String(e.label || ''));
 const isRenderEvt = (e) => e.type === 'knowledge-acquired' || /VERIF|SYNTH|MASTER|RENDER/.test(String(e.label || ''));
 
+// Map an agent-written file onto an editor tab (truthful content).
+const EXT_LANG = { html: 'html', css: 'css', js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', json: 'json', py: 'python', md: 'markdown', sh: 'shell', txt: 'plaintext' };
+const baseName = (p) => String(p).split(/[\\/]/).pop() || String(p);
+const langOf = (name) => EXT_LANG[String(name).split('.').pop()?.toLowerCase()] || 'plaintext';
+
 function useFlare(match) {
   const [flaring, setFlaring] = useState(false);
   useEffect(() => {
@@ -60,6 +66,21 @@ export default function ForgePorts() {
   const [active, setActive] = useState('index.html');
   const editorFlaring = useFlare(isWriteEvt);
   const previewFlaring = useFlare(isRenderEvt);
+
+  // TRUTHFUL CONTENT (A1): when the mind proposes a create_file, open its REAL
+  // proposed content as an editor tab (from the captured approval; the adapter
+  // now exposes it). It sits there until you AUTHORIZE — also the A3 seed. A
+  // web file (index.html/style.css/app.js) flows on to the live preview for free.
+  useEffect(() => {
+    return subscribeCognition((e) => {
+      if (!e || e.type !== 'approval-required') return;
+      const p = getPendingApproval();
+      if (!p || p.kind !== 'create' || !p.filepath) return;
+      const name = baseName(p.filepath);
+      setFiles((prev) => ({ ...prev, [name]: { language: langOf(name), content: p.content || '' } }));
+      setActive(name);
+    });
+  }, []);
   const current = files[active];
 
   return (
