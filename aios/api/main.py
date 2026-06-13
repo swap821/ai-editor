@@ -1615,6 +1615,12 @@ def generate(
                 yield _sse("code", {"code": ev["code"], "language": ev["language"]})
             elif kind == "error":
                 yield _sse("error", {"text": ev["text"]})
+            elif kind == "earned_autonomy":
+                # The earned-autonomy bridge auto-applied a write with NO human
+                # pause — the write class earned it by verified-success evidence.
+                # Surface it so the brain can show itself acting on its own
+                # earned trust (still gated, audited, and revocable).
+                yield _sse("earned_autonomy", ev)
             elif kind == "human_required":
                 # The agent paused on a YELLOW command. Ask the UI for approval;
                 # the turn ends here (no answer recorded) and is replayed once the
