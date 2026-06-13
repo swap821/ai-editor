@@ -324,6 +324,20 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
             });
           }
           break;
+        case 'route': {
+          // The active brain for this turn — which provider/model served it and
+          // whether it stayed local. The HUD surfaces it in the sovereignty row.
+          const d = (frame.data ?? {}) as Record<string, unknown>;
+          publishCognition({
+            type: 'route',
+            label: 'ACTIVE BRAIN',
+            detail: `${String(d.provider ?? '?')}:${String(d.model ?? '?')} (${String(d.privacy ?? '?')})`,
+            intensity: 0.3,
+            source: 'aios',
+            data: d,
+          });
+          break;
+        }
         default:
           break; // alignment and future frames are advisory to the scene
       }

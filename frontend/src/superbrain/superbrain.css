@@ -352,6 +352,20 @@ button {
   animation: breathe 2.2s var(--ease-loop) infinite;
 }
 
+/* The active-brain dot encodes data privacy at a glance: green = the turn stayed
+   local; amber = a policy-permitted cloud escalation left the machine. Inherits
+   the 6px size/shape from .status-dot; only the colour/glow differ. */
+.brain-dot--local {
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
+  animation: breathe 2.2s var(--ease-loop) infinite;
+}
+.brain-dot--cloud {
+  background: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.7);
+  animation: breathe 2.2s var(--ease-loop) infinite;
+}
+
 .secure-button {
   justify-self: end;
   gap: 8px;

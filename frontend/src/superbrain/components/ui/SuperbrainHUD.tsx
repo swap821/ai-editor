@@ -669,6 +669,14 @@ export default function SuperbrainHUD({
   const rotateRef = useRef(0);
   const [directiveSurge, setDirectiveSurge] = useState(false);
   const surgeTimeoutRef = useRef<number | null>(null);
+  /* ----- the active brain for the live turn (from the `route` event) ----- */
+  const [activeBrain, setActiveBrain] = useState<{
+    provider: string;
+    model: string;
+    privacy: string;
+    task?: string;
+    auto?: boolean;
+  } | null>(null);
 
   /* ----- nervous system: the HUD reacts to the same events as the 3D scene ----- */
   useEffect(() => {
@@ -703,6 +711,7 @@ export default function SuperbrainHUD({
           turnToolsRef.current = new Set();
           setEngagedLive(0);
           setRecentSteps([]);
+          setActiveBrain(null); // the new turn re-announces its brain via `route`
           setDirectiveSurge(true);
           if (surgeTimeoutRef.current !== null) window.clearTimeout(surgeTimeoutRef.current);
           surgeTimeoutRef.current = window.setTimeout(() => {
@@ -767,6 +776,22 @@ export default function SuperbrainHUD({
           setApprovalHold(false);
           setPendingApproval(getPendingApproval());
           break;
+        case 'route': {
+          // The active brain for this turn — which provider/model served it and
+          // whether it stayed local (a policy-permitted cloud escalation reads CLOUD).
+          const d = (event.data ?? {}) as Record<string, unknown>;
+          if (typeof d.model === 'string' && d.model) {
+            setActiveBrain({
+              provider: String(d.provider ?? ''),
+              model: d.model,
+              privacy: String(d.privacy ?? ''),
+              task: typeof d.task === 'string' ? d.task : undefined,
+              auto: typeof d.auto === 'boolean' ? d.auto : undefined,
+            });
+            appendTermLine(`Brain · ${d.model} (${String(d.privacy ?? '?')})`);
+          }
+          break;
+        }
       }
     });
     return () => {
@@ -879,6 +904,28 @@ export default function SuperbrainHUD({
                     title="Action classes the brain earned the right to do autonomously, by repeated verified success"
                   >
                     AUTONOMY <strong>{`⚡${telemetry.earnedAutonomy.earned}`}</strong>
+                  </span>
+                </>
+              ) : null}
+              {/* BRAIN: which provider/model serves the live turn + a privacy dot
+                  (green = stayed local, amber = a policy-permitted cloud escalation).
+                  Additive — invisible until a turn announces its brain, so the canon
+                  idle frame is untouched. */}
+              {activeBrain ? (
+                <>
+                  <span className="topbar-divider" />
+                  <span
+                    role="status"
+                    title={`Active brain: ${activeBrain.provider} · ${activeBrain.model} (${activeBrain.privacy}${activeBrain.auto ? ', auto-routed' : ''})`}
+                  >
+                    BRAIN{' '}
+                    <i
+                      className={`status-dot brain-dot ${
+                        activeBrain.privacy === 'local' ? 'brain-dot--local' : 'brain-dot--cloud'
+                      }`}
+                    />{' '}
+                    <strong>{activeBrain.model}</strong> ·{' '}
+                    {activeBrain.privacy === 'local' ? 'LOCAL' : 'CLOUD'}
                   </span>
                 </>
               ) : null}

@@ -183,11 +183,14 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       Config `AIOS_ROUTER_CALIBRATION_WEIGHT` (default 0.4; cold-start keys fall back to heuristic). The turn now
       emits an `event: route` SSE frame {provider, model, privacy, task, auto} = the "active brain" signal for the UI.
       Tests: test_brain_growth (+2 aggregator), test_route_wiring (+2 calibration/provider), test_api (+1 route event).
-    P0 ✅ done (B1). **P3 backend ✅ done.** REMAINING (the only open multi-LLM item): the FRONTEND **active-brain
-    badge** — consume the `route` SSE event in the UI (provider + model + a local/cloud privacy indicator on the
-    superbrain topbar / classic header). This is FIDELITY-gated canon UI work → MUST follow the UI laws
-    [[fidelity-is-sacred-ui-laws]]: canon tag + goldens first, parity proven in HIS browser, before/after
-    screenshots, his assets untouched. Propose, don't unilaterally edit canon. Cage verifies regardless of provider.
+    P0 ✅ done (B1). **P3 backend ✅ done.** ✅ **FRONTEND active-brain BADGE DONE (2026-06-14, operator-signed-off):**
+      Phase 1 (classic, product-safe, App.jsx) consumes the `route` frame in the header badge. Phase 2A (superbrain
+      canon) adds a `BRAIN ● <model> · <privacy>` segment to the sovereignty row — authored in the LAB
+      (cognitionBus 'route' type, aiosAdapter publish, SuperbrainHUD segment + subscription, globals.css brain-dot
+      green=local/amber=cloud), byte-synced via `npm run port`. ADDITIVE/conditional like AUTONOMY → canon IDLE row
+      byte-unchanged (FIDELITY-safe). Before/after goldens in `.aios/state/badge-goldens/` (idle=no badge; cloud=amber
+      gemini; local=green qwen). Proposal: `.aios/state/ACTIVE_BRAIN_BADGE_PROPOSAL.md`. **MULTI-LLM LIBRARY COMPLETE.**
+      Cage verifies regardless of provider.
     OPEN OPERATOR DECISION (gates cloud going live): set `AIOS_ROUTER_CLOUD_TASKS` (+ `AIOS_GEMINI_PROJECT`,
     `pip install google-genai`) to allow specific task classes to escalate. Until set, `auto` stays local-only.
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.

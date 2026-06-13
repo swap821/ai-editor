@@ -29,7 +29,11 @@ export type CognitionEventType =
   | 'approval-resolved'
   /** A successful adapter poll: real link/latency/trail/metric snapshot in
    *  `data` (AiosTelemetry). Link loss publishes one with link=false. */
-  | 'telemetry';
+  | 'telemetry'
+  /** The active brain for a turn: which provider/model served it and whether it
+   *  stayed local. `data` carries {provider, model, privacy, task, auto}. The
+   *  sovereignty row shows it; additive, so the canon idle frame is untouched. */
+  | 'route';
 
 export interface CognitionEvent {
   type: CognitionEventType;
