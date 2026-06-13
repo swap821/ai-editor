@@ -166,6 +166,18 @@ SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.
 #: success through record_attempt.
 SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
 
+# Earned autonomy: the evidence->GREEN bridge. A YELLOW action *class* (action
+# type + scope-bound target shape) graduates to autonomous execution after this
+# many consecutive verifier-backed successes, and is revoked instantly by a
+# single verified failure. OFF by default — supervision stays the norm; RED is
+# never earnable (the gateway blocks it before this layer, and execute_approved
+# re-classifies and refuses RED even when granted).
+#: Master switch. While False, every consequential action stays YELLOW (today's
+#: behaviour); is_earned() is hard-wired to return False.
+EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", False)
+#: Consecutive verified successes a signature needs before it is auto-approved.
+EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5)
+
 # --------------------------------------------------------------------------- #
 # Security & human-in-the-loop gating
 # --------------------------------------------------------------------------- #
@@ -322,6 +334,8 @@ __all__ = [
     "SKILL_REUSE_FAILURE_K",
     "SKILL_REUSE_FACTOR_FLOOR",
     "SKILL_REUSE_DEMOTE_NET_FAILURES",
+    "EARNED_AUTONOMY_ENABLED",
+    "EARNED_AUTONOMY_MIN_SUCCESSES",
     "CONFIDENCE_THRESHOLD",
     "MAX_RED_ACTIONS_PER_SESSION",
     "YELLOW_APPROVAL_TIMEOUT_MS",

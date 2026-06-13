@@ -77,6 +77,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
 from aios import config
+from aios.core.autonomy import AutonomyLedger
 from aios.core.executor import Executor
 from aios.core.llm import LLMClient, LLMError
 from aios.core.planner import Planner, PlannerError
@@ -546,6 +547,7 @@ class ToolAgent:
         self_analysis_llm: Optional[LLMClient] = None,
         system_prompt: Optional[str] = None,
         allowed_tools: Optional[frozenset[str]] = None,
+        autonomy: Optional[AutonomyLedger] = None,
     ) -> None:
         self.llm = llm
         #: Caste view (role-pass): an alternative system prompt and a hard tool
@@ -555,6 +557,11 @@ class ToolAgent:
         #: prose by ``_extract_text_tool_calls``. ``None`` -> full registry.
         self.system_prompt = system_prompt
         self.allowed_tools = allowed_tools
+        #: Earned-autonomy ledger (opt-in). When a YELLOW write's action class
+        #: has earned enough verifier-backed successes, the turn applies it via
+        #: the SAME gated path instead of pausing for a human. None -> always
+        #: pause (today's behaviour). RED never reaches this path.
+        self.autonomy = autonomy
         self.executor = executor
         self.model = model
         self.max_iters = max_iters
@@ -703,43 +710,67 @@ class ToolAgent:
                 yield {"type": "tool_call", "tool": name, "input": args, "id": call_id}
                 output, status, failed = self._dispatch(name, args)
                 if status == "approval":
-                    # A caution action the human hasn't authorised yet: pause the
-                    # whole turn and ask. The turn is *resumable* — the frontend
-                    # re-calls /api/generate with the command/edit whitelisted, so
-                    # we return here without applying it, recording no assistant
-                    # answer (the paused turn is replayed, not continued mid-stream).
-                    event: dict[str, Any] = {
-                        "type": "human_required",
-                        "tool": name,
-                        "command": args.get("command", ""),
-                        "reason": output,
-                        "id": call_id,
-                    }
-                    if name == "edit_file":
-                        # Surface the edit + its unified diff for the approval UI,
-                        # and the full triple so the frontend can re-send it as an
-                        # approved edit (the edit analog of approved_commands).
-                        event["command"] = f"edit {args.get('filepath', '')}"
-                        event["filepath"] = str(args.get("filepath", ""))
-                        event["diff"] = output
-                        event["edit"] = {
+                    _target = str(args.get("filepath") or args.get("command") or "")
+                    if (
+                        self.autonomy is not None
+                        and name in ("create_file", "edit_file")
+                        and self.autonomy.is_earned(name, _target)
+                    ):
+                        # EARNED AUTONOMY: this write class has earned enough
+                        # verifier-backed successes to run without a human this
+                        # turn. Whitelist it and re-dispatch through the SAME gated
+                        # path a human grant uses (scope check, snapshot, audit,
+                        # then the forced verify whose verdict records back into the
+                        # ledger and revokes on any failure). RED never reaches here
+                        # (it is 'blocked'); execute_approved re-refuses RED anyway.
+                        self._grant_earned(name, args)
+                        yield {
+                            "type": "earned_autonomy",
+                            "tool": name,
+                            "command": f"{name.split('_', 1)[0]} {_target}",
                             "filepath": str(args.get("filepath", "")),
-                            "old_string": str(args.get("old_string", "")),
-                            "new_string": str(args.get("new_string", "")),
+                            "reason": "earned by verified-success evidence",
+                            "id": call_id,
                         }
-                    elif name == "create_file":
-                        # Surface the new file + its all-additions diff for the UI,
-                        # and the {filepath, content} pair so the frontend can re-send
-                        # it as an approved creation (the create analog of an edit).
-                        event["command"] = f"create {args.get('filepath', '')}"
-                        event["filepath"] = str(args.get("filepath", ""))
-                        event["diff"] = output
-                        event["creation"] = {
-                            "filepath": str(args.get("filepath", "")),
-                            "content": str(args.get("content", "")),
+                        output, status, failed = self._dispatch(name, args)
+                    else:
+                        # A caution action the human hasn't authorised yet: pause the
+                        # whole turn and ask. The turn is *resumable* — the frontend
+                        # re-calls /api/generate with the command/edit whitelisted, so
+                        # we return here without applying it, recording no assistant
+                        # answer (the paused turn is replayed, not continued mid-stream).
+                        event: dict[str, Any] = {
+                            "type": "human_required",
+                            "tool": name,
+                            "command": args.get("command", ""),
+                            "reason": output,
+                            "id": call_id,
                         }
-                    yield event
-                    return
+                        if name == "edit_file":
+                            # Surface the edit + its unified diff for the approval UI,
+                            # and the full triple so the frontend can re-send it as an
+                            # approved edit (the edit analog of approved_commands).
+                            event["command"] = f"edit {args.get('filepath', '')}"
+                            event["filepath"] = str(args.get("filepath", ""))
+                            event["diff"] = output
+                            event["edit"] = {
+                                "filepath": str(args.get("filepath", "")),
+                                "old_string": str(args.get("old_string", "")),
+                                "new_string": str(args.get("new_string", "")),
+                            }
+                        elif name == "create_file":
+                            # Surface the new file + its all-additions diff for the UI,
+                            # and the {filepath, content} pair so the frontend can re-send
+                            # it as an approved creation (the create analog of an edit).
+                            event["command"] = f"create {args.get('filepath', '')}"
+                            event["filepath"] = str(args.get("filepath", ""))
+                            event["diff"] = output
+                            event["creation"] = {
+                                "filepath": str(args.get("filepath", "")),
+                                "content": str(args.get("content", "")),
+                            }
+                        yield event
+                        return
                 if status == "blocked":
                     yield {
                         "type": "tool_blocked",
@@ -781,11 +812,31 @@ class ToolAgent:
                     # next signal the model and UI see ("trust evidence, not the
                     # model"). Reuses the gated Verifier; fail-closed, and a genuine
                     # FAIL reflects exactly once (inside the Verifier).
-                    yield from self._auto_verify(str(args.get("filepath", "")), index, convo)
+                    yield from self._auto_verify(
+                        str(args.get("filepath", "")), index, convo, action_type=name
+                    )
 
         # Step cap reached without a final answer.
         yield {"type": "text", "text": STEP_LIMIT_TEXT}
         yield {"type": "done"}
+
+    def _grant_earned(self, name: str, args: dict[str, Any]) -> None:
+        """Whitelist an earned write so its re-dispatch lands via the gated path.
+
+        Adds the action to the same ``approved_*`` set a human grant uses, so the
+        re-dispatch runs the full scope-check -> snapshot -> audit -> write ->
+        forced-verify sequence in ``_create_file``/``_edit_file`` unchanged. Only
+        writes are earnable in v1.
+        """
+        if name == "create_file":
+            self.approved_creations[str(args.get("filepath", ""))] = str(
+                args.get("content", "")
+            )
+        elif name == "edit_file":
+            self.approved_edits[str(args.get("filepath", ""))] = (
+                str(args.get("old_string", "")),
+                str(args.get("new_string", "")),
+            )
 
     def _pre_apply_grants(self, convo: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Apply granted-but-unlanded writes through the same gated paths.
@@ -808,7 +859,7 @@ class ToolAgent:
                 yield {"type": "tool_result", "tool": "create_file",
                        "output": output[:_PREVIEW_LIMIT], "id": call_id}
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
-                yield from self._auto_verify(filepath, index, convo)
+                yield from self._auto_verify(filepath, index, convo, action_type="create_file")
             else:
                 yield {"type": "tool_blocked", "tool": "create_file",
                        "reason": output[:_PREVIEW_LIMIT], "id": call_id}
@@ -823,7 +874,7 @@ class ToolAgent:
                 yield {"type": "tool_result", "tool": "edit_file",
                        "output": output[:_PREVIEW_LIMIT], "id": call_id}
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
-                yield from self._auto_verify(filepath, index, convo)
+                yield from self._auto_verify(filepath, index, convo, action_type="edit_file")
             else:
                 yield {"type": "tool_blocked", "tool": "edit_file",
                        "reason": output[:_PREVIEW_LIMIT], "id": call_id}
@@ -879,7 +930,8 @@ class ToolAgent:
         }
 
     def _auto_verify(
-        self, filepath: str, index: int, convo: list[dict[str, Any]]
+        self, filepath: str, index: int, convo: list[dict[str, Any]],
+        *, action_type: str = "create_file",
     ) -> Iterator[dict[str, Any]]:
         """Force a verification after a successful write — evidence over narration.
 
@@ -941,11 +993,20 @@ class ToolAgent:
         if status == "blocked":
             yield {"type": "tool_blocked", "tool": "verify",
                    "reason": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
+            verified_ok = False  # an unverifiable change is fail-closed
         else:
             yield {"type": "tool_result", "tool": "verify",
                    "output": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}",
                    "target": command}
+            verified_ok = output.lstrip().startswith("[VERIFY PASS]")
         convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
+        # Fold the authoritative verdict into the earned-autonomy evidence for
+        # this write class: a PASS extends the streak (eventually graduating the
+        # class to autonomous), a FAIL revokes it instantly. This is the ONLY
+        # writer of autonomy evidence — it is the verifier's word, never the
+        # model's. (Skipped/non-Python writes returned above record nothing.)
+        if self.autonomy is not None:
+            self.autonomy.record_outcome(action_type, filepath, success=verified_ok)
 
     # ----------------------------------------------------------------- finish
     def _finish(self, content: str) -> Iterator[dict[str, Any]]:
