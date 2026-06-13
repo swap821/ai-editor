@@ -498,3 +498,23 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   (4) the frontend is now ahead of the ~75-80% backend — good forcing function,
   but finishing backend substance still comes first. Next: cortex-casing polish
   VII, then the 25 resting-frame fixes through the operator's own eye on :3000.
+
+## 2026-06-13 - CEO addendum (Claude: "fully running" delivered + polish ladder complete)
+- Operator goal: AI-OS fully running (frontend+backend) and amaze-ready for a
+  first-time viewer, full trust. Delivered: backend up + Ollama + 438 tests + a
+  REAL supervised turn proven end-to-end (memory recall -> tool call -> approval
+  gate; agent self-approval correctly blocked = thesis intact). Frontend polish
+  ladder II-XI all landed/ported/green, verified by live capture: region-coded
+  cortex, restored edge-lit rims (command bar + consoles), vivid linear-space
+  skill-stars, approval panel in the canon glass recipe + docked correctly,
+  cortex casing dither + hold-amber. The live brain renders beautifully.
+- Honest residue: 3 judgment-call items held (approval entrance, objective
+  scaleX, section weight) + 3 zero-visual hygiene skips; goldens are documentary
+  and can be re-tagged on sign-off. The backend is OPERATIONAL, not 100% of MVP
+  scope — "fully running" is true; "every remaining feature built" is not, and
+  that gap (the ~20-25% remaining backend MVP) is the honest next frontier.
+- Amaze-readiness CEO call: it IS ready to show. Two pre-demo nits worth doing
+  before a live audience: (1) the 1.3MB bundle wants the 3D-layer code-split so
+  first paint is snappy on a stranger's machine; (2) seed a couple of real
+  trails/skills so the pheromone map + memory galaxy are populated (an empty
+  galaxy under-sells it). Neither blocks a demo today.

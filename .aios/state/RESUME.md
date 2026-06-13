@@ -22,6 +22,19 @@ then ports to product `frontend/src/superbrain` via `npm run port`.
   2 rejected. The other ~115 are UNVERIFIED — Opus must re-verify each
   against the live lab source before applying.
 
+## Status: POLISH LADDER COMPLETE + AI-OS FULLY RUNNING (2026-06-13)
+All vetted resting-frame findings applied (polish II-XI: sound, interaction
+a11y+visual, motion/tokens, signal+galaxy shaders, chrome alignment, glass rim
++ approval canon recipe, galaxy color-space, cortex casing, console rim +
+approval anchoring). Live brain captured + verified (goldens/polish-ladder-
+complete.png). Backend fully running (438 tests, Ollama, real turn + approval
+gate proven). DELIBERATELY HELD (judgment calls, not regressions): approval-
+panel entrance animation (vs its 'Static paint only' note), objective-bar
+width->scaleX (corner distortion), section-label weight (taste). SKIPPED (zero-
+visual hygiene): BRAIN_SCALE single-source, 2 cortex comment-only fixes.
+GOLDENS: documentary, not gating; canon-v1 = pre-polish tag; operator can
+promote polish-ladder-complete to the new canon on sign-off.
+
 ## Single next action
 LANDED so far: POLISH II = SOUND (lab d6096b4 / product e2552e1); recovery+
 checkpoint 547cd6b (recovered findings committed — loss-proof); POLISH III =
