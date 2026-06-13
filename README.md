@@ -6,7 +6,9 @@ while every risky action passes through deterministic security gates and explici
 human approval.
 
 > Honest status: this is an active Python/FastAPI MVP with a React/Vite UI. The
-> current runtime is local-first Ollama with optional AWS Bedrock fallback. The
+> runtime is **local-first Ollama**, with a **cross-provider router** that can
+> escalate a turn to **AWS Bedrock** or **Google Gemini (Vertex AI / gcloud ADC)**
+> only when an operator privacy policy permits it (cloud is off by default). The
 > older Node/Express implementation is retained under `legacy_node/` for history,
 > but it is not the active backend.
 
@@ -28,9 +30,12 @@ FastAPI backend (`aios.api.main`)
         +-- Development: verified outcomes, calibrated plans, reusable skills
         +-- Curriculum: held-out, verifier-gated progression; never auto-runs
         +-- Self-analysis: scan -> propose diffs -> human apply -> verify/rollback
+        +-- Earned autonomy: a YELLOW action class auto-applies after N verified successes (opt-in, audited)
+        +-- Worker swarm / role-pass: decompose -> gated workers -> synthesize (opt-in)
+        +-- Router: task-aware, cross-provider, evidence-calibrated, privacy-gated
         |
-        +-- Ollama local models by default
-        +-- Bedrock Converse when cloud inference is explicitly configured
+        +-- Ollama local models by default (local-first)
+        +-- Bedrock Converse / Google Gemini (Vertex) when a task is opted into cloud
 ```
 
 ## Core Modules
@@ -47,6 +52,8 @@ FastAPI backend (`aios.api.main`)
 | `aios/core/executor.py` | Gated, scope-constrained command execution |
 | `aios/core/verifier.py` | Evidence-based verification of test/build commands |
 | `aios/core/model_selector.py` | Task-aware local model auto-selection |
+| `aios/core/router.py` | Cross-provider hybrid router: privacy/cost policy gate + local-LLM pick + evidence calibration |
+| `aios/core/bedrock.py` / `aios/core/gemini.py` | Cloud chat clients (Bedrock Converse / Gemini via Vertex AI, gcloud ADC) |
 | `aios/core/self_apply.py` | Human-approved self-analysis proposal apply/verify/rollback |
 | `aios/memory/` | Episodic, semantic, lessons, facts, development, skills, curriculum |
 | `frontend/src/App.jsx` | Main IDE/chat shell |
@@ -62,10 +69,19 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173`. The model picker defaults to `Auto`, which lets
-the backend choose the best installed Ollama model for the task. Optional Bedrock
-usage is configured with env vars such as `AIOS_BEDROCK_REGION` and
-`AWS_BEARER_TOKEN_BEDROCK`; secrets stay server-side.
+Open `http://localhost:5173`. The default mount is the **superbrain** UI (a 3D
+"voyaging mind" whose nervous system controls the work surfaces); the classic IDE
+shell is at `?ui=classic`. Both talk to the same backend. The model picker defaults
+to `Auto`, which runs the **cross-provider router**: it picks the best model for the
+task, staying on local Ollama unless the operator has opted a task class into the
+cloud. The privacy
+boundary and providers are operator-owned env (all in `aios/config.py`):
+`AIOS_ROUTER_CLOUD_TASKS` (which task classes may leave the machine; empty = local
+only), `AIOS_ROUTER_CALIBRATION_WEIGHT` (blend measured per-model success),
+`AIOS_BEDROCK_REGION` + `AWS_BEARER_TOKEN_BEDROCK` (Bedrock), and
+`AIOS_GEMINI_PROJECT` (Gemini via Vertex/gcloud ADC, `pip install google-genai`).
+Secrets stay server-side. Each turn emits a `route` SSE event, surfaced in the UI
+as an "active brain" badge (provider + model + a local/cloud privacy dot).
 
 ## Tests
 
@@ -76,8 +92,8 @@ npm test
 npm run build
 ```
 
-Current local verification target: Python suite `375 passed, 1 skipped` at 89%
-application / 94% total coverage, plus frontend Vitest `24 passed`.
+Current local verification target: Python suite `516 passed, 1 skipped`, plus
+frontend Vitest `24 passed`.
 
 ## Communication Alignment Loop
 

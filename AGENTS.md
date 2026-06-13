@@ -121,7 +121,7 @@ resume yourself — say so if asked). Don't report a task done without evidence
 ## XI. PROJECT-SPECIFIC FACTS (this repo)
 - **Run backend:** `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
 - **Run frontend:** `cd frontend; npm run dev`  (Vite, http://localhost:5173)
-- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **375 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
+- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **516 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
 - **Commits:** per-phase on `master` (not `main`); credit only actual contributors. Codex-only work uses `Co-Authored-By: OpenAI Codex <noreply@openai.com>`; use a Claude trailer only when Claude genuinely contributed. Commit only when the operator asks.
 - **Local LLM:** Ollama. Prefer the UI's `Auto` route. Live-compatible gallery:
   qwen2.5-coder 7B/3B, qwen2.5 7B, llama3.1 8B, llama3.2 3B, and Mistral 7B.
@@ -129,6 +129,27 @@ resume yourself — say so if asked). Don't report a task done without evidence
   so AI-OS hides it. Flags `AIOS_INDEX_CHAT` / `AIOS_REFLECT_ON_FAILURE` each add
   a model load, and `AIOS_INTERPRET_ALIGNMENT` adds one local completion per
   generated turn (the advisory alignment frame); set any to `false` on tight runs.
+- **Cross-provider router (`aios/core/router.py`):** `Auto` routes by task across
+  local Ollama + (policy-permitted) AWS Bedrock + Google Gemini. The privacy
+  boundary is operator-owned and deterministic — `AIOS_ROUTER_CLOUD_TASKS` (which
+  task classes may leave the machine; **empty by default = local-only**),
+  `AIOS_ROUTER_PREFER_LOCAL`, `AIOS_ROUTER_MAX_COST`, `AIOS_ROUTER_LLM_PICK` (a
+  local model picks among policy-allowed candidates but can never escape the gate),
+  `AIOS_ROUTER_CALIBRATION_WEIGHT` (blend measured per-(provider,model,task)
+  verified success). The cage verifies regardless of provider; RED stays blocked.
+  Gemini = `AIOS_GEMINI_PROJECT` (Vertex AI / gcloud ADC, `pip install google-genai`);
+  Bedrock = `AIOS_BEDROCK_REGION` + `AWS_BEARER_TOKEN_BEDROCK` (backend env only).
+  Each turn emits a `route` SSE frame → the UI "active brain" badge.
+- **Opt-in agent modes (off by default, always gated + audited):** `AIOS_EARNED_AUTONOMY`
+  (a YELLOW action class auto-applies after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES` consecutive
+  verifier-backed successes, revoked on one failure — RED is never earnable) and
+  `AIOS_SWARM_MAX_WORKERS` (ephemeral worker swarm: decompose → gated workers → synthesize).
+- **Frontend:** the **superbrain** 3D UI is the default mount; the classic IDE shell is at
+  `?ui=classic`. Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced
+  into `frontend/src/superbrain/` via `npm run port` — never edit those product files directly
+  (they are overwritten); product-safe files are `main.jsx`/`SuperbrainApp.jsx`/`SuperbrainShell.jsx`/
+  `config.js`/`vite.config.js`/the classic `App.jsx` + new files. FIDELITY: no auto-degrade, his
+  assets untouched, before/after screenshots in his browser for any visual change.
 - **Config is centralized** in `aios/config.py` (single source of truth). Subsystems are injected via FastAPI `Depends(...)` so tests override them with fakes — never add network/model/shell side-effects to a test path.
 - **Frozen core (§VIII controlled self-modification).** The security spine — `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py` — is FROZEN. Any change to it follows the full §VIII flow (Observe→Analyse→Propose→Test→Verify→Human Review→Approve→Deploy) and is treated as **RED**: the product agent literally cannot touch it (`SCOPE_ROOTS` = `training_ground/` only → an attempt classifies RED/refused), and the Self-Analysis module treats it as **Tier T4 = RED + frozen** (a fix may be *proposed* for human review, but *applying* one is RED/blocked). Never weaken a guardrail to make a test pass; keep these modules deterministic and fail-closed.
 - **Build vs blueprint:** the blueprint says "~35%"; the *code* is ~75–80% of MVP. Trust the code. See `.aios/state/RESUME.md`.

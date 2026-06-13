@@ -1,5 +1,10 @@
 # ACTIVE-BRAIN BADGE — proposal (P3 UI; FIDELITY-gated)
 
+> ✅ **STATUS: SHIPPED (2026-06-14, operator-signed-off).** Path chosen: **both** — Phase 1 (classic header,
+> `App.jsx`) + Phase 2A (superbrain sovereignty-row `BRAIN ● <model> · <privacy>`, authored in the lab and
+> byte-synced via `npm run port`; lab commit `d814417`, product `cb8d565`). Additive/conditional → canon idle
+> frame byte-unchanged. Before/after goldens in `.aios/state/badge-goldens/`. Retained as the design record.
+
 **Authored 2026-06-14 — design-first, no code until you pick a path.**
 The multi-LLM backend now emits, at the start of every `/api/generate` turn, an SSE frame:
 

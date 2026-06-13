@@ -129,7 +129,11 @@ B1. ✅ **DONE — relocated the Bedrock token to the backend** (2026-06-14). Th
     git, never client-bundled) so this is hygiene, not incident response.
 B2. (opt) clean the 2 untracked `training_ground/test_auto_*.py` assert-True stubs + tracked cruft
     (`success.txt`/`creator.txt`/`chat-ui.html`/`websocket_security_update.md`) (PLAN H2).
-B3. (opt) Tier-1 doc-currency: stale 375/1 test baseline in README/AGENTS/START_HERE/KICKOFF → 458 (PLAN H3).
+B3. ✅ DONE (2026-06-14) Tier-1 doc-currency: README/AGENTS/START_HERE test baseline → **516, 1 skipped**;
+    README + AGENTS now document the multi-LLM router / Gemini / Bedrock / evidence-calibration / active-brain
+    badge + the new `AIOS_ROUTER_*` / `AIOS_GEMINI_*` flags. (KICKOFF reports the live count, no hardcode.)
+    NOT updated (intentionally — dated evidence, not stale): CEO_LOG / EVIDENCE_CURRICULUM / AUDIT / the
+    06-13 deep-analysis snapshots (SYSTEM_TRUE_PICTURE, BACKEND_TRUE_PICTURE, HIDDEN_KNOWLEDGE, PLAN).
 
 ### C. THE FRONTIER — forge done, now here (per FUTURE_FRONTIER queue discipline)
 C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/MULTI_LLM_PLAN.md`.
@@ -231,7 +235,7 @@ Brief: `.venv\Scripts\python agent_coord.py brief --agent claude`
 Backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
   (live now with AIOS_EARNED_AUTONOMY=true, CORS incl :3000)
 Frontend (lab): `cd "GAG demo/gag-orchestrator"; npm run dev` (:3000)
-Tests: `.venv\Scripts\python -m pytest -q`  (baseline 456 passed, 1 skipped)
+Tests: `.venv\Scripts\python -m pytest -q`  (baseline 516 passed, 1 skipped)
 Autonomy ledger: `GET /api/v1/development/autonomy`
 Swarm: POST /api/generate with `"swarm": true`
 True picture: `.aios/state/BACKEND_TRUE_PICTURE.md`

@@ -1,5 +1,12 @@
 # MULTI_LLM_PLAN.md — a multi-provider LLM library with task-aware, evidence-calibrated routing
 
+> ✅ **STATUS: FULLY SHIPPED (2026-06-14).** All phases landed on `master` + live-verified:
+> router core (`aios/core/router.py`) → P1 Gemini (`aios/core/gemini.py`, Vertex/ADC) → P2 wiring into
+> `auto` (`_select_chat_client`) → the hybrid local-LLM picker → P0 Bedrock cred relocated to backend env
+> → P3 evidence-calibration (`development.model_task_success_rates`) + `route` SSE event → active-brain UI
+> badge (classic + superbrain). Both clouds live-verified; privacy gate keeps `auto` local-first by default.
+> This doc is retained as the design record. See `RESUME.md` C0 + [[multi-llm-router-direction]] memory.
+
 **Authored 2026-06-13 (draft for operator approval — design-first, no code until you say go).**
 Operator's intent (his words): the AWS Bedrock key and the laptop's Google `gcloud` auth should
 make the AI-OS a **multi-LLM library** — many providers/models, and the mind **picks the right

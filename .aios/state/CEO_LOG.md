@@ -223,6 +223,30 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
 - Queued next (after this lands, not now): return to the marquee Self-Analysis
   pre-T2 runway — report-row dedup → coverage+radon → golden regression tests →
   frozen-core doc → T2 propose-diff behind the YELLOW gate.
+
+## 2026-06-14 — Advice (Claude: the multi-LLM library shipped end-to-end)
+
+**Where we are.** The multi-LLM library is COMPLETE and live-verified: a cross-provider,
+task-aware, evidence-calibrated router (`aios/core/router.py`) that stays local-first and
+escalates to Bedrock/Gemini only under an operator privacy policy a model cannot override; a
+hybrid local-LLM picker; P0 cred relocated to the backend env; P3 calibration + a `route` SSE
+event; and the active-brain badge in both UIs (superbrain via lab→port, FIDELITY-clean — idle
+frame byte-unchanged). Suite **516 passed / 1 skipped**. The #1 limiter the 06-13 analysis named —
+the 7B local ceiling — now has a frontier escape hatch that the cage still verifies regardless.
+
+**Highest-leverage next move.** Turn the capability ON deliberately and let evidence judge it. Set
+`AIOS_ROUTER_CLOUD_TASKS=reasoning` for real work, let `development` accumulate per-(provider,model,
+task) verified success, and watch calibration actually re-rank the route. That converts a *built*
+feature into a *measured* advantage — and it's the honest test of "the mind picks the model."
+Rotate the Bedrock `ABSK` key while you're in the AWS console (the one open hygiene item).
+
+**Risk to watch.** Cloud egress is now one env var away. The gate is deterministic and every call is
+audited, but the privacy boundary is a STANDING operator decision, not a safe default — keep
+`ROUTER_CLOUD_TASKS` minimal, review the audit trail for what actually left the machine, and don't
+let `auto` quietly drift from "local-first" to "cloud-first" as calibration favors frontier models.
+
+**Scoreboard.** ✅ 516 green · ✅ multi-LLM P0–P3 + active-brain badge shipped & pushed · ✅ Tier-1
+docs + RESUME current · ✅ RESUME current. Today the library is whole; next session, prove it earns its keep.
 - Gate result (11:25, addendum): Codex's closeout turn died without a
   checkpoint — worker process exited after 100+ min with zero writes since
   07:43, ollama idle, proof traffic stopped. The work itself was already
