@@ -109,11 +109,14 @@ A1. **Truthful content channel** ✅ DONE + FIXED (master 84f1976): the forge ed
     start the backend with `--reload` so edits hot-load. Sync hardened with bounded re-read bursts
     (350/1500/3500ms, beats the earned write-race) + a manual ⟳ + active-tab preservation. (Diagnosed
     the demo by frame-extracting it via ffmpeg — no audio.)
-A2. **Port-anchor + GPU tuning in HIS browser** (visual/perf completion): panel sizes/positions
-    at the nerve ports (camera-projection-dependent — the make-or-break); validate Monaco + iframe
-    GPU on the 16GB machine + local inference; lighter fallback ready.
-A3. **Approval-on-diff in the forge**: a held write sits visibly un-applied in the editor until
-    AUTHORIZE; the kept `.approval-panel` already surfaces the diff. RED stays hard-blocked.
+A2. ✅ DONE (master 78bcf87): editor port bumped to 500x412 (preview 410x330) for real multi-file
+    code. Final anchor/size + GPU feel = operator's browser eyeball (camera-projection-dependent).
+A3. ✅ DONE (master 78bcf87): a YELLOW write that PAUSES shows the proposed file in the editor + an
+    amber "PENDING · <file> — not applied" banner (cleared on resolve); ported `.approval-panel`
+    carries Approve/Reject + diff; on approve the workspace re-sync shows the applied file. RED hard-blocked.
+    (Note: with earned-autonomy ON, writes auto-apply — no pause — so the banner shows when autonomy is OFF.)
+
+THE EMBEDDED FORGE IS COMPLETE (A1+A2+A3 done + verified). Branch merged to master.
 
 ### B. CHEAP HIGH-SEVERITY HYGIENE (alongside A)
 B1. **Rotate + relocate the live Bedrock token** (`frontend/.env`) — P0 security, ~30min (PLAN H1).
@@ -121,9 +124,15 @@ B2. (opt) clean the 2 untracked `training_ground/test_auto_*.py` assert-True stu
     (`success.txt`/`creator.txt`/`chat-ui.html`/`websocket_security_update.md`) (PLAN H2).
 B3. (opt) Tier-1 doc-currency: stale 375/1 test baseline in README/AGENTS/START_HERE/KICKOFF → 458 (PLAN H3).
 
-### C. THEN PIVOT TO THE FRONTIER (when the forge is done — per FUTURE_FRONTIER queue discipline)
-C1. **Brain ceiling** (PLAN S1: local quant + 14B) — the #1 capability lever; everything model-gated
-    (planning, castes, curriculum, swarm) improves. + the semantic-recall layer.
+### C. THE FRONTIER — forge done, now here (per FUTURE_FRONTIER queue discipline)
+C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN DRAFTED in `.aios/state/MULTI_LLM_PLAN.md`.
+    The brain picks the best model per task across local (Ollama) + Bedrock + Google Gemini (gcloud ADC).
+    Foundation half-built: `model_selector.py` is task-aware but LOCAL-ONLY; Bedrock wired; Gemini NOT.
+    Phases: P0 secure Bedrock cred to backend env (= PLAN H1) → P1 add Gemini provider → P2 cross-provider
+    auto-router + privacy/cost POLICY → P3 evidence-calibration + UI. The cage verifies regardless of provider
+    (soul intact); every call audited; local-first DEFAULT, cloud = per-task policy-gated escalation. OPEN
+    DECISIONS: the privacy boundary; start P0 vs P1; Vertex(ADC) vs Gemini API key. Awaiting operator pick.
+C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.
 C2. **Default-strong isolation** (PLAN S2: hardened Docker default where available).
 C3. The three genuine gaps: voice (G1), knowledge-graph traversal (G2), observability (G3); + the
     near-term proof artifacts (Refusal Reel + Cage Conformance Spec, both [near]).
