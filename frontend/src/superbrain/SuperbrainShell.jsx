@@ -37,29 +37,42 @@ export default function SuperbrainShell() {
           <WorkspaceCanvas />
         </div>
 
-        {/* The manufacturing surface floats in the same space below the voyaging
-            band, only when summoned. A soft seam dissolves the band into the work
-            so it reads as one continuous deep space; the command line rides the
-            shell bottom (the ported command-bar is hidden by manufacturing.css). */}
-        {manufacturing && (
+        {/* Manufacturing form: a cheap CSS cosmos continues the infinite below the
+            band, a soft seam dissolves the voyage into it, the workbench slabs
+            drift in that space, and the bottom dock holds the Voyage toggle + the
+            unified command line (the ported command-bar is hidden by
+            manufacturing.css, so there is no collision and no 100vw escape). */}
+        {manufacturing ? (
           <>
+            <div className="sb-cosmos" aria-hidden="true" />
             <div className="sb-seam" aria-hidden="true" />
             <div className="sb-workbench-stage">
               <Workbench />
             </div>
-            <CommandLine />
+            <div className="sb-dock-bar">
+              <button
+                type="button"
+                className="sb-voyage-btn"
+                onClick={() => setMode('home')}
+                title="Return to the full voyage"
+              >
+                <span className="sb-dot" />
+                Voyage
+              </button>
+              <CommandLine />
+            </div>
           </>
+        ) : (
+          <button
+            type="button"
+            className="sb-mode-toggle"
+            onClick={() => setMode('manufacture')}
+            title="Bring the brain to the workbench"
+          >
+            <span className="sb-dot" />
+            Enter workbench
+          </button>
         )}
-
-        <button
-          type="button"
-          className="sb-mode-toggle"
-          onClick={() => setMode((m) => (m === 'home' ? 'manufacture' : 'home'))}
-          title={manufacturing ? 'Return to the full voyage' : 'Bring the brain to the workbench'}
-        >
-          <span className="sb-dot" />
-          {manufacturing ? 'Return to voyage' : 'Enter workbench'}
-        </button>
       </div>
     </div>
   );
