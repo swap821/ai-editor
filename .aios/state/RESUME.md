@@ -51,41 +51,56 @@ operator-authorized landing + POST-HOC Codex inbox review.
    + getAutonomy() getter. LIVE-PROVEN: ledger persists across restart (earned:1),
    an earned create_file streams `event: earned_autonomy`. 26 lab + 456 backend tests.
 
-## Single next action
-**WHOLE-ai-editor deep analysis: DONE + pushed (2026-06-13, commit 75406b1).**
-The 8-lens read-only Workflow (11 agents, ~30min) ran and synthesized the 4
-deliverables — all in `.aios/state/`: `SYSTEM_TRUE_PICTURE.md` (whole-system map +
-end-to-end request->SSE->cage->audit composition), `HIDDEN_KNOWLEDGE.md` (prioritized
-non-obvious findings, file:line-cited), refreshed `PLAN.md` (blueprint-vs-reality +
-forward roadmap; supersedes the 06-03 Slice plan), `BACKEND_TRUE_PICTURE.md`
-cross-linked as a doc set. Raw lens findings archived in `whole_system_lenses.json`.
-Honest totals re-confirmed: 512 passing (457+1skip backend, 29 product, 26 lab), 90%
-aios/ coverage. NOTE the P0 finding: a LIVE Bedrock token sits in `frontend/.env`
-(gitignored, verified never committed — no repo leak — but rotate+relocate; PLAN H1).
+## DONE earlier (2026-06-13, on master + pushed)
+- **Whole-ai-editor 8-lens analysis** (commit 75406b1): `SYSTEM_TRUE_PICTURE.md`,
+  `HIDDEN_KNOWLEDGE.md`, refreshed `PLAN.md`, `BACKEND_TRUE_PICTURE.md` (doc set).
+  P0: live Bedrock token in `frontend/.env` (gitignored, never committed; rotate+relocate, PLAN H1).
+- **FUTURE_FRONTIER.md** (725 lines, commit 0d95b01): north-star above PLAN; spine =
+  Evidence-Locked Self-Improvement Flywheel; honest headline = frontier-grade ENGINEERING,
+  not yet a frontier AI SYSTEM (gates = intelligence/7B + isolation, not architecture).
 
-**FUTURE_FRONTIER: DONE + pushed (operator-directed, 2026-06-13).** A 2nd Workflow
-(`ai-editor-future-frontier`, run wf_88b1cc68-374, 10 agents): calibre assessment -> 8
-futurist specialists (cognitive-arch, recursive-self-improvement, verifiable-trust,
-lifelong-memory, edge-frontier-model, symbiosis-interface, multi-agent, category) ->
-synthesis into `.aios/state/FUTURE_FRONTIER.md` (725 lines): the north-star ABOVE PLAN.md
-(does not replace it). Spine = the **Evidence-Locked Self-Improvement Flywheel** (verified
-outcomes -> audit-chain gold corpus -> better local brain+trails -> wider earned autonomy
--> more verified outcomes). 39 recs across 8 themes, horizon-tagged, each grounded in a
-named seed + honest risk; roadmap table dovetails PLAN.md; §6 proof demos (Refusal Reel,
-flywheel-closes-once, externally-witnessed audit head); §7 honest counterweight. Raw
-calibre+advice archived in `future_frontier_advice.json`. Honest headline: frontier-grade
-ENGINEERING, not yet a frontier AI SYSTEM — gates are intelligence (7B ceiling) + isolation
-(host default), NOT architecture; 3 moves away (better brain S1, default-strong isolation
-S2, widened earned autonomy). The ⚠️ "declarative constitution" rec touches frozen core =>
-needs explicit operator go + strictly-more-restrictive fail-closed design.
+## ACTIVE FRONT (2026-06-13): SUPERBRAIN ⇄ CLASSIC INTEGRATION  [branch `feat/superbrain-integration`, NOT merged to master]
+Operator-directed: fold the classic IDE into the superbrain as ONE app. Canon tag
+`pre-integration-canon-v1` = rollback. Design **A** (superbrain is the LEAD: home form +
+manufacturing form). Docs: `.aios/state/SHELL_REDESIGN.md` + `NERVOUS_SYSTEM_REDESIGN.md`;
+memories [[superbrain-core-theme]] (his soul-line) + [[superbrain-integration-plan]].
 
-## Next action (open)
-Operator to pick the next front. Strongest leverage per FUTURE_FRONTIER queue discipline:
-brain/isolation FIRST (PLAN.md S1 quant+14B / S2 default-Docker), then the near-term
-proof artifacts (Refusal Reel + Cage Conformance Spec, both [near]). Tier-0 hygiene (H1
-rotate the live `frontend/.env` Bedrock token, H2 cruft, H3 doc-currency) is cheap and
-should precede any deploy. Per standing rules: restate the chosen item and WAIT for
-explicit OK before writing code.
+**THE UNLOCK (operator-clarified):** the brain's NERVOUS SYSTEM is its CONTROL BUS — the
+wires PLUG INTO ui PORTS (left console x=-4.8, right x=+4.8, spinal=command bar), carry
+data packets, surge on uBurst, quiet on uHold (`NervousSystem.tsx`). Every tool, present or
+future, is a PORT. The first band-dock FAILED because it HID the panels the nerves plug into
+(severed them) AND a shorter band re-projected the hardcoded nerve tips (they dangle).
+
+**DONE + verified** (build clean, 29 product tests green; ONE canvas; canon scene+nerves
+byte-unchanged; home/`?ui=superbrain` + `?ui=classic` untouched):
+- **Phase 0**: canon tag + `frontend/FIDELITY_BASELINE.md`.
+- **Phase 1**: unified backend boundary — `vite.config.js` define bridges `VITE_*`→
+  `NEXT_PUBLIC_*` (one base URL); classic learns `earned_autonomy`; superbrain adapter gets
+  Bearer auth + shared `aios_session_id` (lab edit + byte-sync; closes the P0 default-UI auth gap).
+- **Phase 2 = THE EMBEDDED FORGE** (operator verdict: "impressed wow"): editor + preview
+  mounted as in-scene drei `<Html>` AT the canon nerve ports (-4.8 / +4.8), non-`transform`
+  + inner `translate(-50%,-100%)` = byte-exact canon anchor, so the REAL nerves plug into real
+  Monaco + LivePreview; ports FLARE on real cognitionBus events; command line at the spinal
+  rendezvous. The brain stays FULL/canon-framed (no band). ONE lab touch = a geometry-neutral
+  `children` slot on `WorkspaceCanvas` (lab commit 90e0394, synced; no re-golden). Product
+  files: `frontend/src/workbench/{ForgePorts.jsx, forge.css, CommandLine.jsx, shell.css,
+  manufacturing.css}`, `superbrain/SuperbrainShell.jsx`, `main.jsx` (`?ui=shell`). Commit 29824d8.
+
+**HOW TO EXTEND (add a future tool-port):** the nerves are the universal control plane.
+Re-tenant a canon port (product-side: new `<Html>` at -4.8/+4.8/spinal) OR add a real 4th
+nerve (lab `NervousSystem.tsx` `leftTargetX/rightTargetX` + a 4th `addWireBundle` + move the
+matching `SuperbrainHUD` `<Html>` together + `npm run port` + FULL FIDELITY gate). Light any
+port by `publishCognition` on the bus. See `NERVOUS_SYSTEM_REDESIGN.md` §3/§6.
+
+## Next action (Embedded Forge follow-ups — awaiting operator tweaks)
+1. **Tune port panel sizes/anchors in HIS browser** (camera-projection-dependent; make-or-break).
+2. **GPU validation** (Monaco + iframe in-scene over cortex shader + 115-tube braid + local inference); lighter fallback ready.
+3. **TRUTHFUL CONTENT**: lift agent file writes (`create_file`/`edit_file`) into the editor's
+   `files` state — needs a content channel (`cognitionBus.data` or a small backend read endpoint).
+   Until then flares are real but the editor shows sample files (NOT theater — no faked content).
+4. Then: approval-on-diff surfaced in the forge; decide merge `feat/superbrain-integration` → master.
+Run: `cd frontend && npm run dev` → `http://localhost:5173/?ui=shell` (Enter workbench).
+Standing rule: restate the chosen item and WAIT for explicit OK before writing code.
 
 (Background — already complete this session:)
 Earned-autonomy feature is now COMPLETE end-to-end + the brain SHOWS it:
