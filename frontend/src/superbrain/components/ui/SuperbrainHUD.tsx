@@ -1073,6 +1073,7 @@ export default function SuperbrainHUD({
               </div>
             </div>
             <i className="glass-grain" aria-hidden />
+            <i className="console-glow" aria-hidden />
           </aside>
           <span className="console-surge" aria-hidden="true" />
         </div>
@@ -1142,6 +1143,7 @@ export default function SuperbrainHUD({
               ))}
             </div>
             <i className="glass-grain" aria-hidden />
+            <i className="console-glow" aria-hidden />
           </aside>
           <span className="console-surge console-surge--reverse" aria-hidden="true" />
         </div>

@@ -581,9 +581,10 @@ aside.right-console {
 }
 
 /* Multi-colored light surging UP into the bottom of the panels from the wires */
-.left-console::before,
-.right-console::before {
-  content: '';
+/* Wire-glow lives on a real .console-glow child (consoles use ::after for the
+ * scanline), so .glass-surface::before is free for the edge-lit rim again. */
+.left-console .console-glow,
+.right-console .console-glow {
   position: absolute;
   bottom: -5px; /* Stay inside bounds so it isn't clipped by overflow: hidden */
   left: 10%;
@@ -1708,7 +1709,10 @@ aside.right-console {
 /* -------------------------------------------------------------------------- */
 .approval-panel {
   pointer-events: auto;
-  position: relative;
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 104px;
   margin: 0 auto 10px;
   max-width: 720px;
   max-height: 42vh;
