@@ -242,7 +242,8 @@ function Starfield({ count }: { count: number }) {
              
              vec4 texColor = texture2D(uAtlas, uv);
              float alpha = texColor.a;
-             if (alpha < 0.1) discard;
+             alpha *= smoothstep(0.5, 0.42, length(gl_PointCoord - 0.5));
+             if (alpha < 0.02) discard;
              
              // Pure white/grey
              vec3 finalColor = diffuseColor.rgb;

@@ -76,11 +76,15 @@ const GALAXY_FRAGMENT = /* glsl */ `
     float d = length(c);
     float core = smoothstep(0.5, 0.0, d);
     core *= core;
+    // Crisp nucleus so the newest (weak) skill-stars read as solid objects, not haze.
+    core += 0.5 * smoothstep(0.08, 0.0, d);
     float twinkle = 0.85 + 0.15 * sin(uTime * 0.55 + vSeed * 37.0);
     // Healthy memory is icy starlight; quarantine stains it pulsing red.
     float stain = vQuarantine * (0.6 + 0.4 * sin(uTime * 4.4 + vSeed * 11.0));
-    vec3 color = mix(vec3(0.62, 0.88, 1.0), vec3(1.0, 0.3, 0.24), stain);
-    float alpha = core * (0.22 + 0.78 * vStrength) * twinkle + vFlash * core;
+    // sRGB->linear of the authored cyan/red (the pipeline is linear; raw sRGB
+    // values washed the skill-stars into the sky's blue-white).
+    vec3 color = mix(vec3(0.3424, 0.7484, 1.0), vec3(1.0, 0.0732, 0.0470), stain);
+    float alpha = core * (0.34 + 0.66 * vStrength) * twinkle + vFlash * core;
     gl_FragColor = vec4(color * (0.8 + vFlash * 1.6), alpha);
   }
 `;

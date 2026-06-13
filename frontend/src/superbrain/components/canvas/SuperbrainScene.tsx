@@ -579,6 +579,7 @@ const CASING_VERTEX_SHADER = /* glsl */ `
 
 const CASING_FRAGMENT_SHADER = /* glsl */ `
   uniform float uTime;
+  uniform float uHold;
   varying vec3 vNormalV;
   varying vec3 vViewDirV;
 
@@ -590,13 +591,17 @@ const CASING_FRAGMENT_SHADER = /* glsl */ `
     float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
     
     // Vibrant neon rim glow
-    vec3 glowColor = vec3(0.0, 0.8, 1.0); // Cyan base
+    vec3 glowColor = mix(vec3(0.0, 0.8, 1.0), vec3(1.0, 0.62, 0.22), uHold); // cyan -> hold amber
     
     // Iridescence (magenta/purple shift on the edges)
     vec3 irid = 0.5 + 0.5 * cos(6.28318 * (fres * 1.5 + uTime * 0.1 + vec3(0.0, 0.33, 0.67)));
     
     vec3 emission = mix(glowColor, irid, 0.5) * fres * 3.0; // Intense glow
-    
+    // Interleaved-gradient-noise dither breaks 8-bit banding on the faint cyan
+    // fresnel ramp; amplitude +/-1/255, sub-perceptual.
+    float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    emission += (ign - 0.5) / 255.0;
+
     float alpha = fres * 0.4;
     
     gl_FragColor = vec4(emission, alpha);
@@ -812,7 +817,7 @@ function BrainModel({
     clone.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const mat = new THREE.ShaderMaterial({
-        uniforms: { uTime: uniforms.uTime },
+        uniforms: { uTime: uniforms.uTime, uHold: uniforms.uHold },
         vertexShader: CASING_VERTEX_SHADER,
         fragmentShader: CASING_FRAGMENT_SHADER,
         transparent: true,
