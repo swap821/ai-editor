@@ -110,3 +110,30 @@ def test_no_ledger_means_today_behaviour(tmp_path, monkeypatch) -> None:
         assert "earned_autonomy" not in types
     finally:
         scope_lock.set_scope_roots(list(original))
+
+
+def test_earned_grant_writes_a_distinct_earned_autonomy_audit_entry(tmp_path, monkeypatch) -> None:
+    """The autonomous DECISION is recorded in the audit chain as its own actor,
+    carrying the evidence — distinct from the write's 'tool-agent' entry."""
+    original = _in_sandbox(tmp_path, monkeypatch)
+    try:
+        ledger = AutonomyLedger(db_path=tmp_path / "mem.db", min_successes=2)
+        ledger.record_outcome("create_file", "notes.txt", success=True)
+        ledger.record_outcome("create_file", "notes.txt", success=True)
+        audited: list[tuple] = []
+        chat = ScriptedChat([
+            _create_call("notes.txt", "hello world"),
+            {"role": "assistant", "content": "done"},
+        ])
+        agent = ToolAgent(
+            chat, _executor(), max_iters=3, autonomy=ledger,
+            audit_log=lambda *a, **k: audited.append(a),
+        )
+        list(agent.run([{"role": "user", "content": "write the notes"}]))
+
+        earned = [a for a in audited if a and a[0] == "earned-autonomy"]
+        assert earned, "the autonomous grant must write an earned-autonomy audit entry"
+        assert "AUTO-GRANT" in earned[0][1] and "notes.txt" in earned[0][1]
+        assert "verified" in earned[0][1]  # carries the evidence that earned it
+    finally:
+        scope_lock.set_scope_roots(list(original))

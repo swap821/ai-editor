@@ -723,6 +723,16 @@ class ToolAgent:
                         # then the forced verify whose verdict records back into the
                         # ledger and revokes on any failure). RED never reaches here
                         # (it is 'blocked'); execute_approved re-refuses RED anyway.
+                        # Tamper-evident record of the autonomous DECISION itself,
+                        # distinct from the write's own 'tool-agent' audit entry,
+                        # carrying the evidence that earned it.
+                        _ev = self.autonomy.record_for(name, _target)
+                        self._audit(
+                            "earned-autonomy",
+                            f"AUTO-GRANT {name}: {_target}"
+                            + (f" (earned, {_ev['success_count']} verified)" if _ev else " (earned)"),
+                            Zone.YELLOW,
+                        )
                         self._grant_earned(name, args)
                         yield {
                             "type": "earned_autonomy",

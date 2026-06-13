@@ -131,6 +131,21 @@ class AutonomyLedger:
             ).fetchone()
         return row is not None and str(row["status"]) == "earned"
 
+    def record_for(self, action_type: str, target: str) -> dict[str, Any] | None:
+        """The ledger row for a signature (status/counts/streak), or None.
+
+        Used by the caller to put the EVIDENCE that earned an auto-grant into the
+        audit entry, so the hash-chain explains why a write ran without a human.
+        """
+        sig = self.signature(action_type, target)
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT status, success_count, failure_count, streak "
+                "FROM earned_autonomy WHERE signature = ?",
+                (sig,),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
     # -- evidence ----------------------------------------------------------
 
     def record_outcome(self, action_type: str, target: str, *, success: bool) -> dict[str, Any]:
