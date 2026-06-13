@@ -103,8 +103,15 @@ function PinChip({ pin, label }: { pin: PinDef; label: THREE.Vector3 }) {
         style={{ transform: 'translate(-50%, -50%)' }}
         role="button"
         tabIndex={0}
+        aria-expanded={open}
         title={`${pin.name} — click for real sample history`}
         onClick={() => setOpen((prev) => !prev)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen((prev) => !prev);
+          }
+        }}
       >
         <span>{pin.name}</span>
         <strong>{value}%</strong>

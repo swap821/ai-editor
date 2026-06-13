@@ -552,7 +552,7 @@ function AgentCard({
         </strong>
         <small style={{ transition: 'opacity 0.3s var(--ease-out-quart)' }}>{detail}</small>
       </span>
-      <button type="button" className="ghost-plus ghost-plus--small" aria-label={`Inspect ${name}`}>
+      <button type="button" tabIndex={-1} className="ghost-plus ghost-plus--small" aria-label={`Inspect ${name}`}>
         +
       </button>
     </div>
@@ -858,7 +858,7 @@ export default function SuperbrainHUD({
             <div className="system-summary">
               {/* The dot tells the truth: green only while the adapter's
                   last poll genuinely reached the AI-OS. */}
-              <span>
+              <span role="status">
                 <i className={`status-dot ${linkUp ? 'status-dot--live' : 'status-dot--down'}`} />{' '}
                 {linkUp ? 'CORE ONLINE' : 'LINK OFFLINE'}
               </span>
@@ -921,6 +921,7 @@ export default function SuperbrainHUD({
                 type="button"
                 title="Sound — breath hum, recall ticks, approval chords; synthesized, your click only"
                 onClick={toggleSound}
+                aria-pressed={soundOn}
               >
                 SOUND <strong>{soundOn ? 'ON' : 'OFF'}</strong>
               </button>
@@ -934,6 +935,7 @@ export default function SuperbrainHUD({
                 telemetry?.chainValid === false ? ' secure-button--tamper' : ''
               }`}
               type="button"
+              aria-live="polite"
               title={
                 telemetry?.chainValid === true
                   ? `Audit hash-chain intact · ${telemetry.chainEntries} entries`
@@ -1042,6 +1044,7 @@ export default function SuperbrainHUD({
                   className={`mode-button ${mode === item.id ? 'is-active' : ''}`}
                   onClick={() => onModeChange(item.id)}
                   type="button"
+                  aria-pressed={mode === item.id}
                 >
                   <span className="mode-num">{item.num}</span>
                   <span className="mode-copy">
@@ -1089,12 +1092,12 @@ export default function SuperbrainHUD({
                     : intakeLabel}
                 </h3>
               </div>
-              <button type="button" className="ghost-plus" aria-label="Add knowledge source">
+              <button type="button" tabIndex={-1} className="ghost-plus" aria-label="Add knowledge source">
                 +
               </button>
             </div>
 
-            <div className="source-list" aria-live="polite" aria-atomic="false">
+            <div className="source-list">
               {SOURCE_CHANNELS.map((channel, index) => (
                 <SourceRow
                   key={channel.key}

@@ -23,7 +23,24 @@ then ports to product `frontend/src/superbrain` via `npm run port`.
   against the live lab source before applying.
 
 ## Single next action
-POLISH II = SOUND is DONE in the lab working tree (UNCOMMITTED), verified:
+LANDED so far: POLISH II = SOUND (lab d6096b4 / product e2552e1); recovery+
+checkpoint 547cd6b (recovered findings committed — loss-proof); POLISH III =
+INTERACTION a11y SEMANTICS (lab 47ec263 / product pending this commit):
+RegionPins keyboard+aria-expanded, SOUND/mode aria-pressed, link role=status,
+shield aria-live, ghost-plus tabIndex=-1, source-list aria-live flood removed.
+Dropped the recovered stray-brace 'could' finding — the Next build REFUTED it
+(needed closer; unverified findings must pass the build, not just sound right).
+NEXT = the pixel-touching work, which needs his eye + before/after screenshots
+per FIDELITY laws, in two groups:
+  (a) interaction VISUAL states held back from polish III: :focus-visible,
+      :hover (region-pin), :active press, .fidelity-button strong transition.
+  (b) the remaining lenses: glass, motion, typography, spacing, cortex-shader,
+      space-shaders (recovered findings in RECOVERED_micro_detail_findings.md).
+Method unchanged: recovered findings -> Opus verify vs source -> apply in lab
+-> vitest+lint+build green + goldens -> commit -> port -> commit product.
+
+--- (historical) POLISH II detail ---
+POLISH II = SOUND was DONE in the lab working tree (now committed), verified:
 rewrote `src/lib/soundEngine.ts` + added `src/test/soundEngine.test.ts`
 (8 tests). Fixes: VERIFICATION RED bug (no longer the success tick),
 release-then-stop pop fix, tick-stagger + safety compressor, audible reject
