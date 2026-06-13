@@ -388,6 +388,10 @@ export interface AiosTelemetry {
    *  false = TAMPER, null = not yet checked / unavailable. */
   chainValid: boolean | null;
   chainEntries: number;
+  /** Earned-autonomy ledger summary (sampled): how many YELLOW action classes
+   *  the brain has earned the right to act on WITHOUT a human, by verified
+   *  evidence. earned > 0 is the brain's visible "grown-up" capability count. */
+  earnedAutonomy: { enabled: boolean; earned: number; probation: number; revoked: number };
 }
 
 export function trailLabel(goal: string): string {
@@ -575,33 +579,31 @@ export async function pollOnce(): Promise<void> {
       }
     }
 
-    // Earned autonomy: the brain's GROWN capabilities. A class crossing
-    // probation -> earned means the mind earned the right to act without a human
-    // on that class — the rarest growth. Sampled like the chain probe (the
-    // ledger changes rarely); best-effort, absent on an older backend, never
-    // breaks the poll.
-    if (pollCount % CHAIN_PROBE_EVERY === 0) {
-      try {
-        const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`);
-        if (autRes.ok) {
-          lastAutonomy = (await autRes.json()) as AutonomySnapshot;
-          for (const entry of lastAutonomy.entries ?? []) {
-            const prev = seenAutonomyStatus.get(entry.signature);
-            if (prev !== undefined && prev !== 'earned' && entry.status === 'earned') {
-              publishCognition({
-                type: 'knowledge-acquired',
-                label: 'CAPABILITY EARNED',
-                detail: `${entry.action_type} ${entry.target_shape} — autonomous after ${entry.success_count} verified`,
-                intensity: 1,
-                source: 'aios',
-              });
-            }
-            seenAutonomyStatus.set(entry.signature, entry.status);
+    // Earned autonomy: the brain's GROWN capabilities, read every poll so the
+    // HUD shows them promptly (cheap ledger). A class crossing probation ->
+    // earned means the mind earned the right to act without a human on that
+    // class. Best-effort and SEPARATE from the critical trails+metrics fetch:
+    // an older backend without the endpoint never breaks the poll/link.
+    try {
+      const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`);
+      if (autRes.ok) {
+        lastAutonomy = (await autRes.json()) as AutonomySnapshot;
+        for (const entry of lastAutonomy.entries ?? []) {
+          const prev = seenAutonomyStatus.get(entry.signature);
+          if (prev !== undefined && prev !== 'earned' && entry.status === 'earned') {
+            publishCognition({
+              type: 'knowledge-acquired',
+              label: 'CAPABILITY EARNED',
+              detail: `${entry.action_type} ${entry.target_shape} — autonomous after ${entry.success_count} verified`,
+              intensity: 1,
+              source: 'aios',
+            });
           }
+          seenAutonomyStatus.set(entry.signature, entry.status);
         }
-      } catch {
-        // autonomy is advisory to the scene; never break the poll on its absence
       }
+    } catch {
+      // autonomy is advisory to the scene; never break the poll on its absence
     }
 
     const summary = trailMap.summary;
@@ -621,6 +623,12 @@ export async function pollOnce(): Promise<void> {
       avgToolCalls: num(metrics.average_tool_calls) || 0,
       chainValid,
       chainEntries,
+      earnedAutonomy: {
+        enabled: lastAutonomy?.enabled ?? false,
+        earned: lastAutonomy?.summary?.earned ?? 0,
+        probation: lastAutonomy?.summary?.probation ?? 0,
+        revoked: lastAutonomy?.summary?.revoked ?? 0,
+      },
     };
     publishCognition({
       type: 'telemetry',

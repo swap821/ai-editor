@@ -867,6 +867,21 @@ export default function SuperbrainHUD({
               <span>
                 LATENCY <strong>{latency !== null ? `${latency}ms` : '--'}</strong>
               </span>
+              {/* AUTONOMY: appears only once the brain has EARNED the right to act
+                  on a class without a human (by repeated verified success).
+                  Additive — invisible until that growth is real, so the canon idle
+                  frame is untouched. */}
+              {telemetry && telemetry.earnedAutonomy.earned > 0 ? (
+                <>
+                  <span className="topbar-divider" />
+                  <span
+                    role="status"
+                    title="Action classes the brain earned the right to do autonomously, by repeated verified success"
+                  >
+                    AUTONOMY <strong>{`⚡${telemetry.earnedAutonomy.earned}`}</strong>
+                  </span>
+                </>
+              ) : null}
               <span className="topbar-divider" />
               {/* FIDELITY IS SACRED: only this click ever changes the tier
                   (cycles high -> medium -> low -> high). The governor may
