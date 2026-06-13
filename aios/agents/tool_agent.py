@@ -860,6 +860,13 @@ class ToolAgent:
         (the file drifted after approval) surfaces as ``tool_blocked`` rather
         than vanishing.
         """
+        # Two phases ON PURPOSE: apply ALL granted writes first, THEN verify each.
+        # A turn that creates a module AND its test grants both at once; verifying a
+        # test the instant it lands — before its sibling module is applied — fails on
+        # the missing import and records a FALSE verified_failure even though the
+        # finished files are correct. Landing every write first means each test sees
+        # its module on disk, so the verdict reflects the code, not the write order.
+        applied: list[tuple[int, str, str]] = []  # (index, filepath, action_type)
         for index, (filepath, content) in enumerate(self.approved_creations.items()):
             output, status, _ = self._create_file(filepath, content)
             if status == "noop":
@@ -869,7 +876,7 @@ class ToolAgent:
                 yield {"type": "tool_result", "tool": "create_file",
                        "output": output[:_PREVIEW_LIMIT], "id": call_id}
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
-                yield from self._auto_verify(filepath, index, convo, action_type="create_file")
+                applied.append((index, filepath, "create_file"))
             else:
                 yield {"type": "tool_blocked", "tool": "create_file",
                        "reason": output[:_PREVIEW_LIMIT], "id": call_id}
@@ -884,11 +891,14 @@ class ToolAgent:
                 yield {"type": "tool_result", "tool": "edit_file",
                        "output": output[:_PREVIEW_LIMIT], "id": call_id}
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
-                yield from self._auto_verify(filepath, index, convo, action_type="edit_file")
+                applied.append((index, filepath, "edit_file"))
             else:
                 yield {"type": "tool_blocked", "tool": "edit_file",
                        "reason": output[:_PREVIEW_LIMIT], "id": call_id}
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
+        # Phase 2 — every granted file is now on disk; verify against the truth.
+        for index, filepath, action_type in applied:
+            yield from self._auto_verify(filepath, index, convo, action_type=action_type)
 
     def _reflect(
         self,

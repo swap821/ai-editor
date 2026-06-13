@@ -995,6 +995,30 @@ def test_agent_pre_applies_granted_creation_when_model_ignores_it(sandbox) -> No
     assert types[-1] == "done"
 
 
+def test_agent_pre_applies_all_grants_before_verifying(sandbox) -> None:
+    # Ordering fix: a module AND its test are granted together (the TEST listed
+    # first on purpose). Every write must land BEFORE any verify runs — otherwise
+    # the test verifies against a not-yet-applied module and records a FALSE failure
+    # even though the finished files are correct.
+    chat = ScriptedChat([{"role": "assistant", "content": "Done."}])
+    agent = ToolAgent(
+        chat, _executor(), max_iters=2,
+        approved_creations=[
+            {"filepath": "test_thing.py", "content": "from thing import f\n\ndef test_f():\n    assert f() == 1\n"},
+            {"filepath": "thing.py", "content": "def f():\n    return 1\n"},
+        ],
+    )
+    events = list(agent.run([{"role": "user", "content": "make thing + its test"}]))
+    assert (sandbox / "thing.py").is_file() and (sandbox / "test_thing.py").is_file()
+    last_write = max(
+        i for i, e in enumerate(events)
+        if e.get("type") == "tool_result" and str(e.get("id", "")).startswith("grant-create")
+    )
+    verifies = [i for i, e in enumerate(events) if str(e.get("id", "")).startswith("autoverify")]
+    assert verifies, "the test write should trigger a verify"
+    assert min(verifies) > last_write  # every verify runs only after every write landed
+
+
 def test_agent_pre_applies_granted_edit_and_skips_when_landed(sandbox) -> None:
     f = sandbox / "mod.py"
     f.write_text("value = 1\n", encoding="utf-8")

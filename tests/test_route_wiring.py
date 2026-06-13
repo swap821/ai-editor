@@ -111,6 +111,7 @@ def test_hybrid_picker_honours_local_model_choice(monkeypatch) -> None:
     # gemini). Deterministic #1 is gemini (higher capability), but the local model
     # picks the local one; its choice is honoured (it IS an allowed candidate).
     monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", True)  # pin (the dev .env may disable it)
     # For a reasoning task the local candidate is the general model (llama3.1:8b
     # beats the coder), so the local model picks that allowed id.
     ollama = FakeOllama(["qwen2.5-coder:7b", "llama3.1:8b"],
@@ -124,6 +125,7 @@ def test_hybrid_picker_honours_local_model_choice(monkeypatch) -> None:
 def test_hybrid_picker_garbage_reply_falls_back_to_deterministic(monkeypatch) -> None:
     # The local model returns nonsense -> the deterministic winner (gemini) stands.
     monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", True)  # pin (the dev .env may disable it)
     gemini = object()
     ollama = FakeOllama(["qwen2.5-coder:7b"], chat_reply={"content": "uhh not sure"})
     client, model = _select_chat_client("auto", ollama, None, gemini=gemini, task="reasoning")
