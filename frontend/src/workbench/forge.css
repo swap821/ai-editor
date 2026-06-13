@@ -1,0 +1,138 @@
+/* ── Forge ports ──────────────────────────────────────────────────────────────
+   The in-scene work surfaces that the brain's nerves plug into. Mounted via drei
+   <Html> at the canon port world-points; the anchor reproduces the canon
+   translate(-50%,-100%) so the panel's BOTTOM-CENTER sits exactly on the wire tip
+   (the .forge-socket marks where the nerve enters). Each port flares when its
+   real cognition event fires. Product-only; styles scoped to .forge-* classes.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Anchor the panel bottom-center on the projected 3D port point (canon trick). */
+.forge-anchor {
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+
+.forge-port {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  pointer-events: auto;
+  border: 1px solid rgba(180, 190, 230, 0.16);
+  background: rgba(7, 9, 14, 0.82);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow:
+    0 40px 90px -34px rgba(0, 0, 0, 0.92),
+    0 0 50px -16px rgba(90, 100, 180, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+.forge-editor {
+  width: 440px;
+  height: 360px;
+}
+.forge-preview {
+  width: 380px;
+  height: 300px;
+}
+
+/* A real cognition event landed on this port — the nerve surge, echoed. */
+.forge-port.is-flaring {
+  border-color: rgba(120, 190, 255, 0.55);
+  box-shadow:
+    0 40px 90px -34px rgba(0, 0, 0, 0.92),
+    0 0 78px -8px rgba(64, 200, 255, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.forge-port.is-flaring .forge-socket {
+  background: #7fe8ff;
+  box-shadow: 0 0 16px #40e8ff, 0 0 34px rgba(64, 232, 255, 0.7);
+  transform: translateX(-50%) scale(1.5);
+}
+.forge-port.is-flaring .forge-link {
+  background: #7fe8ff;
+  box-shadow: 0 0 12px #40e8ff;
+}
+
+.forge-head {
+  flex-shrink: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(190, 200, 225, 0.7);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.forge-id {
+  color: #6366f1;
+}
+.forge-name {
+  color: rgba(220, 228, 245, 0.85);
+}
+.forge-link {
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(120, 140, 190, 0.6);
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+
+.forge-tabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 6px;
+  background: rgba(10, 12, 18, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.forge-tab {
+  height: 26px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  color: rgba(140, 150, 180, 0.8);
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.forge-tab.is-active {
+  color: #f2f3f7;
+  background: rgba(7, 9, 14, 0.9);
+  border-top: 2px solid #6366f1;
+}
+
+.forge-canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.forge-canvas--light {
+  background: #f8f9fb;
+}
+
+/* The nerve socket — bottom-center, exactly where the wire tip lands. */
+.forge-socket {
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #40e8ff;
+  box-shadow: 0 0 10px #40e8ff, 0 0 22px rgba(64, 232, 255, 0.5);
+  transition: background 0.5s ease, box-shadow 0.5s ease, transform 0.5s ease;
+  z-index: 2;
+}

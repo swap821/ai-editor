@@ -32,22 +32,11 @@
    frames it — tune by eye ~48-58vh in-browser); the workbench floats below and
    a unified command line rides the shell bottom. The cramming HUD is hidden by
    manufacturing.css; only the .topbar (real telemetry/sovereignty) is kept. */
-.sb-shell--manufacture {
-  --sb-band-h: clamp(340px, 52vh, 560px);
-}
-
-/* The `transform` makes the stage the containing block for the brain's fixed
-   experience (it fits this band, not the window); the r3f Canvas re-fits via
-   ResizeObserver — still the real brain, still voyaging. */
-.sb-shell--manufacture .sb-brain-stage {
-  inset: auto;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--sb-band-h);
-  transform: translateZ(0);
-  overflow: hidden;
-}
+/* THE EMBEDDED FORGE: the brain stays FULL / canon-framed in manufacturing mode
+   (NOT docked into a band — a band re-projects the hardcoded nerve tips and the
+   plugs separate). The work surfaces mount INSIDE the canvas at the nerve ports
+   via <ForgePorts/>; the consoles they re-tenant are hidden by manufacturing.css.
+   So .sb-brain-stage keeps its base full inset:0 in both modes. */
 
 /* The workbench slabs — float in the same space below the voyaging brain, with
    room left at the bottom for the command line. */
@@ -170,11 +159,12 @@
    floating home-mode pill, which only renders in home mode). */
 .sb-dock-bar {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 14px;
-  height: 44px;
-  z-index: 4;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 28px;
+  width: min(720px, calc(100vw - 64px));
+  height: 46px;
+  z-index: 60;
   display: flex;
   align-items: center;
   gap: 10px;

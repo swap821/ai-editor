@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useState, useRef, useEffect } from 'react';
+import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
@@ -24,10 +24,10 @@ const TIER_DPR: Record<QualityTier, [number, number]> = {
   low: [1, 1],
 };
 
-export default function WorkspaceCanvas() {
+export default function WorkspaceCanvas({ children }: { children?: ReactNode }) {
   return (
     <QualityTierProvider>
-      <WorkspaceInner />
+      <WorkspaceInner>{children}</WorkspaceInner>
     </QualityTierProvider>
   );
 }
@@ -64,7 +64,7 @@ function readStoredSurface(): BrainSurface | null {
   }
 }
 
-function WorkspaceInner() {
+function WorkspaceInner({ children }: { children?: ReactNode }) {
   const { tier, perfTier } = useQualityTier();
   const [mode, setMode] = useState<CognitiveMode>('orchestrate');
   const [activity, setActivity] = useState(0.72);
@@ -240,6 +240,10 @@ function WorkspaceInner() {
                 surface={surface}
                 onSurfaceChange={handleSurfaceChange}
               />
+              {/* Product-side forge ports (editor/preview) mount here, INSIDE the
+                  one canvas, so the canon nerves plug into them. Renders nothing
+                  when no children are passed (home/?ui=superbrain unchanged). */}
+              {children}
             </Suspense>
           </Canvas>
         </WebGLErrorBoundary>
