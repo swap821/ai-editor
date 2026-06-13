@@ -1,0 +1,175 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Superbrain integration shell — Phase 2 (behind ?ui=shell).
+
+   The superbrain is the LEAD character. Two forms of the SAME voyaging mind:
+     • HOME        — the full voyage (canon, untouched).
+     • MANUFACTURE — the same brain DOCKED small (still travelling), with the
+                     workbench floating in the same infinite space below it.
+
+   Product-only: the lab canon and the ported superbrain.css are untouched —
+   this only adds a wrapper layer around <WorkspaceCanvas/>. The dock works by
+   giving the brain stage a `transform` so the brain's own `position:fixed;
+   inset:0` experience resolves into THIS box instead of the viewport (CSS
+   containing-block rule), and the r3f Canvas re-fits to the box via its
+   ResizeObserver — still the real brain, still moving through the infinite.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.sb-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* HOME: no transform on the stage → the brain's fixed experience fills the
+   viewport EXACTLY as canon. Nothing here touches the home render. */
+.sb-brain-stage {
+  position: absolute;
+  inset: 0;
+}
+
+/* MANUFACTURE: the brain docks to a voyaging band across the top. The
+   `transform` establishes the containing block for the brain's fixed experience
+   (so it fits this band, not the window); height controls how small it docks. */
+.sb-shell--manufacture .sb-brain-stage {
+  inset: auto;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 42vh;
+  transform: translateZ(0);
+  overflow: hidden;
+  box-shadow: 0 26px 64px -30px rgba(0, 0, 0, 0.85);
+}
+
+/* The workbench slab — floats in the same space below the voyaging brain. */
+.sb-workbench-stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 42vh;
+  padding: 14px;
+  z-index: 2;
+  animation: workspaceIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Summon / dismiss the workbench — the one new control. A glass pill, clear of
+   the HUD command bar (which is bottom-centre). */
+.sb-mode-toggle {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(10, 12, 20, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  color: rgba(226, 232, 240, 0.92);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 12px 44px -16px rgba(0, 0, 0, 0.7);
+}
+.sb-mode-toggle:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #fff;
+}
+.sb-mode-toggle .sb-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6366f1;
+  box-shadow: 0 0 8px #6366f1;
+}
+
+/* ── The workbench itself: glass slabs in the void ──────────────────────── */
+.wb {
+  height: 100%;
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+}
+.wb-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.82), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.wb-editor {
+  flex: 1.6;
+  background: rgba(8, 9, 12, 0.86);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+}
+.wb-preview {
+  flex: 1;
+  background: #f8f9fb;
+}
+.wb-canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.wb-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  flex-shrink: 0;
+  padding: 0 6px;
+  background: rgba(13, 14, 19, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.wb-tab {
+  height: 30px;
+  padding: 0 13px;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--text-3, #6b7088);
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.wb-tab.is-active {
+  color: var(--text-1, #f2f3f7);
+  background: rgba(8, 9, 12, 0.9);
+  border-top: 2px solid var(--accent, #3b82f6);
+}
+.wb-preview-chrome {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  background: #eef0f3;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.wb-preview-chrome .wb-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cbd2dc;
+}
+.wb-url {
+  flex: 1;
+  margin-left: 6px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: #e2e5e9;
+  color: #6b7280;
+  font-size: 10.5px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
