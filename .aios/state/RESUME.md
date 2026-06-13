@@ -52,12 +52,17 @@ operator-authorized landing + POST-HOC Codex inbox review.
    an earned create_file streams `event: earned_autonomy`. 26 lab + 456 backend tests.
 
 ## Single next action
-Earned autonomy is ON in the live backend (persists in the DB across restart).
-Follow-ups (operator's pick): (a) a persistent earned-autonomy HUD readout
-(getAutonomy() is wired) + a swarm-worker visualization; (b) tag earned-autonomy
-auto-grants explicitly in the audit hash-chain (now audited as the write only);
-(c) the swarm/castes need a 14B+ local model (7B-limited); (d) whether earned
-autonomy ships ON by default. Codex reviews earned-autonomy-and-swarm-v1 ~06-16.
+Earned-autonomy feature is now COMPLETE end-to-end + the brain SHOWS it:
+- AUTONOMY ⚡N topbar readout (lab dc8116c, additive, live-verified);
+- earned grants AUDIT-TAGGED as distinct 'earned-autonomy' hash-chain entries
+  with evidence (lab 0e6b253, 457 tests);
+- swarm/role-pass caste NARRATION in the terminal (lab 7a89ce1).
+Live backend ON :8000 (AIOS_EARNED_AUTONOMY=true, ledger persists earned:1).
+DEFERRED (deliberately, low ROI): full 3D swarm-worker viz + a transient SWARM
+topbar indicator — swarm turns are rare + 7B-limited; revisit with a 14B+ model.
+OPERATOR DECISIONS: (a) whether earned autonomy ships ON by default (config
+default is OFF); (b) push GAG demo/ backup to swap821/gag-demo (one-liner given).
+Codex reviews earned-autonomy-and-swarm-v1 (handoff msg 17/18) when back ~06-16.
 
 ## Open approvals/blockers
 - Lease discipline: did all the above with `active_writer: null` (no worktree
