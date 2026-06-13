@@ -65,21 +65,30 @@ function useFlare(match) {
 export default function ForgePorts() {
   const [files, setFiles] = useState(DEFAULT_FILES);
   const [active, setActive] = useState('index.html');
+  const [pending, setPending] = useState(null); // a YELLOW write awaiting your authorization
   const editorFlaring = useFlare(isWriteEvt);
   const previewFlaring = useFlare(isRenderEvt);
 
-  // TRUTHFUL CONTENT (A1): when the mind proposes a create_file, open its REAL
-  // proposed content as an editor tab (from the captured approval; the adapter
-  // now exposes it). It sits there until you AUTHORIZE — also the A3 seed. A
-  // web file (index.html/style.css/app.js) flows on to the live preview for free.
+  // APPROVAL-ON-DIFF (A1 + A3): a YELLOW write that PAUSES for approval — open the
+  // mind's REAL proposed file (creates) in the editor and mark it PENDING (not
+  // applied) until you AUTHORIZE in the panel. On resolve, the workspace re-sync
+  // below replaces it with the actual on-disk file (if approved). A web file flows
+  // to the live preview for free.
   useEffect(() => {
     return subscribeCognition((e) => {
-      if (!e || e.type !== 'approval-required') return;
-      const p = getPendingApproval();
-      if (!p || p.kind !== 'create' || !p.filepath) return;
-      const name = baseName(p.filepath);
-      setFiles((prev) => ({ ...prev, [name]: { language: langOf(name), content: p.content || '' } }));
-      setActive(name);
+      if (!e) return;
+      if (e.type === 'approval-required') {
+        const p = getPendingApproval();
+        if (!p || (p.kind !== 'create' && p.kind !== 'edit')) return;
+        setPending(p);
+        if (p.kind === 'create' && p.filepath) {
+          const name = baseName(p.filepath);
+          setFiles((prev) => ({ ...prev, [name]: { language: langOf(name), content: p.content || '' } }));
+          setActive(name);
+        }
+      } else if (e.type === 'approval-resolved') {
+        setPending(null);
+      }
     });
   }, []);
 
@@ -167,6 +176,11 @@ export default function ForgePorts() {
                 </button>
               ))}
             </div>
+            {pending && pending.filepath && (
+              <div className="forge-pending" title={pending.filepath}>
+                ⏳ PENDING · {baseName(pending.filepath)} — not applied yet. Authorize in the panel.
+              </div>
+            )}
             <div className="forge-canvas">
               <CodeCanvas
                 code={current.content}
