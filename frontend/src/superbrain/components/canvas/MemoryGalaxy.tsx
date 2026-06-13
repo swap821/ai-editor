@@ -76,9 +76,9 @@ const GALAXY_FRAGMENT = /* glsl */ `
     float d = length(c);
     float core = smoothstep(0.5, 0.0, d);
     core *= core;
-    float twinkle = 0.85 + 0.15 * sin(uTime * 1.7 + vSeed * 37.0);
+    float twinkle = 0.85 + 0.15 * sin(uTime * 0.55 + vSeed * 37.0);
     // Healthy memory is icy starlight; quarantine stains it pulsing red.
-    float stain = vQuarantine * (0.6 + 0.4 * sin(uTime * 3.0 + vSeed * 11.0));
+    float stain = vQuarantine * (0.6 + 0.4 * sin(uTime * 4.4 + vSeed * 11.0));
     vec3 color = mix(vec3(0.62, 0.88, 1.0), vec3(1.0, 0.3, 0.24), stain);
     float alpha = core * (0.22 + 0.78 * vStrength) * twinkle + vFlash * core;
     gl_FragColor = vec4(color * (0.8 + vFlash * 1.6), alpha);
@@ -100,6 +100,10 @@ export default function MemoryGalaxy() {
     ]) {
       geometry.setAttribute(name, make(1));
     }
+    // aFlash drives flash = exp(-max(uTime - aFlash, 0) * 1.6): a 0-init reads as
+    // flash≈1, so every star ignites at mount. Seed it negative so the galaxy
+    // stays calm until a real bus event sets aFlash = uTime.
+    (geometry.getAttribute('aFlash').array as Float32Array).fill(-10);
     geometry.setDrawRange(0, 0);
     // Orbits span radius ~7.5-13: never culled while the camera breathes.
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, -2), 24);
