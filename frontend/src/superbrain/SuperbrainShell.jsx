@@ -17,7 +17,11 @@ import CyberCursor from '@/components/ui/CyberCursor';
 import WorkspaceCanvas from '@/components/canvas/WorkspaceCanvas';
 import './superbrain.css';
 import Workbench from '../workbench/Workbench';
+import CommandLine from '../workbench/CommandLine';
 import '../workbench/shell.css';
+// Loaded AFTER superbrain.css (unlayered → beats the ported @layer rules); hides
+// the cramming HUD in manufacturing mode, scoped to .sb-shell--manufacture only.
+import '../workbench/manufacturing.css';
 
 export default function SuperbrainShell() {
   const [mode, setMode] = useState('home'); // 'home' | 'manufacture'
@@ -33,11 +37,18 @@ export default function SuperbrainShell() {
           <WorkspaceCanvas />
         </div>
 
-        {/* The manufacturing surface floats in the same space, only when summoned. */}
+        {/* The manufacturing surface floats in the same space below the voyaging
+            band, only when summoned. A soft seam dissolves the band into the work
+            so it reads as one continuous deep space; the command line rides the
+            shell bottom (the ported command-bar is hidden by manufacturing.css). */}
         {manufacturing && (
-          <div className="sb-workbench-stage">
-            <Workbench />
-          </div>
+          <>
+            <div className="sb-seam" aria-hidden="true" />
+            <div className="sb-workbench-stage">
+              <Workbench />
+            </div>
+            <CommandLine />
+          </>
         )}
 
         <button
