@@ -63,12 +63,29 @@ Honest totals re-confirmed: 512 passing (457+1skip backend, 29 product, 26 lab),
 aios/ coverage. NOTE the P0 finding: a LIVE Bedrock token sits in `frontend/.env`
 (gitignored, verified never committed — no repo leak — but rotate+relocate; PLAN H1).
 
-**IN FLIGHT (operator-directed, 2026-06-13): futurist specialist panel** — a 2nd
-Workflow (`ai-editor-future-frontier`, run wf_88b1cc68-374): calibre assessment -> 8
+**FUTURE_FRONTIER: DONE + pushed (operator-directed, 2026-06-13).** A 2nd Workflow
+(`ai-editor-future-frontier`, run wf_88b1cc68-374, 10 agents): calibre assessment -> 8
 futurist specialists (cognitive-arch, recursive-self-improvement, verifiable-trust,
 lifelong-memory, edge-frontier-model, symbiosis-interface, multi-agent, category) ->
-synthesis into `.aios/state/FUTURE_FRONTIER.md` (north-star + honest horizon roadmap to
-make this first-of-its-kind). ON RETURN: write FUTURE_FRONTIER.md, commit, push, re-checkpoint.
+synthesis into `.aios/state/FUTURE_FRONTIER.md` (725 lines): the north-star ABOVE PLAN.md
+(does not replace it). Spine = the **Evidence-Locked Self-Improvement Flywheel** (verified
+outcomes -> audit-chain gold corpus -> better local brain+trails -> wider earned autonomy
+-> more verified outcomes). 39 recs across 8 themes, horizon-tagged, each grounded in a
+named seed + honest risk; roadmap table dovetails PLAN.md; §6 proof demos (Refusal Reel,
+flywheel-closes-once, externally-witnessed audit head); §7 honest counterweight. Raw
+calibre+advice archived in `future_frontier_advice.json`. Honest headline: frontier-grade
+ENGINEERING, not yet a frontier AI SYSTEM — gates are intelligence (7B ceiling) + isolation
+(host default), NOT architecture; 3 moves away (better brain S1, default-strong isolation
+S2, widened earned autonomy). The ⚠️ "declarative constitution" rec touches frozen core =>
+needs explicit operator go + strictly-more-restrictive fail-closed design.
+
+## Next action (open)
+Operator to pick the next front. Strongest leverage per FUTURE_FRONTIER queue discipline:
+brain/isolation FIRST (PLAN.md S1 quant+14B / S2 default-Docker), then the near-term
+proof artifacts (Refusal Reel + Cage Conformance Spec, both [near]). Tier-0 hygiene (H1
+rotate the live `frontend/.env` Bedrock token, H2 cruft, H3 doc-currency) is cheap and
+should precede any deploy. Per standing rules: restate the chosen item and WAIT for
+explicit OK before writing code.
 
 (Background — already complete this session:)
 Earned-autonomy feature is now COMPLETE end-to-end + the brain SHOWS it:
