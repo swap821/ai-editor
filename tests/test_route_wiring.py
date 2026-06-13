@@ -10,7 +10,7 @@ sent to a cloud client, even when no local model exists. Fakes only; no network.
 from __future__ import annotations
 
 from aios import config
-from aios.api.main import _select_chat_client
+from aios.api.main import _provider_name, _select_chat_client
 
 
 class FakeOllama:
@@ -136,3 +136,34 @@ def test_hybrid_picker_disabled_by_config_stays_deterministic(monkeypatch) -> No
     client, model = _select_chat_client("auto", ollama, None, gemini=gemini, task="reasoning")
     assert not ollama.chat_called  # picker disabled
     assert client is gemini and model == config.GEMINI_MODEL  # deterministic winner
+
+
+# --- P3: evidence calibration re-ranks the auto route ----------------------
+def test_calibration_reorders_auto_route(monkeypatch) -> None:
+    # Two cloud providers opted in, local-first off, no local model (so the hybrid
+    # picker can't run). Deterministic tie-break picks the cheaper Gemini; measured
+    # evidence that Bedrock verifies far more often re-ranks it to win once calibrated.
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    monkeypatch.setattr(config, "ROUTER_PREFER_LOCAL", False)
+    bedrock, gemini = object(), object()
+    metrics = {
+        ("bedrock", config.BEDROCK_MODEL, "reasoning"): 0.95,
+        ("gemini", config.GEMINI_MODEL, "reasoning"): 0.05,
+    }
+    # No calibration -> deterministic cheaper-cloud (Gemini) wins.
+    c0, _ = _select_chat_client("auto", FakeOllama([]), bedrock, gemini=gemini, task="reasoning")
+    assert c0 is gemini
+    # Strong calibration + Bedrock's measured success -> Bedrock wins.
+    c1, m1 = _select_chat_client(
+        "auto", FakeOllama([]), bedrock, gemini=gemini, task="reasoning",
+        metrics=metrics, calibration_weight=0.8,
+    )
+    assert c1 is bedrock and m1 == config.BEDROCK_MODEL
+
+
+def test_provider_name_maps_client_to_provider() -> None:
+    bed, gem, oll = object(), object(), object()
+    assert _provider_name(bed, bed, gem) == "bedrock"
+    assert _provider_name(gem, bed, gem) == "gemini"
+    assert _provider_name(oll, bed, gem) == "ollama"
+    assert _provider_name(oll, None, None) == "ollama"

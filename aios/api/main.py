@@ -1204,6 +1204,34 @@ def _maybe_llm_picker(
     return picker
 
 
+def _provider_name(chat_client: Any, bedrock: Optional[Any], gemini: Optional[Any]) -> str:
+    """The router provider name for the selected *chat_client* (for evidence + UI)."""
+    if bedrock is not None and chat_client is bedrock:
+        return router.PROVIDER_BEDROCK
+    if gemini is not None and chat_client is gemini:
+        return router.PROVIDER_GEMINI
+    return router.PROVIDER_OLLAMA
+
+
+def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
+    """Measured per-(provider,model,task) success rates for evidence calibration.
+
+    Read only when it can change the route — an ``auto`` turn with cloud opted in
+    and calibration on — so the common (default, local-only) path never pays for a
+    DB read. Fail-soft: any error yields ``{}`` (the router falls back to heuristic).
+    """
+    if (
+        model_id not in _AUTO_IDS
+        or not config.ROUTER_CLOUD_TASKS
+        or config.ROUTER_CALIBRATION_WEIGHT <= 0
+    ):
+        return {}
+    try:
+        return development.model_task_success_rates()
+    except Exception:  # noqa: BLE001 - calibration metrics must never break a turn
+        return {}
+
+
 def _select_chat_client(
     model_id: Optional[str],
     ollama: Any,
@@ -1211,6 +1239,8 @@ def _select_chat_client(
     *,
     gemini: Optional[Any] = None,
     task: str = "coding",
+    metrics: Optional[dict] = None,
+    calibration_weight: float = 0.0,
 ) -> tuple[Any, str]:
     """Pick the ``(chat_client, model)`` for the requested UI model id.
 
@@ -1230,9 +1260,13 @@ def _select_chat_client(
         # the hybrid pick among them; otherwise routing is purely deterministic.
         providers = _build_providers(ollama, bedrock, gemini)
         policy = _router_policy()
-        # Compute the policy-allowed candidates ONCE, then run the (optional) hybrid
-        # pick over them — no redundant gate+scoring recomputation.
-        cands = router.candidates(task, providers, policy=policy, require_tools=True)
+        # Compute the policy-allowed candidates ONCE (ranked, optionally calibrated
+        # by measured per-(provider,model,task) success), then run the (optional)
+        # hybrid pick over them — no redundant gate+scoring recomputation.
+        cands = router.candidates(
+            task, providers, policy=policy, require_tools=True,
+            metrics=metrics, calibration_weight=calibration_weight,
+        )
         chosen = router.pick_from(cands, picker=_maybe_llm_picker(ollama, providers, cands, task))
         if chosen is not None:
             client = _client_for(chosen.provider, ollama, bedrock, gemini)
@@ -1531,7 +1565,12 @@ def generate(
     # picks a coder for code, a reasoner for analysis, etc. (require_tools still
     # keeps the loop on a tool-capable model regardless of the inferred task).
     task = infer_task(user_text)
-    chat_client, model = _select_chat_client(req.model_id, client, bedrock, gemini=gemini, task=task)
+    chat_client, model = _select_chat_client(
+        req.model_id, client, bedrock, gemini=gemini, task=task,
+        metrics=_route_metrics(development, req.model_id),
+        calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
+    )
+    provider = _provider_name(chat_client, bedrock, gemini)
     session_id = req.session_id
     if req.approved_commands or req.approved_edits or req.approved_creations:
         raise HTTPException(
@@ -1562,6 +1601,20 @@ def generate(
         if not user_text:
             yield _sse("error", {"text": "No user message provided."})
             return
+
+        # The ACTIVE BRAIN for this turn: which provider/model served it and whether
+        # it stayed local — so the UI can show the voyaging mind's current brain and
+        # a privacy indicator. Purely informational; the cage decides regardless.
+        yield _sse(
+            "route",
+            {
+                "provider": provider,
+                "model": model,
+                "privacy": "local" if provider == router.PROVIDER_OLLAMA else "cloud",
+                "task": task,
+                "auto": req.model_id in _AUTO_IDS,
+            },
+        )
 
         # 1. Understand + apply the deterministic communication policy + recall.
         #    The alignment frame is advisory. Its communication policy may pause
@@ -1730,7 +1783,7 @@ def generate(
                     tool_calls=len(workflow_steps),
                     human_interventions=len(req.approval_tokens),
                     blocked_actions=blocked_actions,
-                    metadata={"model": model, "task": task},
+                    metadata={"provider": provider, "model": model, "task": task},
                 )
             except Exception:  # noqa: BLE001 - metrics must never break chat
                 pass
@@ -1897,7 +1950,7 @@ def generate(
                         tool_calls=len(workflow_steps),
                         human_interventions=len(req.approval_tokens),
                         blocked_actions=blocked_actions,
-                        metadata={"model": model, "task": task},
+                        metadata={"provider": provider, "model": model, "task": task},
                     )
                 except Exception:  # noqa: BLE001 - metrics must never break approval
                     pass

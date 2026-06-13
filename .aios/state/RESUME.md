@@ -175,8 +175,19 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       default single-candidate path) and a local model is available; its reply is validated by `route()` so it can
       prefer but NEVER escape the gate; deterministic fallback on any non-answer. Config `AIOS_ROUTER_LLM_PICK`
       (default True). `tests/test_router.py` (+4 pure) + `tests/test_route_wiring.py` (+4 hybrid). Full suite 509 pass / 1 skip.
-    NEXT: P0 ✅ done (Bedrock cred relocated to backend env — see B1). Remaining: **P3** (evidence-calibration from
-    dev-metrics + UI active-brain badge). Cage verifies regardless of provider (soul intact); local-first DEFAULT, cloud = per-task policy-gated.
+    ✅ **DONE — P3 evidence-calibration + route event (backend)**: the router now LEARNS which model performs.
+      `DevelopmentTracker.model_task_success_rates()` aggregates the already-recorded verified outcomes by
+      (provider, model, task) → the router's `metrics` map; the dev metadata now also tags `provider`
+      (`_provider_name`). `_route_metrics` reads it ONLY on an auto+cloud-opted-in+calibration-on turn (zero cost
+      on the default path); `_select_chat_client` passes `metrics`+`calibration_weight` to `router.candidates`.
+      Config `AIOS_ROUTER_CALIBRATION_WEIGHT` (default 0.4; cold-start keys fall back to heuristic). The turn now
+      emits an `event: route` SSE frame {provider, model, privacy, task, auto} = the "active brain" signal for the UI.
+      Tests: test_brain_growth (+2 aggregator), test_route_wiring (+2 calibration/provider), test_api (+1 route event).
+    P0 ✅ done (B1). **P3 backend ✅ done.** REMAINING (the only open multi-LLM item): the FRONTEND **active-brain
+    badge** — consume the `route` SSE event in the UI (provider + model + a local/cloud privacy indicator on the
+    superbrain topbar / classic header). This is FIDELITY-gated canon UI work → MUST follow the UI laws
+    [[fidelity-is-sacred-ui-laws]]: canon tag + goldens first, parity proven in HIS browser, before/after
+    screenshots, his assets untouched. Propose, don't unilaterally edit canon. Cage verifies regardless of provider.
     OPEN OPERATOR DECISION (gates cloud going live): set `AIOS_ROUTER_CLOUD_TASKS` (+ `AIOS_GEMINI_PROJECT`,
     `pip install google-genai`) to allow specific task classes to escalate. Until set, `auto` stays local-only.
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.

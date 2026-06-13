@@ -425,6 +425,23 @@ def test_generate_without_user_message_emits_error(client: TestClient) -> None:
     assert "event: error" in response.text
 
 
+def test_generate_stream_emits_active_brain_route_event(client: TestClient) -> None:
+    # The turn announces which provider/model served it (the UI 'active brain' badge).
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+            "modelId": "ollama.llama3.2:3b",
+        },
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "event: route" in body
+    assert '"provider": "ollama"' in body
+    assert '"privacy": "local"' in body
+    assert '"model": "llama3.2:3b"' in body
+
+
 def test_terminal_green_runs_in_sandbox(client: TestClient) -> None:
     response = client.post("/api/terminal", json={"command": "echo hello"})
     assert response.status_code == 200

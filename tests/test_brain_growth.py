@@ -247,6 +247,36 @@ def test_development_tracker_counts_only_verified_outcomes_for_calibration(
     assert summary["verified_success_rate"] == pytest.approx(2 / 3, abs=1e-6)
 
 
+def test_model_task_success_rates_aggregates_by_provider_model_task(
+    tmp_path: Path,
+) -> None:
+    tracker = DevelopmentTracker(_db(tmp_path))
+    md = lambda p, m, t: {"provider": p, "model": m, "task": t}  # noqa: E731
+    # gemini on reasoning: 2 of 3 verified -> 0.667
+    tracker.record("analyze x", "verified_success", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
+    tracker.record("analyze y", "verified_failure", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
+    tracker.record("analyze z", "verified_success", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
+    # local coder on coding: 1 verified attempt -> below min_attempts, excluded
+    tracker.record("fix bug", "verified_success", metadata=md("ollama", "qwen2.5-coder:7b", "coding"))
+    # unverified outcomes never calibrate
+    tracker.record("analyze q", "unverified", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
+
+    rates = tracker.model_task_success_rates(min_attempts=3)
+    assert rates == {("gemini", "gemini-2.5-flash", "reasoning"): pytest.approx(2 / 3, abs=1e-6)}
+    # a lower bar surfaces the single-attempt local key too
+    low = tracker.model_task_success_rates(min_attempts=1)
+    assert low[("ollama", "qwen2.5-coder:7b", "coding")] == 1.0
+
+
+def test_model_task_success_rates_skips_events_missing_provider(tmp_path: Path) -> None:
+    tracker = DevelopmentTracker(_db(tmp_path))
+    # legacy events recorded before provider tagging (model+task only) are ignored.
+    tracker.record("t", "verified_success", metadata={"model": "m", "task": "coding"})
+    tracker.record("t", "verified_success", metadata={"model": "m", "task": "coding"})
+    tracker.record("t", "verified_success", metadata={"model": "m", "task": "coding"})
+    assert tracker.model_task_success_rates(min_attempts=1) == {}
+
+
 def test_skill_memory_promotes_after_repeated_verified_success_and_regresses(
     tmp_path: Path,
 ) -> None:

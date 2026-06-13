@@ -103,6 +103,52 @@ class DevelopmentTracker:
             relevance=round(max_relevance, 6),
         )
 
+    def model_task_success_rates(
+        self, *, min_attempts: int = 3, limit: int = 5000
+    ) -> dict[tuple[str, str, str], float]:
+        """Verified-success rate per ``(provider, model, task)`` from the evidence.
+
+        Reads the verified outcomes, parses each event's ``metadata`` for the
+        ``provider``/``model``/``task`` that produced it, and returns the success
+        rate for every signature with at least *min_attempts* verified attempts.
+        This is exactly the ``metrics`` map the cross-provider router blends in for
+        **evidence-calibrated routing** — so the router learns which model actually
+        performs on *this* workload. Cold-start signatures simply don't appear, so
+        the router falls back to its heuristic for them (no calibration ever fires
+        on too little evidence). Pure read; deterministic given the stored events.
+        """
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT outcome, metadata_json FROM development_events "
+                "WHERE outcome IN ('verified_success','verified_failure') "
+                "ORDER BY id DESC LIMIT ?",
+                (max(int(limit), 1),),
+            ).fetchall()
+        tally: dict[tuple[str, str, str], list[int]] = {}  # key -> [successes, total]
+        for row in rows:
+            try:
+                meta = json.loads(row["metadata_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(meta, dict):
+                continue
+            provider = str(meta.get("provider") or "").strip()
+            model = str(meta.get("model") or "").strip()
+            task = str(meta.get("task") or "").strip()
+            if not (provider and model and task):
+                continue
+            agg = tally.setdefault((provider, model, task), [0, 0])
+            agg[1] += 1
+            if row["outcome"] == "verified_success":
+                agg[0] += 1
+        floor = max(int(min_attempts), 1)
+        return {
+            key: round(succ / total, 6)
+            for key, (succ, total) in tally.items()
+            if total >= floor
+        }
+
     def summary(self) -> dict[str, Any]:
         """Return high-signal developmental metrics over all recorded tasks."""
         init_memory_db(self.db_path)
