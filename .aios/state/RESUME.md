@@ -104,7 +104,11 @@ A1. **Truthful content channel** ✅ DONE + FIXED (master 84f1976): the forge ed
     The demo's bug (operator-caught): with AUTONOMY ⚡1, a create AUTO-APPLIES via the earned path
     (emits `earned_autonomy`, not `human_required`) so the approval-only A1 never fired — `hello.py`
     wrote to disk but never showed. The approval-path preview (proposed content during a pause) stays.
-    Verify in HIS browser w/ backend up. (Frame-extracted the demo via ffmpeg to diagnose — no audio.)
+    ✅ VERIFIED (operator: "editor shows the files now", master b8e5661). THE REAL BLOCKER was a STALE
+    uvicorn on :8000 serving OLD code (the new endpoint 404'd → forge fell back to samples) — ALWAYS
+    start the backend with `--reload` so edits hot-load. Sync hardened with bounded re-read bursts
+    (350/1500/3500ms, beats the earned write-race) + a manual ⟳ + active-tab preservation. (Diagnosed
+    the demo by frame-extracting it via ffmpeg — no audio.)
 A2. **Port-anchor + GPU tuning in HIS browser** (visual/perf completion): panel sizes/positions
     at the nerve ports (camera-projection-dependent — the make-or-break); validate Monaco + iframe
     GPU on the 16GB machine + local inference; lighter fallback ready.
