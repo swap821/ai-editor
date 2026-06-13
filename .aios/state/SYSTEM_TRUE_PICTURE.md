@@ -1,5 +1,10 @@
 # AI-OS — System True Picture (whole-repository deep read, 2026-06-13)
 
+> ⚠️ **SUPERSEDED SNAPSHOT (dated 2026-06-13) — body unchanged, kept as a record.** Since this read,
+> the **multi-LLM library** (cross-provider router + Gemini/Bedrock + hybrid local-LLM pick + evidence
+> calibration) and the **active-brain UI badge** shipped; the suite is now **516 passed / 1 skipped**.
+> This doc's 512/457/458 counts and "doc-drift" notes predate that — current state is `RESUME.md` C0.
+
 > **What this document is.** This is the canonical, whole-system architecture map a future builder should read first. It *extends* `BACKEND_TRUE_PICTURE.md` (2026-06-13), which remains the authoritative read of the Python core (security spine, cognition loop, agent layer, memory, learning, RAG/coordination). This document adds the **frontend** (the 3D "superbrain" lab + the product/classic UIs), the **root tooling/drivers**, the **test suite**, the **config/infra/deploy** surface, the **docs-currency** state — and, most importantly, **how it all composes end to end**: a single request from the UI, down through SSE → cognition → memory → security → earned-autonomy/swarm → audit chain, and back up into the UI as a live stream of events.
 >
 > It is written for a builder who already trusts that the backend is real (it is — 90% line coverage, 512 passing tests across three suites) and now needs the *map of the whole machine* plus an honest **real-vs-aspirational** ledger.

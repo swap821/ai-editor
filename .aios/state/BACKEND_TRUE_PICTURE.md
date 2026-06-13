@@ -1,5 +1,10 @@
 # AI-OS Backend — True Picture (deep read, 2026-06-13)
 
+> ⚠️ **SUPERSEDED SNAPSHOT (dated 2026-06-13) — body unchanged, kept as a record.** Since this read, the
+> **multi-LLM library** landed in the backend core (`aios/core/router.py` + `gemini.py`; the `_select_chat_client`
+> auto path is now cross-provider, privacy-gated, evidence-calibrated) and the suite is now **516 passed / 1
+> skipped** (this doc's 375/457 baseline predates that). Current state: `RESUME.md` C0.
+
 > **Part of the whole-system documentation set (as of 2026-06-13).** This document
 > remains the authoritative deep read of the **Python backend core** (`aios/`): the
 > security spine, cognition loop, agent layer, multi-store memory, stigmergic learning,

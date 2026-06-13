@@ -1,5 +1,11 @@
 # PLAN.md — Blueprint-vs-Reality & The Real Forward Roadmap
 
+> ⚠️ **PARTIALLY SHIPPED since this 2026-06-13 refresh — body unchanged, kept as the roadmap record.**
+> Now DONE: the **multi-LLM library** frontier item (cross-provider router + Gemini + hybrid pick + evidence
+> calibration + active-brain badge, was C0/S1), **H1** (Bedrock cred relocated to backend env), and **H3**
+> (Tier-1 doc-currency; baseline → **516 passed / 1 skipped**). The remaining items still stand. Current
+> state: `RESUME.md` C0.
+
 > **Full refresh authored by Claude Code on 2026-06-13**, restructuring the prior
 > 2026-06-03 Phase-2 slice plan (all of whose slices have since shipped). This is now
 > the **single source of truth for "what is next."** Grounded in the 2026-06-13

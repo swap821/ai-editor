@@ -1,5 +1,10 @@
 # HIDDEN KNOWLEDGE — the "you'd never know unless you read it" bible
 
+> ⚠️ **SUPERSEDED SNAPSHOT (dated 2026-06-13) — body unchanged, kept as a record.** Several flagged items
+> are now RESOLVED: the "375/1 baseline hard-coded in four Tier-1 docs" doc-drift is fixed (README/AGENTS/
+> START_HERE → **516 passed / 1 skipped**), and the multi-LLM library + active-brain badge shipped. Treat the
+> test-count and doc-drift findings below as historical; current state is `RESUME.md` C0.
+
 **Date:** 2026-06-13
 **Scope:** whole-repo (`C:\Users\kumar\ai-editor`), synthesized from 8 deep-reader lenses + the prior 8-agent backend read (`.aios/state/BACKEND_TRUE_PICTURE.md`).
 **Purpose:** Aggregate every *non-obvious* finding — undocumented behavior, surprising couplings/footguns, dead/orphaned code, doc drift, tech debt, security-surface notes, perf hotspots, and surplus features no doc mentions — into one deduplicated, prioritized reference. Each item carries the finding, the evidence (`file:line` where the lens cited it), and the risk/why-it-matters.
