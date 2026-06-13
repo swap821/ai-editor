@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Html } from '@react-three/drei';
 import CodeCanvas from '../components/CodeCanvas';
 import LivePreview from '../components/LivePreview';
@@ -88,6 +88,7 @@ export default function ForgePorts() {
   // landed (approval, EARNED-AUTONOMY auto-write, or edit). The earned path never
   // pauses for approval, so reading the workspace is the only path-independent way
   // to show the file the mind actually wrote. Honest offline: keep current files.
+  const seenRef = useRef(new Set());
   const loadWorkspace = useCallback(async () => {
     try {
       const r = await fetch(`${API_BASE}/api/v1/development/workspace`, { headers: API_HEADERS });
@@ -97,8 +98,12 @@ export default function ForgePorts() {
       if (!list.length) return; // empty / backend down — keep the welcome files
       const next = {};
       for (const f of list) next[f.path] = { language: langOf(f.path), content: f.content || '' };
+      const newest = list[0].path; // most-recent write
+      const isNewFile = !seenRef.current.has(newest);
+      seenRef.current = new Set(Object.keys(next));
       setFiles(next);
-      setActive(list[0].path); // newest write first
+      // Jump to a FRESHLY-written file; otherwise keep the operator's current tab.
+      setActive((cur) => (isNewFile ? newest : cur && cur in next ? cur : newest));
     } catch {
       // backend unreachable — keep current files, never fake content
     }
@@ -106,18 +111,26 @@ export default function ForgePorts() {
 
   useEffect(() => { loadWorkspace(); }, [loadWorkspace]); // on mount
   useEffect(() => {
-    let t;
+    let timers = [];
     const unsub = subscribeCognition((e) => {
       if (!e || e.type === 'telemetry') return;
-      // a turn did something — re-read the real workspace (debounced)
-      if (e.type === 'synthesis' || e.type === 'knowledge-acquired' || e.type === 'approval-resolved') {
-        clearTimeout(t);
-        t = setTimeout(loadWorkspace, 500);
+      // A turn did something — re-read the real workspace a FEW times, because the
+      // earned-autonomy event fires just BEFORE the write completes (and verify/done
+      // land a bit later). Bounded bursts (not a continuous poll), reset each event,
+      // so the operator's tab is never disrupted between turns.
+      if (
+        e.type === 'synthesis' ||
+        e.type === 'knowledge-acquired' ||
+        e.type === 'approval-resolved' ||
+        e.type === 'agent-dispatch'
+      ) {
+        timers.forEach(clearTimeout);
+        timers = [350, 1500, 3500].map((d) => setTimeout(loadWorkspace, d));
       }
     });
     return () => {
       unsub();
-      clearTimeout(t);
+      timers.forEach(clearTimeout);
     };
   }, [loadWorkspace]);
 
@@ -132,6 +145,14 @@ export default function ForgePorts() {
             <div className="forge-head">
               <span className="forge-id">PORT 01</span>
               <span className="forge-name">EDITOR</span>
+              <button
+                type="button"
+                className="forge-sync"
+                onClick={loadWorkspace}
+                title="Re-read the agent's training_ground workspace"
+              >
+                ⟳
+              </button>
               <span className="forge-link" />
             </div>
             <div className="forge-tabs">
