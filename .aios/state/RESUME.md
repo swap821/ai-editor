@@ -125,13 +125,25 @@ B2. (opt) clean the 2 untracked `training_ground/test_auto_*.py` assert-True stu
 B3. (opt) Tier-1 doc-currency: stale 375/1 test baseline in README/AGENTS/START_HERE/KICKOFF → 458 (PLAN H3).
 
 ### C. THE FRONTIER — forge done, now here (per FUTURE_FRONTIER queue discipline)
-C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN DRAFTED in `.aios/state/MULTI_LLM_PLAN.md`.
+C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/MULTI_LLM_PLAN.md`.
     The brain picks the best model per task across local (Ollama) + Bedrock + Google Gemini (gcloud ADC).
-    Foundation half-built: `model_selector.py` is task-aware but LOCAL-ONLY; Bedrock wired; Gemini NOT.
-    Phases: P0 secure Bedrock cred to backend env (= PLAN H1) → P1 add Gemini provider → P2 cross-provider
-    auto-router + privacy/cost POLICY → P3 evidence-calibration + UI. The cage verifies regardless of provider
-    (soul intact); every call audited; local-first DEFAULT, cloud = per-task policy-gated escalation. OPEN
-    DECISIONS: the privacy boundary; start P0 vs P1; Vertex(ADC) vs Gemini API key. Awaiting operator pick.
+    Decided: routing = **HYBRID** (local LLM picks among policy-allowed candidates, can't override the
+    deterministic privacy/cost gate; deterministic fallback; evidence-calibrated; cage verifies regardless).
+    Gemini access = gcloud / Vertex AI (ADC), no key on disk.
+    ✅ **DONE — the hybrid router core landed** (pure + tested, NOT yet wired into main.py):
+      `aios/core/router.py` — `Provider` (data, no client), `Policy` (operator-owned gate),
+      `policy_allows`/`candidates`/`route` + `route_model_id`. `route()` is a pure fn of
+      (task, providers, policy, metrics) + one injected `picker` (the local LLM). Default `LOCAL_FIRST`
+      policy = cloud OFF (empty `cloud_tasks`) → BEHAVIOUR-PRESERVING (local-only) until the operator
+      sets the privacy boundary. `tests/test_router.py` (18 tests) pins: privacy gate, "LLM can never
+      escape the policy", deterministic fallback, cost ceiling, evidence calibration. Full suite 476 pass / 1 skip.
+    NEXT phases: P0 secure Bedrock cred to backend env (= PLAN H1) → P1 add `GeminiClient` (Vertex/ADC,
+    function-calling → agent message shape) → **P2 WIRE router into `_select_chat_client` (main.py:1074)**
+    behind the default LOCAL_FIRST policy (behaviour-preserving) + a config-driven privacy boundary →
+    P3 evidence-calibration from dev-metrics + UI active-brain badge. The cage verifies regardless of
+    provider (soul intact); every call audited; local-first DEFAULT, cloud = per-task policy-gated escalation.
+    OPEN OPERATOR DECISION (gates P2 wiring going live to cloud): which task classes may leave the machine
+    (`Policy.cloud_tasks`). Until set, the router stays local-only even once wired.
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.
 C2. **Default-strong isolation** (PLAN S2: hardened Docker default where available).
 C3. The three genuine gaps: voice (G1), knowledge-graph traversal (G2), observability (G3); + the
