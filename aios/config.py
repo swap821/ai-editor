@@ -178,6 +178,14 @@ EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", False)
 #: Consecutive verified successes a signature needs before it is auto-approved.
 EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5)
 
+# Worker swarm (ant-colony orchestration): the dynamic-fan-out generalization of
+# the role-pass castes. A decomposer splits a task into independent subtasks, one
+# ephemeral gated worker is spawned per subtask (bounded below), and a synthesizer
+# composes the results from verifier evidence. Coordination is stigmergic only
+# (shared conversation + sandbox + development trails); authority is unchanged.
+#: Hard ceiling on workers a single swarm may spawn (bounds fan-out + RAM).
+SWARM_MAX_WORKERS: Final[int] = _env_int("AIOS_SWARM_MAX_WORKERS", 4)
+
 # --------------------------------------------------------------------------- #
 # Security & human-in-the-loop gating
 # --------------------------------------------------------------------------- #
@@ -336,6 +344,7 @@ __all__ = [
     "SKILL_REUSE_DEMOTE_NET_FAILURES",
     "EARNED_AUTONOMY_ENABLED",
     "EARNED_AUTONOMY_MIN_SUCCESSES",
+    "SWARM_MAX_WORKERS",
     "CONFIDENCE_THRESHOLD",
     "MAX_RED_ACTIONS_PER_SESSION",
     "YELLOW_APPROVAL_TIMEOUT_MS",

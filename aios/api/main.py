@@ -37,6 +37,7 @@ from aios import config
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.role_pass import run_role_pass
+from aios.agents.swarm import run_swarm
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
 from aios.core.executor import (
@@ -426,6 +427,10 @@ class GenerateRequest(BaseModel):
     #: the one supervised loop). Absent/false -> the endpoint behaves
     #: byte-identically to the single-agent loop.
     role_pass: bool = Field(False, alias="rolePass")
+    #: Opt-in ephemeral worker swarm: decompose -> N gated workers -> synthesize
+    #: (ant-colony stigmergy over the same supervised loop). Absent/false ->
+    #: unchanged. Takes precedence over rolePass when both are set.
+    swarm: bool = Field(False, alias="swarm")
 
     model_config = {"populate_by_name": True}
 
@@ -1573,11 +1578,12 @@ def generate(
             except Exception:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 pass
 
-        event_source = (
-            run_role_pass(make_agent, chat_messages)
-            if req.role_pass
-            else make_agent().run(chat_messages)
-        )
+        if req.swarm:
+            event_source = run_swarm(make_agent, chat_messages)
+        elif req.role_pass:
+            event_source = run_role_pass(make_agent, chat_messages)
+        else:
+            event_source = make_agent().run(chat_messages)
         for ev in event_source:
             kind = ev["type"]
             if kind in _STEP_EVENTS:
