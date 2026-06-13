@@ -297,6 +297,26 @@ BEDROCK_MAX_TOKENS: Final[int] = _env_int("AIOS_BEDROCK_MAX_TOKENS", 1024)
 BEDROCK_ENABLED: Final[bool] = bool(BEDROCK_REGION and BEDROCK_MODEL)
 
 # --------------------------------------------------------------------------- #
+# Cloud LLM (Google Gemini via Vertex AI) — optional frontier provider
+# --------------------------------------------------------------------------- #
+#: GCP project for Vertex AI. Setting this is the single opt-in that turns Gemini
+#: on (the model + location below have sensible defaults). Credentials come from
+#: the laptop's ``gcloud`` **Application Default Credentials** (ADC) — no key on
+#: disk in the repo; this module never reads or writes secrets. Run
+#: ``gcloud auth application-default login`` once and enable Vertex AI on the project.
+GEMINI_PROJECT: Final[str] = _env_str("AIOS_GEMINI_PROJECT", "")
+#: Vertex AI region serving the model (Gemini is broadly available in us-central1).
+GEMINI_LOCATION: Final[str] = _env_str("AIOS_GEMINI_LOCATION", "us-central1")
+#: Gemini model id to run. The project is *auth/billing*; this names *which* model.
+#: Defaults to 2.5 Flash (fast + cheap + tool-capable); override to e.g.
+#: ``gemini-2.5-pro`` for the frontier reasoner.
+GEMINI_MODEL: Final[str] = _env_str("AIOS_GEMINI_MODEL", "gemini-2.5-flash")
+#: Max output tokens per Gemini turn.
+GEMINI_MAX_TOKENS: Final[int] = _env_int("AIOS_GEMINI_MAX_TOKENS", 1024)
+#: True when Gemini is opted in (a GCP project is set; model + location default).
+GEMINI_ENABLED: Final[bool] = bool(GEMINI_PROJECT and GEMINI_MODEL)
+
+# --------------------------------------------------------------------------- #
 # HTTP API server (FastAPI / uvicorn) + browser CORS
 # --------------------------------------------------------------------------- #
 #: Interface and port uvicorn binds to when serving the API.
@@ -374,6 +394,11 @@ __all__ = [
     "BEDROCK_MODEL",
     "BEDROCK_MAX_TOKENS",
     "BEDROCK_ENABLED",
+    "GEMINI_PROJECT",
+    "GEMINI_LOCATION",
+    "GEMINI_MODEL",
+    "GEMINI_MAX_TOKENS",
+    "GEMINI_ENABLED",
     "API_HOST",
     "API_PORT",
     "API_TOKEN",

@@ -47,6 +47,8 @@ from aios.core.executor import (
     validate_approved_execution_backend,
 )
 from aios.core.bedrock import BedrockClient
+from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
+from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.model_selector import (
     TASKS,
@@ -175,6 +177,22 @@ def get_bedrock_client() -> Optional[BedrockClient]:
         return None
     try:
         return BedrockClient()
+    except LLMError:
+        return None
+
+
+def get_gemini_client() -> Optional[GeminiClient]:
+    """Provide the Google Gemini (Vertex AI) chat client, or ``None`` when unset.
+
+    Returns ``None`` unless :data:`aios.config.GEMINI_ENABLED` (a GCP project is
+    set) *and* the ``google-genai`` SDK is importable — so the agent transparently
+    stays on local/Bedrock inference when Gemini isn't configured. Auth is the
+    laptop's ``gcloud`` ADC; this never touches a key on disk. Overridden in tests.
+    """
+    if not config.GEMINI_ENABLED:
+        return None
+    try:
+        return GeminiClient()
     except LLMError:
         return None
 
@@ -1018,6 +1036,23 @@ def models_bedrock(
     return {"configured": True, "available": bool(models), "models": models}
 
 
+@app.get("/api/v1/models/gemini")
+def models_gemini(
+    gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+) -> dict[str, Any]:
+    """List invocable Google Gemini models for the picker.
+
+    ``{"configured": bool, "available": bool, "models": [{"id","name"}]}`` — empty
+    when Gemini isn't configured (no GCP project). When configured, ``list_models``
+    already falls back to the curated Gemini set if live Vertex discovery is
+    unavailable, so the picker always has the well-known models to offer.
+    """
+    if gemini is None:
+        return {"configured": False, "available": False, "models": []}
+    models = gemini.list_models()
+    return {"configured": True, "available": bool(models), "models": models}
+
+
 @app.get("/api/v1/models/auto")
 def models_auto(
     task: str = "coding",
@@ -1076,14 +1111,18 @@ def _select_chat_client(
     ollama: Any,
     bedrock: Optional[Any],
     *,
+    gemini: Optional[Any] = None,
     task: str = "coding",
 ) -> tuple[Any, str]:
     """Pick the ``(chat_client, model)`` for the requested UI model id.
 
     ``auto`` lets the AGENT choose the best installed local model for *task* (the
-    user never has to). ``ollama.x`` always runs locally on ``x``. An explicit
-    non-local id routes to Bedrock and fails clearly when Bedrock is unavailable;
-    it never silently changes providers. No id means the configured local default.
+    user never has to). ``ollama.x`` always runs locally on ``x``. A ``gemini.x``
+    id routes to Google Gemini; any other explicit id routes to Bedrock. Each
+    explicit cloud pick fails clearly when that provider is unavailable and never
+    silently changes providers. No id means the configured local default. (Cloud
+    providers are explicit-pick here; cross-provider ``auto`` routing is the
+    router layer, wired in a later increment behind the operator privacy policy.)
     """
     if model_id in _AUTO_IDS:
         # Agent-chosen model for the agentic loop. Fail-soft: if Ollama is
@@ -1102,6 +1141,16 @@ def _select_chat_client(
                 detail=f"local model '{local_model}' cannot accept the agent tool protocol",
             )
         return ollama, local_model
+    if model_id and model_id.startswith("gemini."):
+        # Explicit Gemini pick (``gemini.<model>``) -> the Vertex client, with the
+        # provider prefix stripped to the bare model id. Fails clearly (never falls
+        # through to another provider) when Gemini isn't configured.
+        if gemini is not None:
+            return gemini, model_id[len("gemini.") :]
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini model selected but Google Gemini is not configured",
+        )
     if model_id and bedrock is not None:
         # Pass the selected Bedrock model id straight through (so each dropdown
         # choice runs that actual model).
@@ -1337,6 +1386,7 @@ def generate(
     req: GenerateRequest,
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
+    gemini: Optional[GeminiClient] = Depends(get_gemini_client),
     executor: Executor = Depends(get_executor),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
@@ -1372,7 +1422,7 @@ def generate(
     # picks a coder for code, a reasoner for analysis, etc. (require_tools still
     # keeps the loop on a tool-capable model regardless of the inferred task).
     task = infer_task(user_text)
-    chat_client, model = _select_chat_client(req.model_id, client, bedrock, task=task)
+    chat_client, model = _select_chat_client(req.model_id, client, bedrock, gemini=gemini, task=task)
     session_id = req.session_id
     if req.approved_commands or req.approved_edits or req.approved_creations:
         raise HTTPException(

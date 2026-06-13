@@ -137,9 +137,19 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       policy = cloud OFF (empty `cloud_tasks`) → BEHAVIOUR-PRESERVING (local-only) until the operator
       sets the privacy boundary. `tests/test_router.py` (18 tests) pins: privacy gate, "LLM can never
       escape the policy", deterministic fallback, cost ceiling, evidence calibration. Full suite 476 pass / 1 skip.
-    NEXT phases: P0 secure Bedrock cred to backend env (= PLAN H1) → P1 add `GeminiClient` (Vertex/ADC,
-    function-calling → agent message shape) → **P2 WIRE router into `_select_chat_client` (main.py:1074)**
-    behind the default LOCAL_FIRST policy (behaviour-preserving) + a config-driven privacy boundary →
+    ✅ **DONE — P1, the Gemini provider** (explicit-pick, behaviour-preserving off by default):
+      `aios/core/gemini.py` `GeminiClient` — same `chat(messages,*,tools,model)` contract as Ollama/Bedrock,
+      backed by **Vertex AI via gcloud ADC** (`genai.Client(vertexai=True, project, location)`, SDK lazy-
+      imported). `_to_gemini` bridges the agent's Ollama-shaped msgs ↔ Gemini `contents`/function-call parts
+      (paired by NAME); `_parse_output` maps back; `list_models` discovers + falls back to `CURATED_MODELS`.
+      Config: `AIOS_GEMINI_PROJECT` (the opt-in) / `_LOCATION` (us-central1) / `_MODEL` (gemini-2.5-flash) /
+      `_MAX_TOKENS`; `GEMINI_ENABLED = bool(project)`. main.py: `get_gemini_client()` dep (None unless enabled),
+      `/api/v1/models/gemini` endpoint, and a `gemini.<model>` branch in `_select_chat_client` (strips prefix,
+      503 if unconfigured — never a silent provider change). `tests/test_gemini.py` (17 tests). Full suite 493 pass.
+      OPERATOR one-time setup before first live turn: `pip install google-genai` + `gcloud auth application-default
+      login` + set `AIOS_GEMINI_PROJECT` (see requirements.txt note). NOT auto-routed yet (explicit-pick first, like Bedrock began).
+    NEXT phases: P0 secure Bedrock cred to backend env (= PLAN H1) → **P2 WIRE router into `_select_chat_client`
+    (main.py)** behind the default LOCAL_FIRST policy (behaviour-preserving) + a config-driven privacy boundary →
     P3 evidence-calibration from dev-metrics + UI active-brain badge. The cage verifies regardless of
     provider (soul intact); every call audited; local-first DEFAULT, cloud = per-task policy-gated escalation.
     OPEN OPERATOR DECISION (gates P2 wiring going live to cloud): which task classes may leave the machine
