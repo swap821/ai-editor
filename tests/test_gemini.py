@@ -171,6 +171,21 @@ def test_chat_passes_system_instruction_separately() -> None:
     assert fake.models.last["config"]["system_instruction"] == "be terse"
 
 
+def test_chat_disables_thinking_by_default() -> None:
+    # 2.5-era models think by default and can spend the whole output budget on it;
+    # the client caps that to a predictable 0 so a turn always returns text.
+    fake = FakeGemini(_Response([_Candidate(_Content([_Part(text="ok")]))]))
+    GeminiClient(project="p", client=fake).chat([{"role": "user", "content": "hi"}])
+    assert fake.models.last["config"]["thinking_config"] == {"thinking_budget": 0}
+
+
+def test_chat_thinking_budget_negative_omits_config() -> None:
+    # -1 means "leave the model's own dynamic thinking on" -> no thinking_config sent.
+    fake = FakeGemini(_Response([_Candidate(_Content([_Part(text="ok")]))]))
+    GeminiClient(project="p", thinking_budget=-1, client=fake).chat([{"role": "user", "content": "hi"}])
+    assert "thinking_config" not in fake.models.last["config"]
+
+
 def test_chat_wraps_failures_as_llmerror() -> None:
     class _BoomModels:
         def generate_content(self, **kwargs):

@@ -172,6 +172,7 @@ class GeminiClient:
         location: str = config.GEMINI_LOCATION,
         max_tokens: int = config.GEMINI_MAX_TOKENS,
         temperature: float = config.LLM_TEMPERATURE,
+        thinking_budget: int = config.GEMINI_THINKING_BUDGET,
         client: Optional[Any] = None,
     ) -> None:
         self.model = model
@@ -179,6 +180,7 @@ class GeminiClient:
         self.location = location
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.thinking_budget = thinking_budget
         if client is not None:
             self._client = client  # injected fake (tests)
         else:
@@ -214,6 +216,10 @@ class GeminiClient:
         }
         if system_text.strip():
             gen_config["system_instruction"] = system_text
+        # Bound 2.5-era "thinking" so it can't silently eat the output budget and
+        # return zero text (``0`` disables it; ``-1`` leaves the model default on).
+        if self.thinking_budget >= 0:
+            gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
         tool_decls = _to_tools(tools)
         if tool_decls:
             gen_config["tools"] = tool_decls

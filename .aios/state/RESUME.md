@@ -148,12 +148,25 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       503 if unconfigured — never a silent provider change). `tests/test_gemini.py` (17 tests). Full suite 493 pass.
       OPERATOR one-time setup before first live turn: `pip install google-genai` + `gcloud auth application-default
       login` + set `AIOS_GEMINI_PROJECT` (see requirements.txt note). NOT auto-routed yet (explicit-pick first, like Bedrock began).
-    NEXT phases: P0 secure Bedrock cred to backend env (= PLAN H1) → **P2 WIRE router into `_select_chat_client`
-    (main.py)** behind the default LOCAL_FIRST policy (behaviour-preserving) + a config-driven privacy boundary →
-    P3 evidence-calibration from dev-metrics + UI active-brain badge. The cage verifies regardless of
-    provider (soul intact); every call audited; local-first DEFAULT, cloud = per-task policy-gated escalation.
-    OPEN OPERATOR DECISION (gates P2 wiring going live to cloud): which task classes may leave the machine
-    (`Policy.cloud_tasks`). Until set, the router stays local-only even once wired.
+    ✅ **DONE — P2, router WIRED into `auto`** (behaviour-preserving; cloud OFF by default):
+      `_select_chat_client`'s `auto` branch now runs `router.route(task, providers, policy, require_tools=True)`.
+      Helpers in main.py: `_build_providers` (live Ollama+Bedrock+Gemini → `Provider` rows), `_router_policy`
+      (reads config each call), `_client_for` (provider name → client). Config: `AIOS_ROUTER_CLOUD_TASKS`
+      (the PRIVACY BOUNDARY, empty=cloud off), `AIOS_ROUTER_PREFER_LOCAL` (True), `AIOS_ROUTER_MAX_COST` (high).
+      **Behaviour change (intentional, privacy-first):** `auto` with no local model no longer silently falls back
+      to Bedrock — it drops to the local default; cloud egress now requires an explicit `ROUTER_CLOUD_TASKS` opt-in.
+      Also fixed via live test: `GeminiClient` disables 2.5 "thinking" by default (`AIOS_GEMINI_THINKING_BUDGET=0`)
+      so a turn always returns text within budget. `tests/test_route_wiring.py` (6) pins privacy-gate-on-fallback.
+      ✅ **Both cloud creds LIVE-VERIFIED (2026-06-13):** Vertex/ADC `gemini-2.5-flash` returned text (REST ping,
+      finish=STOP; note `gemini-2.0-flash` NOT enabled on project `ai-editor-498414`); Bedrock bearer token in
+      `frontend/.env` → `amazon.nova-lite-v1:0` returned "pong" (region us-east-1). Full suite 501 pass / 1 skip.
+    NOT YET (the remaining hybrid layer): the **LLM picker is built into `router.route()` but NOT invoked in the
+    hot path** — `auto` is deterministic for now. Wiring the local-LLM pick (only when ≥2 candidates, so zero
+    added latency by default) is the next increment once a privacy boundary is set & the multi-candidate path is
+    live-tested. Then P0 (secure Bedrock cred to backend env = PLAN H1) + P3 (evidence-calibration + UI active-brain
+    badge). Cage verifies regardless of provider (soul intact); local-first DEFAULT, cloud = per-task policy-gated.
+    OPEN OPERATOR DECISION (gates cloud going live): set `AIOS_ROUTER_CLOUD_TASKS` (+ `AIOS_GEMINI_PROJECT`,
+    `pip install google-genai`) to allow specific task classes to escalate. Until set, `auto` stays local-only.
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.
 C2. **Default-strong isolation** (PLAN S2: hardened Docker default where available).
 C3. The three genuine gaps: voice (G1), knowledge-graph traversal (G2), observability (G3); + the

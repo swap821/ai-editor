@@ -313,8 +313,42 @@ GEMINI_LOCATION: Final[str] = _env_str("AIOS_GEMINI_LOCATION", "us-central1")
 GEMINI_MODEL: Final[str] = _env_str("AIOS_GEMINI_MODEL", "gemini-2.5-flash")
 #: Max output tokens per Gemini turn.
 GEMINI_MAX_TOKENS: Final[int] = _env_int("AIOS_GEMINI_MAX_TOKENS", 1024)
+#: Gemini 2.5 models *think* by default, silently consuming the output budget — a
+#: short cap can return zero text. This bounds that: ``0`` disables thinking
+#: (predictable text within budget — the agent-loop default), a positive value
+#: caps the thinking tokens, and ``-1`` leaves the model's own dynamic thinking on.
+GEMINI_THINKING_BUDGET: Final[int] = _env_int("AIOS_GEMINI_THINKING_BUDGET", 0)
 #: True when Gemini is opted in (a GCP project is set; model + location default).
 GEMINI_ENABLED: Final[bool] = bool(GEMINI_PROJECT and GEMINI_MODEL)
+
+# --------------------------------------------------------------------------- #
+# Cross-provider router policy (the operator-owned privacy/cost boundary)
+# --------------------------------------------------------------------------- #
+#: The PRIVACY BOUNDARY: which task classes (``coding|reasoning|general|fast``)
+#: ``auto`` may route to a *cloud* provider. **Empty by default -> local-first,
+#: cloud is never used by auto** (today's behaviour preserved). Comma-separated,
+#: e.g. ``reasoning,general``; unknown names are dropped. The router's gate is
+#: deterministic — a model can never route a task the operator didn't opt in.
+_VALID_ROUTER_TASKS: Final[tuple[str, ...]] = ("coding", "reasoning", "general", "fast")
+
+
+def _env_router_tasks(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.getenv(name)
+    if raw in (None, ""):
+        return default
+    return tuple(
+        t.strip().lower()
+        for t in raw.split(",")
+        if t.strip().lower() in _VALID_ROUTER_TASKS
+    )
+
+
+ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _env_router_tasks("AIOS_ROUTER_CLOUD_TASKS", ())
+#: When True (default), ``auto`` keeps a local model when one is usable; a genuine
+#: capability gap can still escalate an *opted-in* task to a cloud provider.
+ROUTER_PREFER_LOCAL: Final[bool] = _env_bool("AIOS_ROUTER_PREFER_LOCAL", True)
+#: The highest cost tier ``auto`` may route to (``free|low|high``).
+ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().lower()
 
 # --------------------------------------------------------------------------- #
 # HTTP API server (FastAPI / uvicorn) + browser CORS
@@ -398,7 +432,11 @@ __all__ = [
     "GEMINI_LOCATION",
     "GEMINI_MODEL",
     "GEMINI_MAX_TOKENS",
+    "GEMINI_THINKING_BUDGET",
     "GEMINI_ENABLED",
+    "ROUTER_CLOUD_TASKS",
+    "ROUTER_PREFER_LOCAL",
+    "ROUTER_MAX_COST",
     "API_HOST",
     "API_PORT",
     "API_TOKEN",

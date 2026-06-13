@@ -46,6 +46,7 @@ from aios.core.executor import (
     approved_runner_from_config,
     validate_approved_execution_backend,
 )
+from aios.core import router
 from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
@@ -1091,19 +1092,71 @@ def _resolve_local_model(model_id: Optional[str]) -> str:
 _AUTO_IDS = frozenset({"auto", "auto.best", "ollama.auto"})
 
 
-def _auto_local_model(ollama: Any, task: str = "coding") -> Optional[str]:
-    """Best installed TOOL-CAPABLE local model for *task*, or ``None``.
+def _router_policy() -> router.Policy:
+    """Build the cross-provider routing policy from operator config.
 
-    ``require_tools=True``: the agentic loop must never route to a model that
-    can't function-call (reasoning-only/base families), even when the request
-    reads like reasoning. Fail-soft: discovery/selection failing must never break
-    a turn, so the caller falls back to the configured default.
+    The privacy boundary (``ROUTER_CLOUD_TASKS``) is read fresh each call so it
+    stays operator-owned and overridable; empty -> local-first (cloud off).
+    """
+    return router.Policy(
+        cloud_tasks=frozenset(config.ROUTER_CLOUD_TASKS),
+        max_cost=config.ROUTER_MAX_COST,
+        prefer_local=config.ROUTER_PREFER_LOCAL,
+    )
+
+
+def _build_providers(
+    ollama: Any, bedrock: Optional[Any], gemini: Optional[Any]
+) -> list[router.Provider]:
+    """Describe the live providers as router :class:`~aios.core.router.Provider` rows.
+
+    Local Ollama is always present (available iff it can list chat models); each
+    cloud provider appears only when its client is configured. Fail-soft: a flaky
+    Ollama listing yields an *unavailable* local provider rather than raising.
     """
     try:
-        info = ollama.list_models()
-        return select_model(info.get("models") or [], task=task, require_tools=True)
-    except Exception:  # noqa: BLE001 - discovery/selection must never raise
-        return None
+        local_models = (ollama.list_models() or {}).get("models") or []
+    except Exception:  # noqa: BLE001 - discovery must never break a turn
+        local_models = []
+    providers = [
+        router.Provider(
+            name=router.PROVIDER_OLLAMA,
+            privacy=router.PRIVACY_LOCAL,
+            cost=router.COST_FREE,
+            available=bool(local_models),
+            models=tuple(m for m in local_models if isinstance(m, str)),
+        )
+    ]
+    if bedrock is not None:
+        providers.append(
+            router.Provider(
+                name=router.PROVIDER_BEDROCK,
+                privacy=router.PRIVACY_CLOUD,
+                cost=router.COST_HIGH,
+                available=True,
+                models=(config.BEDROCK_MODEL,),
+            )
+        )
+    if gemini is not None:
+        providers.append(
+            router.Provider(
+                name=router.PROVIDER_GEMINI,
+                privacy=router.PRIVACY_CLOUD,
+                cost=router.COST_LOW,
+                available=True,
+                models=(config.GEMINI_MODEL,),
+            )
+        )
+    return providers
+
+
+def _client_for(provider: str, ollama: Any, bedrock: Optional[Any], gemini: Optional[Any]) -> Optional[Any]:
+    """Map a router provider name back to its live chat client."""
+    if provider == router.PROVIDER_BEDROCK:
+        return bedrock
+    if provider == router.PROVIDER_GEMINI:
+        return gemini
+    return ollama
 
 
 def _select_chat_client(
@@ -1116,22 +1169,31 @@ def _select_chat_client(
 ) -> tuple[Any, str]:
     """Pick the ``(chat_client, model)`` for the requested UI model id.
 
-    ``auto`` lets the AGENT choose the best installed local model for *task* (the
-    user never has to). ``ollama.x`` always runs locally on ``x``. A ``gemini.x``
-    id routes to Google Gemini; any other explicit id routes to Bedrock. Each
-    explicit cloud pick fails clearly when that provider is unavailable and never
-    silently changes providers. No id means the configured local default. (Cloud
-    providers are explicit-pick here; cross-provider ``auto`` routing is the
-    router layer, wired in a later increment behind the operator privacy policy.)
+    ``auto`` runs the **cross-provider router**: the agent picks the best model for
+    *task* across local + (policy-permitted) cloud providers. The privacy boundary
+    is deterministic and operator-owned (:func:`_router_policy`) — with the default
+    empty ``ROUTER_CLOUD_TASKS`` no task ever leaves the machine, so ``auto`` stays
+    local-only exactly as before. ``ollama.x`` always runs locally on ``x``. A
+    ``gemini.x`` id routes to Google Gemini; any other explicit id routes to
+    Bedrock. Each explicit cloud pick fails clearly when that provider is
+    unavailable and never silently changes providers. No id means the local default.
     """
     if model_id in _AUTO_IDS:
-        # Agent-chosen model for the agentic loop. Fail-soft: if Ollama is
-        # unreachable or has no usable model, fall through to cloud/default below.
-        chosen = _auto_local_model(ollama, task)
-        if chosen:
-            return ollama, chosen
-        if bedrock is not None:
-            return bedrock, config.BEDROCK_MODEL
+        # Cross-provider auto-route, gated by the operator privacy/cost policy. The
+        # agentic loop requires tool-calling, so local candidates must be tool-capable.
+        chosen = router.route(
+            task,
+            _build_providers(ollama, bedrock, gemini),
+            policy=_router_policy(),
+            require_tools=True,
+        )
+        if chosen is not None:
+            client = _client_for(chosen.provider, ollama, bedrock, gemini)
+            if client is not None:
+                return client, chosen.model
+        # Nothing the policy allows is usable (e.g. no local model + cloud not
+        # opted in). Fail-soft to the local default — NEVER silently to cloud, so
+        # the privacy boundary holds even on the fallback path.
         return ollama, config.LLM_MODEL
     if model_id and model_id.startswith("ollama."):
         local_model = _resolve_local_model(model_id)
