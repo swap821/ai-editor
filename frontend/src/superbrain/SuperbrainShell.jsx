@@ -18,6 +18,7 @@ import WorkspaceCanvas from '@/components/canvas/WorkspaceCanvas';
 import './superbrain.css';
 import Workbench from '../workbench/Workbench';
 import CommandLine from '../workbench/CommandLine';
+import BuildFeed from '../workbench/BuildFeed';
 import '../workbench/shell.css';
 // Loaded AFTER superbrain.css (unlayered → beats the ported @layer rules); hides
 // the cramming HUD in manufacturing mode, scoped to .sb-shell--manufacture only.
@@ -47,6 +48,7 @@ export default function SuperbrainShell() {
             <div className="sb-cosmos" aria-hidden="true" />
             <div className="sb-seam" aria-hidden="true" />
             <div className="sb-workbench-stage">
+              <BuildFeed />
               <Workbench />
             </div>
             <div className="sb-dock-bar">
