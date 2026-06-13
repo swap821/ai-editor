@@ -97,11 +97,14 @@ Integration LANDED on master (4226b4c). Three fronts, in priority order. Standin
 restate the chosen item and WAIT for explicit OK before writing code; ~90% honest target.
 
 ### A. FINISH THE EMBEDDED FORGE (the live, loved front — complete it before pivoting)
-A1. **Truthful content channel** ✅ BUILT (lab 9bcbc61 + master 7261acd; verify end-to-end in HIS
-    browser w/ backend up): on a proposed `create_file` the editor opens the mind's REAL proposed
-    content as a tab — adapter now exposes `getPendingApproval().content`; ForgePorts consumes the
-    `approval-required` bus event. Web files flow to the live preview for free. FOLLOW-UPS: edits
-    show the diff only (not full post-edit content); earned-autonomy auto-writes (no pause, off by default).
+A1. **Truthful content channel** ✅ DONE + FIXED (master 84f1976): the forge editor syncs to the
+    REAL `training_ground` workspace via `GET /api/v1/development/workspace` (read-only, confined to
+    training_ground, newest-first, capped) on mount + after each turn (debounced on bus events) —
+    **PATH-INDEPENDENT**, so earned-autonomy auto-writes AND approval writes AND edits all surface.
+    The demo's bug (operator-caught): with AUTONOMY ⚡1, a create AUTO-APPLIES via the earned path
+    (emits `earned_autonomy`, not `human_required`) so the approval-only A1 never fired — `hello.py`
+    wrote to disk but never showed. The approval-path preview (proposed content during a pause) stays.
+    Verify in HIS browser w/ backend up. (Frame-extracted the demo via ffmpeg to diagnose — no audio.)
 A2. **Port-anchor + GPU tuning in HIS browser** (visual/perf completion): panel sizes/positions
     at the nerve ports (camera-projection-dependent — the make-or-break); validate Monaco + iframe
     GPU on the 16GB machine + local inference; lighter fallback ready.
