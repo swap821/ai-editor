@@ -35,6 +35,8 @@ training_ground/.gitkeep
 .aios/state/coordination.db
 .aios/state/coordination.db-shm
 .aios/state/coordination.db-wal
+# Ephemeral per-session scratch (recovery/parse scripts, extracted frames).
+.aios/tmp/
 
 # --- Parked / source-reference artifacts (not active runtime) ---
 frontend/src/styles/App.css
