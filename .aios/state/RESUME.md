@@ -30,6 +30,17 @@ RegionPins keyboard+aria-expanded, SOUND/mode aria-pressed, link role=status,
 shield aria-live, ghost-plus tabIndex=-1, source-list aria-live flood removed.
 Dropped the recovered stray-brace 'could' finding — the Next build REFUTED it
 (needed closer; unverified findings must pass the build, not just sound right).
+POLISH V = motion + token hygiene LANDED (lab 648291e / product 66deae3):
+ease-loop token, mono hygiene, tabular-nums, interaction-only transitions,
+hover-hairline unify, region-pin open spacing. Verify workflow wf_81181352
+output persisted to .aios/state/vetted_polish_findings.json (49 apply-ready,
+6 rejected). NEXT = POLISH VI = safe shader/galaxy lifts (zero-pixel/interaction
+-only from cortex-shader + space-shaders): casing dither, firefly cutoff
+smoothstep, approval-hold amber on casing, BRAIN_SCALE single-source, hold-amber
++ ladder COMMENTS, galaxy twinkle freq separation, aFlash mount-flash suppress.
+THEN the operator-eye phase (he's live on :3000): 25 resting-frame findings +
+2 held (approval-panel entrance, objective-bar scaleX). 6 rejected stay dropped.
+HISTORICAL:
 POLISH IV = interaction VISUAL states LANDED (lab 576cd0c / product 2c23235):
 focus-visible (white-alpha), region-pin hover/active, mode-button active,
 fidelity-button strong transition + active, approval-actions press. Interaction
