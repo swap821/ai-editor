@@ -38,6 +38,7 @@ from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.role_pass import run_role_pass
 from aios.agents.tool_agent import ToolAgent
+from aios.core.autonomy import AutonomyLedger
 from aios.core.executor import (
     Executor,
     _bounded_run,
@@ -289,6 +290,11 @@ def get_development_tracker() -> DevelopmentTracker:
 def get_skill_memory() -> SkillMemory:
     """Provide verification-backed procedural skill memory."""
     return SkillMemory()
+
+
+def get_autonomy() -> AutonomyLedger:
+    """Provide the earned-autonomy ledger (opt-in; off => never grants autonomy)."""
+    return AutonomyLedger()
 
 
 def get_curriculum_manager() -> CurriculumManager:
@@ -699,6 +705,26 @@ def development_trails(
     evidence as of now, plus superseded-fragment lineage and the constants in
     effect — read-only observability and the tuning evidence base."""
     return skills.trail_map()
+
+
+@app.get("/api/v1/development/autonomy")
+def development_autonomy(
+    autonomy: AutonomyLedger = Depends(get_autonomy),
+) -> dict[str, Any]:
+    """The earned-autonomy ledger: which YELLOW action classes have graduated to
+    autonomous execution by verified-success evidence, which are revoked, and the
+    threshold + master switch in effect — read-only observability for the operator."""
+    return autonomy.ledger_map()
+
+
+@app.post("/api/v1/development/autonomy/revoke")
+def development_autonomy_revoke(
+    signature: str,
+    autonomy: AutonomyLedger = Depends(get_autonomy),
+) -> dict[str, Any]:
+    """Operator force-revoke of an earned signature — human authority over the
+    bridge stays absolute: any earned class can be pulled back to YELLOW at will."""
+    return {"revoked": autonomy.revoke(signature)}
 
 
 @app.get("/api/v1/development/curriculum")
@@ -1270,6 +1296,7 @@ def generate(
     approvals: ApprovalStore = Depends(get_approval_store),
     development: DevelopmentTracker = Depends(get_development_tracker),
     skills: SkillMemory = Depends(get_skill_memory),
+    autonomy: AutonomyLedger = Depends(get_autonomy),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
@@ -1468,6 +1495,10 @@ def generate(
                 # client (not chat_client). It only writes proposals to the report —
                 # never edits or applies source.
                 self_analysis_llm=planner_llm,
+                # Earned-autonomy bridge: opt-in, off by default. When enabled and
+                # a write class has earned it, the turn applies it without pausing
+                # (still gated, audited, and revoked instantly on a verified fail).
+                autonomy=autonomy,
                 **overrides,
             )
         answer_parts: list[str] = []
