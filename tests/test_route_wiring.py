@@ -105,7 +105,8 @@ def test_hybrid_picker_honours_local_model_choice(monkeypatch) -> None:
                         chat_reply={"content": "ollama.llama3.1:8b"})
     client, model = _select_chat_client("auto", ollama, None, gemini=object(), task="reasoning")
     assert ollama.chat_called  # the hybrid pick ran (there was a real choice)
-    assert client is ollama and model == "llama3.1:8b"
+    # 2 candidates -> a failover wrapper whose PRIMARY is the picked local model.
+    assert client.active_provider == "ollama" and model == "llama3.1:8b"
 
 
 def test_hybrid_picker_garbage_reply_falls_back_to_deterministic(monkeypatch) -> None:
@@ -115,7 +116,7 @@ def test_hybrid_picker_garbage_reply_falls_back_to_deterministic(monkeypatch) ->
     ollama = FakeOllama(["qwen2.5-coder:7b"], chat_reply={"content": "uhh not sure"})
     client, model = _select_chat_client("auto", ollama, None, gemini=gemini, task="reasoning")
     assert ollama.chat_called
-    assert client is gemini and model == config.GEMINI_MODEL
+    assert client.active_provider == "gemini" and model == config.GEMINI_MODEL
 
 
 def test_hybrid_picker_not_invoked_when_single_candidate(monkeypatch) -> None:
@@ -135,7 +136,7 @@ def test_hybrid_picker_disabled_by_config_stays_deterministic(monkeypatch) -> No
     ollama = FakeOllama(["qwen2.5-coder:7b"], chat_reply={"content": "ollama.qwen2.5-coder:7b"})
     client, model = _select_chat_client("auto", ollama, None, gemini=gemini, task="reasoning")
     assert not ollama.chat_called  # picker disabled
-    assert client is gemini and model == config.GEMINI_MODEL  # deterministic winner
+    assert client.active_provider == "gemini" and model == config.GEMINI_MODEL  # deterministic winner
 
 
 # --- P3: evidence calibration re-ranks the auto route ----------------------
@@ -150,15 +151,32 @@ def test_calibration_reorders_auto_route(monkeypatch) -> None:
         ("bedrock", config.BEDROCK_MODEL, "reasoning"): 0.95,
         ("gemini", config.GEMINI_MODEL, "reasoning"): 0.05,
     }
-    # No calibration -> deterministic cheaper-cloud (Gemini) wins.
+    # No calibration -> deterministic cheaper-cloud (Gemini) wins (failover primary).
     c0, _ = _select_chat_client("auto", FakeOllama([]), bedrock, gemini=gemini, task="reasoning")
-    assert c0 is gemini
+    assert c0.active_provider == "gemini"
     # Strong calibration + Bedrock's measured success -> Bedrock wins.
     c1, m1 = _select_chat_client(
         "auto", FakeOllama([]), bedrock, gemini=gemini, task="reasoning",
         metrics=metrics, calibration_weight=0.8,
     )
-    assert c1 is bedrock and m1 == config.BEDROCK_MODEL
+    assert c1.active_provider == "bedrock" and m1 == config.BEDROCK_MODEL
+
+
+# --- Failover cascade: auto wraps the ranked candidates -----------------------
+def test_auto_returns_failover_cascade_with_fallbacks(monkeypatch) -> None:
+    # reasoning opted in + a local model + both clouds -> the primary is the picked
+    # route and the cascade carries the rest as fallbacks (one outage never blocks).
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)  # deterministic primary
+    client, _ = _select_chat_client(
+        "auto", FakeOllama(["qwen2.5-coder:7b", "llama3.1:8b"]),
+        bedrock=object(), gemini=object(), task="reasoning",
+    )
+    provs = [p for (_c, _m, p) in client.candidates]
+    assert client.active_provider == "gemini"          # frontier primary for reasoning
+    assert provs[0] == "gemini"                          # primary first
+    assert "bedrock" in provs and "ollama" in provs      # both fallbacks present
+    assert len(provs) == 3
 
 
 def test_provider_name_maps_client_to_provider() -> None:

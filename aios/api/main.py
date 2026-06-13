@@ -48,6 +48,7 @@ from aios.core.executor import (
 )
 from aios.core import router
 from aios.core.bedrock import BedrockClient
+from aios.core.failover import FailoverChatClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
@@ -1213,6 +1214,20 @@ def _provider_name(chat_client: Any, bedrock: Optional[Any], gemini: Optional[An
     return router.PROVIDER_OLLAMA
 
 
+def _active_route(
+    chat_client: Any, bedrock: Optional[Any], gemini: Optional[Any], model: str
+) -> tuple[str, str]:
+    """The ``(provider, model)`` that ACTUALLY served — truthful under failover.
+
+    A :class:`FailoverChatClient` reports the candidate currently serving the turn
+    (which may differ from the top pick once it has ridden a failover), so the
+    audit + the router's evidence calibration credit the model that did the work.
+    """
+    if isinstance(chat_client, FailoverChatClient):
+        return chat_client.active_provider, chat_client.active_model
+    return _provider_name(chat_client, bedrock, gemini), model
+
+
 def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
     """Measured per-(provider,model,task) success rates for evidence calibration.
 
@@ -1269,9 +1284,20 @@ def _select_chat_client(
         )
         chosen = router.pick_from(cands, picker=_maybe_llm_picker(ollama, providers, cands, task))
         if chosen is not None:
-            client = _client_for(chosen.provider, ollama, bedrock, gemini)
-            if client is not None:
-                return client, chosen.model
+            # FAILOVER cascade: the picked route first, then the rest of the allowed
+            # candidates by rank. If the primary errors mid-turn, FailoverChatClient
+            # rides the next automatically — one model's outage never blocks the work.
+            ordered = [chosen] + [r for r in cands if r is not chosen]
+            cascade = []
+            for r in ordered:
+                client = _client_for(r.provider, ollama, bedrock, gemini)
+                if client is not None:
+                    cascade.append((client, r.model, r.provider))
+            if len(cascade) == 1:
+                # Only one allowed candidate -> the raw client (nothing to ride).
+                return cascade[0][0], cascade[0][1]
+            if cascade:
+                return FailoverChatClient(cascade), cascade[0][1]
         # Nothing the policy allows is usable (e.g. no local model + cloud not
         # opted in). Fail-soft to the local default — NEVER silently to cloud, so
         # the privacy boundary holds even on the fallback path.
@@ -1570,7 +1596,13 @@ def generate(
         metrics=_route_metrics(development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
     )
-    provider = _provider_name(chat_client, bedrock, gemini)
+    provider, model = _active_route(chat_client, bedrock, gemini, model)
+
+    def _route_meta() -> dict[str, Any]:
+        """Development metadata for the model that ACTUALLY served (post-failover)."""
+        p, m = _active_route(chat_client, bedrock, gemini, model)
+        return {"provider": p, "model": m, "task": task}
+
     session_id = req.session_id
     if req.approved_commands or req.approved_edits or req.approved_creations:
         raise HTTPException(
@@ -1783,7 +1815,7 @@ def generate(
                     tool_calls=len(workflow_steps),
                     human_interventions=len(req.approval_tokens),
                     blocked_actions=blocked_actions,
-                    metadata={"provider": provider, "model": model, "task": task},
+                    metadata=_route_meta(),
                 )
             except Exception:  # noqa: BLE001 - metrics must never break chat
                 pass
@@ -1950,7 +1982,7 @@ def generate(
                         tool_calls=len(workflow_steps),
                         human_interventions=len(req.approval_tokens),
                         blocked_actions=blocked_actions,
-                        metadata={"provider": provider, "model": model, "task": task},
+                        metadata=_route_meta(),
                     )
                 except Exception:  # noqa: BLE001 - metrics must never break approval
                     pass
