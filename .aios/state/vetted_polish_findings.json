@@ -1,0 +1,555 @@
+{
+  "perLens": [
+    {
+      "lens": "glass",
+      "summary": "Verified all 18 recovered glass findings against the live globals.css (line numbers had shifted ~80-90 lines; the layer/brace structure is critical: @layer components opens at line 91 and closes at line 1602 via the SECOND of the double `}` at 1601/1602 — the approval/fidelity rules below 1604 are unlayered, and that line 1602 closer is load-bearing, NOT a stray brace). Consolidated to 12 distinct findings (deduped the limit-retry pairs: bar+console collisions, approval blur, radius, grain, motion-token, hairline, mono-token each appeared twice).\n\nCONFIRMED (apply as-is): (1) command-bar ::before wire-glow overrides the rim — move wire to unused ::after, restores rim + --rim-top focus toggle; (2) console ::before collision — both consoles ARE .glass-surface so the bottom wire-glow kills the rim and parks the glow at the top; move to a dedicated .console-glow overlay per the established .console-surge precedent; (3) approval-panel backdrop-filter blur-only, no saturate/brightness, no -webkit twin (Safari = zero blur); (4) approval radius 10px (button tier) should be 14px to match the command bar it docks above; (9) three --mono token bypasses (zero-pixel).\n\nADJUSTED (corrected fix given): grain gap (the simple fix MISSES that .approval-panel has no `position` — must add position:relative or grain escapes); approval-actions transition (raw ease/0.15s AND hover paint not transitioned — and the recovered single-property fixes would wrongly drop the now-present transform); approval-diff hairline 0.06->token; approval-reject border de-tint to pure white-alpha; hover-hairline unify at 0.16 (but PRESERVE mode-button 0.14, deliberately paired with is-active); region-pin specular (real asymmetry but resting-frame on a many-instance moving chip — canonSafe=false, defer to operator).\n\nREJECTED: approval-panel full box-shadow stack (already lab-[x]'d; the 24px/70px depth + inner shade is a resting-frame re-weight of the canon amber YELLOW-zone pane, redesign-adjacent — at most a specular-only top edge could be offered later, but even that needs the operator's eye).\n\nVisual cost: most are zero-pixel/interaction-only and safe. The collision fixes (1,2) and the approval blur/radius/grain (3,4,5) are resting-frame restorations of documented canon — recommend lab apply + test-green + goldens + operator before/after A/B per the FIDELITY-IS-SACRED laws before porting via npm run port.",
+      "count": 12
+    },
+    {
+      "lens": "motion",
+      "summary": "Verified the 23 raw motion findings against live globals.css (1781 lines), SuperbrainHUD.tsx, ApprovalPanel.tsx, RegionPins.tsx — consolidated to 13 distinct findings. Line numbers had shifted heavily (globals.css grew ~180 lines past the audit's cited numbers) so I located every finding by content. Several audited defects are ALREADY FIXED in the live tree: region-pin now has transition+:hover+:active (479/487/491), RegionPins.tsx already has onKeyDown+aria-expanded, focus-visible block exists, fidelity-button strong has a color transition, mode-button:active exists. The real remaining motion gaps cluster in three families: (1) the approval-actions buttons are still the file's ONE raw-`ease`/150ms transition with hover paint omitted from the list — highest-value confirmed fix; (2) several truthful topbar state-swaps (status-dot, secure-button TAMPER glow) snap because the box-shadow/background isn't in their transition list — safe since those elements are NOT backdrop-filtered; (3) two genuinely dead inline opacity transitions, a skip-link on UA `ease`, and Execute's whileTap bypassing reduced-motion (no MotionConfig confirmed present). The objective-bar animates `width` inside a backdrop-filtered panel — a real instance of the file's own outlawed trap. Boot-entrance additions (console-surge/region-pin/approval-panel) are real omissions but introduce NEW motion into the operator's deliberately-tuned boot choreography, so I treat them conservatively.",
+      "count": 13
+    },
+    {
+      "lens": "typography",
+      "summary": "Verified all 19 recovered typography findings against the live LAB source, consolidating to 11 distinct issues (8 pairs were limit-retry duplicates). globals.css has shifted significantly since the audit (line numbers all moved ~+30 to +40), and several earlier audit fixes already landed (region-pin hover/active, mode aria-pressed, focus-visible ring, tabular-nums on the mono stats, glass-grain in approval) — so I located every finding by content, not cited line. Headline result: the single cleanest win is tabular-nums on .panel-heading h3 (confirmed, the only proportional-Inter changing-digit surface left). The numeral-tracking, baseline-alignment, --text-3, off-scale-approval, eyebrow-weight, region-pin-tracking, and hero-title findings are all REAL defects but every one changes the resting canon frame, so I mark them resting-frame and, where the visual delta is genuinely sub-perceptual and isolated, canon-safe. The global \"case\" feature finding I REJECT for autonomous apply: it is a broad resting-frame typographic shift, not a micro-refinement, and font-feature-settings replaces (never merges), so an incomplete role list silently strips cv05/case from labels — operator's eye required.",
+      "count": 11
+    },
+    {
+      "lens": "spacing",
+      "summary": "Verified all 10 distinct spacing findings against live globals.css, SuperbrainHUD.tsx, ApprovalPanel.tsx, and RegionPins.tsx. Cited line numbers had drifted (globals.css changed recently — e.g. region-pin :hover/:active and fidelity-button :focus-visible/:active already landed), so I located each by content. 9 confirmed and 1 adjusted; none rejected. The line numbers in the recovered fixes are stale throughout — I re-derived every selector/value against the current file. Two notes: (a) the approval-panel anchoring fix (finding 1) corrects a genuine bug — the panel currently renders static at the top-left under the topbar because it is the only in-flow child of the absolutely-positioned .hud-shell, so its 10px clearance measures against nothing; the fix relocates it to the documented dock above the command bar and should be eyeballed in an actual hold state. (b) The topbar-baseline fix (finding 3) is safe because the .topbar-divider spans are placed by the OUTER .system-summary flex (align-items:center, untouched), not their own inner align-items — so switching the inner .system-summary span to baseline only affects label/strong pairs, with the status-dot needing align-self:center as the fix already specifies.",
+      "count": 10
+    },
+    {
+      "lens": "cortex-shader",
+      "summary": "Verified all 7 distinct cortex-shader findings against the live v6 source (SuperbrainScene.tsx 1306 lines, CorticalSignals.tsx, constants.ts). Cited line numbers had all shifted (v6 rewrite) so I relocated every finding by content. 2 confirmed as clean sub-perceptual quality lifts (casing dither, firefly age cutoff softening). 1 confirmed for the interaction-only half (approval-hold amber on casing — zero change at rest). 3 adjusted: the amber-constant centralization and BRAIN_SCALE/uTime work are real but I split off the risky/zero-value halves; the stale-ladder-comment fix is safe while its sibling rhythm-relink is rejected. 1 rejected at the resting-frame level (reconnecting the severed thought-wave layer adds new moving light to the brain surface = a composition change, operator's eye required) — the defect is real but it is NOT a sub-perceptual lift. Honored the file's own laws: no auto-degrade, motion preserved, canon silhouette untouched on every confirmed fix.",
+      "count": 7
+    },
+    {
+      "lens": "space-shaders",
+      "summary": "Verified all 7 distinct space-shaders findings against live source (MemoryGalaxy.tsx, CosmicBackground.tsx, KnowledgeHorizon.tsx; cross-checked SuperbrainScene/PostFX/WorkspaceCanvas for the pipeline and camera). No retry-duplicates in this section — all 7 are distinct. Verdicts: 5 confirmed/adjusted, 1 rejected, 1 confirmed-with-flag. The headline win is the color-space fix (Finding 1): the galaxy authors display-sRGB values inside a linear-then-output-encoded composer (the horizon already authors LINEAR with toneMapped=false), so the operator's icy-cyan skill-stars currently bloom on-screen to (0.81,0.95,1.0) — visually identical to the sky's blue-white star tint — and the quarantine red washes to salmon; both triage cues he relies on to FIND skill-stars collapse. REJECTED Finding 5 (equirect seam): the atan2 seam is at the -x meridian, ~90° off the 45°-FOV view that always looks toward -z; it is NOT in frame (the finding even miscites camera z≈4.5; real camera is z=8.5), and the proposed atan() swap would rotate the entire visible nebula/star UV mapping — a resting-frame redesign for an invisible seam. Several confirmed fixes change the resting composition (color, weak-star floor/nucleus, dust occlusion) and need the operator's eye before landing.",
+      "count": 7
+    }
+  ],
+  "applyReady": [
+    {
+      "name": "Command-bar ::before is double-booked: wire-glow overrides the edge-lit rim, and the rim's mask/padding strangle the glow (focus brightening dead)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "evidenceCheck": "VERIFIED in live source. `.command-bar::before` is declared TWICE inside @layer components (opens line 91, closes line 1602): first at line 165 as the shared edge-lit rim (`.glass-surface::before, .command-bar::before`, padding:1px, xor mask lines 178-181, top stop riding var(--rim-top) line 173), then again at line 1201 as the wire glow (top:-5px; left/right:20%; height:60px; blur(30px); z-index:-1; animation wireGlowSurge reverse). Equal specificity (0,1,1), same layer, source order => the later wire rule wins per-property: rim `background` gradient is overwritten, so `:focus-within{ --rim-top:0.24 }` at line 1217-1219 is a dead toggle (nothing on the bar consumes --rim-top anymore). Meanwhile the rim's surviving longhands `padding:1px` + xor mask still apply to the merged pseudo, clipping the 60px glow strip to a 1px ring before blur(30px). Both effects corrupted. The established `.console-surge` overlay pattern (line 430-445 comment: 'The surge lives on a dedicated empty overlay, NOT on the consoles') confirms the fix approach is canon. The command bar's ::after is unused (only consoles use ::after for the scanline at 574-587).",
+      "exactFix": "globals.css line 1201: change the selector `.command-bar::before {` to `.command-bar::after {`. Keep ALL declarations byte-identical (content:''; position:absolute; top:-5px; left:20%; right:20%; height:60px; the 3-stop linear-gradient 90deg; filter:blur(30px); z-index:-1; animation:wireGlowSurge 3s ease-in-out infinite reverse; pointer-events:none). This frees ::before so the rim (line 165) renders on the bar again and the `--rim-top` focus brightening at 1217 comes back, while the wire glow continues unchanged on the now-unused ::after. Restoration of documented canon, not a redesign. Operator should eyeball one A/B since the rim re-appearing is a resting-frame change (currently absent on the bar).",
+      "lens": "glass"
+    },
+    {
+      "name": "Console ::before collision: both consoles carry .glass-surface, so the bottom wire-glow overrides the rim AND parks the glow at the top",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "evidenceCheck": "VERIFIED. SuperbrainHUD.tsx:1033 `<aside className=\"left-console glass-surface\">` and :1083 `<aside className=\"right-console glass-surface\">` — both ARE .glass-surface. So `.glass-surface::before` rim (globals.css:164, inset:0, padding:1px, xor mask, var(--rim-top)) and `.left-console::before, .right-console::before` wire glow (globals.css:556-569: bottom:-5px; left/right:10%; height:60px; 4-stop gradient; blur(30px); z-index:-1; wireGlowSurge) target the SAME ::before. Equal specificity, same layer, wire is later => wins per-property: rim background replaced. Worse, the rim's `inset:0` supplies top:0 which, combined with the wire's bottom:-5px + height:60px, over-constrains positioning so the intended bottom-anchored 60px strip stretches/anchors top instead of 'surging UP into the bottom' (stated intent at comment line 555). The rim's surviving padding:1px + xor mask also clip the glow to a 1px ring. ::after is NOT available (holds the scanline, 574-587). The `.console-surge` overlay (line 437) is the established precedent for moving paint off the backdrop-filtered pseudo.",
+      "exactFix": "Two coordinated edits. (1) SuperbrainHUD.tsx: add `<i className=\"console-glow\" aria-hidden />` as a child of each aside (left-console near :1033, right-console near :1083), alongside the existing `<i className=\"glass-grain\" aria-hidden />`. (2) globals.css line 556: change selector `.left-console::before,\\n.right-console::before {` to `.left-console .console-glow,\\n.right-console .console-glow {` and drop only `content: '';` (line 558); keep every other declaration byte-identical (position:absolute; bottom:-5px; left:10%; right:10%; height:60px; the 4-stop gradient line 564; filter:blur(30px); z-index:-1; animation:wireGlowSurge 3s ease-in-out infinite; pointer-events:none). z-index:-1 still nests inside the aside's stacking context; overflow:hidden on the console keeps the clip. This restores the rim + :focus brightening AND the bottom-anchored surge simultaneously. Requires lab build + goldens + operator A/B (resting-frame).",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval panel backdrop-filter is blur-only: omits saturate(140%) brightness(1.08) and the -webkit- twin (Safari renders zero blur; pane reads flat/milky vs the resaturated command bar it docks above)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "evidenceCheck": "VERIFIED. globals.css line 1683 `.approval-panel { backdrop-filter: blur(14px); }` — no saturate, no brightness, and NO `-webkit-backdrop-filter` line. The canon recipe is `blur(14px) saturate(140%) brightness(1.08)` WITH the -webkit twin on both `.glass-surface` (lines 156-157) and `.command-bar` (lines 1195-1196). The approval panel docks directly above the resaturated command bar (margin 0 auto 10px, line 1674), so the flat blur is visible side-by-side; WebKit gets zero blur with no -webkit prefix. This was [C]-confirmed in the recovered file (recovered line 195) and is real.",
+      "exactFix": "globals.css line 1683: replace `  backdrop-filter: blur(14px);` with TWO lines: `  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);` and `  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);`. Amber border (1680) and warm tint background (1679) untouched. Resting-frame on the panel (pulls nebula color into the glass) — operator A/B recommended, but it brings the panel into the locked canon recipe rather than redesigning it.",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval panel corner radius drifts to button-tier 10px while docked flush above the 14px command bar",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "evidenceCheck": "VERIFIED. globals.css line 1681 `.approval-panel { border-radius: 10px; }`. Pane-tier radii: `.glass-surface` 16px (line 151), `.console-surge` 16px (line 443), `.command-bar` 14px (line 1189). 10px is the BUTTON tier (`.command-chip` 10px line 1225; execute-button uses 10px). The panel sits via margin:0 auto 10px (line 1674) directly above the 14px command bar, so two glass corners 10px apart show mismatched curvature. recovered line 201 [C]-confirmed.",
+      "exactFix": "globals.css line 1681: change `  border-radius: 10px;` to `  border-radius: 14px;` (matches the command bar it docks onto). The inner `.approval-diff` at 6px (line 1725) stays — remains concentric-plausible inside a 14px outer. Resting-frame (corner curvature shift) — minor, but operator's eye on the A/B.",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval panel is the only glass pane without .glass-grain, and it has no `position` so an added grain would escape",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "evidenceCheck": "VERIFIED both halves. ApprovalPanel.tsx renders no `.glass-grain` child (full read: header/explanation/diff/actions only, no grain). Command bar + both consoles all carry `<i className=\"glass-grain\" aria-hidden />` (SuperbrainHUD.tsx:1014, 1075, 1144). `.glass-grain` (globals.css:187-196) is `position:absolute; inset:0; border-radius:inherit`. Crucially `.approval-panel` (1672-1685) declares NO `position` — recovered finding at line 204 caught this; the simpler grain finding at recovered line 174 MISSED it (it wrongly claimed nothing else is needed). The panel has overflow:hidden (1684) but absolute children resolve against the nearest positioned ancestor, not an overflow box, so without position the grain escapes to a far ancestor.",
+      "exactFix": "Two edits. (1) globals.css: add `  position: relative;` to `.approval-panel` (insert after line 1673 `pointer-events: auto;`). (2) ApprovalPanel.tsx: add `<i className=\"glass-grain\" aria-hidden />` as the last child of the `<section className=\"approval-panel\">`, immediately before `</section>` (after the `.approval-actions` div, line 111). No CSS change to .glass-grain needed (border-radius:inherit + opacity 0.04 + 128px tile apply as-is). The grain over the flat rgba(14,11,6,0.78) fill is a sub-perceptual anti-banding texture but it IS a resting-frame addition — operator A/B.",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval action buttons ride raw `ease`/0.15s off the motion-token system, and the hover paint (background/border/color) is not transitioned",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "VERIFIED with a correction to the recovered fix. Live line 1749 `.approval-actions button { transition: opacity 0.15s ease, transform 0.15s ease; }`. Note: `transform` IS already in the list (the recovered single-property findings at lines 180/210 predate the active-state addition at line 1778 and would WRONGLY drop transform). The real defects: (a) raw `ease` keyword + 0.15s, the only transition in the file off the var(--ease-out-quart) token contract (lines 22-26); (b) `.approval-authorize:hover` background (1763-1765) and `.approval-reject:hover` border-color+color (1773-1776) are NOT in the transition list, so hover colors snap. Token is `--ease-out-quart` (confirmed used throughout, e.g. line 344, 856).",
+      "exactFix": "globals.css line 1749: replace `  transition: opacity 0.15s ease, transform 0.15s ease;` with `  transition: opacity 200ms var(--ease-out-quart), transform 120ms var(--ease-out-quart), background 200ms var(--ease-out-quart), border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);`. (transform kept at 120ms so the :active translateY(1px) press stays snappy; others at 200ms to match the file's hover grammar.) Interaction-only — no resting-frame change.",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval-diff hairline drifts off the --hairline token (0.06 vs canon 0.08)",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "evidenceCheck": "VERIFIED. globals.css line 1724 `.approval-diff { border: 1px solid rgba(255, 255, 255, 0.06); }`. The canon token `--hairline: rgba(255, 255, 255, 0.08)` (line 15) is used by every other neutral 1px frame (e.g. secure-button 338, mode-num 696, agent-card-tier 1035/1051, command-chip 1224). 0.06 appears nowhere else. recovered lines 183 & 216 both flag it; line 216 correctly notes that swapping to the token is a literal +0.02 alpha lift on a recessed diff well.",
+      "exactFix": "globals.css line 1724: change `  border: 1px solid rgba(255, 255, 255, 0.06);` to `  border: 1px solid var(--hairline);`. This is a +0.02 alpha brighten of the diff-well frame (token consistency). It is a (tiny) resting-frame change. If the well is intended to read recessed-darker than other frames, the canon-clean alternative is to leave 0.06 but mint a `--hairline-dim: rgba(255,255,255,0.06)` token at :root and reference it — do not keep the freehand literal. Lean: token it. Operator's eye since it nudges a static frame.",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval-reject border tints the hairline with the text-1 base color instead of the pure white-alpha family",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "evidenceCheck": "VERIFIED. globals.css line 1769 `.approval-reject { border: 1px solid rgba(232, 238, 250, 0.25); }`. 232,238,250 is the text-1 base (--text-1 is this bluish-white), whereas every other neutral resting border uses the pure white-alpha family (e.g. secure-button hover rgba(255,255,255,0.18) line 348, ghost-plus hover 0.18 line 860). The hover state of approval-reject is deliberately tinted red (rgba(255,141,126,0.6), line 1774) — that's a meaningful warning hue and must stay; only the RESTING neutral border is off-family.",
+      "exactFix": "globals.css line 1769: change `  border: 1px solid rgba(232, 238, 250, 0.25);` to `  border: 1px solid rgba(255, 255, 255, 0.25);` (same 0.25 weight, de-tinted to pure white-alpha). Leave the red `:hover` border (line 1774) untouched. This is a barely-perceptible hue-neutralization of a resting border (232,238,250 vs 255,255,255 at 0.25 alpha) — resting-frame, so flag for the operator's eye, but it aligns to the canon neutral-border family.",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval block bypasses the --mono token three times (raw var(--font-jetbrains-mono), monospace)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "evidenceCheck": "VERIFIED. globals.css lines 1695 (.approval-title), 1720 (.approval-diff), 1743 (.approval-actions button) each write `font-family: var(--font-jetbrains-mono), monospace;` literally, while `--mono: var(--font-jetbrains-mono), monospace;` is defined at line 19 and used at 15+ sites (e.g. 289, 297, 471, 702, 1228). The expansion is bit-identical — rendered output unchanged. recovered lines 189 & 213.",
+      "exactFix": "globals.css: replace `font-family: var(--font-jetbrains-mono), monospace;` with `font-family: var(--mono);` at lines 1695, 1720, and 1743. Zero rendered-pixel change (identical expansion); pure token hygiene.",
+      "lens": "glass"
+    },
+    {
+      "name": "Hover hairline brightness drifts across the same standalone-control role: secure-button/ghost-plus 0.18 vs agent-card 0.16",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "VERIFIED all four live values. `.secure-button:hover` border-color rgba(255,255,255,0.18) (line 348); `.ghost-plus:hover` 0.18 (line 860); `.agent-card:hover` 0.16 (line 1043); `.mode-button:hover` 0.14 (line 735). The file is otherwise rigorously tokenized (--hairline, --rim-top) but the hover hairline is freehand. mode-button:hover 0.14 is INTENTIONALLY matched to `.mode-button.is-active` 0.14 (line 746) so hover never outshines active in the rail — must NOT be touched. recovered line 207.",
+      "exactFix": "Unify the standalone-control hovers at 0.16 (agent-card already there): globals.css line 348 change `rgba(255, 255, 255, 0.18)` -> `rgba(255, 255, 255, 0.16)`; globals.css line 860 change `rgba(255, 255, 255, 0.18)` -> `rgba(255, 255, 255, 0.16)`. Leave `.mode-button:hover` 0.14 (line 735) and agent-card 0.16 (line 1043) as-is. Interaction-only (a ~0.02-alpha hover-brightness reduction on two controls), no resting-frame change. Low risk; sub-perceptual.",
+      "lens": "glass"
+    },
+    {
+      "name": "Approval-action buttons ride raw `ease` at 150ms AND their hover paint isn't in the transition list",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live globals.css:1749 is `.approval-actions button { ... transition: opacity 0.15s ease, transform 0.15s ease; }` — the only raw-`ease`/150ms declaration in the file (every other state transition is `200ms var(--ease-out-quart)`, e.g. :344, :856, :1038). The hover rules `.approval-authorize:hover:not(:disabled){ background: ... }` (1763-1765) and `.approval-reject:hover:not(:disabled){ border-color/color }` (1773-1776) change properties NOT in the transition list, so those hover colors hard-snap while only opacity/transform fade. Note: live already added `transform 0.15s ease` (for the :active translateY at 1778), so the fix must keep transform.",
+      "exactFix": "globals.css:1749 — replace `  transition: opacity 0.15s ease, transform 0.15s ease;` with `  transition: opacity 200ms var(--ease-out-quart), transform 120ms var(--ease-out-quart), background 200ms var(--ease-out-quart), border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);` (keeps the press transform snappy at 120ms, brings hover bg/border/color onto the token, drops raw `ease`). Consolidates the three retry variants: the 222-version's 'hover not transitioned' is the correct, fuller fix; the 258/260 single-property `opacity 200ms` variant is too narrow because it would leave hover paint snapping and would drop the existing transform.",
+      "confidence": 0.95,
+      "lens": "motion"
+    },
+    {
+      "name": "status-dot live↔down swap is an instant color/glow pop (no transition on base class)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live `.status-dot` (globals.css:322-326) declares width/height/border-radius only — no transition. `.status-dot--live` (328-332) sets background:var(--accent)+box-shadow, `.status-dot--down` (533-536) sets amber background+box-shadow. SuperbrainHUD.tsx:862 swaps the class on link change. The status-dot lives in `.topbar` which has NO backdrop-filter (topbar at 225-236 is a plain grid), so the 'static class swaps only' perf rule (which exists only to protect backdrop-filtered panels) does not apply here — a paint transition is safe. The --live dot also runs `animation: breathe`, but a background-color/box-shadow transition does not conflict with an opacity keyframe.",
+      "exactFix": "globals.css:322 `.status-dot` block — append after `border-radius: 50%;`: `  transition: background-color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);`. Zero resting-frame change; only the live↔offline transition is eased. (Dedupes lines 240 + 270.)",
+      "confidence": 0.9,
+      "lens": "motion"
+    },
+    {
+      "name": "secure-button TAMPER red glow pops — box-shadow missing from the transition list",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live globals.css:344 `.secure-button { ... transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart); }`. `.secure-button--tamper` (543-547) adds `box-shadow: 0 0 14px rgba(255, 92, 92, 0.25)` plus border/color; `.secure-button--hold` (538-541) only touches color+border. So on a tamper event the border and color ease over 200ms while the red glow snaps in — a mixed-speed change on one element. The secure-button is in the non-backdrop-filtered topbar, so easing paint is safe.",
+      "exactFix": "globals.css:344 — replace `  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);` with `  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);`. (Dedupes lines 240 + 273.)",
+      "confidence": 0.9,
+      "lens": "motion"
+    },
+    {
+      "name": "Two inline opacity transitions are dead code (agent detail <small> and intake <h3>) — declared curve never fires",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live SuperbrainHUD.tsx:553 `<small style={{ transition: 'opacity 0.3s var(--ease-out-quart)' }}>{detail}</small>` and :1089 `<h3 style={{ transition: 'opacity 0.6s var(--ease-out-quart)' }}>...`. In both, only the text children swap; computed opacity stays 1, so the transition has no start/end delta and never plays — the text hard-snaps. Real defect. BUT the recovered fix is risky: it proposes re-keying with `key={detail}`/`key={...}` + a new keyframe. Re-keying `<h3>` on `linkUp && telemetry` content would re-fire the fade on EVERY telemetry poll (trails/verified numbers change each poll) — a flicker the audit's own 278-variant tried to dodge with a coarser key. Safest minimal fix is to delete the dead declarations (no behavior change, removes a lie) rather than introduce a new per-poll animation.",
+      "exactFix": "Conservative (recommended): delete the dead `transition` from both inline styles. SuperbrainHUD.tsx:553 → `<small>{detail}</small>`; SuperbrainHUD.tsx:1089 → `<h3>` (drop the `style` prop). If a real crossfade is wanted instead, key the <small> on `key={detail}` with a fade-enter keyframe (300ms quart) — but key the <h3> on a STABLE token `key={linkUp && telemetry ? 'live' : intakeLabel}` (NOT the full string) so per-poll telemetry numbers don't re-trigger it, and use 600ms expo to match the existing intent. Mark the keyframe approach canon-safe only after an A/B; the delete is unconditionally safe.",
+      "confidence": 0.85,
+      "lens": "motion"
+    },
+    {
+      "name": "Skip link slides on the browser-default `ease` instead of a token",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live SuperbrainHUD.tsx:837 inline style `transition: 'transform 0.2s'` on the skip link (timing function omitted → UA `ease`). It is the only interactive transition in the HUD off the declared curve; the link is keyboard-only (translateY hidden until :focus at 839). Pure micro-refinement, no resting-frame impact (link is off-screen at rest).",
+      "exactFix": "SuperbrainHUD.tsx:837 — change `              transition: 'transform 0.2s',` to `              transition: 'transform 200ms var(--ease-out-quart)',`. (Dedupes lines 255 + 288.)",
+      "confidence": 0.95,
+      "lens": "motion"
+    },
+    {
+      "name": "Execute whileTap scale bypasses prefers-reduced-motion (no MotionConfig)",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live SuperbrainHUD.tsx:1002-1006 `<motion.button className=\"execute-button\" whileTap={{ scale: 0.97 }} transition={{ duration: 0.12 }} type=\"submit\">`. Grep confirms NO `MotionConfig`/`reducedMotion=\"user\"` in src (the only hits are BootSequence's unrelated local state). motion/react writes the scale inline per frame, so the CSS reduced-motion clamp at globals.css:1561-1568 (`transition-duration: 0.01ms !important`) cannot stop it — and the belt there only pins `.execute-wrap`/`::before`, not the button's JS-driven scale. Every other JS motion in the file (useTweenedMetric:282, useDecodeOnHover:321, useMagneticPull:362) already guards on `prefersReducedMotion()`; this one is the lone gap. The recovered fix has two variants; the inline guard (281) is lower-blast-radius and uses the helper already in the file — prefer it over wrapping the whole tree in MotionConfig.",
+      "exactFix": "SuperbrainHUD.tsx:1004 — change `                whileTap={{ scale: 0.97 }}` to `                whileTap={prefersReducedMotion() ? undefined : { scale: 0.97 }}` (the `prefersReducedMotion` helper is already defined at line 267 and used elsewhere). This is the consolidation of the duplicate findings (237/279); skip the broader MotionConfig-wrap variant — it touches the whole hud-shell and changes nothing else's behavior, so it's unnecessary surface area. Optionally also pin the easing token: `transition={{ duration: 0.12, ease: [0.25, 1, 0.5, 1] }}` (the quart cubic-bezier) — cosmetic, low value.",
+      "confidence": 0.85,
+      "lens": "motion"
+    },
+    {
+      "name": "Objective bar animates `width` inside a backdrop-filtered panel (the file's own outlawed layout+re-blur trap)",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live globals.css:801-807 `.objective-bar i { ... transition: width 500ms var(--ease-out-quart); }`, driven by SuperbrainHUD.tsx:1065 `<i style={{ width: `${objectivePct}%` }} />`. The objective card is inside `<aside className=\"left-console glass-surface\">` (SuperbrainHUD.tsx:1033), and `.glass-surface` carries `backdrop-filter: blur(14px)...` (156). The file repeatedly forbids exactly this: the scanline comment (571-573) and the powerSurge comment (430-436) both state that animating layout/paint inside a backdrop-filtered panel forces a full re-blur every frame. The track `.objective-bar` has `overflow: hidden` + `border-radius: 3px` (794-799), so a transform-scaleX fill clips identically. Real defect; the recovered scaleX fix is correct. I mark it 'adjusted' only to flag that the value binding must move from `width` to `transform` in the SAME edit (CSS + JSX together) or the bar breaks — and to note the 500ms→350ms retiming (finding 249) is a SEPARATE, optional choice that should not be bundled in silently.",
+      "exactFix": "globals.css:801-807 `.objective-bar i` — replace `  background: rgba(232, 238, 250, 0.6);\\n  transition: width 500ms var(--ease-out-quart);` with `  width: 100%;\\n  background: rgba(232, 238, 250, 0.6);\\n  transform: scaleX(0);\\n  transform-origin: left center;\\n  transition: transform 500ms var(--ease-out-quart);`. AND SuperbrainHUD.tsx:1065 — change `style={{ width: `${objectivePct}%` }}` to `style={{ transform: `scaleX(${objectivePct / 100})` }}`. Both edits are required together. Keep 500ms (changing to 350ms to match the number tween is a defensible but separate call — do NOT bundle).",
+      "confidence": 0.8,
+      "lens": "motion"
+    },
+    {
+      "name": "Five looping animations ride literal `ease-in-out`, contradicting the 'every animation rides a token' header",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "evidenceCheck": "Grep confirms exactly 5 `ease-in-out` refs: breathe at 331 (2.2s) and 1114 (1.6s), wireGlowSurge at 567 and 1211 (3s), title-shimmer at 1421 (1.2s). The header contract (22-23) says every transition/animation rides the declared tokens, but the token set has no symmetric loop curve, so authors reach for raw `ease-in-out`. The recovered fix (add `--ease-loop: cubic-bezier(0.42, 0, 0.58, 1)` — the literal ease-in-out — and swap the five refs) is byte-for-byte visually identical because that cubic-bezier IS the CSS `ease-in-out` keyword. Correct and zero-pixel. I mark 'adjusted' only to stress this is a documentation/token-hygiene change with literally no rendered difference — verify the cubic-bezier equals the keyword before landing (it does: ease-in-out ≡ cubic-bezier(0.42,0,0.58,1)).",
+      "exactFix": "globals.css — after the token block (insert after line 26, the `--ease-in-soft` line): add `  /* Symmetric loop curve (≡ the CSS ease-in-out keyword) for infinite ambient loops. */\\n  --ease-loop: cubic-bezier(0.42, 0, 0.58, 1);`. Then replace `ease-in-out` with `var(--ease-loop)` at lines 331, 567, 1114, 1211, 1421 (exact substring swap in each `animation:` shorthand). Zero rendered change; purely brings the five ambient loops onto the token system the header promises.",
+      "confidence": 0.85,
+      "lens": "motion"
+    },
+    {
+      "name": "ApprovalPanel mounts/unmounts with zero entrance — the amber alertdialog pops in instantly",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live `.approval-panel` (globals.css:1672-1685) declares no animation; SuperbrainHUD.tsx:977-979 conditionally mounts `<ApprovalPanel>`. The most attention-critical surface is the only major pane skipping the canon expo entrance. `hud-enter` (1375-1380, from{opacity:0;translateY(14px)}) is reusable and the panel has no transform of its own, so it settles to natural style. The two recovered variants differ only in duration (450ms vs 650ms); 450ms is better for a mid-session pane that must read fast (boot's 650ms is for the cold-start curtain). Reduced-motion is already covered by the global duration clamp (1565). I mark 'adjusted' because this ADDS motion to a surface the operator sees mid-session — it's canon-pattern-consistent and settles to the identical resting frame, but it should get the operator's eye since it's a new entrance, not a refinement of an existing one.",
+      "exactFix": "globals.css:1672 `.approval-panel` block — append `  animation: hud-enter 450ms var(--ease-out-expo) both;` (reuses the existing keyframe at 1375-1380). No JSX change. Pick 450ms (not boot's 650ms) so the operator's decision surface arrives promptly. Consolidates findings 231 + 264.",
+      "confidence": 0.7,
+      "lens": "motion"
+    },
+    {
+      "name": "Mode-rail is-active children (.mode-dot/.mode-num/.mode-copy strong) snap while the parent button eases; objective % readout snaps vs its bar",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "evidenceCheck": "Live globals.css:688 `.mode-button { ... transition: 200ms var(--ease-out-quart); }` (all-property) eases the button, but the is-active swaps land on untransitioned children: `.mode-dot` (725-730) → accent fill+glow at 760-763; `.mode-num` (691-705) → border/color brighten at 751-754; `.mode-copy strong` (712-717) → color at 756-758. None of these three child selectors declares its own transition, so on mode change the dot/ring/text pop while the button background eases. The children are inside a non-backdrop-filtered console region for paint purposes (the button itself isn't blurred), and the file already eases sibling paint (e.g. agent-card 1038), so this is consistent. Real. (The 249/251 objective-readout-snap variant is a related but distinct 'could' — the bar at 806 eases width 500ms while `<strong>{objectivePct}%</strong>` at 1062 is raw state; that's a separate optional polish, listed here only to note it was NOT merged into this fix.)",
+      "exactFix": "globals.css — add a transition to each is-active child base selector: to `.mode-dot` (after `background: transparent;` at 729) add `  transition: background-color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);`; to `.mode-num` (after its `font-variant-numeric` at 704) add `  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);`; to `.mode-copy strong` (after `letter-spacing` at 716) add `  transition: color 200ms var(--ease-out-quart);`. Dedupes 246 + 285. Do NOT bundle the objective-bar/readout retiming (249/251) — separate finding, separate review.",
+      "confidence": 0.85,
+      "lens": "motion"
+    },
+    {
+      "name": "Live telemetry digits in .panel-heading h3 lack tabular figures (width jitter every poll) — consolidates the two duplicate retries",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "confidence": 0.95,
+      "evidenceCheck": "globals.css .panel-heading h3 block (live lines 837-842) declares only margin/color/font-size:14px/font-weight:510 — no font-variant-numeric, and it inherits Inter (proportional) from body. SuperbrainHUD.tsx:1089-1093 renders `Pheromone map · ${telemetry.trails} trail(s) · ${telemetry.verified} verified` into this exact <h3>. Every other changing-digit element already carries tabular-nums: .system-summary strong (313), .objective-head strong (790), .source-value (946), .agent-heading strong (1020), .terminal-log p (1145) and p em (1157). This is the lone proportional-font live-digit surface without it — trailing text reflows on each telemetry poll.",
+      "exactFix": "In globals.css .panel-heading h3 (currently:\n  .panel-heading h3 {\n    margin: 10px 0 0;\n    color: var(--text-1);\n    font-size: 14px;\n    font-weight: 510;\n  }\n) add one line before the closing brace:\n    font-variant-numeric: tabular-nums;\nZero change at rest (the heading text is unchanged until a poll moves a digit); kills the per-poll digit-width jitter.",
+      "lens": "typography"
+    },
+    {
+      "name": "Numerals inherit 0.12em caps tracking in .system-summary strong and .objective-head strong",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.85,
+      "evidenceCheck": ".system-summary { letter-spacing: 0.12em } (live 299) is inherited by .system-summary strong (309-314: font-size 13px, tabular-nums, NO letter-spacing override) so the LATENCY value `128ms` carries caps tracking between digits. Same for .objective-head { letter-spacing: 0.12em } (782) inherited by .objective-head strong (786-791) tracking `62%`. The peer mono stat values are untracked: .source-value (942-947, no parent letter-spacing) and .agent-heading strong (1015-1021 — .agent-heading itself has no letter-spacing; only its sibling .agent-heading span at 1012 is tracked). So identical-role numbers carry two different trackings. Real.",
+      "exactFix": "Add `letter-spacing: normal;` to BOTH .system-summary strong (globals.css 309-314 block) and .objective-head strong (786-791 block). Resting-frame: it tightens the digit spacing of `Nms` / `N%` to match source-value/agent-heading. Canon-safe — it removes an inconsistency rather than introducing a new value, and the labels (uppercase caps roles) keep their 0.12em untouched.",
+      "lens": "typography"
+    },
+    {
+      "name": "Topbar stat pair (.system-summary span) center-aligned, not baseline — 10px label vs 13px value drift ~1.5px (consolidates the two retries + the spacing-lens copy)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.8,
+      "evidenceCheck": ".system-summary span { display:flex; align-items:center; gap:7px } (live 303-307) vertically centers the 10px mono caps label against the 13px strong value (309-314). The file's own convention for the same 10px-label+13px-strong pattern is baseline: .objective-head (align-items:baseline, 778) and .agent-heading (align-items:baseline, 987). The status-dot <i> sits inside the first span (SuperbrainHUD.tsx:861-864), so a baseline switch would drop the 6px dot off the caps line — the fix's align-self:center on .status-dot corrects exactly that. .status-dot (322-326) currently has no align-self.",
+      "exactFix": "globals.css 306: change `align-items: center;` to `align-items: baseline;` inside .system-summary span, and add a new rule:\n  .system-summary .status-dot { align-self: center; }\n(the existing .status-dot block is 322-326; either extend it with align-self:center or add the scoped rule). Resting-frame ~1.5px value-baseline shift in the 64px topbar; matches the file's established baseline convention exactly. Canon-safe but it does move a static composition row — borderline, leaning safe because it aligns to the author's own pattern.",
+      "lens": "typography"
+    },
+    {
+      "name": "Agent name (13px) vs state word (10px mono) center-aligned, not baseline (.agent-info strong) — consolidates the two retries",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.78,
+      "evidenceCheck": ".agent-info strong { display:flex; align-items:center; gap:8px } (live 1072-1079) pairs the 13px agent name (.agent-name) with the 10px mono em.agent-state (1089-1098); centering puts the state word's baseline above the name's on every card ('Planner active'). Peer rows use baseline (.objective-head 778, .agent-heading 987). Note the second retry's claim that the 6px state dot is unaffected is correct: .agent-state::before (1100-1106) centers inside .agent-state's own inline-flex (align-items:center, 1091), so no extra align-self is needed here (unlike the topbar dot).",
+      "exactFix": "globals.css 1074: change `align-items: center;` to `align-items: baseline;` in .agent-info strong. No status-dot compensation needed (the .agent-state dot lives in .agent-state's own inline-flex, not in .agent-info strong's flow). Resting-frame ~1px shift of the state word; matches the author's baseline convention.",
+      "lens": "typography"
+    },
+    {
+      "name": "Region-pin tracking 0.14em off the 0.12em mono micro-label token, and inherited onto its live digits — consolidates the two retries",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.82,
+      "evidenceCheck": ".region-pin { letter-spacing: 0.14em } at mono 10px (live 473). Every other 10px mono micro-label uses 0.12em: build-tag (291), system-summary (299), eyebrow (625), objective-head (782), agent-heading span (1012), terminal-log span (1137), hud-footer (1340). .brand-wordmark (276) is also 0.14em but it is the 15px Display role — correctly excluded. .region-pin strong (519-523: font-size 11px, weight 600, color) has no letter-spacing override, so it inherits 0.14em onto the live metric digits the pin is bound to.",
+      "exactFix": "globals.css 473: change `letter-spacing: 0.14em;` to `letter-spacing: 0.12em;` on .region-pin, and add `letter-spacing: normal;` to .region-pin strong (519-523 block) so the bound metric digits read tight like every other stat value. Resting-frame (sub-pixel tracking shift on a chip that rides the brain); canon-safe — it conforms the pin to the file's single mono-caps token.",
+      "lens": "typography"
+    },
+    {
+      "name": "Hero title re-centers when the mode number changes — .core-readout h2 lacks tabular-nums (proportional digits in centered text)",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "confidence": 0.7,
+      "evidenceCheck": "SuperbrainHUD.tsx:957-959 renders `SUPERMIND <span>/ {currentMode.num}</span>` with num '01'/'02'/'03' inside text-align:center .core-readout (368). .core-readout h2 (372-380) is var(--display) (Outfit) with no font-variant-numeric, so differing digit advance widths ('1' vs '2' vs '3') shift the centered lockup on each mode switch. Real, but the magnitude is tiny (only the second glyph of a two-digit suffix changes, and only on an operator mode click — not per-frame). The recovered fix's fallback (min-width on the span) is over-engineering.",
+      "exactFix": "Apply only the first half of the recovered fix: in globals.css .core-readout h2 (372-380) add `font-variant-numeric: tabular-nums;`. Drop the proposed `display:inline-block; min-width:2.4em` span fallback — it is a layout redesign of the suffix and risks de-centering. If Outfit's loaded subset lacks tnum the line is an inert no-op (zero visual change), which is the safe outcome; do NOT add the min-width fallback. Adjusted = take the tnum line, reject the fallback.",
+      "lens": "typography"
+    },
+    {
+      "name": "Approval panel introduces off-scale sizes/trackings (10.5px, 12.5px, 0.18em) + ad-hoc font stacks — consolidates the two retries",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.72,
+      "evidenceCheck": "Live: .approval-summary { font-size: 12.5px } (1702), .approval-actions button { font-size: 10.5px; letter-spacing: 0.18em } (1744-1745), .approval-title { letter-spacing: 0.22em } (1697). Half-pixel sizes are the only fractional sizes in a file whose scale is integer 9/10/11/12/13/14/15; 0.18em is a third caps tracking alongside 0.12em/0.22em. Also .approval-title (1695), .approval-diff (1720), .approval-actions button (1743) hard-code `var(--font-jetbrains-mono), monospace` instead of the --mono token (line 19). The two retries agree except the second adds the font-stack token swap, which is correct and zero-risk.",
+      "exactFix": "globals.css: 1702 `font-size: 12.5px` → `13px`; 1744 `font-size: 10.5px` → `11px`; 1745 `letter-spacing: 0.18em` → `0.12em`. KEEP .approval-title's 0.22em (1697) — it is the deliberate alarm voice, do NOT touch it (the first retry's suggestion to drop it to 0.12em is rejected). Additionally swap the three literal `var(--font-jetbrains-mono), monospace` (1695, 1720, 1743) to `var(--mono)` — identical computed value, zero-pixel, just detangles from the raw font var. Resting-frame because the button/summary sizes shift ~0.5px crisper on 1x displays.",
+      "lens": "typography"
+    },
+    {
+      "name": "Section-label weight drift: .eyebrow 510 vs identical 10px mono caps section openers at 400",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.55,
+      "evidenceCheck": ".eyebrow { font-weight: 510 } (live 624) while same-role 10px/0.12em mono caps section openers default to 400: .objective-head (775-784, 'CURRENT OBJECTIVE'), .agent-heading span (1008-1013, 'AGENT MESH'), .terminal-log span (1132-1138, 'TERMINAL LOG'). Real weight inconsistency. But the direction of the fix is a judgment call: the recovered fix bumps THREE labels UP to 510, which thickens three section headers in the resting frame. An equally valid canon-safe reading is to leave them — 510 vs 400 at 10px mono is a subtle, possibly-intentional emphasis distinction (eyebrow is a leading callout). Lower confidence the bump is wanted.",
+      "exactFix": "If unifying: add `font-weight: 510;` to .objective-head (775 block), .agent-heading span (1008 block), and .terminal-log span (1132 block); leave .hud-footer at 400 (it is a whisper, not a section opener). Resting-frame — three section labels render slightly heavier. Flagging canonSafe=true but confidence low: this is a taste call about which weight is canon, so prefer to surface it for the operator rather than assume the 510 direction; do not pair it with the higher-confidence fixes if landing a minimal set.",
+      "lens": "typography"
+    },
+    {
+      "name": "Approval panel is not anchored above the command bar — its 10px clearance never engages",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current rule (globals.css:1672-1685): `.approval-panel { pointer-events: auto; margin: 0 auto 10px; max-width: 720px; max-height: 42vh; display: flex; flex-direction: column; ... }` — note: NO `position`. Add three properties so it docks above the bar. Replace the `margin: 0 auto 10px;` line (1674) region by inserting before it: `position: absolute; left: 28px; right: 28px; bottom: 104px;` and keep `margin: 0 auto 10px;`. Result: `.approval-panel { pointer-events: auto; position: absolute; left: 28px; right: 28px; bottom: 104px; margin: 0 auto 10px; max-width: 720px; ... }`. Math against live values: command-bar `bottom: 34px` + `height: 70px` (globals.css:1179,1182) = top edge at 104px from viewport bottom, so bottom:104px + margin-bottom 10px lands the panel border-box 10px above the bar; 28px side insets equal the topbar `padding: 0 28px` (globals.css:231); max-width:720 + margin:auto keep it centered.",
+      "evidenceCheck": "Live .approval-panel (globals.css:1672-1685) has only `margin: 0 auto 10px` and no position. It is rendered at SuperbrainHUD.tsx:977-979 inside .hud-shell (position:absolute; inset:0; pointer-events:none — globals.css:103-106,131-133). Every sibling (topbar, core-readout, terminal-log, command-bar form, footer) is position:absolute, so the panel is the SOLE in-flow child and lays out at y=0 under the 64px absolute topbar. The comment 'Amber-framed glass above the command bar' (globals.css:1670) is currently unfulfilled. Cited fix line numbers (1643/1164-1167) were stale; content/derivation is correct.",
+      "confidence": 0.88,
+      "lens": "spacing"
+    },
+    {
+      "name": "Twin consoles have unequal internal insets: left 22px vs right 20px",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current line (globals.css:424-428): `aside.right-console { padding: 20px; display: flex; flex-direction: column; border-bottom: 4px solid transparent; animation: none !important; }`. Change `padding: 20px;` to `padding: 22px;` to match `aside.left-console { padding: 22px; }` (globals.css:419).",
+      "evidenceCheck": "Confirmed exactly: left console padding 22px (globals.css:419), right console padding 20px (globals.css:424). Both are 350px-wide members of the same glass-surface family (globals.css:397-403). No comment justifies the 2px difference and the 900px breakpoint only restyles the left console (globals.css:1493-1499). Real cross-panel rhythm break. Note this is a 2px content shift on a canon panel (resting-frame) — operator should glance, but symmetrizing toward 22px is the conservative direction.",
+      "confidence": 0.74,
+      "lens": "spacing"
+    },
+    {
+      "name": "Topbar baselines: LATENCY-style spans center-align their 10px/13px pair while FIDELITY-style buttons baseline-align theirs",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current rule (globals.css:303-307): `.system-summary span { display: flex; align-items: center; gap: 7px; }`. Change `align-items: center;` to `align-items: baseline;`, then ADD a new rule: `.system-summary .status-dot { align-self: center; }` (so the 6px link dot keeps optical centering against the caps once the span baseline-aligns). The .topbar-divider spans are unaffected — they are placed by the OUTER `.system-summary { align-items: center }` flex (globals.css:240), not by their own inner align-items.",
+      "evidenceCheck": "Confirmed: `.system-summary span { display:flex; align-items:center; gap:7px }` (globals.css:303-307) centers the 10px label against the 13px strong; the .fidelity-button items (SuperbrainHUD.tsx:874-927) render as inline/baseline text. The file's convention for the same 10px-label+13px-strong pattern IS baseline: .objective-head align-items:baseline (globals.css:775-784), .agent-heading align-items:baseline (985-988), .region-pin align-items:baseline (464). The status span is <span role=status><i.status-dot/>CORE ONLINE</span> (SuperbrainHUD.tsx:861-864), so align-self:center on the dot is the right guard. Resting-frame: the LATENCY numeral/label baselines shift — but toward the file's own canon.",
+      "confidence": 0.8,
+      "lens": "spacing"
+    },
+    {
+      "name": "Mode-rail spine is 2px left of the mode-num disc centers",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current rule (globals.css:665-673): `.mode-rail::before { ... left: 17px; top: 20px; bottom: 20px; width: 1px; ... }`. Change `left: 17px;` to `left: 19px;`.",
+      "evidenceCheck": "Confirmed: spine at left:17px (globals.css:668). .mode-button has `border: 1px solid transparent` + `padding: 8px 12px 8px 0` (globals.css:683,678) under border-box (globals.css:36-38), grid first column 36px (line 680), .mode-num 36px (691). Rest-state content starts at x=1px (1px border, 0 left padding), so the 36px disc centers at 1+18=19px — spine is 2px off-axis. (The .is-active button indents padding-left to 10px (line 745) shifting its disc to x=29, but the spine correctly tracks the majority rest discs at 19px.)",
+      "confidence": 0.83,
+      "lens": "spacing"
+    },
+    {
+      "name": "Terminal log left edge misses the command-field text column by 4px",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current rule (globals.css:1123-1130): `.terminal-log { position: absolute; left: calc(50% - 372px); bottom: 104px; ... }`. Change `left: calc(50% - 372px);` to `left: calc(50% - 376px);`.",
+      "evidenceCheck": "Confirmed: log left calc(50% - 372px) (globals.css:1125). Command-bar is 880px max, centered (left:50%; translateX(-50%) — globals.css:1178-1181) so left edge at 50%-440px; padding-left 13px + chip column 38px + column-gap 13px (globals.css:1183-1187) places directive text at 50%-376px. The -372px floats 4px right of the field text column. The log is hidden below 1100px viewport (globals.css:1470-1474) where the bar is still the full 880px, so the -376 alignment holds whenever the log is visible.",
+      "confidence": 0.82,
+      "lens": "spacing"
+    },
+    {
+      "name": "Region-pin chip: gap (7px) + margin-top (4px) double-count above the unfolded sparkline vs 5px below",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "exactFix": "Two edits. (1) globals.css:466 real line `gap: 7px;` (inside .region-pin) → `gap: 5px 7px;` (row-gap 5 / column-gap 7 — preserves the 7px horizontal gap between name and %). (2) globals.css:495-498 `.region-pin-graph { flex-basis: 100%; margin-top: 4px; }` → delete `margin-top: 4px;`. Result: when the chip unfolds, clearance above the svg = 5px row-gap (no margin) = the 5px bottom padding below it.",
+      "evidenceCheck": "Confirmed: .region-pin `flex-wrap: wrap; gap: 7px; padding: 5px 9px` (globals.css:465-467), .region-pin-graph `flex-basis: 100%; margin-top: 4px` (495-497). When PinChip opens (RegionPins.tsx:118-128 renders .region-pin-graph) the wrapped graph row gets the 7px cross-axis row-gap + 4px margin = 11px above the 24px svg vs 5px padding below — bottom-heavy by 6px. The closed/resting pin renders no graph and no wrap, so the resting frame is byte-identical; this only affects the click-opened drill-in state (interaction-only).",
+      "confidence": 0.82,
+      "lens": "spacing"
+    },
+    {
+      "name": "Command bar right inset 9px breaks the bar's 13/13/14px ring around Execute",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current line (globals.css:1183): `.command-bar { ... padding: 0 9px 0 13px; ... }`. Change `padding: 0 9px 0 13px;` to `padding: 0 13px;` so right inset = left inset = column-gap = 13px.",
+      "evidenceCheck": "Confirmed: .command-bar `padding: 0 9px 0 13px` (globals.css:1183), `column-gap: 13px` (1187), `height: 70px` (1182); .command-bar .execute-button `height: 42px` (1280) → vertical ring (70-42)/2 = 14px. Left padding 13 and gap 13 form one family; the 9px right inset is the lone outlier. Harmonizing to 13px is a defensible micro-refinement, but it shifts Execute ~4px left of the right frame — a resting-frame change the operator should confirm.",
+      "confidence": 0.7,
+      "lens": "spacing"
+    },
+    {
+      "name": "Spark endpoint dot is vertically centered on the last sample but sits 1.5px left of it horizontally",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current rule (globals.css:968-977): `.spark-dot { position: absolute; right: 4px; width: 3px; height: 3px; ... }`. Change `right: 4px;` to `right: 2.5px;` (endpoint sits 4px from the track's right padding edge; centering the 3px dot needs right = 4 - 1.5 = 2.5px).",
+      "evidenceCheck": "Confirmed: .spark-dot `right: 4px; width: 3px` (globals.css:968,971) inside .source-spark-track `padding: 3px 4px` (953). The svg is width:100% in the content box, viewBox 0-100 with preserveAspectRatio='none' (SuperbrainHUD.tsx:500), so the last point x=100 maps to the svg right edge = 4px from the track's right edge. The 3px dot at right:4px spans 4-7px (center 5.5px), 1.5px left of the endpoint. The JSX already applies the same -1.5px half-width correction vertically (dotTop = 3 + (28 - lastPoint) - 1.5, SuperbrainHUD.tsx:487) but never horizontally — the fix restores symmetry. ~1.5px shift of a 3px accent dot.",
+      "confidence": 0.8,
+      "lens": "spacing"
+    },
+    {
+      "name": "Approval panel vertical insets: 10px top vs 12px bottom",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current rule (globals.css:1735-1740): `.approval-actions { display: flex; gap: 10px; justify-content: flex-end; padding: 0 14px 12px; }`. Change `padding: 0 14px 12px;` to `padding: 0 14px 10px;` so the panel's top inset (.approval-head `padding: 10px 14px 6px`, globals.css:1691) and bottom inset both read 10px.",
+      "evidenceCheck": "Confirmed: .approval-head `padding: 10px 14px 6px` (globals.css:1691) gives a 10px top inset; .approval-actions `padding: 0 14px 12px` (1739) gives a 12px bottom inset — asymmetric on a panel whose horizontal rhythm is a strict 14px (head 14, explanation 14 at 1708, diff margin 14 at 1715, actions 14). Only renders while an approval is pending (conditionally mounted via ApprovalPanel), so it is a resting-frame change of a transient surface; 2px button shift.",
+      "confidence": 0.75,
+      "lens": "spacing"
+    },
+    {
+      "name": "Terminal log bottom edge sits flush (0px) on the command bar's top edge",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "exactFix": "Real current rule (globals.css:1123-1130): `.terminal-log { ... bottom: 104px; ... }`. Change `bottom: 104px;` to `bottom: 114px;`, giving the log a 10px clearance above the bar — the same gap the approval panel's `margin: 0 auto 10px` (globals.css:1674) uses.",
+      "evidenceCheck": "Confirmed: .terminal-log `bottom: 104px` (globals.css:1126) is exactly the command bar's top edge (bottom 34px + height 70px, globals.css:1179,1182). The log grows upward from a bottom-pinned grid (display:grid, gap:3px), so the newest line's descender box touches the bar frame with 0px clearance. Raising to 114px shifts the whole log up 10px to match the approval-panel clearance convention.",
+      "confidence": 0.78,
+      "lens": "spacing"
+    },
+    {
+      "name": "Casing fresnel glow has no dither — banding on the dark brain face (medium/low)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "confidence": 0.9,
+      "evidenceCheck": "CASING_FRAGMENT_SHADER lives at SuperbrainScene.tsx:580-604 (not the cited line, but byte-identical to the finding). It outputs a smooth additive fresnel ramp (line 598 'vec3 emission = mix(glowColor, irid, 0.5) * fres * 3.0;', line 600 'float alpha = fres * 0.4;') over a near-black diffuse (line 749 diffuseColor.rgb = vec3(0.01,0.02,0.04)). The neuralSkin casing renders unconditionally on ALL tiers (line 893 '<primitive object={neuralSkin.object} scale={1.004} />'). PostFX Noise is high-tier-only and Bloom is absent on low, so the faint cyan ramp quantizes into 8-bit bands on medium/low. The house IGN dither idiom is confirmed verbatim in KnowledgeHorizon.tsx:80-81 ('return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));') and :245. Constants match the finding exactly.",
+      "exactFix": "In CASING_FRAGMENT_SHADER (SuperbrainScene.tsx), between line 598 ('    vec3 emission = mix(glowColor, irid, 0.5) * fres * 3.0; // Intense glow') and line 600 ('    float alpha = fres * 0.4;'), insert:\n    // Interleaved-gradient-noise dither (house idiom, KnowledgeHorizon.tsx:80) —\n    // breaks 8-bit banding on the faint cyan ramp; amplitude +/-1/255, sub-perceptual.\n    float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));\n    emission += (ign - 0.5) * (2.0 / 255.0);\nThis is pure quantization noise-shaping at +/-1/255 — zero look change, only kills banding. Constants are identical to the existing KnowledgeHorizon dither so the grain character matches the rest of the pipeline.",
+      "lens": "cortex-shader"
+    },
+    {
+      "name": "Thought-wave hard cutoff at age 6.0 pops (firefly bias)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "confidence": 0.85,
+      "evidenceCheck": "CorticalSignals.tsx:41 is exactly 'float live = step(0.0, age) * (1.0 - step(6.0, age));'. At age=6.0 the second step() drops live 1->0 in one frame while exp(-a*0.8)=exp(-4.8)~=0.0082 of peak still holds — a ~0.8% single-frame luminance pop on the firefly flash bias (thoughtWave is read at line 91 'thoughtWave(position, uTime, 3.0)'). The cortex front is NOT currently wired (see severed-layer finding), so today this only touches the firefly blink — making the fix even safer. Bit-identical for every age < 5.",
+      "exactFix": "CorticalSignals.tsx:41 — replace\n    float live = step(0.0, age) * (1.0 - step(6.0, age));\nwith\n    float live = step(0.0, age) * (1.0 - smoothstep(5.0, 6.0, age));\nIdentical output for age < 5; over the final second it eases the residual 0.0082 to zero instead of clipping it. Motion preserved, no resting-frame change (waves only exist transiently after events).",
+      "lens": "cortex-shader"
+    },
+    {
+      "name": "Approval-hold amber skips the casing — brightest cyan element ignores the hold",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "confidence": 0.82,
+      "evidenceCheck": "Confirmed divergence: during uHold the cortex tints amber (SuperbrainScene.tsx:783-788 'vec3 holdTone = vec3(1.0, 0.62, 0.22);' mixed at uHold*0.85), the aura lerps to amber (NeuralAura.tsx:347), wires dim (per finding) — but the neuralSkin casing ShaderMaterial receives ONLY uTime (line 815 'uniforms: { uTime: uniforms.uTime },') and CASING_FRAGMENT_SHADER has no uHold uniform. Its full-intensity cyan rim (line 598, emission up to *3.0) keeps shimmering through the hold. The fix's amber constant vec3(1.0,0.62,0.22) and 0.85 cap exactly match the cortex (lines 783-787). Zero change when uHold=0.",
+      "exactFix": "Three exact edits, all in SuperbrainScene.tsx:\n(1) Line 815 — replace 'uniforms: { uTime: uniforms.uTime },' with 'uniforms: { uTime: uniforms.uTime, uHold: uniforms.uHold },'.\n(2) In CASING_FRAGMENT_SHADER, after line 581 ('  uniform float uTime;') add a new line '  uniform float uHold;'.\n(3) Line 593 — replace '    vec3 glowColor = vec3(0.0, 0.8, 1.0); // Cyan base' with '    vec3 glowColor = mix(vec3(0.0, 0.8, 1.0), vec3(1.0, 0.62, 0.22), uHold * 0.85); // Cyan base -> hold amber'.\n(4) Line 598 — replace '    vec3 emission = mix(glowColor, irid, 0.5) * fres * 3.0; // Intense glow' with '    vec3 emission = mix(glowColor, irid, 0.5 * (1.0 - uHold * 0.85)) * fres * 3.0; // Intense glow'.\nSame intensity, same motion, same 0.85 cap as the cortex; identical output when uHold=0. NOTE: this changes the casing during an approval hold (interaction-only, not resting), and brings the most-bloomed element into the canon hold — recommend a quick A/B during a hold before landing.",
+      "lens": "cortex-shader"
+    },
+    {
+      "name": "Three divergent hold-amber constants across layers — divergence trap",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "confidence": 0.55,
+      "evidenceCheck": "All three ambers confirmed present and divergent: cortex GLSL 'vec3(1.0, 0.62, 0.22)' at SuperbrainScene.tsx:783; HOLD_TINT = new THREE.Color('#b96a14') at SuperbrainScene.tsx:179 (feeds uModeTint at line 1188); AURA_HOLD_AMBER = new THREE.Color('#ffb454') at NeuralAura.tsx:61. They are semantically one event but numerically unrelated — a real future-tune trap. However the proposed centralization is a cross-file refactor (export a HOLD_AMBER object, import into NeuralAura, template-inject the GLSL string) whose ONLY payoff is maintainability; it touches three files and the cortex GLSL string for zero rendered-pixel gain, raising build-break risk against the sacred file.",
+      "exactFix": "Defect real, but I downgrade the fix to comment-only to keep it canon-safe with zero refactor risk. Add a cross-reference comment above each constant instead of relocating values:\n- SuperbrainScene.tsx:179 above HOLD_TINT add: '/** HOLD AMBER (uModeTint accent). Siblings: cortex emission vec3(1.0,0.62,0.22) @line 783; aura #ffb454 @NeuralAura.tsx:61. Tune as a set. */'\n- SuperbrainScene.tsx:783 above holdTone add: '// HOLD AMBER (cortex emission). Siblings: HOLD_TINT #b96a14 @line 179; aura #ffb454 @NeuralAura.tsx:61.'\n- NeuralAura.tsx:61 above AURA_HOLD_AMBER add: '/** HOLD AMBER (aura atmosphere). Siblings: cortex vec3(1.0,0.62,0.22); uModeTint #b96a14. Tune as a set. */'\nThe full HOLD_AMBER-object centralization the finding proposes is acceptable too (byte-identical output) but only if the team wants the refactor; if so, the cortex GLSL is already a template literal so '${HOLD_AMBER.cortexGlsl}' injection works. I recommend the comment form to avoid touching the shader string for no visual reason.",
+      "lens": "cortex-shader"
+    },
+    {
+      "name": "Thought-wave GLSL hard-codes 3.02 duplicating BRAIN_SCALE",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "confidence": 0.5,
+      "evidenceCheck": "Confirmed: CorticalSignals.tsx:43 is 'float d = distance(p, uWaveOrigins[i]) * 3.02;' with a comment (lines 35-36) explicitly naming BRAIN_SCALE, while BRAIN_SCALE = 3.02 is declared independently at SuperbrainScene.tsx:70. The two are genuinely unlinked. The finding's observation that the rendered scale breathes to ~3.22 (SuperbrainScene.tsx:844-845 'BRAIN_SCALE * (1 + uBreath*0.006) + activity*0.05 + burstPow*0.15') is also accurate, so the wave-front speed calibration already drifts during bursts — but that drift is pre-existing canon, not introduced by this fix.",
+      "exactFix": "Single source of truth, zero visual change. (1) In constants.ts add (near POST_FX): 'export const BRAIN_SCALE = 3.02;'. (2) SuperbrainScene.tsx:70 — replace 'const BRAIN_SCALE = 3.02;' with 'import { BRAIN_SCALE } from \\'@/lib/constants\\';' (add to existing imports) and delete the local const. (3) CorticalSignals.tsx — import BRAIN_SCALE from '@/lib/constants', and since THOUGHT_WAVE_GLSL is already a template literal, change line 43 to 'float d = distance(p, uWaveOrigins[i]) * ${BRAIN_SCALE.toFixed(2)};'. Output is bit-identical (3.02). CAUTION: do NOT import BRAIN_SCALE from SuperbrainScene into CorticalSignals (CorticalSignals already imports a type from SuperbrainScene — adding a value import risks a circular dep); routing through constants.ts avoids that. This is a maintainability-only lift; low urgency.",
+      "lens": "cortex-shader"
+    },
+    {
+      "name": "Cortex pulse on its own 0.32 Hz metronome + stale luminance-ladder comments",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "zero-pixel",
+      "confidence": 0.7,
+      "evidenceCheck": "Both halves verified. (a) RHYTHM: SuperbrainScene.tsx:775 is exactly 'float pulse = sin(uTime * 2.0) * 0.5 + 0.5;' and the cortex shader links ONLY uTime+uHold (lines 646-647) — uBreath/uRimGain/uSssScale/uCoreGain are computed every frame (1170-1173) but never linked into the brain material, so the rim genuinely ignores the shared breath. (b) STALE DOC: the ladder comment at lines 516-519 still says 'fresnel rim 1.2-1.6 ... filaments ~2.2', but v6 reality is web 'pow(cDetail,1.5)*4.0' (line 766, peak 4.0) and rim 'fresnel*2.0*pulseMix' with pulseMix up to 1.5 => 3.0 (lines 776,779) — both far past the documented numbers and the PostFX 1.9 bloom knee. The finding itself flags the rhythm-relink as 'Operator's call ... propose, don't apply'.",
+      "exactFix": "I CONFIRM only the comment-only half (zero-pixel) and REJECT the rhythm relink as resting-frame. Comment fix — SuperbrainScene.tsx:516-519, replace the ladder line\n'... -> fresnel rim 1.2-1.6 (thin     */\n  silhouette bloom only) -> filaments ~2.2 / wavefronts (hairline + front,'\nwith the v6-accurate numbers:\n'... -> fresnel rim ~3.0 (rim 2.0 x pulseMix<=1.5, blooms past the 1.9 knee) -> web ~4.0 / wavefronts (the hot pixels);'\n(keep the rest of the block intact). REJECTED HALF: linking uBreath into the cortex and replacing line 775-776 to phase-lock the pulse changes a visible breathing rhythm of the brain surface => resting-frame, NOT a sub-perceptual lift. The finding agrees ('propose, don't apply'). Leave the metronome as-is unless the operator approves the rhythm change directly. canonSafe=true applies to the comment fix only.",
+      "lens": "cortex-shader"
+    },
+    {
+      "name": "MemoryGalaxy colors authored in display-sRGB inside a linear pipeline — skill-stars wash into the sky's blue-white",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.9,
+      "evidenceCheck": "MemoryGalaxy.tsx:82 is exactly `    vec3 color = mix(vec3(0.62, 0.88, 1.0), vec3(1.0, 0.3, 0.24), stain);`. KnowledgeHorizon.tsx:9-12 + :296 confirm the horizon authors LINEAR with toneMapped={false}; SuperbrainScene.tsx:1260-1274 mounts horizon+galaxy under PostFX.tsx:158's active EffectComposer (AgX ToneMapping pass :188, final linear→sRGB output encode). I computed the on-screen result of the current authored values via linear→sRGB: cyan (0.62,0.88,1.0)→(0.809,0.945,1.0) which collapses into the sky's blue-white tint vec3(0.80,0.88,1.0) at KnowledgeHorizon.tsx:131; red (1.0,0.3,0.24)→salmon (1.0,0.584,0.527). Both hue separators the operator uses to find/triage skill-stars are lost — evidence is exactly real. I verified the fix values by sRGB→linear: cyan→(0.3424,0.7484,1.0) and red→(1.0,0.0732,0.0470), matching the proposed fix to 4dp.",
+      "exactFix": "MemoryGalaxy.tsx line 82 — replace:\n`    vec3 color = mix(vec3(0.62, 0.88, 1.0), vec3(1.0, 0.3, 0.24), stain);`\nwith:\n`    vec3 color = mix(vec3(0.3424, 0.7484, 1.0), vec3(1.0, 0.0732, 0.0470), stain);`\n(exact sRGB→linear of the authored values, matching the horizon's C_TEAL/C_AMBER linear-hex convention; restores the intended icy-cyan and alarm-red on screen). NOTE: this DOES change the live resting frame (galaxy becomes more saturated cyan / deeper red) — the finding's 'no look change' wording is misleading; it is a correctness alignment with the horizon, so capture a before/after for the operator's eye before landing per the FIDELITY-IS-SACRED before/after law.",
+      "lens": "space-shaders"
+    },
+    {
+      "name": "Weak (newest) skill-stars sink below the galactic band's star carpet",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.78,
+      "evidenceCheck": "MemoryGalaxy.tsx:77-78 are `    float core = smoothstep(0.5, 0.0, d);` / `    core *= core;` and :83 is `    float alpha = core * (0.22 + 0.78 * vStrength) * twinkle + vFlash * core;` — a strength~0 trail peaks at alpha 0.22 in a soft squared-gaussian blob. KnowledgeHorizon.tsx:235-238 confirm the band's mid star layer runs midProb=mix(0.22,0.88,band) (up to 88% cell occupancy) with brightMul wired in; orbit radius 7.5-13 (MemoryGalaxy.tsx:133) sits over that band. So fresh trails really are dimmer than background grains. `d` is in scope (defined :76) for the nucleus insert. Directly serves the lens mandate ('the operator must be able to FIND his skill-stars').",
+      "exactFix": "MemoryGalaxy.tsx line 83 — change `(0.22 + 0.78 * vStrength)` to `(0.34 + 0.66 * vStrength)` (same max=1.0, +55% floor). AND after line 78 (`    core *= core;`) insert a new line:\n`    core += 0.5 * smoothstep(0.08, 0.0, d);`\n(adds a ~2px crisp nucleus so weak stars read as solid objects; halo unchanged). This changes the resting frame for every skill-star — needs the operator's before/after sign-off.",
+      "lens": "space-shaders"
+    },
+    {
+      "name": "Galaxy twinkle + quarantine pulse frequencies sit inside the sky-star twinkle band (common-fate segmentation lost)",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "confidence": 0.74,
+      "evidenceCheck": "KnowledgeHorizon.tsx:118 `    float rate = 1.2 + hash21(cell + 3.3) * 2.6;` → sky twinkle 1.2-3.8 rad/s. MemoryGalaxy.tsx:79 `    float twinkle = 0.85 + 0.15 * sin(uTime * 1.7 + vSeed * 37.0);` (1.7 rad/s) and :81 `    float stain = vQuarantine * (0.6 + 0.4 * sin(uTime * 3.0 + vSeed * 11.0));` (3.0 rad/s) both land inside the 1.2-3.8 band — verified exactly. So foreground skill-stars and the red alarm shimmer at the same tempo as the background field. Fix only retunes frequency; amplitudes untouched so motion is preserved (honors 'never removes motion'). No resting (static-frame) pixel change — temporal only.",
+      "exactFix": "MemoryGalaxy.tsx line 79 — change `0.85 + 0.15 * sin(uTime * 1.7 + vSeed * 37.0)` to `0.85 + 0.15 * sin(uTime * 0.55 + vSeed * 37.0)` (slow breathing below the sky band). Line 81 — change `0.6 + 0.4 * sin(uTime * 3.0 + vSeed * 11.0)` to `0.6 + 0.4 * sin(uTime * 4.4 + vSeed * 11.0)` (urgent pulse above the band). Amplitudes/offsets unchanged.",
+      "lens": "space-shaders"
+    },
+    {
+      "name": "Glyph atlas: no mip gutter + 0.1 alpha discard renders distant glyph-stars as hard grey squares",
+      "verdict": "adjusted",
+      "canonSafe": true,
+      "visualCost": "resting-frame",
+      "confidence": 0.62,
+      "evidenceCheck": "CosmicBackground.tsx confirmed: minFilter=LinearMipmapLinearFilter (:58), 8px shadowBlur (:46), 8x8 zero-padding atlas (:48-54), gl_PointSize clamped to 2px min (:212), and the discard at :245 `             if (alpha < 0.1) discard;` after `             float alpha = texColor.a;` (:244). At 2px the sampled mip averages cross-cell alpha above 0.1 across the quad → square draws. Real defect. BUT the proposed mask `smoothstep(0.5, 0.42, length(gl_PointCoord - 0.5))` cuts at radial dist 0.42 (=26.9px) of the 64px cell; tall axis-aligned glyphs ('|', '{', '/') reach ~25px stroke + 8px blur ≈ near 0.5 on-axis, so the outermost blur-glow tip of large/near glyphs gets trimmed. That trim is the intended energy-conservation behavior and is acceptable, but it is a resting-frame change to the moving starfield, not zero-pixel — hence 'adjusted' to flag the visual cost rather than treating it as invisible.",
+      "exactFix": "CosmicBackground.tsx — after line 244 (`             float alpha = texColor.a;`) insert:\n`             alpha *= smoothstep(0.5, 0.42, length(gl_PointCoord - 0.5));`\nand change line 245 from `             if (alpha < 0.1) discard;` to `             if (alpha < 0.02) discard;`. Verify against a before/after that no near-glyph strokes are clipped (the corner/blur-tip trim is expected); if any wide glyph clips, tighten the mask knee toward `smoothstep(0.55, 0.47, ...)`.",
+      "lens": "space-shaders"
+    },
+    {
+      "name": "All skill-stars flash at mount because aFlash buffers initialize to 0",
+      "verdict": "confirmed",
+      "canonSafe": true,
+      "visualCost": "interaction-only",
+      "confidence": 0.8,
+      "evidenceCheck": "MemoryGalaxy.tsx:94-102 zero-fill every 1-component attribute including 'aFlash' (listed :99). Vertex shader :56 `    float flash = exp(-max(uTime - aFlash, 0.0) * 1.6);` ⇒ with aFlash=0 and uTime small at first paint, flash≈1.0 for every populated slot, igniting the 2.2x size (:57) + 1.6x brightness (:84) burst — a flash the doc reserves for 'a reinforcement / recall NOW' (:8). Real on fresh/early loads when stars first populate near elapsedTime≈0 (galaxy is gated dormant until trails exist, :180, so it can first appear at small uTime). The fix is a pure transient-suppression: only removes an unintended mount burst, no resting-frame change, real bus flashes (:168-170) unaffected. Insert point (after :102, before setDrawRange) is valid — the aFlash attribute exists by then.",
+      "exactFix": "MemoryGalaxy.tsx — in the useMemo, after line 102 (the close of the `for (const name of [...])` attribute loop, before `    geometry.setDrawRange(0, 0);` at line 103) insert:\n`    (geometry.getAttribute('aFlash').array as Float32Array).fill(-10);`\n(flash = exp(-(uTime+10)*1.6) ≈ 0 at mount; bus-driven flashes unaffected). Safe to land; only suppresses a spurious one-time ignition.",
+      "lens": "space-shaders"
+    }
+  ],
+  "rejected": [
+    {
+      "lens": "glass",
+      "name": "Approval panel box-shadow omits the inset specular top edge + inner bottom shade + 24px/70px depth shadow that both sibling glass panes carry",
+      "why": "REJECT as a bundle. If the operator later wants only the canon one-light specular (the least invasive, law-aligned slice), the minimal safe candidate is to PREPEND just the top specular to the existing amber halo: globals.css line 1682 `box-shadow: 0 0 26px rgba(255, 180, 84, 0.14);` -> `box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 26px rgba(255, 180, 84, 0.14);` (amber halo preserved last). The inner -14px shade and the 24px/70px drop are NOT recommended — they re-weight the pane. Even the specular-only variant is resting-frame on the canon amber surface and must wait for the operator's explicit eye; do not auto-apply. canonSafe=false."
+    },
+    {
+      "lens": "motion",
+      "name": "Region-pin open state border swap + history-graph unfold are untransitioned",
+      "why": "REJECT — no change. The border-color transition (globals.css:479) and :hover/:active states (487-493) are already present in live source; applying the recovered fix would duplicate the existing `transition: border-color 200ms var(--ease-out-quart);` line. If one still wanted the graph-unfold fade, that is a distinct opacity-only keyframe on `.region-pin-graph` — but it's a 'could' that changes nothing at rest and isn't what this finding claims. Dedupes 243 + 267, both stale."
+    },
+    {
+      "lens": "typography",
+      "name": "Secure button flips case discipline across states ('Supervised' vs 'TAMPER'/'HOLD') and is untracked — consolidates the two retries",
+      "why": "REJECT autonomous apply. The defect is real but the fix alters a resting user-visible word and may erase a deliberate calm-default/loud-alarm typographic contrast (lowercase Supervised vs caps TAMPER/HOLD). If the operator confirms full-caps topbar uniformity is wanted: SuperbrainHUD.tsx:952 'Supervised' → 'SUPERVISED' and add `letter-spacing: 0.08em;` to .secure-button (334-345). Until then, hold — this needs the operator's eye, not a sub-agent's."
+    },
+    {
+      "lens": "typography",
+      "name": "Global \"case\" 1 feature raises punctuation next to lowercase copy — consolidates the two retries",
+      "why": "REJECT for autonomous apply. This rewrites a global type-optics decision and the replace-not-merge semantics of font-feature-settings make an incomplete role list a silent regression of cv05 everywhere it's omitted (the exact 'looked-like-a-one-liner-but-broke-things' class flagged in the brief). The effect on resting punctuation height is real but subtle and arguably intentional (the file calls these 'case-sensitive forms' a deliberate optic at :51-55). Requires the operator's eye and a full before/after on every text role; do not land it as a micro-detail port."
+    },
+    {
+      "lens": "cortex-shader",
+      "name": "Cortex thought-wave layer is severed (uniforms feed nothing the cortex consumes)",
+      "why": "REJECTED as a sub-perceptual lift. Although framed as 'reconnect, don't redesign', applying it makes moving hairline wavefronts bloom across the brain surface that are NOT in the current canon resting/active frame — a visible composition change (new hot light tracking across the cortex on every event and every idle Poisson wave). That is precisely a resting-frame/animated-frame alteration the constitution reserves for the operator's eye, and it cannot be A/B-judged as 'identical silhouette'. The defect (a designed v6 feature was dropped during the rewrite) is genuine and worth surfacing to the operator as a SEPARATE proposal with before/after captures — but it does NOT qualify under this lens's 'SUB-PERCEPTUAL quality lifts only; canon silhouette must be identical' mandate. Do not auto-apply. If the operator wants the cortex front back, the wiring (link the two uniforms at 646-647, add objectPos varying through vertex<common>/<begin_vertex>, add varying+THOUGHT_WAVE_GLSL to fragment<common>) is correct, but the gain/sharpness and whether it ships at all is an operator decision."
+    },
+    {
+      "lens": "space-shaders",
+      "name": "Equirect seam meridian cuts nebula filaments / smears star discs in view",
+      "why": "REJECT — do not apply. Defect is not visible (seam at -x is outside the 45° FOV that always faces -z); the atan() swap would re-roll the resting nebula/star UV mapping (a resting-frame redesign), and the seam-safe-pix change is solving a non-visible artifact. If a true seam ever becomes visible after a future camera change, revisit with the band/composition re-validated, not as a blind UV rotation."
+    }
+  ],
+  "counts": {
+    "applyReady": 49,
+    "zeroPixel": 8,
+    "interactionOnly": 16,
+    "restingFrame": 25,
+    "rejected": 6
+  }
+}
