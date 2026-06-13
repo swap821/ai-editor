@@ -562,6 +562,10 @@ export default function App() {
   const [ollamaStatus, setOllamaStatus] = useState({ available: false, models: [] });
   const [bedrockStatus, setBedrockStatus] = useState({ configured: false, available: false, models: [] });
   const [autoModel, setAutoModel] = useState(null); // model the agent auto-selects (Auto badge)
+  // The LIVE active brain for the current/last turn, from the backend `route` SSE
+  // frame: {provider, model, privacy, task, auto}. Truthful per-turn routing (incl.
+  // a cloud escalation), unlike the static pre-turn picker. null until a turn runs.
+  const [activeBrain, setActiveBrain] = useState(null);
 
   const terminalEndRef  = useRef(null);
   const gitEndRef       = useRef(null);
@@ -718,6 +722,7 @@ export default function App() {
     const aiMsgId = Date.now() + 1;
     setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', loading: true, steps: [], streaming: false }]);
     setIsStreaming(true);
+    setActiveBrain(null); // the new turn announces its brain via the `route` frame
 
     let accText = '';
     let accSteps = [];
@@ -739,7 +744,11 @@ export default function App() {
         let data;
         try { data = JSON.parse(rawData); } catch { return; }
 
-        if (eventType === 'alignment') {
+        if (eventType === 'route') {
+          // The active brain for this turn: which provider/model served it and
+          // whether it stayed local. Drives the live header badge.
+          setActiveBrain(data);
+        } else if (eventType === 'alignment') {
           setAlignmentFrame(data);
         } else if (eventType === 'step') {
           accSteps = [...accSteps, data];
@@ -1076,8 +1085,40 @@ export default function App() {
             models={availableModels}
           />
 
-          {/* Local / Cloud inference indicator */}
+          {/* Active-brain indicator — the LIVE per-turn route when available,
+              else the static pre-turn pick. */}
           {(() => {
+            // LIVE: the brain that actually served the current/last turn. Truthful
+            // even when `auto` escalated to a cloud provider for this task.
+            if (activeBrain && activeBrain.model) {
+              const isLocal = activeBrain.privacy === 'local';
+              const color = isLocal
+                ? '#34d399'
+                : (activeBrain.provider === 'gemini' ? '#4285f4'
+                    : activeBrain.provider === 'bedrock' ? '#ff9900' : '#60a5fa');
+              const label = `${activeBrain.model} · ${String(activeBrain.privacy || '').toUpperCase()}`
+                + (activeBrain.auto ? ' · auto' : '');
+              return (
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  title={`Active brain: ${activeBrain.provider} · ${activeBrain.model}`
+                    + ` (${activeBrain.privacy}${activeBrain.auto ? ', auto-routed' : ''})`}
+                  style={{
+                    background: `${color}10`,
+                    border: `1px solid ${color}28`,
+                    fontSize: 11, fontWeight: 600, color,
+                    boxShadow: `0 0 12px ${color}10`,
+                  }}
+                >
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%', background: color,
+                    boxShadow: `0 0 8px ${color}`, display: 'inline-block',
+                    animation: 'breathe 2.5s ease-in-out infinite',
+                  }}/>
+                  {label}
+                </div>
+              );
+            }
             const isAuto = selectedModel === 'auto';
             const local = isAuto || selectedModel.startsWith('ollama.');
             const tag = isAuto ? (autoModel || '') : selectedModel.replace(/^ollama\./, '');
