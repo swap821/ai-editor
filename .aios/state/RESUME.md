@@ -160,11 +160,16 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       ✅ **Both cloud creds LIVE-VERIFIED (2026-06-13):** Vertex/ADC `gemini-2.5-flash` returned text (REST ping,
       finish=STOP; note `gemini-2.0-flash` NOT enabled on project `ai-editor-498414`); Bedrock bearer token in
       `frontend/.env` → `amazon.nova-lite-v1:0` returned "pong" (region us-east-1). Full suite 501 pass / 1 skip.
-    NOT YET (the remaining hybrid layer): the **LLM picker is built into `router.route()` but NOT invoked in the
-    hot path** — `auto` is deterministic for now. Wiring the local-LLM pick (only when ≥2 candidates, so zero
-    added latency by default) is the next increment once a privacy boundary is set & the multi-candidate path is
-    live-tested. Then P0 (secure Bedrock cred to backend env = PLAN H1) + P3 (evidence-calibration + UI active-brain
-    badge). Cage verifies regardless of provider (soul intact); local-first DEFAULT, cloud = per-task policy-gated.
+    ✅ **DONE — the full HYBRID layer (local LLM picks)** + **e2e live-proven through the cage**:
+      e2e (2026-06-14): a `reasoning` `auto` turn through real `/api/generate` was served by `gemini-2.5-flash`
+      (HTTP 200, step·step·done, 3446-char answer; local `.chat` wired to RAISE so the answer could ONLY be Gemini).
+      Picker: `router.PICKER_SYSTEM`/`picker_prompt`/`parse_pick` (pure) + `main._maybe_llm_picker` — a fast LOCAL
+      model chooses among policy-allowed candidates, invoked ONLY when ≥2 candidates exist (zero latency on the
+      default single-candidate path) and a local model is available; its reply is validated by `route()` so it can
+      prefer but NEVER escape the gate; deterministic fallback on any non-answer. Config `AIOS_ROUTER_LLM_PICK`
+      (default True). `tests/test_router.py` (+4 pure) + `tests/test_route_wiring.py` (+4 hybrid). Full suite 509 pass / 1 skip.
+    NEXT: P0 (secure Bedrock cred to backend env = PLAN H1) + P3 (evidence-calibration from dev-metrics + UI
+    active-brain badge). Cage verifies regardless of provider (soul intact); local-first DEFAULT, cloud = per-task policy-gated.
     OPEN OPERATOR DECISION (gates cloud going live): set `AIOS_ROUTER_CLOUD_TASKS` (+ `AIOS_GEMINI_PROJECT`,
     `pip install google-genai`) to allow specific task classes to escalate. Until set, `auto` stays local-only.
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.

@@ -24,7 +24,7 @@ import secrets
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Callable, Iterator, Optional, Any, cast
+from typing import Callable, Iterator, Optional, Any, Sequence, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -52,6 +52,7 @@ from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.model_selector import (
+    TASK_FAST,
     TASKS,
     describe_choice,
     infer_task,
@@ -1159,6 +1160,50 @@ def _client_for(provider: str, ollama: Any, bedrock: Optional[Any], gemini: Opti
     return ollama
 
 
+def _maybe_llm_picker(
+    ollama: Any,
+    providers: list[router.Provider],
+    cands: Sequence[router.Route],
+    task: str,
+) -> Optional[Any]:
+    """Build the HYBRID local-LLM route picker, or ``None`` to stay deterministic.
+
+    Returns a callable only when it would actually matter: the picker is enabled
+    (:data:`config.ROUTER_LLM_PICK`), there are **2+ candidates** for the task (so
+    there is a real choice — the default local-only path never reaches here, paying
+    zero latency), and a local model exists to make the meta-decision. *cands* is
+    the already-ranked candidate list (computed once by the caller, not re-derived).
+    The picker asks a small/fast local model to choose from the allow-list; its
+    answer is still validated against the allowed candidates in
+    :func:`aios.core.router.pick_from`, so it can prefer but never escape the policy.
+    """
+    if not config.ROUTER_LLM_PICK or len(cands) < 2:
+        return None
+    local_tags = next(
+        (list(p.models) for p in providers if p.name == router.PROVIDER_OLLAMA), []
+    )
+    # A cheap local model just to choose — no tools needed for the meta-decision.
+    meta_model = select_model(local_tags, task=TASK_FAST, require_tools=False)
+    if not meta_model:
+        return None  # no local model to decide with -> deterministic ranking wins
+
+    def picker(candidates: Sequence[router.Route]) -> Optional[str]:
+        try:
+            resp = ollama.chat(
+                [
+                    {"role": "system", "content": router.PICKER_SYSTEM},
+                    {"role": "user", "content": router.picker_prompt(task, candidates)},
+                ],
+                tools=None,
+                model=meta_model,
+            )
+            return router.parse_pick((resp or {}).get("content", ""), candidates)
+        except Exception:  # noqa: BLE001 - a flaky local pick must never break routing
+            return None
+
+    return picker
+
+
 def _select_chat_client(
     model_id: Optional[str],
     ollama: Any,
@@ -1181,12 +1226,14 @@ def _select_chat_client(
     if model_id in _AUTO_IDS:
         # Cross-provider auto-route, gated by the operator privacy/cost policy. The
         # agentic loop requires tool-calling, so local candidates must be tool-capable.
-        chosen = router.route(
-            task,
-            _build_providers(ollama, bedrock, gemini),
-            policy=_router_policy(),
-            require_tools=True,
-        )
+        # When the policy permits a real choice (2+ candidates), a local model makes
+        # the hybrid pick among them; otherwise routing is purely deterministic.
+        providers = _build_providers(ollama, bedrock, gemini)
+        policy = _router_policy()
+        # Compute the policy-allowed candidates ONCE, then run the (optional) hybrid
+        # pick over them — no redundant gate+scoring recomputation.
+        cands = router.candidates(task, providers, policy=policy, require_tools=True)
+        chosen = router.pick_from(cands, picker=_maybe_llm_picker(ollama, providers, cands, task))
         if chosen is not None:
             client = _client_for(chosen.provider, ollama, bedrock, gemini)
             if client is not None:

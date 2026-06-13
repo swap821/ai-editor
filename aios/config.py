@@ -349,6 +349,13 @@ ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _env_router_tasks("AIOS_ROUTER_CLOU
 ROUTER_PREFER_LOCAL: Final[bool] = _env_bool("AIOS_ROUTER_PREFER_LOCAL", True)
 #: The highest cost tier ``auto`` may route to (``free|low|high``).
 ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().lower()
+#: The HYBRID layer: when True (default), a small LOCAL model picks among the
+#: policy-allowed candidates (it can re-order preference but never escape the
+#: gate; a deterministic fallback covers any non-answer). It only runs when the
+#: policy permits 2+ candidates for the task — i.e. once a cloud task class is
+#: opted in — so the default local-only path pays ZERO extra latency. Set False
+#: to route purely by the deterministic heuristic.
+ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
 
 # --------------------------------------------------------------------------- #
 # HTTP API server (FastAPI / uvicorn) + browser CORS
@@ -437,6 +444,7 @@ __all__ = [
     "ROUTER_CLOUD_TASKS",
     "ROUTER_PREFER_LOCAL",
     "ROUTER_MAX_COST",
+    "ROUTER_LLM_PICK",
     "API_HOST",
     "API_PORT",
     "API_TOKEN",

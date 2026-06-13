@@ -292,6 +292,23 @@ def route(
         metrics=metrics,
         calibration_weight=calibration_weight,
     )
+    return pick_from(ranked, picker=picker)
+
+
+def pick_from(
+    ranked: Sequence[Route],
+    *,
+    picker: Optional[Callable[[Sequence[Route]], Optional[str]]] = None,
+) -> Optional[Route]:
+    """Choose one route from an already-ranked candidate list (the pick step of
+    :func:`route`, split out so a caller that already computed :func:`candidates`
+    can reuse it instead of recomputing the gate+scoring).
+
+    With *picker* absent or declining, returns the deterministic #1. With a picker,
+    honours its choice only when it names an allowed candidate (validated here), so
+    the picker can re-order preference but never escape the policy. Returns ``None``
+    when *ranked* is empty.
+    """
     if not ranked:
         return None
     if picker is not None:
@@ -334,4 +351,49 @@ def _match_choice(choice: str, ranked: Sequence[Route]) -> Optional[Route]:
     for r in ranked:
         if choice in (r.model_id, r.model):
             return r
+    return None
+
+
+# --- The local-LLM picker (the hybrid layer) --------------------------------
+# These are PURE: the prompt the local model sees and the parser for its reply.
+# The actual LLM call lives in the API layer (it needs a client); route()'s
+# ``picker`` arg accepts the resulting callable. Whatever the model says, the
+# choice is still validated against the allowed candidates in :func:`route`, so
+# the local LLM can express preference but can NEVER escape the policy gate.
+PICKER_SYSTEM = (
+    "You are a model-routing assistant for an AI coding agent. You will be given a "
+    "task type and an ALLOW-LIST of candidate model ids that policy already permits. "
+    "Choose the single best one for the task. Reply with ONLY that exact model id — "
+    "no punctuation, no explanation. You may only pick from the list."
+)
+
+
+def picker_prompt(task: str, cands: Sequence[Route]) -> str:
+    """Build the selection prompt the local model sees (deterministic)."""
+    lines = [f"Task type: {task}", "", "Allow-list (choose exactly one id):"]
+    for r in cands:
+        lines.append(f"- {r.model_id}  [{r.privacy}, {r.cost}]  — {r.reason}")
+    lines.append("")
+    lines.append("Reply with only one id from the list above.")
+    return "\n".join(lines)
+
+
+def parse_pick(text: Optional[str], cands: Sequence[Route]) -> Optional[str]:
+    """Extract the chosen model id from the local model's free-text *text*.
+
+    Matches the candidate ids/models that actually appear in the reply, longest
+    first so a longer id isn't shadowed by a shorter one it contains. Returns the
+    prefixed ``model_id`` (so it round-trips through :func:`_match_choice`), or
+    ``None`` when nothing matches — which makes :func:`route` fall back to the
+    deterministic winner.
+    """
+    if not text or not text.strip():
+        return None
+    t = text.strip()
+    for r in sorted(cands, key=lambda c: len(c.model_id), reverse=True):
+        if r.model_id in t:
+            return r.model_id
+    for r in sorted(cands, key=lambda c: len(c.model), reverse=True):
+        if r.model in t:
+            return r.model_id
     return None

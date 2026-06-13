@@ -22,6 +22,9 @@ from aios.core.router import (
     Policy,
     Provider,
     candidates,
+    parse_pick,
+    pick_from,
+    picker_prompt,
     policy_allows,
     route,
     route_model_id,
@@ -203,6 +206,51 @@ def test_route_model_id_reattaches_prefix() -> None:
     assert chosen.model == "qwen2.5-coder:7b"
     assert route_model_id(chosen) == "ollama.qwen2.5-coder:7b"
     assert route_model_id(None) is None
+
+
+# --- pick_from: the split-out selection step (reused to avoid recompute) ----
+def test_pick_from_returns_deterministic_first_without_picker() -> None:
+    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
+    cands = candidates(TASK_REASONING, [_bedrock(), _gemini(cost=COST_HIGH)], policy=policy)
+    assert pick_from(cands) is cands[0]
+    assert pick_from([]) is None
+
+
+def test_pick_from_honours_picker_but_only_among_allowed() -> None:
+    cands = candidates(TASK_CODING, [_ollama(models=("qwen2.5-coder:7b",))])
+    # picks an allowed id -> honoured
+    assert pick_from(cands, picker=lambda c: "ollama.qwen2.5-coder:7b") is cands[0]
+    # names something not in the list -> deterministic #1 stands
+    assert pick_from(cands, picker=lambda c: "bedrock.whatever") is cands[0]
+
+
+# --- The local-LLM picker (pure prompt + parse) -----------------------------
+def test_picker_prompt_lists_every_candidate_id() -> None:
+    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
+    cands = candidates(TASK_REASONING, [_ollama(), _bedrock(), _gemini()], policy=policy)
+    prompt = picker_prompt(TASK_REASONING, cands)
+    assert TASK_REASONING in prompt
+    for c in cands:
+        assert c.model_id in prompt  # every allowed id is offered to the model
+
+
+def test_parse_pick_matches_exact_id() -> None:
+    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
+    cands = candidates(TASK_REASONING, [_bedrock(), _gemini()], policy=policy)
+    # The model replied with one allowed id (plus stray words) -> that id is parsed.
+    assert parse_pick("I would use gemini.gemini-2.0-flash here.", cands) == "gemini.gemini-2.0-flash"
+
+
+def test_parse_pick_matches_bare_model_name() -> None:
+    cands = candidates(TASK_CODING, [_ollama(models=("qwen2.5-coder:7b",))])
+    assert parse_pick("qwen2.5-coder:7b", cands) == "ollama.qwen2.5-coder:7b"
+
+
+def test_parse_pick_returns_none_on_no_match_or_empty() -> None:
+    cands = candidates(TASK_CODING, [_ollama(models=("qwen2.5-coder:7b",))])
+    assert parse_pick("some other model", cands) is None
+    assert parse_pick("", cands) is None
+    assert parse_pick(None, cands) is None
 
 
 def test_require_tools_drops_non_tool_local_model() -> None:
