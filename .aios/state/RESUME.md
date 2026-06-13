@@ -30,6 +30,25 @@ RegionPins keyboard+aria-expanded, SOUND/mode aria-pressed, link role=status,
 shield aria-live, ghost-plus tabIndex=-1, source-list aria-live flood removed.
 Dropped the recovered stray-brace 'could' finding — the Next build REFUTED it
 (needed closer; unverified findings must pass the build, not just sound right).
+BACKEND FULLY RUNNING (verified 2026-06-13): uvicorn :8000 up (CORS incl
+localhost:3000, model-load flags off), Ollama up (llama3.1:8b + gallery),
+438 passed/1 skipped, REAL supervised turn proven end-to-end via POST
+/api/generate — query_knowledge recall + create_file tool_call + human_required
+approval gate (diff+token). Agent self-approval correctly BLOCKED (human
+authority enforced). To complete a write, operator approves in the UI.
+POLISH VII = chrome alignment LANDED (lab 06626d1 / product b18ca15): topbar
+baselines, numeral tracking, console/spine/Execute-ring/spark/terminal spacing.
+POLISH VIII = glass LANDED (lab b57ffa1 / product 0d6fd12): command-bar rim
+restored (::before->::after), approval-panel canon glass recipe (saturate+
+brightness+webkit, radius 14, grain, position:relative), hairline tokens.
+REMAINING (all in vetted_polish_findings.json, operator live on :3000, full
+trust, apply-in-groups mode): console-glow rim restoration (CSS selector +
+console-glow JSX in both asides); GALAXY resting-frame (color-space sRGB->linear,
+weak-star floor, glyph-atlas mip gutter); CORTEX VII casing (IGN dither,
+approval-hold amber on casing, BRAIN_SCALE single-source, comments); spacing
+approval-panel anchoring; 2 HELD (approval-panel entrance, objective scaleX);
+section-label-weight taste call. Goldens need RECAPTURE once the look settles.
+HISTORICAL:
 POLISH VI = signal + galaxy lifts LANDED (lab 61460c0 / product 253ff17):
 firefly cutoff smoothstep, aFlash mount-flash suppress, galaxy/quarantine
 twinkle frequency separation. NEXT = POLISH VII = cortex casing (SuperbrainScene
