@@ -52,6 +52,16 @@ operator-authorized landing + POST-HOC Codex inbox review.
    an earned create_file streams `event: earned_autonomy`. 26 lab + 456 backend tests.
 
 ## Single next action
+**TOP PRIORITY (operator, 2026-06-13): run the WHOLE-ai-editor deep analysis.
+See `.aios/state/NEXT_ANALYSIS.md` — it has the ready-to-launch multi-agent
+Workflow (8 lenses: frontend/superbrain, product+classic UI, tooling/drivers,
+tests, docs-currency, config/infra, cross-cutting audit, blueprint-vs-reality)
++ a synthesis that writes 4 docs (SYSTEM_TRUE_PICTURE, HIDDEN_KNOWLEDGE, refreshed
+PLAN, BACKEND_TRUE_PICTURE update). Operator cleared context for this; FIRST
+ACTION on resume = launch that Workflow. Reuse BACKEND_TRUE_PICTURE.md (backend
+done) + the blueprint-vs-reality map already in NEXT_ANALYSIS.md.**
+
+(Background — already complete this session:)
 Earned-autonomy feature is now COMPLETE end-to-end + the brain SHOWS it:
 - AUTONOMY ⚡N topbar readout (lab dc8116c, additive, live-verified);
 - earned grants AUDIT-TAGGED as distinct 'earned-autonomy' hash-chain entries
