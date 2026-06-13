@@ -34,6 +34,9 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-in-soft: cubic-bezier(0.55, 0, 1, 0.45);
+  /* Symmetric loop curve (identical to the CSS ease-in-out keyword) for the
+     infinite ambient loops, so every animation rides a declared token. */
+  --ease-loop: cubic-bezier(0.42, 0, 0.58, 1);
 
   /* Edge-lit rim: top stop brightness. Focus states TOGGLE this variable —
    * never animate paint properties on a backdrop-filtered element. */
@@ -333,12 +336,14 @@ button {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  /* Ease the live<->offline truth-swap instead of snapping color/glow. */
+  transition: background-color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);
 }
 
 .status-dot--live {
   background: var(--accent);
   box-shadow: 0 0 8px rgba(92, 225, 230, 0.7);
-  animation: breathe 2.2s ease-in-out infinite;
+  animation: breathe 2.2s var(--ease-loop) infinite;
 }
 
 .secure-button {
@@ -351,11 +356,12 @@ button {
   color: var(--text-2);
   font-size: 11px;
   cursor: pointer;
-  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);
+  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart),
+    box-shadow 200ms var(--ease-out-quart);
 }
 
 .secure-button:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.16);
   color: var(--text-1);
 }
 
@@ -387,6 +393,8 @@ button {
   letter-spacing: 0.07em;
   color: var(--text-1);
   text-shadow: 0 0 24px rgba(150, 200, 255, 0.12);
+  /* Keep the hero from re-centering when the mode number changes width. */
+  font-variant-numeric: tabular-nums;
 }
 
 .core-readout h2 span {
@@ -473,7 +481,7 @@ aside.right-console {
   display: inline-flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 5px 7px;
   padding: 5px 9px;
   background: rgba(5, 10, 18, 0.62);
   border: 1px solid rgba(159, 240, 255, 0.2);
@@ -504,7 +512,6 @@ aside.right-console {
 
 .region-pin-graph {
   flex-basis: 100%;
-  margin-top: 4px;
 }
 
 .region-pin-graph svg {
@@ -574,7 +581,7 @@ aside.right-console {
   background: linear-gradient(90deg, rgba(255,59,40,0.8), rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
   filter: blur(30px);
   z-index: -1;
-  animation: wireGlowSurge 3s ease-in-out infinite;
+  animation: wireGlowSurge 3s var(--ease-loop) infinite;
   pointer-events: none;
 }
 
@@ -712,6 +719,7 @@ aside.right-console {
   font-family: var(--mono);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);
 }
 
 .mode-copy strong,
@@ -724,6 +732,7 @@ aside.right-console {
   font-size: 11px;
   font-weight: 510;
   letter-spacing: 0.08em;
+  transition: color 200ms var(--ease-out-quart);
 }
 
 .mode-copy small {
@@ -737,6 +746,7 @@ aside.right-console {
   height: 5px;
   border-radius: 50%;
   background: transparent;
+  transition: background-color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);
 }
 
 /* Hovers brighten toward white-alpha, never toward a hue. */
@@ -849,6 +859,9 @@ aside.right-console {
   color: var(--text-1);
   font-size: 14px;
   font-weight: 510;
+  /* Live trails/verified digits change every poll — fixed-width figures stop
+     the heading from reflowing under them. */
+  font-variant-numeric: tabular-nums;
 }
 
 .ghost-plus {
@@ -867,7 +880,7 @@ aside.right-console {
 }
 
 .ghost-plus:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.16);
   color: var(--text-1);
 }
 
@@ -1121,7 +1134,7 @@ aside.right-console {
 
 .agent-state--processing::before {
   background: var(--state-busy);
-  animation: breathe 1.6s ease-in-out infinite;
+  animation: breathe 1.6s var(--ease-loop) infinite;
 }
 
 .agent-state--standby {
@@ -1218,7 +1231,7 @@ aside.right-console {
   background: linear-gradient(90deg, rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
   filter: blur(30px);
   z-index: -1;
-  animation: wireGlowSurge 3s ease-in-out infinite reverse;
+  animation: wireGlowSurge 3s var(--ease-loop) infinite reverse;
   pointer-events: none;
 }
 
@@ -1428,7 +1441,7 @@ aside.right-console {
  * The clip/gradient properties live INSIDE the keyframes so the title
  * reverts to its normal solid color the instant the sweep completes. */
 .superbrain-experience.is-booted .core-readout h2 {
-  animation: title-shimmer 1.2s ease-in-out 760ms 1;
+  animation: title-shimmer 1.2s var(--ease-loop) 760ms 1;
 }
 
 @keyframes title-shimmer {
@@ -1702,7 +1715,7 @@ aside.right-console {
 }
 
 .approval-title {
-  font-family: var(--font-jetbrains-mono), monospace;
+  font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.22em;
   color: #ffb454;
@@ -1727,7 +1740,7 @@ aside.right-console {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  font-family: var(--font-jetbrains-mono), monospace;
+  font-family: var(--mono);
   font-size: 11px;
   line-height: 1.55;
   background: rgba(2, 4, 8, 0.6);
@@ -1750,13 +1763,15 @@ aside.right-console {
 }
 
 .approval-actions button {
-  font-family: var(--font-jetbrains-mono), monospace;
+  font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.18em;
   padding: 7px 16px;
   border-radius: 6px;
   cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 200ms var(--ease-out-quart), transform 120ms var(--ease-out-quart),
+    background 200ms var(--ease-out-quart), border-color 200ms var(--ease-out-quart),
+    color 200ms var(--ease-out-quart);
 }
 
 .approval-actions button:disabled {

@@ -550,7 +550,7 @@ function AgentCard({
           </span>
           <em className={`agent-state agent-state--${state}`}>{state}</em>
         </strong>
-        <small style={{ transition: 'opacity 0.3s var(--ease-out-quart)' }}>{detail}</small>
+        <small>{detail}</small>
       </span>
       <button type="button" tabIndex={-1} className="ghost-plus ghost-plus--small" aria-label={`Inspect ${name}`}>
         +
@@ -834,7 +834,7 @@ export default function SuperbrainHUD({
               fontSize: '12px',
               textDecoration: 'none',
               transform: 'translateY(-150%)',
-              transition: 'transform 0.2s',
+              transition: 'transform 200ms var(--ease-out-quart)',
             }}
             onFocus={(e) => e.currentTarget.style.transform = 'translateY(16px)'}
             onBlur={(e) => e.currentTarget.style.transform = 'translateY(-150%)'}
@@ -1001,7 +1001,7 @@ export default function SuperbrainHUD({
             <span className="execute-wrap" ref={magnetRef}>
               <motion.button
                 className="execute-button"
-                whileTap={{ scale: 0.97 }}
+                whileTap={prefersReducedMotion() ? undefined : { scale: 0.97 }}
                 transition={{ duration: 0.12 }}
                 type="submit"
               >
@@ -1086,7 +1086,7 @@ export default function SuperbrainHUD({
                 <span className="eyebrow">
                   <span /> KNOWLEDGE INTAKE
                 </span>
-                <h3 style={{ transition: 'opacity 0.6s var(--ease-out-quart)' }}>
+                <h3>
                   {linkUp && telemetry
                     ? `Pheromone map · ${telemetry.trails} trail(s) · ${telemetry.verified} verified`
                     : intakeLabel}
