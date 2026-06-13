@@ -59,7 +59,7 @@ operator-authorized landing + POST-HOC Codex inbox review.
   Evidence-Locked Self-Improvement Flywheel; honest headline = frontier-grade ENGINEERING,
   not yet a frontier AI SYSTEM (gates = intelligence/7B + isolation, not architecture).
 
-## ACTIVE FRONT (2026-06-13): SUPERBRAIN ⇄ CLASSIC INTEGRATION  [branch `feat/superbrain-integration`, NOT merged to master]
+## ACTIVE FRONT (2026-06-13): SUPERBRAIN ⇄ CLASSIC INTEGRATION  [MERGED + pushed to master 2d0d8d8 (branch feat/superbrain-integration retained)]
 Operator-directed: fold the classic IDE into the superbrain as ONE app. Canon tag
 `pre-integration-canon-v1` = rollback. Design **A** (superbrain is the LEAD: home form +
 manufacturing form). Docs: `.aios/state/SHELL_REDESIGN.md` + `NERVOUS_SYSTEM_REDESIGN.md`;
@@ -98,7 +98,7 @@ port by `publishCognition` on the bus. See `NERVOUS_SYSTEM_REDESIGN.md` §3/§6.
 3. **TRUTHFUL CONTENT**: lift agent file writes (`create_file`/`edit_file`) into the editor's
    `files` state — needs a content channel (`cognitionBus.data` or a small backend read endpoint).
    Until then flares are real but the editor shows sample files (NOT theater — no faked content).
-4. Then: approval-on-diff surfaced in the forge; decide merge `feat/superbrain-integration` → master.
+4. Then: approval-on-diff surfaced in the forge. (Merge to master: DONE 2d0d8d8 + pushed.)
 Run: `cd frontend && npm run dev` → `http://localhost:5173/?ui=shell` (Enter workbench).
 Standing rule: restate the chosen item and WAIT for explicit OK before writing code.
 
