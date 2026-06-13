@@ -1,0 +1,673 @@
+[
+  {
+    "area": "SUPERBRAIN frontend (GAG demo/gag-orchestrator/src) — the 3D r3f \"superbrain\" UI / lab canon",
+    "purpose": "The marquee operator-facing front of the AI-OS: a Next.js 16 + react-three-fiber 3D \"superbrain\" that renders the supervised cognitive system as a living organism voyaging through deep knowledge space. It binds the real backend (SSE turns, pheromone trails, metrics, audit hash-chain, earned-autonomy ledger) to a brain/galaxy/signal scene, a HUD with an in-experience approval recipe, and a fully synthesized sound engine. Design constitution (VISION.md): \"AN AGENTIC AI-OS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE DEEP VAST KNOWLEDGE SPACE\" — motion is the thesis; honesty (no decorative lies, honest dormancy/offline) is the recurring law. This `gag-orchestrator` is the LAB (canonical source); `npm run port` copies the \"live set\" byte-faithfully to the product `frontend/`.",
+    "architecture": "Entry `app/page.tsx` dynamic-imports `WorkspaceCanvas.tsx` (SSR off) which owns experience state (mode/activity/sky/surface/boot/glEpoch) and wraps everything in `QualityTierProvider` (WorkspaceCanvas.tsx:27-33,67-258). The R3F `<Canvas>` mounts `SuperbrainScene` (3D) and — unusually — `SuperbrainHUD` INSIDE the canvas, which then uses drei `<Html>` + `createPortal` to escape back into a `#hud-portal-root` DOM node (SuperbrainHUD.tsx:818-1038). The nervous system is a tiny module-singleton pub/sub `cognitionBus.ts` (NOT zustand — `stores/` is empty; zustand survives only in `attic/`); every layer (scene, HUD, metricsStore, soundEngine, QualityTierProvider, galaxy) subscribes to the same `CognitionEvent` stream. `lib/aiosAdapter.ts` is the single backend boundary: `streamTurn` parses SSE (`step`/`text_chunk`/`human_required`/`code`/`alignment`/`earned_autonomy`/`error`/`done`) into bus events; `pollOnce` (20s) reads `/development/trails`+`/metrics`, samples `/audit/verify` every 5 polls and `/development/autonomy` every poll, pushing real series into `metricsStore.ts` (the single source of truth shared by HUD intake rows and brain RegionPins). Frame-coupled state (breath/burst/wave/hold/idle/camera-push) lives in module-level refs and ONE shared-uniform object `SCENE_UNIFORMS` written once per frame so cortex shader, aura shells, fireflies and wires breathe phase-locked (SuperbrainScene.tsx:143-184,1136-1252). PostFX is a single EffectComposer (Bloom→CA→GradePre→AgX→GradePost→Vignette→Noise) with custom log-space + soft-light split-tone effects (PostFX.tsx).",
+    "capabilities": [
+      "Streams a REAL supervised backend turn from the command bar and narrates every frame: tool_call→agent-dispatch+region thought-wave, [VERIFY PASS/FAIL]→knowledge-acquired, swarm/role_pass→caste narration, alignment/code/earned_autonomy frames all surfaced (aiosAdapter.ts:78-305)",
+      "In-experience approval recipe: a human_required pause publishes 'approval-required', freezes the organism's breath amber, and ApprovalPanel renders the real diff/command; AUTHORIZE replays the turn with the server token, REJECT POSTs to /api/v1/approval/req and only claims 'rejected' when the server confirms (aiosAdapter.ts:188-363, ApprovalPanel.tsx:44-115)",
+      "Polls trails+metrics every 20s and drives the whole HUD from real data — link dot, measured latency, verified/candidate counts, intervention rate, avg tool calls; fires knowledge-acquired only on genuine reinforcement and a full 'SKILL MASTERED' synapse storm on candidate→verified promotion (aiosAdapter.ts:485-671, SuperbrainScene.tsx:1070-1094)",
+      "MemoryGalaxy: every real pheromone trail is a persistent GPU star placed deterministically by skill_id (brightness=strength, size=walks, red pulse=quarantine, flash on recall); honest dormancy — no trails, no stars (MemoryGalaxy.tsx:92-190)",
+      "Audit-chain tamper surfacing: shield button shows TAMPER + a sustained tritone alarm when /audit/verify returns valid:false (aiosAdapter.ts:573-594, SuperbrainHUD.tsx:948-968, soundEngine.ts:157-163)",
+      "Earned-autonomy visibility: AUTONOMY ⚡N topbar pill appears only once a class is truly earned; 'CAPABILITY EARNED'/'AUTONOMOUS ACTION' bus events (aiosAdapter.ts:256-268,601-621, SuperbrainHUD.tsx:874-884)",
+      "Fully synthesized WebAudio voice bound to the SAME bus: breath hum, acquisition tick, verification-red shadow, mastery arpeggio, directive whoosh, approval sus-chord/resolve, trail-weakened ebb, link fifth, tamper tritone — sovereign (silent until operator's SOUND click) with limiter and OS-interruption recovery (soundEngine.ts)",
+      "Operator-sovereign topbar row: FIDELITY (high/med/low), SKY (voyage/layered), SURFACE (web/organ flesh GLB), SOUND — each persisted, each changed ONLY by the operator's own click; canon defaults locked (WorkspaceCanvas.tsx:42-102, SuperbrainHUD.tsx:886-942)",
+      "GPU resilience: webglcontextlost grace window then Canvas remount via glEpoch; WebGLErrorBoundary fallback; idle attract-mode after 30s with autonomous reflection cascades (WorkspaceCanvas.tsx:119-153, SuperbrainScene.tsx:1204-1244)",
+      "True-boot: BootSequence races the backend for 1.6s and replaces lore statuses with real version/trail/verified-rate facts when it answers in time (BootSequence.tsx:46-143)"
+    ],
+    "sophistication": [
+      "Anatomical region color baking: per-vertex fbm-warped region weights (frontal/parietal/temporal/occipital/cerebellum) with pow-sharpened dominance, luminance floor, and sulci AO darkening baked into a shared 'color'+'objectPos' attribute that clone(true) shares across cortex/wireframe/aura/signal layers — so labeled knowledge lights the SAME lobe every time (SuperbrainScene.tsx:311-453,468-510)",
+      "ONE shared-uniform object (SCENE_UNIFORMS) written once per frame drives cortex onBeforeCompile injection, two NeuralAura shells, CorticalSignals fireflies and NervousSystem wires so breath/wave/burst/hold are phase-locked across every shader — genuinely 'moves as one body' (SuperbrainScene.tsx:143-184,1136-1252)",
+      "Thought-wave system shared in GLSL (THOUGHT_WAVE_GLSL) between cortex and fireflies, scheduled CPU-side with NaN-safe clamps, anchored to tool-kind (waveLabelForTool) so a real dispatched tool visibly lights the lobe that owns that work (CorticalSignals.tsx:29-49, SuperbrainScene.tsx:456-510,1196-1251)",
+      "customProgramCacheKey keyed by tier (`superbrain_v6_${tier}`) — a documented hard-won fix: a constant key made three.js reuse the first-compiled program for the whole session regardless of FIDELITY (SuperbrainScene.tsx:798-803)",
+      "Bloom luminance ladder co-designed with a hand-built tone pipeline: AgX moved into PostFX (composer forces NoToneMapping), GradePre log-space contrast + GradePost W3C soft-light split-tone + vibrance; every recall/packet color clamped <=0.5 to keep 2x headroom under the 1.0 bloom knee (PostFX.tsx, CognitiveGrasp.tsx:62-81,295-300)",
+      "Approval 'hold' is a whole-organism state machine: breath freezes mid-inhale, cortex/wires/aura tint amber and dim, the starfield clock dilates to 30%, the camera dollies in, and sound plays an unresolved suspended 2nd — a single product thesis (a supervised mind deferring) rendered across 5 subsystems (SuperbrainScene.tsx:1024-1031,1143-1194, CosmicBackground.tsx:113-137, NervousSystem.tsx:74-75, soundEngine.ts:117-122)",
+      "NervousSystem builds 115 Frenet-framed spiral TubeGeometries merged into one draw call with a hardcoded tabX to avoid 60fps geometry rebuilds (NervousSystem.tsx:96-149,171-334)",
+      "Remount-safe state seeding: HUD seeds approval/telemetry/link from the adapter singleton (which outlives the component) so a GPU-loss remount never drops a pending hold (SuperbrainHUD.tsx:577-591)",
+      "Discipline infrastructure: 37 golden PNGs (canon-v1 + per-feature), 15 puppeteer probes, a tripwired `npm run port` with an explicit 'live set' allowlist + GLB prune, and a house rule of seeded RNG everywhere (seededRandom) for honest screenshot baselines"
+    ],
+    "completeness": "~90% as a polished, production-intent UI for its defined scope. Genuinely complete + working: the full cognition bus, adapter (all SSE frame types + poll/audit/autonomy), HUD, approval recipe, sound engine, galaxy, region pins, sovereignty row, boot, GPU resilience, PostFX. Test coverage is THIN relative to surface: only 4 vitest files (aiosAdapter — strong/13 cases, cognitionBus smoke, qualityTier, soundEngine); the entire 3D scene, HUD rendering, ApprovalPanel and shaders have NO unit tests and are validated only by puppeteer screenshot probes + manual golden review. The PROJECT.md roadmap marks phases 3-5 (runtime integration, spatial workflows, production hardening) as Planned, but runtime integration is actually DONE — the doc is stale.",
+    "gaps": [
+      "PROJECT.md is stale/aspirational: it lists files that do not exist (KnowledgeWake.tsx, test/e2e.js as 'Active Architecture') and marks 'Runtime integration' as Planned though aiosAdapter fully implements it (PROJECT.md:20-34)",
+      "No automated tests for any 3D/R3F component, the HUD, ApprovalPanel, MemoryGalaxy, or shader logic — correctness of the scene rests entirely on golden screenshots + puppeteer probes a human must eyeball; a regression in wave anchoring, region baking, or hold choreography would not fail CI",
+      "The 'spatial workflows' vision (task graph, memory inspection, agent handoff views) and the entire LAYOUT_CONFIGS panel-summoning system in constants.ts (5 LayoutContexts × 8 panels of positions) are defined but UNUSED by the live scene — aspirational scaffolding from an earlier design (constants.ts:45-118)",
+      "Agent mesh cards (Planner/Researcher/Builder) are still partly theatrical: names/details/idle state cycle on timers (AGENT_DETAILS, useCyclingAgent) and only the forcedState/forcedDetail overlay is real-tool-driven — the 3 fixed cards do not reflect actual backend agent identities (SuperbrainHUD.tsx:121-156,246-264,1140-1158)",
+      "Sparkline 'hills' and IDLE_LORE fall back to canned/fictional data when offline or before 2 samples exist — honest by design (gated on linkUp) but means the default first-paint is partly imagination (SuperbrainHUD.tsx:87-108,188-199, metricsStore.ts:101)"
+    ],
+    "hidden_findings": [
+      "HUD is rendered INSIDE the R3F <Canvas> (SuperbrainHUD.tsx via WorkspaceCanvas.tsx:232) and escapes via drei <Html>+createPortal to #hud-portal-root — a surprising coupling: the entire DOM HUD lives in the 3D tree and depends on drei's Html, so a Canvas remount (glEpoch bump) also remounts the whole HUD (mitigated by adapter-seeded state)",
+      "QualityTierProvider's exported demoteTier/effectiveTier helpers and its own doc comment ('dims its own cortex by one tier while generating') are now DEAD/contradicted: the FIDELITY-IS-SACRED rewrite hardwired tier=perfTier=baseTier with no auto-dim, so `generating` is pure status text and those helpers/comments are stale (QualityTierProvider.tsx:51-54,99-145)",
+      "'earned_autonomy' is an SSE case in the adapter (aiosAdapter.ts:256) but is intentionally NOT a CognitionEventType — it is republished as knowledge-acquired/'AUTONOMOUS ACTION'; the bus type union is deliberately narrow and the scene/sound key off the label string, not a dedicated type",
+      "Two NEW untracked test files sit in the BACKEND tree (training_ground/test_auto_grant.py, test_autonomy_live.py per git status) — the autonomy feature shown in this UI has live backend tests that are uncommitted",
+      "soundEngine documents a fix where the old 110.4Hz ambient partner 'had no partner and the documented beat never existed' — i.e. a prior version shipped a comment describing audio physics that did not occur; now oscB=165.6Hz actually beats (soundEngine.ts:200-210)",
+      "MemoryGalaxy caps at MAX_STARS=128 and silently slices trails beyond that (MemoryGalaxy.tsx:23,136) — a brain that learns >128 skills would stop adding stars without any indication",
+      "Idle attract-mode parks lastInputMs=Infinity on unmount specifically so idle 'cannot go idle until remount' and never fires during the puppeteer e2e window — a test-aware behavior baked into production code (SuperbrainScene.tsx:1107-1134)",
+      "AccretionCore's feeding pulse IS bound to real knowledge-acquired events (AccretionCore.tsx:161-169), not purely decorative as a skim would assume",
+      "The dev-only window.__gagCognition / window.__gagGalaxyCount escape hatches let probes drive the nervous system and read galaxy count, but are stripped in production (WorkspaceCanvas.tsx:167-174, MemoryGalaxy.tsx:159-161)"
+    ],
+    "debt": [
+      "SuperbrainScene.tsx is a 1312-line monolith mixing region-baking math, 3 GLSL programs, BrainModel, CameraDrift, the idle controller, the wave scheduler and the scene root — the single highest-complexity file; module-level mutable singletons (SCENE_UNIFORMS, idle/wave refs) are justified-but-fragile ('the scene mounts exactly once' is an unenforced invariant) (SuperbrainScene.tsx:181-184)",
+      "constants.ts carries a large dead LAYOUT_CONFIGS / LayoutContext / PanelConfig / AIState / SPRING_CONFIGS / DRAG / PARALLAX block (~120 lines) from a prior panel-based design that the current scene never reads — pure dead config (constants.ts:45-137,219-233)",
+      "Heaviest GPU cost acknowledged in-code: the cortex microDetail() runs two 27-cell animated Voronoi loops per fragment ('the single heaviest cost on screen') — frozen on low tier but still expensive at high on a machine sharing bandwidth with a local LLM (SuperbrainScene.tsx:683-733)",
+      "Stale docs beyond PROJECT.md: PostFX.tsx header says exposure is set to 1.6 while constants.POST_FX.toneMappingExposure is 1.45 (PostFX.tsx:15 vs constants.ts:190); VISION.md/SuperbrainScene comments still reference SKY_MODE 'layered' nuances that the simplified two-mode toggle flattened",
+      "Test surface mismatch: a 44KB HUD, all canvas components, and every shader have zero unit tests; the comment in smoke.test.tsx notes the prior smoke covered an attic component — coverage has been reactive, not designed",
+      "Repo hygiene: ~30 multi-MB baseline/verify/crop PNGs are committed at the orchestrator root (not under goldens/), bloating the tree (root *.png listing)",
+      "AGENTS.md/CLAUDE.md warn 'This is NOT the Next.js you know' (Next 16 canary) — a real maintenance risk: APIs may diverge from training data and the project depends on bleeding-edge next@16.2.7/react@19.2.4"
+    ],
+    "keyFiles": [
+      {
+        "file": "GAG demo/gag-orchestrator/src/lib/aiosAdapter.ts",
+        "role": "The ONLY backend boundary: SSE turn streaming + 20s trails/metrics/audit/autonomy polling → cognition bus + metricsStore; the approval token lifecycle; fault-isolated offline honesty. The most load-bearing file in the scope (680 lines, 13 tests)."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/components/canvas/SuperbrainScene.tsx",
+        "role": "The 3D organism (1312 lines): region color baking, 3 GLSL programs, shared-uniform breath/wave/hold/burst/idle/camera systems, the synapse-storm and approval-hold choreography. Highest complexity + highest sophistication."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/components/ui/SuperbrainHUD.tsx",
+        "role": "The DOM HUD (1169 lines) rendered inside the Canvas via Html/portal: topbar sovereignty row, terminal log, intake rows, agent mesh, objective card, command bar, approval panel host; subscribes to the bus for every reaction."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/lib/cognitionBus.ts",
+        "role": "The nervous system: ~67-line module-singleton pub/sub that every subsystem (scene, HUD, sound, metrics, tier, galaxy) hangs off — the architectural spine that makes it read as one organism."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/lib/metricsStore.ts",
+        "role": "Single source of truth for on-screen metrics (useSyncExternalStore): real per-poll series shared by HUD intake rows AND brain RegionPins, with offline drift fallback and acquisition-bump animation."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/lib/soundEngine.ts",
+        "role": "Fully synthesized WebAudio voice (no assets) mapping bus events to musically-meaningful sounds; sovereign, limited, OS-interruption-resilient — a complete, distinctive subsystem."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/components/canvas/PostFX.tsx",
+        "role": "Hand-built cinematic grade: AgX tonemap relocated into the composer + custom log-space contrast and W3C soft-light split-tone effects, co-designed with the bloom luminance ladder."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/components/canvas/MemoryGalaxy.tsx & CognitiveGrasp.tsx",
+        "role": "The 'honest data' showpieces: real trails rendered as deterministic persistent stars and as recall-packet glints carrying each trail's real numbers; both go dormant with no real data."
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/VISION.md & tools/port-to-frontend.mjs",
+        "role": "The governing intent (motion-is-thesis, fidelity-is-sacred, operator-sovereignty, honesty) and the tripwired lab→product port with an explicit live-set allowlist + GLB prune."
+      }
+    ]
+  },
+  {
+    "area": "Frontend",
+    "purpose": "Two UIs over one backend.",
+    "sophistication": [
+      "byte-faithful port"
+    ],
+    "completeness": "~90% classic.",
+    "gaps": [
+      "no superbrain tests"
+    ],
+    "hidden_findings": [
+      "mount comment wrong"
+    ],
+    "debt": [
+      "dead CSS"
+    ],
+    "keyFiles": [
+      {
+        "file": "main.jsx",
+        "role": "mount switch"
+      }
+    ],
+    "architecture": "The mount switch lives in main jsx lines ten to twenty three.",
+    "capabilities": [
+      "SSE streaming turns in App jsx"
+    ]
+  },
+  {
+    "area": "ROOT tooling + drivers (repo-root Python scripts)",
+    "purpose": "The repo-root Python scripts are the operator's command-line control plane and one-off bootstraps that sit OUTSIDE the production aios/ package. They split into three families: (1) a real, sophisticated agent-coordination DB/CLI (agent_coord.py) that serializes Claude+Codex writers and hash-pins review handoffs; (2) operator-authorized HTTP drivers (curriculum_evidence_driver.py, swarm_demo.py, earn_demo.py) that exercise the LIVE product over its real /api surface under a hard fail-closed allowlist to produce auditable evidence; and (3) a LEGACY/Phase-3 memory+ingest+reset toolchain (hybrid_search.py, ingest_knowledge.py, ingest_update.py, vector_memory_setup.py, reset_audit_chain.py, pdf_util.py, extract_text.py) that predates and is now superseded by aios/memory and aios/security, operating on a stale separate DB consumed only by legacy_node/.",
+    "architecture": "agent_coord.py is a self-contained SQLite control plane (agent_coord.py:61-122) over .aios/state/coordination.db (agent_coord.py:21) with tables tasks/leases/messages/verdicts/events; it serializes writers via a single 'worktree' lease row with TTL+heartbeat (agent_coord.py:312-364,366-389), balances builder assignment 50/50 (route, agent_coord.py:160-173), and hash-pins handoffs by SHA-256 over HEAD+tracked-diff+untracked-contents (tree_snapshot, agent_coord.py:143-157) so record_verdict refuses if the tree changed after handoff (agent_coord.py:537-539). The three HTTP drivers all target BASE=http://127.0.0.1:8000 (curriculum_evidence_driver.py:32) and stream SSE from POST /api/generate (curriculum_evidence_driver.py:131-187), gating every human_required pause through check_allowlist (curriculum_evidence_driver.py:81-96) backed by two regexes (curriculum_evidence_driver.py:38,43-45); swarm_demo.py and earn_demo.py import that driver's vetted helpers verbatim (swarm_demo.py:19-26, earn_demo.py:10) rather than re-implementing approval logic. The legacy memory scripts hard-code DB_PATH='orchestrator_memory.sqlite' + FAISS_INDEX_PATH='vector_index.faiss' (hybrid_search.py:18-19) and are invoked by legacy_node/memoryAgent.js via `python hybrid_search.py` subprocess (legacy_node/memoryAgent.js:14); the production path instead uses aios/memory/retrieval.py and aios/config DATA_DIR DBs (aios/config.py:99-103).",
+    "capabilities": [
+      "agent_coord.py: full writer-lease lifecycle — route/claim/heartbeat/release/handoff/verdict/message/inbox/status/brief with fail-closed CoordinationError on every guard (agent_coord.py:705-766)",
+      "agent_coord.py: tamper-evident review — record_verdict recomputes tree_snapshot and refuses approval if the worktree changed after handoff, and forbids a builder approving their own handoff (agent_coord.py:535-539)",
+      "agent_coord.py: deterministic title->category routing via keyword table and 50/50 load balance with stable tie-break by AGENTS index order (agent_coord.py:36-46,160-173,176-182)",
+      "curriculum_evidence_driver.py: drives the real supervised chat loop through curriculum_seed.json, parses SSE, replays through approvals up to MAX_REPLAYS=10, and classifies turn outcome by FINAL [VERIFY PASS/FAIL] marker (curriculum_evidence_driver.py:152-169)",
+      "curriculum_evidence_driver.py: subcommands seed/status/run/reps/plan-proof/trails hitting /api/v1/development/* endpoints; reps resets sandbox files between runs for identical replay (curriculum_evidence_driver.py:240-256,302-309,349-364)",
+      "curriculum_evidence_driver.py: appends every approval/rejection/verify-marker/curriculum-diff verbatim to .aios/audit/curriculum-evidence-run.jsonl (log_event, curriculum_evidence_driver.py:50-54)",
+      "swarm_demo.py: drives swarm=true multi-worker build, reports caste roles and counts EARNED-AUTONOMY auto-grants, prints the autonomy ledger before/after (swarm_demo.py:49-114)",
+      "earn_demo.py: pushes create_file:training_ground/*.py to 'earned' over 5 verified single-agent turns then detects the auto-grant when approvals==0 and status=='earned' (earn_demo.py:23-40)",
+      "hybrid_search.py: BM25+FAISS+exp temporal-decay fusion (0.25/0.45/0.30) over orchestrator_memory.sqlite, JSON to stdout for the legacy Node agent (hybrid_search.py:56-69)",
+      "vector_memory_setup.py: drops+recreates semantic_memory and writes a fresh FAISS IndexHNSWFlat(384,32) (vector_memory_setup.py:11-27)",
+      "reset_audit_chain.py: opt-in, non-destructive archive-then-clear of tamper_audit_trail in orchestrator_memory.sqlite, gated on explicit --yes (reset_audit_chain.py:18-32)",
+      "pdf_util.py / extract_text.py: PDF->markdown bootstrap extractors that produced blueprint_text.md (pdf_util.py:11-43, extract_text.py:3-16)"
+    ],
+    "sophistication": [
+      "Hash-pinned review handoffs: tree_snapshot hashes HEAD + binary tracked diff + sorted untracked file contents, so a reviewer's approve/blocked verdict is cryptographically bound to the exact tree inspected; any post-handoff edit fail-closes the verdict (agent_coord.py:143-157,537-539) — a genuine anti-spoofing control, not a label",
+      "Single-writer lease with TTL+heartbeat and lazy expiry: _active_writer deletes-and-events an expired lease inside the read, and claim uses INSERT ... ON CONFLICT DO UPDATE for an atomic compare-and-swap on the 'worktree' row under BEGIN IMMEDIATE (agent_coord.py:230-248,328-346)",
+      "Defense-in-depth allowlist shared across all three live drivers via import rather than copy-paste: ALLOWED_FILE_RE constrains writes to bare training_ground/*.py and ALLOWED_CMD_RE constrains verifies to pytest on a single such file — no pip, no shell, no path traversal — and reject_and_abort sys.exits the whole run on first violation (curriculum_evidence_driver.py:38-45,81-96,99-110)",
+      "reset_task_files re-runs the allowlist on its own deletion targets before unlinking, refusing to delete a non-allowlisted path even though it authored the seed (curriculum_evidence_driver.py:248-256) — fail-closed even against itself",
+      "Turn-outcome classification mirrors the server's FAIL-dominant/final-verdict semantics rather than naive any-pass, and warns on the silent 'verified success but no curriculum increment' record-matching mismatch (curriculum_evidence_driver.py:152-160,271-273)",
+      "earn_demo/swarm_demo treat earned-autonomy as something to be OBSERVED firing (approvals==0 while status=='earned'), not asserted — the evidence is the absence of a human pause on a real write (earn_demo.py:38-39, swarm_demo.py:79-81)"
+    ],
+    "completeness": "Mixed by family. agent_coord.py and the three live HTTP drivers are complete, coherent, and production-grade for their operator-CLI role (~95%): full argparse surfaces, fail-closed guards, structured JSON/JSONL output, and they are wired into real docs (AGENTS.md III-A, agent_coord.py:56-65) and .vscode/tasks.json. The legacy memory/ingest/reset/pdf family is ~100% functional as written but architecturally STALE: it has been superseded by aios/memory/* and aios/security/audit_logger.py and now only serves legacy_node/. extract_text.py is effectively dead (its input AI_OS_Blueprint_v3_0_Production_Edition.pdf no longer exists on disk).",
+    "gaps": [
+      "No production wiring for hybrid_search.py/ingest_*/vector_memory_setup.py: production memory is aios/memory/retrieval.py over DATA_DIR/aios_memory.db (aios/config.py:99), so these root scripts only feed the legacy Node agent (legacy_node/memoryAgent.js:14) and are not part of the live product path",
+      "extract_text.py is a one-shot bootstrap whose source PDF is gone (ls confirmed AI_OS_Blueprint_v3_0_Production_Edition.pdf missing); it cannot be re-run and still imports the older PyPDF2 while pdf_util.py uses pypdf (extract_text.py:1 vs pdf_util.py:6)",
+      "ingest_knowledge.py/ingest_update.py never set semantic_memory.timestamp on insert (ingest_knowledge.py:48-51); hybrid_search.py SELECTs timestamp and its temporal_score relies on the schema default CURRENT_TIMESTAMP from vector_memory_setup.py:18 — if a row were ever inserted under a schema lacking that default, the bare except in hybrid_search.py:51-54 silently falls back to now()",
+      "agent_coord.py route() balances on preferred_builder counts only (agent_coord.py:165-171); a manual --builder override (agent_coord.py:197-201) skews future auto-routing because the override is still stored as preferred_builder",
+      "The two new untracked test files (training_ground/test_auto_grant.py, test_autonomy_live.py) are trivial assert-True stubs — evidence of a live earn/auto-grant run, not real coverage"
+    ],
+    "hidden_findings": [
+      "DB SPLIT-BRAIN: the root legacy scripts hard-code orchestrator_memory.sqlite while the production aios/ stack uses entirely different DBs (aios_memory.db, aios_audit.db, aios_approvals.db — aios/config.py:99-103). They are NOT the same store; the root memory tools operate on a parallel, stale database.",
+      "reset_audit_chain.py is essentially a no-op against production audit integrity: it clears tamper_audit_trail in orchestrator_memory.sqlite (reset_audit_chain.py:15,27), but the LIVE audit ledger written by aios/security/audit_logger.py lives in aios_audit.db. Even within orchestrator_memory.sqlite the live table uses entry_id (verified via PRAGMA — no AUTOINCREMENT id), so its `DELETE FROM sqlite_sequence WHERE name='tamper_audit_trail'` (reset_audit_chain.py:28) silently matches nothing.",
+      "swarm_demo.py and earn_demo.py have ZERO independent approval logic — they import check_allowlist/reject_and_abort/parse_sse from curriculum_evidence_driver (swarm_demo.py:19-26, earn_demo.py:10). The hard allowlist is single-sourced, so the 'same hard allowlist' claim in their docstrings is literally true by construction, not by convention.",
+      "agent_coord.py's control plane explicitly CANNOT wake an agent or replace human approval (stated agent_coord.py:3-6) — it is a passive disk lock + ledger; all enforcement is cooperative (an agent that ignores the lease is not blocked at the filesystem level).",
+      "tree_snapshot reads every untracked file's full bytes into the hash (agent_coord.py:151-157); on a large dirty tree this is O(repo) per handoff/verdict/status call and could be slow, but it is what makes the hash-pin spoof-resistant.",
+      "curriculum_evidence_driver.reject_and_abort swallows the rejection POST's RequestException (curriculum_evidence_driver.py:107-108) and still sys.exits — so a failed reject network call does not stop the fail-closed abort, but the server may be left with a dangling un-rejected approval token.",
+      "hybrid_search.py and the ingest scripts assume CWD is the repo root (relative DB/index paths); the production code uses absolute config.DATA_DIR paths — running these from a subdir silently creates a fresh empty DB instead of erroring."
+    ],
+    "debt": [
+      "Stale legacy duplication: hybrid_search.py reimplements a cruder BM25+FAISS fusion (hybrid_search.py:21-69) that aios/memory/retrieval.py:71 supersedes; keeping both invites schema drift (legacy_node/database.js:32 even warns its schema MUST match these scripts).",
+      "extract_text.py uses deprecated PyPDF2 (extract_text.py:1) while pdf_util.py uses maintained pypdf (pdf_util.py:6) — two PDF libs for the same job, one with a now-missing input file.",
+      "hybrid_search.py:51-54,68-69 and curriculum_evidence_driver.py:107-108 use bare/broad except that mask real failures (datetime parse, network) behind silent fallbacks.",
+      "vector_memory_setup.py DROPs semantic_memory unconditionally (vector_memory_setup.py:11) — re-running it destroys all legacy memories with no archive (unlike reset_audit_chain.py which archives first).",
+      "ingest_knowledge.py/ingest_update.py are near-identical (only MD_PATH and log wording differ) — should be one parametrized ingester (ingest_knowledge.py:13-58 vs ingest_update.py:12-42).",
+      "MAX_REPLAYS=10 / TURN_TIMEOUT_S=900 are module constants in curriculum_evidence_driver.py:46-47 reused by swarm_demo via import; a swarm build can need more replays than a single-file curriculum turn, so the shared cap is a latent truncation risk for swarm_demo.",
+      "Two untracked assert-True test files (training_ground/test_auto_grant.py, test_autonomy_live.py) are committed-adjacent demo residue, not real tests — should be cleaned or moved out of training_ground."
+    ],
+    "keyFiles": [
+      {
+        "file": "agent_coord.py",
+        "role": "Real Claude+Codex coordination control plane: SQLite over .aios/state/coordination.db, single-writer worktree lease + TTL/heartbeat, 50/50 routing, and SHA-256 hash-pinned review handoffs that fail-close on post-handoff tree changes. Wired into AGENTS.md III-A and .vscode/tasks.json."
+      },
+      {
+        "file": "curriculum_evidence_driver.py",
+        "role": "Operator-authorized live-evidence driver: streams /api/generate SSE, enforces the hard fail-closed allowlist (training_ground/*.py writes + pytest verifies only), appends raw evidence to .aios/audit/curriculum-evidence-run.jsonl. The single source of the allowlist helpers reused by the other two drivers."
+      },
+      {
+        "file": "swarm_demo.py",
+        "role": "Operator-authorized swarm=true multi-worker build driver; imports the curriculum driver's vetted approval helpers verbatim and observes earned-autonomy auto-grants + caste narration."
+      },
+      {
+        "file": "earn_demo.py",
+        "role": "Operator-authorized earned-autonomy proof: 5 verified single-agent turns push create_file:training_ground/*.py to 'earned', then detects the zero-approval auto-grant."
+      },
+      {
+        "file": "reset_audit_chain.py",
+        "role": "Opt-in (--yes) non-destructive archive-then-clear of tamper_audit_trail — but only in the LEGACY orchestrator_memory.sqlite, not the production aios_audit.db ledger; its sqlite_sequence delete is a no-op against the live entry_id schema."
+      },
+      {
+        "file": "hybrid_search.py",
+        "role": "Legacy Phase-3 memory recall (BM25+FAISS+temporal decay) over orchestrator_memory.sqlite, invoked as a subprocess by legacy_node/memoryAgent.js; superseded by aios/memory/retrieval.py in the production path."
+      },
+      {
+        "file": "vector_memory_setup.py",
+        "role": "Legacy bootstrap that drops+recreates semantic_memory and a fresh FAISS HNSW(384,32) index; destructive re-run with no archive."
+      },
+      {
+        "file": "ingest_knowledge.py / ingest_update.py",
+        "role": "Near-duplicate legacy ingesters that chunk a markdown doc, embed with all-MiniLM-L6-v2, and append to the legacy semantic_memory + FAISS index."
+      },
+      {
+        "file": "extract_text.py / pdf_util.py",
+        "role": "PDF->markdown bootstrap extractors that produced blueprint_text.md; extract_text.py is now dead (source PDF missing) and uses deprecated PyPDF2, while pdf_util.py uses maintained pypdf."
+      }
+    ]
+  },
+  {
+    "area": "Test Suite + Coverage",
+    "purpose": "The automated test suite that guards the whole ai-editor system: the Python backend (aios/) security/cognition/memory/self-analysis/autonomy/swarm logic, the React product frontend (frontend/src), and the 3D \"superbrain\" lab orchestrator (GAG demo/gag-orchestrator). It is the executable specification and regression net that lets a single supervised developer refactor a large cognitive system without silent behavioral drift.",
+    "architecture": "Three independent suites. (1) Backend: 28 test_*.py files + a session-wide conftest.py that points AIOS_DATA_DIR at a throwaway temp dir BEFORE aios.config is first imported (tests/conftest.py:27-28), so the real data/ SQLite + FAISS are never touched; a separate golden/ harness freezes Self-Analysis T1 findings against a committed fixture (tests/test_golden_analysis.py:65, tests/golden/expected_findings.json). The dominant test pattern is a deterministic scripted fake chat/LLM client driving the REAL ToolAgent loop while a FakeRunner Executor exercises the REAL security gateway + scope-lock — so blocking/gating behavior is genuine, not mocked away (tests/test_tool_agent.py:1-6, tests/test_swarm.py:31-37, tests/test_earned_autonomy_integration.py:27-33). The API layer uses FastAPI TestClient with DI overrides so no Ollama/shell/sandbox is hit (tests/test_api.py:1-5). (2) Product frontend: 9 *.test.{js,jsx} vitest+RTL files colocated in frontend/src (sse, conversation, DiffView, ProposalsPanel, MessageBubble, LivePreview, Alignment*). (3) Lab: 4 vitest test files under GAG demo/gag-orchestrator/src/test driving the real cognition bus, SSE adapter, sound engine, and quality-tier governor (setup.ts is jest-dom wiring, not a test).",
+    "capabilities": [
+      "Backend suite runs 458 collected, 457 passed + 1 skipped in ~60-86s (verified live via `.venv/Scripts/python -m pytest tests/ -q`); the single skip is the symlink-escape scope test, skipif sys.platform=='win32' because symlink creation needs privilege on Windows (tests/test_security.py:133-140)",
+      "Live-measured 90% line coverage of aios/ (5087 stmts, 510 missed) via `coverage run --source=aios -m pytest` — every one of the 40 source modules is imported by at least one test; lowest module is semantic.py at 81%, no module below 81%",
+      "Security spine is exhaustively tested: zone classification, prompt-injection (regex + vector-shield dual layer, incl. fail-safe-on-embedder-error), scope escape (absolute/relative/symlink/~/redirect-glued/semicolon-glued/bare-..), secret scan+redact, durable rate-limiter, and the critical fail-closed-on-internal-exception guarantee (tests/test_security.py:235-241)",
+      "Self-apply engine has 18 mostly-negative tests: concurrent-lock refusal, credential-like approver refusal, no-self-approval, frozen-core RED refusal, multi-file/foreign-path/escaping-target refusal, audit-fail block, snapshot-integrity-mismatch, honest rollback-failure reporting, atomic-restore failure (tests/test_self_apply.py:110-307)",
+      "Earned-autonomy is tested at BOTH levels: the ledger contract (evidence-gated grant, single-failure instant revoke, scope-bound signature class, secret-redacted signature) in tests/test_autonomy.py, AND end-to-end through the real ToolAgent turn loop incl. a distinct earned-autonomy audit-chain entry (tests/test_earned_autonomy_integration.py:115-139)",
+      "Stigmergy/brain-growth deeply covered (31 tests): trail evaporation with disuse, reuse-failure quarantine + direct-success restoration, reuse-factor asymmetry/bounds, signature dedup + 3 migration backfill/merge tests, curriculum held-out-verifier gating (tests/test_brain_growth.py:250-744)",
+      "Golden-regression harness proves it is load-bearing: a deliberately mutated complexity_threshold=999 must drift the finding set, asserting the golden comparison is not vacuous (tests/test_golden_analysis.py:95-102)",
+      "Data-isolation is itself asserted as a test: derived DB/index/rollback paths must live under the temp DATA_DIR and hybrid_search must short-circuit []  WITHOUT loading the embedder on an empty index (tests/test_data_isolation.py:27-52)",
+      "Product frontend: 9 files / 29 tests pass (verified `npx vitest run`); SSE frame parser, DiffView, ProposalsPanel apply/reject + RED-disabled, alignment panels",
+      "Lab orchestrator: 4 files / 26 tests pass (verified); cognition-bus fault isolation, SSE adapter replay incl. approval token redemption + LINK OFFLINE honesty, sound-engine 'failed verification never sounds like success', demote-only quality-tier ratchet"
+    ],
+    "sophistication": [
+      "Session-wide isolation exploits pytest's import ordering: conftest.py sets AIOS_DATA_DIR before aios.config binds its derived paths, eliminating the old per-test hybrid_search stub entirely — and a dedicated test (test_data_isolation.py) guards that this isolation holds (tests/conftest.py:1-18)",
+      "The 'real gateway, fake runner' pattern is consistently applied: fakes are only the non-deterministic edges (LLM chat, shell spawn, embedder), while the security/scope/audit machinery runs for real, so tests prove genuine refusal behavior rather than asserting mocked returns (tests/test_swarm.py:1-8)",
+      "Golden harness is self-validating (test_golden_comparison_is_load_bearing) and intentionally leaves 'uncovered' out of the golden by withholding coverage_data_path so the join stays dormant and reproducible (tests/test_golden_analysis.py:46, golden/conftest.py collect_ignore_glob keeps fixture tests out of collection)",
+      "Sound-engine test installs a minimal recording WebAudio mock and asserts exact oscillator frequencies — proving a VERIFICATION RED event never plays the 1318.5Hz success tick, encoding 'what you hear is what happened' as a behavioral contract (GAG demo/.../soundEngine.test.ts:96-108)",
+      "aiosAdapter test replays recorded-shape SSE frames against a mocked fetch and asserts the full supervised-turn narration, approval-token redemption on AUTHORIZE replay, and honest LINK OFFLINE/'rejected (unconfirmed)' degradation — the demo's 'claim to honesty' is itself tested (GAG demo/.../aiosAdapter.test.ts:51-191)",
+      "Negative-path density is unusually high: self_apply (18 tests, ~15 refusal/rollback), security (~32 incl. fail-closed + 5 shell-composition parametrizations), agent_coord (one-writer-lease fail-closed, hash-pinned handoff, builder-cannot-self-review), reflection (concurrency increment, positive-delta clamp) — this is adversarial, not happy-path, testing"
+    ],
+    "completeness": "~90% (genuinely high, evidence-based). Basis: live coverage run = 90% line coverage of aios/ with no module below 81%; 512 total passing tests across the three suites (457 backend + 29 product + 26 lab), all green when run; every source module is exercised; the test bodies are dominated by error/refusal/edge paths, not happy-path assertions. The remaining ~10% miss is almost entirely defensive exception branches and a handful of untested HTTP endpoints, not core logic. The '457 passed' headline is REAL but it counts the backend only — the honest cross-suite total is 512 passing + 1 skipped.",
+    "gaps": [
+      "Three live API routes have NO endpoint-level (TestClient) test, though their underlying logic is unit-tested elsewhere: GET /api/v1/development/autonomy and POST /api/v1/development/autonomy/revoke (ledger tested in test_autonomy.py but not via HTTP) and GET /api/v1/development/trails (stigmergy tested in test_brain_growth.py but not via HTTP) — verified by grepping tests/test_api.py: 0 references to 'development/autonomy', 'development/trails'",
+      "No backend integration test spawns a REAL subprocess or a REAL Docker container — the Executor's DockerRunner contract is asserted by inspecting the constructed argv (tests/test_executor.py:221), never by running a container; there is no end-to-end 'live shell' proof in the suite (by design, but it is a coverage gap for the real spawn path)",
+      "No test loads a REAL Ollama/Bedrock model end-to-end; every LLM/embedder is faked or skipped — so the actual provider integration (prompt formatting reaching a live model, streaming parse against real bytes) is unverified by CI",
+      "Lowest-covered modules leave real branches untested: memory/semantic.py 81% (lines 154-194 — likely the consolidation/vector-eviction path), core/self_apply.py 83%, memory/conversation.py 83%, api/main.py 85% (111 missed lines incl. several error handlers at 896-940, 1278-1286, 1655-1660)",
+      "No frontend coverage instrumentation is wired (vitest run without --coverage); the 29 product tests are real but their line-coverage of frontend/src is unmeasured and the superbrain 3D components are largely untested (only cognition bus / adapter / sound / tier are)",
+      "Two embedding-dependent test groups (test_memory.py module, test_security.py vector-shield novel-injection) and the radon/coverage importorskip tests will SILENTLY skip on a machine missing those deps — on this machine they ran, but the suite's green can mask absent-dependency skips that aren't surfaced in the headline"
+    ],
+    "hidden_findings": [
+      "The '457 passed' figure in project memory is the BACKEND-only number and is actually 457 passed + 1 SKIPPED (458 collected) — the skip is invisible in a casual 'all green' read; the true all-suite total is 512 passing tests (457 + 29 product + 26 lab)",
+      "The 1 skipped test is platform-conditional, not broken: test_symlink_escape_is_out_of_scope skips on win32 because symlink creation needs privilege — meaning the symlink-escape security guarantee is NEVER exercised on the developer's own Windows machine; it only runs on POSIX CI (tests/test_security.py:133)",
+      "pytest.ini deliberately restricts testpaths=tests so a bare `pytest` does NOT collect training_ground/ (a sandbox seed that may be intentionally broken during a BREATHE demo) — the two untracked training_ground/test_auto_*.py files in git status are NOT part of the suite and won't run by default",
+      "golden/fixture/tests/test_*.py files look like real tests but are analyzer INPUT DATA; golden/conftest.py uses collect_ignore_glob=['fixture/*'] so pytest never collects them — running them would couple the suite to fixture content (tests/golden/conftest.py:10)",
+      "The API tests dropped their old hybrid_search stub entirely and rely on a non-obvious emergent property: an empty isolated FAISS index makes retrieval short-circuit to [] without ever constructing the embedding model — this is asserted as a contract in test_data_isolation.py:41-52, so a future change that eagerly loads the embedder would break API tests in a confusing way",
+      "Lab + product suites are NOT run by the backend pytest invocation and have no shared runner — a developer running only `pytest` (or only the documented backend command) gets a green that says nothing about the 55 JS/TS tests; there is no single 'run everything' gate",
+      "LivePreview.test.jsx emits a React 'not wrapped in act(...)' warning during the network-egress-block test — the test passes but the warning indicates an un-awaited state update, a latent flakiness smell in the product suite"
+    ],
+    "debt": [
+      "api/main.py is the single largest coverage hole: 743 stmts, 111 missed (85%), and at 66KB the test_api.py is correspondingly huge (67 tests) — several error/guard branches (lines 896-940, 1254-1286, 1655-1660) and the autonomy/trails endpoints are untested, so this file concentrates both the most code and the most untested code (aios/api/main.py)",
+      "Provider/integration realism debt: no test ever exercises a real subprocess, real container, or real model — the suite proves the WIRING and gating are correct but cannot catch a regression in actual shell-quoting, container flags reaching docker, or live SSE byte-framing from Ollama",
+      "Dependency-gated silent skips: test_memory.py (whole module) and the radon/coverage importorskips will vanish from the count without failing on a thin environment, so 'all green' is environment-sensitive and not self-announcing (tests/test_memory.py:37-43, test_security.py:104-108)",
+      "No coverage threshold is enforced anywhere (no .coveragerc, no --cov-fail-under, no pytest-cov in pytest.ini) — the strong 90% is achieved by discipline, not gated, so it can silently regress between runs",
+      "Frontend/lab coverage is entirely unmeasured (vitest run, no --coverage) — the 3D superbrain render components, organ-mode, and most of GAG demo/gag-orchestrator/src beyond the bus/adapter/sound/tier are untested with no metric to reveal it",
+      "Test-to-source size asymmetry signals risk concentration: test_api.py (66KB), test_tool_agent.py (63KB), test_self_analysis.py (30KB), test_brain_growth.py (30KB) carry the bulk of the suite — a refactor of ToolAgent or the API touches enormous, tightly-coupled test files"
+    ],
+    "keyFiles": [
+      {
+        "file": "tests/conftest.py",
+        "role": "Session-wide isolation: sets AIOS_DATA_DIR to a temp dir before aios.config imports, so tests never touch real data/; the linchpin that makes the whole suite hermetic"
+      },
+      {
+        "file": "tests/test_api.py",
+        "role": "Largest suite (67 tests, 66KB): FastAPI TestClient + DI-override integration coverage of ~18 of 33 routes; also the file with the most untested branches"
+      },
+      {
+        "file": "tests/test_tool_agent.py",
+        "role": "63KB / 63 tests driving the real ToolAgent loop with scripted chat + real gateway — the core agentic-loop behavioral spec"
+      },
+      {
+        "file": "tests/test_security.py",
+        "role": "32 tests of the security spine incl. the critical fail-closed-on-exception guarantee and the only platform-skipped test (symlink escape)"
+      },
+      {
+        "file": "tests/test_self_apply.py",
+        "role": "18 mostly-negative tests of the self-modification engine: the densest refusal/rollback/integrity coverage in the suite"
+      },
+      {
+        "file": "tests/test_brain_growth.py",
+        "role": "31 tests of stigmergy trails, reuse asymmetry, quarantine/restore, curriculum held-out gating, and signature-dedup migrations"
+      },
+      {
+        "file": "tests/test_golden_analysis.py",
+        "role": "Golden-regression harness freezing Self-Analysis T1 findings against a committed fixture; includes a self-validating drift check"
+      },
+      {
+        "file": "tests/golden/conftest.py",
+        "role": "collect_ignore_glob keeps the analyzer-input fixture/tests out of pytest collection — prevents fixture/test coupling"
+      },
+      {
+        "file": "tests/test_earned_autonomy_integration.py",
+        "role": "End-to-end earned-autonomy through the real turn loop: auto-apply vs human-pause vs distinct audit-chain entry"
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/test/aiosAdapter.test.ts",
+        "role": "Lab's honesty contract: replays SSE frames, asserts approval-token redemption and honest LINK OFFLINE / unconfirmed-rejection degradation"
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/src/test/soundEngine.test.ts",
+        "role": "Asserts exact oscillator frequencies so a failed verification can never sound like success — 'what you hear is what happened'"
+      },
+      {
+        "file": "frontend/src/lib/sse.test.js",
+        "role": "Product SSE frame-parser unit tests incl. partial-frame carry and human_required/alignment frame recognition"
+      },
+      {
+        "file": "frontend/src/components/ProposalsPanel.test.jsx",
+        "role": "Product self-analysis UI: fetch+render diff, apply with approvedBy, RED-disabled apply, reject POST"
+      }
+    ]
+  },
+  {
+    "area": "Docs currency vs code",
+    "purpose": "Assess whether every documentation file in the repo is current / stale / wrong / missing-coverage versus the actual code, so the docs can be left up to date for future builds.",
+    "architecture": "The docs split into three tiers with very different currencies. Tier 1 = top-level operating docs (AGENTS.md, CLAUDE.md, README.md, START_HERE.md, KICKOFF_PROMPT.md), all last touched 2026-06-10. Tier 2 = historical/frozen design docs (aiosv6_assessment_text.md@06-07, blueprint_text.md, .aios/state/AUDIT.md@06-07, PLAN.md@06-03) that are explicitly dated snapshots. Tier 3 = the live continuity layer (.aios/state/RESUME.md, CEO_LOG.md, EVIDENCE_CURRICULUM.md, BACKEND_TRUE_PICTURE.md, NEXT_ANALYSIS.md), updated 2026-06-12/13. The Tier-1 docs predate the 06-11/06-12/06-13 feature waves (curriculum evidence, stigmergy core, superbrain-as-official, earned-autonomy, swarm), so they are the stale layer; the .aios live layer is current. CLAUDE.md is a 5-line loader that correctly delegates to AGENTS.md, and main.jsx:6-22 / config.py:217 confirm the runtime that the docs should be describing.",
+    "capabilities": [
+      "AGENTS.md SXI security model is accurate: the five frozen-core files it names all exist (aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py present) and SCOPE_ROOTS = training_ground/ only is correct (aios/config.py:217-218)",
+      "README Core Modules table is path-accurate: all 12 listed files exist (verified aios/api/main.py, aios/agents/tool_agent.py, aios/core/{alignment,executor,verifier,model_selector,self_apply}.py, aios/security/{gateway,scope_lock,audit_logger}.py, aios/memory/conversation.py, frontend/src/App.jsx)",
+      "README Security Invariants section is current and matches code (loopback-only unauth, AIOS_API_TOKEN >=32 chars at config.py:307, container backend via AIOS_APPROVED_EXECUTION_BACKEND at config.py:233-234, Dockerfile.executor exists)",
+      "RESUME.md earned-autonomy + swarm claims verified in code (aios/core/autonomy.py + aios/agents/swarm.py exist; wired at main.py:40,42,1581,1618; tests/test_autonomy.py + tests/test_swarm.py exist)",
+      "AGENTS.md config-flag documentation is accurate for the flags it lists: AIOS_INDEX_CHAT / AIOS_REFLECT_ON_FAILURE / AIOS_INTERPRET_ALIGNMENT all exist as documented (config.py:263,269,278)"
+    ],
+    "sophistication": [
+      "The .aios continuity-doc discipline is genuinely strong: CEO_LOG.md is a dated append-only advisory ledger that honestly tracks the test-count climb session by session (116 -> 150 -> 262 -> 278 -> 331 -> 350 -> 375 -> ...), so the history of the now-stale 375 figure is itself documented even though Tier-1 docs froze at it",
+      "AUDIT.md and PLAN.md are explicitly self-dating ('refreshed 2026-06-07', 'Authored 2026-06-03') and state their own ground-truth counts, so they read correctly as historical snapshots rather than silently claiming to be current",
+      "EVIDENCE_CURRICULUM.md is an unusually rigorous evidence doc: exact before/after brain-artifact deltas, the live audit-chain head hash (182 entries), and preserved negative results (the FAIL-dominance limitation) — the same trust-evidence discipline the code embodies"
+    ],
+    "completeness": "Mixed. The .aios live layer is ~95% current. The Tier-1 operating docs (README / AGENTS / START_HERE / KICKOFF) are ~70% current: structurally correct but numerically and feature-stale by ~3 days, ~83 tests, and two whole feature waves. Two README.md files are 0% real (untouched scaffolding templates). One root doc (websocket_security_update.md) is 100% orphaned (describes tech absent from the active stack).",
+    "gaps": [
+      "README.md never mentions the SUPERBRAIN, which is the DEFAULT frontend since 2026-06-12 (frontend/src/main.jsx:6-22 mounts SuperbrainApp by default; App.jsx only via ?ui=classic). README's Architecture diagram and Core Modules table present frontend/src/App.jsx as 'Main IDE/chat shell' (README.md:52) — the actual default UI is entirely undocumented in README",
+      "Neither README nor AGENTS.md documents the two newest backend capabilities RESUME treats as the active front: EARNED AUTONOMY (aios/core/autonomy.py; GET/POST /api/v1/development/autonomy at main.py:715-732) and the WORKER SWARM (aios/agents/swarm.py; swarm:true flag at main.py:433,1581). The AIOS_EARNED_AUTONOMY and AIOS_SWARM_MAX_WORKERS env flags (config.py:177,187) are absent from AGENTS.md SXI's env-flag list",
+      "frontend/README.md is the unmodified Vite React template ('This template provides a minimal setup...') — documents nothing about the product UI, superbrain, or ?ui=classic",
+      "GAG demo/gag-orchestrator/README.md is unmodified create-next-app boilerplate (references app/page.tsx) — the real lab docs live in PROJECT.md / VISION.md / AGENTS.md, so the README actively misdirects",
+      "No Tier-1 doc points to BACKEND_TRUE_PICTURE.md / the .aios/state doc-set as the authoritative architecture reference; README still implies it is the architecture source of truth while being shallower and staler than BACKEND_TRUE_PICTURE.md"
+    ],
+    "hidden_findings": [
+      "websocket_security_update.md is completely orphaned: it gives Node.js WebSocket security best practices, but grep finds ZERO WebSocket / ws:// / wss:// usage in either aios/ or frontend/src/ — the active backend is HTTP+SSE. It looks like a stray research note from the retired legacy_node/ era (which does contain knowledgeGraph.js etc.). A future reader could mistake it for guidance on the live transport",
+      "The 'baseline 375 passed, 1 skipped' figure is hard-coded into FOUR Tier-1 docs (AGENTS.md:124, README.md:79, START_HERE.md:54, and the KICKOFF flow at KICKOFF_PROMPT.md:24) but the suite now collects 458 tests (verified via pytest --co -q). 375 was the 2026-06-10 baseline (CEO_LOG 06-10); 06-11 curriculum took it to 408, trail mechanics 423, stigmergy core 438, earned-autonomy+swarm 456-458. RESUME.md is itself inconsistent: '456 passed' (lines 39,92) vs '457 tests' (line 68)",
+      "The lab's agent rulebook is a trap: GAG demo/gag-orchestrator/CLAUDE.md is just '@AGENTS.md' and that lab AGENTS.md is a 5-line nextjs-agent-rules stub — so the lab's real instructions are actually in PROJECT.md / VISION.md, not the CLAUDE.md/AGENTS.md an agent would auto-discover",
+      "AUDIT.md (06-07) S3 still frames Planner/Verifier/Confidence-filter as 'islands not in the live loop' and calls integration 'highest-ROI next work', and S5 calls the Self-Analysis module 'genuinely missing' — but BACKEND_TRUE_PICTURE.md (06-13) shows the Verifier IS wired (force-verify-after-write / _auto_verify) and Self-Analysis T0-T4 plus self-apply shipped. A reader trusting AUDIT.md as current would badly under-state the system",
+      "PLAN.md (06-03) lists Slices 1-7 as the forward plan, but every one plus the marquee Self-Analysis module shipped weeks ago; it ends 'Phase 2 complete. STOPPING for your approval. On go, Phase 3 starts at Slice 1' — ~2 weeks and dozens of features stale. NEXT_ANALYSIS.md explicitly schedules a PLAN.md refresh, confirming the team knows",
+      "AGENTS.md S0/SXI and START_HERE still describe a live Claude+Codex 50/50 two-writer protocol, but RESUME.md notes recent sessions ran with active_writer:null (no lease held, operator-authorized) and Codex offline until ~06-16 — the documented coordination invariant has been running in a documented-but-bypassed mode"
+    ],
+    "debt": [
+      "Four Tier-1 docs carry the stale 375/1 test baseline (AGENTS.md:124, README.md:79-80, START_HERE.md:54, KICKOFF_PROMPT.md:24) — every test-adding commit widens this drift; pin the number in one place or stop hard-coding it",
+      "frontend/README.md and GAG demo/gag-orchestrator/README.md are both untouched scaffolding templates — pure doc debt that misrepresents two of the most important UI surfaces",
+      "websocket_security_update.md should be deleted or moved to a legacy/ note — dead documentation for a transport the active stack does not use",
+      "README's ASCII architecture diagram and Core Modules table will keep drifting (no superbrain, no autonomy/swarm) because they duplicate rather than reference the now-authoritative .aios/state/BACKEND_TRUE_PICTURE.md",
+      "aiosv6_assessment_text.md scorecard ('Self-analysis readiness 5/10', '~45% implemented') is now contradicted by built reality; without a 'historical, see AUDIT/BACKEND_TRUE_PICTURE' banner it reads as a current verdict"
+    ],
+    "keyFiles": [
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\README.md",
+        "role": "Public-facing architecture/run/test doc; path-accurate but stale on test count (375 vs 458) and silent on the superbrain default UI, earned-autonomy, and swarm — highest-priority refresh"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\AGENTS.md",
+        "role": "Canonical agent rulebook; SXI security model accurate, but SXI test baseline (375/1) stale and its env-flag list omits AIOS_EARNED_AUTONOMY / AIOS_SWARM_MAX_WORKERS"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\frontend\\README.md",
+        "role": "Vite template boilerplate — documents nothing real about the product UI; needs full rewrite covering superbrain default + ?ui=classic"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\GAG demo\\gag-orchestrator\\README.md",
+        "role": "create-next-app boilerplate — actively misdirects; real lab docs are PROJECT.md / VISION.md"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\websocket_security_update.md",
+        "role": "Orphaned Node.js WebSocket note with zero connection to the active SSE stack; delete or archive"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\.aios\\state\\AUDIT.md",
+        "role": "06-07 evidence audit; honest about its date but now substantially stale (calls built features 'islands'/'missing'); needs a superseded banner pointing to BACKEND_TRUE_PICTURE.md"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\.aios\\state\\PLAN.md",
+        "role": "06-03 Phase-2 slice plan; all slices shipped — fully stale, scheduled for refresh in NEXT_ANALYSIS.md"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\.aios\\state\\RESUME.md",
+        "role": "Live handoff manifest; current and accurate but internally inconsistent on test count (456 vs 457) and notes the lease-discipline gap itself"
+      },
+      {
+        "file": "C:\\Users\\kumar\\ai-editor\\.aios\\state\\BACKEND_TRUE_PICTURE.md",
+        "role": "06-13 authoritative backend architecture read; current, and the doc the stale README/AUDIT should defer to"
+      }
+    ]
+  },
+  {
+    "area": "Config + Infra + Deploy",
+    "purpose": "The single source of truth for runtime configuration (every path, threshold, retrieval weight, model/provider choice, and security flag) plus the deployment surface: the FastAPI/uvicorn HTTP server, browser CORS, the sandboxed Docker executor image, the Vite (classic) and Next.js (superbrain/GAG lab) frontend build configs, and how secrets are kept off disk and out of git.",
+    "architecture": "aios/config.py:1-381 is a flat module of `Final` constants, each populated by typed env accessors (`_env_str/int/float/bool/path/scope_roots`, config.py:34-86) so every tunable is overridable via `AIOS_*` env vars or a gitignored root `.env` loaded by python-dotenv at import (config.py:28). Filesystem state lives under a single gitignored `DATA_DIR` (config.py:95-110) created on import. The HTTP layer (aios/api/main.py:111-149) is a FastAPI app whose `lifespan` enforces a deploy policy (non-loopback host requires a >=32-char `AIOS_API_TOKEN`, main.py:89-94), inits both SQLite DBs, validates the execution backend, and optionally installs the vector injection shield; a CORS middleware (main.py:120-126) plus an auth middleware (main.py:128-149) gate `/api/*`, `/docs`, `/redoc`, `/openapi.json`. There is NO `uvicorn.run`/`__main__` entrypoint — the server is launched manually via `.venv\\Scripts\\python -m uvicorn aios.api.main:app --port 8000` (README.md:58). Provider selection flows config -> DI (`get_bedrock_client`/`get_ollama_client`, main.py:152-180) -> `_select_chat_client` (main.py:1030-1070) which routes `auto`->best local tool-capable model, `ollama.x`->local, any other id->Bedrock-or-503. The chat endpoint streams SSE (main.py:1098-1100, 1724-1728). Container isolation is built from config in aios/core/executor.py:192-269.",
+    "capabilities": [
+      "Fully env-overridable config with safe typed fallbacks: bad ints/floats/bools silently fall back to defaults rather than crashing (config.py:40-61)",
+      "Local-first defaults need ZERO config: DATA_DIR auto-created on import (config.py:96), SCOPE_ROOTS defaults to training_ground playground (config.py:217-219), API binds 127.0.0.1:8000 with no token (config.py:303-307)",
+      "Provider selection: Bedrock auto-enables purely from AIOS_BEDROCK_REGION+model being set (BEDROCK_ENABLED, config.py:297); local Ollama default llama3.1:8b (config.py:251); 'auto' picks best installed tool-capable model per inferred task (main.py:977-997, 1044-1052)",
+      "Earned-autonomy is OFF by default and double-gated: AIOS_EARNED_AUTONOMY master switch (config.py:177) + AIOS_EARNED_AUTONOMY_MIN_SUCCESSES=5 (config.py:179); RED is never earnable",
+      "Deploy guardrail: non-loopback API_HOST hard-fails startup without a >=32-char token (main.py:89-93); all /api/* + schema routes require Bearer token when set, else loopback-only (main.py:128-149)",
+      "Sandboxed executor image (Dockerfile.executor) runs as nobody (USER 65534) with empty ENTRYPOINT; the runtime adds --network none, --read-only, --cap-drop ALL, no-new-privileges, pids/memory/cpu limits, noexec tmpfs, single rw bind mount (executor.py:197-228)",
+      "Secrets kept off disk: Bedrock auth read only from env (AWS_BEARER_TOKEN_BEDROCK), never persisted (config.py:285-288); executor strips HOME/USERPROFILE/AWS_BEARER_TOKEN_BEDROCK and any KEY/TOKEN/SECRET/PASSWORD/BEARER-named var before spawning children (executor.py:49-51,272-281)",
+      "CORS pre-allows the four loopback dev/preview origins (Vite 5173 + preview 4173) and is comma-extendable via AIOS_CORS_ORIGINS (config.py:312-320)",
+      "Two frontends: classic Vite/React 19 (frontend/package.json) with a `showcase` build+preview script, and the Next.js 16 GAG superbrain lab (GAG demo/gag-orchestrator) with security headers + GLSL raw-loader rules (next.config.ts)"
+    ],
+    "sophistication": [
+      "Defense-in-depth env sanitisation for child processes: a name-substring blocklist (KEY/TOKEN/SECRET/PASSWORD/PASSWD/CREDENTIAL/BEARER) plus an explicit strip list, AND deterministic venv PATH prepend so bare `python`/`pytest` verify commands stay scope-legal regardless of how uvicorn was launched (executor.py:49-51,272-289)",
+      "The Docker runner is genuinely hardened, not theatre: no network, read-only root, all caps dropped, no-new-privileges, pid/mem/cpu caps, a 64m noexec/nosuid/nodev tmpfs, runs as 65534, and disables pytest cache writes via PYTEST_ADDOPTS (executor.py:201-225); fail-closed via UnavailableIsolationRunner for any unknown backend (executor.py:240-260)",
+      "Token check uses secrets.compare_digest for constant-time comparison (main.py:140), and OPTIONS is exempted so CORS preflight still works behind auth (main.py:136)",
+      "Vite aliases '@' INTO src/superbrain and shims process.env.NEXT_PUBLIC_AIOS_URL at build time so the operator's Next.js lab files stay byte-identical when ported into the Vite app (vite.config.js:11-25) — a real cross-framework portability mechanism",
+      "Self-apply verification gets its own Executor with a fixed project-root pytest command and a guard that rejects any command other than DEFAULT_VERIFY_COMMAND (main.py:210-245), so the human-gated self-edit path can't be repurposed to run arbitrary code at project root",
+      "Injection vector shield install is best-effort and never blocks startup — a model/load failure is swallowed so the regex gateway stays the active defence (main.py:100-107)"
+    ],
+    "completeness": "~85% for a local-first single-laptop target; ~55% for true multi-user/internet deployment. Basis: config coverage is exhaustive and well-documented; the loopback security model, sandboxed executor, and no-secret-persistence are production-grade for the stated single-operator use. The gap to general deployment is deliberate and documented (README.md:154-161 says browser bearer tokens are not multi-user identity and TLS must terminate in an external reverse proxy). No container/orchestration for the app itself, no CI config, no healthcheck wiring beyond GET /health (main.py:502-505).",
+    "gaps": [
+      "No app-level deployment artifact: Dockerfile.executor is ONLY the sandboxed code-runner image, not an image for the API server or frontends. No docker-compose, no Procfile, no systemd unit, no process manager — the backend is started by a hand-typed uvicorn one-liner (README.md:58, START_HERE.md:60).",
+      "No uvicorn entrypoint in code: there is no `if __name__=='__main__'` / `uvicorn.run` anywhere in aios/ (grep found none), so port/host/reload are passed only on the CLI; AIOS_API_HOST/AIOS_API_PORT in config (config.py:303-304) are read by the policy check but NOT actually used to bind the server unless the operator manually mirrors them on the command line.",
+      "The superbrain frontend (the official default per project memory) sends NO Authorization header — aiosAdapter.ts only sets Content-Type (aiosAdapter.ts:194,342), and AIOS_BASE has no token plumbing (aiosAdapter.ts:21-22). Only the classic Vite config.js wires VITE_AIOS_API_TOKEN (config.js:4-5). So a token-protected/non-loopback deploy of the default UI would get 401s on every call.",
+      "No TLS/reverse-proxy config shipped; it is documented as an external operator responsibility (README.md:159-161) but nothing in-repo helps (no nginx/caddy sample).",
+      "No .env.example coverage for AIOS_EARNED_AUTONOMY, AIOS_SWARM_MAX_WORKERS, AIOS_INDEX_CHAT, AIOS_REFLECT_ON_FAILURE, AIOS_INTERPRET_ALIGNMENT, or AIOS_CORS_ORIGINS — several real flags are undocumented in the sample env (.env.example:1-58).",
+      "requirements.txt pins app deps but there is no separation of the heavy ML stack (torch 2.12, faiss-cpu, sentence-transformers, transformers) from the API/runtime deps, so the executor image installs the entire 2GB+ ML stack it never uses (Dockerfile.executor:13-14 installs all of requirements.txt)."
+    ],
+    "hidden_findings": [
+      "A LIVE AWS Bedrock bearer token is sitting in plaintext in the working tree at frontend/.env (frontend/.env:2,6 — `ABSKQmVkcm9ja0FQSUtleS...`). It is gitignored and verified NOT in git history (git ls-files shows it untracked; -S history search for the token prefix returns nothing), so it never leaked via the repo — but it is a real, currently-valid credential left on disk in a frontend dir that has nothing to do with Bedrock (Bedrock is backend-only). It should be rotated and moved to the backend env. Also note that file ALSO contains shell launch commands, so it's a personal scratch file misnamed as a frontend dotenv.",
+      "CORS is configured with allow_credentials=True AND allow_methods=['*'] / allow_headers=['*'] (main.py:122-126). With credentials enabled, wildcard methods/headers are reflected against the explicit origin list, which is fine for the loopback defaults — but if an operator adds a broad origin via AIOS_CORS_ORIGINS, credentialed cross-origin access widens silently. There is no validation that AIOS_CORS_ORIGINS entries are not '*'.",
+      "The bare `pytest` collection is restricted to tests/ via pytest.ini (testpaths=tests) specifically so a deliberately-broken training_ground sandbox during a BREATHE demo doesn't fail the suite (pytest.ini:1-6) — a non-obvious coupling between the test config and the agent's sandbox-breaking demos.",
+      "BEDROCK_ENABLED is derived at import from region+model both being truthy (config.py:297); since BEDROCK_MODEL has a non-empty default (amazon.nova-lite-v1:0), setting ONLY AIOS_BEDROCK_REGION flips cloud on. An operator who sets a region for some other reason would silently enable a cloud provider.",
+      "The frontend API base default is http://localhost:8000 (config.js:3) while the superbrain adapter defaults to http://127.0.0.1:8000 (aiosAdapter.ts:22). localhost vs 127.0.0.1 are DIFFERENT CORS origins; the CORS allow-list includes both localhost and 127.0.0.1 for 5173/4173 (config.py:312-320) so it works, but any new origin must be added in both spellings or break.",
+      "Dockerfile.executor sets ENTRYPOINT [] (executor.py image, Dockerfile.executor:18) deliberately so the runtime supplies the full argv; combined with --read-only root + noexec tmpfs the container cannot even write bytecode (PYTHONDONTWRITEBYTECODE also set). This is intentional belt-and-suspenders, easy to mistake for redundancy."
+    ],
+    "debt": [
+      "frontend/.env holds a live Bedrock credential plus shell snippets and AWS_REGION/AWS_BEARER_TOKEN_BEDROCK — wrong location (frontend, not backend), wrong content (a launch script in a dotenv), and a real secret on disk (frontend/.env:1-7). Rotate + relocate.",
+      "Two diverging frontend API clients with divergent auth + base-URL handling: config.js (token-aware, localhost) vs aiosAdapter.ts (no token, 127.0.0.1) — the official default UI cannot authenticate to a protected backend (aiosAdapter.ts:21-22,194,342 vs config.js:3-5).",
+      "Executor image installs the full ML requirements.txt (torch/faiss/transformers) it never needs, bloating the sandbox image build time and size for no benefit (Dockerfile.executor:13-14, requirements.txt:9-65).",
+      "config.py duplicates every constant name into a 59-entry __all__ (config.py:323-381) that must be hand-maintained in lockstep with the constants above — easy to drift (e.g. a new flag added but omitted from __all__).",
+      "No pinned/locked frontend deps beyond package.json caret ranges, and two separate node projects (frontend + GAG demo) with overlapping but version-skewed three/react-three stacks — drift risk across the port path.",
+      "gitignore parks several CSS files and a design PDF as 'source-reference artifacts' (.gitignore:41-49) — dead/parked assets tracked-out rather than removed."
+    ],
+    "keyFiles": [
+      {
+        "file": "aios/config.py",
+        "role": "Single source of truth for all AIOS_* env flags, paths, thresholds, model/provider selection, security gating; typed accessors with safe fallbacks"
+      },
+      {
+        "file": "aios/api/main.py",
+        "role": "FastAPI app: lifespan deploy-policy enforcement, CORS + Bearer-token middleware, DI for providers/executor, SSE chat bridge, all /api routes; no built-in uvicorn entrypoint"
+      },
+      {
+        "file": "aios/core/executor.py",
+        "role": "Host vs container execution backends; hardened DockerRunner (no-net/read-only/cap-drop) and the env-sanitisation that strips secrets before child processes"
+      },
+      {
+        "file": "Dockerfile.executor",
+        "role": "Sandboxed code-runner image (python:3.12-slim, runs as nobody, empty ENTRYPOINT) — NOT an app/server image"
+      },
+      {
+        "file": ".env.example",
+        "role": "Documented operator template for env overrides; lags real flags (missing earned-autonomy/swarm/index-chat/cors etc.)"
+      },
+      {
+        "file": "frontend/.env",
+        "role": "FINDING: gitignored working-tree file containing a live Bedrock bearer token + launch script — secret-on-disk, wrong location"
+      },
+      {
+        "file": "frontend/src/config.js",
+        "role": "Classic frontend API base + token wiring (VITE_API_BASE, VITE_AIOS_API_TOKEN -> Bearer header)"
+      },
+      {
+        "file": "frontend/src/superbrain/lib/aiosAdapter.ts",
+        "role": "Default superbrain frontend's API client — defaults to 127.0.0.1:8000 and sends NO auth header (deploy gap)"
+      },
+      {
+        "file": "frontend/vite.config.js",
+        "role": "Vite build: '@'->src/superbrain alias + NEXT_PUBLIC_AIOS_URL shim for byte-identical lab ports; jsdom vitest setup"
+      },
+      {
+        "file": "GAG demo/gag-orchestrator/next.config.ts",
+        "role": "Next.js 16 lab build: security headers, three transpile, GLSL raw-loader (turbopack+webpack)"
+      },
+      {
+        "file": "pytest.ini",
+        "role": "Restricts bare pytest to tests/ so a deliberately-broken training_ground sandbox doesn't fail the suite"
+      },
+      {
+        "file": "requirements.txt",
+        "role": "Pinned backend deps incl. heavy ML stack (torch 2.12, faiss-cpu, sentence-transformers, boto3) — no API/ML split"
+      }
+    ]
+  },
+  {
+    "area": "Cross-Cutting Audit (dead code, security surface, tech debt, undocumented features, bundle weight)",
+    "purpose": "A whole-repo \"you'd never know unless you read it\" net: surfacing orphaned/dead code, stale runtime artifacts, the security surface beyond the audited spine, performance hotspots, the ~1.3MB frontend bundle origin, and capabilities present in code but absent from the docs.",
+    "architecture": "262 tracked files across frontend/ (76), aios/ (46 — the live Python core), tests/ (40), training_ground/ (29 — the agent's writable sandbox playground), legacy_node/ (19 — the dead pre-Python prototype), and .aios/ (19 — the tracked Claude Code continuity brain). The live system is the Python aios/ package fronted by one FastAPI app (aios/api/main.py:1-1767, 31 routes, 15 Pydantic models) that injects ~20 subsystems into the agentic SSE endpoint /api/generate (main.py:1291). Security is a layered fail-closed spine: gateway.classify (aios/security/gateway.py:283) runs injection→secret→destructive→network→env→shell-escape→scope→caution checks in strict order with RED as the DEFAULT verdict (gateway.py:348), backed by scope_lock canonicalization (scope_lock.py:81), a SHA-256 entropy+regex secret scanner (secret_scanner.py:75), an optional vector injection shield (injection_shield.py:44), a SHA-256 hash-chained audit ledger (audit_logger.py:1-10), and a Docker executor that enforces --network none --read-only --cap-drop ALL --user 65534 --tmpfs noexec plus env-secret stripping (executor.py:197-228, 272-290). Around this core sit demo/evidence HTTP-client drivers (swarm_demo.py, earn_demo.py, curriculum_evidence_driver.py) and a layer of orphaned root prototype scripts (hybrid_search.py, ingest_knowledge.py et al.) that predate aios/memory.",
+    "capabilities": [
+      "Three-zone deterministic security gateway with allowlist-by-default: anything not explicitly GREEN/YELLOW falls through to RED (aios/security/gateway.py:348), and human approval can never authorize a RED action (executor.py:436-443)",
+      "Fail-closed scope lock: symlink-resolved real-path canonicalization, shell-operator pre-splitting, Windows drive-aware path detection, and ~/home-reference refusal (aios/security/scope_lock.py:125-177)",
+      "SHA-256 hash-chained tamper-evident audit ledger with genesis-from-64-zeros and O(n) verify_chain, isolated from mutable memory (aios/security/audit_logger.py:1-23)",
+      "Secret scanner combining named credential regexes (AWS/GitHub/OpenAI/bearer) with a Shannon-entropy (>=4.0 bits/char) second pass, redacting to non-reversible <REDACTED:NAME:hash> tokens (aios/security/secret_scanner.py:28-104)",
+      "Docker sandbox executor: ephemeral --rm container, no network, read-only rootfs, all caps dropped, nobody user, pids/memory/cpu limits, noexec tmpfs (aios/core/executor.py:192-237)",
+      "Dual-layer prompt-injection defense: deterministic regex plus opt-in cosine-similarity vector blocklist over a curated injection set, fail-safe to regex-only on embedder error (aios/security/injection_shield.py:73-88, gateway.py:306-308)",
+      "Per-session RED-action rate limiter that transparently migrates plaintext session ids to SHA-256 keys in its SQLite store (aios/security/gateway.py:178-243)",
+      "Guarded T3a self-apply engine that writes the OS's own aios/ source via snapshot→git apply --check→audit→confined apply→integrity check→gated verify→auto-rollback, with no agent-reachable apply tool (aios/core/self_apply.py:1-21)",
+      "Sequential role-pass castes (planner→coder→reviewer) with mechanically-enforced per-caste tool subsets (aios/agents/role_pass.py:26-31)",
+      "Ephemeral worker swarm: decomposer→per-subtask workers→synthesizer, stigmergic via conversation + sandbox + trail field, no shared mutable state (aios/agents/swarm.py:1-27)",
+      "Lazy thread-safe ~90MB MiniLM embedding singleton + persistent FAISS HNSW (inner-product) index with mtime-based reload (aios/memory/embeddings.py:36-105)",
+      "UI terminal endpoint that runs commands through the exact same gateway+sandbox+audit path as agent actions, issuing approval tokens for YELLOW (aios/api/main.py:1731-1767)"
+    ],
+    "sophistication": [
+      "RED-by-default allowlist gateway is genuinely strong: an unknown command is refused, not shelled (gateway.py:348); shell composition metacharacters are rejected even after human approval (gateway.py:119-122, executor.py:297)",
+      "The structural no-self-approval guard in self_apply.py is real architecture, not a check: the agent literally has no apply tool (only propose), so applying is reachable ONLY via the human HTTP endpoint; the approved_by!=proposed_by check is an explicit second layer (self_apply.py:13-18)",
+      "Executor env sanitization strips any var whose NAME contains KEY/TOKEN/SECRET/PASSWORD/etc plus HOME/USERPROFILE/AWS_BEARER_TOKEN_BEDROCK, then deterministically prepends the project venv to PATH so a bare `python` can't hit a sandbox-planted binary (executor.py:48-51, 272-290, 320-330)",
+      "Bounded-output subprocess draining via per-stream threads that read-and-discard past the limit, preventing both unbounded memory and pipe-buffer deadlock (executor.py:86-152)",
+      "The vector injection shield is fail-SAFE in the security-correct direction: an embedder failure returns False so the regex layer is never weakened into blocking everything (injection_shield.py:87-88)",
+      "Audit-before-write ordering in self_apply: the apply intent is logged to the tamper-evident ledger BEFORE the bytes touch disk, mirroring edit_file/create_file (self_apply.py:6-9)",
+      "RateLimiter performs an online schema migration of legacy plaintext session ids into SHA-256 digests on init, merging collisions (gateway.py:185-210)"
+    ],
+    "completeness": "High for the live core (~90%+): zero TODO/FIXME/HACK/XXX markers exist in live aios/ source — the only matches are the self-analysis detector's own _TODO_MARKER regex (self_analysis_agent.py:66), test fixtures, and the blueprint/assessment reference docs. The security spine, executor, memory, swarm, role-pass, and self-apply engines are all fully implemented, not stubbed. The drag on the number is housekeeping debt, not functional gaps: a dead legacy_node/ tree, a layer of orphaned root prototype scripts, a couple of stray demo/ingest files, untracked sandbox residue, and two large monolith files.",
+    "gaps": [
+      "No documentation of major shipped subsystems: README.md has ZERO mentions of swarm, role-pass/castes, stigmergy, earned-autonomy, trails, or the superbrain frontend (verified via grep — README headers stop at 'Brain Growth Loop' and 'Local Model Gallery'); AGENTS.md has zero mentions of swarm/caste/stigmergy",
+      "Host-mode executor explicitly cannot guarantee process-tree containment or network isolation — only the container backend does (executor.py:14-17); the default backend choice determines whether the exfil guardrail is regex-only or true --network none",
+      "Two untracked trivial sandbox-residue test files (training_ground/test_auto_grant.py, test_autonomy_live.py — each a 50-byte `assert True` stub) left from live autonomy demos, never cleaned",
+      "Stray websocket_security_update.md is a generic Node.js WebSocket-security note irrelevant to this Python/SSE codebase — almost certainly a RAG-ingestion test leftover, documents a transport (WSS/WebSocket) the system does not use"
+    ],
+    "hidden_findings": [
+      "legacy_node/ (19 files: server.js, securityGateway.js, scopeLock.js, secretScanner.js, auditLogger.js, etc.) is the COMPLETE original Node.js prototype of the entire system — every aios/ security module has a .js ancestor here. It is referenced by NOTHING in aios/tests/frontend (verified) — fully orphaned dead code kept as historical reference (legacy_node/server.js:1-14)",
+      "The ~1.3MB frontend bundle is the lazy-loaded Superbrain chunk: frontend/dist/assets/SuperbrainApp-*.js = 1,297,730 bytes — three.js + @react-three/{fiber,drei,postprocessing} + motion all bundled into the 3D scene's code-split chunk. SEPARATELY, the brain 3D assets weigh ~4.5MB of PNG textures (public/textures/brain/normal.png 2.35MB + diffuse.png 1.89MB + specgloss.png 269KB) plus brain.glb 155KB — the real download weight is textures, not JS (frontend/package.json:14-24)",
+      "A naming collision: root hybrid_search.py is the DEAD pre-aios prototype (keyed to orchestrator_memory.sqlite / root vector_index.faiss), while aios.api.main ALSO defines a live `hybrid_search` symbol that tests monkeypatch (test_api.py:457). Same name, totally different code — the root one and its siblings (ingest_knowledge.py, ingest_update.py, vector_memory_setup.py, pdf_util.py, extract_text.py) are the orphaned prototype superseded by aios/memory/",
+      "chat-ui.html (660 bytes) is a stale hardcoded 'Jarvis' demo HTML with zero connection to the real React frontend — orphaned",
+      "success.txt ('OS Online') and creator.txt (0 bytes) are tracked sentinel/marker files with no code references — pure cruft in git",
+      "Root SQLite/FAISS artifacts (memory.db 40KB, orchestrator_memory.sqlite 151KB + a once-898KB WAL now checkpointed, vector_index.faiss 65KB, .coverage) sit on disk but are correctly gitignored — they are stale prototype runtime state, NOT tracked",
+      "__pycache__ exists in the working tree under every aios/ subpackage and tests/ but is correctly gitignored (verified not tracked) — only a local-disk cleanliness nit",
+      "The executor strips AWS_BEARER_TOKEN_BEDROCK BY NAME (executor.py:51) — a Bedrock-specific hardcoding that won't generalize if the cloud provider/credential var changes",
+      "Auto-execute GREEN allowlist is extremely narrow — only `echo` and `pwd` match _SAFE_PATTERNS (gateway.py:138-141); literally every other read command (ls, cat, grep) is NOT auto-green and falls to the RED default unless it matches YELLOW — surprisingly strict and easy to misread as permissive"
+    ],
+    "debt": [
+      "aios/api/main.py is a 1767-line monolith (31 routes, 15 Pydantic models, the entire DI graph, and a ~470-line event_stream generator) — the single largest structural-debt file (aios/api/main.py:1)",
+      "aios/agents/tool_agent.py is 1528 lines — the second monolith; the agentic loop, tool dispatch, caste tool-subset enforcement, and grant pre-apply all live in one module (aios/agents/tool_agent.py:1)",
+      "frontend/src/App.jsx is 1817 lines and superbrain/superbrain.css is 1825 lines — large single-file UI surfaces that resist incremental review",
+      "legacy_node/ (19 files incl. package-lock.json) — dead Node prototype that should be removed or moved out of the tracked tree to stop implying a live JS backend",
+      "Tracked cruft to delete: success.txt, creator.txt (0 bytes), chat-ui.html, websocket_security_update.md — none are referenced by any live code",
+      "Two untracked 50-byte sandbox-residue test files in training_ground/ (test_auto_grant.py, test_autonomy_live.py) should be cleaned or gitignored — leftover autonomy-demo write-proof",
+      "147 broad-except sites in aios/ (non-test), but 65 are explicit `# noqa: BLE001` fail-closed/fail-safe by design (gateway.py:349, scope_lock.py:107, injection_shield.py:87) — deliberate, though the ~80 unannotated ones warrant a sweep to confirm intent",
+      "Orphaned root prototype scripts (hybrid_search.py, ingest_knowledge.py, ingest_update.py, vector_memory_setup.py, pdf_util.py, extract_text.py) duplicate functionality now owned by aios/memory and key off the dead orchestrator_memory.sqlite path — confusing to a new reader",
+      "Perf hotspot (acceptable but real): first call to any embedding/recall path triggers a ~90MB MiniLM model load + FAISS index read on the request thread via the lazy singleton (aios/memory/embeddings.py:42-56) — cold-start latency on the first /api/generate or memory search"
+    ],
+    "keyFiles": [
+      {
+        "file": "aios/security/gateway.py",
+        "role": "The deterministic fail-closed three-zone classifier; RED-by-default allowlist, injection/secret/destructive/network/env/shell/scope ordering, SHA-256 session rate limiter"
+      },
+      {
+        "file": "aios/core/executor.py",
+        "role": "The actual sandbox + exfil guardrail: Docker --network none --read-only --cap-drop ALL container, env-secret stripping, bounded-output draining, structured argv"
+      },
+      {
+        "file": "aios/security/scope_lock.py",
+        "role": "Fail-closed path canonicalization defeating traversal/symlink/drive/home escapes"
+      },
+      {
+        "file": "aios/security/audit_logger.py",
+        "role": "SHA-256 hash-chained tamper-evident ledger (genesis from 64 zeros, O(n) verify)"
+      },
+      {
+        "file": "aios/core/self_apply.py",
+        "role": "Highest-risk component: the guarded, audited, reversible engine that writes the OS's own source — structural no-self-approval guard"
+      },
+      {
+        "file": "aios/api/main.py",
+        "role": "1767-line FastAPI monolith: 31 routes incl. the /api/generate agentic SSE loop and the gated /api/terminal; biggest structural debt"
+      },
+      {
+        "file": "legacy_node/server.js",
+        "role": "The complete dead Node.js prototype of the whole system — orphaned, referenced by nothing live"
+      },
+      {
+        "file": "frontend/package.json",
+        "role": "Reveals the bundle weight source: three.js + @react-three/{fiber,drei,postprocessing} + motion drive the ~1.3MB lazy SuperbrainApp chunk"
+      },
+      {
+        "file": "frontend/public/textures/brain/normal.png",
+        "role": "The real download-weight culprit: ~4.5MB of brain PNG textures (normal 2.35MB + diffuse 1.89MB) dwarf the JS"
+      },
+      {
+        "file": "README.md",
+        "role": "Documents the security/memory/alignment/curriculum loops but OMITS swarm, role-pass, castes, stigmergy, autonomy, and the superbrain UI — the undocumented-feature gap"
+      }
+    ]
+  },
+  {
+    "area": "Blueprint-vs-Reality (Phases 1-5)",
+    "purpose": "Definitive phase-by-phase status of the shipped code against AI_OS_Blueprint_APlus_v6 (blueprint_text.md) and its companion assessment (aiosv6_assessment_text.md), separating what is genuinely built from genuine gaps (voice, full Neo4j knowledge-graph, Prometheus/Grafana observability) and surplus beyond the blueprint.",
+    "architecture": "The blueprint defines a 5-phase roadmap (blueprint_text.md:1287-1313) and an 11-stage pipeline (blueprint_text.md:282). The code realizes that pipeline as a deterministic security spine (aios/security/*) wrapping an LLM loop (aios/agents/tool_agent.py), a 4-layer memory (aios/memory/schema.sql) with hybrid retrieval (aios/memory/retrieval.py), and a FastAPI surface (aios/api/main.py) exposing all 8 blueprint REST contracts plus ~24 surplus endpoints. Phases 1-2 are COMPLETE and test-backed; Phase 3 is ~85% (only the knowledge-graph is partial: SQLite triples in facts.py, no Neo4j/traversal); Phase 4 is ~75% (security+rollback+injection-shield done; VOICE entirely absent — zero whisper/piper code in aios/ or requirements.txt); Phase 5 MVP is running (Vite frontend + superbrain), minus the §10 Docker/Prometheus observability stack (only Dockerfile.executor exists). The repo's own §00 audit-reconciliation (blueprint_text.md:154-177) already corrects the blueprint's deliberate understatement, and the shipped reality now far exceeds even that.",
+    "capabilities": [
+      "PHASE 1 (Foundation) COMPLETE: LLM gen, executor, approval flow, file edit all built — aios/core/executor.py, aios/agents/tool_agent.py; blueprint marks these BUILT/P0 (blueprint_text.md:78-92)",
+      "PHASE 2 (Memory+Reflection) COMPLETE & test-backed: SQLite L2/L3/L4 (aios/memory/schema.sql:15-112), reflection agent (aios/agents/reflection_agent.py), mistake_pool byte-faithful to blueprint §7.1 (schema.sql:99-112 vs blueprint_text.md:434-449), SHA-256 hash-chain audit (aios/security/audit_logger.py) matching blueprint §7.2 formula (blueprint_text.md:459)",
+      "PHASE 2 hybrid retrieval BUILT exactly to blueprint §5.2: aios/memory/retrieval.py:5-10 implements R=alpha*BM25+beta*FAISS+gamma*decay with the exact 0.25/0.45/0.30/0.05 weights via real BM25Okapi (retrieval.py:27,131) + FAISS cosine (retrieval.py:143) + UTC decay",
+      "PHASE 3 (Intelligence) ~85%: confidence scoring (aios/core/confidence_filter.py, 0.72 threshold), auto-verify (aios/agents/tool_agent.py _auto_verify), FAISS vector memory (semantic_memory IndexIDMap, schema.sql:83-95) all built",
+      "PHASE 3 knowledge-graph PARTIAL (the one genuine Phase-3 gap): aios/memory/facts.py implements Blueprint §5.3 contradiction-aware (subject,predicate,object) triples in flat SQLite (semantic_facts, schema.sql:119-128) — NO graph traversal, NO Neo4j; a 1-hop graph exists only in superseded legacy_node/knowledgeGraph.js, off the product path",
+      "PHASE 4 (Security & Voice) ~75%: full gateway+scope_lock+secret_scanner+audit (aios/security/*, 53 tests), rollback engine (aios/agents/rollback_engine.py), prompt-injection shield (aios/security/injection_shield.py) all BUILT — matching blueprint P1/P2",
+      "PHASE 4 VOICE = 0% (the largest genuine gap): blueprint §4.2 stage 1 + §12 specify Whisper STT + Piper TTS (blueprint_text.md:287,940-941), but there is NO whisper/piper/pyaudio/transcribe code anywhere in aios/ and NO audio dep in requirements.txt — confirmed by grep; only doc/HUD string mentions exist",
+      "PHASE 5 (MVP & Showcase) RUNNING: Vite React frontend (frontend/package.json) + 3D superbrain UI; all 8 blueprint REST endpoints live at exact paths in aios/api/main.py (plan:803, memory/search:508, security/classify:759, approval/req:836, execute:814, reflect:777, audit/verify:770, rollback:876)",
+      "SURPLUS beyond blueprint: earned-autonomy evidence->GREEN bridge (aios/core/autonomy.py), self-analysis T0-T4 (aios/agents/self_analysis_agent.py + self_apply.py, designed in assessment §6), stigmergy skill-trails + curriculum + dev-metrics (aios/memory/skills.py,curriculum.py,development.py), worker swarm (aios/agents/swarm.py), Claude+Codex coordination, RAG+CAG, alignment interpreter (aios/core/alignment.py)"
+    ],
+    "sophistication": [
+      "mistake_pool and the §7.2 hash-chain formula are reproduced byte-for-byte from the blueprint DDL/formula, then hardened beyond it (redact-before-hash, cross-process BEGIN IMMEDIATE) — fidelity plus improvement, not just copying (schema.sql:99-112, aios/security/audit_logger.py)",
+      "retrieval.py is a faithful implementation of the blueprint's §5.2 math with EXPLAINABLE per-component sub-scores (faiss/bm25/decay broken out, retrieval.py:143-165) — the blueprint only specified the formula, the code adds transparency",
+      "facts.py honors the blueprint §5.3 contradiction-detection ALGORITHM (find conflict on same subject+predicate before commit; surface, never silently accumulate — facts.py:39-106) even though it substitutes SQLite for the planned Neo4j — the intent is met, the backend is downscoped honestly",
+      "The shipped system implements the WHOLE assessment §6 self-analysis tier design (T0 index, T1 diagnose, T2 propose-diff, T3 apply, T4 frozen-core-RED) that the blueprint itself never contained — the surplus is itself a faithful build of a separate spec (aiosv6_assessment_text.md:257-411)"
+    ],
+    "completeness": "Overall ~80-85% of the blueprint's INTENDED scope, but with large surplus that the blueprint never asked for. Phase 1: 100%. Phase 2: 100% (test-backed; exceeds blueprint §00's pessimistic '~35%'). Phase 3: ~85% (only knowledge-graph partial). Phase 4: ~75% (security 100%, voice 0%). Phase 5: MVP running, observability stack absent. Basis: direct file reads of schema.sql, retrieval.py, facts.py, api/main.py, autonomy.py, Dockerfile.executor; grep confirming voice/Neo4j/Prometheus absence; cross-check against the repo's own AUDIT.md reconciliation and BACKEND_TRUE_PICTURE.md (375 passed/1 skipped baseline). The known starting map (Ph1-2 complete, Ph3 ~85%, Ph4 ~75%, Ph5 MVP) is CONFIRMED.",
+    "gaps": [
+      "VOICE INTERFACE — 0% built. Blueprint §4.2 stage-1 (Whisper+Piper <200ms, blueprint_text.md:287) and §12 toolchain (blueprint_text.md:940-941) specify it; NO STT/TTS/audio code in aios/, NO voice dependency in requirements.txt. This is the single biggest blueprint-vs-reality gap and is correctly deferred (Phase 4, post-internship).",
+      "FULL KNOWLEDGE GRAPH (Neo4j + multi-hop traversal) — NOT built. Blueprint §5.1 / §18 Phase-3 (blueprint_text.md:320-322,1300) plan Neo4j entity-relation with multi-hop reasoning. Reality: flat SQLite triple store with contradiction detection only (aios/memory/facts.py, schema.sql:119-128) — no traversal/queries beyond facts_for(subject). The product-path graph is a triple table, not a graph DB.",
+      "OBSERVABILITY (Prometheus + Grafana + docker-compose) — NOT built. Blueprint §10 (blueprint_text.md:767-816) specifies an 8-service Docker Compose topology with Prometheus:9090 + Grafana:3001 and 6 key signals. Reality: NO docker-compose.yml, NO prometheus/grafana config anywhere; only Dockerfile.executor (the sandbox image) and an internal JSON endpoint /api/v1/development/metrics:688 — not a metrics-scrape surface.",
+      "Diff-preview UI: blueprint §6 promises interactive diff preview at the YELLOW gate; backend approval is capability-based and resumable but the §00 reconciliation (blueprint_text.md:172) flags 'no file-edit diff preview' — verify in frontend; likely still a gap on the UI side.",
+      "Sandbox isolation is opt-in not default: blueprint §6.2 implies cgroup-limited sandbox; reality ships a hardened DockerRunner but defaults to host mode (APPROVED_EXECUTION_BACKEND=host) which is explicitly NOT an OS isolation boundary (per executor docstring)."
+    ],
+    "hidden_findings": [
+      "The blueprint DELIBERATELY UNDERSTATES (blueprint_text.md:149-152 says '~45% implemented, do not claim fully built'), and an inline §00 'Audit Reconciliation' block (blueprint_text.md:154-177) added by Claude Code already flips 6 rows from PARTIAL/DESIGNED to BUILT+tested. So the blueprint is NOT a neutral spec — it's a document that argues against its own pessimism. Reality has moved even further past it.",
+      "The companion assessment (aiosv6_assessment_text.md) is not just a review — its §6 (lines 251-411) is the literal DESIGN SOURCE for the self-analysis T0-T4 module that is now fully shipped. Much of the repo's 'surplus' is actually faithful execution of this second spec, including the self_analysis_report table (schema.sql:138-153) modelled on assessment §6.4.",
+      "The blueprint specifies 8 REST endpoints (blueprint_text.md:481-521); the running API has ~32 (aios/api/main.py). All 8 originals are present at the exact blueprint paths, so the contract is honored, but the surface is 4x larger — most growth is in /api/v1/development/* (autonomy, skills, trails, curriculum) which the blueprint never contemplated.",
+      "A 1-hop knowledge_graph DOES exist (legacy_node/knowledgeGraph.js) — so a reader greping 'knowledge graph' finds a hit and could wrongly conclude the graph is built. It is in the SUPERSEDED Node prototype, a different DB, off the product path. The real product-path 'graph' is facts.py's flat triples.",
+      "Earned-autonomy (aios/core/autonomy.py) is the one place the system ATTEMPTS to close the blueprint-never-asked-for 'evidence->autonomy' frontier, but it is OFF by default (AIOS_EARNED_AUTONOMY) and RED is structurally un-earnable — so even the surplus stays inside the blueprint's human-authority invariant (blueprint_text.md:218-221)."
+    ],
+    "debt": [
+      "The four root RAG scripts and legacy_node/* (incl. knowledgeGraph.js) are SUPERSEDED legacy generation — different DB, naive scoring, off the product path, but a future reader could mistake them for canonical (per BACKEND_TRUE_PICTURE.md:43). The 1-hop knowledge_graph there is the most misleading.",
+      "No production document/PDF ingestion pipeline: blueprint memory assumes ingestion, but product knowledge enters only via single-string SemanticMemory.add — the real RAG ingest path is the dead legacy scripts (BACKEND_TRUE_PICTURE.md:43).",
+      "Audit chain has no external anchoring (blueprint §7.2 hash-chain is local-only): an attacker with full write access can recompute a self-consistent forged chain — inherent to a single-laptop hash chain, flagged in §00 reconciliation context and BACKEND_TRUE_PICTURE.md:43,58.",
+      "Observability claimed in blueprint §10 with concrete alert rules and SLOs (blueprint_text.md:799-823) but zero implementing artifacts — the alert-rule tables are documentation-only and could read as 'built' to a skimmer.",
+      "Growth stores have no forgetting/compaction (episodic append-only, semantic only superseded) — not a blueprint requirement but a real long-run debt that the blueprint's TTL columns (§5.1) imply and the code does not enforce."
+    ],
+    "keyFiles": [
+      {
+        "file": "blueprint_text.md",
+        "role": "The spec under test: §00 truth-table + inline audit reconciliation (70-177), §5 memory+retrieval math (304-358), §7 mistake/audit schemas+formula (422-521), §10 observability (767-816), §18 5-phase roadmap (1287-1313)"
+      },
+      {
+        "file": "aiosv6_assessment_text.md",
+        "role": "Companion: sets '90%+ MVP not 100%' target (155-168) and is the §6 DESIGN SOURCE (257-411) for the shipped self-analysis surplus"
+      },
+      {
+        "file": "aios/memory/schema.sql",
+        "role": "Phase 2-3 ground truth: L2/L3/L4 tables, byte-faithful mistake_pool (99-112), the SQLite semantic_facts triple store = the 'partial knowledge graph' (119-128), plus surplus tables (138-210)"
+      },
+      {
+        "file": "aios/memory/retrieval.py",
+        "role": "Proof Phase-2/3 hybrid retrieval is real: BM25Okapi+FAISS+decay with blueprint's exact weights (5-10,149)"
+      },
+      {
+        "file": "aios/memory/facts.py",
+        "role": "The 'knowledge-graph PARTIAL' evidence: real §5.3 contradiction-aware triples, flat SQLite, no traversal, no Neo4j"
+      },
+      {
+        "file": "aios/api/main.py",
+        "role": "Phase-5 surface: all 8 blueprint REST contracts at exact paths + ~24 surplus; only metrics surface is /api/v1/development/metrics:688 (confirms no Prometheus)"
+      },
+      {
+        "file": "aios/core/autonomy.py",
+        "role": "Surplus the blueprint never asked for: earned-autonomy evidence->GREEN bridge, off-by-default, RED-un-earnable, audit-logged"
+      },
+      {
+        "file": "Dockerfile.executor",
+        "role": "The ONLY container artifact — confirms blueprint §10 docker-compose + Prometheus/Grafana stack is unbuilt; isolation is opt-in sandbox only"
+      }
+    ]
+  }
+]

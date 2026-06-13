@@ -1,5 +1,20 @@
 # AI-OS Backend — True Picture (deep read, 2026-06-13)
 
+> **Part of the whole-system documentation set (as of 2026-06-13).** This document
+> remains the authoritative deep read of the **Python backend core** (`aios/`): the
+> security spine, cognition loop, agent layer, multi-store memory, stigmergic learning,
+> and RAG/coordination. It is now complemented by a whole-repository analysis that adds
+> the frontend, tooling, tests, config/infra, and how it all composes:
+> - [`SYSTEM_TRUE_PICTURE.md`](SYSTEM_TRUE_PICTURE.md) — the canonical whole-system map
+>   (read this first); extends this document with the superbrain + classic frontends,
+>   root drivers, the test suite, and the end-to-end request→SSE→cage→audit composition.
+> - [`HIDDEN_KNOWLEDGE.md`](HIDDEN_KNOWLEDGE.md) — the non-obvious findings, debt, dead
+>   code, doc drift, footguns, and security-surface notes ("you'd never know unless you read it").
+> - [`PLAN.md`](PLAN.md) — the refreshed blueprint-vs-reality phase table + forward roadmap.
+>
+> When these documents discuss the backend, this one is the source of truth; for the
+> frontend, tooling, and the system-as-a-whole, defer to `SYSTEM_TRUE_PICTURE.md`.
+
 This is a synthesis task. I have six deep subsystem analyses to fold into a single, honest CEO-level assessment for the builder. No further investigation is needed — the analyses are the input, and my job is judgment and synthesis. I'll write it directly as my final response.
 
 # What You've Built
