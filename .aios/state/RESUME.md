@@ -119,7 +119,14 @@ A3. ✅ DONE (master 78bcf87): a YELLOW write that PAUSES shows the proposed fil
 THE EMBEDDED FORGE IS COMPLETE (A1+A2+A3 done + verified). Branch merged to master.
 
 ### B. CHEAP HIGH-SEVERITY HYGIENE (alongside A)
-B1. **Rotate + relocate the live Bedrock token** (`frontend/.env`) — P0 security, ~30min (PLAN H1).
+B1. ✅ **DONE — relocated the Bedrock token to the backend** (2026-06-14). The `ABSK` token + `AWS_REGION`
+    were STRIPPED from `frontend/.env` (incl. pasted `$env:` lines — Vite never bundled them: no VITE_ prefix,
+    never committed) and now live ONLY in the project-root `.env` (gitignored). Added `AIOS_BEDROCK_REGION=us-east-1`
+    there so the backend actually ENABLES Bedrock — verified live: `config.BEDROCK_ENABLED=True`, a real backend
+    `BedrockClient` converse → "pong". Router privacy gate keeps it out of `auto` until opted in. Hermetic-test fix:
+    2 tests that assumed Bedrock-off now force `get_bedrock_client=None`. ⚠️ STILL OPERATOR-TODO: **rotate** the
+    `ABSK` key in the AWS console (generate new → update root `.env` → revoke old); exposure was ~nil (never in
+    git, never client-bundled) so this is hygiene, not incident response.
 B2. (opt) clean the 2 untracked `training_ground/test_auto_*.py` assert-True stubs + tracked cruft
     (`success.txt`/`creator.txt`/`chat-ui.html`/`websocket_security_update.md`) (PLAN H2).
 B3. (opt) Tier-1 doc-currency: stale 375/1 test baseline in README/AGENTS/START_HERE/KICKOFF → 458 (PLAN H3).
@@ -168,8 +175,8 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       default single-candidate path) and a local model is available; its reply is validated by `route()` so it can
       prefer but NEVER escape the gate; deterministic fallback on any non-answer. Config `AIOS_ROUTER_LLM_PICK`
       (default True). `tests/test_router.py` (+4 pure) + `tests/test_route_wiring.py` (+4 hybrid). Full suite 509 pass / 1 skip.
-    NEXT: P0 (secure Bedrock cred to backend env = PLAN H1) + P3 (evidence-calibration from dev-metrics + UI
-    active-brain badge). Cage verifies regardless of provider (soul intact); local-first DEFAULT, cloud = per-task policy-gated.
+    NEXT: P0 ✅ done (Bedrock cred relocated to backend env — see B1). Remaining: **P3** (evidence-calibration from
+    dev-metrics + UI active-brain badge). Cage verifies regardless of provider (soul intact); local-first DEFAULT, cloud = per-task policy-gated.
     OPEN OPERATOR DECISION (gates cloud going live): set `AIOS_ROUTER_CLOUD_TASKS` (+ `AIOS_GEMINI_PROJECT`,
     `pip install google-genai`) to allow specific task classes to escalate. Until set, `auto` stays local-only.
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.

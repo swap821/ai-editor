@@ -959,7 +959,9 @@ def test_apply_endpoint_refuses_red_frozen_core(client: TestClient) -> None:
 
 
 def test_models_bedrock_empty_when_unconfigured(client: TestClient) -> None:
-    # No override -> real get_bedrock_client returns None (Bedrock off in tests).
+    # Force Bedrock OFF (independent of the dev .env, which may have it enabled) so
+    # this pins the unconfigured path hermetically.
+    app.dependency_overrides[get_bedrock_client] = lambda: None
     response = client.get("/api/v1/models/bedrock")
     assert response.status_code == 200
     assert response.json() == {"configured": False, "available": False, "models": []}
@@ -968,6 +970,7 @@ def test_models_bedrock_empty_when_unconfigured(client: TestClient) -> None:
 def test_generate_refuses_explicit_cloud_model_when_bedrock_unconfigured(
     client: TestClient,
 ) -> None:
+    app.dependency_overrides[get_bedrock_client] = lambda: None  # force unconfigured
     response = client.post(
         "/api/generate",
         json={
