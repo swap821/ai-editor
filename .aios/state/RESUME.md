@@ -52,14 +52,23 @@ operator-authorized landing + POST-HOC Codex inbox review.
    an earned create_file streams `event: earned_autonomy`. 26 lab + 456 backend tests.
 
 ## Single next action
-**TOP PRIORITY (operator, 2026-06-13): run the WHOLE-ai-editor deep analysis.
-See `.aios/state/NEXT_ANALYSIS.md` — it has the ready-to-launch multi-agent
-Workflow (8 lenses: frontend/superbrain, product+classic UI, tooling/drivers,
-tests, docs-currency, config/infra, cross-cutting audit, blueprint-vs-reality)
-+ a synthesis that writes 4 docs (SYSTEM_TRUE_PICTURE, HIDDEN_KNOWLEDGE, refreshed
-PLAN, BACKEND_TRUE_PICTURE update). Operator cleared context for this; FIRST
-ACTION on resume = launch that Workflow. Reuse BACKEND_TRUE_PICTURE.md (backend
-done) + the blueprint-vs-reality map already in NEXT_ANALYSIS.md.**
+**WHOLE-ai-editor deep analysis: DONE + pushed (2026-06-13, commit 75406b1).**
+The 8-lens read-only Workflow (11 agents, ~30min) ran and synthesized the 4
+deliverables — all in `.aios/state/`: `SYSTEM_TRUE_PICTURE.md` (whole-system map +
+end-to-end request->SSE->cage->audit composition), `HIDDEN_KNOWLEDGE.md` (prioritized
+non-obvious findings, file:line-cited), refreshed `PLAN.md` (blueprint-vs-reality +
+forward roadmap; supersedes the 06-03 Slice plan), `BACKEND_TRUE_PICTURE.md`
+cross-linked as a doc set. Raw lens findings archived in `whole_system_lenses.json`.
+Honest totals re-confirmed: 512 passing (457+1skip backend, 29 product, 26 lab), 90%
+aios/ coverage. NOTE the P0 finding: a LIVE Bedrock token sits in `frontend/.env`
+(gitignored, verified never committed — no repo leak — but rotate+relocate; PLAN H1).
+
+**IN FLIGHT (operator-directed, 2026-06-13): futurist specialist panel** — a 2nd
+Workflow (`ai-editor-future-frontier`, run wf_88b1cc68-374): calibre assessment -> 8
+futurist specialists (cognitive-arch, recursive-self-improvement, verifiable-trust,
+lifelong-memory, edge-frontier-model, symbiosis-interface, multi-agent, category) ->
+synthesis into `.aios/state/FUTURE_FRONTIER.md` (north-star + honest horizon roadmap to
+make this first-of-its-kind). ON RETURN: write FUTURE_FRONTIER.md, commit, push, re-checkpoint.
 
 (Background — already complete this session:)
 Earned-autonomy feature is now COMPLETE end-to-end + the brain SHOWS it:
