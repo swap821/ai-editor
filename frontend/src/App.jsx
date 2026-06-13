@@ -754,6 +754,23 @@ export default function App() {
         } else if (eventType === 'code') {
           // Fenced code is part of the answer, not authority to overwrite the
           // currently selected virtual editor file.
+        } else if (eventType === 'earned_autonomy') {
+          // The brain applied a write on its OWN earned trust — a YELLOW action
+          // class that graduated by repeated verified success, so it ran with no
+          // human pause (still gateway-gated + audited as a distinct chain entry).
+          // The classic UI never handled this frame; surface it honestly as a
+          // settled step rather than silently dropping it (the superbrain shows
+          // the same event as "AUTONOMOUS ACTION").
+          const what = data.command || data.filepath || 'a write';
+          accSteps = [...accSteps, {
+            id: `earned-${Date.now()}`,
+            type: 'tool_result',
+            tool: 'earned_autonomy',
+            output: `AUTONOMOUS ACTION (earned trust): ${what}`,
+          }];
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, steps: accSteps, loading: false } : m
+          ));
         } else if (eventType === 'done') {
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId ? { ...m, text: accText || 'Done.', loading: false, streaming: false, settled: true } : m

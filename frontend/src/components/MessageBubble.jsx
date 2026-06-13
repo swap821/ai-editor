@@ -16,6 +16,7 @@ const TOOL_META = {
   self_analyze:     { icon: '🔬', label: 'Self-analysis',    color: '#2dd4bf' },
   edit_file:        { icon: '✏️', label: 'Edit file',        color: '#fbbf24' },
   create_file:      { icon: '🆕', label: 'Create file',      color: '#34d399' },
+  earned_autonomy:  { icon: '⚡', label: 'Autonomous action', color: '#fbbf24' },
 };
 
 /* ─── Agent Step Card ───────────────────────────────────────── */
