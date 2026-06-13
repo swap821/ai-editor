@@ -315,8 +315,13 @@ button {
 
 .system-summary span {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 7px;
+}
+
+/* Keep the 6px link dot optically centered now the label/value pair baseline-aligns. */
+.system-summary .status-dot {
+  align-self: center;
 }
 
 .system-summary strong {
@@ -324,6 +329,7 @@ button {
   font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
 }
 
 .topbar-divider {
@@ -438,7 +444,7 @@ aside.left-console {
 }
 
 aside.right-console {
-  padding: 20px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
   border-bottom: 4px solid transparent;
@@ -488,7 +494,7 @@ aside.right-console {
   border-radius: 7px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   color: var(--text-2);
   white-space: nowrap;
   /* Drill-in: the chip is a real control (click = unfold true history). */
@@ -508,6 +514,11 @@ aside.right-console {
 
 .region-pin:active {
   border-color: rgba(159, 240, 255, 0.55);
+}
+
+/* The bound metric digits read tight like every other stat value. */
+.region-pin strong {
+  letter-spacing: normal;
 }
 
 .region-pin-graph {
@@ -682,7 +693,7 @@ aside.right-console {
 .mode-rail::before {
   content: '';
   position: absolute;
-  left: 17px;
+  left: 19px;
   top: 20px;
   bottom: 20px;
   width: 1px;
@@ -808,6 +819,7 @@ aside.right-console {
   font-size: 13px;
   font-weight: 510;
   font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
 }
 
 .objective-bar {
@@ -990,7 +1002,7 @@ aside.right-console {
  * from the LAST point of that row's SPARKLINES data. */
 .spark-dot {
   position: absolute;
-  right: 4px;
+  right: 2.5px;
   width: 3px;
   height: 3px;
   border-radius: 50%;
@@ -1094,7 +1106,7 @@ aside.right-console {
 
 .agent-info strong {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   color: var(--text-1);
   font-size: 13px;
@@ -1146,7 +1158,7 @@ aside.right-console {
 .terminal-log {
   position: absolute;
   left: calc(50% - 372px);
-  bottom: 104px;
+  bottom: 114px;
   display: grid;
   gap: 3px;
   pointer-events: none;
@@ -1203,7 +1215,7 @@ aside.right-console {
   transform: translateX(-50%);
   width: min(880px, calc(100vw - 56px));
   height: 70px;
-  padding: 0 9px 0 13px;
+  padding: 0 13px;
   display: grid;
   grid-template-columns: 38px 1fr auto auto;
   align-items: center;
