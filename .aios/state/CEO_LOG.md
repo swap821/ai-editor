@@ -473,3 +473,28 @@ Today: ✅ 116 green · ✅ RESUME current · ✅ 2 commits (blueprint v6, scope
   flag-guarded; canon goldens intact throughout. Remaining menu: galaxy
   tuning after his eye reports, production-build perf script, rAF
   coalescing under heavy SSE load.
+
+## 2026-06-13 - CEO note (Claude: ratify superbrain-as-official; recovery + polish ladder II-VI)
+- Recovered last night's limit-killed Fable audit (~1M tokens, wf_846e66ec)
+  from the dead session's agent transcripts before doing anything else — 132
+  findings now committed to git (loss-proof). Lesson institutionalized: when a
+  session dies mid-workflow, salvage agent-*.jsonl StructuredOutput first;
+  resumeFromRunId is same-session only.
+- Shipped polish II-VI end-to-end (sound; interaction a11y semantics + visual
+  states; motion/token hygiene; signal+galaxy shader lifts) — each lab-committed,
+  ported byte-faithful, build+test green, ZERO resting-frame change so canon
+  goldens untouched. A read-only 6-agent verify workflow (wf_81181352) vetted
+  the remaining findings against live source, catching 2 mislabeled items and
+  vindicating the earlier build-refuted brace.
+- On the operator's question (make the superbrain official; "our backend
+  deserves this"): RATIFIED. The backend's real depth (supervised approvals,
+  stigmergy, self-analysis, audit hash-chain) is exactly what a plain UI would
+  under-sell; the superbrain earns the title by instrumenting that depth
+  HONESTLY (every readout backend-true or visibly dormant). Standing CEO
+  caveats: (1) keep the ?ui=classic escape hatch for daily work; (2) perf is the
+  real debt — the 1.3MB/362KB-gz bundle wants code-splitting of the 3D layer on
+  a 16GB box; add a perf rung to the ladder; (3) defend the truth-pass as layers
+  grow — a visual that implies unreal backend activity breaks the whole thesis;
+  (4) the frontend is now ahead of the ~75-80% backend — good forcing function,
+  but finishing backend substance still comes first. Next: cortex-casing polish
+  VII, then the 25 resting-frame fixes through the operator's own eye on :3000.

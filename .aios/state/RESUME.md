@@ -30,6 +30,19 @@ RegionPins keyboard+aria-expanded, SOUND/mode aria-pressed, link role=status,
 shield aria-live, ghost-plus tabIndex=-1, source-list aria-live flood removed.
 Dropped the recovered stray-brace 'could' finding — the Next build REFUTED it
 (needed closer; unverified findings must pass the build, not just sound right).
+POLISH VI = signal + galaxy lifts LANDED (lab 61460c0 / product 253ff17):
+firefly cutoff smoothstep, aFlash mount-flash suppress, galaxy/quarantine
+twinkle frequency separation. NEXT = POLISH VII = cortex casing (SuperbrainScene
+.tsx, needs careful read): casing IGN dither, approval-hold amber on casing,
+hold-amber + ladder COMMENTS, BRAIN_SCALE single-source. THEN operator-eye phase
+(he's live on :3000, gave full trust): 25 resting-frame findings + 2 held
+(approval-panel entrance, objective-bar scaleX) — all catalogued in
+vetted_polish_findings.json. KNOWN DEBT: MemoryGalaxy has 3 pre-existing
+react-hooks/immutability lint errors (r3f useFrame pattern, not build-blocking).
+BACKEND: not running (:8000 down); superbrain shows honest LINK OFFLINE on the
+:3000 preview. Binding is real + proven; start uvicorn (+ CORS localhost:3000)
+to see live data.
+HISTORICAL:
 POLISH V = motion + token hygiene LANDED (lab 648291e / product 66deae3):
 ease-loop token, mono hygiene, tabular-nums, interaction-only transitions,
 hover-hairline unify, region-pin open spacing. Verify workflow wf_81181352
