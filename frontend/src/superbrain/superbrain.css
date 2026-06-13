@@ -1233,7 +1233,9 @@ aside.right-console {
 }
 
 /* Multi-colored light surging DOWN into the top of the command bar from the wires */
-.command-bar::before {
+/* Wire-glow lives on ::after so ::before is free for the edge-lit rim above
+ * (both were ::before; the later one silently killed the rim + focus toggle). */
+.command-bar::after {
   content: '';
   position: absolute;
   top: -5px; /* Stay inside bounds */
@@ -1706,6 +1708,7 @@ aside.right-console {
 /* -------------------------------------------------------------------------- */
 .approval-panel {
   pointer-events: auto;
+  position: relative;
   margin: 0 auto 10px;
   max-width: 720px;
   max-height: 42vh;
@@ -1713,9 +1716,10 @@ aside.right-console {
   flex-direction: column;
   background: rgba(14, 11, 6, 0.78);
   border: 1px solid rgba(255, 180, 84, 0.55);
-  border-radius: 10px;
+  border-radius: 14px;
   box-shadow: 0 0 26px rgba(255, 180, 84, 0.14);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   overflow: hidden;
 }
 
@@ -1756,7 +1760,7 @@ aside.right-console {
   font-size: 11px;
   line-height: 1.55;
   background: rgba(2, 4, 8, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hairline);
   border-radius: 6px;
   white-space: pre;
 }
@@ -1803,7 +1807,7 @@ aside.right-console {
 
 .approval-reject {
   background: none;
-  border: 1px solid rgba(232, 238, 250, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: rgba(232, 238, 250, 0.7);
 }
 

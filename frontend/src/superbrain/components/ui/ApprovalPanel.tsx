@@ -109,6 +109,7 @@ export default function ApprovalPanel({
           {busy === 'reject' ? 'STANDING DOWN…' : 'REJECT'}
         </button>
       </div>
+      <i className="glass-grain" aria-hidden />
     </section>
   );
 }
