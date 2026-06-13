@@ -21,7 +21,35 @@ import { setMetricBases, setMetricLink } from './metricsStore';
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://127.0.0.1:8000';
 
-const SESSION_ID = 'gag-superbrain-hud';
+// Bearer token (optional). Read from the Next-style env in the lab; the product
+// (Vite) build injects the same name via vite.config `define` from
+// VITE_AIOS_API_TOKEN. Empty by default (loopback dev) — only sent when set, so
+// a token-protected / non-loopback backend no longer 401s the default UI.
+const AIOS_TOKEN = process.env.NEXT_PUBLIC_AIOS_TOKEN ?? '';
+
+function authHeaders(): Record<string, string> {
+  return AIOS_TOKEN ? { Authorization: `Bearer ${AIOS_TOKEN}` } : {};
+}
+
+// One session per operator, SHARED with the classic UI (same localStorage key)
+// so both faces of the AI-OS continue the SAME conversation. SSR-safe; falls
+// back to the original constant when storage is unavailable.
+const SESSION_ID: string = (() => {
+  if (typeof window === 'undefined') return 'gag-superbrain-hud';
+  try {
+    const KEY = 'aios_session_id';
+    const existing = window.localStorage.getItem(KEY);
+    if (existing) return existing;
+    const created =
+      typeof window.crypto?.randomUUID === 'function'
+        ? window.crypto.randomUUID()
+        : `sb-${Date.now().toString(36)}`;
+    window.localStorage.setItem(KEY, created);
+    return created;
+  } catch {
+    return 'gag-superbrain-hud';
+  }
+})();
 
 // ---------------------------------------------------------------- directives
 
@@ -191,7 +219,7 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
   try {
     const response = await fetch(`${AIOS_BASE}/api/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         messages: [{ role: 'user', content: [{ text }] }],
         modelId: 'auto',
@@ -339,7 +367,7 @@ export async function rejectPendingApproval(): Promise<void> {
   try {
     const response = await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         approvalToken: pending.token,
         sessionId: SESSION_ID,
@@ -486,8 +514,8 @@ export async function pollOnce(): Promise<void> {
   try {
     const startedAt = performance.now();
     const [trailsRes, metricsRes] = await Promise.all([
-      fetch(`${AIOS_BASE}/api/v1/development/trails`),
-      fetch(`${AIOS_BASE}/api/v1/development/metrics`),
+      fetch(`${AIOS_BASE}/api/v1/development/trails`, { headers: authHeaders() }),
+      fetch(`${AIOS_BASE}/api/v1/development/metrics`, { headers: authHeaders() }),
     ]);
     if (!trailsRes.ok || !metricsRes.ok) throw new Error('bad status');
     const trailMap = (await trailsRes.json()) as TrailMapResponse;
@@ -572,7 +600,7 @@ export async function pollOnce(): Promise<void> {
     pollCount += 1;
     if (pollCount % CHAIN_PROBE_EVERY === 0) {
       try {
-        const chainRes = await fetch(`${AIOS_BASE}/api/v1/audit/verify`);
+        const chainRes = await fetch(`${AIOS_BASE}/api/v1/audit/verify`, { headers: authHeaders() });
         if (chainRes.ok) {
           const chain = (await chainRes.json()) as { valid?: boolean; total_entries?: number };
           const wasValid = chainValid;
@@ -599,7 +627,7 @@ export async function pollOnce(): Promise<void> {
     // class. Best-effort and SEPARATE from the critical trails+metrics fetch:
     // an older backend without the endpoint never breaks the poll/link.
     try {
-      const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`);
+      const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`, { headers: authHeaders() });
       if (autRes.ok) {
         lastAutonomy = (await autRes.json()) as AutonomySnapshot;
         for (const entry of lastAutonomy.entries ?? []) {
