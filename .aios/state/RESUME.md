@@ -97,11 +97,11 @@ Integration LANDED on master (4226b4c). Three fronts, in priority order. Standin
 restate the chosen item and WAIT for explicit OK before writing code; ~90% honest target.
 
 ### A. FINISH THE EMBEDDED FORGE (the live, loved front — complete it before pivoting)
-A1. **Truthful content channel** (the functional completion): agent `create_file`/`edit_file`
-    content → the editor's `files` state, so the editor shows the MIND'S work, not samples.
-    Approach: carry path+content on `cognitionBus.data`, OR a small backend file-read endpoint
-    (the one piece touching the Python side). Pick the cheapest after a quick look. Without this
-    the forge is visually wired but not yet TRUTHFUL — the honest gap to close.
+A1. **Truthful content channel** ✅ BUILT (lab 9bcbc61 + master 7261acd; verify end-to-end in HIS
+    browser w/ backend up): on a proposed `create_file` the editor opens the mind's REAL proposed
+    content as a tab — adapter now exposes `getPendingApproval().content`; ForgePorts consumes the
+    `approval-required` bus event. Web files flow to the live preview for free. FOLLOW-UPS: edits
+    show the diff only (not full post-edit content); earned-autonomy auto-writes (no pause, off by default).
 A2. **Port-anchor + GPU tuning in HIS browser** (visual/perf completion): panel sizes/positions
     at the nerve ports (camera-projection-dependent — the make-or-break); validate Monaco + iframe
     GPU on the 16GB machine + local inference; lighter fallback ready.
