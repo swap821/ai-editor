@@ -181,6 +181,34 @@ def test_health(client: TestClient) -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_workspace_lists_training_ground_text_files(
+    client: TestClient, monkeypatch, tmp_path
+) -> None:
+    """The forge workspace endpoint returns training_ground text files + content,
+    strictly confined to training_ground, skipping caches/binaries."""
+    tg = tmp_path / "training_ground"
+    tg.mkdir()
+    (tg / "hello.py").write_text("print('hi')\n", encoding="utf-8")
+    (tg / "note.txt").write_text("a note", encoding="utf-8")
+    (tg / "skip.bin").write_bytes(b"\x00\x01")  # non-text ext -> skipped
+    cache = tg / "__pycache__"
+    cache.mkdir()
+    (cache / "x.pyc").write_text("cached", encoding="utf-8")
+    monkeypatch.setattr("aios.config.PROJECT_ROOT", tmp_path)
+
+    response = client.get("/api/v1/development/workspace")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["root"] == "training_ground"
+    by_path = {f["path"]: f["content"] for f in data["files"]}
+    assert by_path["hello.py"] == "print('hi')\n"
+    assert "note.txt" in by_path
+    assert "skip.bin" not in by_path  # binary ext skipped
+    assert not any("__pycache__" in p for p in by_path)  # caches skipped
+    # confined to training_ground: no traversal, no absolute paths
+    assert all(".." not in p and not p.startswith("/") for p in by_path)
+
+
 def test_configured_api_token_protects_api_routes(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(config, "API_TOKEN", "release-test-token")
 

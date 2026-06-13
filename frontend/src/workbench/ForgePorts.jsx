@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Html } from '@react-three/drei';
 import CodeCanvas from '../components/CodeCanvas';
 import LivePreview from '../components/LivePreview';
+import { API_BASE, API_HEADERS } from '../config';
 import { subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { getPendingApproval } from '../superbrain/lib/aiosAdapter';
 
@@ -81,7 +82,46 @@ export default function ForgePorts() {
       setActive(name);
     });
   }, []);
-  const current = files[active];
+
+  // TRUTHFUL CONTENT (the fix): sync the editor to the REAL training_ground
+  // workspace — the mind's actual ON-DISK files — regardless of how the write
+  // landed (approval, EARNED-AUTONOMY auto-write, or edit). The earned path never
+  // pauses for approval, so reading the workspace is the only path-independent way
+  // to show the file the mind actually wrote. Honest offline: keep current files.
+  const loadWorkspace = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/development/workspace`, { headers: API_HEADERS });
+      if (!r.ok) return;
+      const data = await r.json();
+      const list = Array.isArray(data.files) ? data.files : [];
+      if (!list.length) return; // empty / backend down — keep the welcome files
+      const next = {};
+      for (const f of list) next[f.path] = { language: langOf(f.path), content: f.content || '' };
+      setFiles(next);
+      setActive(list[0].path); // newest write first
+    } catch {
+      // backend unreachable — keep current files, never fake content
+    }
+  }, []);
+
+  useEffect(() => { loadWorkspace(); }, [loadWorkspace]); // on mount
+  useEffect(() => {
+    let t;
+    const unsub = subscribeCognition((e) => {
+      if (!e || e.type === 'telemetry') return;
+      // a turn did something — re-read the real workspace (debounced)
+      if (e.type === 'synthesis' || e.type === 'knowledge-acquired' || e.type === 'approval-resolved') {
+        clearTimeout(t);
+        t = setTimeout(loadWorkspace, 500);
+      }
+    });
+    return () => {
+      unsub();
+      clearTimeout(t);
+    };
+  }, [loadWorkspace]);
+
+  const current = files[active] || files[Object.keys(files)[0]] || { content: '', language: 'plaintext' };
 
   return (
     <>
@@ -100,8 +140,9 @@ export default function ForgePorts() {
                   key={name}
                   className={`forge-tab${name === active ? ' is-active' : ''}`}
                   onClick={() => setActive(name)}
+                  title={name}
                 >
-                  {name}
+                  {baseName(name)}
                 </button>
               ))}
             </div>

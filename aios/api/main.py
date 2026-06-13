@@ -712,6 +712,50 @@ def development_trails(
     return skills.trail_map()
 
 
+@app.get("/api/v1/development/workspace")
+def development_workspace() -> dict[str, Any]:
+    """The agent's manufacturing workspace: the text files currently in
+    ``training_ground/`` (the agent's writable sandbox), most-recent first, with
+    contents. Read-only observability so a UI (the forge editor) can show the
+    mind's ACTUAL written files — independent of how the write landed (approval,
+    earned-autonomy, or edit). Strictly confined to ``training_ground/`` (no path
+    parameter, no traversal); skips caches/binaries and caps file count + size so
+    the response stays small."""
+    from pathlib import Path
+
+    root = Path(config.PROJECT_ROOT) / "training_ground"
+    text_exts = {
+        ".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".json",
+        ".md", ".txt", ".sh", ".yml", ".yaml", ".toml",
+    }
+    files: list[dict[str, str]] = []
+    if root.is_dir():
+        def _mtime(path: Path) -> float:
+            try:
+                return path.stat().st_mtime
+            except OSError:
+                return 0.0
+
+        candidates = [
+            p for p in root.rglob("*")
+            if p.is_file()
+            and "__pycache__" not in p.parts
+            and p.suffix.lower() in text_exts
+        ]
+        candidates.sort(key=_mtime, reverse=True)  # newest write first
+        for p in candidates:
+            try:
+                if p.stat().st_size > 200_000:
+                    continue
+                content = p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            files.append({"path": p.relative_to(root).as_posix(), "content": content})
+            if len(files) >= 16:
+                break
+    return {"root": "training_ground", "files": files}
+
+
 @app.get("/api/v1/development/autonomy")
 def development_autonomy(
     autonomy: AutonomyLedger = Depends(get_autonomy),

@@ -96,8 +96,13 @@
   padding: 0 6px;
   background: rgba(10, 12, 18, 0.6);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 .forge-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
   height: 26px;
   padding: 0 11px;
   border: none;
