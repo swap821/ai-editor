@@ -92,15 +92,39 @@ nerve (lab `NervousSystem.tsx` `leftTargetX/rightTargetX` + a 4th `addWireBundle
 matching `SuperbrainHUD` `<Html>` together + `npm run port` + FULL FIDELITY gate). Light any
 port by `publishCognition` on the bus. See `NERVOUS_SYSTEM_REDESIGN.md` §3/§6.
 
-## Next action (Embedded Forge follow-ups — awaiting operator tweaks)
-1. **Tune port panel sizes/anchors in HIS browser** (camera-projection-dependent; make-or-break).
-2. **GPU validation** (Monaco + iframe in-scene over cortex shader + 115-tube braid + local inference); lighter fallback ready.
-3. **TRUTHFUL CONTENT**: lift agent file writes (`create_file`/`edit_file`) into the editor's
-   `files` state — needs a content channel (`cognitionBus.data` or a small backend read endpoint).
-   Until then flares are real but the editor shows sample files (NOT theater — no faked content).
-4. Then: approval-on-diff surfaced in the forge. (Merge to master: DONE 2d0d8d8 + pushed.)
+## WHAT'S NEXT — the plan (decided 2026-06-13, from the full session)
+Integration LANDED on master (4226b4c). Three fronts, in priority order. Standing rule:
+restate the chosen item and WAIT for explicit OK before writing code; ~90% honest target.
+
+### A. FINISH THE EMBEDDED FORGE (the live, loved front — complete it before pivoting)
+A1. **Truthful content channel** (the functional completion): agent `create_file`/`edit_file`
+    content → the editor's `files` state, so the editor shows the MIND'S work, not samples.
+    Approach: carry path+content on `cognitionBus.data`, OR a small backend file-read endpoint
+    (the one piece touching the Python side). Pick the cheapest after a quick look. Without this
+    the forge is visually wired but not yet TRUTHFUL — the honest gap to close.
+A2. **Port-anchor + GPU tuning in HIS browser** (visual/perf completion): panel sizes/positions
+    at the nerve ports (camera-projection-dependent — the make-or-break); validate Monaco + iframe
+    GPU on the 16GB machine + local inference; lighter fallback ready.
+A3. **Approval-on-diff in the forge**: a held write sits visibly un-applied in the editor until
+    AUTHORIZE; the kept `.approval-panel` already surfaces the diff. RED stays hard-blocked.
+
+### B. CHEAP HIGH-SEVERITY HYGIENE (alongside A)
+B1. **Rotate + relocate the live Bedrock token** (`frontend/.env`) — P0 security, ~30min (PLAN H1).
+B2. (opt) clean the 2 untracked `training_ground/test_auto_*.py` assert-True stubs + tracked cruft
+    (`success.txt`/`creator.txt`/`chat-ui.html`/`websocket_security_update.md`) (PLAN H2).
+B3. (opt) Tier-1 doc-currency: stale 375/1 test baseline in README/AGENTS/START_HERE/KICKOFF → 458 (PLAN H3).
+
+### C. THEN PIVOT TO THE FRONTIER (when the forge is done — per FUTURE_FRONTIER queue discipline)
+C1. **Brain ceiling** (PLAN S1: local quant + 14B) — the #1 capability lever; everything model-gated
+    (planning, castes, curriculum, swarm) improves. + the semantic-recall layer.
+C2. **Default-strong isolation** (PLAN S2: hardened Docker default where available).
+C3. The three genuine gaps: voice (G1), knowledge-graph traversal (G2), observability (G3); + the
+    near-term proof artifacts (Refusal Reel + Cage Conformance Spec, both [near]).
+
+RECOMMENDATION: do **A (finish the forge) + B1 (token)** first — the forge is live and loved, and the
+token is cheap+severe; pivot to C when ready for the bigger capability work. Full roadmap:
+`.aios/state/PLAN.md` (blueprint-vs-reality) + `FUTURE_FRONTIER.md` (north-star above PLAN).
 Run: `cd frontend && npm run dev` → `http://localhost:5173/?ui=shell` (Enter workbench).
-Standing rule: restate the chosen item and WAIT for explicit OK before writing code.
 
 (Background — already complete this session:)
 Earned-autonomy feature is now COMPLETE end-to-end + the brain SHOWS it:
