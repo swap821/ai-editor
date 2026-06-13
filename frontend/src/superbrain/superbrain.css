@@ -486,10 +486,20 @@ aside.right-console {
   /* Drill-in: the chip is a real control (click = unfold true history). */
   pointer-events: auto;
   cursor: pointer;
+  transition: border-color 200ms var(--ease-out-quart);
 }
 
 .region-pin--open {
   border-color: rgba(159, 240, 255, 0.4);
+}
+
+/* Hover previews the open state; active presses one step brighter. */
+.region-pin:hover {
+  border-color: rgba(159, 240, 255, 0.4);
+}
+
+.region-pin:active {
+  border-color: rgba(159, 240, 255, 0.55);
 }
 
 .region-pin-graph {
@@ -734,6 +744,11 @@ aside.right-console {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
+}
+
+/* Press cancels the hover lift — tactile acknowledgment of the click. */
+.mode-button:active {
+  transform: translateY(0);
 }
 
 .mode-button.is-active {
@@ -1625,14 +1640,34 @@ aside.right-console {
   text-transform: inherit;
   cursor: pointer;
   padding: 0;
+  transition: opacity 160ms var(--ease-out-quart);
+}
+
+.fidelity-button:active {
+  opacity: 0.78;
 }
 
 .fidelity-button strong {
   color: #9ff0ff;
+  transition: color 200ms var(--ease-out-quart);
 }
 
 .fidelity-button:hover strong {
   color: #ffffff;
+}
+
+/* Keyboard focus: a restrained white-alpha ring (per this file's hover law —
+   brighten toward white-alpha, never a hue), so Tab users get the canon
+   language instead of the clashing UA default ring. */
+.fidelity-button:focus-visible,
+.secure-button:focus-visible,
+.mode-button:focus-visible,
+.ghost-plus:focus-visible,
+.region-pin:focus-visible,
+.approval-actions button:focus-visible,
+.command-bar .execute-button:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 2px;
 }
 
 .fidelity-thinking {
@@ -1721,7 +1756,7 @@ aside.right-console {
   padding: 7px 16px;
   border-radius: 6px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .approval-actions button:disabled {
@@ -1748,4 +1783,8 @@ aside.right-console {
 .approval-reject:hover:not(:disabled) {
   border-color: rgba(255, 141, 126, 0.6);
   color: #ff8d7e;
+}
+
+.approval-actions button:active:not(:disabled) {
+  transform: translateY(1px);
 }
