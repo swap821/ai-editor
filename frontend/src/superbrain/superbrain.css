@@ -1907,6 +1907,137 @@ aside.right-console {
   }
 }
 
+/* VOICE CONTROLS · the push-to-talk conversation channel (the mind speaks back),
+ * secondary to the Execute pilot button. Neutral glass at rest; AMBER while
+ * LISTENING (the canon active/hold state token, never a 2nd accent); CYAN accent
+ * while the mind SPEAKS. 44px touch floor (WCAG 2.5.5), like its Execute sibling.
+ * No em-dashes in CSS prose (middle dot is the convention). */
+.voice-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.voice-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-1);
+  cursor: pointer;
+  transition:
+    box-shadow 200ms var(--ease-out-quart),
+    border-color 200ms var(--ease-out-quart),
+    color 200ms var(--ease-out-quart);
+}
+
+.voice-button:hover {
+  border-color: rgba(92, 225, 230, 0.5);
+  box-shadow: 0 0 18px rgba(92, 225, 230, 0.2);
+}
+
+.voice-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.voice-glyph {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.voice-glyph rect {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* LISTENING · amber (canon active/hold token) with a soft glow pulse so the
+ * operator sees the mic is hot; reduced-motion drops the animation. */
+.voice-button.is-listening {
+  color: var(--state-busy);
+  border-color: rgba(224, 168, 79, 0.55);
+  animation: voice-listen-pulse 1.4s var(--ease-out-quart) infinite;
+}
+
+/* SPEAKING · cyan accent (the mind is replying aloud). */
+.voice-button.is-speaking {
+  color: var(--accent);
+  border-color: rgba(92, 225, 230, 0.55);
+  box-shadow: 0 0 18px rgba(92, 225, 230, 0.3);
+}
+
+@keyframes voice-listen-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(224, 168, 79, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(224, 168, 79, 0.42);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-button.is-listening {
+    animation: none;
+  }
+}
+
+.voice-lang {
+  height: 44px;
+  min-width: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    border-color 200ms var(--ease-out-quart),
+    color 200ms var(--ease-out-quart);
+}
+
+.voice-lang:hover {
+  border-color: rgba(92, 225, 230, 0.5);
+  color: var(--accent);
+}
+
+.voice-lang:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* VOICE STATUS · honest spoken-channel state inside the command field; mirrors
+ * .command-error layout. Dim for normal status, amber for a mic/voice problem. */
+.command-voice-status {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  color: var(--text-2);
+  animation: command-echo-in 150ms var(--ease-out-quart) both;
+}
+
+.command-voice-status--error {
+  color: var(--state-busy);
+}
+
 /* SUBMIT SWEEP · a one-shot 1px cyan line drawn left-to-right across the field
  * on a real submit, then faded. It is a NON-BLURRED absolutely-positioned child
  * of .command-field (never paint on the blurred bar). transform + opacity only;

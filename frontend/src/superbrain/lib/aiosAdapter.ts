@@ -373,6 +373,72 @@ export async function sendDirective(text: string): Promise<DirectiveResult> {
   return streamTurn(text, []);
 }
 
+/** Stream one CONVERSATIONAL turn through the Jarvis voice mind (POST
+ *  /api/v1/chat) and narrate it on the bus. This is the spoken channel: it is a
+ *  DIRECTIVE/conversation, never consent — the endpoint runs NO tools and has NO
+ *  approval mechanism, so a spoken word can never redeem an approval token (a
+ *  spoken "yes" cannot authorize anything; the agentic forge stays on the typed
+ *  sendDirective path). Reuses the adapter's base/auth/shared-session + SSE
+ *  reader, and publishes ONLY existing cognition events (directive on send, the
+ *  real route, synthesis on done) so the brain reacts through its current
+ *  handlers and the conversation organs refresh — no new scene wiring. `onChunk`
+ *  reports the reply as it streams; resolves with the full reply or throws on a
+ *  transport/backend error (callers surface it honestly, never a fake reply). */
+export async function sendVoiceTurn(
+  transcript: string,
+  opts: { onChunk?: (reply: string) => void } = {},
+): Promise<string> {
+  const text = transcript.trim();
+  if (!text) return '';
+  publishCognition({ type: 'directive', label: text.slice(0, 80), intensity: 1, source: 'voice' });
+  let reply = '';
+  try {
+    const response = await fetch(`${AIOS_BASE}/api/v1/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ transcript: text, sessionId: SESSION_ID }),
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`voice backend responded ${response.status}`);
+    }
+    for await (const frame of readSse(response.body)) {
+      const data = frame.data as Record<string, unknown>;
+      if (frame.event === 'text_chunk') {
+        reply += String(data.text ?? '');
+        opts.onChunk?.(reply);
+      } else if (frame.event === 'route' && typeof data.model === 'string' && data.model) {
+        publishCognition({
+          type: 'route',
+          label: 'ACTIVE BRAIN',
+          detail: `${String(data.provider ?? '?')}:${String(data.model)} (${String(data.privacy ?? '?')})`,
+          intensity: 0.3,
+          source: 'aios',
+          data,
+        });
+      } else if (frame.event === 'error') {
+        throw new Error(String(data.text ?? 'The voice mind could not answer.'));
+      }
+    }
+    publishCognition({
+      type: 'synthesis',
+      label: 'SYNTHESIS COMPLETE',
+      detail: reply.slice(0, 140) || 'voice reply received',
+      intensity: 0.6,
+      source: 'aios',
+    });
+    return reply;
+  } catch (err) {
+    publishCognition({
+      type: 'synthesis',
+      label: 'LINK OFFLINE',
+      detail: 'Voice mind unreachable — the reply did not arrive.',
+      intensity: 0.3,
+      source: 'aios',
+    });
+    throw err;
+  }
+}
+
 /** The operator authorizes: redeem the capability by replaying the turn with
  *  the server-issued token. The replay may pause again on the NEXT caution
  *  action — a fresh PendingApproval is captured and the panel continues. */
