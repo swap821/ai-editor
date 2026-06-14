@@ -27,9 +27,24 @@ First-8 order + status:
      WorkspaceCanvas.tsx:184-187 but components/canvas/** is canon-FROZEN (check_canon_frozen.py), so
      the reliable-signal path went through the adapter observable instead of a canvas prop. Don't edit
      canvas/ files; route approval/lifecycle work through lib/ + ui/.
-8. ⏭ **NEXT: P1-2 + P1-4 (Voice Slice 2 + structured logging) — the marquee "goosebumps Jarvis"
-   voice build (cal Jun 19). LARGE/M; the operator's active priority + a frontend feature he judges by
-   eye → restate scope and get explicit go before building.**
+8. 🟡 IN PROGRESS — P1-2 + P1-4 (the operator said "start the voice build now"):
+   - ✅ P1-2 Voice Slice 2 MVP (commit 12f17db): the classic mic is now a real "talk to Jarvis"
+     loop. New tested helper lib/voiceChat.streamChatReply() streams the CONVERSATIONAL /api/v1/chat;
+     App.jsx mic = push-to-talk STT -> reply streams into a bubble -> SpeechSynthesis speaks it back;
+     EN-IN/HI-IN toggle; full honest error paths (unsupported/mic-denied/no-speech); aria-live status.
+     Cardinal rule by construction: voice hits /api/v1/chat (no tools, no approval) so a spoken word
+     can never redeem a token. +4 tests; build green; frontend vitest 76. Screenshot shown to operator.
+     DEFERRED (honest): (a) the same loop inside the superbrain HUD command bar (lab ui/ + port);
+     (b) the 'voice-speaking' bus event -> 3D brain PULSE while talking — that reaction lives in the
+     FROZEN components/canvas scene, so it needs the canon process (lab + goldens + before/after
+     screenshots in HIS browser), NOT a logic commit.
+   - ⏭ P1-4 structured logging — NOT STARTED. Note: structlog is NOT installed + aios/ uses ZERO
+     logging today. Lean dependency-free (stdlib JSON formatter + correlation-id contextvar + a
+     FastAPI middleware + replace the bare except/print on the turn path + CRITICAL on audit-verify
+     fail) rather than adding structlog. Evidence sites: main.py bare-excepts (114/637/1152/1235/
+     1279/1436/1467, pre-renovation line nums), tamper-verify has no emit.
+   NEXT DECISION for the operator: try the voice live, then pick — (a) P1-4 logging, (b) port voice
+   into the superbrain HUD (glowing brain), or (c) the 3D voice-pulse canon session.
 
 LAB CAVEAT (P1-3 + P0-3): the canonical source edits live in the gitignored lab
 (GAG demo/gag-orchestrator: src/lib/sessionId.ts [new], aiosAdapter.ts, components/ui/SuperbrainHUD.tsx,
