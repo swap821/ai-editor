@@ -1802,6 +1802,10 @@ def generate(
         blocked_actions = 0
         verification_evidence: list[str] = []
         verify_verdicts: dict[str, str] = {}
+        #: Verdicts from the FORCED auto-verify only (id ``autoverify-*``). This is
+        #: the authoritative evidence for the turn's outcome; the model's own
+        #: ``verify`` tool calls are advisory and must not override it.
+        auto_verdicts: dict[str, str] = {}
         communication_notice = (
             alignment.communication_notice() if alignment is not None else ""
         )
@@ -1895,9 +1899,16 @@ def generate(
                             # (fail-closed).
                             else f"unattributed-{len(verification_evidence)}"
                         )
-                        verify_verdicts[key] = (
-                            "PASS" if output.startswith("[VERIFY PASS]") else "FAIL"
-                        )
+                        verdict = "PASS" if output.startswith("[VERIFY PASS]") else "FAIL"
+                        verify_verdicts[key] = verdict
+                        # The FORCED auto-verify (run by the system after a write) is
+                        # the authoritative evidence; the model's OWN `verify` tool
+                        # call is advisory. A model running a broken verify command —
+                        # e.g. a mis-pathed `pytest training_ground/test_x.py` from the
+                        # sandbox cwd → exit 4, 0 tests — must NOT fail a turn whose
+                        # written code actually passes the forced check.
+                        if str(ev.get("id", "")).startswith("autoverify"):
+                            auto_verdicts[key] = verdict
                 yield _sse("step", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])
@@ -2005,10 +2016,14 @@ def generate(
                 # unresolved FAIL on another.
                 if not verification_evidence:
                     record_outcome("unverified")
-                elif any(v == "FAIL" for v in verify_verdicts.values()):
-                    record_outcome("verified_failure")
                 else:
-                    record_outcome("verified_success")
+                    # The FORCED auto-verify is authoritative; fall back to the
+                    # model's own verify only when nothing was auto-verified.
+                    authoritative = auto_verdicts or verify_verdicts
+                    if any(v == "FAIL" for v in authoritative.values()):
+                        record_outcome("verified_failure")
+                    else:
+                        record_outcome("verified_success")
                 approvals.clear_session(session_id)
                 yield _sse("done", {})
 
