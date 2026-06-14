@@ -1,19 +1,17 @@
 #!/usr/bin/env python
-"""Canon-freeze guard — reject edits to the operator's inviolable superbrain canon.
+"""Canon-freeze guard — reject edits to the operator's CORE DESIGN.
 
-The frozen set is DERIVED FROM the port manifest
-(`GAG demo/gag-orchestrator/tools/port-to-frontend.mjs`): every file `npm run port`
-regenerates is byte-identical-to-lab, so a product-side edit is silently destroyed on
-the next port. Those product mirrors + their lab sources + the operator's visual assets
-are his authored soul ([[superbrain-core-theme]], [[fidelity-is-sacred-ui-laws]]) and
-must NEVER be edited by the frontend renovation.
+Operator-narrowed boundary (2026-06-14): the inviolable core is the **3D brain**
+and the **deep-vast knowledge space** — the WebGL scene under `components/canvas/`
+(brain, aura, nervous system, cortical signals, memory galaxy, cosmic background,
+knowledge horizon, post-FX) plus his brain GLB + cortex/cosmic textures, in BOTH
+the product mirror and the lab source. That is his authored soul
+([[superbrain-core-theme]], [[fidelity-is-sacred-ui-laws]]) and must NEVER change.
 
-The LEGAL SEAM is product-authored (NOT in the manifest) and is explicitly allowed:
-  frontend/src/superbrain/SuperbrainApp.jsx   (mount/routing — authored in product)
-  frontend/src/superbrain/SuperbrainShell.jsx (the children seam ports plug into)
-
-Everything else the renovation needs (frontend/src/workbench, components, styles,
-App.jsx, main.jsx) is outside the frozen roots and always allowed.
+Everything else is RENOVATABLE to embody the soul: the 2D HUD overlay
+(`SuperbrainHUD` + chrome), tokens (`superbrain.css` / lab `globals.css`), the lib,
+the workbench organs, and the seam files (SuperbrainApp/Shell.jsx). HUD/token edits
+are authored lab-first and ported (the 3D scene is never touched in the lab either).
 
 Usage:
   python tools/check_canon_frozen.py            # check `git diff` (working tree vs HEAD)
@@ -26,22 +24,27 @@ from __future__ import annotations
 import subprocess
 import sys
 
-# Frozen ROOTS (a changed path under one of these is frozen unless whitelisted).
+# Frozen ROOTS = the operator's CORE DESIGN ONLY (operator-narrowed 2026-06-14):
+# the 3D BRAIN and the deep-vast knowledge SPACE. The 2D HUD overlay
+# (SuperbrainHUD etc.), tokens, lib, and chrome are now RENOVATABLE to embody the
+# soul — only the 3D world below is inviolable. See [[superbrain-core-theme]].
 FROZEN_ROOTS = (
-    "frontend/src/superbrain/",                 # the ported canon mirror (clobbered by port)
-    "frontend/public/models/brain.glb",         # his GLB
+    # The whole 3D scene: brain, accretion core, neural aura, nervous system,
+    # cortical signals, cognitive grasp, memory galaxy, cosmic background,
+    # knowledge horizon, post-FX, region pins — brain + background space.
+    "frontend/src/superbrain/components/canvas/",
+    "GAG demo/gag-orchestrator/src/components/canvas/",   # the LAB 3D scene source
+    # His visual assets (brain GLB + hand-painted cortex + cosmic textures).
+    "frontend/public/models/brain.glb",
+    "frontend/public/textures/brain/",
     "frontend/public/grain.svg",
-    "frontend/public/textures/brain/",          # his hand-painted cortex
-    "GAG demo/gag-orchestrator/src/",           # the LAB canon source = the soul
-    "GAG demo/gag-orchestrator/public/",        # lab assets
+    "GAG demo/gag-orchestrator/public/models/",
+    "GAG demo/gag-orchestrator/public/textures/",
 )
 
-# The legal seam: product-authored files under a frozen root that ARE editable
-# (verified absent from the port manifest's FILES list).
-WHITELIST = (
-    "frontend/src/superbrain/SuperbrainApp.jsx",
-    "frontend/src/superbrain/SuperbrainShell.jsx",
-)
+# No special whitelist needed now: the freeze is scoped to the 3D world, so the
+# HUD/lib/tokens/seams are allowed by simply not being under a frozen root.
+WHITELIST: tuple[str, ...] = ()
 
 
 def is_frozen(path: str) -> bool:
