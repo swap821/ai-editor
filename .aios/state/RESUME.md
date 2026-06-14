@@ -210,6 +210,18 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       `_pre_apply_grants`; the `unverified` outcomes were the LOCAL model writing a module with NO sibling test
       (`[VERIFY SKIPPED]`) or a bad import (the conftest fixed collection). The verify path is correct-by-design;
       routing coding to a capable cloud model (now opted in) makes the agent write complete, verifiable code.
+    ✅ **verified_success NOW LANDS — the two-fix `verified_failure` cure (2026-06-14, commits 925e0a1 + this turn,
+      live-proven 16→17):** coding turns booked `verified_failure` and never `verified_success`. Root cause: the
+      model's OWN `verify` tool call (advisory) often ran a mis-pathed `pytest training_ground/test_x.py` from the
+      sandbox cwd → `training_ground/training_ground/...` → 0 tests, exit 4 → a spurious `[VERIFY FAIL]`; the
+      done-logic's "any FAIL ⇒ verified_failure" then failed a turn whose written code actually PASSED the forced
+      post-write check. **Fix 1 (main.py, 925e0a1):** capture the FORCED auto-verify verdicts (`autoverify-*`)
+      separately in `auto_verdicts` and make them AUTHORITATIVE — the model's own verify is advisory, used only as
+      fallback when nothing was auto-verified. **Fix 2 (tool_agent.py, this turn):** `_normalise_sandbox_paths`
+      strips the redundant sandbox-root prefix from the model's verify command (verify runs FROM the sandbox cwd),
+      + the `verify` tool description now tells the model to pass sandbox-relative paths — so its own check actually
+      runs instead of emitting a confusing FAIL in the stream. Conservative/idempotent (no-op on `pytest -q` and on
+      the already-correct forced path). Tests: test_tool_agent (+2: 8-case normaliser param + e2e mispathed-runs-PASS).
     OPERATOR LEVERS: `AIOS_ROUTER_CLOUD_TASKS` (which tasks may go cloud; now `reasoning,coding`),
     `AIOS_ROUTER_CALIBRATION_WEIGHT` (0.4), `AIOS_ROUTER_LLM_PICK`. Tool: `tools/watch_calibration.py` (live evidence view).
 C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.
@@ -250,7 +262,7 @@ Brief: `.venv\Scripts\python agent_coord.py brief --agent claude`
 Backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
   (live now with AIOS_EARNED_AUTONOMY=true, CORS incl :3000)
 Frontend (lab): `cd "GAG demo/gag-orchestrator"; npm run dev` (:3000)
-Tests: `.venv\Scripts\python -m pytest -q`  (baseline 516 passed, 1 skipped)
+Tests: `.venv\Scripts\python -m pytest -q`  (baseline 544 passed, 1 skipped)
 Autonomy ledger: `GET /api/v1/development/autonomy`
 Swarm: POST /api/generate with `"swarm": true`
 True picture: `.aios/state/BACKEND_TRUE_PICTURE.md`

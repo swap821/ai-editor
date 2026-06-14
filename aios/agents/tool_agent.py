@@ -289,14 +289,21 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "description": (
                 "Run a verification command (e.g. the test suite) to confirm the "
                 "previous change actually worked — judged by exit code + parsed "
-                "pass/fail counts. Use after edits or commands to verify success."
+                "pass/fail counts. Use after edits or commands to verify success. "
+                "Commands run FROM the sandbox directory, so give test paths "
+                "sandbox-relative: write 'pytest test_x.py', NOT "
+                "'pytest training_ground/test_x.py' (the latter double-nests and "
+                "collects 0 tests)."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "The verification command to run (e.g. 'pytest -q').",
+                        "description": (
+                            "The verification command to run, with any test path "
+                            "sandbox-relative (e.g. 'pytest -q' or 'pytest test_x.py')."
+                        ),
                     }
                 },
                 "required": ["command"],
@@ -1333,6 +1340,28 @@ class ToolAgent:
             False,
         )
 
+    def _normalise_sandbox_paths(self, command: str) -> str:
+        """Strip a redundant sandbox-root prefix from path tokens in *command*.
+
+        Verify commands run FROM the sandbox cwd (``SCOPE_ROOTS[0]``), so a path the
+        model wrote repo-relative — e.g. ``pytest training_ground/test_x.py`` — would
+        double-nest (``training_ground/training_ground/...``), collect 0 tests, and
+        exit 4, surfacing a spurious ``[VERIFY FAIL]`` that wastes a model turn. The
+        forced auto-verify already expresses its path sandbox-relative; do the same
+        for the model's OWN command so its check actually runs.
+
+        Conservative by construction: only the EXACT sandbox-root basename used as a
+        leading path segment (after whitespace, a quote, or string start) is removed,
+        so unrelated tokens are left byte-for-byte. Idempotent — a no-op on the
+        already-correct forced command and on a plain ``pytest -q``.
+        """
+        roots = config.SCOPE_ROOTS
+        name = roots[0].name if roots else ""
+        if not name or name not in command:
+            return command
+        pattern = re.compile(rf"(?<![\w./])(?:\./)?{re.escape(name)}/")
+        return pattern.sub("", command)
+
     def _verify(self, command: str, *, approved: bool = False) -> tuple[str, str, bool]:
         """Run *command* as a verification through the Verifier; map its verdict.
 
@@ -1353,6 +1382,7 @@ class ToolAgent:
             pass/fail counts, exit code, and the captured summary so the model
             (and the UI) plainly see the verdict.
         """
+        command = self._normalise_sandbox_paths(command)
         is_approved = approved or command in self.approved_commands
         result = self._verifier.verify(
             command,
