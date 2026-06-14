@@ -1605,7 +1605,7 @@ export default function SuperbrainHUD({
 
             <span className="execute-wrap" ref={magnetRef}>
               <motion.button
-                className={`execute-button${turnState !== 'idle' ? ' is-working' : ''}`}
+                className={`execute-button${turnState !== 'idle' && turnState !== 'error' ? ' is-working' : ''}`}
                 whileTap={reducedMotion ? undefined : { scale: 0.97 }}
                 transition={{ duration: 0.12 }}
                 type="submit"
@@ -1617,9 +1617,12 @@ export default function SuperbrainHUD({
                 aria-disabled={turnState === 'streaming'}
                 title={turnState === 'streaming' ? 'A turn is in flight' : undefined}
               >
-                {/* Indeterminate working arc · a NON-BLURRED SVG child that spins
-                    only while a real turn is in flight (it asserts "working", not
-                    a false completion fraction). Reduced motion freezes it. */}
+                {/* Indeterminate working arc · a NON-BLURRED SVG child that
+                    engages ONLY while a real turn is in flight: is-working
+                    excludes 'idle' AND the offline-'error' state (where no turn
+                    began), so the ring never spins next to an "Offline" failure.
+                    It asserts "working", never a false completion fraction.
+                    Reduced motion freezes it. */}
                 <span className="execute-arc" aria-hidden="true">
                   <svg viewBox="0 0 16 16">
                     <circle className="execute-arc-track" cx="8" cy="8" r="6.2" />

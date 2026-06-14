@@ -449,6 +449,14 @@ button {
 
 .secure-button {
   justify-self: end;
+  /* Touch/click target >= 44px tall (WCAG 2.5.5), matching .fidelity-button.
+   * The shield surfaces HOLD/TAMPER (the most consequential safety control in
+   * the topbar), so it must clear the same target its sibling does. The topbar
+   * is 64px and align-items:center, so the larger hit box centers the (unchanged)
+   * label without shifting the visible layout. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   gap: 8px;
   padding: 8px 14px;
   border: 1px solid var(--hairline);
@@ -661,8 +669,8 @@ aside.right-console {
 }
 
 .secure-button--hold {
-  color: #ffb454;
-  border-color: rgba(255, 180, 84, 0.55);
+  color: var(--state-busy);
+  border-color: rgba(224, 168, 79, 0.55);
 }
 
 .secure-button--tamper {
@@ -1774,15 +1782,15 @@ aside.right-console {
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.01em;
-  color: #ffb454;
+  color: var(--state-busy);
   animation: command-echo-in 150ms var(--ease-out-quart) both;
 }
 
 /* The bar wears the amber fail border while the offline error holds (static
  * paint, like the approval hold · never an animated paint on the blurred bar). */
 .command-bar--state-error {
-  border-color: rgba(255, 180, 84, 0.65);
-  box-shadow: 0 0 22px rgba(255, 180, 84, 0.16);
+  border-color: rgba(224, 168, 79, 0.65);
+  box-shadow: 0 0 22px rgba(224, 168, 79, 0.16);
 }
 
 @keyframes command-echo-in {
@@ -2003,6 +2011,16 @@ aside.right-console {
   animation: none;
 }
 
+/* Honest dormancy: on a real offline-submit error NO turn began (handleSubmit
+ * sets turnState='error' WITHOUT dispatching), so the arc must never assert
+ * work. is-working already excludes 'error' (the arc stays collapsed), and this
+ * also halts the spin belt-and-suspenders if the arc is ever shown in this
+ * state · a spinning 'working' ring next to 'Offline' would be exactly the
+ * decorative-motion-as-signal the soul forbids. */
+.command-bar--state-error .execute-arc svg {
+  animation: none;
+}
+
 .execute-arc-track {
   fill: none;
   stroke: rgba(4, 24, 26, 0.32);
@@ -2211,8 +2229,7 @@ aside.right-console {
 @media (max-width: 620px) {
   .build-tag,
   .secure-button,
-  .left-console,
-  .command-search {
+  .left-console {
     display: none;
   }
 
@@ -2373,16 +2390,16 @@ aside.right-console {
 /* backdrop-filtered panel (see the rule at the top of this file).            */
 /* -------------------------------------------------------------------------- */
 .command-bar.is-approval-hold {
-  border-color: rgba(255, 180, 84, 0.65);
-  box-shadow: 0 0 22px rgba(255, 180, 84, 0.16);
+  border-color: rgba(224, 168, 79, 0.65);
+  box-shadow: 0 0 22px rgba(224, 168, 79, 0.16);
 }
 
 .command-bar.is-approval-hold .command-field label {
-  color: #ffb454;
+  color: var(--state-busy);
 }
 
 .command-bar.is-approval-hold .command-chip {
-  color: #ffb454;
+  color: var(--state-busy);
 }
 
 /* Under the hold the command bar's own readouts step back (the diff IS the
@@ -2473,9 +2490,9 @@ aside.right-console {
   display: flex;
   flex-direction: column;
   background: rgba(14, 11, 6, 0.78);
-  border: 1px solid rgba(255, 180, 84, 0.55);
+  border: 1px solid rgba(224, 168, 79, 0.55);
   border-radius: 14px;
-  box-shadow: 0 0 26px rgba(255, 180, 84, 0.14);
+  box-shadow: 0 0 26px rgba(224, 168, 79, 0.14);
   backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   overflow: hidden;
@@ -2492,7 +2509,7 @@ aside.right-console {
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.22em;
-  color: #ffb454;
+  color: var(--state-busy);
 }
 
 .approval-summary {
@@ -2560,13 +2577,13 @@ aside.right-console {
 }
 
 .approval-authorize {
-  background: rgba(255, 180, 84, 0.16);
-  border: 1px solid rgba(255, 180, 84, 0.7);
+  background: rgba(224, 168, 79, 0.16);
+  border: 1px solid rgba(224, 168, 79, 0.7);
   color: #ffcf8a;
 }
 
 .approval-authorize:hover:not(:disabled) {
-  background: rgba(255, 180, 84, 0.28);
+  background: rgba(224, 168, 79, 0.28);
 }
 
 .approval-reject {
