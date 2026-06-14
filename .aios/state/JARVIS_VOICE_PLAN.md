@@ -40,10 +40,15 @@ memory loop (brain-growth already evidenced). So the real build is the layers ON
 - **Today there is NO STT/TTS** — only synthesized `soundEngine`. Voice I/O is net-new.
 
 ## Slice plan (ordered, each shippable + verifiable)
-- **Slice 1 — Hinglish chat backend.** New lean endpoint (e.g. `POST /api/v1/chat`) that takes a
-  transcript + sessionId, loads operator facts + recent memory, injects the Hinglish + personalization
-  system prompt, calls the router's chat client ONCE (streaming, NO file tools), streams `text_chunk` +
-  `done`. Verify via curl. (Backend only; testable without voice.)
+- **Slice 1 — Hinglish chat backend. DONE (2026-06-14, commit `13490c1`, branch `feat/jarvis-voice`).**
+  `POST /api/v1/chat {transcript, sessionId, modelId?}` in `aios/api/main.py`: `CHAT_SYSTEM_PROMPT`
+  (Hinglish persona, conversation-not-forge), `_operator_facts_block()` (real `SemanticFacts` only,
+  dormant when none), routes via `_select_chat_client` (local-first gate intact, cloud never forced),
+  one chat-client call `tools=None` (no ToolAgent loop), streams SSE `route -> text_chunk -> done`,
+  persists the turn. `tests/test_chat.py` (6 tests). Gate: import OK, **pytest 551 passed / 1 skipped**,
+  both review lenses clean. Curl-testable now. (Non-blocking future polish noted by review:
+  `_select_chat_client` hardcodes `require_tools=True` on the `auto` branch — fail-soft, irrelevant to
+  this no-tools endpoint, optional later.)
 - **Slice 2 — Voice I/O frontend (the goosebumps loop).** Mic capture → STT → Slice-1 endpoint →
   stream → TTS speak-back → the brain pulses while speaking (a `voice-speaking` bus event). A
   push-to-talk control in the HUD.
