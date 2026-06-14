@@ -23,6 +23,7 @@ import json
 import re
 import secrets
 import sys
+import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
@@ -508,7 +509,11 @@ class ChatRequest(BaseModel):
     not the agentic forge.
     """
 
-    transcript: str = Field(..., description="The operator's spoken/typed turn.")
+    transcript: str = Field(
+        ...,
+        max_length=8000,
+        description="The operator's spoken/typed turn (input-shielded: capped length).",
+    )
     session_id: str = Field("voice-session", alias="sessionId")
     model_id: Optional[str] = Field(None, alias="modelId")
 
@@ -2163,6 +2168,41 @@ def generate(
     )
 
 
+# --- /api/v1/chat input-shield: per-session sliding-window flood throttle ----
+# The voice/chat path is the one endpoint that takes free-form operator text and
+# fans it straight at a (possibly cloud) provider with the operator's recalled
+# facts attached. The Pydantic ``max_length`` cap bounds a single turn; this
+# bounds the RATE so a stuck client (or a tab left auto-sending) cannot flood the
+# router. It is deliberately lightweight and in-process (best-effort, per-worker),
+# distinct from the durable security RateLimiter that governs RED actions.
+_CHAT_RATE_WINDOW_S = 60.0
+_CHAT_RATE_MAX = 30
+_CHAT_HITS: dict[str, list[float]] = {}
+
+
+def _enforce_chat_rate_limit(session_id: str) -> None:
+    """Raise HTTP 429 if a session exceeds ``_CHAT_RATE_MAX`` turns per window.
+
+    A simple monotonic sliding window keyed by session id. Best-effort and
+    in-process; the deterministic security cage (gateway, scope lock, audit) is
+    unaffected — this only protects the conversational fan-out from flooding.
+    """
+    now = time.monotonic()
+    cutoff = now - _CHAT_RATE_WINDOW_S
+    hits = [t for t in _CHAT_HITS.get(session_id, ()) if t > cutoff]
+    if len(hits) >= _CHAT_RATE_MAX:
+        _CHAT_HITS[session_id] = hits
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Too many chat turns; slow down. "
+                f"Limit is {_CHAT_RATE_MAX} per {int(_CHAT_RATE_WINDOW_S)}s."
+            ),
+        )
+    hits.append(now)
+    _CHAT_HITS[session_id] = hits
+
+
 @app.post("/api/v1/chat")
 def chat(
     req: ChatRequest,
@@ -2189,6 +2229,7 @@ def chat(
     completed turn is embedded into L3 (self-reinforcing recall), exactly like
     ``/api/generate``. Best-effort persistence never breaks the chat.
     """
+    _enforce_chat_rate_limit(req.session_id)
     user_text = req.transcript.strip()
     # Route by purpose (general for chitchat, coding for code talk, etc.). The
     # privacy gate lives inside _select_chat_client via _router_policy(): with the
