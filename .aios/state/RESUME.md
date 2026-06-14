@@ -1,6 +1,29 @@
 # RESUME MANIFEST
 
-## ACTIVE FRONT (2026-06-15): WHOLE-SYSTEM RENOVATION — executing the first-8
+## ACTIVE FRONT (2026-06-15 late): NEXT-GEN 3D ELEVATION (operator north-star directive)
+Deep research DONE + committed: `.aios/state/SUPERBRAIN_NEXTGEN_DESIGN.md` ([[nextgen-3d-design-direction]]).
+Finding: canon is already award-adjacent → ELEVATION not redesign; 8 WOW upgrades; ship WebGL2 /
+prototype WebGPU-TSL; FIDELITY-phased. Operator chose **Phase 0 + 1**.
+- ✅ Phase 0: canon tag `pre-nextgen-canon-v1` created + pushed (rollback baseline).
+- 🟡 Phase 1a (voice-speaking brain PULSE) BUILT IN LAB, pending operator browser review:
+  lab edits (gitignored, NOT yet ported) — cognitionBus 'voice-speaking' type; SuperbrainHUD TTS
+  publishes 'voice-speaking' on onstart + per word-boundary (real speech cadence); SuperbrainScene
+  reacts with a gentle frontal-lobe wave + soft burst (reuses canon wave machinery). Lab vitest 38 pass.
+  **OPERATOR REVIEW STEP (FIDELITY):** run the LAB (`cd "GAG demo/gag-orchestrator"; npm run dev` →
+  http://localhost:3000), talk via the mic, watch the brain pulse as it speaks. If good → I port
+  (handling the guard) ; if not → iterate. Headless WebGL can't render the scene here, so visual
+  sign-off MUST be his browser.
+- ⏳ TWO FLAGS before porting Phase 1 to product:
+  1. CANON-FREEZE GUARD: `tools/check_canon_frozen.py` still HARD-blocks `components/canvas/**`
+     (both lab + product). Phase 1 edits SuperbrainScene (canvas/) → the port-commit will be blocked.
+     The operator UNFROZE the 3D (his first message + Phase-1 go) but the guard wasn't reconciled.
+     PROPOSAL: evolve the guard from "never" to a break-glass `--allow-canon` (default still blocks =
+     accidental-edit tripwire preserved; authorized FIDELITY-reviewed phases pass the flag). NEEDS his OK.
+  2. GOLDENS / before-after = his browser only (headless WebGL broken here).
+- ⏭ Phase 1b = volumetric god-rays (PostFX, big raymarched Effect) — build NEXT with his iterative
+  screenshot feedback (tuning-heavy, can't self-verify). Then Phases 2-4 per the plan.
+
+## PRIOR FRONT (2026-06-15): WHOLE-SYSTEM RENOVATION — first-8
 Plan: `.aios/state/RENOVATION_PLAN.md` (importance-ranked, reconciled under
 FUTURE_FRONTIER). Branch `feat/renovation-p0` (off `feat/jarvis-voice`); PR #12
 (feat/jarvis-voice → master) is open for the operator to merge. 17 calendar
