@@ -12,6 +12,7 @@ import ProposalsPanel from './components/ProposalsPanel';
 import AmbientVoid from './components/AmbientVoid';
 import { API_BASE, API_HEADERS } from './config';
 import { getSessionId } from './superbrain/lib/sessionId';
+import { streamChatReply } from './lib/voiceChat';
 import {
   clearConversationCorrection,
   correctConversationAlignment,
@@ -557,6 +558,14 @@ export default function App() {
   const [gitHistory,  setGitHistory]  = useState(['Git Bash integrated.', 'Type "git status" to begin.']);
   const [gitInput,    setGitInput]    = useState('');
   const [isListening, setIsListening] = useState(false);
+  // Jarvis VOICE conversation (the mic): talk -> POST /api/v1/chat -> the mind
+  // talks back via SpeechSynthesis. This is a CONVERSATION channel, separate from
+  // the typed agentic forge (/api/generate): /api/v1/chat runs NO tools and has NO
+  // approval mechanism, so a spoken word can never redeem an approval token.
+  const [voiceLang, setVoiceLang] = useState('en-IN'); // en-IN | hi-IN (Hinglish)
+  const [voiceSpeaking, setVoiceSpeaking] = useState(false); // TTS speaking now
+  const [voiceBusy, setVoiceBusy] = useState(false);   // a voice turn is in flight
+  const [voiceError, setVoiceError] = useState(null);  // honest mic/voice problem
   const [ollamaStatus, setOllamaStatus] = useState({ available: false, models: [] });
   const [bedrockStatus, setBedrockStatus] = useState({ configured: false, available: false, models: [] });
   const [autoModel, setAutoModel] = useState(null); // model the agent auto-selects (Auto badge)
@@ -641,18 +650,15 @@ export default function App() {
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous     = false;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.onstart  = () => setIsListening(true);
-      recognitionRef.current.onend    = () => setIsListening(false);
-      recognitionRef.current.onresult = (e) => {
-        let t = '';
-        for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-        setInput(t);
-      };
-    }
+    if (!SpeechRecognition) return; // unsupported -> the mic surfaces a text-only hint
+    const rec = new SpeechRecognition();
+    rec.continuous = false;
+    rec.interimResults = false; // act on the FINAL transcript (one spoken turn)
+    rec.onstart = () => setIsListening(true);
+    rec.onend = () => setIsListening(false);
+    recognitionRef.current = rec;
+    // onresult / onerror / lang are (re)assigned per start in startVoiceListening
+    // so each turn captures the current language + a fresh handler closure.
   }, []);
 
   /* ─── Handlers ─────────────────────────────────────────────── */
@@ -893,10 +899,106 @@ export default function App() {
     }
   };
 
-  const toggleVoice = () => {
-    if (!recognitionRef.current) return alert("Voice recognition not supported.");
-    isListening ? recognitionRef.current.stop() : (setInput(''), recognitionRef.current.start());
+  /* Speak the mind's reply back (SpeechSynthesis). Honest + non-blocking: if the
+   * browser has no TTS we simply stay silent (the reply is still on screen). */
+  const speakReply = (text) => {
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+    if (!synth || !text) return;
+    try {
+      synth.cancel(); // never stack utterances
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = voiceLang;
+      utter.onstart = () => setVoiceSpeaking(true);
+      utter.onend = () => setVoiceSpeaking(false);
+      utter.onerror = () => setVoiceSpeaking(false);
+      synth.speak(utter);
+    } catch {
+      setVoiceSpeaking(false);
+    }
   };
+
+  /* One spoken conversational turn: the transcript goes to the CONVERSATIONAL
+   * /api/v1/chat (NOT the agentic forge), the reply streams into a chat bubble,
+   * then the mind speaks it back. A spoken turn can never approve anything — this
+   * endpoint has no tools and no approval mechanism. */
+  const handleVoiceTurn = async (transcript) => {
+    const text = transcript.trim();
+    if (!text || voiceBusy || isStreaming || pendingAction) return;
+    setVoiceBusy(true);
+    setVoiceError(null);
+    const userMsgId = Date.now();
+    const aiMsgId = userMsgId + 1;
+    setMessages(prev => [
+      ...prev,
+      { id: userMsgId, sender: 'user', text, voice: true, steps: [] },
+      { id: aiMsgId, sender: 'ai', text: '', loading: true, voice: true, steps: [] },
+    ]);
+    try {
+      const reply = await streamChatReply(text, sessionId, {
+        onChunk: (r) => setMessages(prev => prev.map(m =>
+          m.id === aiMsgId ? { ...m, text: r, loading: false } : m)),
+      });
+      setMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, text: reply, loading: false } : m));
+      speakReply(reply);
+    } catch (err) {
+      setMessages(prev => prev.map(m =>
+        m.id === aiMsgId
+          ? { ...m, text: `Voice link issue: ${err.message}. You can type instead.`, loading: false, error: true }
+          : m));
+    } finally {
+      setVoiceBusy(false);
+    }
+  };
+
+  /* Start listening for one push-to-talk turn. Handlers are assigned here (not at
+   * mount) so each turn uses the current language and a fresh closure, and every
+   * error path is honest: mic-denied, no-speech, and generic input errors each
+   * say what happened and that typing still works. */
+  const startVoiceListening = () => {
+    const rec = recognitionRef.current;
+    if (!rec) {
+      setVoiceError('Voice input is not supported in this browser. Type your message instead.');
+      return;
+    }
+    if (voiceBusy || isStreaming || pendingAction) return;
+    rec.lang = voiceLang;
+    rec.onresult = (e) => {
+      let finalText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      }
+      if (finalText) handleVoiceTurn(finalText);
+    };
+    rec.onerror = (e) => {
+      setIsListening(false);
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        setVoiceError('Microphone access was denied. Allow it in your browser to talk, or type instead.');
+      } else if (e.error === 'no-speech') {
+        setVoiceError('No speech heard. Tap the mic and try again.');
+      } else if (e.error !== 'aborted') {
+        setVoiceError(`Voice input error (${e.error}). You can type instead.`);
+      }
+    };
+    try {
+      setVoiceError(null);
+      rec.start();
+    } catch {
+      /* start() throws if already running; the toggle below avoids that */
+    }
+  };
+
+  const toggleVoice = () => {
+    if (!recognitionRef.current) {
+      setVoiceError('Voice input is not supported in this browser. Type your message instead.');
+      return;
+    }
+    if (isListening) recognitionRef.current.stop();
+    else startVoiceListening();
+  };
+
+  /* Cycle the spoken language: Indian English <-> Hindi (both handle Hinglish). */
+  const cycleVoiceLang = () => setVoiceLang(prev => (prev === 'en-IN' ? 'hi-IN' : 'en-IN'));
 
   /* ─── Auto-resize textarea ─────────────────────────────────── */
   const autoResize = useCallback(() => {
@@ -1495,24 +1597,80 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* Honest voice status / error line (aria-live for AT). */}
+                  {(voiceError || isListening || voiceBusy || voiceSpeaking) && (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      style={{
+                        fontSize: 10.5, marginBottom: 6, lineHeight: 1.4,
+                        color: voiceError ? '#f87171' : 'var(--text-3)',
+                      }}
+                    >
+                      {voiceError
+                        ? voiceError
+                        : isListening
+                        ? `Listening (${voiceLang === 'hi-IN' ? 'Hindi' : 'Indian English'})…`
+                        : voiceBusy
+                        ? 'Jarvis is thinking…'
+                        : voiceSpeaking
+                        ? 'Jarvis is speaking…'
+                        : null}
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 7 }}>
-                    {/* Voice button */}
+                    {/* Voice (talk to Jarvis) button — push to talk; the mind talks back. */}
                     <button
                       type="button"
                       onClick={toggleVoice}
+                      aria-label={isListening ? 'Stop listening' : 'Talk to Jarvis (voice)'}
+                      aria-pressed={isListening}
+                      title="Talk to Jarvis — speak, and the mind replies aloud"
                       style={{
                         flexShrink: 0, padding: '7px', borderRadius: 9,
-                        background: isListening ? 'rgba(248,113,113,0.12)' : 'var(--surface-3)',
-                        color: isListening ? '#f87171' : 'var(--text-3)',
+                        background: isListening
+                          ? 'rgba(248,113,113,0.12)'
+                          : voiceSpeaking
+                          ? 'rgba(59,130,246,0.12)'
+                          : 'var(--surface-3)',
+                        color: isListening ? '#f87171' : voiceSpeaking ? 'var(--accent)' : 'var(--text-3)',
                         cursor: 'pointer', transition: 'all 0.2s',
-                        boxShadow: isListening ? '0 0 12px rgba(248,113,113,0.2)' : 'none',
-                        border: isListening ? '1px solid rgba(248,113,113,0.25)' : '1px solid var(--border)',
+                        boxShadow: isListening
+                          ? '0 0 12px rgba(248,113,113,0.2)'
+                          : voiceSpeaking
+                          ? '0 0 12px rgba(59,130,246,0.2)'
+                          : 'none',
+                        border: isListening
+                          ? '1px solid rgba(248,113,113,0.25)'
+                          : voiceSpeaking
+                          ? '1px solid rgba(59,130,246,0.25)'
+                          : '1px solid var(--border)',
                         marginBottom: 1,
                       }}
-                      onMouseEnter={e => { if (!isListening) { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-4)'; } }}
-                      onMouseLeave={e => { if (!isListening) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface-3)'; } }}
+                      onMouseEnter={e => { if (!isListening && !voiceSpeaking) { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-4)'; } }}
+                      onMouseLeave={e => { if (!isListening && !voiceSpeaking) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface-3)'; } }}
                     >
                       <Mic size={14} style={isListening ? { animation: 'pulse 1s ease-in-out infinite' } : {}} />
+                    </button>
+
+                    {/* Spoken-language toggle: Indian English <-> Hindi (Hinglish). */}
+                    <button
+                      type="button"
+                      onClick={cycleVoiceLang}
+                      aria-label={`Voice language: ${voiceLang === 'hi-IN' ? 'Hindi' : 'Indian English'} (tap to switch)`}
+                      title="Switch spoken language (EN-IN / HI-IN)"
+                      style={{
+                        flexShrink: 0, padding: '7px 8px', borderRadius: 9,
+                        background: 'var(--surface-3)', color: 'var(--text-3)',
+                        border: '1px solid var(--border)', cursor: 'pointer',
+                        fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
+                        transition: 'all 0.2s', marginBottom: 1,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-4)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
+                    >
+                      {voiceLang === 'hi-IN' ? 'HI' : 'EN'}
                     </button>
 
                     {/* Auto-expanding textarea */}
