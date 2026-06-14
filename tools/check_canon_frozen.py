@@ -17,7 +17,11 @@ Usage:
   python tools/check_canon_frozen.py            # check `git diff` (working tree vs HEAD)
   python tools/check_canon_frozen.py --staged   # check staged changes (pre-commit)
   python tools/check_canon_frozen.py --check P1 P2 ...   # test specific paths
-Exit code 1 if any frozen path is modified; 0 otherwise.
+  python tools/check_canon_frozen.py --allow-canon       # break-glass: permit AUTHORIZED,
+       # FIDELITY-reviewed canon-elevation edits (operator signed off on before/after
+       # screenshots in HIS browser). Default (no flag) still HARD-blocks canon = the
+       # accidental/unauthorized-edit tripwire is always on.
+Exit code 1 if a frozen path changed WITHOUT --allow-canon; 0 otherwise.
 """
 from __future__ import annotations
 
@@ -80,18 +84,32 @@ def changed_paths(staged: bool) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    if argv and argv[0] == "--check":
-        paths = argv[1:]
+    allow_canon = "--allow-canon" in argv
+    if "--check" in argv:
+        flags = {"--check", "--staged", "--allow-canon"}
+        paths = [a for a in argv if a not in flags]
     else:
         paths = changed_paths(staged="--staged" in argv)
     frozen_hits = [p for p in paths if is_frozen(p)]
-    if frozen_hits:
-        print("CANON FREEZE VIOLATION — these files are the operator's inviolable canon:")
+    if frozen_hits and not allow_canon:
+        print("CANON FREEZE VIOLATION — these files are the operator's cherished 3D canon:")
         for p in frozen_hits:
             print(f"  ✗ {p}")
-        print("\nFix: author canon changes in the lab (GAG demo/gag-orchestrator) + `npm run port`,")
-        print("or move the change to the legal seam (SuperbrainShell.jsx / workbench / components).")
+        print("\nThis is the accidental/unauthorized-edit tripwire. If this IS an authorized,")
+        print("FIDELITY-reviewed canon-elevation change (operator signed off on before/after")
+        print("screenshots in HIS browser, against a canon tag + goldens), re-run with")
+        print("--allow-canon. Otherwise: author in the lab (GAG demo/gag-orchestrator) +")
+        print("`npm run port`, or move the change to a non-canon seam (SuperbrainShell.jsx /")
+        print("workbench / components).")
         return 1
+    if frozen_hits and allow_canon:
+        print("CANON BREAK-GLASS (--allow-canon) — permitting AUTHORIZED canon-elevation edits:")
+        for p in frozen_hits:
+            print(f"  ● {p}")
+        print("\nFIDELITY REMINDER (the laws still hold): enhance, never replace · his GLB +")
+        print("textures untouched · before/after screenshots reviewed in HIS browser · canon")
+        print("tag + goldens captured for rollback.")
+        return 0
     print(f"canon-freeze OK — {len(paths)} changed path(s), none frozen.")
     return 0
 
