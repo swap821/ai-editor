@@ -1,5 +1,42 @@
 # RESUME MANIFEST
 
+## ACTIVE FRONT (2026-06-15): WHOLE-SYSTEM RENOVATION — executing the first-8
+Plan: `.aios/state/RENOVATION_PLAN.md` (importance-ranked, reconciled under
+FUTURE_FRONTIER). Branch `feat/renovation-p0` (off `feat/jarvis-voice`); PR #12
+(feat/jarvis-voice → master) is open for the operator to merge. 17 calendar
+events scheduled (IST). Per-item discipline: read → edit → test (`.venv\Scripts\
+python -m pytest -q`) → commit → push.
+
+First-8 order + status:
+1. ✅ P1-1 push (feature branches to origin).
+2. ✅ P0-1 CORS guard (commit 36fa1f7) — `_validate_cors_origins`, narrowed methods/headers.
+3. ✅ P0-6 entrypoint (96e7965) — `python -m aios`, host/policy lockstep.
+4. ✅ P0-2 + P0-5 legacy quarantine (53eea10) — `legacy/` + README; dead root-DB scripts moved.
+5. ✅ P1-10 doc sweep (6d967c9) — live test-count language; `python -m aios`; real frontend README.
+6. ✅ P0-7 input-shield /api/v1/chat (9a1dcd2) — transcript max_length=8000 (422) +
+   per-session 30/60s flood throttle (429); 5 tests. Suite 561 pass / 1 skip.
+7. ✅ The frontend pair (lab-first + ported; canon 3D untouched; frontend vitest 72 pass):
+   - P1-3 session-id single-source (commit a777993): one getSessionId() (read-or-create-persist,
+     SSR-safe) in superbrain/lib/sessionId.ts; aiosAdapter + ConversationPort + IntentPort + classic
+     App.jsx all import it. Kills the read-only-organ-vs-owner fork. +4 tests.
+   - P0-3 approval single-source-of-truth (commit 88b0a73): the adapter's pendingApproval is now an
+     OBSERVABLE (subscribePendingApproval delivers current truth on subscribe + on every change via a
+     single setPendingApprovalState writer); the HUD binds the actionable panel to it, not to the
+     transient 'approval-required' bus event. A genuine pause is ALWAYS actionable. +3 tests.
+     NOTE: redesigned mid-flight to live ENTIRELY in non-frozen files — the plan named
+     WorkspaceCanvas.tsx:184-187 but components/canvas/** is canon-FROZEN (check_canon_frozen.py), so
+     the reliable-signal path went through the adapter observable instead of a canvas prop. Don't edit
+     canvas/ files; route approval/lifecycle work through lib/ + ui/.
+8. ⏭ **NEXT: P1-2 + P1-4 (Voice Slice 2 + structured logging) — the marquee "goosebumps Jarvis"
+   voice build (cal Jun 19). LARGE/M; the operator's active priority + a frontend feature he judges by
+   eye → restate scope and get explicit go before building.**
+
+LAB CAVEAT (P1-3 + P0-3): the canonical source edits live in the gitignored lab
+(GAG demo/gag-orchestrator: src/lib/sessionId.ts [new], aiosAdapter.ts, components/ui/SuperbrainHUD.tsx,
+tools/port-to-frontend.mjs manifest). Only the PORTED product files are committed here. Operator should
+push the lab to swap821/gag-demo so a fresh lab clone's `npm run port` stays consistent (else the port
+drift-tripwire/regeneration could revert these).
+
 ## Current goal
 The AI-OS is a real, supervised, memory-driven cognitive system (see
 `.aios/state/BACKEND_TRUE_PICTURE.md` — the 8-agent deep read; NOT an MVP).
