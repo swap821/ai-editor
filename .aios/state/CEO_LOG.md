@@ -542,3 +542,15 @@ docs + RESUME current · ✅ RESUME current. Today the library is whole; next se
   first paint is snappy on a stranger's machine; (2) seed a couple of real
   trails/skills so the pheromone map + memory galaxy are populated (an empty
   galaxy under-sells it). Neither blocks a demo today.
+
+---
+
+## 2026-06-14 — Advice (frontend renovation kickoff)
+
+**Where we are.** Backend is live-proven this session: multi-LLM router + failover + breadth + evidence-calibration, the active-brain badge, the verified_success recording fix (root-caused + fixed), and active-brain attribution truthful under failover (545 tests green, monitored live 6/6 PASS). The operator's verdict: the backend is what we want; the **frontend is still the pre-canon "mock-up" scaffold** other LLMs built and does NOT match the backend's real capabilities. New primary front: a full frontend RENOVATION to 100% backend harmony. Wave 1 (research → Renovation Blueprint) is running; Harmony Map committed; baseline tagged; on `feat/frontend-renovation`.
+
+**Highest-leverage next move.** Renovate within the law, not around it. The operator's CORE DESIGN (the voyaging-superbrain soul, canon scene/brain/GLB assets, sovereignty row, tokens) is FROZEN — every renovated surface conforms to it as an additive PORT, never a redesign. Sequence: blueprint → operator gut-check → lab-first implementation waves (build→test→self-critique→port→his-eyeball gate), observability-first, P0s first (harden the approval surface that hangs live runs; ANSWER port; AUTONOMY ledger). Stay in the loop between waves.
+
+**Risk to watch.** Two real ones. (1) **Canon damage** — agents "renovating" could edit his soul; mitigated by an explicit frozen-file boundary enforced in every brief + the branch/tag safety net. (2) **The eyeball gap** — an agent CANNOT prove visual parity in HIS browser or take before/after screenshots; "ultimate perfect" needs his eye at the gates. Don't promise a hands-off magic result that would violate his own FIDELITY laws; deliver iterated work in a branch + a fast review harness and let him be the final aesthetic authority.
+
+**Scoreboard.** End every wave with: build green + tests green + canon files byte-unchanged + a reviewable diff. Today: ✅ Harmony Map committed · ✅ baseline tagged + renovation branch · ⏳ Renovation Blueprint (Wave 1) running.
