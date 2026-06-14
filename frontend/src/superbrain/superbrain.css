@@ -18,7 +18,9 @@
  * supplies the color in this composition; the HUD is the instrument. */
 :root {
   --bg: #010307;
-  --bg-panel: rgba(11, 14, 20, 0.5);
+  /* Panel base slightly more opaque (was 0.5) so secondary text on the consoles
+   * reads easier over a bright nebula, while the scene still bleeds through. */
+  --bg-panel: rgba(11, 14, 20, 0.58);
   --text-1: rgba(232, 238, 250, 0.92);
   /* Readable-text tiers raised to clear WCAG AA (4.5:1) over the near-black
    * void (--bg #010307). --text-2 carries the bulk of the HUD's labels/values
@@ -30,7 +32,7 @@
    * can slip it under 4.5). Raised to FULL opacity (1.0) for a durable margin
    * above AA on every backdrop. Same cool-neutral hue · the one-accent discipline
    * and the void are untouched. */
-  --text-2: rgba(160, 170, 190, 0.78);
+  --text-2: rgba(172, 182, 202, 0.88);
   --text-3: rgb(120, 130, 150);
   --hairline: rgba(255, 255, 255, 0.08);
   --accent: #5ce1e6;
@@ -301,8 +303,10 @@ button {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 220px;
-  background: linear-gradient(to top, rgba(2, 4, 10, 0.55), transparent 160px);
+  /* Taller + deeper, with a mid-stop, so the terminal log (sits ~114px up) rests
+   * on a real dark base instead of the brain's glowing tendrils. */
+  height: 300px;
+  background: linear-gradient(to top, rgba(2, 4, 10, 0.66), rgba(2, 4, 10, 0.3) 150px, transparent 260px);
   pointer-events: none;
 }
 
@@ -314,7 +318,7 @@ button {
   left: 0;
   right: 0;
   height: 64px;
-  padding: 0 28px;
+  padding: 0 34px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -387,7 +391,9 @@ button {
 }
 
 .system-summary {
-  gap: 18px;
+  /* A touch more air between the dense status/sovereignty items (was 18px); also
+   * widens the centered group so the brand-to-status gap reads less cavernous. */
+  gap: 22px;
   color: var(--text-2);
   font-family: var(--mono);
   font-size: 10px;
@@ -404,6 +410,10 @@ button {
 /* Keep the 6px link dot optically centered now the label/value pair baseline-aligns. */
 .system-summary .status-dot {
   align-self: center;
+  /* Optically center the dot with the uppercase cap-height: caps center sits
+   * above the line-box center, so a purely line-centered dot reads slightly low. */
+  position: relative;
+  top: -1px;
 }
 
 .system-summary strong {

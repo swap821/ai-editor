@@ -116,20 +116,6 @@ const SOURCE_CHANNELS: { key: MetricKey; name: string; detail: string }[] = [
   { key: 'signals', name: 'Signals', detail: 'ambient telemetry' },
 ];
 
-/* ---------- Center port labels (over the brain) ----------
- * Four flat 2D channel labels in the #hud-portal-root portal layer (NEVER
- * scene-pinned Html · the frozen-scene contract). Each label reads ONE real
- * metricsStore value (the SAME number the right-console intake row shows, the
- * single source of truth) and pulses cyan for one beat ONLY when a real bus
- * event touches that channel: a real `tool engaged:` dispatch, or a real
- * `knowledge-acquired` packet. No invented progress, no timer theatre. */
-const PORT_CHANNELS: { key: MetricKey; label: string }[] = [
-  { key: 'tools', label: 'TOOLS' },
-  { key: 'research', label: 'RESEARCH' },
-  { key: 'signals', label: 'SIGNALS' },
-  { key: 'memory', label: 'MEMORY' },
-];
-
 /* Route a REAL dispatched tool to the metric channel that owns that work, so a
  * tool firing pulses the matching port. Same keyword semantics the metricsStore
  * and the intake rows already use (one mapping language across the HUD). */
@@ -516,47 +502,6 @@ function AgentCard({
   );
 }
 
-/* ---------- Center port label (flat, over the brain) ----------
- * A single channel readout floating in the portal layer above the brain. It
- * reads ONE real metricsStore value (the SAME number the right-console intake
- * row shows) and lights cyan for one beat when `firing` is true (a real bus
- * event touched this channel). Idle: neutral hairline glyph + the live number,
- * no motion. The flare rides a NON-BLURRED child overlay (paint-trap law). */
-function PortLabel({
-  metricKey,
-  label,
-  firing,
-  fireSeq,
-  linkUp,
-}: {
-  metricKey: MetricKey;
-  label: string;
-  /** True for one beat when a real event touched this channel. */
-  firing: boolean;
-  /** Monotonic id so the one-shot flare re-keys (re-fires) on every real event. */
-  fireSeq: number;
-  /** Honest dormancy: offline the port shows '--', never the store's demo drift. */
-  linkUp: boolean;
-}) {
-  const samples = useMetricHistory(metricKey).length;
-  const value = useTweenedMetric(useMetric(metricKey));
-  /* HONEST DORMANCY (same law as the intake rows): only show a REAL value when
-   * the link is up and a real sample exists; never the offline demo drift. */
-  const hasRealValue = linkUp && samples >= 1;
-  return (
-    <div className={`port-label${firing ? ' is-firing' : ''}${hasRealValue ? '' : ' is-dormant'}`}>
-      {/* state, not decoration: the dot lights only while a real event is
-          pulsing this channel; the one-shot flare re-keys on fireSeq. */}
-      <i className="port-dot" aria-hidden="true" />
-      <span className="port-name">{label}</span>
-      <span className="port-value tabnum">{hasRealValue ? `${value}%` : '--'}</span>
-      {/* The flare is a NON-BLURRED sibling; only transform/opacity animate,
-          never paint on a blurred ancestor. Re-keyed per real event. */}
-      <i key={fireSeq} className={`port-flare${firing ? ' port-flare--fire' : ''}`} aria-hidden="true" />
-    </div>
-  );
-}
-
 export default function SuperbrainHUD({
   mode,
   lastDirective,
@@ -885,9 +830,6 @@ export default function SuperbrainHUD({
           pulseIdRef.current += 1;
           const sourceRow = matchSourceRow(label, rotateRef);
           setSourcePulse({ id: pulseIdRef.current, row: sourceRow });
-          // The same real packet pulses the matching center port (one source of
-          // truth: SOURCE_CHANNELS[row].key is the metric channel it landed on).
-          firePort(SOURCE_CHANNELS[sourceRow].key);
           break;
         }
         case 'burst':
@@ -934,8 +876,6 @@ export default function SuperbrainHUD({
             setKnownTools(sessionToolsRef.current.size);
             setRecentSteps((prev) => [...prev.slice(-1), tool.replace(/_/g, ' ')]);
             setToolPulse({ row: agentRowForTool(tool), detail: `running ${tool}` });
-            // The real tool firing pulses the center port that owns that work.
-            firePort(toolChannelForPort(tool));
             // A real dispatch -> ORCHESTRATE (decays in ~4s) and re-fires the
             // one-shot heartbeat pulse via its React key.
             phaseTsRef.current.tool = performance.now();
@@ -1178,23 +1118,11 @@ export default function SuperbrainHUD({
 
           <div className="bottom-scrim" aria-hidden="true" />
 
-          {/* CENTER PORTS · the four cognition channels over the brain. FLAT 2D
-              in the portal layer (NOT scene-pinned Html · frozen-scene contract).
-              pointer-events:none so the brain keeps its orbit/drag. Each label
-              reads a real metricsStore value and pulses cyan only when a real
-              bus event (tool firing / knowledge packet) touched its channel. */}
-          <div className="center-ports" aria-hidden="true">
-            {PORT_CHANNELS.map((port) => (
-              <PortLabel
-                key={port.key}
-                metricKey={port.key}
-                label={port.label}
-                firing={portPulse?.key === port.key}
-                fireSeq={portPulse?.key === port.key ? portPulse.id : 0}
-                linkUp={linkUp}
-              />
-            ))}
-          </div>
+          {/* Center-port channel labels removed (operator's declutter call): they
+              duplicated the frozen 3D RegionPins (anchored to the cortex, with
+              leader lines + interactive history) AND the right-console intake rows.
+              The same 4 metrics now live in exactly two honest places, and the
+              brain's view-center stays clear. */}
 
           <header className="topbar">
             <div className="brand-lockup">
