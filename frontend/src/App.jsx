@@ -535,7 +535,11 @@ export default function App() {
   // that space; they slide in on demand (agent generates code, or the pill).
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
-  const [messages, setMessages]        = useState([{ id: 1, sender: 'ai', text: 'Amazon Bedrock connected. What shall we build today?', steps: [] }]);
+  // Honest greeting: makes NO backend-connection claim (the old "Amazon Bedrock
+  // connected" was fabricated — it fired regardless of real provider state, a
+  // data-true violation). The live provider/route is shown truthfully by the
+  // active-brain badge from the real `route` SSE frame, not asserted here.
+  const [messages, setMessages]        = useState([{ id: 1, sender: 'ai', text: 'AI-OS workspace ready. What shall we build today?', steps: [] }]);
   const [convHistory, setConvHistory]  = useState([]); // Bedrock-format conversation history
   const [alignmentFrame, setAlignmentFrame] = useState(null);
   const [correctionHistory, setCorrectionHistory] = useState([]);
