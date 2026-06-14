@@ -1,16 +1,41 @@
-# React + Vite
+# ai-editor frontend — the Superbrain Shell
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The React + Vite single-page app that is the **face of the AI-OS**. One bundle mounts
+one of three UIs by URL (`src/main.jsx`):
 
-Currently, two official plugins are available:
+| URL | Mounts |
+|-----|--------|
+| `localhost:5173` (no flag) · `?ui=shell` | **The Superbrain Shell** (default) — the persistent 3D voyaging brain (`WorkspaceCanvas`), the renovated 2D HUD (`SuperbrainHUD`), an in-app home⇄workbench toggle, the read-only governance organs (`OrgansDock`), and the approval safety-net. |
+| `?ui=classic` | The classic IDE (`App.jsx`) — file tree · Monaco · live preview · chat · approval. The documented fallback face. |
+| `?ui=home` / `?ui=superbrain` | The bare canon brain home (`SuperbrainApp`) — parity-review only. |
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Both faces stream the **same supervised turn** over SSE from the backend, share one
+session, and bind through one data spine (`src/superbrain/lib/aiosAdapter.ts` →
+`cognitionBus`). The UI is a real-data read-out of the backend cage: it goes honestly
+dormant when there is no data (no fabricated activity).
 
-## React Compiler
+## Run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev        # http://localhost:5173/   (needs the backend on :8000)
+npm run build      # production build
+npm test           # vitest
+npm run showcase   # prod build + preview (the FIDELITY reference viewing condition, :4173)
+```
 
-## Expanding the ESLint configuration
+The backend must be running for live data: from the repo root, `python -m aios`
+(binds `AIOS_API_HOST`/`AIOS_API_PORT`, default `127.0.0.1:8000`). See the repo
+`START_HERE.md`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## The lab → product port (3D superbrain)
+
+Everything under `src/superbrain/` is **generated**, not hand-edited here: the source of
+truth is the gitignored lab (`GAG demo/gag-orchestrator/`), synced by `npm run port`
+(byte-faithful copy of the canon scene + HUD + `superbrain.css` regenerated from the lab
+`globals.css`). Edit the 3D scene/HUD in the LAB, then port. The product-only seams you
+*do* edit directly: `src/superbrain/SuperbrainApp.jsx` / `SuperbrainShell.jsx`, and
+everything under `src/workbench/` + `src/components/`.
+
+The 3D brain + cosmic space are the operator's cherished core — **enhance, never replace**
+(canon tag + goldens + before/after screenshots before any visual change).

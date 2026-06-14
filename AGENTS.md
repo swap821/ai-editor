@@ -119,9 +119,9 @@ resume yourself — say so if asked). Don't report a task done without evidence
 ---
 
 ## XI. PROJECT-SPECIFIC FACTS (this repo)
-- **Run backend:** `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
+- **Run backend:** `.venv\Scripts\python -m aios` (canonical; binds `AIOS_API_HOST`/`AIOS_API_PORT`, default `127.0.0.1:8000`, in lockstep with the token policy; add `--reload` for dev). Equivalent raw form: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000` (but raw `--host` can decouple the bind from the policy — prefer `python -m aios`).
 - **Run frontend:** `cd frontend; npm run dev`  (Vite, http://localhost:5173)
-- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **516 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
+- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — trust the LIVE count from the run, not a hardcoded number (**556 passed, 1 skipped** as of 2026-06-15; it grows as tests land) (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
 - **Commits:** per-phase on `master` (not `main`); credit only actual contributors. Codex-only work uses `Co-Authored-By: OpenAI Codex <noreply@openai.com>`; use a Claude trailer only when Claude genuinely contributed. Commit only when the operator asks.
 - **Local LLM:** Ollama. Prefer the UI's `Auto` route. Live-compatible gallery:
   qwen2.5-coder 7B/3B, qwen2.5 7B, llama3.1 8B, llama3.2 3B, and Mistral 7B.
