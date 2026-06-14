@@ -55,11 +55,26 @@ def is_frozen(path: str) -> bool:
 
 
 def changed_paths(staged: bool) -> list[str]:
-    cmd = ["git", "diff", "--name-only"]
     if staged:
-        cmd.append("--cached")
-    out = subprocess.run(cmd, capture_output=True, text=True, check=False).stdout
-    return [line for line in out.splitlines() if line.strip()]
+        out = subprocess.run(
+            ["git", "diff", "--name-only", "--cached"],
+            capture_output=True, text=True, check=False,
+        ).stdout
+        return [line for line in out.splitlines() if line.strip()]
+    # Default: `git status --porcelain` so we ALSO catch UNTRACKED additions
+    # (a new file dropped under a frozen root would slip past `git diff`).
+    out = subprocess.run(
+        ["git", "status", "--porcelain"], capture_output=True, text=True, check=False,
+    ).stdout
+    paths: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        p = line[3:]  # strip the 2-char XY status + space
+        if " -> " in p:  # rename: "old -> new" — guard the destination
+            p = p.split(" -> ", 1)[1]
+        paths.append(p.strip().strip('"'))
+    return paths
 
 
 def main(argv: list[str]) -> int:
