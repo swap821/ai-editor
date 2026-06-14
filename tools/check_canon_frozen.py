@@ -61,19 +61,21 @@ def changed_paths(staged: bool) -> list[str]:
             capture_output=True, text=True, check=False,
         ).stdout
         return [line for line in out.splitlines() if line.strip()]
-    # Default: `git status --porcelain` so we ALSO catch UNTRACKED additions
-    # (a new file dropped under a frozen root would slip past `git diff`).
-    out = subprocess.run(
+    # Tracked CONTENT changes via `git diff --name-only` — this honors git's EOL
+    # normalization, so a port's CRLF<->LF re-copy of a frozen file (byte-identical
+    # content) is NOT flagged. Plus UNTRACKED additions from status (a brand-new
+    # file under a frozen root IS a real breach `git diff` would miss).
+    tracked = subprocess.run(
+        ["git", "diff", "--name-only"], capture_output=True, text=True, check=False,
+    ).stdout.splitlines()
+    status = subprocess.run(
         ["git", "status", "--porcelain"], capture_output=True, text=True, check=False,
-    ).stdout
-    paths: list[str] = []
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        p = line[3:]  # strip the 2-char XY status + space
-        if " -> " in p:  # rename: "old -> new" — guard the destination
-            p = p.split(" -> ", 1)[1]
-        paths.append(p.strip().strip('"'))
+    ).stdout.splitlines()
+    paths: list[str] = [l for l in tracked if l.strip()]
+    for line in status:
+        if line.startswith("??"):  # untracked only (content changes covered above)
+            p = line[3:]
+            paths.append(p.strip().strip('"'))
     return paths
 
 
