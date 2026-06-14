@@ -870,7 +870,11 @@ class ToolAgent:
         for index, (filepath, content) in enumerate(self.approved_creations.items()):
             output, status, _ = self._create_file(filepath, content)
             if status == "noop":
-                continue  # landed on an earlier replay
+                # Already landed on an earlier replay — STILL queue it for verify so
+                # the FINAL (done) replay carries the verdict. Skipping it loses the
+                # evidence recorded on the apply-replay and the turn reads 'unverified'.
+                applied.append((index, filepath, "create_file"))
+                continue
             call_id = f"grant-create-{index}"
             if status == "ok":
                 yield {"type": "tool_result", "tool": "create_file",
@@ -885,7 +889,8 @@ class ToolAgent:
             # _edit_file substitutes the approved (old, new) pair itself.
             output, status, _ = self._edit_file(filepath, "", "")
             if status == "noop":
-                continue  # landed on an earlier replay
+                applied.append((index, filepath, "edit_file"))  # verify on the done-replay too
+                continue
             call_id = f"grant-edit-{index}"
             if status == "ok":
                 yield {"type": "tool_result", "tool": "edit_file",
