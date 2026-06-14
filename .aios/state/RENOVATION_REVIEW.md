@@ -1,4 +1,4 @@
-# RENOVATION REVIEW — operator eyeball harness (Waves 0–8)
+# RENOVATION REVIEW — operator eyeball harness (Waves 0–9)
 
 > Branch `feat/frontend-renovation`. The agent cannot prove visual parity — this is the
 > fast checklist to verify the whole renovation in YOUR browser. The renovation is
@@ -25,7 +25,7 @@ cd frontend && npm run dev
 
 ---
 
-## 2. Per-wave WHAT-CHANGED (Waves 0–8)
+## 2. Per-wave WHAT-CHANGED (Waves 0–9)
 
 | Wave | One-line change | Files |
 |---|---|---|
@@ -39,8 +39,9 @@ cd frontend && npm run dev
 | **6** | Approval safety-net — deferred fallback resolver for a missed `approval-required` event; mounted on **both** faces | `workbench/approval/{ApprovalSafetyNet.jsx,approval-safety-net.css}`, `SuperbrainApp.jsx`, `SuperbrainShell.jsx` |
 | **7** | CSS-debt cleanup — `shell.css` to canon (glass recipe + indigo→cyan accent); lint scoped to live superbrain files | `frontend/src/workbench/shell.css`, `tools/check_css_canon.py` |
 | **8** | (flagged in Wave 7) removal of 4 dead style files: `styles/{App,design-system,nexgen-3d,nexgen-layout}.css` — confirm nothing imports them | `frontend/src/styles/*` |
+| **9** | INTENT/ALIGNMENT organ — read-only window into the latest per-turn `UnderstandingFrame` (`/conversation/session`, `limit:1`); intent + gloss, confidence meter, goal, ASSUMPTIONS/UNKNOWNS/CONSTRAINTS/DECISIONS, next_action, `CORRECTED` badge; loud clarifying-question banner when `ambiguity_action==='ask'`. 10th organ. | `workbench/organs/{IntentPort,OrgansDock}.jsx`, `organs.css`, `OrgansDock.test.jsx` (29 tests green) |
 
-> Note: the live commit log labels stop at Wave 7. Wave 8 = the dead-CSS removal Wave 7 flagged. Verify with `git log --oneline pre-renovation-baseline-2026-06-14..HEAD`.
+> Note: the live commit log is labeled through Wave 8 (`Renovation Wave 8: convergence …`). Wave 9 (the INTENT organ) is the latest build; confirm its commit landed alongside this doc. Verify the full range with `git log --oneline pre-renovation-baseline-2026-06-14..HEAD`.
 
 ---
 
@@ -50,7 +51,7 @@ cd frontend && npm run dev
 - [ ] Page loads to the **canon voyage** — brain moving forward, scene/sovereignty row look exactly as before (only addition: a small **▣ ORGANS** tab, top-right under the topbar).
 - [ ] If the brain has earned autonomy, the tab shows a live **⚡N** chip; on a real CAPABILITY EARNED / AUTONOMOUS ACTION / SKILL MASTERED event the pip **flares**.
 - [ ] Click **▣ ORGANS** → glass panel opens; click the section header (SECTION + organ name + ▾) → the **grouped organ menu** slides down.
-- [ ] Walk all **9 organs** — each shows **REAL data** or an **honest empty / offline** state (never fabricated rows):
+- [ ] Walk all **10 organs** — each shows **REAL data** or an **honest empty / offline** state (never fabricated rows):
 
   | Organ (menu group) | Source | Real-data check / honest empty |
   |---|---|---|
@@ -61,6 +62,7 @@ cd frontend && npm run dev
   | **Skills** (LEARNING) | adapter `getKnownTrails()` poll | verified workflows + success rate; empty: brain has none |
   | **Memory** (MEMORY) | `POST /api/v1/memory/search {query,top_k:8}` | type a query → scored star-rows w/ provenance; empty: "No memories matched …" |
   | **Plan** (REASONING) | `POST /api/v1/plan {goal}` | confidence-gated step tree + AUTO/HUMAN verdict; idle until you submit a goal |
+  | **Intent** (REASONING) | `POST /api/v1/conversation/session {limit:1}` → `alignment` | latest `UnderstandingFrame`: intent + gloss, confidence meter, goal, assumptions/unknowns/constraints/decisions, next_action, `CORRECTED` badge, loud clarifying-question banner when ambiguity=ask; empty: "No understanding frame yet this session"; offline: "INTENT OFFLINE" / quiet "· link offline" keeping the last frame |
   | **Zone Probe** (SECURITY) | `POST /api/v1/security/classify {command}` | type a command → GREEN/YELLOW/RED + reason; idle until you probe |
   | **Models** (SYSTEM) | `GET /api/v1/models/{local,bedrock,gemini,auto}` | per-provider readiness; empty: "No brains ready…" |
 

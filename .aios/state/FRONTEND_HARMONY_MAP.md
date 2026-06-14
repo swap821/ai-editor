@@ -3,7 +3,9 @@
 > Living source-of-truth: how well the **product frontend** surfaces the **backend's real capabilities**. Audience: the operator + future coding agents.
 > **Verified** against source on 2026-06-14: SSE parsers (`App.jsx` `processEvent`, `superbrain/lib/aiosAdapter.ts`), the 34 REST routes in `aios/api/main.py`, and the 9 SSE wire names. Endpoint callers grep-confirmed in `frontend/src`.
 >
-> **Context (2026-06-14):** the backend is live-verified and working; the product frontend is still largely the "demo" scaffold built before the operator's canon design was finalized. This map drives the **frontend renovation** to 100% backend harmony. The operator's CORE DESIGN (the voyaging-superbrain soul, the canon scene/brain/GLB assets, the sovereignty row, the aesthetic tokens) is **FROZEN, inviolable law** — renovation is additive and conforms to it; it never redesigns it. See [[frontend-harmony-direction]] and [[fidelity-is-sacred-ui-laws]].
+> **Context (2026-06-14):** the backend is live-verified and working. This map drives the **frontend renovation** to 100% backend harmony. The operator's CORE DESIGN (the voyaging-superbrain soul, the canon scene/brain/GLB assets, the sovereignty row, the aesthetic tokens) is **FROZEN, inviolable law** — renovation is additive and conforms to it; it never redesigns it. See [[frontend-harmony-direction]] and [[fidelity-is-sacred-ui-laws]].
+>
+> **Renovation status (Waves 0–9, branch `feat/frontend-renovation`):** the additive `OrgansDock` shipped with **10 read-only organs** + the `ApprovalSafetyNet`, lifting the rows below out of ABSENT/PARTIAL. The status columns now read **as-shipped**; act/control endpoints are marked **DEFERRED-AND-DOCUMENTED** (observe-before-operate), never silently dropped. See the *Renovation IA note* near the bottom.
 
 **Status legend**
 - **SURFACED** — visibly rendered to the operator.
@@ -33,8 +35,8 @@ A live run that pauses on a YELLOW write can leave the operator **stuck**: the h
 |---|---|---|---|---|
 | Active brain / per-turn route | `route` (SSE) | **SURFACED** — HUD sovereignty-row BRAIN badge + privacy dot (superbrain); classic title-bar pill | Keep. Optional: failover flash on the BRAIN PORT when route re-announces mid-loop | — |
 | Live tool-loop steps | `step` (SSE: tool_call/result/blocked) | **SURFACED** — AGENT MESH cards + TERMINAL LOG + objective sub-steps | Keep | — |
-| Streamed answer text | `text_chunk` (SSE) | **PARTIAL** — superbrain drops the verbatim answer (only a truncated SYNTHESIS COMPLETE preview); full bubble is classic-only | **ANSWER PORT**: a dockable console rendering the verbatim streamed reply | **P0** |
-| Generated code artifact | `code` (SSE) | **PARTIAL** — both faces discard the body (classic no-ops line 763; superbrain emits only "CODE EMITTED") | **CODE PORT**: render the fenced block in a read-only ForgePorts EDITOR pane (never overwrites the operator's file) | **P1** |
+| Streamed answer text | `text_chunk` (SSE) | **SURFACED** (Wave 5, P0) — Conversation organ renders the verbatim last reply from L2 episodic memory (full, code fences as blocks); unread-answer dot; default `converse` tab | Keep | — |
+| Generated code artifact | `code` (SSE) | **SURFACED** — covered without a separate organ: the Conversation organ renders fenced code blocks verbatim, and the ForgePorts shell workspace surfaces real on-disk written files (read-only) | Keep — CODE PORT folded into Conversation + ForgePorts | — |
 | Fatal turn fault | `error` (SSE) | **SURFACED** — superbrain "COGNITION FAULT"; classic error bubble | Keep | — |
 | Turn complete | `done` (SSE) | **SURFACED** — superbrain "SYNTHESIS COMPLETE"; classic settles message | Keep | INFRA |
 | Run the agentic turn | `POST /api/generate` | **SURFACED** — primary driver of both faces | Keep | INFRA |
@@ -45,10 +47,10 @@ A live run that pauses on a YELLOW write can leave the operator **stuck**: the h
 | Capability | Backend (event/endpoint) | Frontend status | Proposed surface | Priority |
 |---|---|---|---|---|
 | Synthesized recall pre-steps | `step` (id `memory-recall`/`lesson-recall`/`skill-recall`) | **PARTIAL** — generic steps; not distinguished as *recall* | Flag recall steps in the KNOWLEDGE INTAKE Memory row ("recalled N lessons/facts") | P2 |
-| Hybrid semantic search (L3) | `POST /api/v1/memory/search` | **ABSENT** | **MEMORY GALAXY PROBE**: search-into-the-galaxy console; scored hits as star-rows | P1 |
-| Consolidate verified lessons/facts | `POST /api/v1/memory/consolidate` | **ABSENT** | Operator action on the Memory PORT ("consolidate now") | P2 |
-| Promote approved fact | `POST /api/v1/memory/facts` | **ABSENT** | Fact-commit console (shows 409 contradiction) | P2 |
-| Reconcile contradictory fact | `POST /api/v1/memory/facts/reconcile` | **ABSENT** | Contradiction-resolution card when `/facts` returns 409 | P2 |
+| Hybrid semantic search (L3) | `POST /api/v1/memory/search` | **SURFACED** (Wave 2) — Memory organ: type a query → scored star-rows w/ provenance; honest "No memories matched" empty | Keep | — |
+| Consolidate verified lessons/facts | `POST /api/v1/memory/consolidate` | **ABSENT** — *DEFERRED-AND-DOCUMENTED* (observe-before-operate: an act/control, not an observer) | Operator action on the Memory PORT ("consolidate now") | P2 |
+| Promote approved fact | `POST /api/v1/memory/facts` | **ABSENT** — *DEFERRED-AND-DOCUMENTED* (act/control) | Fact-commit console (shows 409 contradiction) | P2 |
+| Reconcile contradictory fact | `POST /api/v1/memory/facts/reconcile` | **ABSENT** — *DEFERRED-AND-DOCUMENTED* (act/control) | Contradiction-resolution card when `/facts` returns 409 | P2 |
 
 ## Learning & Stigmergy
 
@@ -56,59 +58,60 @@ A live run that pauses on a YELLOW write can leave the operator **stuck**: the h
 |---|---|---|---|---|
 | Pheromone / skill-trail map | `GET /api/v1/development/trails` | **SURFACED** — KNOWLEDGE INTAKE rows + sparklines (poll 20s) | Keep | — |
 | Development metrics | `GET /api/v1/development/metrics` | **SURFACED** — intake rows + AGENT MESH avg + objective % | Keep | — |
-| Procedural skills list | `GET /api/v1/development/skills` | **ABSENT** | **SKILLS PORT**: "verified workflows" readout (goal pattern, success rate, status) | P1 |
-| Curriculum tasks + evidence | `GET /api/v1/development/curriculum` | **ABSENT** | **CURRICULUM PORT**: read-only brain-growth ladder (skill/level/pass-fail, held-out) | P1 |
-| Define a curriculum task | `POST /api/v1/development/curriculum` | **ABSENT** | Define-only form on the Curriculum PORT | P2 |
+| Procedural skills list | `GET /api/v1/development/skills` | **SURFACED** (Wave 2) — Skills organ: verified workflows + success rate (via adapter `getKnownTrails()` poll); honest empty | Keep | — |
+| Curriculum tasks + evidence | `GET /api/v1/development/curriculum` | **SURFACED** (Wave 1) — Growth organ: read-only skill→level→task ladder, held-out pills; honest empty | Keep | — |
+| Define a curriculum task | `POST /api/v1/development/curriculum` | **ABSENT** — *DEFERRED-AND-DOCUMENTED* (act/control) | Define-only form on the Curriculum PORT | P2 |
 
 ## Self-improvement
 
 | Capability | Backend (event/endpoint) | Frontend status | Proposed surface | Priority |
 |---|---|---|---|---|
 | Earned-autonomy autonomous write | `earned_autonomy` (SSE) | **SURFACED** — "AUTONOMY ⚡N" badge + terminal lines | Keep | — |
-| Earned-autonomy ledger | `GET /api/v1/development/autonomy` | **PARTIAL** — polled for ⚡N count only (`aiosAdapter.ts:653`); per-signature evidence/threshold not shown | **AUTONOMY LEDGER PORT**: graduated/revoked signatures, threshold, master switch | **P0** |
-| Operator force-revoke autonomy | `POST /api/v1/development/autonomy/revoke` | **ABSENT** | "Pull back to YELLOW" on each granted signature | P2 |
-| Self-analysis proposals list | `GET /api/v1/self-analysis/proposals` | **PARTIAL** — classic-only ProposalsPanel; absent from superbrain | **PROPOSALS PORT** in the product HUD | P1 |
-| Apply / reject proposal | `POST /api/v1/self-analysis/proposals/{id}/{apply,reject}` | **PARTIAL** — classic-only | Apply/Reject on the Proposals PORT | P2 |
+| Earned-autonomy ledger | `GET /api/v1/development/autonomy` | **SURFACED** (Wave 1, P0) — Autonomy organ: earned/probation/revoked rows + `min_successes` threshold + failure_count/timestamps; honest "no earned classes" (feature ships OFF) | Keep | — |
+| Operator force-revoke autonomy | `POST /api/v1/development/autonomy/revoke` | **ABSENT** — *DEFERRED-AND-DOCUMENTED* (act/control; observer shipped first) | "Pull back to YELLOW" on each granted signature | P2 |
+| Self-analysis proposals list | `GET /api/v1/self-analysis/proposals` | **SURFACED** (Wave 2, observe-only) — Proposals organ in the product HUD: self-analysis fixes w/ diff; honest empty | Keep | — |
+| Apply / reject proposal | `POST /api/v1/self-analysis/proposals/{id}/{apply,reject}` | **PARTIAL** — classic-only — *DEFERRED-AND-DOCUMENTED* in the product face (act/control; Proposals organ is observe-only) | Apply/Reject on the Proposals PORT | P2 |
 | Reflect on a failure → lesson | `POST /api/v1/reflect` | **ABSENT** (in-loop reflect arrives via `step`) | Optional; low value vs auto-loop | P2 |
 
 ## Reasoning & Alignment
 
 | Capability | Backend (event/endpoint) | Frontend status | Proposed surface | Priority |
 |---|---|---|---|---|
-| Per-turn alignment frame | `alignment` (SSE) | **PARTIAL** — superbrain reduces to one INTENT line; rich panel classic-only | **INTENT PORT**: interpreted intent, ambiguity_action, clarifying_question | P1 |
-| Session restore | `POST /api/v1/conversation/session` | **PARTIAL** — classic-only | Wire superbrain mount to restore continuity | P2 |
-| Submit / clear corrections | `POST /api/v1/conversation/correction{,/clear}` | **PARTIAL** — classic only | Correction controls on the INTENT PORT (advisory) | P2 |
-| Alignment evaluation feed | `GET /api/v1/alignment/evaluation` | **PARTIAL** — classic only | Diagnostic readout on the INTENT PORT | P2 |
-| Record alignment feedback | `POST /api/v1/alignment/feedback` | **PARTIAL** — classic only | Feedback control tied to `evaluation.observation_id` | P2 |
-| Plan decomposition | `POST /api/v1/plan` | **ABSENT** (in-loop `plan` via `step`) | **PLAN PORT**: task tree (steps/approved/escalate/requires_human) | P1 |
+| Per-turn alignment frame | `alignment` (SSE) | **SURFACED** (Wave 9) — Intent organ: interpreted intent (+ gloss), confidence meter, goal/desired_outcome, ASSUMPTIONS/UNKNOWNS/CONSTRAINTS/DECISIONS, next_action, `CORRECTED` badge; reads the latest `UnderstandingFrame.as_dict()` from `/conversation/session` (`limit:1`) | Keep | — |
+| Clarifying question (ambiguity=ask) | `alignment.communication.ambiguity_action` | **SURFACED** (Wave 9) — Intent organ raises the policy-owned `clarifying_question` in a loud truth-state banner above the frame | Keep | — |
+| Session restore | `POST /api/v1/conversation/session` | **SURFACED** (Wave 5/9) — Conversation + Intent organs both read this endpoint with the shared session-id resolver | Keep | — |
+| Submit / clear corrections | `POST /api/v1/conversation/correction{,/clear}` | **PARTIAL** — classic only — *DEFERRED-AND-DOCUMENTED* in the product face (act/control; Intent organ shows `correction.active` as `CORRECTED` read-only) | Correction controls on the INTENT PORT (advisory) | P2 |
+| Alignment evaluation feed | `GET /api/v1/alignment/evaluation` | **PARTIAL** — classic only — *DEFERRED-AND-DOCUMENTED* | Diagnostic readout on the INTENT PORT | P2 |
+| Record alignment feedback | `POST /api/v1/alignment/feedback` | **PARTIAL** — classic only — *DEFERRED-AND-DOCUMENTED* (act/control) | Feedback control tied to `evaluation.observation_id` | P2 |
+| Plan decomposition | `POST /api/v1/plan` | **SURFACED** (Wave 3) — Plan organ: confidence-gated step tree + AUTO/HUMAN verdict; idle until a goal is submitted | Keep | — |
 
 ## Security & Trust
 
 | Capability | Backend (event/endpoint) | Frontend status | Proposed surface | Priority |
 |---|---|---|---|---|
-| YELLOW approval pause + diff | `human_required` (SSE) | **SURFACED but FRAGILE** — ApprovalPanel + ForgePorts PENDING + SHIELD HOLD (see P0 defect above) | Harden (single source of truth) | **P0** |
+| YELLOW approval pause + diff | `human_required` (SSE) | **SURFACED + HARDENED** (Wave 6, P0) — canon ApprovalPanel on the healthy path, plus a deferred ApprovalSafetyNet (z-62, both faces) that surfaces a RESOLVE control if the `approval-required` bus event is missed → no more stuck runs | Keep | — |
 | Resolve approval | `POST /api/v1/approval/req` | **SURFACED** — reject path; approve replays `/api/generate` | Keep | INFRA |
 | Audit hash-chain integrity | `GET /api/v1/audit/verify` | **SURFACED** — SHIELD flips red "TAMPER" (sampled) | Keep | — |
-| Deterministic zone classify | `POST /api/v1/security/classify` | **ABSENT** | **ZONE PROBE PORT**: type a command → GREEN/YELLOW/RED + reason | P1 |
+| Deterministic zone classify | `POST /api/v1/security/classify` | **SURFACED** (Wave 3) — Zone Probe organ: type a command → GREEN/YELLOW/RED + reason; idle until probed | Keep | — |
 | Classify+gate+run a command | `POST /api/v1/execute` | **ABSENT** (`/api/terminal` covers the classic path) | INFRA | INFRA |
-| Terminal / Git execution | `POST /api/terminal` | **PARTIAL** — classic only | Optional CONSOLE PORT | P2 |
-| Sandbox rollback | `POST /api/v1/rollback` | **ABSENT** | Operator "restore snapshot" on the Forge PORT | P2 |
+| Terminal / Git execution | `POST /api/terminal` | **PARTIAL** — classic only — *DEFERRED-AND-DOCUMENTED* (act/control; observe-first) | Optional CONSOLE PORT | P2 |
+| Sandbox rollback | `POST /api/v1/rollback` | **ABSENT** — *DEFERRED-AND-DOCUMENTED* (act/control) | Operator "restore snapshot" on the Forge PORT | P2 |
 | Liveness probe | `GET /health` | **SURFACED** — BootSequence kernel version | Keep | INFRA |
 
 ## Forge & Workspace
 
 | Capability | Backend (event/endpoint) | Frontend status | Proposed surface | Priority |
 |---|---|---|---|---|
-| Real on-disk training_ground files | `GET /api/v1/development/workspace` | **PARTIAL** — Monaco EDITOR + PREVIEW, but `?ui=shell` only | Surface the workspace files PORT in the default product HUD | P1 |
+| Real on-disk training_ground files | `GET /api/v1/development/workspace` | **SURFACED** — the ForgePorts shell workspace (Monaco EDITOR + PREVIEW) renders the mind's REAL written files read-only; this is also where the `code` artifact lands (no separate CODE organ). Still `?ui=shell`-scoped; default-home surfacing is the open follow-up | Keep (shell) | P1 (default-home) |
 
 ## Models
 
 | Capability | Backend (event/endpoint) | Frontend status | Proposed surface | Priority |
 |---|---|---|---|---|
-| Local (Ollama) availability | `GET /api/v1/models/local` | **PARTIAL** — classic picker only; superbrain hardcodes `modelId:'auto'` | Read-only model readiness in the BRAIN PORT | P2 |
-| Bedrock models | `GET /api/v1/models/bedrock` | **PARTIAL** — classic picker only | BRAIN PORT readiness | P2 |
-| Gemini (Vertex) models | `GET /api/v1/models/gemini` | **ABSENT** | BRAIN PORT readiness | P2 |
-| Auto per-task selection | `GET /api/v1/models/auto` | **PARTIAL** — classic Auto badge only | `by_task` map under the BRAIN badge | P2 |
+| Local (Ollama) availability | `GET /api/v1/models/local` | **SURFACED** (Wave 3) — Models organ: per-provider readiness; honest "No brains ready" empty | Keep | — |
+| Bedrock models | `GET /api/v1/models/bedrock` | **SURFACED** (Wave 3) — Models organ readiness row | Keep | — |
+| Gemini (Vertex) models | `GET /api/v1/models/gemini` | **SURFACED** (Wave 3) — Models organ readiness row (was ABSENT) | Keep | — |
+| Auto per-task selection | `GET /api/v1/models/auto` | **SURFACED** (Wave 3) — Models organ `by_task` readout | Keep | — |
 
 ---
 
@@ -119,10 +122,17 @@ A live run that pauses on a YELLOW write can leave the operator **stuck**: the h
 - `GET /health` — boot liveness (BootSequence).
 - `POST /api/v1/execute` — single-command gate/run; redundant with `/api/terminal`.
 
-## Recommended first surfaces (highest-value observability wins)
-1. **Harden the approval surface (P0)** — stop live runs hanging (the defect above). Robustness before new ports.
-2. **ANSWER PORT (P0, `text_chunk`)** — the default face drops the assistant's verbatim reply; restoring a real conversational console closes the largest perception gap; no new backend.
-3. **AUTONOMY LEDGER PORT (P0, `/development/autonomy`)** — turn the ⚡N black box into auditable observability (graduated classes, threshold, revoke).
-4. **CURRICULUM PORT (P1, `/development/curriculum`)** — make the marquee learning loop's live brain-growth evidence visible.
+## Renovation IA note (what actually shipped, Waves 0–9)
+
+The renovation shipped as **ONE additive `OrgansDock`** — a collapsed top-right **▣ ORGANS** tab that opens a glass panel with **10 grouped organs** (Conversation · Autonomy · Proposals · Growth · Skills · Memory · Plan · Intent · Zone Probe · Models), self-portaled to `document.body` at **z-55** — plus the **`ApprovalSafetyNet`** (z-62) mounted on **both faces**. This is a deliberately **canon-safer** choice than the blueprint's in-scene nerve-tab-stacks: the canon idle frame (brain, voyage, scene, sovereignty row) is **unchanged** except for the small dormant **▣ ORGANS** tab. Observe-before-operate held throughout — every organ is a read-only observer; act/control endpoints (revoke, apply/reject, consolidate/facts/reconcile, corrections/feedback, terminal/rollback) are **DEFERRED-AND-DOCUMENTED**, not silently dropped. **CODE** has no dedicated organ: it is covered by the Conversation organ's fenced-code rendering + the ForgePorts shell workspace (real on-disk files). The two lab-relabel items (#12/#13) remain DEFERRED-AND-DOCUMENTED.
+
+## Recommended first surfaces — SHIPPED (Waves 0–9)
+All four originally-recommended P0/P1 surfaces landed:
+1. ✅ **Harden the approval surface (P0)** — Wave 6 `ApprovalSafetyNet`; stuck-run desync fixed.
+2. ✅ **Conversation/Answer (P0, `text_chunk`)** — Wave 5; verbatim reply from L2 episodic memory, default `converse` tab.
+3. ✅ **Autonomy Ledger (P0, `/development/autonomy`)** — Wave 1; ⚡N black box → auditable observability.
+4. ✅ **Curriculum / Growth (P1, `/development/curriculum`)** — Wave 1; live brain-growth evidence visible.
+
+**Open follow-ups (next fronts):** the act/control DEFERRED-AND-DOCUMENTED rows above (observe-before-operate, when wanted), and surfacing the ForgePorts workspace on the **default home** (currently `?ui=shell`-scoped).
 
 Key source paths: `aios/api/main.py` (SSE + 34 routes), `frontend/src/App.jsx` (classic parser; `code` no-op line 763), `frontend/src/superbrain/lib/aiosAdapter.ts` (product SSE/REST/poll), `frontend/src/superbrain/components/ui/SuperbrainHUD.tsx` (primary product render surface).

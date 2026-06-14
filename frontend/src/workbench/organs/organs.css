@@ -1017,3 +1017,217 @@
 .organs-code-pre code {
   font-family: inherit;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-5 ADDITIONS — INTENT port (the superbrain's per-turn UNDERSTANDING frame:
+   interpreted intent + confidence meter, the goal/desired-outcome, the
+   assumptions/unknowns/constraints/decisions lists, the next advisory action, and
+   the prominent clarifying-question truth-state). Every new surface here is
+   NON-backdrop-filtered (it lives INSIDE the already-blurred .organs-panel), so
+   the paint-trap law holds: the only blurred elements remain .organs-panel /
+   .organs-tab and they are untouched. The confidence meter animates TRANSFORM
+   only (scaleX) — never a paint prop. Canon var(--token) only; tinted washes use
+   the same alpha-rgba pattern (NOT duplicating any :root token value) the existing
+   rows/flares already use. Truth-state color is always double-encoded with a text
+   label, so color is never the sole signal.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Clarifying-question banner (the loudest truth-state: the brain is waiting) ── */
+.organs-intent-ask {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: rgba(92, 225, 230, 0.08);
+  margin-bottom: 12px;
+}
+.organs-intent-ask-label {
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.organs-intent-ask-q {
+  margin: 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-1);
+  word-break: break-word;
+}
+
+/* ── Interpreted intent header ──────────────────────────────────────────────── */
+.organs-intent-head {
+  margin-bottom: 12px;
+}
+.organs-intent-head-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.organs-intent-intent {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent); /* the ONE accent: the interpreted intent label */
+}
+/* Operator-corrected badge — clones the .organs-held pill recipe (state-ok tone),
+   text-labeled so color is never the sole signal. */
+.organs-intent-corrected {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--state-ok);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--state-ok);
+}
+.organs-intent-gloss {
+  margin: 4px 0 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* ── Confidence meter (transform-only fill — paint-safe) ─────────────────────── */
+.organs-intent-meter {
+  margin-bottom: 12px;
+}
+.organs-intent-meter-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.organs-intent-meter-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-intent-meter-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+.organs-intent-meter-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.organs-intent-meter-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  border-radius: 3px;
+  background: var(--accent);
+  /* transform-only animation (scaleX) — NEVER a paint prop. This surface is not
+     backdrop-filtered, so even the paint-trap law's strictest reading is honored. */
+  transition: transform 420ms var(--ease-out-quart);
+}
+
+/* ── Scalar fields (goal / desired outcome / next action) ────────────────────── */
+.organs-intent-field {
+  margin-bottom: 10px;
+}
+.organs-intent-field-label {
+  margin: 0 0 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-intent-field-text {
+  margin: 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-1);
+  word-break: break-word;
+}
+/* The next advisory action sits in a quiet bordered card to read as the brain's
+   stated next step (still data, never authority). */
+.organs-intent-next {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* ── Labeled lists (assumptions / unknowns / constraints / decisions) ─────────── */
+.organs-intent-list {
+  margin-bottom: 10px;
+}
+.organs-intent-list-label {
+  margin: 0 0 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+/* Tone variants — warn (assumptions/unknowns: unverified) + ok (decisions: made).
+   Text-labeled lists, so the tint is reinforcement, never the sole signal. */
+.organs-intent-list-label--warn {
+  color: var(--state-busy);
+}
+.organs-intent-list-label--ok {
+  color: var(--state-ok);
+}
+.organs-intent-list-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.organs-intent-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.organs-intent-item {
+  position: relative;
+  padding: 5px 10px 5px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  word-break: break-word;
+}
+.organs-intent-item::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 11px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-3);
+}

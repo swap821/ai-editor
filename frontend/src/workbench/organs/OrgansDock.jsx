@@ -10,6 +10,7 @@ import ProposalsPort from './ProposalsPort';
 import MemorySearchPort from './MemorySearchPort';
 import ZoneProbePort from './ZoneProbePort';
 import PlanPort from './PlanPort';
+import IntentPort from './IntentPort';
 import ModelsPort from './ModelsPort';
 import './organs.css';
 
@@ -70,7 +71,10 @@ const NAV = [
   },
   {
     section: 'REASONING',
-    items: [{ id: 'plan', label: 'Plan' }],
+    items: [
+      { id: 'plan', label: 'Plan' },
+      { id: 'intent', label: 'Intent' },
+    ],
   },
   {
     section: 'SECURITY',
@@ -104,7 +108,7 @@ export default function OrgansDock() {
   // hydration-effect, no setState-in-effect.
   const [open, setOpen] = useState(() => readBool(OPEN_KEY, false));
   // One of TAB_IDS (converse | autonomy | proposals | curriculum | skills |
-  // memory | plan | zone | models) — validated against the NAV taxonomy on read.
+  // memory | plan | intent | zone | models) — validated against the NAV taxonomy.
   // Default is 'converse' (the readTab default): opening the dock with no prior
   // tab shows the verbatim REPLY first — the highest-value organ. The
   // persisted/last-used tab still wins on open, so a user who lives in another
@@ -349,6 +353,8 @@ export default function OrgansDock() {
               <MemorySearchPort />
             ) : active === 'plan' ? (
               <PlanPort />
+            ) : active === 'intent' ? (
+              <IntentPort />
             ) : active === 'zone' ? (
               <ZoneProbePort />
             ) : (

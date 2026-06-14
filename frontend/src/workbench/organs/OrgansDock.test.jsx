@@ -143,6 +143,30 @@ const CONVERSATION = {
   ],
 };
 
+// Alignment fixture — the real UnderstandingFrame.as_dict() shape returned in the
+// `alignment` field by POST /conversation/session. Carries a clarifying-question
+// truth-state (communication.ambiguity_action === 'ask') + non-empty lists, so the
+// IntentPort's loud states (the ask banner, the labeled lists) all render.
+const ALIGNMENT_FRAME = {
+  goal: 'Add a Python function that sums two numbers',
+  intent: 'execute',
+  desired_outcome: 'A tested add(a, b) helper in the utils module',
+  constraints: ['Must include a docstring'],
+  assumptions: ['Integers, not floats'],
+  unknowns: ['Which module should hold the helper?'],
+  decisions: ['Use snake_case naming'],
+  confidence: 0.62,
+  next_action: 'Confirm the target module before writing the function.',
+  communication: {
+    mode: 'direct',
+    ambiguity_action: 'ask',
+    reasons: ['missing_context'],
+    clarifying_question: 'Which module should the add() helper live in?',
+  },
+  correction: { active: false, revision: 0, corrected_fields: [], source: 'none' },
+};
+const CONVERSATION_WITH_ALIGNMENT = { ...CONVERSATION, alignment: ALIGNMENT_FRAME };
+
 function mockFetch({
   autonomy = AUTONOMY_RICH,
   curriculum = CURRICULUM,
@@ -365,8 +389,8 @@ describe('OrgansDock', () => {
     for (const section of ['CONVERSE', 'GOVERNANCE', 'LEARNING', 'MEMORY', 'REASONING', 'SECURITY', 'SYSTEM']) {
       expect(within(menu).getByText(section)).toBeInTheDocument();
     }
-    // All 9 organs are present as menu items.
-    expect(screen.getAllByRole('menuitemradio')).toHaveLength(9);
+    // All 10 organs are present as menu items.
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(10);
   });
 
   it('11. selecting an organ closes the menu and persists the tab key', () => {
@@ -595,5 +619,66 @@ describe('OrgansDock', () => {
     // Switch to conversation → dot clears.
     pickOrgan(/conversation/i);
     expect(document.body.querySelector('.organs-tab-unread')).toBeNull();
+  });
+
+  // ── Wave-5: intent / understanding-frame organ ──────────────────────────────
+  it('22. intent: renders the interpreted intent, confidence meter, and labeled lists from the real alignment frame', async () => {
+    vi.stubGlobal('fetch', mockFetch({ conversation: CONVERSATION_WITH_ALIGNMENT }));
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/^intent$/i);
+    // The interpreted intent label + its confidence percent (tabular-nums).
+    await waitFor(() => expect(screen.getByText('EXECUTE')).toBeInTheDocument());
+    expect(screen.getByText('62%')).toBeInTheDocument();
+    // The confidence meter fill scales by the confidence (transform-only, paint-safe).
+    const fill = document.body.querySelector('.organs-intent-meter-fill');
+    expect(fill).toBeTruthy();
+    expect(fill.style.transform).toContain('scaleX(0.62)');
+    // The goal + desired outcome + next action read verbatim from the frame.
+    expect(screen.getByText(/sums two numbers/i)).toBeInTheDocument();
+    expect(screen.getByText(/tested add\(a, b\) helper/i)).toBeInTheDocument();
+    expect(screen.getByText(/Confirm the target module/i)).toBeInTheDocument();
+    // The labeled lists surface the carried items.
+    expect(screen.getByText('ASSUMPTIONS')).toBeInTheDocument();
+    expect(screen.getByText(/Integers, not floats/i)).toBeInTheDocument();
+    expect(screen.getByText('CONSTRAINTS')).toBeInTheDocument();
+    expect(screen.getByText(/Must include a docstring/i)).toBeInTheDocument();
+    expect(screen.getByText('DECISIONS')).toBeInTheDocument();
+  });
+
+  it('23. intent: a clarifying question (ambiguity_action ask) surfaces prominently as a truth-state', async () => {
+    vi.stubGlobal('fetch', mockFetch({ conversation: CONVERSATION_WITH_ALIGNMENT }));
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/^intent$/i);
+    await waitFor(() =>
+      expect(screen.getByText('CLARIFICATION NEEDED')).toBeInTheDocument()
+    );
+    const banner = screen.getByText('CLARIFICATION NEEDED').closest('.organs-intent-ask');
+    expect(banner).toBeTruthy();
+    expect(within(banner).getByText(/Which module should the add\(\) helper live in\?/i)).toBeInTheDocument();
+  });
+
+  it('24. intent: an empty session (alignment null) renders the honest no-frame placeholder', async () => {
+    // CONVERSATION fixture already has alignment: null.
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/^intent$/i);
+    await waitFor(() =>
+      expect(screen.getByText(/No understanding frame yet this session/i)).toBeInTheDocument()
+    );
+    // No frame surfaces were fabricated.
+    expect(document.body.querySelector('.organs-intent-meter')).toBeNull();
+  });
+
+  it('25. intent: a rejected fetch on first load shows the honest offline placeholder', async () => {
+    vi.stubGlobal('fetch', mockFetch({ fail: true }));
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/^intent$/i);
+    await waitFor(() =>
+      expect(screen.getByText(/INTENT OFFLINE/i)).toBeInTheDocument()
+    );
   });
 });
