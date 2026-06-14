@@ -66,8 +66,8 @@
   border-radius: 11px;
   background: rgba(8, 10, 16, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(12px) saturate(1.3);
-  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   overflow: hidden;
   white-space: nowrap;
 }
@@ -179,19 +179,19 @@
   border-radius: 12px;
   background: rgba(10, 12, 20, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(12px) saturate(1.3);
-  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   color: rgba(226, 232, 240, 0.92);
   font-size: 12px;
   font-weight: 600;
 }
-.sb-voyage-btn:hover { border-color: rgba(99, 102, 241, 0.5); color: #fff; }
+.sb-voyage-btn:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: #fff; }
 .sb-voyage-btn .sb-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #6366f1;
-  box-shadow: 0 0 8px #6366f1;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
 }
 
 /* The unified directive input — fills the rest of the dock row. */
@@ -206,12 +206,12 @@
   border-radius: 12px;
   background: rgba(8, 10, 16, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   box-shadow: 0 20px 60px -28px rgba(0, 0, 0, 0.82), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .sb-cl-prompt {
-  color: #6366f1;
+  color: var(--accent);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 13px;
   font-weight: 700;
@@ -233,7 +233,7 @@
   padding: 0 18px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #0a1a1c));
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -256,8 +256,8 @@
   border-radius: 999px;
   background: rgba(10, 12, 20, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(12px) saturate(1.3);
-  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   color: rgba(226, 232, 240, 0.92);
   font-size: 12px;
   font-weight: 600;
@@ -265,15 +265,15 @@
   box-shadow: 0 12px 44px -16px rgba(0, 0, 0, 0.7);
 }
 .sb-mode-toggle:hover {
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   color: #fff;
 }
 .sb-mode-toggle .sb-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #6366f1;
-  box-shadow: 0 0 8px #6366f1;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
 }
 
 /* ── The workbench itself: glass slabs in the void ──────────────────────── */
@@ -299,8 +299,8 @@
 .wb-editor {
   flex: 1.6;
   background: rgba(8, 9, 12, 0.86);
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
 }
 .wb-preview {
   flex: 1;

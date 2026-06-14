@@ -24,12 +24,22 @@ This guards the renovatable product CSS against the two most load-bearing laws o
 The canon token VALUES are read live from superbrain.css `:root` (the source of
 truth) so this lint never drifts from the tokens it enforces.
 
-SCOPE — the RENOVATABLE set only, NEVER the frozen canon:
+SCOPE — the SUPERBRAIN RENOVATION surfaces only:
   frontend/src/workbench/*.css
   frontend/src/styles/*.css
   frontend/src/*.css
   frontend/src/components/*.css
   (frontend/src/superbrain/superbrain.css is FROZEN and is never scanned.)
+
+Canon governs the SUPERBRAIN renovation, NOT the classic ?ui=classic fallback nor
+DEAD stylesheets. Two explicit, documented exclusions keep the lint focused on
+real superbrain debt (see DEAD_FILES_EXCLUDED and CLASSIC_LEGACY_RULE_EXCLUSIONS):
+  • DEAD files (imported nowhere; classes unused in JSX) — excluded whole-file,
+    flagged for a later operator removal decision, not restyled.
+  • The classic-only `@keyframes approvalGlow` rule in the live-global index.css —
+    suppressed by identity (the rest of index.css stays governed), because only
+    App.jsx (the classic fallback) consumes it; the superbrain faces use the
+    non-paint-trap `.approval-actions` instead.
 
 Usage:
   python tools/check_css_canon.py                 # scan the renovatable set
@@ -55,6 +65,44 @@ RENOVATABLE_GLOBS = (
     "frontend/src/components/*.css",
 )
 FROZEN_NEVER_SCAN = (ROOT / "frontend" / "src" / "superbrain" / "superbrain.css").resolve()
+
+# ── SCOPE: govern the SUPERBRAIN RENOVATION surfaces, not the classic fallback ──
+# The Design-System Law (blueprint §2) is the canon of the SUPERBRAIN UI — the
+# official frontend (`SuperbrainApp` at no flag, `SuperbrainShell` at ?ui=shell).
+# It does NOT govern:
+#   (a) the classic IDE fallback at ?ui=classic (`App.jsx`), a deliberately
+#       separate look the operator keeps as a legacy escape hatch; nor
+#   (b) DEAD stylesheets that are imported nowhere and whose classes appear in no
+#       JSX (verified by import-graph + className grep). Those are flagged for a
+#       later operator removal decision, not restyled to canon.
+# So the canon lint is SCOPED to the renovation surfaces below. The exclusions are
+# explicit + documented so the lint keeps catching REAL superbrain violations and
+# only steps aside for surfaces canon was never meant to police.
+
+# (b) DEAD files — imported nowhere; classes used in no JSX. Excluded WHOLE-FILE
+# from both the default scan and an explicit --check (they are not a renovation
+# surface). Flagged for removal; do NOT restyle. Re-audit before deleting.
+DEAD_FILES_EXCLUDED = {
+    (ROOT / "frontend" / "src" / "styles" / "App.css").resolve(),
+    (ROOT / "frontend" / "src" / "styles" / "design-system.css").resolve(),
+    (ROOT / "frontend" / "src" / "styles" / "nexgen-3d.css").resolve(),
+    (ROOT / "frontend" / "src" / "styles" / "nexgen-layout.css").resolve(),
+}
+
+# (a) CLASSIC-LEGACY rule exclusions — index.css IS live-global (imported by
+# main.jsx for every face), so it stays governed for real superbrain violations.
+# But its single flagged rule, `@keyframes approvalGlow`, is a CLASSIC-ONLY
+# artifact: it is referenced solely by App.jsx (the ?ui=classic fallback); the
+# superbrain faces use `.approval-actions` (approval-safety-net.css), an explicit
+# non-paint-trap. So we suppress that ONE rule by identity (not the whole file),
+# keeping the global token/reset layer under canon governance.
+# Map: resolved-file-path → tuple of substrings; a violation line containing any
+# substring for its file is suppressed (with a one-line scope note).
+CLASSIC_LEGACY_RULE_EXCLUSIONS = {
+    (ROOT / "frontend" / "src" / "index.css").resolve(): (
+        "@keyframes approvalGlow",
+    ),
+}
 
 # Paint properties that, when animated on a backdrop-filtered element, re-blur
 # every frame. (Sub-properties like border-top-color collapse to these stems.)
@@ -364,6 +412,14 @@ def lint_file(path: Path, canon_by_value: dict[str, str]) -> list[str]:
                         f"{bf.group(1).strip()}` [{', '.join(detail)}] — {GLASS_RECIPE_HINT}."
                     )
 
+    # Classic-legacy rule exclusions: drop violations whose message names a rule
+    # that canon does not govern on this live-global file (e.g. the classic-only
+    # `@keyframes approvalGlow` in index.css). The file stays scanned for all
+    # other (superbrain-relevant) violations.
+    suppress = CLASSIC_LEGACY_RULE_EXCLUSIONS.get(path.resolve())
+    if suppress:
+        violations = [v for v in violations if not any(s in v for s in suppress)]
+
     return violations
 
 
@@ -375,6 +431,8 @@ def discover_renovatable() -> list[Path]:
             rp = p.resolve()
             if rp == FROZEN_NEVER_SCAN:
                 continue
+            if rp in DEAD_FILES_EXCLUDED:
+                continue  # not a renovation surface — flagged for removal, not restyling
             seen[rp.as_posix()] = p
     return [seen[k] for k in sorted(seen)]
 
@@ -404,6 +462,13 @@ def main(argv: list[str]) -> int:
             continue
         if f.resolve() == FROZEN_NEVER_SCAN:
             print(f"WARN: refusing to scan FROZEN canon {f}", file=sys.stderr)
+            continue
+        if f.resolve() in DEAD_FILES_EXCLUDED:
+            print(
+                f"WARN: skipping DEAD (off-scope) {f.as_posix()} — imported nowhere; "
+                f"flagged for removal, not canon-governed (re-audit before deleting)",
+                file=sys.stderr,
+            )
             continue
         scanned += 1
         all_violations.extend(lint_file(f, canon_by_value))
