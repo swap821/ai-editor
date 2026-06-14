@@ -1,10 +1,12 @@
 # FRONTEND RENOVATION BLUEPRINT
 
 > ## SOUL ANCHOR (canonical, operator's exact words — 2026-06-14)
-> **"AN AUTONOMOUS AGENTIC AI-OS CONSTANTLY WORKING WITH ITS TOOLS AND MOVING FORWARD IN DEEP-VAST INFINITE SPACE OF KNOWLEDGE."**
+> **"AN AUTONOMOUS AGENTIC AI-OS SUPERBRAIN CONSTANTLY WORKING WITH ITS TOOLS AND MOVING FORWARD IN DEEP-VAST INFINITE SPACE OF KNOWLEDGE."**
 >
-> Every renovated surface must express this: the TOOLS are the backend capabilities, so a
-> capability becomes a PORT the brain visibly **works** (live/worked, never a static dashboard),
+> The entity is THE **superbrain** (a singular named mind — GAGOS / SUPERMIND in the UI); every
+> surface is an organ of that one superbrain. Every renovated surface must express the soul: the
+> TOOLS are the backend capabilities, so a capability becomes a PORT the superbrain visibly
+> **works** (live/worked, never a static dashboard),
 > and the voyage reads as forward **progress** (verified outcomes / learning advance the journey).
 > Backend harmony IS the soul. Canon is frozen; renovation is additive PORTs through the legal
 > seam only. See [[superbrain-core-theme]], [[fidelity-is-sacred-ui-laws]], [[frontend-harmony-direction]].
