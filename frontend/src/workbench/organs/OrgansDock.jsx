@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAutonomy } from '../../superbrain/lib/aiosAdapter';
 import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
+import ConversationPort from './ConversationPort';
 import AutonomyLedgerPort from './AutonomyLedgerPort';
 import CurriculumPort from './CurriculumPort';
 import SkillsPort from './SkillsPort';
@@ -45,6 +46,10 @@ function readBool(key, fallback) {
 // header now shows only SECTION + active organ and a slide-down grouped menu opens
 // the full categorized list on demand.
 const NAV = [
+  {
+    section: 'CONVERSE',
+    items: [{ id: 'converse', label: 'Conversation' }],
+  },
   {
     section: 'GOVERNANCE',
     items: [
@@ -98,8 +103,10 @@ export default function OrgansDock() {
   // readers guard window themselves, so these are safe one-shot initializers — no
   // hydration-effect, no setState-in-effect.
   const [open, setOpen] = useState(() => readBool(OPEN_KEY, false));
-  // One of TAB_IDS (autonomy | proposals | curriculum | skills | memory | plan |
-  // zone | models) — validated against the NAV taxonomy on read.
+  // One of TAB_IDS (converse | autonomy | proposals | curriculum | skills |
+  // memory | plan | zone | models) — validated against the NAV taxonomy on read.
+  // Default stays 'autonomy' (the dock's established landing organ); CONVERSE
+  // leads the nav but the persisted/last-used tab still wins on open.
   const [active, setActive] = useState(() => readTab('autonomy'));
   const [earned, setEarned] = useState(() => getAutonomy()?.summary?.earned ?? 0);
   const [flaring, setFlaring] = useState(false);
@@ -288,7 +295,9 @@ export default function OrgansDock() {
           )}
 
           <div className="organs-body">
-            {active === 'autonomy' ? (
+            {active === 'converse' ? (
+              <ConversationPort />
+            ) : active === 'autonomy' ? (
               <AutonomyLedgerPort />
             ) : active === 'curriculum' ? (
               <CurriculumPort />

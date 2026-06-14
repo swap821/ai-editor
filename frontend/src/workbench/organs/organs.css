@@ -884,3 +884,105 @@
   color: var(--text-3);
   font-size: 10.5px;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-4 ADDITIONS — CONVERSATION port (episodic session dialogue: full user
+   prompts + FULL assistant answers with fenced code blocks). Every new surface
+   here is NON-backdrop-filtered (it lives INSIDE the already-blurred
+   .organs-panel), so the paint-trap law holds: the only blurred elements remain
+   .organs-panel / .organs-tab and they are untouched. Canon var(--token) only;
+   the lone non-token fills are the same translucent-white surface washes the
+   existing rows/rungs already use (no :root token is duplicated). No transitions
+   on any of these static surfaces.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.organs-convo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* One turn (user prompt or assistant answer). */
+.organs-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+}
+/* The operator's turn reads as the quieter, right-leaning side. */
+.organs-msg--user {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.organs-msg-role {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-msg--assistant .organs-msg-role {
+  color: var(--accent); /* the ONE accent: the AI-OS speaker label */
+}
+
+.organs-msg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* FULL answer text — verbatim, whitespace + newlines preserved (never clamped). */
+.organs-msg-text {
+  margin: 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.organs-msg--user .organs-msg-text {
+  color: var(--text-2);
+}
+
+/* ── Fenced code block (preserved intact from the assistant answer) ──────────── */
+.organs-code {
+  margin: 6px 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.025);
+}
+.organs-code-head {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+.organs-code-lang {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-code-pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text-1);
+  white-space: pre;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.organs-code-pre code {
+  font-family: inherit;
+}

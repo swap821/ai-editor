@@ -122,10 +122,39 @@ const MODELS_AUTO = {
   },
 };
 
-function mockFetch({ autonomy = AUTONOMY_RICH, curriculum = CURRICULUM, fail = false } = {}) {
+// Conversation fixture — the episodic /conversation/session shape: oldest-first
+// messages, each content:[{text}]. The assistant answer carries a fenced code
+// block to prove fences survive and the FULL text renders (never re-truncated).
+const CONVERSATION = {
+  alignment: null,
+  activeCorrection: null,
+  correctionHistory: [],
+  messages: [
+    { role: 'user', content: [{ text: 'write a python add function' }] },
+    {
+      role: 'assistant',
+      content: [
+        {
+          text:
+            'Here is the function you asked for:\n\n```python\ndef add(a, b):\n    return a + b\n```\n\nIt returns the sum of the two arguments.',
+        },
+      ],
+    },
+  ],
+};
+
+function mockFetch({
+  autonomy = AUTONOMY_RICH,
+  curriculum = CURRICULUM,
+  conversation = CONVERSATION,
+  fail = false,
+} = {}) {
   return vi.fn((url) => {
     if (fail) return Promise.reject(new Error('offline'));
     const u = String(url);
+    if (u.includes('/conversation/session')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(conversation) });
+    }
     if (u.includes('/development/autonomy')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(autonomy) });
     }
@@ -318,7 +347,7 @@ describe('OrgansDock', () => {
   });
 
   // ── Wave-3: grouped nav ────────────────────────────────────────────────────
-  it('10. nav menu lists all 8 organs grouped under their sections', () => {
+  it('10. nav menu lists all 9 organs grouped under their sections', () => {
     vi.stubGlobal('fetch', mockFetch());
     render(<OrgansDock />);
     fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
@@ -326,11 +355,11 @@ describe('OrgansDock', () => {
     // Scope the section eyebrow lookup to the menu (the active section also shows
     // in the header trigger, so an unscoped query would double-match).
     const menu = screen.getByRole('menu');
-    for (const section of ['GOVERNANCE', 'LEARNING', 'MEMORY', 'REASONING', 'SECURITY', 'SYSTEM']) {
+    for (const section of ['CONVERSE', 'GOVERNANCE', 'LEARNING', 'MEMORY', 'REASONING', 'SECURITY', 'SYSTEM']) {
       expect(within(menu).getByText(section)).toBeInTheDocument();
     }
-    // All 8 organs are present as menu items.
-    expect(screen.getAllByRole('menuitemradio')).toHaveLength(8);
+    // All 9 organs are present as menu items.
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(9);
   });
 
   it('11. selecting an organ closes the menu and persists the tab key', () => {
@@ -442,6 +471,51 @@ describe('OrgansDock', () => {
     fireEvent.keyDown(pinput, { key: 'Enter' });
     await waitFor(() =>
       expect(screen.getByText(/PLAN OFFLINE/i)).toBeInTheDocument()
+    );
+  });
+
+  // ── Wave-4: conversation organ ──────────────────────────────────────────────
+  it('17. conversation: full assistant answer + fenced code block render verbatim from the real episodic shape', async () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/conversation/i);
+    // The user prompt and the FULL assistant answer (both ends of the fenced code)
+    // appear — proving no re-truncation.
+    await waitFor(() =>
+      expect(screen.getByText(/write a python add function/i)).toBeInTheDocument()
+    );
+    expect(screen.getByText(/Here is the function you asked for/i)).toBeInTheDocument();
+    expect(screen.getByText(/It returns the sum of the two arguments/i)).toBeInTheDocument();
+    // The fenced block is rendered as a real <pre><code>, language tagged, code intact.
+    const codeEl = document.body.querySelector('.organs-code-pre code');
+    expect(codeEl).toBeTruthy();
+    expect(codeEl.textContent).toContain('def add(a, b):');
+    expect(codeEl.textContent).toContain('return a + b');
+    expect(document.body.querySelector('.organs-code-lang').textContent).toMatch(/python/i);
+  });
+
+  it('18. conversation: an empty session renders the calm placeholder (no fabricated turn)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ conversation: { messages: [] } })
+    );
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/conversation/i);
+    await waitFor(() =>
+      expect(screen.getByText(/No dialogue yet this session/i)).toBeInTheDocument()
+    );
+    expect(document.body.querySelector('.organs-msg')).toBeNull();
+  });
+
+  it('19. conversation: a rejected fetch on first load shows the honest offline placeholder', async () => {
+    vi.stubGlobal('fetch', mockFetch({ fail: true }));
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/conversation/i);
+    await waitFor(() =>
+      expect(screen.getByText(/CONVERSATION OFFLINE/i)).toBeInTheDocument()
     );
   });
 });
