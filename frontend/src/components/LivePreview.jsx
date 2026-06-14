@@ -92,23 +92,27 @@ export default function LivePreview({ files }) {
           width: '100%', height: '100%',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: 14,
-          background: '#ffffff', color: '#94a3b8',
+          /* Dark-glass idle state so the preview reads as the SAME OS as the dark
+             editor (operator's panel-consistency note); a real rendered page
+             still shows on its own light background. Light text for contrast. */
+          background: '#0a0d15', color: 'rgba(180, 190, 210, 0.78)',
           padding: 24, textAlign: 'center',
         }}
       >
         <div style={{
           width: 56, height: 56, borderRadius: 16,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg,#eef2ff,#e0e7ff)',
-          border: '1px solid #e2e8f0',
+          /* One-accent: cyan tint (was off-canon indigo), faint glass chip. */
+          background: 'linear-gradient(135deg, rgba(92,225,230,0.12), rgba(92,225,230,0.03))',
+          border: '1px solid rgba(120, 160, 180, 0.22)',
         }}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 6h16M4 12h10M4 18h7" stroke="#818cf8" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M4 6h16M4 12h10M4 18h7" stroke="rgba(150,200,215,0.8)" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>Nothing to preview yet</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(232, 238, 250, 0.92)' }}>Nothing to preview yet</div>
         <div style={{ fontSize: 11.5, maxWidth: 220, lineHeight: 1.6 }}>
-          Ask the AI to build something, or start editing <code style={{ fontFamily: 'ui-monospace, monospace', color: '#6366f1' }}>index.html</code>.
+          Ask the AI to build something, or start editing <code style={{ fontFamily: 'ui-monospace, monospace', color: '#5ce1e6' }}>index.html</code>.
         </div>
       </div>
     );

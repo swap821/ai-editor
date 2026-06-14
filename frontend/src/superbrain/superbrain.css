@@ -541,7 +541,9 @@ button {
 .core-readout h2 {
   margin: 0;
   font-family: var(--display);
-  font-size: 30px;
+  /* Fluid hero: scales smoothly with the viewport (capped 22-32px) so it reads
+   * right from a small laptop to a 4K with no hard jumps. */
+  font-size: clamp(22px, 1.1vw + 0.7rem, 32px);
   /* True display authority for the single hero wordmark: a touch more weight and
    * caps tracking (uppercase needs more tracking to breathe) so SUPERMIND reads
    * as a machined nameplate, not a heading. Outfit is variable · weight is free. */
@@ -593,7 +595,9 @@ button {
 .left-console,
 .right-console {
   position: relative;
-  width: 350px;
+  /* Fluid console width (was a fixed 350px): scales with the viewport, capped so
+   * it never crowds the brain on a small laptop nor looks lost on a 4K. */
+  width: clamp(280px, 20vw, 360px);
   overflow: hidden;
   pointer-events: auto;
 }
@@ -610,11 +614,11 @@ button {
  * rules; the former `animation: none !important` here only existed to suppress
  * the surge that no longer exists. */
 aside.left-console {
-  padding: 22px;
+  padding: clamp(15px, 1.4vw, 22px);
 }
 
 aside.right-console {
-  padding: 22px;
+  padding: clamp(15px, 1.4vw, 22px);
   display: flex;
   flex-direction: column;
 }
@@ -2298,16 +2302,8 @@ aside.right-console {
 
 /* ---------- Responsive ---------- */
 
-@media (max-width: 1280px) {
-  .left-console,
-  .right-console {
-    width: 300px;
-  }
-
-  .core-readout h2 {
-    font-size: 28px;
-  }
-}
+/* (The former max-width:1280px step is now handled fluidly by the clamp() sizes
+ * above, so the console-width / hero-size jumps at 1280 are gone.) */
 
 @media (max-width: 1100px) {
   .terminal-log {

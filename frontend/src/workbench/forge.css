@@ -28,7 +28,7 @@
     0 0 50px -16px rgba(90, 100, 180, 0.30),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   /* PAINT-TRAP LAW (blueprint §2.2 law 1): NEVER transition box-shadow/border on a
-     backdrop-filtered element — it re-rasters the glass every frame. The flare is a
+     backdrop-filtered element · it re-rasters the glass every frame. The flare is a
      STATIC class swap (.is-flaring), and the GLOWING rim animates on a NON-blurred
      child overlay (.forge-port::after) below. Geometry/sizing/transforms unchanged. */
 }
@@ -41,7 +41,7 @@
   height: 330px;
 }
 
-/* A3 — a YELLOW write is proposed but NOT applied until the operator authorizes. */
+/* A3 · a YELLOW write is proposed but NOT applied until the operator authorizes. */
 .forge-pending {
   flex-shrink: 0;
   padding: 5px 12px;
@@ -57,7 +57,7 @@
   text-overflow: ellipsis;
 }
 
-/* A real cognition event landed on this port — the nerve surge, echoed.
+/* A real cognition event landed on this port · the nerve surge, echoed.
    STATIC class swap (no transition on the blurred parent → no per-frame re-raster;
    blueprint §2.2 "truth-states are static class swaps"). The actual MOVING surge
    already rides the non-blurred .forge-socket / .forge-link child overlays below. */
@@ -146,14 +146,23 @@
   border: none;
   border-radius: 7px 7px 0 0;
   background: transparent;
-  color: rgba(140, 150, 180, 0.8);
+  /* Inactive tabs sit back further (was 0.8) so the active one reads first. */
+  color: rgba(140, 150, 180, 0.6);
   font-size: 11px;
   font-family: var(--font-mono, ui-monospace, monospace);
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease;
 }
+.forge-tab:hover:not(.is-active) {
+  color: rgba(210, 218, 238, 0.9);
+}
+/* The active file is unmistakable: bright label, darker seat, and a glowing
+   accent top border that grounds which file you are editing. Static state. */
 .forge-tab.is-active {
-  color: #f2f3f7;
-  background: rgba(7, 9, 14, 0.9);
+  color: #ffffff;
+  background: rgba(7, 9, 14, 0.94);
   border-top: 2px solid var(--accent);
+  box-shadow: 0 0 12px -2px rgba(92, 225, 230, 0.55), inset 0 1px 0 rgba(92, 225, 230, 0.22);
 }
 
 .forge-canvas {
@@ -165,7 +174,7 @@
   background: #f8f9fb;
 }
 
-/* The nerve socket — bottom-center, exactly where the wire tip lands. */
+/* The nerve socket · bottom-center, exactly where the wire tip lands. */
 .forge-socket {
   position: absolute;
   bottom: -3px;
