@@ -19,6 +19,12 @@ import ApprovalPanel from './ApprovalPanel';
 
 export type CognitiveMode = 'observe' | 'synthesize' | 'orchestrate';
 
+/* The live turn phase the HUD actually shows. REST is a first-class phase
+ * (honest standby), not the absence of one. It is DERIVED from the cognition
+ * bus (no phase event exists; see the reducer in the component), never from an
+ * operator toggle. The operator's mode prop is a manual lens override only. */
+export type Phase = 'rest' | 'observe' | 'synthesize' | 'orchestrate';
+
 interface SuperbrainHUDProps {
   mode: CognitiveMode;
   activity: number;
@@ -35,22 +41,64 @@ interface SuperbrainHUDProps {
   onSurfaceChange?: (surface: 'web' | 'organ') => void;
 }
 
-const modeCopy: Record<CognitiveMode, { title: string; detail: string }> = {
+/* ---------- Phase copy ----------
+ * Describes the REAL derived phase truthfully. REST has honest standby copy;
+ * the work phases describe what the brain is actually doing this turn. No
+ * em-dashes; the middle dot ( · ) is the codebase prose convention. */
+const PHASE_COPY: Record<Phase, { title: string; detail: string }> = {
+  rest: {
+    title: 'Holding at the knowledge horizon',
+    detail: 'Standby. No directive in flight.',
+  },
   observe: {
-    title: 'Observing knowledge horizon',
-    detail: 'Indexing live signals and mapping relationships.',
+    title: 'Observing the knowledge horizon',
+    detail: 'Recalling trails and mapping relationships.',
   },
   synthesize: {
-    title: 'Synthesizing directive',
-    detail: 'Specialist agents converging on one execution model.',
+    title: 'Synthesizing the directive',
+    detail: 'Model reasoning toward one execution.',
   },
   orchestrate: {
-    title: 'Orchestrating agent mesh',
-    detail: 'Plans validated, delegated, and monitored in real time.',
+    title: 'Orchestrating the agent mesh',
+    detail: 'Dispatching and monitoring real tools.',
   },
 };
 
-/* ---------- Mode rail ---------- */
+/* One-word phase label for the dispatch-cadence PHASE row. REST reads STANDBY
+ * (honest dormancy), the work phases read their verb. */
+const PHASE_LABEL: Record<Phase, string> = {
+  rest: 'STANDBY',
+  observe: 'OBSERVE',
+  synthesize: 'SYNTHESIZE',
+  orchestrate: 'ORCHESTRATE',
+};
+
+/* ---------- Live-phase derivation (pure, unit-tested) ----------
+ * No phase event exists on the bus, so the live phase is DERIVED from the
+ * timestamps of the events that DO exist plus the real `generating` flag.
+ * Precedence (a stale event never pins a false phase, hence the windows):
+ *   fresh tool dispatch (<4s)  -> ORCHESTRATE (dispatching real tools)
+ *   else generating            -> SYNTHESIZE  (model producing text)
+ *   else fresh recall (<4s)    -> OBSERVE     (mapping/recalling knowledge)
+ *   else the directive snap (<2s) -> ORCHESTRATE (mesh snapped to attention)
+ *   else                        -> REST        (honest standby) */
+export interface PhaseStamps {
+  tool: number;
+  burst: number;
+  directive: number;
+}
+
+export function derivePhaseFrom(now: number, ts: PhaseStamps, generating: boolean): Phase {
+  if (now - ts.tool < 4000) return 'orchestrate';
+  if (generating) return 'synthesize';
+  if (now - ts.burst < 4000) return 'observe';
+  if (now - ts.directive < 2000) return 'orchestrate';
+  return 'rest';
+}
+
+/* ---------- Mode rail (operator's manual lens override) ----------
+ * The rail's active item DEFAULTS to follow the derived livePhase; a click
+ * pins the operator's lens (a small `pinned` marker shows he is steering). */
 const MODE_RAIL: { id: CognitiveMode; num: string; label: string; sub: string }[] = [
   { id: 'observe', num: '01', label: 'OBSERVE', sub: 'Map and orient' },
   { id: 'synthesize', num: '02', label: 'SYNTHESIZE', sub: 'Reason and create' },
@@ -561,7 +609,6 @@ function AgentCard({
 
 export default function SuperbrainHUD({
   mode,
-  activity,
   lastDirective,
   onModeChange,
   onDirective,
@@ -600,6 +647,73 @@ export default function SuperbrainHUD({
   /* A real tool pulse routes to the card that owns that kind of work. */
   const [toolPulse, setToolPulse] = useState<{ row: number; detail: string } | null>(null);
   const toolPulseTimerRef = useRef<number | null>(null);
+  /* Bumped on every REAL tool dispatch so the one-shot heartbeat pulse re-fires
+   * via its React key (the pulse asserts a real dispatch, never idle theatre). */
+  const [dispatchSeq, setDispatchSeq] = useState(0);
+
+  /* ----- LIVE PHASE (the soul's spine) -----
+   * No phase event exists on the bus, so the phase is DERIVED deterministically
+   * from the events that DO exist (directive / burst / agent-dispatch / the real
+   * `generating` flag / synthesis). Timestamps decay so a stale event never pins
+   * a false phase. REST is the honest standby when nothing is in flight. */
+  const phaseTsRef = useRef({ tool: 0, burst: 0, directive: 0 });
+  const [livePhase, setLivePhase] = useState<Phase>('rest');
+  /* Operator's manual lens pin (a click on the rail). null = follow livePhase. */
+  const [pinnedLens, setPinnedLens] = useState<CognitiveMode | null>(null);
+  /* Elapsed time of the live turn, shown only while the model is producing. */
+  const [elapsedLabel, setElapsedLabel] = useState('');
+  /* `generating` mirrored into a ref so the once-mounted bus subscriber derives
+   * the phase against the CURRENT flag without re-subscribing each turn. The
+   * mirror is written in an effect (never during render). */
+  const generatingRef = useRef(generating);
+  useEffect(() => {
+    generatingRef.current = generating;
+  }, [generating]);
+
+  /* Derivation bound to the live refs (so it stays stable for the once-mounted
+   * subscriber/interval). Delegates to the unit-tested pure `derivePhaseFrom`. */
+  const derivePhase = useCallback(
+    (now: number): Phase => derivePhaseFrom(now, phaseTsRef.current, generatingRef.current),
+    [],
+  );
+
+  /* Recompute on `generating` change (a real model-producing transition) and
+   * tick a low-frequency decay so a phase relaxes back to REST honestly even
+   * when no further event fires. The setState lives inside async callbacks
+   * (rAF / interval), never synchronously in the effect body. */
+  useEffect(() => {
+    const recompute = () => setLivePhase(derivePhase(performance.now()));
+    const raf = requestAnimationFrame(recompute);
+    if (prefersReducedMotion()) {
+      return () => cancelAnimationFrame(raf); /* still recomputes on each event */
+    }
+    const id = window.setInterval(recompute, 500);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(id);
+    };
+  }, [generating, derivePhase]);
+
+  /* Elapsed counter: runs ONLY while the model is producing (real signal), 1s
+   * step, gated on reduced motion (no interval; the last static value holds).
+   * When not producing the JSX hides it, so no reset setState is needed here. */
+  useEffect(() => {
+    if (!generating) return;
+    const started = performance.now();
+    const fmt = (ms: number) => {
+      const s = Math.floor(ms / 1000);
+      return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+    };
+    const raf = requestAnimationFrame(() => setElapsedLabel(fmt(0)));
+    if (prefersReducedMotion()) {
+      return () => cancelAnimationFrame(raf);
+    }
+    const id = window.setInterval(() => setElapsedLabel(fmt(performance.now() - started)), 1000);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(id);
+    };
+  }, [generating]);
 
   /* LATENCY: the measured trails+metrics round-trip, '--' when offline. */
   const latency = linkUp && telemetry ? telemetry.latencyMs : null;
@@ -637,13 +751,13 @@ export default function SuperbrainHUD({
     }
   }, []);
 
-  /* CURRENT OBJECTIVE: while a turn streams, progress follows REAL dispatched
-   * steps; idle, it is the verified share of the live pheromone map. */
-  const objectivePct = generating
-    ? Math.min(95, 35 + engagedLive * 12)
-    : telemetry && telemetry.trails > 0
+  /* VERIFIED SHARE: a REAL metric (verified trails over total trails), never a
+   * task-completion estimate. Null when there are no trails or the link is down:
+   * honest dormancy, never a fabricated number. */
+  const verifiedShare =
+    linkUp && telemetry && telemetry.trails > 0
       ? Math.round((100 * telemetry.verified) / telemetry.trails)
-      : Math.round(60 + activity * 19);
+      : null;
 
   /* ----- living terminal buffer ----- */
   const [termLines, setTermLines] = useState<TermLine[]>(SEED_TERM_LINES);
@@ -680,6 +794,9 @@ export default function SuperbrainHUD({
 
   /* ----- nervous system: the HUD reacts to the same events as the 3D scene ----- */
   useEffect(() => {
+    /* Recompute the derived phase the instant a real event stamps a timestamp,
+     * so the headline/rail/cadence move ONLY on real bus activity. */
+    const refreshPhase = () => setLivePhase(derivePhase(performance.now()));
     const unsubscribe = subscribeCognition((event) => {
       switch (event.type) {
         case 'knowledge-acquired': {
@@ -703,6 +820,9 @@ export default function SuperbrainHUD({
               ? `Recall · ${event.label}${event.detail ? ` (${event.detail})` : ''}`
               : 'Cortical burst · resonance nominal',
           );
+          // A real recall maps the knowledge horizon -> OBSERVE (decays in ~4s).
+          phaseTsRef.current.burst = performance.now();
+          refreshPhase();
           break;
         case 'directive': {
           appendTermLine(`Directive received · ${event.label ?? 'unspecified'}`, true);
@@ -712,6 +832,9 @@ export default function SuperbrainHUD({
           setEngagedLive(0);
           setRecentSteps([]);
           setActiveBrain(null); // the new turn re-announces its brain via `route`
+          // The mesh snaps to attention -> a brief ORCHESTRATE (decays in ~2s).
+          phaseTsRef.current.directive = performance.now();
+          refreshPhase();
           setDirectiveSurge(true);
           if (surgeTimeoutRef.current !== null) window.clearTimeout(surgeTimeoutRef.current);
           surgeTimeoutRef.current = window.setTimeout(() => {
@@ -734,6 +857,11 @@ export default function SuperbrainHUD({
             setKnownTools(sessionToolsRef.current.size);
             setRecentSteps((prev) => [...prev.slice(-1), tool.replace(/_/g, ' ')]);
             setToolPulse({ row: agentRowForTool(tool), detail: `running ${tool}` });
+            // A real dispatch -> ORCHESTRATE (decays in ~4s) and re-fires the
+            // one-shot heartbeat pulse via its React key.
+            phaseTsRef.current.tool = performance.now();
+            refreshPhase();
+            setDispatchSeq((seq) => seq + 1);
             if (toolPulseTimerRef.current !== null) window.clearTimeout(toolPulseTimerRef.current);
             toolPulseTimerRef.current = window.setTimeout(() => {
               setToolPulse(null);
@@ -764,6 +892,9 @@ export default function SuperbrainHUD({
         case 'synthesis':
           appendTermLine(`Synthesis · ${event.detail ?? event.label ?? 'cycle complete'}`);
           setApprovalHold(false);
+          // The cycle completed. Phase relaxes back to REST once the tool/burst
+          // windows lapse and generating clears (the decay tick handles it).
+          refreshPhase();
           break;
         case 'approval-required':
           // The supervised mind defers to its operator — loudest line we have.
@@ -805,7 +936,7 @@ export default function SuperbrainHUD({
         toolPulseTimerRef.current = null;
       }
     };
-  }, [appendTermLine]);
+  }, [appendTermLine, derivePhase]);
 
   /* ----- idle ticker: imagination lore ONLY while the link is down -----
    * Online, real telemetry heartbeats own the quiet channel — lore would
@@ -837,6 +968,24 @@ export default function SuperbrainHUD({
 
   const currentMode = MODE_RAIL.find((m) => m.id === mode) || MODE_RAIL[0];
   const intakeLabel = sourceMeshLabel;
+
+  /* The rail's active lens: the operator's pin if he steered, else it FOLLOWS
+   * the derived livePhase. REST highlights no rail item (honest: no work lens is
+   * lit at standby). The pin is the operator's manual override (§2). */
+  const pinned = pinnedLens !== null;
+  const activeRailId: CognitiveMode | null = pinned
+    ? pinnedLens
+    : livePhase === 'rest'
+      ? null
+      : livePhase;
+  const handleLensPin = useCallback(
+    (id: CognitiveMode) => {
+      // A click pins the operator's lens (toggle off if he re-clicks the pin).
+      setPinnedLens((prev) => (prev === id ? null : id));
+      onModeChange(id);
+    },
+    [onModeChange],
+  );
 
   return (
     <>
@@ -1092,46 +1241,87 @@ export default function SuperbrainHUD({
       */}
       <Html position={[-4.8, -1.7, 0.0]} zIndexRange={[100, 0]}>
         <div style={{ transform: 'translate(-50%, -100%)' }}>
-          <aside className="left-console glass-surface" aria-label="Cognitive state">
+          <aside className="left-console glass-surface" aria-label="Active cognition">
             <div className="eyebrow">
               <span /> ACTIVE COGNITION
             </div>
-            <h1>{modeCopy[mode].title}</h1>
-            <p className="cognition-detail">{modeCopy[mode].detail}</p>
 
-            <div className="mode-rail" role="group" aria-label="Cognitive mode">
+            {/* HONEST live phase, derived from the bus, not an operator toggle.
+                Cross-fades only on a REAL phase transition (keyed). */}
+            <h1 key={`phase-${livePhase}`}>{PHASE_COPY[livePhase].title}</h1>
+            <p className="cognition-detail">{PHASE_COPY[livePhase].detail}</p>
+
+            {/* Mode rail = the operator's manual lens override; DEFAULTS to follow
+                the derived livePhase, and a `pinned` marker shows when he steers. */}
+            <div className="mode-rail" role="group" aria-label="Cognitive lens">
               {MODE_RAIL.map((item) => (
                 <button
                   key={item.id}
-                  className={`mode-button ${mode === item.id ? 'is-active' : ''}`}
-                  onClick={() => onModeChange(item.id)}
+                  className={`mode-button ${activeRailId === item.id ? 'is-active' : ''}`}
+                  onClick={() => handleLensPin(item.id)}
                   type="button"
-                  aria-pressed={mode === item.id}
+                  aria-pressed={activeRailId === item.id}
                 >
                   <span className="mode-num">{item.num}</span>
                   <span className="mode-copy">
                     <strong>{item.label}</strong>
                     <small>{item.sub}</small>
                   </span>
+                  {/* state, not decoration: lit only on the active (live or pinned) lens */}
                   <i className="mode-dot" />
                 </button>
               ))}
+              {pinned ? <span className="lens-pinned">pinned</span> : null}
             </div>
 
-            <div className="objective-card" aria-live="polite" aria-atomic="true">
-              <div className="objective-head">
-                <span>CURRENT OBJECTIVE</span>
-                <strong>{objectivePct}%</strong>
+            {/* DISPATCH CADENCE: the live heartbeat of REAL work; replaces the
+                fabricated objective %. Honest zeros/dashes/flat hairline at rest. */}
+            <div className="dispatch-cadence" aria-live="polite" aria-atomic="true">
+              <div className="cad-row">
+                <span>PHASE</span>
+                <strong>{PHASE_LABEL[livePhase]}</strong>
               </div>
-              <div className="objective-bar">
-                <i style={{ width: `${objectivePct}%` }} />
+              <div className="cad-row">
+                <span>TOOLS THIS TURN</span>
+                <strong className="tabnum">
+                  {engagedLive} / {knownTools}
+                </strong>
               </div>
+
+              {/* heartbeat: a flat hairline + a NON-BLURRED sibling pulse that
+                  re-fires (via React key on dispatchSeq) only on a real dispatch. */}
+              <div className="cad-beat" aria-hidden="true">
+                <i className="cad-beat-line" />
+                <i
+                  key={toolPulse ? `${toolPulse.row}-${dispatchSeq}` : 'idle'}
+                  className={`dispatch-pulse${toolPulse ? ' dispatch-pulse--fire' : ''}`}
+                />
+              </div>
+
+              <div className="cad-row cad-row--sub">
+                <span className="cad-last">{recentSteps[recentSteps.length - 1] ?? '--'}</span>
+                <span className="cad-elapsed tabnum">{generating ? elapsedLabel : ''}</span>
+              </div>
+
+              {/* honest, optional: a REAL metric, only when trails exist; never
+                  presented as "objective %". Hidden at idle/offline. */}
+              {verifiedShare !== null ? (
+                <div className="cad-row cad-row--share">
+                  <span>VERIFIED SHARE</span>
+                  <strong className="tabnum">{verifiedShare}%</strong>
+                </div>
+              ) : null}
+
               <div className="objective-tree">
-                <p className="is-lead">{lastDirective}</p>
+                <p className="is-lead">{lastDirective || '--'}</p>
                 {/* The sub-steps are the REAL last dispatched tools of the
-                    current turn; em-dashes before any turn has run. */}
-                <p>{recentSteps[recentSteps.length - 2] ?? '—'}</p>
-                <p>{recentSteps[recentSteps.length - 1] ?? '—'}</p>
+                    current turn; honest -- placeholders before any turn runs. */}
+                <p key={`step-a-${recentSteps.length}`}>
+                  {recentSteps[recentSteps.length - 2] ?? '--'}
+                </p>
+                <p key={`step-b-${recentSteps.length}`}>
+                  {recentSteps[recentSteps.length - 1] ?? '--'}
+                </p>
               </div>
             </div>
             <i className="glass-grain" aria-hidden />

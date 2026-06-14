@@ -42,6 +42,9 @@
    * never animate paint properties on a backdrop-filtered element. */
   --rim-top: 0.16;
 
+  /* Duration token for the real-event dispatch heartbeat pulse. */
+  --dur-pulse: 450ms;
+
   /* Static feTurbulence grain tile, shared by panel grain and frame grain. */
   --grain-noise: url("/grain.svg");
 }
@@ -686,6 +689,15 @@ aside.right-console {
   font-weight: 510;
   line-height: 1.15;
   letter-spacing: -0.015em;
+  /* The h1 is keyed on livePhase, so it remounts on a REAL phase change; this
+   * one-shot opacity cross-fade rides that transition only (never idle). */
+  animation: phase-swap 150ms var(--ease-out-quart) 1;
+}
+
+@keyframes phase-swap {
+  from {
+    opacity: 0;
+  }
 }
 
 .cognition-detail {
@@ -808,17 +820,19 @@ aside.right-console {
   box-shadow: 0 0 10px rgba(92, 225, 230, 0.8);
 }
 
-/* ---------- Objective card ---------- */
-
-.objective-card {
-  margin-top: 20px;
-  padding: 13px 14px;
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+/* ---------- Dispatch cadence ----------
+ * The live heartbeat of REAL work: derived phase, real tool counts, a real
+ * dispatch pulse, the breadcrumb of what actually ran. Replaces the old
+ * fabricated objective % (and its progress bar). 1px hairline rows, mono +
+ * tabular-nums on every changing figure, no new card box. Honest at rest:
+ * zeros, dashes, a flat hairline, zero motion. */
+.dispatch-cadence {
+  margin-top: 18px;
+  display: grid;
+  gap: 8px;
 }
 
-.objective-head {
+.cad-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -829,31 +843,107 @@ aside.right-console {
   color: var(--text-2);
 }
 
-.objective-head strong {
+.cad-row > strong {
   color: var(--text-1);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 510;
+  letter-spacing: 0.04em;
+}
+
+/* Fixed-width figures so changing counts never reflow the row. */
+.tabnum {
   font-variant-numeric: tabular-nums;
   letter-spacing: normal;
 }
 
-.objective-bar {
-  overflow: hidden;
+/* Heartbeat track: a flat 1px hairline (honest baseline at rest) with the
+ * one-shot pulse riding it as a NON-BLURRED sibling. The blurred glass parent
+ * is never animated (paint-trap law). */
+.cad-beat {
+  position: relative;
   height: 3px;
-  margin: 9px 0 11px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.07);
+  margin: 2px 0;
 }
 
-.objective-bar i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: rgba(232, 238, 250, 0.6);
-  transition: width 500ms var(--ease-out-quart);
+.cad-beat-line {
+  position: absolute;
+  inset: 1px 0 auto 0;
+  height: 1px;
+  background: var(--hairline);
+}
+
+/* The pulse sits invisible until a real dispatch keys it; the --fire variant
+ * runs the one-shot keyframe (transform + opacity only). */
+.dispatch-pulse {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transform: scaleX(0.2);
+  transform-origin: left center;
+  will-change: transform, opacity;
+}
+
+.dispatch-pulse--fire {
+  animation: dispatch-pulse-fire var(--dur-pulse) var(--ease-out-quart) 1;
+}
+
+@keyframes dispatch-pulse-fire {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+/* Breadcrumb sub-row: the last real tool + the live elapsed (only while the
+ * model is producing). Dimmer than the stat rows. */
+.cad-row--sub {
+  margin-top: 1px;
+}
+
+.cad-last {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cad-elapsed {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* Verified share: a real metric, neutral weight (not an accent moment). */
+.cad-row--share > strong {
+  color: var(--text-1);
+}
+
+/* Operator-pinned lens marker: honest "you are steering the lens". */
+.lens-pinned {
+  justify-self: end;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 .objective-tree {
+  margin-top: 4px;
   display: grid;
   gap: 5px;
 }
@@ -870,6 +960,19 @@ aside.right-console {
   color: var(--text-1);
   font-size: 13px;
   font-weight: 510;
+}
+
+/* Breadcrumb enter: the two sub-step lines are keyed on recentSteps.length, so
+ * they remount when a REAL tool lands; this one-shot settle rides that event. */
+.objective-tree p:not(.is-lead) {
+  animation: breadcrumb-enter 150ms var(--ease-out-quart) 1;
+}
+
+@keyframes breadcrumb-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 /* ---------- Right console ---------- */
@@ -1562,7 +1665,7 @@ aside.right-console {
   }
 
   .cognition-detail,
-  .objective-card {
+  .dispatch-cadence {
     display: none;
   }
 
@@ -1649,6 +1752,21 @@ aside.right-console {
 
   .execute-wrap {
     transform: none !important;
+  }
+
+  /* Dispatch cadence: the one-shot heartbeat pulse never animates under reduced
+   * motion; it holds its honest static end-state (invisible; the flat hairline
+   * carries the baseline). The phase/breadcrumb swaps appear instantly. */
+  .dispatch-pulse,
+  .dispatch-pulse--fire {
+    animation: none !important;
+    opacity: 0;
+    transform: scaleX(1);
+  }
+
+  .left-console h1,
+  .objective-tree p:not(.is-lead) {
+    animation: none !important;
   }
 }
 }
