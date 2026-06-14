@@ -29,7 +29,7 @@ All three are GENUINE, in-scope, not-already-covered, and each matches a discipl
 4. Re-gate: `python tools/check_canon_frozen.py` · `python tools/check_css_canon.py` · em-dash scan (HUD + superbrain.css) · emoji/stamp scan · `cd frontend && npm run build` · `npm test`.
 5. Re-run a final confirmation review (small workflow, the 2 design lenses + honesty lens, briefed with the now-RESOLVED list incl. these 3) to confirm clean. The convergence bar = gate green + reviewers find no new in-scope genuine defect.
 6. Commit the full HUD renovation on `feat/frontend-renovation`. Update this doc + [[frontend-harmony-direction]] + CEO_LOG.
-7. **Deliver the GOAT** for the operator's eyeball at `:5173/?ui=shell` (brain+space byte-identical). Push/merge only on his call.
+7. **Deliver the GOAT** for the operator's eyeball at `:5173 (clean root — the official mount as of 2026-06-14; ?ui=shell kept as an alias)` (brain+space byte-identical). Push/merge only on his call.
 
 ## DOCUMENTED JUSTIFIED DECISIONS (NOT defects — do not re-litigate)
 - `center-ports` div is `aria-hidden="true"` ON PURPOSE: the same 4 channel values are exposed accessibly by the KNOWLEDGE INTAKE console (`SourceRow`, `aria-label="System status"`, not hidden); hiding the floating visual duplicate avoids double-announcing to screen readers.
@@ -44,7 +44,7 @@ All three are GENUINE, in-scope, not-already-covered, and each matches a discipl
 
 ## Live runtime (may need restart after a long pause)
 - Backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000 --reload`.
-- Frontend: `cd frontend; npm run dev` → `:5173/?ui=shell`.
+- Frontend: `cd frontend; npm run dev` → `:5173 (clean root — the official mount as of 2026-06-14; ?ui=shell kept as an alias)`.
 - Supervision monitor (sacred-scene + liveness): re-arm after a session restart.
 
 ## Gates every wave must pass
