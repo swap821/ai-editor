@@ -16,6 +16,7 @@ import './superbrain.css';
 import CommandLine from '../workbench/CommandLine';
 import ForgePorts from '../workbench/ForgePorts';
 import OrgansDock from '../workbench/organs/OrgansDock';
+import ApprovalSafetyNet from '../workbench/approval/ApprovalSafetyNet';
 import '../workbench/shell.css';
 import '../workbench/forge.css';
 // Loaded AFTER superbrain.css (unlayered → beats ported @layer rules); in
@@ -70,6 +71,13 @@ export default function SuperbrainShell() {
           always observable. The canon home (?ui=superbrain via SuperbrainApp) never
           renders this shell, so it stays byte-identical. */}
       <OrgansDock />
+      {/* Additive approval safety-net — reconciles the persisted adapter pending-approval
+          truth on a poll/bus/visibility belt-and-suspenders, so a missed
+          'approval-required' bus event can never leave a paused run with no clickable
+          AUTHORIZE/REJECT. Self-portals to document.body; appears ONLY after a grace
+          window the canon panel failed to fill (true fallback, zero double UI). Mounted
+          on BOTH seams so the hang is caught wherever a turn can pause. */}
+      <ApprovalSafetyNet />
     </div>
   );
 }
