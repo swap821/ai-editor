@@ -15,6 +15,7 @@ import WorkspaceCanvas from '@/components/canvas/WorkspaceCanvas';
 import './superbrain.css';
 import CommandLine from '../workbench/CommandLine';
 import ForgePorts from '../workbench/ForgePorts';
+import OrgansDock from '../workbench/organs/OrgansDock';
 import '../workbench/shell.css';
 import '../workbench/forge.css';
 // Loaded AFTER superbrain.css (unlayered → beats ported @layer rules); in
@@ -62,6 +63,13 @@ export default function SuperbrainShell() {
           </button>
         )}
       </div>
+
+      {/* Additive, read-only governance/learning organs. Collapsed by default;
+          self-portals to document.body so the shell's stacking context is
+          irrelevant. Renders in BOTH home and manufacturing modes — governance is
+          always observable. The canon home (?ui=superbrain via SuperbrainApp) never
+          renders this shell, so it stays byte-identical. */}
+      <OrgansDock />
     </div>
   );
 }
