@@ -96,6 +96,36 @@
   transform: scale(1.6);
 }
 
+/* Unread-answer dot — a persistent NON-blurred child overlay marking a finished
+   turn the user hasn't read yet. Same paint-trap-safe pattern as .organs-tab-pip:
+   it lives ON the blurred tab but is itself NOT backdrop-filtered, so its paint
+   (background/box-shadow) is free to render without re-blurring the glass. Sits
+   top-LEFT so it never collides with the cyan flare pip top-right; uses the canon
+   --state-ok green ("new / positive") to read distinctly from the accent flare.
+   A gentle one-shot entrance (transform/opacity) draws the eye without nagging. */
+.organs-tab-unread {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--state-ok);
+  box-shadow: 0 0 8px var(--state-ok), 0 0 16px rgba(88, 214, 141, 0.55);
+  pointer-events: none;
+  animation: organs-unread-in 420ms var(--ease-out-quart);
+}
+@keyframes organs-unread-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* ── Opened panel (glass console) ───────────────────────────────────────────── */
 .organs-panel {
   position: fixed;
@@ -614,6 +644,7 @@
   .organs-menu-item {
     transition: none;
   }
+  .organs-tab-unread,
   .organs-menu {
     animation: none;
   }

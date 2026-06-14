@@ -105,9 +105,17 @@ export default function OrgansDock() {
   const [open, setOpen] = useState(() => readBool(OPEN_KEY, false));
   // One of TAB_IDS (converse | autonomy | proposals | curriculum | skills |
   // memory | plan | zone | models) — validated against the NAV taxonomy on read.
-  // Default stays 'autonomy' (the dock's established landing organ); CONVERSE
-  // leads the nav but the persisted/last-used tab still wins on open.
-  const [active, setActive] = useState(() => readTab('autonomy'));
+  // Default is 'converse' (the readTab default): opening the dock with no prior
+  // tab shows the verbatim REPLY first — the highest-value organ. The
+  // persisted/last-used tab still wins on open, so a user who lives in another
+  // organ is undisturbed; only the first-ever / never-picked default moved.
+  const [active, setActive] = useState(() => readTab('converse'));
+  // UNREAD-ANSWER signal — set when a turn completes (SYNTHESIS COMPLETE) while
+  // the user is NOT looking at the conversation (dock closed, or open on another
+  // organ). Surfaces a quiet, persistent "new answer" dot on the collapsed tab.
+  // Non-intrusive: it never forces the dock open. Cleared the moment the user is
+  // actually viewing conversation (open && active === 'converse').
+  const [unread, setUnread] = useState(false);
   const [earned, setEarned] = useState(() => getAutonomy()?.summary?.earned ?? 0);
   const [flaring, setFlaring] = useState(false);
   // The grouped nav menu is closed on every open (collapsed-by-default posture).
@@ -117,6 +125,10 @@ export default function OrgansDock() {
   const panelRef = useRef(null);
   const menuRef = useRef(null);
   const navTriggerRef = useRef(null);
+  // Live mirror of "is the user actually viewing the answer right now" so the
+  // bus subscription (mounted once) reads the CURRENT value without re-subscribing
+  // on every open/tab change (avoids stale-closure + churn).
+  const viewingConvoRef = useRef(false);
 
   // Live earned-count chip + tab flare on real earn/master events. Reuses the
   // adapter's existing poll (it refreshes getAutonomy() and fires the labels).
@@ -127,6 +139,13 @@ export default function OrgansDock() {
         // The adapter just refreshed the ledger — re-read the cheap snapshot.
         const next = getAutonomy()?.summary?.earned;
         if (typeof next === 'number') setEarned(next);
+        return;
+      }
+      // A turn finished while the user isn't reading it → raise the unread-answer
+      // dot. The SAME bus contract ConversationPort listens on. Never opens the
+      // dock; just marks the tab so the verbatim reply is discoverable.
+      if (e.type === 'synthesis' && String(e.label || '') === 'SYNTHESIS COMPLETE') {
+        if (!viewingConvoRef.current) setUnread(true);
         return;
       }
       const label = String(e.label || '');
@@ -147,6 +166,16 @@ export default function OrgansDock() {
       clearTimeout(flareTimer.current);
     };
   }, []);
+
+  // Track whether the user is actually viewing the answer, and clear the unread
+  // dot the instant they are. The ref feeds the (once-mounted) bus subscription;
+  // the state clear handles the case where a turn finished earlier and the user
+  // only now opens the conversation organ.
+  useEffect(() => {
+    const viewing = open && active === 'converse';
+    viewingConvoRef.current = viewing;
+    if (viewing) setUnread(false);
+  }, [open, active]);
 
   const persist = useCallback((nextOpen) => {
     try {
@@ -229,6 +258,17 @@ export default function OrgansDock() {
         <span>▣ ORGANS</span>
         {earned > 0 && (
           <span className="organs-tab-chip">⚡{earned}</span>
+        )}
+        {/* Unread-answer dot — a persistent, non-blurred child overlay (same
+            paint-trap-safe pattern as the flare pip below; the blurred tab never
+            animates). Present only while a finished turn is unread; double-encoded
+            with a label so color is not the sole signal. */}
+        {unread && (
+          <span
+            className="organs-tab-unread"
+            role="status"
+            aria-label="New answer ready"
+          />
         )}
         <span
           className={`organs-tab-pip${flaring ? ' is-flaring' : ''}`}

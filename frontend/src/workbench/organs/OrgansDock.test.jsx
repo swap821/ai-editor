@@ -238,6 +238,9 @@ describe('OrgansDock', () => {
     vi.stubGlobal('fetch', mockFetch());
     render(<OrgansDock />);
     fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    // The dock now defaults to the CONVERSE organ (verbatim reply first); navigate
+    // to the AUTONOMY ledger this test asserts on.
+    pickOrgan(/autonomy/i);
     await waitFor(() => expect(screen.getByText(/write \*\.py/i)).toBeInTheDocument());
 
     // Earned row carries the ok class via its left rail.
@@ -262,6 +265,8 @@ describe('OrgansDock', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
     render(<OrgansDock />);
     fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    // Default organ is CONVERSE now; switch to AUTONOMY (synchronous nav).
+    pickOrgan(/autonomy/i);
     // Seed is synchronous — the row is present without awaiting fetch.
     expect(screen.getByText(/write \*\.py/i)).toBeInTheDocument();
   });
@@ -290,6 +295,7 @@ describe('OrgansDock', () => {
     vi.stubGlobal('fetch', mockFetch({ autonomy: { enabled: false, min_successes: 3, entries: [], summary: { earned: 0, probation: 0, revoked: 0 } } }));
     render(<OrgansDock />);
     fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/autonomy/i); // default is CONVERSE; this test asserts the ledger's empty/off copy
     await waitFor(() => expect(screen.getByText(/No earned capabilities yet/i)).toBeInTheDocument());
     expect(screen.getByText(/switched off/i)).toBeInTheDocument();
     expect(document.querySelector('.organs-row')).toBeNull();
@@ -299,6 +305,7 @@ describe('OrgansDock', () => {
     vi.stubGlobal('fetch', mockFetch({ fail: true }));
     render(<OrgansDock />);
     fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/autonomy/i); // default is CONVERSE; navigate to the ledger to assert its offline state
     await waitFor(() => expect(screen.getByText(/LEDGER OFFLINE/i)).toBeInTheDocument());
   });
 
@@ -517,5 +524,76 @@ describe('OrgansDock', () => {
     await waitFor(() =>
       expect(screen.getByText(/CONVERSATION OFFLINE/i)).toBeInTheDocument()
     );
+  });
+
+  // ── Wave-5: verbatim-answer prominence ──────────────────────────────────────
+  it('20. opening the dock with no prior tab lands on the CONVERSE organ (reply first)', async () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    // No pickOrgan: the conversation log is shown by default.
+    await waitFor(() =>
+      expect(screen.getByText(/Conversation · Session Dialogue/i)).toBeInTheDocument()
+    );
+    // The header trigger names the CONVERSE section + Conversation organ.
+    const trigger = screen.getByRole('button', { name: /choose organ/i });
+    expect(trigger.textContent).toMatch(/CONVERSE/);
+    expect(trigger.textContent).toMatch(/Conversation/);
+  });
+
+  it('20b. a persisted tab still wins over the converse default on open', () => {
+    window.localStorage.setItem('organs-dock-tab-v1', 'zone');
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    const trigger = screen.getByRole('button', { name: /choose organ/i });
+    expect(trigger.textContent).toMatch(/Zone Probe/);
+  });
+
+  it('21. unread-answer dot appears on SYNTHESIS COMPLETE while the dock is closed, clears on opening conversation', () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    // Closed dock, no dot yet.
+    expect(document.body.querySelector('.organs-tab-unread')).toBeNull();
+    // A turn finishes while the user isn't reading → the dot appears on the tab.
+    act(() => {
+      publishToBus({ type: 'synthesis', label: 'SYNTHESIS COMPLETE' });
+    });
+    const dot = document.body.querySelector('.organs-tab-unread');
+    expect(dot).toBeTruthy();
+    expect(dot.getAttribute('aria-label')).toMatch(/new answer/i);
+    // Opening the dock lands on CONVERSE (the default) → the user is now viewing
+    // the answer, so the dot clears.
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    expect(document.body.querySelector('.organs-tab-unread')).toBeNull();
+  });
+
+  it('21b. no unread dot when the turn completes while already viewing conversation', () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    // Open on the default CONVERSE organ.
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    // A turn finishes while conversation is on screen → no unread signal raised.
+    act(() => {
+      publishToBus({ type: 'synthesis', label: 'SYNTHESIS COMPLETE' });
+    });
+    expect(document.body.querySelector('.organs-tab-unread')).toBeNull();
+  });
+
+  it('21c. SYNTHESIS COMPLETE on a non-conversation organ raises the dot; opening conversation clears it', () => {
+    window.localStorage.setItem('organs-dock-tab-v1', 'autonomy');
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    // Open on the AUTONOMY organ (persisted), then a turn completes elsewhere.
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    act(() => {
+      publishToBus({ type: 'synthesis', label: 'SYNTHESIS COMPLETE' });
+    });
+    // Open dock but NOT on conversation → the dot shows (the tab is hidden while
+    // open, but the element exists in the DOM as the unread marker).
+    expect(document.body.querySelector('.organs-tab-unread')).toBeTruthy();
+    // Switch to conversation → dot clears.
+    pickOrgan(/conversation/i);
+    expect(document.body.querySelector('.organs-tab-unread')).toBeNull();
   });
 });
