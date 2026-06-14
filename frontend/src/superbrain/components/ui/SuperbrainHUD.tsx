@@ -307,9 +307,10 @@ function useTweenedMetric(target: number) {
  * renovation): a faint rAF lerp toward (cursor - center) * 0.14, clamped so the
  * key never displaces more than 5px (a precise instrument nudge, not a toy
  * magnet), engaged only inside a tight radius of buttonWidth * 0.55; lerp
- * factor 0.1; ~400ms power3-out snap-back on leave. Transforms are written
- * straight to the wrapper ref · zero React state per frame. Disabled under
- * prefers-reduced-motion. */
+ * factor 0.1; a critically-damped SPRING settle on leave (mass/stiffness/damping,
+ * no overshoot) so the key returns to rest with real weight. Transforms are
+ * written straight to the wrapper ref · zero React state per frame. Disabled
+ * under prefers-reduced-motion. */
 function useMagneticPull(ref: RefObject<HTMLSpanElement | null>) {
   /* Reactive reduced-motion (motion/react) so a runtime toggle re-runs this
    * effect and tears the listener down (vs a one-time synchronous check). */
@@ -325,9 +326,9 @@ function useMagneticPull(ref: RefObject<HTMLSpanElement | null>) {
     let y = 0;
     let targetX = 0;
     let targetY = 0;
-    let snapStart = 0;
-    let snapFromX = 0;
-    let snapFromY = 0;
+    let vx = 0;
+    let vy = 0;
+    let lastNow = 0;
 
     const apply = () => {
       el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
@@ -337,6 +338,7 @@ function useMagneticPull(ref: RefObject<HTMLSpanElement | null>) {
       if (engaged) {
         x += (targetX - x) * 0.1;
         y += (targetY - y) * 0.1;
+        lastNow = now; /* keep dt sane the instant we hand off to the release spring */
         if (Math.abs(targetX - x) < 0.05 && Math.abs(targetY - y) < 0.05) {
           x = targetX;
           y = targetY;
@@ -348,15 +350,29 @@ function useMagneticPull(ref: RefObject<HTMLSpanElement | null>) {
         raf = requestAnimationFrame(frame);
         return;
       }
-      const t = Math.min(1, (now - snapStart) / 400);
-      const eased = 1 - (1 - t) ** 3; /* power3.out */
-      x = snapFromX * (1 - eased);
-      y = snapFromY * (1 - eased);
+      /* Release: a critically-damped spring carries the key home with MASS (damping
+       * ratio ~0.93 toward critical -> it settles, no overshoot on a <=5px nudge) -
+       * a real physical lever returning to rest, not a fixed-duration ease. Semi-
+       * implicit Euler, written straight to the wrapper ref (react-three-next DOM/
+       * canvas separation: zero React state per frame, never coupled to useFrame). */
+      const dt = Math.min(0.032, (now - lastNow) / 1000) || 0.016;
+      lastNow = now;
+      const k = 260;
+      const c = 30;
+      vx += (-k * x - c * vx) * dt;
+      vy += (-k * y - c * vy) * dt;
+      x += vx * dt;
+      y += vy * dt;
       apply();
-      if (t < 1) {
-        raf = requestAnimationFrame(frame);
-      } else {
+      if (Math.abs(x) < 0.05 && Math.abs(y) < 0.05 && Math.abs(vx) < 0.05 && Math.abs(vy) < 0.05) {
+        x = 0;
+        y = 0;
+        vx = 0;
+        vy = 0;
+        apply();
         running = false;
+      } else {
+        raf = requestAnimationFrame(frame);
       }
     };
 
@@ -379,10 +395,12 @@ function useMagneticPull(ref: RefObject<HTMLSpanElement | null>) {
         engaged = true;
         ensureLoop();
       } else if (engaged) {
+        /* Hand off to the release spring from the current position with zero
+         * initial velocity, so it settles home under its own mass. */
         engaged = false;
-        snapStart = performance.now();
-        snapFromX = x;
-        snapFromY = y;
+        vx = 0;
+        vy = 0;
+        lastNow = performance.now();
         ensureLoop();
       }
     };
@@ -1521,11 +1539,23 @@ export default function SuperbrainHUD({
                   className="command-engaged"
                   title="Distinct tools engaged this turn · this session"
                 >
-                  {/* The +1 pulse re-keys on a real tool dispatch (dispatchSeq),
-                      so the accent count pulses ONLY when a real tool engages. */}
-                  <strong key={`cmd-eng-${dispatchSeq}`} className="command-engaged-n tabnum">
+                  {/* The +1 pop re-keys on a real tool dispatch (dispatchSeq), so
+                      it fires ONLY when a real tool engages. A settling spring
+                      (not the old symmetric scale keyframe, which bobbed) gives the
+                      count weight: it pops up and settles, never bounces. */}
+                  <motion.strong
+                    key={`cmd-eng-${dispatchSeq}`}
+                    className="command-engaged-n tabnum"
+                    initial={reducedMotion ? false : { scale: 1.18 }}
+                    animate={{ scale: 1 }}
+                    transition={
+                      reducedMotion
+                        ? { duration: 0 }
+                        : { type: 'spring', stiffness: 420, damping: 30, mass: 0.6 }
+                    }
+                  >
                     {engagedLive}
-                  </strong>
+                  </motion.strong>
                   <small className="tabnum">/ {knownTools}</small>
                 </span>
               ) : null}
@@ -1534,8 +1564,17 @@ export default function SuperbrainHUD({
             <span className="execute-wrap" ref={magnetRef}>
               <motion.button
                 className={`execute-button${turnState !== 'idle' && turnState !== 'error' ? ' is-working' : ''}`}
-                whileTap={reducedMotion ? undefined : { scale: 0.97 }}
-                transition={{ duration: 0.12 }}
+                /* Critically-damped spring press (damping ratio ~0.89 on a 3.5%
+                   delta = weight, no bounce): the pilot button depresses under a
+                   fingertip and the spring carries it back with mass, not a flat
+                   tween. Transform-only on the DOM button (react-three-next
+                   separation: never touches the canvas). Instant under reduced motion. */
+                whileTap={reducedMotion ? undefined : { scale: 0.965 }}
+                transition={
+                  reducedMotion
+                    ? { duration: 0 }
+                    : { type: 'spring', stiffness: 520, damping: 34, mass: 0.7 }
+                }
                 type="submit"
                 /* aria-disabled ONLY (no native `disabled`): native disabled
                    removes the button from the accessibility tree, so AT would

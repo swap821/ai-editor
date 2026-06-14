@@ -1999,22 +1999,9 @@ aside.right-console {
   color: var(--accent);
   font-weight: 600;
   font-size: 12px;
-  /* 200ms (was 120ms) lands the +1 dispatch pop mid-band (150-300ms): a confident
-   * "a tool just fired" beat, not a nervous twitch. The single accent motion in
-   * the bar, so its composure is load-bearing. */
-  animation: command-engaged-pulse 200ms var(--ease-out-quart) both;
-}
-
-@keyframes command-engaged-pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.12);
-  }
-  100% {
-    transform: scale(1);
-  }
+  /* The +1 pop is now a framer-motion settle SPRING on the motion.strong itself
+   * (weight, settles, no bounce); the old symmetric CSS scale keyframe (which
+   * bobbed 1 -> 1.12 -> 1, a "toy" bounce) is removed. */
 }
 
 /* Execute: one of the three accent elements on screen.

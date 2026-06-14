@@ -1,15 +1,16 @@
 /**
- * SuperbrainShell — the manufacturing form as THE EMBEDDED FORGE (?ui=shell).
+ * SuperbrainShell · the manufacturing form as THE EMBEDDED FORGE (?ui=shell).
  *
- * The brain stays canon-framed (full, NOT docked into a band — the band broke the
+ * The brain stays canon-framed (full, NOT docked into a band · the band broke the
  * hardcoded nerve projection). In manufacturing mode the work surfaces are mounted
  * INSIDE the one canvas via <ForgePorts/> AT the canon nerve ports (-4.8 editor /
  * +4.8 preview), so the real, unchanged 3D nerves plug straight into the real
- * Monaco + preview — the mind wired into its tools. The command line sits where the
+ * Monaco + preview · the mind wired into its tools. The command line sits where the
  * spinal nerve rendezvous projects (bottom-centre). ONE persistent <WorkspaceCanvas/>;
  * home (?ui=superbrain) renders it with no children and is byte-identical.
  */
 import { useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import CyberCursor from '@/components/ui/CyberCursor';
 import WorkspaceCanvas from '@/components/canvas/WorkspaceCanvas';
 import './superbrain.css';
@@ -19,13 +20,21 @@ import OrgansDock from '../workbench/organs/OrgansDock';
 import ApprovalSafetyNet from '../workbench/approval/ApprovalSafetyNet';
 import '../workbench/shell.css';
 import '../workbench/forge.css';
-// Loaded AFTER superbrain.css (unlayered → beats ported @layer rules); in
+// Loaded AFTER superbrain.css (unlayered, beats ported @layer rules); in
 // manufacturing mode it hides the canon consoles whose ports the forge re-tenants.
 import '../workbench/manufacturing.css';
 
 export default function SuperbrainShell() {
   const [mode, setMode] = useState('home'); // 'home' | 'manufacture'
   const manufacturing = mode === 'manufacture';
+  /* Weighted press spring for the mode levers (additive: framer-motion is already
+   * a dep). Critically damped, so the lever settles with mass and never bounces;
+   * instant under reduced motion. DOM-only (react-three-next separation) - the
+   * brain/canvas are untouched. */
+  const reducedMotion = useReducedMotion();
+  const leverTap = reducedMotion
+    ? {}
+    : { whileTap: { scale: 0.96 }, transition: { type: 'spring', stiffness: 480, damping: 32, mass: 0.7 } };
 
   return (
     <div className="font-sans antialiased">
@@ -41,37 +50,39 @@ export default function SuperbrainShell() {
           /* The directive bar sits at the spinal nerve's rendezvous (bottom-centre);
              the ported .command-bar is hidden by manufacturing.css. */
           <div className="sb-dock-bar">
-            <button
+            <motion.button
               type="button"
               className="sb-voyage-btn"
               onClick={() => setMode('home')}
               title="Return to the full voyage"
+              {...leverTap}
             >
               <span className="sb-dot" />
               Voyage
-            </button>
+            </motion.button>
             <CommandLine />
           </div>
         ) : (
-          <button
+          <motion.button
             type="button"
             className="sb-mode-toggle"
             onClick={() => setMode('manufacture')}
             title="Wire the brain into its forge"
+            {...leverTap}
           >
             <span className="sb-dot" />
             Enter workbench
-          </button>
+          </motion.button>
         )}
       </div>
 
       {/* Additive, read-only governance/learning organs. Collapsed by default;
           self-portals to document.body so the shell's stacking context is
-          irrelevant. Renders in BOTH home and manufacturing modes — governance is
+          irrelevant. Renders in BOTH home and manufacturing modes · governance is
           always observable. The canon home (?ui=superbrain via SuperbrainApp) never
           renders this shell, so it stays byte-identical. */}
       <OrgansDock />
-      {/* Additive approval safety-net — reconciles the persisted adapter pending-approval
+      {/* Additive approval safety-net · reconciles the persisted adapter pending-approval
           truth on a poll/bus/visibility belt-and-suspenders, so a missed
           'approval-required' bus event can never leave a paused run with no clickable
           AUTHORIZE/REJECT. Self-portals to document.body; appears ONLY after a grace
