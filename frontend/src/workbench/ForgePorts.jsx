@@ -159,8 +159,9 @@ export default function ForgePorts() {
                 className="forge-sync"
                 onClick={loadWorkspace}
                 title="Re-read the agent's training_ground workspace"
+                aria-label="Refresh workspace files"
               >
-                ⟳
+                <span aria-hidden="true">⟳</span>
               </button>
               <span className="forge-link" />
             </div>
