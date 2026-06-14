@@ -11,9 +11,14 @@ function publishToBus(event) {
   for (const l of busListeners) l(event);
 }
 
+let mockTrails = [];
+let mockLink = true;
 vi.mock('../../superbrain/lib/aiosAdapter', () => ({
   AIOS_BASE: 'http://test.local',
   getAutonomy: () => mockAutonomy,
+  getKnownTrails: () => mockTrails,
+  getLinkState: () => mockLink,
+  trailLabel: (g) => String(g || '').replace(/\s+/g, ' ').trim().slice(0, 48).toUpperCase(),
 }));
 vi.mock('../../superbrain/lib/cognitionBus', () => ({
   subscribeCognition: (listener) => {
@@ -98,6 +103,8 @@ function mockFetch({ autonomy = AUTONOMY_RICH, curriculum = CURRICULUM, fail = f
 
 beforeEach(() => {
   mockAutonomy = null;
+  mockTrails = [];
+  mockLink = true;
   busListeners.clear();
   try {
     window.localStorage.clear();

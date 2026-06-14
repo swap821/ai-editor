@@ -613,3 +613,110 @@
     transition: none;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-2 ADDITIONS (additive — Skills / Proposals / Memory ports + 5-tab switch).
+   All new surfaces are NON-backdrop-filtered, so the only transitions here are
+   color / border-color (paint-trap law holds — only .organs-panel/.organs-tab are
+   blurred and they are untouched above). Canon var(--token) only; the lone non-
+   token signals are the pre-existing intentional literals (#ff5c5c), double-encoded
+   with text. The single in-port accent is the search input focus ring.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 5-tab switch fit ───────────────────────────────────────────────────────── */
+/* With five tabs + the close button on a fixed 38px / 360px header, the tablist
+   can exceed the row; allow it to scroll horizontally with no visible scrollbar,
+   never wrap (the header height is fixed). The eyebrow drops to its icon only. */
+.organs-switch {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.organs-switch::-webkit-scrollbar {
+  display: none;
+}
+.organs-switch button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 4px 6px;
+}
+/* Icon-only eyebrow (the decorative ORGANS dot with no caption) so 5 tabs fit. */
+.organs-eyebrow--icon {
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* ── Quarantine / RED pill (shared: Skills QUARANTINED + Proposals RED) ──────── */
+/* Clones the .organs-held pill recipe recolored to the canon red fault literal
+   (#ff5c5c — the same intentional non-token signal used by .organs-row--bad). */
+.organs-quar {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 92, 92, 0.4);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ff5c5c;
+}
+
+/* ── Memory · primary score (Memory port right column) ───────────────────────── */
+.organs-score {
+  color: var(--text-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Memory · search row (the ONE in-port accent: the input focus ring) ──────── */
+.organs-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.organs-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 11px;
+  outline: none;
+  /* NOT a backdrop-filtered surface → a border-color transition is paint-safe. */
+  transition: border-color 200ms var(--ease-out-quart);
+}
+.organs-search input::placeholder {
+  color: var(--text-3);
+}
+.organs-search input:focus {
+  border-color: var(--accent);
+}
+.organs-search button {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  border-radius: 10px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 200ms var(--ease-out-quart),
+    border-color 200ms var(--ease-out-quart);
+}
+.organs-search button:hover:not(:disabled) {
+  color: var(--text-1);
+}
+.organs-search button:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}

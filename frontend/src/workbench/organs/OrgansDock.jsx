@@ -4,6 +4,9 @@ import { getAutonomy } from '../../superbrain/lib/aiosAdapter';
 import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
 import AutonomyLedgerPort from './AutonomyLedgerPort';
 import CurriculumPort from './CurriculumPort';
+import SkillsPort from './SkillsPort';
+import ProposalsPort from './ProposalsPort';
+import MemorySearchPort from './MemorySearchPort';
 import './organs.css';
 
 /* ─── ORGANS DOCK ──────────────────────────────────────────────────────────────
@@ -34,10 +37,11 @@ function readBool(key, fallback) {
     return fallback;
   }
 }
+const TABS = ['autonomy', 'curriculum', 'skills', 'proposals', 'memory'];
 function readTab(fallback) {
   try {
     const v = window.localStorage.getItem(TAB_KEY);
-    return v === 'autonomy' || v === 'curriculum' ? v : fallback;
+    return TABS.includes(v) ? v : fallback;
   } catch {
     return fallback;
   }
@@ -51,7 +55,8 @@ export default function OrgansDock() {
   // readers guard window themselves, so these are safe one-shot initializers — no
   // hydration-effect, no setState-in-effect.
   const [open, setOpen] = useState(() => readBool(OPEN_KEY, false));
-  const [active, setActive] = useState(() => readTab('autonomy')); // 'autonomy' | 'curriculum'
+  // 'autonomy' | 'curriculum' | 'skills' | 'proposals' | 'memory'
+  const [active, setActive] = useState(() => readTab('autonomy'));
   const [earned, setEarned] = useState(() => getAutonomy()?.summary?.earned ?? 0);
   const [flaring, setFlaring] = useState(false);
   const flareTimer = useRef(null);
@@ -161,8 +166,10 @@ export default function OrgansDock() {
           className="organs-panel glass-surface"
         >
           <header className="organs-head">
-            <span className="organs-eyebrow">
-              <span aria-hidden="true" /> ORGANS
+            {/* Eyebrow is decorative; with 5 tabs on a 360px header it is icon-only
+                (the dot) so the tablist fits without truncating tab labels. */}
+            <span className="organs-eyebrow organs-eyebrow--icon" aria-label="Organs">
+              <span aria-hidden="true" />
             </span>
             <div className="organs-switch" role="tablist" aria-label="Organ ports">
               <button
@@ -183,6 +190,33 @@ export default function OrgansDock() {
               >
                 Growth
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active === 'skills'}
+                className={active === 'skills' ? 'is-active' : ''}
+                onClick={() => pickTab('skills')}
+              >
+                Skills
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active === 'proposals'}
+                className={active === 'proposals' ? 'is-active' : ''}
+                onClick={() => pickTab('proposals')}
+              >
+                Proposals
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active === 'memory'}
+                className={active === 'memory' ? 'is-active' : ''}
+                onClick={() => pickTab('memory')}
+              >
+                Memory
+              </button>
             </div>
             <button
               type="button"
@@ -194,7 +228,17 @@ export default function OrgansDock() {
             </button>
           </header>
           <div className="organs-body">
-            {active === 'autonomy' ? <AutonomyLedgerPort /> : <CurriculumPort />}
+            {active === 'autonomy' ? (
+              <AutonomyLedgerPort />
+            ) : active === 'curriculum' ? (
+              <CurriculumPort />
+            ) : active === 'skills' ? (
+              <SkillsPort />
+            ) : active === 'proposals' ? (
+              <ProposalsPort />
+            ) : (
+              <MemorySearchPort />
+            )}
           </div>
           <i className="glass-grain" aria-hidden="true" />
         </section>
