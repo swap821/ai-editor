@@ -125,12 +125,40 @@ app = FastAPI(
 
 # Browser clients (the Vite front-end) run on a different origin, so the API
 # must opt them in explicitly. Origins come from config (env-overridable).
+#
+# P0 guard: with allow_credentials=True the CORS spec forbids a wildcard origin,
+# and a "*" or host-less/malformed entry in AIOS_CORS_ORIGINS would silently
+# widen credentialed cross-origin access. Validate at import/startup and FAIL
+# CLOSED (refuse to serve) rather than ship a dangerous config. Methods and
+# headers are also narrowed from "*" to the surface the front-end actually uses.
+def _validate_cors_origins(origins: tuple[str, ...]) -> list[str]:
+    """Reject wildcard/host-less origins so credentialed CORS can't widen silently."""
+    from urllib.parse import urlparse
+
+    validated: list[str] = []
+    for origin in origins:
+        if origin == "*":
+            raise RuntimeError(
+                "AIOS_CORS_ORIGINS may not contain '*' while credentials are "
+                "allowed (the CORS spec forbids it; it would widen credentialed "
+                "cross-origin access). List explicit scheme://host[:port] origins."
+            )
+        parsed = urlparse(origin)
+        if not parsed.scheme or not parsed.netloc:
+            raise RuntimeError(
+                f"AIOS_CORS_ORIGINS entry {origin!r} is not a valid origin "
+                "(expected scheme://host[:port])."
+            )
+        validated.append(origin)
+    return validated
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list(config.API_CORS_ORIGINS),
+    allow_origins=_validate_cors_origins(config.API_CORS_ORIGINS),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 @app.middleware("http")
