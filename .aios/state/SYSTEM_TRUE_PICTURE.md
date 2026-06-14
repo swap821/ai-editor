@@ -1,241 +1,456 @@
-# AI-OS — System True Picture (whole-repository deep read, 2026-06-13)
+# AI-OS — System True Picture (whole-repository deep read, 2026-06-14)
 
-> ⚠️ **SUPERSEDED SNAPSHOT (dated 2026-06-13) — body unchanged, kept as a record.** Since this read,
-> the **multi-LLM library** (cross-provider router + Gemini/Bedrock + hybrid local-LLM pick + evidence
-> calibration) and the **active-brain UI badge** shipped; the suite is now **516 passed / 1 skipped**.
-> This doc's 512/457/458 counts and "doc-drift" notes predate that — current state is `RESUME.md` C0.
-
-> **What this document is.** This is the canonical, whole-system architecture map a future builder should read first. It *extends* `BACKEND_TRUE_PICTURE.md` (2026-06-13), which remains the authoritative read of the Python core (security spine, cognition loop, agent layer, memory, learning, RAG/coordination). This document adds the **frontend** (the 3D "superbrain" lab + the product/classic UIs), the **root tooling/drivers**, the **test suite**, the **config/infra/deploy** surface, the **docs-currency** state — and, most importantly, **how it all composes end to end**: a single request from the UI, down through SSE → cognition → memory → security → earned-autonomy/swarm → audit chain, and back up into the UI as a live stream of events.
+> **This is the canonical whole-system map. Read this first.** It extends
+> [`BACKEND_TRUE_PICTURE.md`](BACKEND_TRUE_PICTURE.md) (the 2026-06-13 deep read of the
+> Python backend core) with the frontend (the GAG superbrain lab + the product/classic
+> UI), the root tooling/drivers, the test suite, config/infra/deploy, and — most
+> importantly — **how it all composes end to end**: a request from the UI → SSE →
+> backend cognition/memory/security → earned-autonomy/swarm → audit chain → back to UI events.
 >
-> It is written for a builder who already trusts that the backend is real (it is — 90% line coverage, 512 passing tests across three suites) and now needs the *map of the whole machine* plus an honest **real-vs-aspirational** ledger.
+> **Division of authority.** For the backend core (security spine, cognition loop, agent
+> layer, memory, learning), `BACKEND_TRUE_PICTURE.md` remains the source of truth and is
+> not repeated here in full. For the frontend, tooling, tests, config, and the
+> system-as-a-whole, this document is authoritative. Non-obvious findings, debt, dead
+> code, doc drift, and footguns live in [`HIDDEN_KNOWLEDGE.md`](HIDDEN_KNOWLEDGE.md); the
+> blueprint-vs-reality phase table lives in [`PLAN.md`](PLAN.md).
+>
+> **Working-tree state at the time of this read.** Branch `feat/jarvis-voice` is checked
+> out and contains everything below. Two feature branches are **unmerged to `master`**:
+> `feat/frontend-renovation` (the honest+premium 2D HUD, dead chrome removed, root `:5173`
+> is now the integration Shell) and `feat/jarvis-voice` (Slice 1 = `POST /api/v1/chat`,
+> a Hinglish conversational mind, no tools). The frozen-canon rule on the 3D brain+space
+> was **lifted by the operator** (the brain is now modifiable — but cherished:
+> enhance, do not replace). Verified test baseline this session: **551 passed / 1 skipped**
+> (`pytest tests/`, 169s) — up from the 457 in the backend snapshot.
 
 ---
 
-## 1. One-paragraph thesis
+## 1. What this system is, in one paragraph
 
-The ai-editor is a **supervised, memory-driven, local-first AI operating system** built around a single load-bearing invariant — **"trust the evidence, not the model"** — carried without compromise through every layer. A weak local LLM (Ollama, 7–8B) *proposes*; deterministic, tested, SQLite-backed machinery *decides*. The backend is a real cognitive loop sandwiched between two layers it cannot bypass (an advisory alignment/router layer above, a fail-closed security spine + audit chain below). The frontend is two UIs over that one backend: a **3D react-three-fiber "superbrain"** (the default, operator-chosen face) that renders the live supervised mind as an organism voyaging through knowledge space, and a **classic Vite/React IDE-chat shell** (behind `?ui=classic`). The same discipline that governs the backend governs the frontend: **no decorative lies** — when the link is down or there is no data, the experience goes honestly dormant rather than faking activity. This is a genuine ~2-week+ system: neither an MVP toy nor flawless. Its frontier is deliberate (tiny autonomous surface, opt-in OS isolation, a 7B model ceiling), not accidental.
+This is a **supervised, memory-driven, local-first AI operating system** with two faces.
+The backend (`aios/`, ~9k LOC Python) is a cognitive loop in which a weak local model
+(Ollama, optionally Bedrock/Gemini via a privacy-gated router) can actually act on a
+workspace — plan, read, write, run, verify, self-correct, and even patch its own source —
+while a **deterministic, fail-closed security kernel and an evidence-based verifier decide
+what is allowed to happen**. The frontend is a single Vite/React SPA that mounts one of
+three UIs at one URL: a 3D "voyaging brain" Shell (now the official default), a classic
+IDE (fallback), and a bare canon home. Both faces stream the *same* supervised turn over
+SSE, share one session, and bind to one backend boundary. The thesis carried through every
+layer is **"trust the evidence, not the model"**: anywhere a lesser design would let the
+LLM's word stand ("safe", "confident", "passed", "approved"), a piece of non-LLM code
+(pattern-matching, SQLite, exit codes, a hash chain) re-derives or re-proves the claim.
+This is a real ~2-week+ system that **exceeds its own blueprint on the backend core**,
+is genuinely production-shaped where it counts, and has honest, named edges (no voice
+audio, no knowledge-graph traversal, no observability stack, opt-in OS isolation,
+lopsided frontend test coverage).
 
 ---
 
 ## 2. Top-level component map
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ OPERATOR (single supervised developer, his own machine)                        │
-└──────────────────────────────────────────────────────────────────────────────┘
-        │ types a turn in the command bar / clicks AUTHORIZE / REJECT
-        ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ FRONTEND  (one mount switch: frontend/src/main.jsx:10-22)                       │
-│                                                                                │
-│  DEFAULT ── SUPERBRAIN (3D r3f) ──────────┐     CLASSIC ── ?ui=classic ───────┐│
-│  lab canon: GAG demo/gag-orchestrator     │     frontend/src/App.jsx (IDE/chat)││
-│  ported byte-faithfully into              │     SSE via frontend/src/lib/sse.js ││
-│  frontend/src/superbrain via `npm run port`│    + config.js (token-aware)      ││
-│                                            │                                    ││
-│   cognitionBus (pub/sub spine)             │                                    ││
-│   ├─ SuperbrainScene  (3D organism)        │                                    ││
-│   ├─ SuperbrainHUD    (DOM-in-canvas)      │                                    ││
-│   ├─ MemoryGalaxy     (real trails=stars)  │                                    ││
-│   ├─ soundEngine      (synth voice)        │                                    ││
-│   ├─ metricsStore     (single source)      │                                    ││
-│   └─ aiosAdapter  ◄── THE ONLY BACKEND BOUNDARY ──────────────────────────────┐│
-└──────────────────────────────────────────────────────────────────────────────┘│
-        │  POST /api/generate (SSE)   +   20s poll: /trails /metrics /audit /autonomy
-        ▼                                                                          │
-┌──────────────────────────────────────────────────────────────────────────────┐ │
-│ HTTP SURFACE  (aios/api/main.py — 31 routes, FastAPI, ~1767 lines)             │ │
-│  lifespan: deploy-policy (non-loopback ⇒ ≥32-char token), DB init, backend     │ │
-│  validate, optional vector shield │ CORS + Bearer middleware │ DI for providers │ │
-│  /api/generate ─ event_stream() ─ emits SSE frames ──────────────────────────►─┘ │
-│  step│text_chunk│code│earned_autonomy│human_required│error│done                  │
-└──────────────────────────────────────────────────────────────────────────────┘
-        │  composes the turn (DI)
-        ▼
-┌───────────────────────────── BACKEND CORE (aios/) ──────────────────────────────┐
-│  ABOVE (advisory):  AlignmentInterpreter → model_selector (auto/ollama/bedrock)  │
-│                                                                                  │
-│  MIDDLE (cognition): ToolAgent reason→act→observe loop  (DEFAULT_MAX_ITERS=5)    │
-│    9 tools: read_file read_directory execute_terminal edit_file create_file      │
-│             verify plan self_analyze propose_fixes                                │
-│    optional: WORKER SWARM (run_swarm: decompose→N gated workers→synthesize)       │
-│    optional: ROLE-PASS castes (planner→coder→reviewer, verifier-evidence auth)    │
-│                                                                                  │
-│  BELOW / AROUND (deterministic, fail-closed — the cage):                         │
-│    security spine: gateway (3-zone RED-default) → scope_lock → secret_scanner     │
-│                    → injection_shield(opt-in) → audit_logger (SHA-256 chain)      │
-│    approvals: single-use, session-bound, digest-only capability tokens            │
-│    verifier: exit-code-authoritative; _auto_verify force-runs sibling pytest      │
-│    executor: shell=False argv, env-secret strip, host OR hardened Docker sandbox  │
-│    self_apply: the only writer of aios/ source (human-gated, snapshot→rollback)   │
-│    earned_autonomy (off by default): verified-evidence → GREEN bridge, RED-unearnable│
-│                                                                                  │
-│  MEMORY (multi-store cognitive model):                                           │
-│    L1 working (RAM) · L2 episodic · L3 semantic (FAISS+SQLite) · L3b facts        │
-│    · L4 mistakes · procedural skill TRAILS (stigmergy) · curriculum · dev-metrics │
-│    hybrid retrieval: R = 0.25·BM25 + 0.45·FAISS + 0.30·decay                      │
-└──────────────────────────────────────────────────────────────────────────────┘
-        │  every security decision + self-apply intent
-        ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ AUDIT LEDGER  aios_audit.db  (SHA-256 hash-chain, genesis=64 zeros, O(n) verify)│
-│   redact-before-hash · cross-process BEGIN IMMEDIATE · distinct earned-autonomy │
-│   entry · surfaced back to UI via GET /api/v1/audit/verify (TAMPER alarm)        │
-└──────────────────────────────────────────────────────────────────────────────┘
+                                  ┌─────────────────────────────────────────────────────┐
+   BROWSER (one Vite SPA)         │  main.jsx  —  ?ui= mount switch (code-split per UI)   │
+   http://localhost:5173          │   (no flag)/?ui=shell → SuperbrainShell  [DEFAULT]    │
+                                  │   ?ui=classic          → App.jsx (classic IDE)        │
+                                  │   ?ui=home/superbrain  → SuperbrainApp (bare canon)   │
+                                  └───────────────┬─────────────────────────────────────┘
+                                                  │
+   ┌──────────────────────────────────────────────┼──────────────────────────────────────────┐
+   │ THE SUPERBRAIN SHELL (default)                │   THE CLASSIC IDE (?ui=classic)            │
+   │  WorkspaceCanvas (one persistent R3F <Canvas>)│    file tree · Monaco · live preview       │
+   │   ├ SuperbrainScene (3D organism, shaders)    │    chat · terminal/git · model picker      │
+   │   ├ SuperbrainHUD  (DOM HUD, in-canvas)       │    DiffView approval · self-analysis panel │
+   │   ├ ForgePorts (Monaco+preview at nerve pts)  │    own SSE parser (lib/sse.js)             │
+   │   ├ OrgansDock (10 read-only organs)          │                                            │
+   │   └ ApprovalSafetyNet (triple-redundant)      │                                            │
+   │      ↑ all subscribe to ↓                     │      ↑ own approval/route handling ↓        │
+   │  cognitionBus (pub/sub) · metricsStore · soundEngine                                       │
+   │            └──────────────── aiosAdapter.ts (THE data spine) ──────────────┘              │
+   └────────────────────────────────────┬──────────────────────────────────────────────────────┘
+                                         │  HTTP / SSE  (POST /api/generate · /api/v1/chat ·
+                                         │               20s poll: /development/{trails,metrics,
+                                         │               autonomy} + sampled /audit/verify)
+                                         ▼
+   ┌──────────────────────────────────────────────────────────────────────────────────────────┐
+   │ FastAPI  aios/api/main.py  (~2270 LOC, ~33 routes)                                          │
+   │  CORS allow-list · token/loopback auth middleware · lifespan startup policy                 │
+   │  ┌──────────────────────────────────────────────────────────────────────────────────────┐ │
+   │  │ TURN PIPELINE (the cage)                                                               │ │
+   │  │  AlignmentInterpreter (advisory) → model Router (privacy-gated) → ToolAgent loop       │ │
+   │  │      reason → act → observe (≤5 iters)                                                  │ │
+   │  │        every action ▶ Security Gateway (GREEN/YELLOW/RED, fail-closed)                  │ │
+   │  │        YELLOW ▶ human_required (resumable approval) │ RED ▶ refused (even if approved)  │ │
+   │  │        write ▶ snapshot → audit → apply → _auto_verify (sibling pytest)                 │ │
+   │  │        Verifier: exit code is authoritative truth                                      │ │
+   │  │        earned-autonomy bridge: verified-streak class auto-applies (OFF by default)      │ │
+   │  │        swarm:true ▶ worker castes (coder/reviewer) under the same gate                  │ │
+   │  └──────────────────────────────────────────────────────────────────────────────────────┘ │
+   │  Memory (data/, gitignored):  L1 working · L2 episodic · L3 semantic(FAISS) · L3b facts ·   │
+   │                               L4 mistakes · skills(stigmergy) · curriculum · dev tracker     │
+   │  Security spine (frozen core): gateway · scope_lock · secret_scanner · audit_logger ·        │
+   │                                injection_shield   →   SHA-256 hash-chained audit ledger       │
+   │  Executor: shell=False argv · host runner (default) | DockerRunner (opt-in, hardened)        │
+   │  Self-apply / Rollback: snapshot → git apply --check → audit → confined apply → integrity →  │
+   │                         verify → auto-rollback (RED frozen core refused; no self-approval)    │
+   └──────────────────────────────────────────────────────────────────────────────────────────┘
+        ▲                                              ▲
+        │ root drivers (operator CLIs, hit the HTTP)   │ legacy tier (ORPHANED from live system)
+   curriculum_evidence_driver.py · swarm_demo.py ·     hybrid_search.py · ingest_*.py ·
+   earn_demo.py · agent_coord.py (disk control plane)  vector_memory_setup.py · reset_audit_chain.py
 
-  OUT-OF-BAND (operator control plane, NOT in the request path):
-   agent_coord.py (Claude+Codex single-writer lease + hash-pinned review)
-   curriculum_evidence_driver.py / swarm_demo.py / earn_demo.py (live evidence drivers,
-     hard fail-closed allowlist: training_ground/*.py writes + pytest only)
-
-  DEAD / SUPERSEDED (in tree, off the product path):
-   legacy_node/ (19 files — complete Node prototype), root RAG scripts
-   (hybrid_search.py, ingest_*.py, vector_memory_setup.py) keyed to orchestrator_memory.sqlite
+   GAG demo/gag-orchestrator/  —  the Next.js superbrain LAB (gitignored nested repo; canon
+   SOURCE for the 3D UI; byte-ported into frontend/src/superbrain via tools/port-to-frontend.mjs)
 ```
 
-**Tracked surface (262 files):** `frontend/` (76), `aios/` (46 — the live Python core), `tests/` (40), `training_ground/` (29 — the agent's writable sandbox), `legacy_node/` (19 — dead prototype), `.aios/` (19 — tracked Claude Code continuity brain).
+---
+
+## 3. Layer by layer
+
+### 3.1 Backend core (`aios/`) — see `BACKEND_TRUE_PICTURE.md`
+
+The backend is the deepest, most proven part of the system and is documented authoritatively
+in the backend read. In brief, it composes six subsystems into one organism:
+
+| Subsystem | One-line truth | Status |
+|---|---|---|
+| **Security spine** (frozen core) | Deterministic 3-zone classifier, fail-closed everywhere; shell-operator-aware scope tokenizer; SHA-256 hash-chained audit ledger (redact-before-hash, cross-process `BEGIN IMMEDIATE`) | **Solid / proven**, 53 tests |
+| **Cognition loop** | `ToolAgent` reason→act→observe; tool-call recovery for 4 observed prose shapes; orthogonal security/confidence gates; `_auto_verify` runs sibling pytest; RED never grantable by approval | **Solid / proven** |
+| **Agent layer** | 9 real tools; resumable filepath-keyed approval (`_pre_apply_grants` fixes the dropped-grant replay bug); reflection-on-failure; role-pass castes from verifier evidence only; Self-Analysis T0–T4; guarded self-apply | **Solid / proven**, 148 tests |
+| **Cognitive memory** | L1/L2/L3/L3b/L4 multi-store; crash-consistent FAISS writes (`IndexIDMap`); hybrid `R=α·BM25+β·FAISS+γ·decay` with real Okapi BM25; partial-unique-index invariants pushed into SQLite | **Solid / proven**, ~65 tests |
+| **Learning** | Stigmergic skill trails (asymmetric pheromone, constants test-pinned); held-out-gated curriculum; evidence-gated promotion; the most mature subsystem | **Solid / proven**, 31 tests |
+| **RAG + coordination** | Production retrieval live-wired into `/api/generate`; disk-based two-agent control plane with hash-pinned review verdicts | **Solid / proven**, 13 coord tests |
+
+**Backend frontier (unchanged from the backend read):** the autonomous GREEN surface is
+deliberately tiny (host mode auto-runs only `echo`/`pwd`); strong OS isolation is opt-in
+(Docker), not default; the model is the ceiling (planning advisory, calibration a no-op on
+a cold DB, castes "architecture proven / 7B-limited"); skill/lesson/curriculum recall is
+lexical-only; the growth stores have no forgetting/compaction; the audit chain has no
+external anchoring.
+
+### 3.2 The superbrain lab (canon source) — `GAG demo/gag-orchestrator/`
+
+The **byte-faithful source** of the 3D UI. A Next.js 16 + react-three-fiber interface that
+renders the AI-OS as a living, voyaging brain in deep knowledge space — the authored
+"wow-factor face." It is a **separate, gitignored nested repo** (the operator's own lab;
+confirmed: `git ls-files` misses it, `.gitignore:50` ignores the whole dir) and is the
+canon source that `tools/port-to-frontend.mjs` copies into `frontend/src/superbrain/`.
+
+What makes it genuinely production-grade for its scope (~90–95% complete, ~9.1k LOC read):
+
+- **One nervous system, three singletons.** `lib/cognitionBus.ts` (synchronous, fault-isolated
+  pub/sub), `lib/metricsStore.ts` (`useSyncExternalStore`, NOT zustand), and `lib/aiosAdapter.ts`
+  (the *only* backend boundary — streams `POST /api/generate` SSE and polls
+  `/api/v1/development/{trails,metrics,autonomy}` + `/api/v1/audit/verify`, translating every
+  frame/poll into bus events).
+- **Honest-data discipline enforced in code, not docs.** Offline, the metric rows render `--`
+  rather than the store's demo drift; the terminal goes silent rather than inventing lines; the
+  verified-trail `+N` delta only paints on a real hash-chain growth; a rejection is asserted
+  *only* when the server confirmed `decision==='rejected'` — otherwise it reads
+  `"rejected (unconfirmed — token will expire)"` (`SuperbrainHUD.tsx:453-469`,
+  `lib/aiosAdapter.ts:407-413`).
+- **Causal sentience.** A dispatched tool lights the anatomical lobe that owns the work
+  (plan→frontal, read→temporal, write→parietal) via a keyword→wave-anchor map shared by the
+  scene, region pins, and HUD routing (`SuperbrainScene.tsx:487-510`, `RegionPins.tsx:43-74`).
+- **Operator sovereignty + FIDELITY-IS-SACRED.** The topbar sovereignty row
+  (FIDELITY/SKY/SURFACE/SOUND) only the operator's click ever writes; the quality-tier
+  governor is **declawed by law** — `TierGovernor.onDecline` only publishes an advisory and
+  **never auto-degrades** (`TierGovernor.tsx:43-60`), and the goldens/canon discipline
+  (canon-v1, sky-A/B, organ-v1) backs it.
+- **GPU context-loss resilience**, a fully-synthesized WebAudio voice bound to the same bus
+  (sovereign/silent until the operator's click), and a byte-faithful port pipeline with a
+  manifest-drift tripwire.
+
+**Lab gaps/debt:** the heavy 3D/shader code (the bulk of the tree) is verified only by manual
+screenshots/goldens, not automated assertions; `SuperbrainScene.tsx` (1,312 lines) and
+`SuperbrainHUD.tsx` (1,827 lines) are single-file god-components; `lib/constants.ts` is largely
+dead (`LAYOUT_CONFIGS`, `SPRING_CONFIGS`, etc. exported but zero consumers); `QualityTierProvider`'s
+`effectiveTier`/`demoteTier` are dead in production (FIDELITY-IS-SACRED overrode the dimming path
+the doc comment still describes); `PROJECT.md` is stale (lists a renamed file and marks shipped
+runtime-integration as "Planned").
+
+### 3.3 Product frontend — `frontend/src/`
+
+A single Vite 8 + React 19 SPA. **Mount selection is a `?ui=` switch in `main.jsx`** (verified):
+no flag / `?ui=shell` → `SuperbrainShell` (the **official default**); `?ui=classic` → the classic
+`App.jsx`; `?ui=home`/`superbrain` → bare canon `SuperbrainApp`. Each branch's heavy stack is
+code-split so only the mounted UI loads.
+
+**The superbrain dir is byte-identical to the lab** — verified clean (ignoring CRLF). Because the
+lab uses Next-style `@/...` imports, `vite.config.js` aliases `@`→`./src/superbrain` and a
+`define` shim bridges `VITE_API_BASE`/`TOKEN` → the lab's `process.env.NEXT_PUBLIC_*`, so the
+ported files stay overwrite-safe under `npm run port` while unifying the backend origin.
+
+**The product-authored additive layer** (`frontend/src/workbench/*`) self-portals to
+`document.body` so it never enters the R3F reconciler or perturbs the brain:
+
+- **`ForgePorts.jsx`** mounts a real Monaco editor + sandboxed live-preview *as in-scene
+  `<Html>` panels* at the canon nerve world-points (−4.8 / +4.8), each flaring on the matching
+  real bus event, and syncs editor tabs to the agent's **real on-disk** `training_ground`
+  workspace via `/development/workspace` — path-independent of whether the write landed by
+  approval or by earned-autonomy auto-write (the only correct way to show what the mind
+  *actually wrote*, since the auto-write path never pauses).
+- **`OrgansDock.jsx`** hosts **ten read-only observability organs** (Conversation, Autonomy
+  Ledger, Curriculum, Skills, Proposals, Memory L3 probe, Plan, Intent, Zone Probe, Models),
+  each encoding a 3-to-5-state honesty model (loading/live/empty/stale-keep-last/offline) and
+  deliberately keeping destructive controls *out* of the HUD layer (observe-first governance).
+- **`ApprovalSafetyNet.jsx`** is a genuinely subtle reliability fix: triple-redundant
+  (poll + bus + visibility) recovery of a missed approval signal, behind a 1.5s grace gate, so
+  a paused run is never un-actionable — and it renders *only* when the canon panel demonstrably
+  failed (zero double-UI in the healthy path).
+
+**The classic IDE (`App.jsx`, ~1875 lines)** is a full self-contained file-explorer + Monaco +
+live-preview + chat + terminal/git + alignment/self-analysis IDE with its own SSE parser
+(`lib/sse.js`) and its own approval/route/earned-autonomy handling, plus approval-on-diff via
+`DiffView.jsx` (which closes the blueprint's old "no file-edit diff preview" gap).
+
+**Product frontend status: ~90% as a working, wired product.** Evidence: 11 test files / **65
+tests pass** (vitest, ~9.3s); a fresh `dist/` build exists (2026-06-14); every organ binds to a
+real backend endpoint with honest offline states. **Gaps:** test coverage is lopsided — only the
+classic libs + `OrgansDock` + `ApprovalSafetyNet` are tested; the 10 organ ports, `ForgePorts`,
+`SuperbrainShell`, and the entire ported superbrain lib/scene/HUD have **zero product-side tests**.
+The classic Monaco editor is a manual scratch workspace **decoupled from the agent** (generated
+`code` frames are explicitly NOT written to files; no `/development/workspace` sync in classic).
+`Workbench.jsx` is superseded/dead (replaced by `ForgePorts`). `MODEL_TAGS`/`PROVIDER_META`
+advertise dozens of models the live picker can't actually serve (aspirational metadata).
+
+### 3.4 Root tooling + drivers (repo-root Python)
+
+Two non-overlapping tiers share the repo root:
+
+**(1) Current "driver" tier (~95%, live-wired).** Operator-authorized, hard-allowlisted CLIs that
+orchestrate the live backend over HTTP and produce auditable evidence:
+- **`agent_coord.py`** — a self-contained `sqlite3` coordination control plane
+  (`.aios/state/coordination.db`): single writer-lease mutex (`BEGIN IMMEDIATE` + WAL), 50/50
+  builder routing, and **SHA-256 tree-snapshot hash-pinning** so a review verdict is refused if
+  the tree changed after handoff and a builder cannot approve their own handoff. The only driver
+  not dependent on the live server.
+- **`curriculum_evidence_driver.py`** — the operator-delegated approver + SSE driver. Defines the
+  **canonical hard allowlist** (`ALLOWED_FILE_RE`/`ALLOWED_CMD_RE`: only `.py` directly under
+  `training_ground/` and only single-file anchored `pytest`), fail-closed on the first
+  out-of-allowlist action, with append-only JSONL audit. It is built to *catch the product lying
+  to itself* (warns on "verified success with no curriculum increment").
+- **`swarm_demo.py`** / **`earn_demo.py`** — reuse that driver's audited helpers verbatim (one
+  source of truth for the guardrail) to drive the swarm and prove the zero-approval auto-grant.
+
+**(2) Legacy "Phase 3 Intelligence Layer" tier (orphaned).** `hybrid_search.py`, `ingest_*.py`,
+`vector_memory_setup.py`, `reset_audit_chain.py`, `pdf_util.py`, `extract_text.py` build/query a
+standalone FAISS+SQLite RAG store and a tamper-audit table in **`orchestrator_memory.sqlite`** —
+which **the live system no longer uses** (the live stores are under `data/`). Functionally complete
+but effectively dead relative to the running product. **Footgun:** `reset_audit_chain.py` operates
+on the legacy DB while the live verifier reads `data/aios_audit.db`, so it "succeeds" loudly while
+having **zero effect on the chain the product verifies** — a silent no-op that looks like a fix.
+`vector_memory_setup.py` `DROP`s its table with no confirmation.
+
+### 3.5 Test suite
+
+Three independent suites, **~654 green total, verified this session**:
+
+| Suite | Result (verified) | Character |
+|---|---|---|
+| Backend pytest (`tests/`, 43 files) | **551 passed / 1 skipped** (169s) | Behavioral, fault-injecting, fakes-at-the-edges |
+| Product vitest (`frontend/`, 11 files) | **65 passed** (~9.3s) | Classic libs + 2 workbench files |
+| Lab vitest (`GAG demo/`, 5 files) | **38 passed** | Adapter/bus/sound/tier honesty contracts |
+
+**The backend suite is the project's primary evidence-of-correctness gate and is genuinely strong**
+(~85–90% of the cognition/security/memory/router surface), and **not mostly happy-path**: it
+exercises fail-closed-to-RED on internal exception, ~12 scope-escape vectors, the audit
+hash-chain with 4-thread/80-entry concurrency, a load-bearing golden vacuity guard (deliberately
+drops a finding to prove the freeze catches drift), earned-autonomy streak-grant/instant-revoke,
+and privacy invariants **asserted against raw SQLite bytes**. The linchpin is `conftest.py` setting
+`AIOS_DATA_DIR` to a temp dir *before* `aios.config` is imported, so the whole run never touches
+real `data/`.
+
+**The "1 skipped" is environment-dependent, not broken** — it's the vector-shield
+semantically-novel-injection test gating on embedding-model availability; on a provisioned host it
+runs and passes. (Note: the prior `457`/`516` baselines quoted across docs are stale; the true
+current count is **551**.)
+
+**The weak leg is the product frontend** — ~34 non-test src files, ~10 test files; the 1875-LOC
+`App.jsx`, `main.jsx`, and the large superbrain/workbench 3D surface are essentially untested by
+unit tests (covered only indirectly by the lab tests + manual FIDELITY screenshots). **No
+repo-wide coverage threshold is enforced anywhere** (no `.coveragerc`, no `--cov`, no vitest
+coverage gate). Live/E2E proof lives in untracked `training_ground/` scripts outside the default
+`pytest.ini` gate.
+
+### 3.6 Config, infra, deploy
+
+**Config (~95%, production-grade for the stated single-laptop target).** `aios/config.py` is a
+genuine single source of truth: 60+ `AIOS_*` flags via typed accessors with local-first defaults,
+`.env` auto-loaded on import, `DATA_DIR` created at import time, every subsystem reading its
+tunables here and wired into FastAPI via `Depends(...)` so tests swap fakes. The privacy gate is
+deterministic and unspoofable by a model: `AIOS_ROUTER_CLOUD_TASKS` is empty by default
+(`auto` never routes to cloud), parsed once into a frozenset with unknown task names silently
+dropped, and the hybrid LLM picker can re-order but never escape the allowed set. Secret hygiene is
+layered and real (keys never persisted; the executor strips `*KEY*`/`*TOKEN*`/`*SECRET*`/`*BEARER*`/
+etc. from every child env). The token-gated API hard-requires a ≥32-char token before it will boot
+on a non-loopback host.
+
+**Deploy/infra readiness is materially lower (~50–60%).** The security primitives for a hardened
+deploy *exist* (token policy, CORS allow-list, hardened `DockerRunner` for the executor sandbox,
+no-secret-persistence) but there is **no deployment artifact**: no `uvicorn.run` entrypoint
+(the server is a hand-typed `python -m uvicorn aios.api.main:app`), no docker-compose/Procfile/
+systemd unit, no TLS/reverse-proxy guidance, and **no CI** (`.github/` absent). A real footgun:
+**`AIOS_API_HOST`/`AIOS_API_PORT` are dead for binding** — read only by the startup policy check
+and CORS, never passed to uvicorn, so setting `AIOS_API_HOST=0.0.0.0` expecting a public bind
+silently leaves you on loopback. `requirements.txt` is a flat freeze with no dev/optional split
+(heavy ML deps mandatory even when embedding is disabled), and `Dockerfile.executor` installs the
+*full* requirements into a sandbox that only needs Python+pytest (multi-GB image bloat).
 
 ---
 
-## 3. The end-to-end composition (how one turn actually flows)
+## 4. How it all composes — the end-to-end request
 
-This is the spine of the whole system and the part no single-subsystem read captures. A turn is a **bidirectional stream**: a request descends through the cage, and a narrated event stream rises back into the organism.
+This is the most important section: the subsystems are not a pile of features; they form one
+control flow in which **cognition is sandwiched between deterministic layers it cannot bypass.**
 
-### 3.1 The request, descending
+### 4.1 An agentic turn (the forge: `POST /api/generate`)
 
-1. **UI → adapter.** The operator types in the superbrain command bar. `aiosAdapter.streamTurn` (`GAG demo/gag-orchestrator/src/lib/aiosAdapter.ts`, ported into `frontend/src/superbrain/lib/`) POSTs to **`/api/generate`** with the prompt, any `approval_tokens`, `approved_commands/edits/creations`, and optional `swarm:true`. It is the **single backend boundary** — every other frontend module talks only to the cognition bus, never to HTTP.
-2. **HTTP policy gate.** `main.py` lifespan already enforced deploy policy (non-loopback host ⇒ ≥32-char `AIOS_API_TOKEN`, `main.py:89-94`); the auth + CORS middleware (`main.py:120-149`) gates the call (loopback-only by default, constant-time token compare when set).
-3. **Turn composition.** `/api/generate` (`main.py:1291`) builds the turn via DI: `AlignmentInterpreter` frames it (advisory, redacted, **non-authoritative**) → `model_selector` routes (`auto` ⇒ best installed tool-capable local model; `ollama.x` ⇒ local; any other id ⇒ Bedrock-or-503) → constructs the `ToolAgent` with planner/self-analysis LLMs, executor, approved-runner, reflection hook.
-4. **The cognitive loop runs inside the cage.** `ToolAgent.run` executes reason→act→observe. Every consequential action is funneled through `gateway.classify` (GREEN auto / YELLOW human / RED blocked, **RED by default** for anything not provably safe), `scope_lock` canonicalization (training_ground/ only), and `audit_logger` (logged **before** the bytes touch disk). Reads are secret-scrubbed before the model sees them. After an approved write lands, `_auto_verify` **autonomously** runs the file's sibling pytest and feeds the authoritative PASS/FAIL back into the conversation.
-5. **Memory in the loop.** Before the turn, `_recall_memory` injects tiered recall (`VERIFIED TRUSTED MEMORY` vs `UNVERIFIED PRIOR CHAT — use as a lead, never evidence`) plus verified skill trails. After, `record_outcome` writes development + skill + curriculum evidence **keyed strictly off the verifier verdict**.
+1. **UI → SSE.** The operator types a directive in the Shell's `CommandLine` (or the classic
+   chat box). `aiosAdapter.streamTurn` POSTs to `/api/generate` with `modelId:'auto'` and the
+   shared `aios_session_id` (the same localStorage key the classic UI uses — both faces continue
+   **one** backend conversation). Note the 3D experience has no model picker, so it can only ever
+   run the backend's auto-route; model selection is a classic-only feature.
+2. **Frame the turn (advisory).** The backend runs `AlignmentInterpreter` (a validated, redacted,
+   explicitly **non-authoritative** understanding frame) and the **privacy-gated Router**
+   (`_select_chat_client` → `_router_policy()` re-read fresh each call) to pick the provider/model.
+   The chosen `(provider, model)` is announced **lazily** over the `route` SSE frame — only after
+   the first real output, and re-announced on a mid-turn failover — so the badge never advertises a
+   ranked-but-uninvocable primary. The adapter narrates this onto the bus as the **active-brain**
+   badge.
+3. **The cage: `ToolAgent` reason→act→observe (≤5 iters).** The local model proposes tool calls
+   (robustly recovered from 4 prose shapes), but **every consequential action funnels through the
+   security gateway** — most-dangerous-wins zone classification, fail-closed to RED on empty/
+   unknown/exception. The adapter narrates each frame as cognition: `tool_call` → agent-dispatch
+   + lobe lighting, `[VERIFY PASS/FAIL]` → knowledge-acquired verdict, `route` → active-brain.
+4. **YELLOW → resumable approval.** A YELLOW action (anything real — pytest, edits, installs, git)
+   pauses the *whole turn* with a `human_required` frame. The adapter raises the approval surface
+   (the diff is the decision surface); `ApprovalSafetyNet` guarantees the AUTHORIZE button is
+   always reachable above the organs (z-index ladder 55 < 60 < 62). AUTHORIZE replays the turn with
+   the server-issued **single-use, session-bound token**; the server records the *exact* pending
+   action and grants are **keyed by filepath and pre-applied before the model speaks**
+   (`_pre_apply_grants` — the fix for the dropped-grant replay bug). REJECT only claims "rejected"
+   when the server confirmed it.
+5. **RED → refused, always.** A RED action is refused even if listed as approved
+   (`execute_approved` re-classifies). Human approval can never authorize RED — stricter than a
+   typed-token override.
+6. **Write → snapshot → audit → apply → verify.** An approved write is snapshotted, **audited
+   before it is written** (no ledger entry → no write), applied via atomic write confined to a
+   single file, then **`_auto_verify` autonomously runs the file's sibling pytest** through the
+   gated Verifier. The Verifier treats **exit code as authoritative truth**; the authoritative
+   PASS/FAIL is fed back into the conversation so the model's next turn is anchored to evidence,
+   not its own prose. A genuine failure fires reflection → a structured lesson into the mistake
+   pool.
+7. **Memory + learning loop.** Before the turn, relevant memory is recalled and tiered into
+   "VERIFIED TRUSTED MEMORY" vs "UNVERIFIED PRIOR CHAT (use only as a lead)". After, the verdict
+   drives `record_outcome` (development + skill-trail + curriculum evidence, keyed strictly off the
+   verifier verdict), then `record_reuse` credits/stains recalled trails. The pheromone math is
+   asymmetric and the DIRECT/REUSE evidence boundary means co-occurrence can never launder a
+   candidate into "verified".
+8. **Earned autonomy (OFF by default).** If `AIOS_EARNED_AUTONOMY` is enabled and a write *class*
+   has crossed the verified-streak threshold (default 5 consecutive verified successes), that class
+   auto-applies **without pausing for approval** — a distinct, audit-tagged hash-chain entry
+   carrying the evidence. A single verified failure instantly revokes it. RED is structurally
+   un-earnable. The adapter surfaces this as a topbar AUTONOMY count + a CAPABILITY EARNED event;
+   because the auto-write never pauses, `ForgePorts` reads the on-disk workspace to show what was
+   actually written. (Two independent paths can briefly disagree: the live `earned_autonomy` SSE
+   frame fires immediately, while the every-poll `/development/autonomy` probe drives the
+   persistent count — the count can lag the action by up to one poll.)
+9. **Swarm (`swarm:true`).** The worker swarm builds a multi-file toolkit under the *same* gate;
+   role-pass castes derive reviewer authority **from verifier evidence only** (`[VERIFY PASS/FAIL]`),
+   never from model prose. The adapter narrates castes and counts auto-grants vs human approvals.
+10. **Audit chain → back to the UI.** Every security-relevant decision lands in the SHA-256
+    hash-chained ledger (redact-before-hash, cross-process integrity). The adapter samples
+    `/api/v1/audit/verify` every 5 polls and raises **AUDIT CHAIN BROKEN** on tamper. The 20s poll
+    of `/development/{trails,metrics,autonomy}` fires bus events only on genuine reinforcement /
+    candidate→verified mastery / failure-weakening, which become MemoryGalaxy stars, region-pin
+    metrics, and the autonomy ledger — closing the loop from real backend evidence back to the
+    living 3D organism.
 
-### 3.2 The events, ascending
+### 4.2 A conversational turn (the voice mind: `POST /api/v1/chat`, Slice 1)
 
-`event_stream()` (`main.py:1358`) is a generator that emits typed SSE frames as the loop progresses. The exact frame vocabulary (verified in source) and what each does on screen:
-
-| SSE frame | Emitted when | Backend site | Superbrain reaction |
-|---|---|---|---|
-| `step` | every tool dispatch / verify verdict | `main.py:1610` | agent-dispatch + region thought-wave; `[VERIFY PASS/FAIL]` → knowledge-acquired / red shadow |
-| `text_chunk` | model prose | `main.py:1613` | terminal log stream |
-| `code` | code block | `main.py:1615` | code surfacing |
-| `earned_autonomy` | a write auto-applied with **no** human pause (class earned it) | `main.py:1618-1623` | `AUTONOMY ⚡N` pill, "AUTONOMOUS ACTION" |
-| `human_required` | a YELLOW action pauses the turn | `main.py:1624-1701` | breath freezes amber, ApprovalPanel shows real diff/command; AUTHORIZE replays with token, REJECT POSTs `/api/v1/approval/req` |
-| `error` | turn error | `main.py:1616` | honest failure surfacing |
-| `done` | turn end | `main.py:1702` | answer persisted (L2), turn consolidated (L3), per-target final verdict computed |
-
-The frontend parses these with `parseSseBuffer` (`frontend/src/lib/sse.js`, 22 lines — carries partial frames across network chunks) in the classic UI, and with the richer `aiosAdapter` in the superbrain (which maps each frame onto `cognitionBus` events). **The approval pause is the product thesis rendered across five subsystems**: on `human_required` the organism's breath freezes mid-inhale, cortex/wires/aura tint amber, the starfield clock dilates to 30%, the camera dollies in, and the sound engine plays an unresolved suspended 2nd — a supervised mind visibly deferring.
-
-### 3.3 The ambient channel (polling, not in the turn)
-
-Separately from turns, `aiosAdapter.pollOnce` runs every 20s: reads `/development/trails` + `/metrics`, samples `/audit/verify` every 5 polls and `/development/autonomy` every poll. This drives the whole HUD from **real data** — link dot, measured latency, verified/candidate counts, intervention rate — and feeds `metricsStore` (the single source of truth shared by HUD intake rows and brain RegionPins). Each real pheromone trail becomes a persistent GPU star in `MemoryGalaxy` (brightness = strength, size = walks, red pulse = quarantine); a `valid:false` from `/audit/verify` flips the shield to **TAMPER** with a sustained tritone alarm. **Honest dormancy is enforced here**: no trails ⇒ no stars; link down ⇒ LINK OFFLINE, not faked activity.
-
----
-
-## 4. Layer-by-layer
-
-### 4.1 Backend core (aios/) — see BACKEND_TRUE_PICTURE.md for the deep read
-
-Unchanged and authoritative. The five-part summary: **security spine** (frozen core, fail-closed every direction, RED-by-default allowlist, SHA-256 hash-chained audit with redact-before-hash); **cognition loop** (orthogonal security/confidence gates, force-verify-after-write, `_extract_text_tool_calls` recovering 4 real prose shapes through one allowlist, **human approval can never authorize RED**); **agent layer** (9 tools, resumable filepath-keyed approval grants, role-pass castes, self-apply with no agent apply-tool); **memory** (L1–L4 + facts, crash-consistent FAISS via `IndexIDMap`, hybrid `0.25·BM25 + 0.45·FAISS + 0.30·decay`); **learning** (stigmergic skill trails with asymmetric pheromone, held-out-gated curriculum, evidence-only promotion). **Surplus beyond the blueprint** lives here too: earned-autonomy (`aios/core/autonomy.py`), self-analysis T0–T4, swarm, role-pass.
-
-### 4.2 Frontend — the superbrain (default) + classic (`?ui=classic`)
-
-**One mount switch** (`frontend/src/main.jsx:10-22`): the comment confirms the operator's 2026-06-12 decision — the superbrain *is* the official frontend; classic is behind `?ui=classic`; each UI's stack is lazy-loaded.
-
-**The superbrain** is a Next.js 16 + react-three-fiber 3D organism whose canonical source is the **lab** (`GAG demo/gag-orchestrator/`); `npm run port` copies the byte-faithful "live set" into `frontend/src/superbrain/`. Its architecture:
-- **`cognitionBus.ts`** — a ~67-line module-singleton pub/sub (NOT zustand; `stores/` is empty). Every layer (scene, HUD, sound, metrics, tier, galaxy) hangs off this one event stream. This is what makes it read as one organism.
-- **`aiosAdapter.ts`** — the single backend boundary (680 lines, 13 tests). All SSE frame types + the 20s poll/audit/autonomy cadence + the approval token lifecycle + fault-isolated offline honesty.
-- **`SuperbrainScene.tsx`** — the 3D organism (1312-line monolith): per-vertex anatomical region color baking so labeled knowledge lights the *same* lobe every time; ONE shared-uniform object (`SCENE_UNIFORMS`) written once per frame so cortex shader, aura shells, fireflies and wires breathe phase-locked; thought-wave GLSL shared between cortex and fireflies anchored to tool-kind.
-- **`SuperbrainHUD.tsx`** — the DOM HUD (1169 lines) rendered **inside** the `<Canvas>` via drei `<Html>`+`createPortal` to `#hud-portal-root`; topbar sovereignty row (FIDELITY · SKY · SURFACE · SOUND, each changed only by the operator's own click), terminal log, intake rows, command bar, approval host.
-- **`metricsStore.ts`** (single source of truth, `useSyncExternalStore`), **`MemoryGalaxy.tsx` / `CognitiveGrasp.tsx`** (real trails → deterministic persistent stars + recall glints), **`soundEngine.ts`** (fully synthesized WebAudio voice, no assets, sovereign-silent until the operator's SOUND click, with limiter + OS-interruption recovery), **`PostFX.tsx`** (hand-built AgX + log-space contrast + W3C soft-light split-tone grade co-designed with the bloom ladder).
-
-**Resilience:** webglcontextlost grace window then Canvas remount via `glEpoch`; `WebGLErrorBoundary` fallback; HUD state seeded from the adapter singleton so a GPU-loss remount never drops a pending approval hold; true-boot races the backend for 1.6s and replaces lore with real version/trail facts.
-
-**The classic UI** (`frontend/src/App.jsx`, 1817 lines) is the IDE/chat shell: SSE streaming turns parsed via `frontend/src/lib/sse.js`, diff/proposals panels, alignment panels. It is token-aware (`frontend/src/config.js` wires `VITE_AIOS_API_TOKEN` → Bearer header) — **the superbrain adapter is not** (see §6 deploy gap).
-
-### 4.3 Root tooling + drivers (the operator's control plane, OUT of the request path)
-
-Three families:
-- **`agent_coord.py`** — a real, production-grade Claude+Codex coordination control plane: SQLite over `.aios/state/coordination.db`, single-writer "worktree" lease with TTL+heartbeat (atomic compare-and-swap under `BEGIN IMMEDIATE`), 50/50 builder routing, and **SHA-256 hash-pinned review handoffs** — `tree_snapshot` hashes HEAD + binary tracked diff + sorted untracked file bytes, so `record_verdict` fail-closes if the tree changed after handoff and forbids a builder approving their own work. Wired into AGENTS.md III-A and `.vscode/tasks.json`. (~95% complete for its CLI role.) Honest limit: it is a *passive* disk lock + ledger — identity is honor-system, enforcement is cooperative.
-- **Live HTTP evidence drivers** — `curriculum_evidence_driver.py` (streams `/api/generate` SSE, replays through approvals, classifies by FINAL `[VERIFY PASS/FAIL]`, appends verbatim evidence to `.aios/audit/curriculum-evidence-run.jsonl`) plus `swarm_demo.py` and `earn_demo.py`, which **import** the driver's vetted allowlist helpers verbatim (single-sourced, not copy-pasted). The allowlist is adversarially tight: `^…$`-anchored `training_ground/*.py` writes + `pytest` on a single such file only — no pip, no shell, no traversal — and `reject_and_abort` `sys.exit`s on the first violation, even re-running the allowlist on its own deletion targets.
-- **LEGACY/dead** — `hybrid_search.py`, `ingest_knowledge.py`, `ingest_update.py`, `vector_memory_setup.py`, `reset_audit_chain.py`, `pdf_util.py`, `extract_text.py`. **DB split-brain**: these key off `orchestrator_memory.sqlite` while production uses entirely different DBs (`aios_memory.db`, `aios_audit.db`, `aios_approvals.db` — `aios/config.py:99-103`). They are reachable only from `legacy_node/memoryAgent.js`, superseded by `aios/memory/*`, and `extract_text.py` is dead (its source PDF is gone). `reset_audit_chain.py` is effectively a no-op against the live ledger (it clears the *legacy* table; its `sqlite_sequence` delete matches nothing on the live `entry_id` schema).
-
-### 4.4 Test suite — three independent suites, 512 passing + 1 skipped
-
-| Suite | Files | Tests | Verified result | Runner |
-|---|---|---|---|---|
-| Backend (`tests/`) | 28 + conftest | 458 collected | **457 passed, 1 skipped** (~60–86s) | pytest |
-| Product frontend (`frontend/src`) | 9 `.test.{js,jsx}` | 29 | all pass | vitest + RTL |
-| Lab orchestrator (`GAG demo/.../src/test`) | 4 | 26 | all pass | vitest |
-
-**Live-measured 90% line coverage of `aios/`** (5087 stmts, 510 missed; lowest module `memory/semantic.py` at 81%, none below). The dominant pattern is **"real gateway, fake runner"**: fakes are only the non-deterministic edges (LLM chat, shell spawn, embedder); the security/scope/audit/verify machinery runs for real, so tests prove **genuine refusal**, not mocked returns. Negative-path density is unusually high (self_apply: 18 tests, ~15 refusal/rollback; security: ~32 incl. fail-closed-on-exception). Distinctive contracts under test: a `VERIFICATION RED` event provably never plays the 1318.5Hz success tick (`soundEngine.test.ts`); the adapter's honest `LINK OFFLINE`/`rejected (unconfirmed)` degradation is itself tested (`aiosAdapter.test.ts`); a self-validating golden harness proves its drift check is not vacuous.
-
-**Honest caveats:** the "457 passed" project-memory figure is **backend-only and omits the 1 skip** (the symlink-escape security test, `skipif win32` — so that guarantee is **never exercised on the developer's own Windows machine**, only on POSIX CI). The true all-suite total is **512 passing**. There is **no single "run everything" gate** — `pytest` runs only `tests/` and says nothing about the 55 JS/TS tests. No coverage threshold is enforced (no `--cov-fail-under`), so the strong 90% is discipline, not a gate. No test ever exercises a real subprocess, real Docker container, or real Ollama/Bedrock model — the suite proves the **wiring and gating** are correct but cannot catch a regression in actual shell-quoting, container flags, or live SSE byte-framing.
-
-### 4.5 Config + infra + deploy
-
-`aios/config.py` is a flat module of `Final` constants populated by typed env accessors (`AIOS_*` overridable, gitignored root `.env`), with safe fallbacks (bad ints/bools fall back, never crash). Filesystem state lives under one gitignored `DATA_DIR`. The HTTP layer's lifespan enforces deploy policy; the executor (`aios/core/executor.py`) offers host **or** a genuinely hardened Docker backend (`--network none --read-only --cap-drop ALL --user 65534`, noexec tmpfs, env-secret stripping). **~85% complete for a single-laptop target; ~55% for true multi-user/internet deploy** — and that gap is deliberate and documented.
-
-### 4.6 Docs currency
-
-Three tiers. The **`.aios/` live continuity layer** (RESUME, CEO_LOG, EVIDENCE_CURRICULUM, BACKEND_TRUE_PICTURE) is ~95% current and genuinely disciplined (CEO_LOG honestly tracks the test-count climb 116→…→458). The **Tier-1 operating docs** (README/AGENTS/START_HERE/KICKOFF) are ~70% current — structurally correct but ~3 days and two feature waves stale: the **375/1 test baseline is hard-coded into four docs** (now 458), the README never mentions the superbrain (the default UI since 06-12), earned-autonomy, or swarm, and two README.md files are untouched scaffolding templates. `websocket_security_update.md` is fully orphaned (describes a transport the active HTTP+SSE stack does not use).
+New on `feat/jarvis-voice` (verified at `main.py:2138`). This is **conversation, not the agentic
+forge**: `tools=None`, **no `ToolAgent` loop, no file writes**. It reuses the same cross-provider
+router (privacy gate fully intact — `auto` stays local-only by default), injects real operator
+facts + recalled memory under a Hinglish persona prompt, calls the chat client **once**, and
+**fake-streams the reply word-by-word over the same SSE wire shape** (`route` → `text_chunk` →
+`done`) so the existing UI reader works identically for local and cloud. User + assistant turns are
+persisted to L2/L3 exactly like `/api/generate`. **There is no STT/TTS audio anywhere** — the
+branch name "jarvis-voice" describes the conversational mind, not voice I/O; STT/TTS is the
+deferred frontend modality.
 
 ---
 
-## 5. What is REAL vs ASPIRATIONAL (the honest ledger)
+## 5. What is real vs aspirational (the honest summary)
 
-### 5.1 Solidly real and proven (do not re-litigate)
+### Real and proven (production-shaped, end-to-end wired, tested where it matters)
 
-- **The security spine + audit chain.** Fail-closed every direction, RED-by-default, SHA-256 hash-chain with cross-process integrity (proven by a 4×20 concurrent-append test landing one valid 80-entry chain), redact-before-hash. The frozen core that earns the name.
-- **The cognition loop end-to-end.** Wired in `main.py` (not test-only), force-verify-after-write, exit-code-authoritative verdicts, orthogonal security/confidence gates, **RED un-grantable even after human approval**.
-- **The memory + learning layers.** Multi-store cognitive model with DB-enforced invariants (partial unique indexes), crash-consistent FAISS writes, faithful hybrid retrieval, stigmergic skill trails with the exact asymmetric pheromone constants pinned by test. The learning layer is the most mature thing in the repo.
-- **Self-application.** The OS patches its own source through a snapshot → `git apply --check` → audit-before-write → single-file-confined apply → independent two-snapshot byte-comparison → gated verify → auto-rollback path, with **no agent apply-tool** (structural no-self-approval).
-- **The superbrain frontend as a polished product UI** (~90% for its scope): full cognition bus, adapter (all SSE frames + poll/audit/autonomy), HUD, approval recipe, sound engine, galaxy, sovereignty row, GPU resilience. Bound to **real** backend data with honest dormancy.
-- **Earned-autonomy + swarm are wired and shipping** (`main.py:40,433,1581,1618`), tested at both ledger and end-to-end levels, with a distinct earned-autonomy audit-chain entry.
-- **The coordination control plane** (hash-pinned review, single-writer lease) and the **live evidence drivers** (which produced a real audited 6/6-mastered curriculum proof over the same HTTP surface the human UI uses).
-- **The test discipline itself**: 90% coverage, 512 passing tests, adversarial/negative-path-dominant, "real gateway, fake runner."
+- The **deterministic security foundation**: gateway, scope-lock, secret scanner, hash-chained
+  audit ledger, approval capabilities, verifier, self-apply, rollback — solid, fail-closed,
+  53+ tests, and it **earns** the "frozen core" label.
+- The **supervised cognition loop** and **multi-store memory** with real hybrid retrieval and the
+  exact blueprint formula — exceeds the blueprint's own self-assessment.
+- The **stigmergic learning layer** — the most mature subsystem; principled pheromone math with
+  test-pinned constants and a clean DIRECT-vs-REUSE evidence boundary.
+- The **earned-autonomy bridge, worker swarm, multi-LLM hybrid router (Bedrock+Gemini+Ollama with
+  a privacy gate), self-analysis T0–T4, and curriculum-driven learning** — all real surplus the
+  blueprint never asked for, all backend-verified.
+- The **two frontends**: the 3D superbrain Shell (default) and the classic IDE, both binding to a
+  real backend over SSE with genuine honest-offline contracts; the integration Shell at root
+  `:5173` works home↔workbench at one URL.
+- The **operator tooling** that drove a real, audited 6/6-mastered curriculum learning proof and
+  the earned-autonomy zero-approval proof against the same HTTP surface the human UI uses.
+- A **551-pass backend suite** that tests contracts (fail-direction, no-secret-persistence, tamper
+  precision, RED-not-grantable), not incidentals.
 
-### 5.2 Real but deliberately narrow (the designed frontier)
+### Aspirational / deferred-by-plan / honest edges (named, not hidden)
 
-- **The autonomous surface is tiny by design.** In host mode the GREEN auto-execute allowlist is **two patterns** (`echo`, `pwd`). Everything real — pytest, edits, installs, git — is YELLOW and needs a human. Earned-autonomy is the one bridge widening this, and it is **off by default**, double-gated, and **RED-un-earnable**. This is correct for a supervised OS; it means unattended capability is near-zero unless explicitly opened.
-- **Strong OS isolation is opt-in, not default.** The hardened `DockerRunner` is real; the default `host` backend is candidly **not** an OS isolation boundary. The strongest boundary depends on Docker being present.
-- **The model is the ceiling.** Planning is advisory, calibration is a no-op on a cold DB, castes are "architecture proven / 7B-limited," and curriculum matching is exact-prompt-string (live-proven via a controlled run, narrow for organic chat). The mechanism layer is built to receive a better brain.
-- **Recall has two named lexical seams** (skill/lesson/curriculum recall is lexical despite a full semantic FAISS stack sitting right there; BM25 runs only over the FAISS candidate pool) and **the growth stores have no forgetting** (episodic append-only, semantic only superseded — monotonic growth on a long-running install).
-
-### 5.3 Aspirational, stale, or genuinely absent (do not mistake for built)
-
-- **VOICE = 0%.** Blueprint §4.2/§12 specify Whisper STT + Piper TTS; there is no STT/TTS/audio dependency anywhere in `aios/` or `requirements.txt`. The single biggest blueprint-vs-reality gap (correctly deferred). *(The superbrain's `soundEngine` is synthesized UI sonification — not voice I/O.)*
-- **Full knowledge graph (Neo4j + multi-hop) = not built.** Product reality is a flat SQLite triple store with contradiction detection (`aios/memory/facts.py`) — intent met, backend honestly downscoped. A 1-hop graph exists only in the dead `legacy_node/knowledgeGraph.js`, which a careless `grep "knowledge graph"` would surface misleadingly.
-- **Observability (Prometheus + Grafana + docker-compose) = not built.** Blueprint §10 specifies an 8-service Compose topology; reality has only `Dockerfile.executor` (the sandbox image — **not** an app/server image) and an internal JSON `/api/v1/development/metrics`. The alert-rule tables are documentation-only.
-- **No app-level deployment artifact / uvicorn entrypoint.** The server is a hand-typed `python -m uvicorn aios.api.main:app` one-liner; there is **no** `if __name__=="__main__"`, no docker-compose, no Procfile, no TLS/reverse-proxy sample. `AIOS_API_HOST/PORT` are read by the policy check but do not bind the server unless mirrored on the CLI.
-- **The PROJECT.md/lab roadmap is stale** (marks "runtime integration" as Planned though `aiosAdapter` fully implements it; lists files that do not exist). The Tier-1 docs froze at the 375-test baseline. The blueprint *itself* deliberately understates ("~45% implemented") and the reality has moved far past even its own §00 reconciliation.
-- **No automated tests for any 3D/R3F component, HUD, ApprovalPanel, MemoryGalaxy, or shader logic** — the scene's correctness rests on 37 golden PNGs + 15 puppeteer probes a human must eyeball. A regression in wave anchoring or hold choreography would not fail CI.
-
-### 5.4 Security/hygiene findings a future builder must action
-
-- **🔴 Live Bedrock credential on disk.** `frontend/.env` contains a real, currently-valid AWS Bedrock bearer token (`ABSK…`) **plus** shell launch commands. It is gitignored and verified **never in git history** (no leak via the repo), but it is a live secret in the wrong place (a frontend dir; Bedrock is backend-only) misnamed as a dotenv. **Rotate and relocate to the backend env.**
-- **Deploy auth gap in the default UI.** The superbrain `aiosAdapter` sends **no** Authorization header (only the classic `config.js` wires a Bearer token). A token-protected / non-loopback deploy of the default UI would get 401s on every call.
-- **CORS with `allow_credentials=True` + wildcard methods/headers** is fine for the loopback defaults, but there is no validation that an operator-added `AIOS_CORS_ORIGINS` entry isn't `*` — credentialed cross-origin access could widen silently.
-- **Audit chain has no external anchoring.** A local hash chain without an out-of-band root of trust: an attacker with full write access can recompute a self-consistent forgery. Inherent to the single-laptop threat model; periodic off-box notarization of the head hash is the fix the moment this system matters enough to attack.
-
-### 5.5 Tracked debt to clean (misleads future readers, not broken)
-
-- `legacy_node/` (19 files — complete dead Node prototype of the *entire* system; referenced by nothing live).
-- Root RAG scripts (DB split-brain, off the product path) + dead `extract_text.py`.
-- Tracked cruft: `success.txt` ("OS Online"), `creator.txt` (0 bytes), `chat-ui.html` (stale "Jarvis" demo), `websocket_security_update.md` (orphaned).
-- Two untracked 50-byte `assert True` stubs in `training_ground/` (`test_auto_grant.py`, `test_autonomy_live.py`) — earn/auto-grant demo residue, NOT real tests, and NOT collected by `pytest` (testpaths=tests).
-- Monolith files: `aios/api/main.py` (1767), `aios/agents/tool_agent.py` (1528), `SuperbrainScene.tsx` (1312), `App.jsx` (1817), `superbrain.css` (1825); `constants.ts` carries ~120 lines of dead `LAYOUT_CONFIGS` from a prior panel-based design the scene never reads.
-- The ~1.3MB lazy `SuperbrainApp` JS chunk (three.js + r3f stack) is dwarfed by **~4.5MB of brain PNG textures** — the real download weight is textures, not JS.
+- **Voice (audio) = 0%.** No whisper/piper/STT/TTS code or dependency anywhere. Only the text-only
+  `/api/v1/chat` Slice 1 exists. (Blueprint scheduled voice for Phase 4 — deferred by plan.)
+- **Knowledge-graph traversal = not built.** `facts.py` is a contradiction-aware flat triple store
+  with no multi-hop/Neo4j. (Notably, the graph *was* once built in the deprecated `legacy_node/`
+  generation and not ported — built-then-dropped, not never-attempted.)
+- **Observability stack = not built.** No Prometheus/Grafana/docker-compose/`/metrics`; only an
+  internal JSON `/development/metrics` endpoint that nothing scrapes.
+- **Deploy story = doc-only.** No uvicorn entrypoint, no compose/Procfile/systemd/TLS, no CI; the
+  `AIOS_API_HOST/PORT` flags don't actually bind.
+- **Strong OS isolation = opt-in.** The hardened `DockerRunner` is real but the default host mode
+  runs approved code as the backend user (the docstrings are candid about this).
+- **The model is the ceiling.** Planning is advisory, calibration is a no-op on a cold DB, castes
+  are "architecture proven / 7B-limited," and curriculum matching is exact-prompt-string — organic
+  progression is narrow until a 14B+ local model or a semantic-match layer lands.
+- **Frontend test coverage is lopsided**, and **no repo-wide coverage gate** exists.
+- **Doc drift is the dominant non-code debt.** The pytest baseline is hand-copied (and stale) in
+  ~7 docs; `AGENTS.md` still says "~75-80%" while newer docs say ~80-85%; the lab `PROJECT.md`
+  marks shipped work as "Planned"; `frontend/README.md` is the stock Vite template; the running
+  install's cloud posture (`ROUTER_CLOUD_TASKS=('reasoning','coding')`, Bedrock+Gemini enabled via
+  the gitignored `.env`) diverges from the documented "local-only default" — only `RESUME.md`
+  captures it.
+- **Repo hygiene.** `legacy_node/` (a full dead parallel implementation), a dead root
+  `hybrid_search.py` duplicate, orphaned `creator.txt`/`success.txt`/`chat-ui.html`,
+  `websocket_security_update.md` documenting a WebSocket surface that doesn't exist, ~4.4 MB of
+  committed brain textures, no TypeScript typecheck in the toolchain, and a 0-byte `.eslintrc.json`.
 
 ---
 
 ## 6. Bottom line for the next builder
 
-You have a **real, coherent, internally-consistent supervised AI-OS** whose defining quality is **intellectual honesty enforced as code** — it refuses to let an LLM's word stand anywhere it matters, it tells the truth about its own weaker modes in docstrings, and that same discipline now extends to the frontend, which goes honestly dormant rather than faking a living mind. The deterministic foundation (security spine, audit chain, approvals, scope-lock, verifier, self-apply, the memory state machines) is genuinely solid and proven at the level of its contracts; the superbrain is a polished, real-data-bound product face for it.
+You have a **real, coherent, internally-consistent supervised AI-OS** whose defining quality is
+**intellectual honesty enforced as code**. The hard, unglamorous foundation — the security spine,
+audit chain, approval capabilities, scope-lock, verifier, self-apply, the memory state machines,
+the stigmergic learning — is genuinely solid and proven, and the backend **exceeds its own
+blueprint**. The two frontends are real and live-bound, with the 3D superbrain Shell now the
+official face and the classic IDE as a working fallback; both honor the "show only real data"
+contract down to rendering `--` rather than a fabricated number offline.
 
-The frontier is not about fixing what's broken — it's three deliberate moves the system is *built to receive*: **earned autonomy** (widen the gated evidence→GREEN bridge), **a better brain** (clear the 7B/RAM ceiling and close the semantic-recall + forgetting gaps that come with running longer), and **default-strong isolation** (make the container boundary the norm). The immediate hygiene actions are smaller and concrete: **rotate the `frontend/.env` Bedrock token**, plumb auth into the superbrain adapter before any non-loopback deploy, add a single "run everything" test gate across the three suites, and refresh the Tier-1 docs (test count, superbrain default, autonomy, swarm) to point at the `.aios/state/*_TRUE_PICTURE.md` pair as the architecture source of truth.
+The frontier is not about fixing what's broken — it's about three deliberate moves and a clean-up:
+**(1)** widen the earned-autonomy bridge and make the container the default isolation where Docker
+is present; **(2)** get a better brain (the 14B+ model / semantic-recall / forgetting gaps that
+come with running longer); **(3)** turn the deferred edges into product — voice audio I/O on top of
+the shipped `/api/v1/chat`, knowledge-graph traversal (a SQLite recursive-CTE closes most of it
+without Neo4j), and a real deploy artifact + CI. And throughout: **collapse the doc drift to one
+canonical, single-sourced test baseline** and quarantine the legacy/dead tier so a future reader
+can never mistake `reset_audit_chain.py` for a fix or `legacy_node/` for canon.
 
-The hard, unglamorous part — the part most people never finish — is the part already built.
-
----
-
-*Synthesis of 8 whole-repo lens reads (superbrain frontend, classic frontend, root tooling, test suite, docs currency, config/infra/deploy, cross-cutting audit, blueprint-vs-reality) folded over the 6-subsystem `BACKEND_TRUE_PICTURE.md`. Composition path, SSE frame vocabulary, mount switch, and autonomy/swarm wiring re-verified against source (`aios/api/main.py`, `frontend/src/main.jsx`, `frontend/src/lib/sse.js`). 2026-06-13.*
+Merge the two feature branches when ready; everything described here lives on `feat/jarvis-voice`
+and is green at **551 passed / 1 skipped**.
