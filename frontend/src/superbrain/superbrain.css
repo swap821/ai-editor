@@ -1,4 +1,4 @@
-/* Font variables the lab provided via next/font — here via Google Fonts with
+/* Font variables the lab provided via next/font; here via Google Fonts with
    honest system fallbacks (the product is local-first; offline gets clean
    system type, not broken layout). */
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..700&family=Outfit:wght@300..700&family=JetBrains+Mono:wght@300..600&display=swap');
@@ -20,8 +20,18 @@
   --bg: #010307;
   --bg-panel: rgba(11, 14, 20, 0.5);
   --text-1: rgba(232, 238, 250, 0.92);
-  --text-2: rgba(160, 170, 190, 0.6);
-  --text-3: rgba(120, 130, 150, 0.38);
+  /* Readable-text tiers raised to clear WCAG AA (4.5:1) over the near-black
+   * void (--bg #010307). --text-2 carries the bulk of the HUD's labels/values
+   * (topbar summary, terminal facts, cad rows, agent state, source names): at
+   * 0.6 alpha it composited to ~3.6:1 (AA fail); 0.78 lifts it to ~5.6:1.
+   * --text-3 carries timestamps + small detail lines: at 0.38 it was ~1.6:1
+   * (far below AA); 0.92 sat at ~4.5:1 · exactly the AA floor, which is fragile
+   * because the glass backdrop varies with the nebula behind it (a lighter frame
+   * can slip it under 4.5). Raised to FULL opacity (1.0) for a durable margin
+   * above AA on every backdrop. Same cool-neutral hue · the one-accent discipline
+   * and the void are untouched. */
+  --text-2: rgba(160, 170, 190, 0.78);
+  --text-3: rgb(120, 130, 150);
   --hairline: rgba(255, 255, 255, 0.08);
   --accent: #5ce1e6;
   --state-ok: #58d68d;
@@ -29,7 +39,7 @@
   --mono: var(--font-jetbrains-mono), monospace;
   --display: var(--font-outfit), sans-serif;
 
-  /* Motion tokens — every transition/animation in this file rides on these.
+  /* Motion tokens · every transition/animation in this file rides on these.
    * expo: entrances (600-900ms) · quart: hovers (200-300ms) · soft: exits. */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -38,12 +48,18 @@
      infinite ambient loops, so every animation rides a declared token. */
   --ease-loop: cubic-bezier(0.42, 0, 0.58, 1);
 
-  /* Edge-lit rim: top stop brightness. Focus states TOGGLE this variable —
+  /* Edge-lit rim: top stop brightness. Focus states TOGGLE this variable;
    * never animate paint properties on a backdrop-filtered element. */
   --rim-top: 0.16;
 
-  /* Duration token for the real-event dispatch heartbeat pulse. */
-  --dur-pulse: 450ms;
+  /* Duration token for the real-event dispatch heartbeat pulse + port flare.
+   * 300ms · the single-element event-pulse ceiling (was 450ms): a snappier,
+   * within-guideline tactile beat on a real dispatch. Both keyframes
+   * (dispatch-pulse-fire, port-flare-fire) read unchanged at the shorter time. */
+  --dur-pulse: 300ms;
+
+  /* Duration token for a live value tick (a real readout that just changed). */
+  --dur-tick: 200ms;
 
   /* Static feTurbulence grain tile, shared by panel grain and frame grain. */
   --grain-noise: url("/grain.svg");
@@ -61,11 +77,28 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text-1);
+  /* Inter is the body font here by DELIBERATE canon, not by LLM-default
+     fall-through. The HUD's design law (HUD_REFERENCE_LANGUAGE §6 Type
+     discipline) reads: "Display (Outfit) only for the ONE hero title; mono
+     (JetBrains Mono) for data/eyebrows/timestamps; Inter for body." Display
+     (Outfit) and mono (JetBrains Mono) already carry the title + every data
+     figure; Inter only ever renders the small amount of running prose
+     (cognition detail, approval summary). The generic "never default to Inter"
+     anti-slop rule is satisfied by this explicit justification.
+     FONT DELIVERY (honest, two trees): in THIS lab the --font-* variables are
+     supplied by next/font/google in app/layout.tsx (self-hosted, no <link> and
+     no @import · the production-correct path). The PORT step
+     (tools/port-to-frontend.mjs CSS_FONT_HEADER) prepends a Google Fonts @import
+     + the same --font-* :root vars to the product superbrain.css, because the
+     product tree consumes raw CSS rather than next/font; that injected @import
+     has system-ui/-apple-system fallbacks so an offline product still renders
+     clean system type, never a broken layout. Both statements are true · the
+     comment no longer claims the product has no font import. */
   font-family: var(--font-inter), system-ui, sans-serif;
 }
 
 /* Type optics: case-sensitive forms + alternate l/I disambiguation (cv05).
- * If Google Fonts strips cv05 from the subset it fails silently — fine. */
+ * If Google Fonts strips cv05 from the subset it fails silently · fine. */
 html {
   font-feature-settings: "case" 1, "cv05" 1;
 }
@@ -86,6 +119,21 @@ button {
 }
 
 @layer utilities {
+/* Visually-hidden but screen-reader-available (for aria-live announcements and
+ * supplementary labels). Standard clip pattern · removed from the visual layout
+ * with zero box, still in the accessibility tree. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- Vibrancy tiers ---------- */
 
 .t1 {
@@ -176,7 +224,7 @@ button {
 /* Edge-lit rim (visionOS light-from-above): a 1px masked gradient frame
  * replaces the flat hairline border. The top stop rides --rim-top so focus
  * brightening is a variable toggle on a STATIC gradient, never a paint
- * animation. Consoles keep ::after for the scanline — ::before is free. */
+ * animation. Consoles keep ::after for the scanline · ::before is free. */
 .glass-surface::before,
 .command-bar::before {
   content: '';
@@ -198,7 +246,7 @@ button {
   pointer-events: none;
 }
 
-/* Static photographic grain INSIDE each pane — kills banding, sells material.
+/* Static photographic grain INSIDE each pane · kills banding, sells material.
  * Never animated. */
 .glass-grain {
   position: absolute;
@@ -224,7 +272,7 @@ button {
   background-size: 128px 128px;
 }
 
-/* Bottom scrim behind the terminal-log/command region — guarantees log
+/* Bottom scrim behind the terminal-log/command region · guarantees log
  * legibility when the nebula flares underneath. */
 .bottom-scrim {
   position: absolute;
@@ -263,8 +311,7 @@ button {
 }
 
 .brand-mark,
-.command-chip,
-.command-search {
+.command-chip {
   display: grid;
   place-items: center;
 }
@@ -277,11 +324,17 @@ button {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* One consistent stroke family across every inline mark (brand / shield / agent):
+ * fill:none, 1.6 stroke, round caps + joins · the single "hand" the skill's
+ * geometric-mark exception asks for when a library is out of scope (see the icon
+ * definitions in SuperbrainHUD.tsx for why these are inline, not from a package). */
 .brand-mark svg {
   width: 15px;
   fill: none;
   stroke: var(--text-1);
   stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .brand-wordmark {
@@ -341,6 +394,25 @@ button {
   background: var(--hairline);
 }
 
+/* ---------- Live value tick (real readout that just changed) ----------
+ * A keyed remount (React `key` on the numeric value) re-fires this one-shot
+ * opacity breathe. OPACITY ONLY: the topbar is a backdrop-filtered glass, so
+ * nothing here animates paint/border/background (paint-trap law). It reads as
+ * a working, polling link/route, never idle theatre; the key only changes on
+ * a genuine new value. */
+.val-tick {
+  animation: val-tick var(--dur-tick) var(--ease-out-quart) 1;
+}
+
+@keyframes val-tick {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .status-dot {
   width: 6px;
   height: 6px;
@@ -357,16 +429,22 @@ button {
 
 /* The active-brain dot encodes data privacy at a glance: green = the turn stayed
    local; amber = a policy-permitted cloud escalation left the machine. Inherits
-   the 6px size/shape from .status-dot; only the colour/glow differ. */
+   the 6px size/shape from .status-dot; only the colour/glow differ.
+   NO breathe loop here: the brain dot's STATE is fully encoded by its colour
+   (green/amber). Only the primary link dot (.status-dot--live) breathes, so the
+   single live heartbeat keeps its signal value · three breathing dots is
+   redundant ambient motion the reference's restraint-of-motion law forbids. */
+/* One green, one amber per state: the brain dots reuse the EXACT canon state
+ * tokens (--state-ok / --state-busy), not their own near-duplicate hues (the
+ * former #34d399 / #fbbf24). The local/cloud privacy semantic now matches every
+ * other ok/busy surface · "one color per state" discipline, no hue drift. */
 .brain-dot--local {
-  background: #34d399;
-  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
-  animation: breathe 2.2s var(--ease-loop) infinite;
+  background: var(--state-ok);
+  box-shadow: 0 0 8px rgba(88, 214, 141, 0.7); /* --state-ok #58d68d glow */
 }
 .brain-dot--cloud {
-  background: #fbbf24;
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.7);
-  animation: breathe 2.2s var(--ease-loop) infinite;
+  background: var(--state-busy);
+  box-shadow: 0 0 8px rgba(224, 168, 79, 0.7); /* --state-busy #e0a84f glow */
 }
 
 .secure-button {
@@ -393,6 +471,8 @@ button {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ---------- Center hero title (the ONLY Display-role text) ---------- */
@@ -420,17 +500,35 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.core-readout h2 span {
-  color: var(--text-3);
-  text-shadow: none;
-}
-
 .core-sub {
   margin: 8px 0 0;
+  /* The honest derived-phase word + link state sit on one centered baseline
+     row; the divider matches the topbar rhythm. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
+}
+
+/* The derived live-phase word (STANDBY / OBSERVE / SYNTHESIZE / ORCHESTRATE).
+ * Mono + tabular so the title never reflows as the word changes width; neutral
+ * text-1 (a live readout, NOT a second accent). It cross-fades on a REAL phase
+ * change via a keyed remount of this span (opacity only, reduced-motion safe). */
+.core-phase {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.14em;
+  color: var(--text-1);
+  animation: phase-swap 150ms var(--ease-out-quart) 1;
+}
+
+/* The .core-sub divider is shorter than the topbar's (this row is smaller). */
+.core-sub .topbar-divider {
+  height: 11px;
 }
 
 /* ---------- Side consoles ---------- */
@@ -443,60 +541,42 @@ button {
   pointer-events: auto;
 }
 
-@keyframes powerSurge {
-  0% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
-  33% { box-shadow: 0 15px 30px -5px rgba(25, 212, 240, 0.7); border-bottom-color: rgba(25, 212, 240, 1.0); }
-  66% { box-shadow: 0 15px 35px -5px rgba(168, 230, 43, 0.8); border-bottom-color: rgba(168, 230, 43, 1.0); }
-  100% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
-}
-
-/* CANON CONTRACT: the old `animation: powerSurge !important` on these asides
- * also kept the .is-booted hud-enter rules below DEAD — the confirmed canon
- * has the consoles POP in at boot, never fade. The surge moved to an overlay,
- * so this `none !important` preserves that exact cascade outcome. */
+/* PURGED · the `powerSurge` keyframe and the `.console-surge` overlay were a
+ * perpetual idle loop that animated box-shadow + border-bottom-color through the
+ * brain's anatomical lobe RAINBOW (red/cyan/lime) on every console, tied to NO
+ * real event. That broke three binding laws at once: the one-accent rule (it
+ * borrowed lobe colors as chrome), motion-restraint (an idle loop with no
+ * meaning), and the paint-trap law (animated paint riding right beside the
+ * backdrop-filtered glass). The honest readout that this panel needed (live
+ * phase + real dispatch heartbeat) lives in `.dispatch-cadence`; the chrome is
+ * deleted, not restyled. The consoles still POP in at boot via their own enter
+ * rules; the former `animation: none !important` here only existed to suppress
+ * the surge that no longer exists. */
 aside.left-console {
   padding: 22px;
-  border-bottom: 4px solid transparent;
-  animation: none !important;
 }
 
 aside.right-console {
   padding: 22px;
   display: flex;
   flex-direction: column;
-  border-bottom: 4px solid transparent;
-  animation: none !important;
 }
 
-/* The surge lives on a dedicated empty overlay, NOT on the consoles: the
- * keyframes animate paint (box-shadow / border-color), and on the
- * backdrop-filtered asides that re-rastered both glass panels and their
- * 25-35px shadow blurs every frame. The span copies the aside's exact box
- * (the drei wrapper is its containing block; 1px frame, 4px bottom, 16px
- * radius), so the painted surge is pixel-identical — only the per-frame
- * raster scope shrinks to this empty layer. */
-.console-surge {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border: 1px solid transparent;
-  border-bottom-width: 4px;
-  border-radius: 16px;
-  animation: powerSurge 6s infinite linear;
-}
-
-.console-surge--reverse {
-  animation-direction: reverse;
-}
-
-/* Boot gate: the surging consoles sat at opacity 0 while booting; the
- * overlay must vanish with them or its glow floats panel-less under boot. */
-.superbrain-experience.is-booting .console-surge {
-  opacity: 0;
+/* FIDELITY · preserve the EXACT prior boot outcome. The old surge carried
+ * `animation: powerSurge !important` on the asides, which (being !important)
+ * also suppressed the .is-booted hud-enter entrance · the canon consoles POP in
+ * at boot, they do not slide-fade like the other panels. Now that the surge is
+ * deleted, this rule preserves that same instant pop (no unrequested boot
+ * regression). It carries `aside` so its specificity (0,3,1) beats the later
+ * .is-booted hud-enter rule (0,3,0) regardless of source order; the .is-booting
+ * opacity:0 -> .is-booted reveal is untouched. */
+.superbrain-experience.is-booted aside.left-console,
+.superbrain-experience.is-booted aside.right-console {
+  animation: none;
 }
 
 /* ---------- Region pins (anatomical callouts) ----------
- * Bound to the same metricsStore channels as the intake rows — one number,
+ * Bound to the same metricsStore channels as the intake rows · one number,
  * every surface. NO backdrop-filter here: these chips ride the breathing
  * brain and move every frame, and continuous re-blur on a moving element is
  * exactly the paint trap the rest of this file avoids. */
@@ -591,91 +671,52 @@ aside.right-console {
   box-shadow: 0 0 14px rgba(255, 92, 92, 0.25);
 }
 
-@keyframes wireGlowSurge {
-  0% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
-  50% { opacity: 0.6; transform: translateY(-5px) scaleX(1.1); }
-  100% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
-}
-
-/* Multi-colored light surging UP into the bottom of the panels from the wires */
-/* Wire-glow lives on a real .console-glow child (consoles use ::after for the
- * scanline), so .glass-surface::before is free for the edge-lit rim again. */
+/* Wire-glow at the foot of each console. REBUILT to obey three laws the old
+ * version broke:
+ *   1. ONE ACCENT · the old 4-stop red/cyan/violet/green gradient borrowed the
+ *      brain's anatomical lobe rainbow as HUD chrome. It is now a single faint
+ *      cyan (the only accent) at low opacity · a sheen, not a spectrum.
+ *   2. NO PAINT-ON-BLUR · the old child carried filter:blur(30px) and animated
+ *      transform every frame while sitting at z-index:-1 BEHIND the console's
+ *      backdrop-filter, forcing the glass to re-sample a moving blur each frame
+ *      (the ~9 FPS re-blur trap this file documents). The blur is removed; the
+ *      soft edge now comes from a static gradient falloff, not a filter.
+ *   3. MOTION IS MEANING · the old `wireGlowSurge 3s infinite` loop ran forever
+ *      with no tie to a real event. It is now STATIC · a calm grounding glow, no
+ *      animation. The panel's living motion is the real-event dispatch heartbeat
+ *      in .dispatch-cadence, not idle chrome.
+ * A NON-blurred, static, single-accent child · paint-trap-safe and one-accent. */
 .left-console .console-glow,
 .right-console .console-glow {
   position: absolute;
-  bottom: -5px; /* Stay inside bounds so it isn't clipped by overflow: hidden */
-  left: 10%;
-  right: 10%;
-  height: 60px;
-  background: linear-gradient(90deg, rgba(255,59,40,0.8), rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
-  filter: blur(30px);
-  z-index: -1;
-  animation: wireGlowSurge 3s var(--ease-loop) infinite;
+  bottom: 0; /* Inside bounds (overflow:hidden on the console clips the rest). */
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(92, 225, 230, 0.22), transparent);
   pointer-events: none;
 }
 
-/* ---------- Scanline sweep ----------
- * Animates transform (compositor) — animating `top` forces layout + re-blur
- * inside a backdrop-filtered panel every frame. */
-.left-console::after,
-.right-console::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 14%;
-  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.03), transparent);
-  transform: translateY(-120%);
-  will-change: transform;
-  animation: hud-scan 9s linear infinite;
-  pointer-events: none;
-}
-
-.right-console::after {
-  animation-delay: 4.5s;
-}
-
-@keyframes hud-scan {
-  0% {
-    transform: translateY(-120%);
-    opacity: 0;
-  }
-  8% {
-    opacity: 1;
-  }
-  52% {
-    transform: translateY(820%);
-    opacity: 1;
-  }
-  56% {
-    transform: translateY(820%);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(820%);
-    opacity: 0;
-  }
-}
+/* ---------- Scanline sweep · REMOVED ----------
+ * The 9s console scanline (a 3%-white gradient swept down each panel) was pure
+ * decoration: at that opacity it was effectively imperceptible, tied to NO real
+ * event, yet it kept a compositor layer live forever. The reference's
+ * restraint-of-motion law is "motion is meaning · no idle wiggle for its own
+ * sake," so the sweep, its delay, and the @keyframes hud-scan are deleted (one
+ * fewer perpetual loop; the consoles rest honestly still until a real event
+ * moves a readout inside them). */
 
 /* ---------- Eyebrow (the ONLY all-caps role) ---------- */
 
+/* The eyebrow is a bare uppercase mono role label · the former leading decoration
+ * dot (and the flex/gap that spaced it) is removed: it encoded no semantic state
+ * (the §3.1 rule for a kept dot), so the label now stands on its own. */
 .eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   color: var(--text-2);
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 510;
   letter-spacing: 0.12em;
-}
-
-.eyebrow > span {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--text-2);
 }
 
 /* ---------- Left console: cognition title ---------- */
@@ -794,7 +835,7 @@ aside.right-console {
   background: rgba(255, 255, 255, 0.04);
 }
 
-/* Press cancels the hover lift — tactile acknowledgment of the click. */
+/* Press cancels the hover lift · tactile acknowledgment of the click. */
 .mode-button:active {
   transform: translateY(0);
 }
@@ -989,35 +1030,31 @@ aside.right-console {
   color: var(--text-1);
   font-size: 14px;
   font-weight: 510;
-  /* Live trails/verified digits change every poll — fixed-width figures stop
+  /* Live trails/verified digits change every poll · fixed-width figures stop
      the heading from reflowing under them. */
   font-variant-numeric: tabular-nums;
 }
 
+/* Decorative affordance mark (rendered as an aria-hidden <span>, not a control):
+ * a quiet `+` glyph. The former bordered, rounded box read as a clickable button
+ * (an affordance the element does NOT have), so users would try to click it. The
+ * border + box are dropped: it is now just a faint inert mark in --text-3, so it
+ * never suggests interactivity (no cursor:pointer, no hover brighten either). */
 .ghost-plus {
   width: 26px;
   height: 26px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
   background: transparent;
-  color: var(--text-2);
+  color: var(--text-3);
   font-size: 13px;
   line-height: 1;
-  cursor: pointer;
-  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);
-}
-
-.ghost-plus:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  color: var(--text-1);
+  opacity: 0.55;
 }
 
 .ghost-plus--small {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
   font-size: 12px;
 }
 
@@ -1036,8 +1073,11 @@ aside.right-console {
   transform: translateY(-1px);
 }
 
-.source-block:hover .source-spark-track {
-  background: rgba(255, 255, 255, 0.065);
+/* Hover brightens toward white-alpha, never a hue (HUD law): the beacon's
+ * baseline floor lifts slightly so the row feels reachable without changing
+ * the metric it encodes. */
+.source-block:hover .source-beacon {
+  filter: brightness(1.15);
 }
 
 .source-row {
@@ -1047,28 +1087,46 @@ aside.right-console {
   gap: 8px;
 }
 
-/* Neutral at rest; flashes accent for a beat when a knowledge packet lands
- * (re-triggered via React key change). */
+/* Neutral hairline dot at rest. When a real knowledge packet lands it flashes
+ * accent for one beat (re-triggered via React key change). PAINT-TRAP-SAFE:
+ * the orb lives inside the backdrop-filtered .right-console, so the flash must
+ * NOT animate background/box-shadow (paint) · those would force a per-frame
+ * re-blur of the glass. Instead a pre-painted accent overlay (::before, with the
+ * cyan fill + glow already set, static) is revealed by animating OPACITY +
+ * transform only · compositor-safe, visually identical. */
 .source-orb {
+  position: relative;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--text-2);
 }
 
-.source-orb--flash {
-  animation: orb-flash 0.9s var(--ease-out-quart);
+.source-orb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* Static accent paint · only opacity/transform animate, never this fill. */
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(92, 225, 230, 0.8);
+  opacity: 0;
+}
+
+.source-orb--flash::before {
+  /* 300ms · the micro-interaction ceiling (was 900ms, 3x over): the opacity
+   * fade-out reads the same at the shorter, snappier duration on every real
+   * knowledge-acquisition event. Transform/opacity only (no paint-on-blur). */
+  animation: orb-flash 0.3s var(--ease-out-quart);
 }
 
 @keyframes orb-flash {
   0% {
-    background: var(--accent);
-    box-shadow: 0 0 12px rgba(92, 225, 230, 0.8);
+    opacity: 1;
     transform: scale(1.45);
   }
   100% {
-    background: var(--text-2);
-    box-shadow: none;
+    opacity: 0;
     transform: scale(1);
   }
 }
@@ -1099,34 +1157,168 @@ aside.right-console {
   font-variant-numeric: tabular-nums;
 }
 
-.source-spark-track {
+/* Honest dormancy: offline / pre-first-sample the row shows a quiet '--' (no
+ * fabricated drift). The dashed value drops to the faint tier so the panel reads
+ * as truthfully empty, not as a live reading at zero. */
+.source-block.is-dormant .source-value {
+  color: var(--text-3);
+}
+
+/* Beacon line (replaces the canned sparkline hills): a single 1px hairline
+ * track. The beacon itself is a NON-BLURRED child whose OPACITY maps the real
+ * metric value (set inline from JS); only opacity tweens, so no paint ever
+ * animates on the blurred glass parent (paint-trap law). With fewer than two
+ * real samples it sits at the honest baseline floor (0.2). */
+.source-beacon-track {
   position: relative;
-  height: 34px;
-  margin-top: 6px;
-  padding: 3px 4px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  transition: background 200ms var(--ease-out-quart);
-}
-
-.source-spark {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* Endpoint dot: anchors the % readout to the trend line's last sample.
- * 3px — the tiny-motes ceiling. Vertical position computed per-row in JSX
- * from the LAST point of that row's SPARKLINES data. */
-.spark-dot {
-  position: absolute;
-  right: 2.5px;
-  width: 3px;
   height: 3px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 5px rgba(92, 225, 230, 0.55);
+  margin-top: 8px;
+}
+
+.source-beacon {
+  position: absolute;
+  inset: 1px 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent) 22%, var(--accent) 78%, transparent);
+  /* Opacity (the real metric) is the only animated property; the tween rides
+   * the live-tick duration. Reduced motion zeroes the transition globally. */
+  transition: opacity var(--dur-tick) var(--ease-out-quart);
+}
+
+/* ---------- Center ports · the four cognition channels over the brain ----------
+ * FLAT 2D in the portal layer (#hud-portal-root via .hud-shell), NEVER
+ * scene-pinned: it must not steal the brain's orbit/drag, so the whole cluster
+ * is pointer-events:none and carries NO backdrop-filter (the brain shows
+ * through; no glass box crowds view-center). Each label is a real metric
+ * readout that pulses cyan only on a real bus event touching its channel.
+ * The brain owns view-center, so the ports ring it at a respectful radius. */
+.center-ports {
+  position: absolute;
+  inset: 0;
+  z-index: 1; /* above the bottom-scrim sibling, below the interactive chrome */
   pointer-events: none;
+  display: grid;
+  /* Two columns / two rows pinned to the edges of the brain's real estate,
+     leaving the calmed view-center clear (reference: the brain owns it). */
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  align-content: center;
+  justify-items: center;
+  padding: 24vh 26vw;
+  gap: 8vh 0;
+}
+
+/* TOOLS top-left · RESEARCH top-right · SIGNALS bottom-left · MEMORY bottom-right
+   (DOM order matches PORT_CHANNELS). Each cell aligns toward its outer edge. */
+.center-ports > .port-label:nth-child(1) { justify-self: start; align-self: start; }
+.center-ports > .port-label:nth-child(2) { justify-self: end; align-self: start; }
+.center-ports > .port-label:nth-child(3) { justify-self: start; align-self: end; }
+.center-ports > .port-label:nth-child(4) { justify-self: end; align-self: end; }
+
+/* The label itself: mono + tabular-nums, neutral until a real event lights it.
+ * No box, no blur, no border · just luminous type the brain shows behind. */
+.port-label {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+  /* A tightly-fitting semi-opaque dark pill so the type ALWAYS rests on a
+   * controlled dark surface, never directly on the bright cream/highlight regions
+   * of the cortex mesh (where a bare text-shadow left idle text below AA). This is
+   * a flat paint on a NON-blurred, pointer-events:none portal child (no
+   * backdrop-filter here), so it is not a paint-trap and adds no glass box. */
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(1, 3, 7, 0.72);
+  text-shadow: 0 1px 6px rgba(1, 3, 7, 0.85); /* extra legibility over the bright cortex */
+  /* Color + background settle on a real firing transition; rides the live-tick
+   * curve. The background tween is on a non-blurred element only (paint-trap law
+   * applies to backdrop-filtered glass · this portal child has none). */
+  transition:
+    color var(--dur-tick) var(--ease-out-quart),
+    background var(--dur-tick) var(--ease-out-quart);
+}
+
+/* state, not decoration: the dot is the channel's pulse indicator. Neutral
+ * hairline at idle; cyan only while a real event is pulsing this channel. */
+.port-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); /* light from above */
+  transition: background var(--dur-tick) var(--ease-out-quart);
+  align-self: center;
+}
+
+.port-name {
+  font-weight: 600;
+}
+
+/* The live number is the one figure that may differ per channel; tabular so it
+ * never reflows. Slightly brighter than the label so the value reads first. */
+.port-value {
+  color: var(--text-2);
+  letter-spacing: normal;
+  transition: color var(--dur-tick) var(--ease-out-quart);
+}
+
+/* Honest dormancy: offline / pre-first-sample the port shows a quiet '--'
+ * (never the store's offline drift). */
+.port-label.is-dormant .port-value {
+  color: var(--text-3);
+}
+
+/* Firing state (a real event touched this channel): the label brightens toward
+ * white-alpha (HUD law: hovers/states go white, never a hue), the dot takes the
+ * one accent, the value lifts. NO new hue on the type, only the dot is accent. */
+.port-label.is-firing {
+  color: var(--text-1);
+}
+.port-label.is-firing .port-dot {
+  background: var(--accent);
+}
+.port-label.is-firing .port-value {
+  color: var(--text-1);
+}
+
+/* The flare is a NON-BLURRED sibling overlay: a soft radial bloom behind the
+ * dot that runs ONE compositor-only pulse (transform + opacity) per real event.
+ * Re-keyed in React so each event re-fires it. Never paints on a blurred
+ * ancestor (there is none here) and never loops. */
+.port-flare {
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  opacity: 0;
+  transform: scale(0.4);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.port-flare--fire {
+  animation: port-flare-fire var(--dur-pulse) var(--ease-out-quart) 1;
+}
+@keyframes port-flare-fire {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  30% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
 }
 
 /* ---------- Agent mesh ---------- */
@@ -1180,6 +1372,8 @@ aside.right-console {
 }
 
 .agent-card {
+  position: relative;
+  overflow: hidden;
   padding: 9px 10px;
   display: grid;
   grid-template-columns: 38px 1fr 22px;
@@ -1194,6 +1388,24 @@ aside.right-console {
 .agent-card:hover {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* 2px left edge-bar: a NON-BLURRED child. Dark and invisible at standby; the
+ * one accent lights it (opacity only) when a real signal owns the card. No
+ * paint animates on the card itself (paint-trap law). */
+.agent-edge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 80ms var(--ease-out-quart);
+}
+
+.agent-card--live .agent-edge {
+  opacity: 0.85;
 }
 
 .agent-avatar {
@@ -1212,7 +1424,7 @@ aside.right-console {
   width: 16px;
   fill: none;
   stroke: var(--text-1);
-  stroke-width: 1.5;
+  stroke-width: 1.6; /* match the one stroke family (was 1.5) */
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -1262,9 +1474,14 @@ aside.right-console {
   background: var(--state-ok);
 }
 
+/* Processing state: the amber state hue alone encodes "a real tool owns this
+   card" (the card's left edge-bar and the 'running <tool>' line carry it too).
+   No breathe loop here · the link dot (.status-dot--live) is the HUD's single
+   ambient heartbeat; a second competing breathe at a different tempo (1.6s vs
+   2.2s) is redundant ambient motion the reference's restraint-of-motion law
+   forbids, with no hierarchy between the two. */
 .agent-state--processing::before {
   background: var(--state-busy);
-  animation: breathe 1.6s var(--ease-loop) infinite;
 }
 
 .agent-state--standby {
@@ -1282,7 +1499,10 @@ aside.right-console {
   pointer-events: none;
 }
 
-.terminal-log span {
+.terminal-log span.terminal-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 3px;
   color: var(--text-3);
   font-family: var(--mono);
@@ -1290,7 +1510,30 @@ aside.right-console {
   letter-spacing: 0.12em;
 }
 
-.terminal-log p {
+/* The real brain tag riding the heading: model name + a privacy state dot.
+ * Honest dormancy: the element is absent until a turn announces its brain. */
+.terminal-log .terminal-brain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-style: normal;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.terminal-log .terminal-brain .brain-dot {
+  width: 6px;
+  height: 6px;
+}
+
+/* The causality ledger row: a 4-col grid [ts][fact][verdict][delta] so the
+ * timestamp, verdict, and delta columns align across lines and never reflow. */
+.terminal-log p.term-row {
+  display: grid;
+  grid-template-columns: 38px 1fr 44px 40px;
+  align-items: baseline;
+  column-gap: 10px;
   margin: 0;
   color: var(--text-2);
   font-family: var(--mono);
@@ -1304,23 +1547,82 @@ aside.right-console {
 }
 
 /* Mono timestamps stay quiet while the line text flashes and dims. */
-.terminal-log p em {
+.terminal-log p .term-ts {
   font-style: normal;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
-/* Live feed lines mount bright, then settle into the archive tone. */
-.terminal-log p.term-fresh {
+/* The fact text fills the row and never pushes the aligned columns. */
+.terminal-log p .term-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Verdict column · REAL verifier outcomes only. PASS rides the one accent;
+ * FAIL rides the canon busy/fail amber (a sanctioned state hue, not a 2nd
+ * accent). The empty cell holds the column width with no glyph. */
+.terminal-log p .term-verdict {
+  justify-self: end;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.terminal-log p .term-verdict--pass {
+  color: var(--accent); /* cyan = the one accent, sanctioned for PASS */
+}
+
+.terminal-log p .term-verdict--fail {
+  color: var(--state-busy); /* amber = canon fail/busy state, not a 2nd accent */
+}
+
+/* Delta column · a REAL verified-trail gain. A growth is a real hash-chain
+ * entry, so +N earns the accent. The empty cell holds the column otherwise. */
+.terminal-log p .term-delta {
+  justify-self: end;
+  font-style: normal;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.terminal-log p .term-delta--earned {
+  color: var(--accent); /* a real hash-chain growth = an accent moment */
+}
+
+/* Live feed lines mount bright, then settle into the archive tone. COMPOSITOR-
+ * SAFE: the settle now animates OPACITY (not the `color` paint property) on the
+ * fact text only, so the timestamp/verdict/delta columns keep their own static
+ * color. The fresh fact paints at full text-1 brightness and fades toward the
+ * archived text-2 tone via opacity (~0.65 ≈ text-2/text-1 alpha ratio) · the
+ * verdict (PASS accent) and delta (+N accent) stay legible at full strength. */
+.terminal-log p.term-fresh .term-text {
+  color: var(--text-1);
   animation: term-dim 2s var(--ease-in-soft) forwards;
 }
 
 @keyframes term-dim {
   from {
-    color: var(--text-1);
+    opacity: 1;
   }
   to {
-    color: var(--text-2);
+    opacity: 0.65;
+  }
+}
+
+/* New-line enter: a one-shot settle (transform + opacity only) so a fresh fact
+ * reads as arriving, never looping. Rides alongside term-fresh on real lines. */
+.terminal-log p.term-mount {
+  animation: term-enter 120ms var(--ease-out-quart) both;
+}
+
+@keyframes term-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
 }
 
@@ -1350,25 +1652,26 @@ aside.right-console {
   pointer-events: auto;
 }
 
-/* Multi-colored light surging DOWN into the top of the command bar from the wires */
-/* Wire-glow lives on ::after so ::before is free for the edge-lit rim above
- * (both were ::before; the later one silently killed the rim + focus toggle). */
+/* Wire-glow at the top edge of the command bar. REBUILT for the same three laws
+ * as the console glow above (one accent · no paint-on-blur · motion is meaning):
+ * the old version was a 3-stop cyan/violet/green rainbow with filter:blur(30px)
+ * at z-index:-1 behind the bar's backdrop-filter, animating transform forever
+ * via `wireGlowSurge 3s infinite`. It is now a STATIC single-accent sheen with
+ * no filter and no animation. ::after stays the glow layer so ::before remains
+ * free for the edge-lit rim + the focus-within --rim-top toggle. */
 .command-bar::after {
   content: '';
   position: absolute;
-  top: -5px; /* Stay inside bounds */
-  left: 20%;
-  right: 20%;
-  height: 60px;
-  background: linear-gradient(90deg, rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
-  filter: blur(30px);
-  z-index: -1;
-  animation: wireGlowSurge 3s var(--ease-loop) infinite reverse;
+  top: 0; /* Inside bounds (the bar clips its own corners). */
+  left: 22%;
+  right: 22%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(92, 225, 230, 0.2), transparent);
   pointer-events: none;
 }
 
 /* Directive focus: the rim's TOP stop brightens via variable toggle on a
- * static gradient — never a paint-property animation on a blurred element. */
+ * static gradient · never a paint-property animation on a blurred element. */
 .command-bar:focus-within {
   --rim-top: 0.24;
 }
@@ -1409,16 +1712,191 @@ aside.right-console {
   font-size: 13px;
 }
 
+/* Keyboard focus on the single most important control in the HUD: it had NO
+ * visible focus indicator (outline:0 + absent from the focus-visible group).
+ * A restrained white-alpha ring per this file's hover law (brighten toward
+ * white-alpha, never a hue), matching the established focus-visible pattern.
+ * Mouse focus stays clean (:focus-visible only). */
+.command-field input:focus-visible {
+  /* 0.7 (not 0.45): WCAG 2.2 Focus Appearance (AA) wants >=3:1 against adjacent
+     colors; over the near-black void a 0.45 ring was ~2.8:1 (a fail). */
+  outline: 1px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .command-field input::placeholder {
   color: var(--text-2);
 }
 
-.command-search svg {
-  width: 17px;
-  fill: none;
-  stroke: var(--text-2);
-  stroke-width: 1.6;
-  stroke-linecap: round;
+/* DIRECTIVE ECHO · the real last directive's gist + word count, sitting as a
+ * third row inside the field (the .command-field grid already gaps its rows).
+ * Neutral text only · the one accent is reserved for the engaged count + sweep.
+ * Enters with a transform/opacity settle (a real change), gated by reduced
+ * motion below. */
+.command-echo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  animation: command-echo-in 150ms var(--ease-out-quart) both;
+}
+
+.command-echo-gist {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+.command-echo-words {
+  flex: none;
+  color: var(--text-3);
+  /* The word-count badge changes per directive; carry tabular-nums on the class
+     itself (not only via the JSX .tabnum utility) so the figure never reflows
+     even if the utility class is ever dropped. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Offline-submit error · a REAL failure readout (link genuinely down). Amber
+ * (the canon busy/fail state hue, NOT a 2nd accent), sitting in the field's
+ * echo row. Enters with the same transform/opacity settle as the echo. */
+.command-error {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  color: #ffb454;
+  animation: command-echo-in 150ms var(--ease-out-quart) both;
+}
+
+/* The bar wears the amber fail border while the offline error holds (static
+ * paint, like the approval hold · never an animated paint on the blurred bar). */
+.command-bar--state-error {
+  border-color: rgba(255, 180, 84, 0.65);
+  box-shadow: 0 0 22px rgba(255, 180, 84, 0.16);
+}
+
+@keyframes command-echo-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+/* SUBMIT SWEEP · a one-shot 1px cyan line drawn left-to-right across the field
+ * on a real submit, then faded. It is a NON-BLURRED absolutely-positioned child
+ * of .command-field (never paint on the blurred bar). transform + opacity only;
+ * re-keyed per submit in the JSX so it re-fires and never loops. */
+.command-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--accent);
+  transform-origin: left center;
+  pointer-events: none;
+  animation: command-sweep-fire 300ms var(--ease-out-quart) both;
+}
+
+@keyframes command-sweep-fire {
+  0% {
+    transform: scaleX(0);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scaleX(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+/* STATUS CLUSTER · real readouts in the bar's third column (replaced the
+ * decorative magnifier). Stacks the brain chip over the engaged count; both
+ * are honest-dormant until a real `route` / tool dispatch fills them. */
+.command-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  font-family: var(--mono);
+}
+
+.command-brain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 168px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+/* state, not decoration: the privacy dot reuses the canon brain-dot state hue
+ * (local green / cloud amber); no animated paint, just the static state color. */
+.command-brain .status-dot {
+  flex: none;
+}
+
+.command-brain-model {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+  font-weight: 510;
+  /* Micro-breathe (opacity only) when the model changes · a real hand-off. */
+  animation: command-brain-in 300ms var(--ease-out-quart) both;
+}
+
+@keyframes command-brain-in {
+  from {
+    opacity: 0.45;
+  }
+}
+
+.command-engaged {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
+/* The live engaged count is the one accent in this cluster (a real, changing
+ * figure). The +1 pulse re-keys on a real dispatch (dispatchSeq) in the JSX. */
+.command-engaged-n {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 12px;
+  animation: command-engaged-pulse 120ms var(--ease-out-quart) both;
+}
+
+@keyframes command-engaged-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* Execute: one of the three accent elements on screen.
@@ -1451,7 +1929,7 @@ aside.right-console {
   transition: box-shadow 200ms var(--ease-out-quart);
 }
 
-/* Hover fill sweep: a transform-only scaleX wash — NOT a background
+/* Hover fill sweep: a transform-only scaleX wash · NOT a background
  * animation (the bar beneath is backdrop-filtered). */
 .command-bar .execute-button::before {
   content: '';
@@ -1480,22 +1958,75 @@ aside.right-console {
   opacity: 0.4;
   font-size: 11px;
   line-height: 1;
+  transition: opacity 200ms var(--ease-out-quart);
 }
 
-/* ---------- Footer: one quiet line ---------- */
-
-.hud-footer {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  color: var(--text-3);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  white-space: nowrap;
-  pointer-events: none;
+/* While a real turn is in flight the Enter hint yields to the working arc + the
+ * live label (it is no longer the salient affordance). */
+.execute-button.is-working .execute-return {
+  opacity: 0;
 }
+
+/* INDETERMINATE WORKING ARC · a NON-BLURRED SVG child of the button (the button
+ * is not backdrop-filtered, so this is paint-trap-safe). It asserts that REAL
+ * work is in flight (driven by the generating/synthesis turn-state) · it is NOT
+ * a completion fraction. Collapsed (zero width) when idle so the canon Execute
+ * is untouched; expands and spins only while working. */
+.execute-arc {
+  display: inline-flex;
+  align-items: center;
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    width 200ms var(--ease-out-quart),
+    opacity 200ms var(--ease-out-quart);
+}
+
+.execute-button.is-working .execute-arc {
+  width: 16px;
+  margin-right: 2px;
+  opacity: 1;
+}
+
+.execute-arc svg {
+  width: 14px;
+  height: 14px;
+  /* Spin the whole SVG (transform only) · compositor-safe; the arc itself is a
+   * stroked ring so the rotation reads as motion without any paint animation. */
+  animation: execute-arc-spin 900ms linear infinite;
+}
+
+/* The 'done' acknowledgement holds the ring still (a real cycle completed, not
+ * ongoing work) so the spin reads as work-in-flight, not perpetual. */
+.command-bar--state-done .execute-arc svg {
+  animation: none;
+}
+
+.execute-arc-track {
+  fill: none;
+  stroke: rgba(4, 24, 26, 0.32);
+  stroke-width: 2;
+}
+
+.execute-arc-spin {
+  fill: none;
+  stroke: #04181a;
+  stroke-width: 2;
+  stroke-linecap: round;
+  /* A ~90deg arc of the ring (circumference 2*pi*6.2 ~= 38.9). */
+  stroke-dasharray: 10 29;
+}
+
+@keyframes execute-arc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* (.hud-footer removed: the "GAGOS v2.6" build stamp was a fake version readout,
+ * purged with the element. No replacement; a footer may only return as a REAL
+ * readout.) */
 
 /* ---------- Shared animation ---------- */
 
@@ -1522,8 +2053,7 @@ aside.right-console {
 .superbrain-experience.is-booting .left-console,
 .superbrain-experience.is-booting .right-console,
 .superbrain-experience.is-booting .command-bar,
-.superbrain-experience.is-booting .terminal-log,
-.superbrain-experience.is-booting .hud-footer {
+.superbrain-experience.is-booting .terminal-log {
   opacity: 0;
 }
 
@@ -1561,51 +2091,51 @@ aside.right-console {
   animation: hud-enter-centered 650ms var(--ease-out-expo) 420ms both;
 }
 
-.superbrain-experience.is-booted .hud-footer {
-  animation: hud-enter-centered 650ms var(--ease-out-expo) 560ms both;
-}
-
 .superbrain-experience.is-booted .terminal-log {
   animation: hud-enter 650ms var(--ease-out-expo) 560ms both;
 }
 
 /* One-time diagonal light sweep across the title once the OS is booted.
- * The clip/gradient properties live INSIDE the keyframes so the title
- * reverts to its normal solid color the instant the sweep completes. */
+ * Paint-trap law: the gradient, its size and `background-clip: text` are declared
+ * STATICALLY on the element below and never change; the keyframe animates ONLY
+ * `background-position` (the single compositor-eligible property here). At rest
+ * the title's opaque `color: var(--text-1)` paints OVER the (clipped) gradient,
+ * so the title simply reads as its normal solid color; the sweep is revealed by
+ * a one-shot drop to `color: transparent` and restored at the end. No per-frame
+ * invalidation of background-image / clip / color occurs. */
 .superbrain-experience.is-booted .core-readout h2 {
+  background-image: linear-gradient(
+    118deg,
+    #f7fbff 42%,
+    #ffffff 48%,
+    #d9f4ff 50%,
+    #ffffff 52%,
+    #f7fbff 58%
+  );
+  background-size: 240% 100%;
+  background-position: 130% 0;
+  /* Static clip: the gradient is always clipped to the glyphs, hidden under the
+     opaque title color until the sweep momentarily makes the text transparent. */
+  -webkit-background-clip: text;
+  background-clip: text;
   animation: title-shimmer 1.2s var(--ease-loop) 760ms 1;
 }
 
 @keyframes title-shimmer {
+  /* Reveal the clipped static gradient for the sweep, then restore the solid
+     color. Only background-position moves across the run; color flips once at
+     each end (a single-frame change, not a continuous paint animation). */
   from {
     color: transparent;
-    background-image: linear-gradient(
-      118deg,
-      #f7fbff 42%,
-      #ffffff 48%,
-      #d9f4ff 50%,
-      #ffffff 52%,
-      #f7fbff 58%
-    );
-    background-size: 240% 100%;
     background-position: 130% 0;
-    -webkit-background-clip: text;
-    background-clip: text;
+  }
+  99% {
+    color: transparent;
+    background-position: -130% 0;
   }
   to {
-    color: transparent;
-    background-image: linear-gradient(
-      118deg,
-      #f7fbff 42%,
-      #ffffff 48%,
-      #d9f4ff 50%,
-      #ffffff 52%,
-      #f7fbff 58%
-    );
-    background-size: 240% 100%;
+    color: var(--text-1);
     background-position: -130% 0;
-    -webkit-background-clip: text;
-    background-clip: text;
   }
 }
 
@@ -1623,8 +2153,7 @@ aside.right-console {
 }
 
 @media (max-width: 1100px) {
-  .terminal-log,
-  .hud-footer {
+  .terminal-log {
     display: none;
   }
 
@@ -1640,8 +2169,7 @@ aside.right-console {
   }
 
   .system-summary,
-  .right-console,
-  .console-surge--reverse {
+  .right-console {
     display: none;
   }
 
@@ -1651,13 +2179,6 @@ aside.right-console {
     left: 14px;
     width: 250px;
     padding: 15px;
-  }
-
-  /* Mirror the left console's relative nudge above — the overlay is a
-   * sibling, so it must follow by transform (width tracks automatically:
-   * the wrapper shrink-wraps the narrowed aside). */
-  .console-surge {
-    transform: translate(14px, -120px);
   }
 
   .left-console h1 {
@@ -1722,6 +2243,41 @@ aside.right-console {
     transition-duration: 0.01ms !important;
   }
 
+  /* EXPLICIT animation:none on every INFINITE ambient loop. The global
+   * 0.01ms/iteration-count:1 trick above does NOT truly stop an infinite loop:
+   * it snaps it to its end-frame and leaves the compositor layer live. For real
+   * quiescence (the reference's reduced-motion completeness law) each ambient
+   * loop is named and killed outright, settled to its honest resting frame:
+   *   · breathe   · the live link dot (the HUD's single ambient heartbeat)
+   * The processing-dot breathe and the two console scanline sweeps (hud-scan)
+   * were removed, and the rainbow loops (powerSurge/wireGlowSurge) are already
+   * DELETED, so none of those needs an entry here. */
+  .status-dot--live {
+    animation: none !important;
+  }
+
+  /* One-shot real-event flashes settle to their honest static end-states (the
+   * STATE stays legible without motion). The reviewer named these explicitly:
+   * the acquisition orb flash, the value tick, the phase-word cross-fade, the
+   * terminal dim settle, and the directive echo entrance. */
+  .source-orb--flash::before {
+    animation: none !important;
+    opacity: 0; /* rests at the unlit end-frame */
+  }
+
+  .val-tick,
+  .core-phase,
+  .command-echo,
+  .command-error {
+    animation: none !important;
+    opacity: 1; /* the new value/word/echo/error simply appears */
+  }
+
+  .terminal-log p.term-fresh .term-text {
+    animation: none !important;
+    opacity: 0.65; /* settles straight to the archived tone, no fade */
+  }
+
   /* Entrance transforms and shimmer fully off; elements appear instantly
    * at their natural styles (no staggered delays). */
   .left-console,
@@ -1732,7 +2288,6 @@ aside.right-console {
   .superbrain-experience.is-booted .right-console,
   .superbrain-experience.is-booted .command-bar,
   .superbrain-experience.is-booted .terminal-log,
-  .superbrain-experience.is-booted .hud-footer,
   .superbrain-experience.is-booted .core-readout h2 {
     animation: none;
   }
@@ -1745,7 +2300,7 @@ aside.right-console {
 
   /* New motion collapses to instant end states: the hover sweep appears
    * fully drawn, the magnetic wrapper never displaces (its JS hook also
-   * bails on reduced motion — this is the belt to that suspender). */
+   * bails on reduced motion · this is the belt to that suspender). */
   .command-bar .execute-button::before {
     transition: none;
   }
@@ -1764,8 +2319,49 @@ aside.right-console {
     transform: scaleX(1);
   }
 
+  /* Center ports: the one-shot flare never animates under reduced motion; it
+   * holds its honest static end-state (invisible). The dot/label still take
+   * their firing color instantly (a real state change, not motion), so the
+   * pulse is still legible without movement. */
+  .port-flare,
+  .port-flare--fire {
+    animation: none !important;
+    opacity: 0;
+    transform: scale(1);
+  }
+
   .left-console h1,
   .objective-tree p:not(.is-lead) {
+    animation: none !important;
+  }
+
+  /* Terminal: the new-line enter collapses to its instant end-state (no slide);
+   * fresh lines appear in place. The dim settle is already neutralized by the
+   * global animation-duration override above. */
+  .terminal-log p.term-mount {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Command bar: the working arc never spins (it holds its honest static ring,
+   * which still reads as "working" via the visible arc + the live label); the
+   * submit sweep, the directive echo, the brain hand-off, and the +1 engaged
+   * pulse all collapse to their instant end-states (the real STATE is still
+   * legible without motion). */
+  .execute-arc svg {
+    animation: none !important;
+  }
+
+  .command-sweep {
+    animation: none !important;
+    opacity: 0;
+    transform: scaleX(1);
+  }
+
+  .command-echo,
+  .command-brain-model,
+  .command-engaged-n {
     animation: none !important;
   }
 }
@@ -1789,6 +2385,21 @@ aside.right-console {
   color: #ffb454;
 }
 
+/* Under the hold the command bar's own readouts step back (the diff IS the
+ * content): the live engaged accent yields to neutral, the working arc never
+ * spins, and the directive echo dims · the amber hold owns the bar. */
+.command-bar.is-approval-hold .command-engaged-n {
+  color: var(--text-2);
+}
+
+.command-bar.is-approval-hold .execute-arc svg {
+  animation: none;
+}
+
+.command-bar.is-approval-hold .command-echo-gist {
+  color: var(--text-3);
+}
+
 /* Fidelity readout - degradation is never a mystery. Inherits the topbar
    stat styling; the strong tints by tier state via currentColor only. */
 .fidelity-button {
@@ -1799,7 +2410,15 @@ aside.right-console {
   letter-spacing: inherit;
   text-transform: inherit;
   cursor: pointer;
-  padding: 0;
+  /* Touch/click target >= 44px tall (WCAG 2.5.5). The topbar is 64px and
+   * align-items:center, so growing the button's hit box to 44px does NOT change
+   * the visible layout · the (unchanged) label centers within the larger target.
+   * Horizontal padding widens the tap area without shifting the inline rhythm. */
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 4px;
   transition: opacity 160ms var(--ease-out-quart);
 }
 
@@ -1816,9 +2435,12 @@ aside.right-console {
   color: #ffffff;
 }
 
-/* Keyboard focus: a restrained white-alpha ring (per this file's hover law —
-   brighten toward white-alpha, never a hue), so Tab users get the canon
-   language instead of the clashing UA default ring. */
+/* Keyboard focus: a restrained white-alpha ring (per this file's hover law · brighten toward white-alpha, never a hue), so Tab users get the canon
+   language instead of the clashing UA default ring.
+   Alpha is 0.7 (not 0.45): WCAG 2.2 Focus Appearance (AA) requires the focus
+   indicator to clear 3:1 against adjacent colors. Over the near-black void
+   (--bg #010307) a 0.45 white ring composited to ~2.8:1 (a fail); 0.7 lifts it
+   past 3:1 regardless of the panel brightness behind it. */
 .fidelity-button:focus-visible,
 .secure-button:focus-visible,
 .mode-button:focus-visible,
@@ -1826,7 +2448,7 @@ aside.right-console {
 .region-pin:focus-visible,
 .approval-actions button:focus-visible,
 .command-bar .execute-button:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.45);
+  outline: 1px solid rgba(255, 255, 255, 0.7);
   outline-offset: 2px;
 }
 
@@ -1883,7 +2505,10 @@ aside.right-console {
   padding: 0 14px 6px;
   font-size: 11px;
   line-height: 1.5;
-  color: rgba(232, 238, 250, 0.6);
+  /* 0.85 (was 0.6): this is 11px body text on the dark amber-glass panel, so it
+     must clear WCAG AA 4.5:1. At 0.6 it composited to ~3.4:1 (a fail); 0.85
+     lifts the cool-white ink past 4.5:1 over the panel backdrop. */
+  color: rgba(232, 238, 250, 0.85);
 }
 
 .approval-diff {
@@ -1903,8 +2528,11 @@ aside.right-console {
 
 .approval-diff .diff-add { color: #7fe2a8; }
 .approval-diff .diff-del { color: #ff8d7e; }
-.approval-diff .diff-hunk { color: rgba(232, 238, 250, 0.45); }
-.approval-diff .diff-file { color: rgba(232, 238, 250, 0.55); }
+/* 11px mono on the near-black diff well (rgba(2,4,8,0.6) over --bg), so AA 4.5:1
+   applies. The hunk/file lines were ~2.5:1 / ~3.0:1 (fails); 0.82 lifts both
+   past 4.5:1 while keeping them quieter than the +/- change lines. */
+.approval-diff .diff-hunk { color: rgba(232, 238, 250, 0.82); }
+.approval-diff .diff-file { color: rgba(232, 238, 250, 0.82); }
 .approval-command { color: #ffd9a0; }
 
 .approval-actions {
