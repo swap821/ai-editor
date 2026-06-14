@@ -178,6 +178,31 @@ export function getPendingApproval(): PendingApproval | null {
   return pendingApproval;
 }
 
+type ApprovalListener = (pending: PendingApproval | null) => void;
+const approvalListeners = new Set<ApprovalListener>();
+
+/** Subscribe to the PERSISTED pending-approval truth — the single source of
+ *  truth the approval UI binds to. The listener is invoked IMMEDIATELY with the
+ *  current value (so a late subscriber, or one that missed the transient
+ *  'approval-required' bus event, still gets the real state) and again on every
+ *  change. Returns an unsubscribe. A supervised pause must never be left
+ *  un-actionable; binding the panel here, not to a fire-and-forget event,
+ *  guarantees that. */
+export function subscribePendingApproval(listener: ApprovalListener): () => void {
+  approvalListeners.add(listener);
+  listener(pendingApproval);
+  return () => {
+    approvalListeners.delete(listener);
+  };
+}
+
+/** The ONLY writer of `pendingApproval`: assigns then notifies subscribers, so
+ *  the persisted truth and every bound surface can never drift apart. */
+function setPendingApprovalState(next: PendingApproval | null): void {
+  pendingApproval = next;
+  for (const listener of approvalListeners) listener(next);
+}
+
 function captureApproval(text: string, data: Record<string, unknown>): void {
   const input = (data.input ?? {}) as Record<string, unknown>;
   const commands = Array.isArray(input.commands) ? input.commands : [];
@@ -196,7 +221,7 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
   };
   const kind: PendingApproval['kind'] =
     creations.length > 0 ? 'create' : edits.length > 0 ? 'edit' : commands.length > 0 ? 'command' : 'other';
-  pendingApproval = {
+  setPendingApprovalState({
     token: String(input.approvalToken ?? ''),
     prompt: text,
     summary: String(data.text ?? 'Approval required'),
@@ -206,7 +231,7 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
     kind,
     filepath: kind === 'create' ? firstPath(creations) : kind === 'edit' ? firstPath(edits) : '',
     content: kind === 'create' ? firstContent(creations) : '',
-  };
+  });
 }
 
 async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResult> {
@@ -344,7 +369,7 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
 
 /** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
 export async function sendDirective(text: string): Promise<DirectiveResult> {
-  pendingApproval = null;
+  setPendingApprovalState(null);
   return streamTurn(text, []);
 }
 
@@ -354,7 +379,7 @@ export async function sendDirective(text: string): Promise<DirectiveResult> {
 export async function approvePendingApproval(): Promise<DirectiveResult> {
   const pending = pendingApproval;
   if (!pending?.token) return { ok: false, paused: false, answer: '' };
-  pendingApproval = null;
+  setPendingApprovalState(null);
   publishCognition({
     type: 'approval-resolved',
     label: 'approved',
@@ -372,7 +397,7 @@ export async function approvePendingApproval(): Promise<DirectiveResult> {
 export async function rejectPendingApproval(): Promise<void> {
   const pending = pendingApproval;
   if (!pending?.token) return;
-  pendingApproval = null;
+  setPendingApprovalState(null);
   let confirmed = false;
   try {
     const response = await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
@@ -506,7 +531,7 @@ export function __resetAiosAdapterForTests(): void {
   seenTrailStatus.clear();
   linkUp = false;
   knownTrails = [];
-  pendingApproval = null;
+  setPendingApprovalState(null);
   lastTelemetry = null;
   pollCount = 0;
   chainValid = null;

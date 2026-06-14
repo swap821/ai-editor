@@ -11,6 +11,7 @@ import {
   getLastTelemetry,
   getLinkState,
   getPendingApproval,
+  subscribePendingApproval,
   type AiosTelemetry,
   type PendingApproval,
 } from '@/lib/aiosAdapter';
@@ -558,6 +559,23 @@ export default function SuperbrainHUD({
     }
     hadApprovalRef.current = present;
   }, [pendingApproval]);
+  /* SINGLE SOURCE OF TRUTH for the approval gate. Bind the actionable panel to
+   * the adapter's PERSISTED pending-approval state: subscribePendingApproval
+   * delivers the CURRENT truth immediately on subscribe (covering a late mount or
+   * a missed 'approval-required' bus event) and again on every change. Driving
+   * the panel from this — not from the fire-and-forget bus event alone — means a
+   * turn that genuinely paused is ALWAYS actionable, never a hung hold showing the
+   * text but no AUTHORIZE/REJECT. The bus handlers below stay as terminal
+   * narration + a redundant fast path; all read the same adapter state, so they
+   * are idempotent with this. */
+  useEffect(
+    () =>
+      subscribePendingApproval((pending) => {
+        setPendingApproval(pending);
+        setApprovalHold(pending !== null);
+      }),
+    [],
+  );
   const magnetRef = useRef<HTMLSpanElement>(null);
   useMagneticPull(magnetRef);
   const { baseTier, generating, setTier } = useQualityTier();
