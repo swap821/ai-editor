@@ -11,6 +11,7 @@ import DiffView from './components/DiffView';
 import ProposalsPanel from './components/ProposalsPanel';
 import AmbientVoid from './components/AmbientVoid';
 import { API_BASE, API_HEADERS } from './config';
+import { getSessionId } from './superbrain/lib/sessionId';
 import {
   clearConversationCorrection,
   correctConversationAlignment,
@@ -546,13 +547,10 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState('auto');
   const [pendingAction, setPendingAction] = useState(null);
   const [, setApprovalTokens] = useState([]);
-  const [sessionId] = useState(() => {
-    const existing = window.localStorage.getItem('aios_session_id');
-    if (existing) return existing;
-    const created = window.crypto.randomUUID();
-    window.localStorage.setItem('aios_session_id', created);
-    return created;
-  });
+  // The shared session id (read-or-create-persist) — the SAME resolver the
+  // superbrain adapter and the workbench organs use, so the classic face
+  // continues the SAME backend conversation as the superbrain shell.
+  const [sessionId] = useState(getSessionId);
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
   const [termHistory, setTermHistory] = useState(['AI Editor OS v2.0', 'Type "help" for available commands.']);
   const [termInput,   setTermInput]   = useState('');

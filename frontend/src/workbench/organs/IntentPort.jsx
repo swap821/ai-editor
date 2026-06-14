@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE, API_HEADERS } from '../../config';
 import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
+import { getSessionId } from '../../superbrain/lib/sessionId';
 
 /* ─── INTENT PORT · PER-TURN SHARED UNDERSTANDING ──────────────────────────────
    A read-only window into the superbrain's UNDERSTANDING layer: the latest
@@ -41,16 +42,6 @@ import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
    ──────────────────────────────────────────────────────────────────────────── */
 
 const LIMIT = 1;
-
-/** Resolve the session id EXACTLY as aiosAdapter's SESSION_ID does (shared key). */
-function resolveSessionId() {
-  if (typeof window === 'undefined') return 'gag-superbrain-hud';
-  try {
-    return window.localStorage.getItem('aios_session_id') ?? 'gag-superbrain-hud';
-  } catch {
-    return 'gag-superbrain-hud';
-  }
-}
 
 /* Intent → a one-line plain-language gloss of the eight allowed advisory intents
    (aios/core/alignment.py _ALLOWED_INTENTS). Derived from the same canonical set;
@@ -110,7 +101,7 @@ export default function IntentPort() {
   const hadDataRef = useRef(false);
 
   const fetchFrame = useCallback(async () => {
-    const sessionId = resolveSessionId();
+    const sessionId = getSessionId();
     try {
       const r = await fetch(`${API_BASE}/api/v1/conversation/session`, {
         method: 'POST',

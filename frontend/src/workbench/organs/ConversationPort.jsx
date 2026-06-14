@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE, API_HEADERS } from '../../config';
 import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
+import { getSessionId } from '../../superbrain/lib/sessionId';
 
 /* ─── CONVERSATION PORT · EPISODIC DIALOGUE LOG ────────────────────────────────
    The full, durable conversation for THIS session — every user prompt and the
@@ -16,10 +17,9 @@ import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
    through, this log captures EVERY turn — including ones the port never
    originated. That is why the episodic path beats the sendDirective fallback.
 
-   Session id is resolved the IDENTICAL way the adapter resolves SESSION_ID (read
-   localStorage['aios_session_id']; SSR / no-storage → 'gag-superbrain-hud'). We
-   replicate the resolver inline rather than import the module-private constant —
-   the zero-touch option that needs no edit to the frozen superbrain adapter.
+   Session id comes from the SINGLE shared resolver (superbrain/lib/sessionId
+   getSessionId) — the same read-or-create-persist the adapter and the classic
+   shell use, so all four faces stay on one `aios_session_id` and never fork.
 
    Live refresh: re-fetch when the bus reports a turn completed
    ('synthesis' / 'SYNTHESIS COMPLETE') or a (re)connect
@@ -38,16 +38,6 @@ import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
    ──────────────────────────────────────────────────────────────────────────── */
 
 const LIMIT = 100;
-
-/** Resolve the session id EXACTLY as aiosAdapter's SESSION_ID does (shared key). */
-function resolveSessionId() {
-  if (typeof window === 'undefined') return 'gag-superbrain-hud';
-  try {
-    return window.localStorage.getItem('aios_session_id') ?? 'gag-superbrain-hud';
-  } catch {
-    return 'gag-superbrain-hud';
-  }
-}
 
 /* ─── Fenced-code splitter ──────────────────────────────────────────────────────
    Split an answer into ordered text / code segments on ```fences```. Same load-
@@ -121,7 +111,7 @@ export default function ConversationPort() {
   const endRef = useRef(null);
 
   const fetchLog = useCallback(async () => {
-    const sessionId = resolveSessionId();
+    const sessionId = getSessionId();
     try {
       const r = await fetch(`${API_BASE}/api/v1/conversation/session`, {
         method: 'POST',

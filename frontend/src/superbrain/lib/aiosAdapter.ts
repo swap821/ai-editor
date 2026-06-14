@@ -17,6 +17,7 @@
 
 import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
+import { getSessionId } from './sessionId';
 
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://127.0.0.1:8000';
@@ -31,25 +32,11 @@ function authHeaders(): Record<string, string> {
   return AIOS_TOKEN ? { Authorization: `Bearer ${AIOS_TOKEN}` } : {};
 }
 
-// One session per operator, SHARED with the classic UI (same localStorage key)
-// so both faces of the AI-OS continue the SAME conversation. SSR-safe; falls
-// back to the original constant when storage is unavailable.
-const SESSION_ID: string = (() => {
-  if (typeof window === 'undefined') return 'gag-superbrain-hud';
-  try {
-    const KEY = 'aios_session_id';
-    const existing = window.localStorage.getItem(KEY);
-    if (existing) return existing;
-    const created =
-      typeof window.crypto?.randomUUID === 'function'
-        ? window.crypto.randomUUID()
-        : `sb-${Date.now().toString(36)}`;
-    window.localStorage.setItem(KEY, created);
-    return created;
-  } catch {
-    return 'gag-superbrain-hud';
-  }
-})();
+// One session per operator, SHARED with the classic UI and the workbench organs
+// (the same persisted `aios_session_id`) so every face of the AI-OS continues
+// the SAME conversation. Single-sourced in ./sessionId — read-or-create-persist,
+// SSR-safe — so the four faces can never drift apart.
+const SESSION_ID: string = getSessionId();
 
 // ---------------------------------------------------------------- directives
 
