@@ -52,6 +52,10 @@
    * never animate paint properties on a backdrop-filtered element. */
   --rim-top: 0.16;
 
+  /* The shared center column rail: the hero title, terminal log, and command bar
+   * all size/align to ONE width so the central spine reads as a single ruler. */
+  --center-rail: min(880px, calc(100vw - 56px));
+
   /* Duration token for the real-event dispatch heartbeat pulse + port flare.
    * 300ms · the single-element event-pulse ceiling (was 450ms): a snappier,
    * within-guideline tactile beat on a real dispatch. Both keyframes
@@ -185,9 +189,12 @@ button {
   z-index: 2;
   pointer-events: none;
   opacity: 0.065;
+  /* Neutral white-alpha grid (was a faint steel-cyan that read as a stray third
+   * cyan-family tint); near-invisible at 0.065 layer opacity, but it keeps the
+   * chrome palette literally "cyan = accent only, everything else neutral". */
   background-image:
-    linear-gradient(rgba(95, 188, 220, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(95, 188, 220, 0.025) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
   background-size: 72px 72px;
   mask-image: radial-gradient(circle at center, transparent 10%, black 82%);
 }
@@ -210,13 +217,28 @@ button {
  * so the glass never goes milky). */
 .glass-surface {
   position: relative;
-  background: var(--bg-panel);
+  /* Soft light-from-above top-sheen layered OVER the panel tint (below content,
+   * so it never veils text): the broad falloff a single 1px rim cannot give, so
+   * each pane reads as curved machined glass catching the brain's light, not a
+   * flat dark field. Static paint, never animated (paint-trap law honored). */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.015) 24%,
+      transparent 48%
+    ),
+    var(--bg-panel);
   border: 1px solid transparent;
   border-radius: 16px;
+  /* Bright-top -> dark-bottom inner gradient (deeper bottom pool) reads as glass
+   * curvature; a tight contact shadow + a wide ambient shadow float the pane in
+   * the void instead of pasting it on. Static box-shadow, never animated. */
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -14px 28px -18px rgba(0, 0, 0, 0.5),
-    0 24px 70px rgba(0, 0, 0, 0.45);
+    inset 0 -20px 34px -20px rgba(0, 0, 0, 0.6),
+    0 8px 20px rgba(0, 0, 0, 0.35),
+    0 30px 80px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
 }
@@ -322,6 +344,10 @@ button {
   border: 1px solid var(--hairline);
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.03);
+  /* The identity glyph is the one raised chip that lacked the canon top-highlight
+   * its siblings (.mode-num / .agent-avatar) carry; the shared light-from-above
+   * inset lifts it slightly forward so the brand reads as the topbar's anchor. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* One consistent stroke family across every inline mark (brand / shield / agent):
@@ -466,7 +492,14 @@ button {
   font-size: 11px;
   cursor: pointer;
   transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart),
-    box-shadow 200ms var(--ease-out-quart);
+    box-shadow 200ms var(--ease-out-quart), transform 120ms var(--ease-out-quart);
+}
+
+/* Press feedback: the most consequential topbar control (HOLD/TAMPER) now
+ * acknowledges touch like its siblings (the fidelity button dims; the approval
+ * buttons settle 1px). Transform-only, momentary, no loop. */
+.secure-button:active {
+  transform: translateY(1px);
 }
 
 .secure-button:hover {
@@ -489,8 +522,7 @@ button {
   position: absolute;
   top: 88px;
   left: 50%;
-  width: 860px;
-  max-width: 92vw;
+  width: var(--center-rail);
   transform: translateX(-50%);
   text-align: center;
   pointer-events: none;
@@ -500,8 +532,11 @@ button {
   margin: 0;
   font-family: var(--display);
   font-size: 30px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
+  /* True display authority for the single hero wordmark: a touch more weight and
+   * caps tracking (uppercase needs more tracking to breathe) so SUPERMIND reads
+   * as a machined nameplate, not a heading. Outfit is variable · weight is free. */
+  font-weight: 650;
+  letter-spacing: 0.1em;
   color: var(--text-1);
   text-shadow: 0 0 24px rgba(150, 200, 255, 0.12);
   /* Keep the hero from re-centering when the mode number changes width. */
@@ -509,15 +544,19 @@ button {
 }
 
 .core-sub {
-  margin: 8px 0 0;
+  /* One scale step (12px) of air under the hero so the nameplate breathes and
+     the readout row reads as its instrument sub-line, not a crowded second line. */
+  margin: 12px 0 0;
   /* The honest derived-phase word + link state sit on one centered baseline
-     row; the divider matches the topbar rhythm. */
+     row; the divider matches the topbar rhythm. Caps tracking + weight echo the
+     wordmark so title + sub-row bind into ONE centered identity lockup. */
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
   font-size: 11px;
-  letter-spacing: 0.08em;
+  font-weight: 510;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-2);
 }
@@ -568,6 +607,17 @@ aside.right-console {
   padding: 22px;
   display: flex;
   flex-direction: column;
+}
+
+/* The consoles light their edge-lit rim under the pilot's hand, via the
+ * sanctioned --rim-top variable toggle the command bar already uses: a one-step
+ * state change on a STATIC gradient, never a paint animation on blurred glass.
+ * Makes the instrument glass feel alive/machined when engaged. */
+.left-console:hover,
+.right-console:hover,
+.left-console:focus-within,
+.right-console:focus-within {
+  --rim-top: 0.22;
 }
 
 /* FIDELITY · preserve the EXACT prior boot outcome. The old surge carried
@@ -724,7 +774,10 @@ aside.right-console {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 510;
-  letter-spacing: 0.12em;
+  /* The eyebrow is the ONE all-caps section role; widening its tracking past the
+   * inline mono labels (0.12em) sets a caps ladder (section > label > value), so
+   * ACTIVE COGNITION / KNOWLEDGE INTAKE read as architectural headers, not chrome. */
+  letter-spacing: 0.16em;
 }
 
 /* ---------- Left console: cognition title ---------- */
@@ -763,7 +816,9 @@ aside.right-console {
   position: relative;
   margin-top: 22px;
   display: grid;
-  gap: 6px;
+  /* 8px is the standard minimum gap between stacked touch targets (the three
+   * full-width lens rows); calmer rail, no mis-taps on the wrong lens. */
+  gap: 8px;
 }
 
 .mode-rail::before {
@@ -1261,6 +1316,7 @@ aside.right-console {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); /* light from above */
   transition: background var(--dur-tick) var(--ease-out-quart);
   align-self: center;
+  will-change: transform;
 }
 
 .port-name {
@@ -1289,6 +1345,22 @@ aside.right-console {
 }
 .port-label.is-firing .port-dot {
   background: var(--accent);
+  /* Kinetic fire tick on a REAL channel event: a one-shot scale pulse (mirrors
+   * the right-console source-orb) so a dispatch reads as the nerve firing at the
+   * focal center, not just a flat color flip. Transform-only on a non-blurred
+   * portal child · re-fires via the React fireSeq key. */
+  animation: port-dot-fire var(--dur-pulse) var(--ease-out-quart) 1;
+}
+@keyframes port-dot-fire {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.5);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 .port-label.is-firing .port-value {
   color: var(--text-1);
@@ -1393,10 +1465,10 @@ aside.right-console {
   transition: transform 200ms var(--ease-out-quart), border-color 200ms var(--ease-out-quart);
 }
 
-.agent-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.16);
-}
+/* No hover affordance: AgentCard has no onClick/role/tabindex, so it is NOT a
+ * control · a hover lift would advertise an interaction that does not exist (the
+ * same reason .ghost-plus was de-affordanced). The real agent STATE (edge-bar +
+ * state dot + running-tool line) carries all the meaning; hover stays honest. */
 
 /* 2px left edge-bar: a NON-BLURRED child. Dark and invisible at standby; the
  * one accent lights it (opacity only) when a real signal owns the card. No
@@ -1500,7 +1572,9 @@ aside.right-console {
 
 .terminal-log {
   position: absolute;
-  left: calc(50% - 372px);
+  /* Left edge on the shared center rail (was a lone 372px) so the terminal, the
+   * hero title, and the command bar share one vertical spine. Grows rightward. */
+  left: calc(50% - (var(--center-rail) / 2));
   bottom: 114px;
   display: grid;
   gap: 3px;
@@ -1624,7 +1698,9 @@ aside.right-console {
 /* New-line enter: a one-shot settle (transform + opacity only) so a fresh fact
  * reads as arriving, never looping. Rides alongside term-fresh on real lines. */
 .terminal-log p.term-mount {
-  animation: term-enter 120ms var(--ease-out-quart) both;
+  /* 160ms (was 120ms) lets the 6px settle register as a fact ARRIVING on the
+   * voyage rather than a flicker; still inside the band, buffer capped at 4. */
+  animation: term-enter 160ms var(--ease-out-quart) both;
 }
 
 @keyframes term-enter {
@@ -1641,7 +1717,7 @@ aside.right-console {
   left: 50%;
   bottom: 34px;
   transform: translateX(-50%);
-  width: min(880px, calc(100vw - 56px));
+  width: var(--center-rail);
   height: 70px;
   padding: 0 13px;
   display: grid;
@@ -1650,14 +1726,28 @@ aside.right-console {
   column-gap: 13px;
   border: 1px solid transparent;
   border-radius: 14px;
-  background: rgba(6, 9, 22, 0.74);
+  /* Same machined-glass treatment as the consoles (top-sheen below content +
+   * curved bottom pool + contact/ambient float shadows), with a slightly crisper
+   * top highlight (0.14) so the pilot locus reads a touch more present. */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.012) 24%,
+      transparent 48%
+    ),
+    rgba(6, 9, 22, 0.74);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -14px 28px -18px rgba(0, 0, 0, 0.5),
-    0 24px 70px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -20px 34px -20px rgba(0, 0, 0, 0.6),
+    0 8px 20px rgba(0, 0, 0, 0.35),
+    0 30px 80px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   pointer-events: auto;
+  /* Rests at a brighter rim than the consoles (0.16) so the pilot locus holds
+   * quiet primacy; :focus-within lifts it further to 0.24. */
+  --rim-top: 0.2;
 }
 
 /* Wire-glow at the top edge of the command bar. REBUILT for the same three laws
@@ -1706,8 +1796,11 @@ aside.right-console {
 .command-field label {
   color: var(--text-1);
   font-size: 11px;
-  font-weight: 510;
-  letter-spacing: 0.08em;
+  /* The pilot command header: heavier weight + wider caps tracking (matching the
+   * wordmark tier) lift "DIRECT THE SUPERMIND" above rail-item weight so the eye
+   * is led to the one input. Size stays 11px so the bar grid is unchanged. */
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -1892,7 +1985,10 @@ aside.right-console {
   color: var(--accent);
   font-weight: 600;
   font-size: 12px;
-  animation: command-engaged-pulse 120ms var(--ease-out-quart) both;
+  /* 200ms (was 120ms) lands the +1 dispatch pop mid-band (150-300ms): a confident
+   * "a tool just fired" beat, not a nervous twitch. The single accent motion in
+   * the bar, so its composure is load-bearing. */
+  animation: command-engaged-pulse 200ms var(--ease-out-quart) both;
 }
 
 @keyframes command-engaged-pulse {
@@ -1918,7 +2014,10 @@ aside.right-console {
 .command-bar .execute-button {
   position: relative;
   overflow: hidden;
-  height: 42px;
+  /* 44px touch floor (WCAG 2.5.5) · the primary pilot action now matches its
+   * already-44px topbar siblings; align-items:center in the 70px bar means the
+   * +2px does not move the label or shift the grid. */
+  height: 44px;
   padding: 0 24px;
   display: inline-flex;
   align-items: center;
@@ -1959,6 +2058,27 @@ aside.right-console {
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 0 24px rgba(92, 225, 230, 0.38),
     0 6px 26px rgba(92, 225, 230, 0.28);
+}
+
+/* Honest async feedback: while a turn is streaming, handleSubmit silently drops
+ * a second dispatch, so the control must LOOK as inert as it behaves · suppress
+ * the pointer cursor and the hover fill-sweep (the live label + working arc
+ * already say "working"). The sweep is a transform-only scaleX on a non-blurred
+ * ::before, so holding it at 0 is compositor-safe, never paint on blurred glass. */
+.command-bar .execute-button[aria-disabled='true'] {
+  cursor: default;
+}
+.command-bar .execute-button[aria-disabled='true']:hover::before {
+  transform: scaleX(0);
+}
+
+/* Hold the button width steady as the REAL turn-state label cycles
+ * (Execute / Streaming... / Done / Offline) so the focal accent control never
+ * reflows · the meaning changes, the footprint stays rock-steady. */
+.execute-label {
+  display: inline-block;
+  min-width: 6.5ch;
+  text-align: center;
 }
 
 /* Dim return-key affordance inside Execute. */
@@ -2071,6 +2191,7 @@ aside.right-console {
 .superbrain-experience.is-booting .left-console,
 .superbrain-experience.is-booting .right-console,
 .superbrain-experience.is-booting .command-bar,
+.superbrain-experience.is-booting .center-ports,
 .superbrain-experience.is-booting .terminal-log {
   opacity: 0;
 }
@@ -2103,6 +2224,14 @@ aside.right-console {
 
 .superbrain-experience.is-booted .right-console {
   animation: hud-enter 650ms var(--ease-out-expo) 260ms both;
+}
+
+/* The four center-port channel labels join the boot stagger (they used to snap
+ * in cold while everything else choreographed); 320ms slots them between the
+ * right console and the command bar, so the brain's own readouts settle in as
+ * one coordinated breath with the rest of the HUD. */
+.superbrain-experience.is-booted .center-ports {
+  animation: hud-enter 650ms var(--ease-out-expo) 320ms both;
 }
 
 .superbrain-experience.is-booted .command-bar {
@@ -2305,6 +2434,7 @@ aside.right-console {
   .superbrain-experience.is-booted .right-console,
   .superbrain-experience.is-booted .command-bar,
   .superbrain-experience.is-booted .terminal-log,
+  .superbrain-experience.is-booted .center-ports,
   .superbrain-experience.is-booted .core-readout h2 {
     animation: none;
   }
@@ -2344,6 +2474,13 @@ aside.right-console {
   .port-flare--fire {
     animation: none !important;
     opacity: 0;
+    transform: scale(1);
+  }
+
+  /* The port-dot fire tick collapses to no movement; the accent color still
+   * flips (a real state change), so the firing channel stays legible. */
+  .port-label.is-firing .port-dot {
+    animation: none !important;
     transform: scale(1);
   }
 
@@ -2444,7 +2581,11 @@ aside.right-console {
 }
 
 .fidelity-button strong {
-  color: #9ff0ff;
+  /* Neutral text-1 (was an off-canon SECOND cyan #9ff0ff): the topbar toggle
+   * values now speak one neutral voice like LATENCY, re-reserving cyan strictly
+   * for true accent/state. tabular-nums keeps the value tier reflow-locked. */
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
   transition: color 200ms var(--ease-out-quart);
 }
 
@@ -2554,7 +2695,7 @@ aside.right-console {
 
 .approval-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: flex-end;
   padding: 0 14px 12px;
 }
@@ -2563,7 +2704,13 @@ aside.right-console {
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.18em;
-  padding: 7px 16px;
+  /* 44px target on the product's most consequential gate (the supervised-mind
+   * HOLD): an operator must act calmly + certainly, never hunt a ~28px hit box.
+   * inline-flex centers the label in the taller target. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
   border-radius: 6px;
   cursor: pointer;
   transition: opacity 200ms var(--ease-out-quart), transform 120ms var(--ease-out-quart),
