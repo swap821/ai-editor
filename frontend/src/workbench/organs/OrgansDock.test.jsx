@@ -87,6 +87,41 @@ const CURRICULUM = {
   ],
 };
 
+// Wave-3 port fixtures — the new ports talk to the security/plan/models routes.
+const ZONE_RED = { zone: 'RED', confidence: 0.97, reason: 'Destructive: rm -rf detected' };
+const PLAN_RESPONSE = {
+  goal: 'ship the feature',
+  requires_human: true,
+  steps: [
+    { step_id: 's1', description: 'Read the spec', confidence: 0.9 },
+    { step_id: 's2', description: 'Edit the gateway', confidence: 0.4 },
+  ],
+  approved: [{ step_id: 's1', description: 'Read the spec', confidence: 0.9 }],
+  escalate: [
+    {
+      step: { step_id: 's2', description: 'Edit the gateway', confidence: 0.4 },
+      reason: 'Confidence 0.400 below threshold',
+      action: 'human-review',
+    },
+  ],
+  calibrations: [],
+};
+const MODELS_LOCAL = { models: ['qwen2.5-coder:7b', 'llama3.1:8b'] };
+const MODELS_BEDROCK = { configured: false, available: false, models: [] };
+const MODELS_GEMINI = { configured: false, available: false, models: [] };
+const MODELS_AUTO = {
+  available: true,
+  model: 'qwen2.5-coder:7b',
+  task: 'coding',
+  reason: 'coder-tuned, 7B, instruct',
+  by_task: {
+    coding: 'qwen2.5-coder:7b',
+    reasoning: 'llama3.1:8b',
+    general: 'llama3.1:8b',
+    fast: 'qwen2.5-coder:7b',
+  },
+};
+
 function mockFetch({ autonomy = AUTONOMY_RICH, curriculum = CURRICULUM, fail = false } = {}) {
   return vi.fn((url) => {
     if (fail) return Promise.reject(new Error('offline'));
@@ -97,8 +132,37 @@ function mockFetch({ autonomy = AUTONOMY_RICH, curriculum = CURRICULUM, fail = f
     if (u.includes('/development/curriculum')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(curriculum) });
     }
+    if (u.includes('/security/classify')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(ZONE_RED) });
+    }
+    if (u.includes('/api/v1/plan')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(PLAN_RESPONSE) });
+    }
+    if (u.includes('/models/local')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MODELS_LOCAL) });
+    }
+    if (u.includes('/models/bedrock')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MODELS_BEDROCK) });
+    }
+    if (u.includes('/models/gemini')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MODELS_GEMINI) });
+    }
+    if (u.includes('/models/auto')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MODELS_AUTO) });
+    }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
   });
+}
+
+// ── Nav helpers (Wave-3) ─────────────────────────────────────────────────────
+// The flat tablist is gone: organs are now menuitemradio entries behind the
+// "Choose organ" trigger. Open the dock, open the menu, pick an organ.
+function openMenu() {
+  fireEvent.click(screen.getByRole('button', { name: /choose organ/i }));
+}
+function pickOrgan(name) {
+  openMenu();
+  fireEvent.click(screen.getByRole('menuitemradio', { name }));
 }
 
 beforeEach(() => {
@@ -177,7 +241,7 @@ describe('OrgansDock', () => {
     vi.stubGlobal('fetch', mockFetch());
     render(<OrgansDock />);
     fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
-    fireEvent.click(screen.getByRole('tab', { name: /growth/i }));
+    pickOrgan(/growth/i);
     await waitFor(() => expect(screen.getByText('html-forms')).toBeInTheDocument());
 
     // Skill header: highest mastered level / max level (mastery from row.status only).
@@ -251,5 +315,133 @@ describe('OrgansDock', () => {
     expect(window.localStorage.getItem('organs-dock-open-v1')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: /collapse organs dock/i }));
     expect(window.localStorage.getItem('organs-dock-open-v1')).toBe('false');
+  });
+
+  // ── Wave-3: grouped nav ────────────────────────────────────────────────────
+  it('10. nav menu lists all 8 organs grouped under their sections', () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    openMenu();
+    // Scope the section eyebrow lookup to the menu (the active section also shows
+    // in the header trigger, so an unscoped query would double-match).
+    const menu = screen.getByRole('menu');
+    for (const section of ['GOVERNANCE', 'LEARNING', 'MEMORY', 'REASONING', 'SECURITY', 'SYSTEM']) {
+      expect(within(menu).getByText(section)).toBeInTheDocument();
+    }
+    // All 8 organs are present as menu items.
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(8);
+  });
+
+  it('11. selecting an organ closes the menu and persists the tab key', () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/zone probe/i);
+    // Menu closed (no menuitemradio rendered) + tab persisted.
+    expect(screen.queryByRole('menuitemradio')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('organs-dock-tab-v1')).toBe('zone');
+  });
+
+  it('12. Esc closes the menu first, then the dock', () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    openMenu();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    // First Esc → menu closes, dock stays open.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // Second Esc → dock collapses.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  // ── Wave-3: per-port ───────────────────────────────────────────────────────
+  it('13. zone probe: a RED verdict renders the rail + RED tag + zone pill + reason', async () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/zone probe/i);
+    const input = screen.getByLabelText(/classify a command/i);
+    fireEvent.change(input, { target: { value: 'rm -rf /' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() =>
+      expect(screen.getByText(/Destructive: rm -rf detected/i)).toBeInTheDocument()
+    );
+    // RED rail on the verdict row.
+    const reason = screen.getByText(/Destructive: rm -rf detected/i);
+    const row = reason.closest('.organs-row');
+    expect(row.className).toContain('organs-row--bad');
+    // The loud zone pill + the RED tag (triple-encoded danger).
+    expect(within(row).getByText('RED', { selector: '.organs-zonepill' })).toBeInTheDocument();
+    expect(within(row).getByText('RED', { selector: '.organs-quar' })).toBeInTheDocument();
+    expect(within(row).getByText(/confidence 0\.97/)).toBeInTheDocument();
+  });
+
+  it('14. plan: steps render with AUTO / ESCALATE verdicts + human-review summary', async () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/^plan$/i);
+    const input = screen.getByLabelText(/decompose a goal/i);
+    fireEvent.change(input, { target: { value: 'ship the feature' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(screen.getByText('Read the spec')).toBeInTheDocument());
+    // The approved step's row status reads AUTO; the escalated one reads ESCALATE.
+    const autoStep = screen.getByText('Read the spec').closest('.organs-rung');
+    expect(within(autoStep).getByText('AUTO')).toBeInTheDocument();
+    const escStep = screen.getByText('Edit the gateway').closest('.organs-rung');
+    expect(within(escStep).getByText('ESCALATE')).toBeInTheDocument();
+    // requires_human surfaced as text.
+    expect(screen.getByText('HUMAN REVIEW')).toBeInTheDocument();
+    // Escalation reason is shown.
+    expect(screen.getByText(/below threshold/i)).toBeInTheDocument();
+  });
+
+  it('15. models: Local READY + per-task AUTO routing rows render', async () => {
+    vi.stubGlobal('fetch', mockFetch());
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+    pickOrgan(/^models$/i);
+    await waitFor(() => expect(screen.getByText('Local')).toBeInTheDocument());
+    // Local readiness word + the AUTO routing block.
+    expect(screen.getByText('READY')).toBeInTheDocument();
+    expect(screen.getByText('AUTO ROUTING')).toBeInTheDocument();
+    expect(screen.getByText('CODING')).toBeInTheDocument();
+    expect(screen.getByText('FAST')).toBeInTheDocument();
+    // The chosen coding model tag appears.
+    expect(screen.getAllByText('qwen2.5-coder:7b').length).toBeGreaterThan(0);
+  });
+
+  it('16. each new port shows an honest offline note on a rejected fetch', async () => {
+    vi.stubGlobal('fetch', mockFetch({ fail: true }));
+    render(<OrgansDock />);
+    fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
+
+    // Models fetches on open → its offline note appears without a submit.
+    pickOrgan(/^models$/i);
+    await waitFor(() =>
+      expect(screen.getByText(/MODELS OFFLINE/i)).toBeInTheDocument()
+    );
+
+    // Zone probe is request-driven → submit to trigger the failing fetch.
+    pickOrgan(/zone probe/i);
+    const zinput = screen.getByLabelText(/classify a command/i);
+    fireEvent.change(zinput, { target: { value: 'ls' } });
+    fireEvent.keyDown(zinput, { key: 'Enter' });
+    await waitFor(() =>
+      expect(screen.getByText(/ZONE PROBE OFFLINE/i)).toBeInTheDocument()
+    );
+
+    // Plan is request-driven → submit to trigger the failing fetch.
+    pickOrgan(/^plan$/i);
+    const pinput = screen.getByLabelText(/decompose a goal/i);
+    fireEvent.change(pinput, { target: { value: 'do a thing' } });
+    fireEvent.keyDown(pinput, { key: 'Enter' });
+    await waitFor(() =>
+      expect(screen.getByText(/PLAN OFFLINE/i)).toBeInTheDocument()
+    );
   });
 });

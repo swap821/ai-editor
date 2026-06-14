@@ -609,8 +609,13 @@
     animation: none;
   }
   .organs-tab-pip,
-  .organs-chevron {
+  .organs-chevron,
+  .organs-navtrigger-caret,
+  .organs-menu-item {
     transition: none;
+  }
+  .organs-menu {
+    animation: none;
   }
 }
 
@@ -719,4 +724,163 @@
 .organs-search button:disabled {
   color: var(--text-3);
   cursor: not-allowed;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-3 ADDITIONS — grouped nav (replaces the flat 8-tab row) + 3 read-only
+   ports (Zone Probe / Plan / Models). All new surfaces are NON-backdrop-filtered
+   (the nav menu sits INSIDE the already-blurred .organs-panel), so the only
+   transitions here are color / transform / opacity — the paint-trap law holds
+   (only .organs-panel/.organs-tab are blurred and they are untouched above).
+   Canon var(--token) only; the lone non-token signals are the pre-existing
+   intentional fault literals (#ff5c5c), double-encoded with text. The single
+   in-port accent is the active nav item / active organ name only.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Grouped nav: header trigger + slide-down menu ───────────────────────────── */
+.organs-navtrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto; /* close button pushed right */
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-family: var(--mono);
+  /* not blurred → a color transition is paint-safe. */
+  transition: color 200ms var(--ease-out-quart);
+}
+.organs-navtrigger:hover {
+  color: var(--text-1);
+}
+.organs-navtrigger-section {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-navtrigger-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent); /* the ONE accent: the active organ name */
+}
+.organs-navtrigger-caret {
+  font-size: 9px;
+  color: var(--text-3);
+  transition: transform 200ms var(--ease-out-quart);
+}
+.organs-navtrigger[aria-expanded='true'] .organs-navtrigger-caret {
+  transform: rotate(180deg);
+}
+
+.organs-menu {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--hairline);
+  padding: 8px 10px 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* transform/opacity only → paint-safe (and this surface is not blurred). */
+  animation: organs-menu-drop 220ms var(--ease-out-quart);
+}
+@keyframes organs-menu-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.organs-menu-group + .organs-menu-group {
+  margin-top: 8px;
+}
+.organs-menu-eyebrow {
+  margin: 0 0 4px;
+  padding: 0 2px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  /* not blurred → a color transition is paint-safe. */
+  transition: color 200ms var(--ease-out-quart);
+}
+.organs-menu-item:hover {
+  color: var(--text-1);
+}
+.organs-menu-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex-shrink: 0;
+}
+.organs-menu-item.is-active {
+  color: var(--accent); /* one accent */
+}
+.organs-menu-item.is-active .organs-menu-pip {
+  background: var(--accent);
+}
+
+/* ── Zone pill (Zone Probe verdict) ──────────────────────────────────────────── */
+/* Clones the .organs-held pill recipe, recolored per zone with the existing state
+   tokens / the pre-existing #ff5c5c fault literal. Text-labeled, so color is never
+   the sole signal. */
+.organs-zonepill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.organs-zonepill--ok {
+  border-color: var(--state-ok);
+  color: var(--state-ok);
+}
+.organs-zonepill--busy {
+  border-color: var(--state-busy);
+  color: var(--state-busy);
+}
+.organs-zonepill--bad {
+  border-color: #ff5c5c;
+  color: #ff5c5c;
+}
+
+/* ── Muted secondary prompt (Plan escalate reason / Auto routing reason) ─────── */
+.organs-rung-prompt--muted {
+  color: var(--text-3);
+  font-size: 10.5px;
 }

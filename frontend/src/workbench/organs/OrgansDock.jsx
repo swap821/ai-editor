@@ -7,6 +7,9 @@ import CurriculumPort from './CurriculumPort';
 import SkillsPort from './SkillsPort';
 import ProposalsPort from './ProposalsPort';
 import MemorySearchPort from './MemorySearchPort';
+import ZoneProbePort from './ZoneProbePort';
+import PlanPort from './PlanPort';
+import ModelsPort from './ModelsPort';
 import './organs.css';
 
 /* ─── ORGANS DOCK ──────────────────────────────────────────────────────────────
@@ -37,11 +40,51 @@ function readBool(key, fallback) {
     return fallback;
   }
 }
-const TABS = ['autonomy', 'curriculum', 'skills', 'proposals', 'memory'];
+// Grouped nav taxonomy — the single source of truth for the dock's organs. The
+// flat row stopped scaling at 8 organs (illegible on a fixed 360px header), so the
+// header now shows only SECTION + active organ and a slide-down grouped menu opens
+// the full categorized list on demand.
+const NAV = [
+  {
+    section: 'GOVERNANCE',
+    items: [
+      { id: 'autonomy', label: 'Autonomy' },
+      { id: 'proposals', label: 'Proposals' },
+    ],
+  },
+  {
+    section: 'LEARNING',
+    items: [
+      { id: 'curriculum', label: 'Growth' },
+      { id: 'skills', label: 'Skills' },
+    ],
+  },
+  {
+    section: 'MEMORY',
+    items: [{ id: 'memory', label: 'Memory' }],
+  },
+  {
+    section: 'REASONING',
+    items: [{ id: 'plan', label: 'Plan' }],
+  },
+  {
+    section: 'SECURITY',
+    items: [{ id: 'zone', label: 'Zone Probe' }],
+  },
+  {
+    section: 'SYSTEM',
+    items: [{ id: 'models', label: 'Models' }],
+  },
+];
+const NAV_ITEMS = NAV.flatMap((g) => g.items); // flat lookup
+const TAB_IDS = NAV_ITEMS.map((i) => i.id); // validates persisted tab
+const sectionOf = (id) => NAV.find((g) => g.items.some((i) => i.id === id))?.section ?? '';
+const labelOf = (id) => NAV_ITEMS.find((i) => i.id === id)?.label ?? '';
+
 function readTab(fallback) {
   try {
     const v = window.localStorage.getItem(TAB_KEY);
-    return TABS.includes(v) ? v : fallback;
+    return TAB_IDS.includes(v) ? v : fallback;
   } catch {
     return fallback;
   }
@@ -55,13 +98,18 @@ export default function OrgansDock() {
   // readers guard window themselves, so these are safe one-shot initializers — no
   // hydration-effect, no setState-in-effect.
   const [open, setOpen] = useState(() => readBool(OPEN_KEY, false));
-  // 'autonomy' | 'curriculum' | 'skills' | 'proposals' | 'memory'
+  // One of TAB_IDS (autonomy | proposals | curriculum | skills | memory | plan |
+  // zone | models) — validated against the NAV taxonomy on read.
   const [active, setActive] = useState(() => readTab('autonomy'));
   const [earned, setEarned] = useState(() => getAutonomy()?.summary?.earned ?? 0);
   const [flaring, setFlaring] = useState(false);
+  // The grouped nav menu is closed on every open (collapsed-by-default posture).
+  const [menuOpen, setMenuOpen] = useState(false);
   const flareTimer = useRef(null);
   const tabRef = useRef(null);
   const panelRef = useRef(null);
+  const menuRef = useRef(null);
+  const navTriggerRef = useRef(null);
 
   // Live earned-count chip + tab flare on real earn/master events. Reuses the
   // adapter's existing poll (it refreshes getAutonomy() and fires the labels).
@@ -111,6 +159,7 @@ export default function OrgansDock() {
 
   const close = useCallback(() => {
     setOpen(false);
+    setMenuOpen(false);
     persist(false);
     if (tabRef.current) tabRef.current.focus();
   }, [persist]);
@@ -122,18 +171,41 @@ export default function OrgansDock() {
     } catch {
       // ignore
     }
+    // Selecting an organ closes the menu (it has done its job).
+    setMenuOpen(false);
   }, []);
 
-  // Esc collapses; focus moves into the panel on open.
+  // Esc: close the menu first if it's open, else collapse the dock. Focus moves
+  // into the panel on open.
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') close();
+      if (e.key !== 'Escape') return;
+      if (menuOpen) {
+        setMenuOpen(false);
+        if (navTriggerRef.current) navTriggerRef.current.focus();
+      } else {
+        close();
+      }
     };
     document.addEventListener('keydown', onKey);
     if (panelRef.current) panelRef.current.focus();
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, close]);
+  }, [open, close, menuOpen]);
+
+  // Outside click while the menu is open closes it (but a click on the trigger is
+  // its own toggle, so ignore that target). Mirrors the keydown effect's cleanup.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onDown = (e) => {
+      const t = e.target;
+      if (menuRef.current && menuRef.current.contains(t)) return;
+      if (navTriggerRef.current && navTriggerRef.current.contains(t)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menuOpen]);
 
   if (!hasDom) return null;
 
@@ -166,58 +238,22 @@ export default function OrgansDock() {
           className="organs-panel glass-surface"
         >
           <header className="organs-head">
-            {/* Eyebrow is decorative; with 5 tabs on a 360px header it is icon-only
-                (the dot) so the tablist fits without truncating tab labels. */}
-            <span className="organs-eyebrow organs-eyebrow--icon" aria-label="Organs">
-              <span aria-hidden="true" />
-            </span>
-            <div className="organs-switch" role="tablist" aria-label="Organ ports">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active === 'autonomy'}
-                className={active === 'autonomy' ? 'is-active' : ''}
-                onClick={() => pickTab('autonomy')}
-              >
-                Autonomy
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active === 'curriculum'}
-                className={active === 'curriculum' ? 'is-active' : ''}
-                onClick={() => pickTab('curriculum')}
-              >
-                Growth
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active === 'skills'}
-                className={active === 'skills' ? 'is-active' : ''}
-                onClick={() => pickTab('skills')}
-              >
-                Skills
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active === 'proposals'}
-                className={active === 'proposals' ? 'is-active' : ''}
-                onClick={() => pickTab('proposals')}
-              >
-                Proposals
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active === 'memory'}
-                className={active === 'memory' ? 'is-active' : ''}
-                onClick={() => pickTab('memory')}
-              >
-                Memory
-              </button>
-            </div>
+            {/* Two-tier nav: the header shows only SECTION + active organ; the full
+                grouped list lives behind this trigger (scales past 8 organs on the
+                fixed 360px header without truncating labels). */}
+            <button
+              type="button"
+              ref={navTriggerRef}
+              className="organs-navtrigger"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="Choose organ"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <span className="organs-navtrigger-section">{sectionOf(active)}</span>
+              <span className="organs-navtrigger-name">{labelOf(active)}</span>
+              <span className="organs-navtrigger-caret" aria-hidden="true">▾</span>
+            </button>
             <button
               type="button"
               className="organs-close"
@@ -227,6 +263,30 @@ export default function OrgansDock() {
               ×
             </button>
           </header>
+
+          {menuOpen && (
+            <nav ref={menuRef} className="organs-menu" role="menu" aria-label="Organ ports">
+              {NAV.map((group) => (
+                <div className="organs-menu-group" key={group.section}>
+                  <p className="organs-menu-eyebrow">{group.section}</p>
+                  {group.items.map((it) => (
+                    <button
+                      key={it.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={active === it.id}
+                      className={`organs-menu-item${active === it.id ? ' is-active' : ''}`}
+                      onClick={() => pickTab(it.id)}
+                    >
+                      <span className="organs-menu-pip" aria-hidden="true" />
+                      {it.label}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </nav>
+          )}
+
           <div className="organs-body">
             {active === 'autonomy' ? (
               <AutonomyLedgerPort />
@@ -236,8 +296,14 @@ export default function OrgansDock() {
               <SkillsPort />
             ) : active === 'proposals' ? (
               <ProposalsPort />
-            ) : (
+            ) : active === 'memory' ? (
               <MemorySearchPort />
+            ) : active === 'plan' ? (
+              <PlanPort />
+            ) : active === 'zone' ? (
+              <ZoneProbePort />
+            ) : (
+              <ModelsPort />
             )}
           </div>
           <i className="glass-grain" aria-hidden="true" />
