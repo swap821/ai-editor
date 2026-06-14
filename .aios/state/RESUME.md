@@ -194,6 +194,14 @@ C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/
       green=local/amber=cloud), byte-synced via `npm run port`. ADDITIVE/conditional like AUTONOMY → canon IDLE row
       byte-unchanged (FIDELITY-safe). Before/after goldens in `.aios/state/badge-goldens/` (idle=no badge; cloud=amber
       gemini; local=green qwen). Proposal: `.aios/state/ACTIVE_BRAIN_BADGE_PROPOSAL.md`. Cage verifies regardless of provider.
+    ✅ **Active-brain attribution TIGHTENED (2026-06-14):** the `route` SSE frame was emitted at the START of the
+      turn, before any `chat()` — so under failover it announced the ranked PRIMARY (e.g. `gemini-2.5-pro`, which
+      isn't invocable on the project and rides over to flash/bedrock), momentarily showing a brain that never served.
+      Fix (main.py): announce the route LAZILY from inside the stream — on the first `text`/`tool_call`/`code` event
+      (and again on a mid-loop failover, idempotent), with `done`/`human_required` as a backstop — so a
+      `FailoverChatClient` only reports a model AFTER its `chat()` returns. The badge now names the model that
+      ACTUALLY served, never the dead primary. Tests: test_api (+1: bedrock cascade head fails → route names the
+      served fallback, never the primary). Full suite 545 pass / 1 skip.
     ✅ **FAILOVER layer DONE (2026-06-14, commit fd47482, live-proven):** `aios/core/failover.py`
       `FailoverChatClient` wraps the router's RANKED candidates and rides the next on an `LLMError`
       (forward-only + sticky; truthful `active_provider/model` attribution so calibration credits the model that

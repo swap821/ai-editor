@@ -1599,7 +1599,9 @@ def generate(
         metrics=_route_metrics(development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
     )
-    provider, model = _active_route(chat_client, bedrock, gemini, model)
+    # The serving model is announced lazily from inside the stream (see
+    # `_route_frame`); here we only normalise `model` to the route's view of it.
+    _, model = _active_route(chat_client, bedrock, gemini, model)
 
     def _route_meta() -> dict[str, Any]:
         """Development metadata for the model that ACTUALLY served (post-failover)."""
@@ -1637,19 +1639,33 @@ def generate(
             yield _sse("error", {"text": "No user message provided."})
             return
 
-        # The ACTIVE BRAIN for this turn: which provider/model served it and whether
-        # it stayed local — so the UI can show the voyaging mind's current brain and
-        # a privacy indicator. Purely informational; the cage decides regardless.
-        yield _sse(
-            "route",
-            {
-                "provider": provider,
-                "model": model,
-                "privacy": "local" if provider == router.PROVIDER_OLLAMA else "cloud",
-                "task": task,
-                "auto": req.model_id in _AUTO_IDS,
-            },
-        )
+        # The ACTIVE BRAIN for this turn: which provider/model served it + a privacy
+        # indicator, so the UI can show the voyaging mind's current brain. Emitted
+        # LAZILY — only once a model has actually served (the first text/tool_call/
+        # code), and again whenever a mid-loop failover switches the serving model —
+        # so the badge names the model that did the work, never a ranked-but-
+        # uninvocable primary that silently failed over. A `FailoverChatClient` only
+        # knows which candidate served AFTER its first `chat()` returns; announcing
+        # before that would advertise the cascade head, which may not be invocable.
+        # Purely informational; the cage decides regardless.
+        announced_route: Optional[tuple[str, str]] = None
+
+        def _route_frame() -> Optional[str]:
+            nonlocal announced_route
+            p, m = _active_route(chat_client, bedrock, gemini, model)
+            if (p, m) == announced_route:
+                return None  # unchanged since the last announcement — don't repeat
+            announced_route = (p, m)
+            return _sse(
+                "route",
+                {
+                    "provider": p,
+                    "model": m,
+                    "privacy": "local" if p == router.PROVIDER_OLLAMA else "cloud",
+                    "task": task,
+                    "auto": req.model_id in _AUTO_IDS,
+                },
+            )
 
         # 1. Understand + apply the deterministic communication policy + recall.
         #    The alignment frame is advisory. Its communication policy may pause
@@ -1881,6 +1897,17 @@ def generate(
             event_source = make_agent().run(chat_messages)
         for ev in event_source:
             kind = ev["type"]
+            if kind in ("tool_call", "text", "code", "done", "human_required"):
+                # A model produced output (or the turn is ending) -> the failover
+                # client now names the model that ACTUALLY served. Announce (or
+                # refresh on failover) the brain BEFORE the event, so the badge
+                # tracks the real worker. `done`/`human_required` are a fallback:
+                # they guarantee the badge still appears for a turn whose model
+                # served no text/tool_call (e.g. an empty answer). `_route_frame`
+                # is idempotent, so this never double-announces an unchanged route.
+                route_frame = _route_frame()
+                if route_frame is not None:
+                    yield route_frame
             if kind in _STEP_EVENTS:
                 if kind == "tool_call":
                     workflow_steps.append(_workflow_step(ev))

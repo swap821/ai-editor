@@ -442,6 +442,75 @@ def test_generate_stream_emits_active_brain_route_event(client: TestClient) -> N
     assert '"model": "llama3.2:3b"' in body
 
 
+def _route_models(body: str) -> list[str]:
+    """Every model named by a `route` SSE frame, in order."""
+    models: list[str] = []
+    for block in body.split("\n\n"):
+        if not block.startswith("event: route"):
+            continue
+        for line in block.splitlines():
+            if line.startswith("data: "):
+                models.append(json.loads(line[6:])["model"])
+    return models
+
+
+def test_route_event_names_the_model_that_served_after_failover(client, monkeypatch) -> None:
+    # Active-brain truthfulness: when the ranked-primary candidate fails over, the
+    # `route` frame must name the model that ACTUALLY served — never the primary that
+    # was merely picked first (which may be a non-invocable frontier id). A
+    # FailoverChatClient only knows the serving model AFTER its first chat() returns,
+    # so the badge is announced lazily from inside the stream, not before the turn.
+    from aios.core.llm import LLMError
+    from aios.api.main import get_bedrock_client
+    from aios.core.catalog import clear_catalog_cache
+
+    class FakeBedrockFailover:
+        """One client, several catalog models -> a multi-candidate cloud cascade. The
+        FIRST candidate tried raises; the next one served answers."""
+
+        def __init__(self) -> None:
+            self.served: list[str] = []
+
+        def list_models(self):
+            return [
+                {"id": "us.anthropic.claude-3-5-sonnet-20241022-v2:0"},
+                {"id": "amazon.nova-pro-v1:0"},
+            ]
+
+        def chat(self, messages, *, tools=None, model=None) -> dict:
+            self.served.append(model)
+            if len(self.served) == 1:  # the cascade head is down -> force a failover
+                raise LLMError("primary model is unavailable")
+            return {"role": "assistant", "content": "answer from the fallback model"}
+
+    fake = FakeBedrockFailover()
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning", "coding"))  # cloud allowed
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)  # deterministic cascade (no picker chat)
+    app.dependency_overrides[get_bedrock_client] = lambda: fake
+    clear_catalog_cache()  # the cloud catalog is process-cached; isolate this turn
+    try:
+        response = client.post(
+            "/api/generate",
+            json={
+                "messages": [{"role": "user", "content": [{"text": "reason about this carefully"}]}],
+                "modelId": "auto",
+                "sessionId": "failover-route",
+            },
+        )
+    finally:
+        clear_catalog_cache()
+
+    assert response.status_code == 200
+    # the cascade head was tried and failed; the next candidate actually served
+    assert len(fake.served) >= 2 and fake.served[0] != fake.served[-1]
+    primary, served = fake.served[0], fake.served[-1]
+
+    announced = _route_models(response.text)
+    assert announced, "a route frame must be emitted once a model has served"
+    assert served in announced       # the model that DID the work is named
+    assert primary not in announced  # the failed-over primary is never advertised
+
+
 def test_terminal_green_runs_in_sandbox(client: TestClient) -> None:
     response = client.post("/api/terminal", json={"command": "echo hello"})
     assert response.status_code == 200
