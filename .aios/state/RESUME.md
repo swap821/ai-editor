@@ -1,27 +1,52 @@
 # RESUME MANIFEST
 
-## ACTIVE FRONT (2026-06-15 late): NEXT-GEN 3D ELEVATION (operator north-star directive)
-Deep research DONE + committed: `.aios/state/SUPERBRAIN_NEXTGEN_DESIGN.md` ([[nextgen-3d-design-direction]]).
-Finding: canon is already award-adjacent → ELEVATION not redesign; 8 WOW upgrades; ship WebGL2 /
-prototype WebGPU-TSL; FIDELITY-phased. Operator chose **Phase 0 + 1**.
-- ✅ Phase 0: canon tag `pre-nextgen-canon-v1` created + pushed (rollback baseline).
-- 🟡 Phase 1a (voice-speaking brain PULSE) BUILT IN LAB, pending operator browser review:
-  lab edits (gitignored, NOT yet ported) — cognitionBus 'voice-speaking' type; SuperbrainHUD TTS
-  publishes 'voice-speaking' on onstart + per word-boundary (real speech cadence); SuperbrainScene
-  reacts with a gentle frontal-lobe wave + soft burst (reuses canon wave machinery). Lab vitest 38 pass.
-  **OPERATOR REVIEW STEP (FIDELITY):** run the LAB (`cd "GAG demo/gag-orchestrator"; npm run dev` →
-  http://localhost:3000), talk via the mic, watch the brain pulse as it speaks. If good → I port
-  (handling the guard) ; if not → iterate. Headless WebGL can't render the scene here, so visual
-  sign-off MUST be his browser.
-- ⏳ TWO FLAGS before porting Phase 1 to product:
-  1. CANON-FREEZE GUARD: `tools/check_canon_frozen.py` still HARD-blocks `components/canvas/**`
-     (both lab + product). Phase 1 edits SuperbrainScene (canvas/) → the port-commit will be blocked.
-     The operator UNFROZE the 3D (his first message + Phase-1 go) but the guard wasn't reconciled.
-     PROPOSAL: evolve the guard from "never" to a break-glass `--allow-canon` (default still blocks =
-     accidental-edit tripwire preserved; authorized FIDELITY-reviewed phases pass the flag). NEEDS his OK.
-  2. GOLDENS / before-after = his browser only (headless WebGL broken here).
-- ⏭ Phase 1b = volumetric god-rays (PostFX, big raymarched Effect) — build NEXT with his iterative
-  screenshot feedback (tuning-heavy, can't self-verify). Then Phases 2-4 per the plan.
+## ACTIVE FRONT (2026-06-15 late): NEXT-GEN 3D ELEVATION + PREMIUM-WORKING FRONTEND
+Deep research DONE + committed: `.aios/state/SUPERBRAIN_NEXTGEN_DESIGN.md` ([[nextgen-3d-design-direction]])
++ `.aios/state/PREMIUM_FRONTEND_PLAN.md` (whole-frontend premium-vs-demo audit, waves W0-W6).
+Operator: "keep working until the final GOAT version, full trust, use ultracode workflows"
+([[workflow-default-working-style]]). Two tracks built in parallel via supervised workflows.
+
+⚠️ **USAGE/SESSION LIMIT HIT ~2026-06-15 (resets 4:50am Asia/Calcutta)** — killed the W2 workflow's
+implement+verify agents mid-run; Bash classifier also briefly unavailable. Resume after reset.
+See [[workflow-limit-recovery]]: resume workflows via resumeFromRunId (journal cache), don't relaunch fresh.
+
+### CANON TRACK (lab-only, gitignored, NONE ported yet — needs operator browser review + guard break-glass)
+The canon "living brain" milestone is BUILT in the lab (1a→2b), a coherent gorgeous whole:
+- ✅ Phase 0: canon tag `pre-nextgen-canon-v1` pushed (rollback).
+- ✅ 1a voice-speaking brain pulse (cognitionBus type + SuperbrainHUD TTS publish per word-boundary +
+  SuperbrainScene wave/burst reaction).
+- ✅ 1b volumetric god-rays (workflow): `<GodRays>` + emissive teal sun-proxy parented to the brain,
+  driven by uBurst/uHold, high-tier, pre-AgX slot. SuperbrainScene + PostFX. Both verifiers passed; vitest 38.
+- ✅ 2a living flesh (workflow): cortex fresnel rim + interior light-bleed (fake SSS) using the region's
+  OWN color desaturated 50% (no new hue), driven by uBreath/uBurst. SuperbrainScene. Verifier passed; vitest 38.
+- ✅ 2b synaptic dust (workflow): new SynapticDust.tsx — single-draw-call vertex-shader curl-noise
+  (2000/1000/400 by tier, off on low), divergence-free, canon teal, additive, reduced-motion-safe.
+  Mounted at scene root. 1st verifier PASSED (detailed FIDELITY checklist); **2nd verifier died w/o emitting
+  + I couldn't re-run vitest (classifier down) → RE-CONFIRM 2b FIDELITY + re-run lab vitest on resume.**
+- **OPERATOR REVIEW (FIDELITY, his browser):** `cd "GAG demo/gag-orchestrator"; npm run dev` → :3000 (+
+  backend `.venv\Scripts\python -m aios`). See the whole milestone: brain speaks-pulses + god-rays + living
+  flesh + churning dust. Bless or tune (every effect has documented tuning knobs in its workflow output).
+- **THEN port:** canon-freeze guard now has break-glass — port with `npm run port` then commit using
+  `python tools/check_canon_frozen.py --allow-canon` (operator-authorized; default still blocks accidental edits).
+- ⏭ Canon NEXT after his review: Phase 3 (voyage — nebula depth + camera; camera is the riskiest-blind, do
+  with his feedback) → Phase 4 (truth-in-light: route-privacy tint, earned-act pulse, swarm mesh, star-birth).
+
+### PRODUCT TRACK (premium-working, product-only — shipped to feat/renovation-p0)
+- ✅ W0-1 killed the fabricated "Amazon Bedrock connected" greeting (the one outright lie) → honest greeting.
+- ✅ W0-2 deleted dead code (BuildFeed.jsx, Workbench.jsx; build-confirmed unused).
+- ✅ W0-3 aria-label on ForgePorts ⟳ refresh button.
+- ⏳ W0-5 (define --sb-band-h) DEFERRED: visual call on superseded band-dock layers — needs shell render
+  context + his eyes. W0-4 (delete specgloss.png) SKIP: it's a FROZEN canon texture (his asset) — needs his OK.
+- 🟡 W2 honest-states (workflow wf_7d03efc4-550) — **SPEC DONE, IMPLEMENT KILLED BY USAGE LIMIT.** The spec
+  (useOrganFetch hook design + organ adoption + empty/offline/error states + cold-offline fix) is in the
+  workflow result. **RESUME:** `Workflow({scriptPath: ".../honest-states-w2-wf_7d03efc4-550.js",
+  resumeFromRunId: "wf_7d03efc4-550"})` — the spec agent is cached; implement+verify re-run live.
+- ⏭ Product NEXT: finish W2 (resume) → W1 (stylesheet/a11y substrate: extract App.jsx 142 inline styles +
+  focus-visible + reduced-motion + ARIA — the unlock) → W3 (voice end-to-end finish) → W4 (responsive) →
+  W5 (error boundaries, code-split, typecheck/CI, self-host Monaco) → W6 (coverage). Per PREMIUM_FRONTEND_PLAN.md.
+
+LAB CAVEAT: all canon-track edits live in the gitignored lab (GAG demo/gag-orchestrator). Operator should
+push the lab to swap821/gag-demo so a fresh clone's `npm run port` stays consistent.
 
 ## PRIOR FRONT (2026-06-15): WHOLE-SYSTEM RENOVATION — first-8
 Plan: `.aios/state/RENOVATION_PLAN.md` (importance-ranked, reconciled under
