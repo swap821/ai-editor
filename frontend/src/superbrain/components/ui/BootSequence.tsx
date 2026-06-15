@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProgress } from '@react-three/drei';
 import { publishCognition } from '@/lib/cognitionBus';
+import { transitionToArriving, ArrivalMode } from '@/lib/lifecycleStateMachine';
 import { AIOS_BASE } from '@/lib/aiosAdapter';
 import styles from './BootSequence.module.css';
 
@@ -213,6 +214,17 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
         intensity: 0.9,
         source: 'boot',
       });
+      // The kernel is online — begin the being's opening. First-ever load on this
+      // device coalesces (A); a return awakens (C). Reduced-motion is honored by
+      // the scene (it renders the settled REST state immediately).
+      let firstEver = true;
+      try {
+        firstEver = window.localStorage.getItem('gag-has-arrived-v1') === null;
+        window.localStorage.setItem('gag-has-arrived-v1', '1');
+      } catch {
+        // Private mode: treat as first-ever (coalescence) — the richer opening.
+      }
+      transitionToArriving(firstEver ? ArrivalMode.COALESCENCE : ArrivalMode.AWAKENING);
       const id = window.setTimeout(() => {
         setPhase('done');
         onCompleteRef.current();

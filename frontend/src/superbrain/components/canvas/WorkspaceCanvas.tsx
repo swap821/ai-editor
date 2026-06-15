@@ -15,7 +15,8 @@ import {
 } from '@/components/QualityTierProvider';
 import TierGovernor from './TierGovernor';
 import { sendDirective, startAiosPolling } from '@/lib/aiosAdapter';
-import { publishCognition } from '@/lib/cognitionBus';
+import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
+import { notifyDirective, tickLifecycle } from '@/lib/lifecycleStateMachine';
 
 /** Device-pixel-ratio budget per effective tier — the cheapest fill-rate lever. */
 const TIER_DPR: Record<QualityTier, [number, number]> = {
@@ -170,6 +171,20 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
     host.__gagCognition = publishCognition;
     return () => {
       delete host.__gagCognition;
+    };
+  }, []);
+
+  // THE SIGNAL bridge: a user directive (typed or voice) wakes the being.
+  // A light heartbeat advances the posture machine's decay timers. The scene
+  // subscribes to the machine directly; this component only feeds it.
+  useEffect(() => {
+    const unsub = subscribeCognition((event) => {
+      if (event.type === 'directive') notifyDirective();
+    });
+    const heartbeat = window.setInterval(() => tickLifecycle(), 50);
+    return () => {
+      unsub();
+      window.clearInterval(heartbeat);
     };
   }, []);
 
