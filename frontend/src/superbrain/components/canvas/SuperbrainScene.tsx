@@ -11,6 +11,8 @@ import CorticalSignals, { THOUGHT_WAVE_GLSL } from './CorticalSignals';
 import PostFX from './PostFX';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import { createSeededRandom } from '@/lib/seededRandom';
+import { subscribeLifecycle, LifecycleState, ArrivalMode } from '@/lib/lifecycleStateMachine';
+import { coalescenceEnvelope, ignitionPulse, awakenNotice, shouldReduceMotion } from '@/lib/openingMotion';
 import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
@@ -156,6 +158,12 @@ export interface CognitionUniforms {
   /** 0..1 — the approval hold. The supervised mind is waiting for its
    *  operator: breath freezes, the organism turns amber, wires dim. */
   uHold: { value: number };
+  /** Coalescence/awakening: 1 = arriving (field streaming in), 0 = settled. */
+  uArrival: { value: number };
+  /** Single-shot ignition pulse during coalescence, 0..1. */
+  uIgnite: { value: number };
+  /** First-speak attentive notice, 0..1 (drives cortex brighten + nerve light). */
+  uAwaken: { value: number };
 }
 
 const createCognitionUniforms = (): CognitionUniforms => ({
@@ -173,6 +181,11 @@ const createCognitionUniforms = (): CognitionUniforms => ({
   // Dormant slots sit far in the past; the GLSL clamps ages so this is safe.
   uWaveTimes: { value: [-10, -10, -10] },
   uHold: { value: 0 },
+  // Default to the SETTLED state: any path that never animates (reduced-motion,
+  // tests, SSR) reads as canon REST — the opening is purely additive.
+  uArrival: { value: 0 },
+  uIgnite: { value: 0 },
+  uAwaken: { value: 0 },
 });
 
 /** YELLOW-zone amber — the approval hold's signature color. Accent only. */
@@ -615,6 +628,7 @@ function BrainModel({
   uniforms,
   tier = 'high',
   surface = 'web',
+  arrival,
 }: {
   activity: number;
   mode: CognitiveMode;
@@ -622,6 +636,8 @@ function BrainModel({
   uniforms: CognitionUniforms;
   tier?: QualityTier;
   surface?: BrainSurface;
+  /** Shared coalescence scalar (1 = arriving, 0 = settled) for the aura shells. */
+  arrival: MutableRefObject<number>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   /** Damped pointer-attention lean (CURSOR_ATTENTION). */
@@ -650,6 +666,11 @@ function BrainModel({
         // Link the shared sentience leaves into the brain shader
         shader.uniforms.uTime = uniforms.uTime;
         shader.uniforms.uHold = uniforms.uHold;
+        // Opening envelopes: drive the cortex reveal (coalescence) + the
+        // single-shot ignition seed flash, shader-side. All default to the
+        // SETTLED value (0) so canon REST emission is byte-identical.
+        shader.uniforms.uArrival = uniforms.uArrival;
+        shader.uniforms.uIgnite = uniforms.uIgnite;
 
         // Pass local position to fragment shader for stable high-frequency noise
         shader.vertexShader = shader.vertexShader.replace(
@@ -670,8 +691,10 @@ function BrainModel({
           `#include <common>
            uniform float uTime;
            uniform float uHold;
+           uniform float uArrival;
+           uniform float uIgnite;
            varying vec3 vLocalPos;
-           
+
            vec3 hash33(vec3 p) {
                p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
                         dot(p, vec3(269.5, 183.3, 246.1)),
@@ -791,6 +814,18 @@ function BrainModel({
              totalEmissiveRadiance * holdTone + holdTone * 0.05,
              uHold * 0.85
            );
+
+           // ── Opening reveal (additive: uArrival==0 -> canon REST) ──
+           // reveal: 0 while the field is still streaming in -> 1 settled. The
+           // cortex is DIMMER while arriving (a dormant being lighting up; the
+           // AWAKENING return reads as "dark -> lights up", COALESCENCE as
+           // "condenses into light"). A small floor keeps a faint seed glow so
+           // the form is never fully black before ignition.
+           float reveal = 1.0 - uArrival;
+           totalEmissiveRadiance *= mix(0.12, 1.0, reveal);
+           // uIgnite is the single-shot seed flash (NOT a loop): a warm white
+           // surge from the cortex core, peaking mid-coalescence then gone.
+           totalEmissiveRadiance += safeColor * uIgnite * 1.6 + vec3(0.9, 0.95, 1.0) * uIgnite * 0.5;
           `
         );
       };
@@ -800,7 +835,7 @@ function BrainModel({
       // degraded) program for the whole session, no matter what FIDELITY
       // said. The operator's eyes caught what three rounds of instruments
       // missed.
-      mat.customProgramCacheKey = () => `superbrain_v6_${tier}`;
+      mat.customProgramCacheKey = () => `superbrain_v7_${tier}`;
 
       clone.traverse((object) => {
         if (object instanceof THREE.Mesh) {
@@ -845,9 +880,13 @@ function BrainModel({
     /* ── Brain group animation ── */
     if (groupRef.current) {
       // Asymmetric systolic breath (shared uniform — the same rhythm every
-      // shader layer breathes with) + burst expansion kick.
-      const scale = BRAIN_SCALE * (1 + uniforms.uBreath.value * 0.006)
-        + activity * 0.05 + burstPow * 0.15;
+      // shader layer breathes with) + burst expansion kick. Coalescence pulls
+      // the cortex in from the scale floor (0.85, never 0) toward 1 as uArrival
+      // -> 0; a fresh awakening lifts it a touch while attentive. Additive:
+      // uArrival==0 && uAwaken==0 reproduces the exact canon scale.
+      const arrivalScale = THREE.MathUtils.lerp(1, /*floor*/ 0.85, uniforms.uArrival.value);
+      const scale = BRAIN_SCALE * (1 + uniforms.uBreath.value * 0.006) * arrivalScale
+        + activity * 0.05 + burstPow * 0.15 + uniforms.uAwaken.value * 0.04;
       const damped = THREE.MathUtils.damp(groupRef.current.scale.x, scale, 2.4, delta);
       groupRef.current.scale.setScalar(damped);
 
@@ -876,8 +915,12 @@ function BrainModel({
         const attend = attendRef.current;
         attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
         attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
-        groupRef.current.rotation.y += attend.x * 0.035;
-        groupRef.current.rotation.x += -attend.y * 0.022;
+        // A fresh awakening leans a touch harder toward the operator, then
+        // eases back as the state-driven uAwaken decays — interruptible, never
+        // a fixed keyframe. awakenLean == 1 at rest (canon lean preserved).
+        const awakenLean = 1 + uniforms.uAwaken.value * 0.6;
+        groupRef.current.rotation.y += attend.x * 0.035 * awakenLean;
+        groupRef.current.rotation.x += -attend.y * 0.022 * awakenLean;
       }
     }
   });
@@ -907,6 +950,7 @@ function BrainModel({
           source={brainAsset.object}
           uniforms={uniforms}
           shells={tier === 'high' ? 2 : 1}
+          arrival={arrival}
         />
       )}
       <CorticalSignals
@@ -1014,6 +1058,26 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   // operator's decision (approval-resolved) or when the conversation moves on.
   const holdRef = useRef({ active: false, breathAtHold: 0.5 });
 
+  // The being's posture, mirrored into a ref so the frame loop reads it
+  // without re-rendering. Reduced-motion is captured once and honored in the
+  // SAME frame logic below (no second code path, no auto-degrade of the look).
+  const reducedMotionRef = useRef(shouldReduceMotion());
+  const arrivalScalarRef = useRef(0); // shared with AccretionCore/CosmicBackground/NeuralAura
+  const postureRef = useRef({
+    state: LifecycleState.BOOTING as LifecycleState,
+    mode: ArrivalMode.COALESCENCE as ArrivalMode,
+    enteredAt: 0,
+  });
+  useEffect(
+    () =>
+      subscribeLifecycle((snap) => {
+        postureRef.current.state = snap.state;
+        if (snap.arrivalMode) postureRef.current.mode = snap.arrivalMode;
+        postureRef.current.enteredAt = performance.now();
+      }),
+    [],
+  );
+
   // Nervous system: a directive from the command bar surges the engine — an
   // immediate cognition burst plus a camera push impulse CameraDrift decays.
   // Burst / knowledge events additionally queue a thought-wave on the cortex,
@@ -1021,6 +1085,9 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   useEffect(
     () =>
       subscribeCognition((event) => {
+        // Cinematic priority: during the opening, the scene ignores ambient
+        // cognition so the coalescence isn't broken by stray bursts/waves.
+        if (postureRef.current.state === LifecycleState.ARRIVING) return;
         if (event.type === 'approval-required') {
           const hold = holdRef.current;
           hold.active = true;
@@ -1106,7 +1173,10 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   // a full 30 s quiet period following mount — never during the e2e window.
   useEffect(() => {
     const idle = idleRef.current;
-    idle.lastInputMs = performance.now();
+    // Infinity = "cannot go idle yet"; the frame loop stamps real "now" the
+    // moment the being reaches REST, so the idle clock starts only after the
+    // opening cinematic settles (never during arrival).
+    idle.lastInputMs = Number.POSITIVE_INFINITY;
     idle.progress = 0;
     idle.blend = 0;
     idle.wasIdle = false;
@@ -1165,6 +1235,45 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     /* ── shared sentience uniforms: one write per frame drives every layer ── */
     uniforms.uTime.value = time;
 
+    /* ── opening envelopes: coalescence/awaken drive shader-side reveals ── */
+    const posture = postureRef.current;
+    const sinceState = performance.now() - posture.enteredAt;
+    let arrivalTarget = 0;
+    let igniteTarget = 0;
+    let awakenTarget = 0;
+    if (posture.state === LifecycleState.ARRIVING) {
+      if (reducedMotionRef.current) {
+        // Reduced-motion: skip the streaming coalescence/funnel (a vestibular
+        // trigger) and show the settled REST state now — final state preserved.
+        arrivalTarget = 0;
+        igniteTarget = 0;
+      } else {
+        const env = coalescenceEnvelope(sinceState);
+        // The cortex reveal/dim is shared by both arrival modes (dark -> light).
+        // COALESCENCE (first load) ALSO streams the knowledge field inward —
+        // uArrival drives the accretion inflow + star funnel; AWAKENING (every
+        // return) keeps the field calm so it reads as a distinct "it woke from
+        // a seed" beat, not a re-summoning of the whole field.
+        arrivalTarget = env.arrival;
+        // Both modes ignite from a seed (the single-shot flash in the cortex).
+        igniteTarget = ignitionPulse(sinceState);
+      }
+    } else if (posture.state === LifecycleState.ATTENTIVE) {
+      awakenTarget = reducedMotionRef.current ? 1 : awakenNotice(sinceState);
+    }
+    uniforms.uArrival.value = arrivalTarget;
+    uniforms.uIgnite.value = igniteTarget;
+    // AWAKENING return: the cortex still reveals/ignites, but the field stays
+    // calm — only COALESCENCE feeds the streaming inflow/funnel scalar.
+    arrivalScalarRef.current =
+      posture.state === LifecycleState.ARRIVING && posture.mode === ArrivalMode.AWAKENING
+        ? 0
+        : arrivalTarget;
+    // State-driven, interruptible (design law for the reaction): uAwaken eases
+    // toward its target so a second directive / pointer move retargets it
+    // smoothly and it never blocks input — never a looped pulse.
+    uniforms.uAwaken.value = THREE.MathUtils.damp(uniforms.uAwaken.value, awakenTarget, 6, delta);
+
     // Asymmetric 0.1 Hz systole layered with slower swells at decreasing
     // amplitude — never a constant ~1 Hz pulse.
     const systole = Math.pow(0.5 + 0.5 * Math.sin(time * 0.628), 1.8);
@@ -1196,13 +1305,18 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     /* ── thought-wave scheduler: Poisson-ish idle waves + event waves ── */
     const waves = waveRef.current;
     if (waves.nextAuto < 0) waves.nextAuto = time + 2 + waves.random() * 3;
-    if (holding < 0.5 && time >= waves.nextAuto) {
+    if (holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
       waves.pending.push(randomWaveOrigin(waves.random));
       waves.nextAuto = time + 3 + waves.random() * 5;
     }
 
     /* ── idle attract-mode: autonomous cognition after 30 s of no input ── */
     const idle = idleRef.current;
+    // Start the idle clock only once the opening has settled to REST — the
+    // attract-mode must never engage mid-arrival.
+    if (postureRef.current.state === LifecycleState.REST && idle.lastInputMs === Number.POSITIVE_INFINITY) {
+      idle.lastInputMs = performance.now();
+    }
     const idleForS = (performance.now() - idle.lastInputMs) / 1000;
     const isIdle = idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
     idle.progress = isIdle
@@ -1264,7 +1378,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       {sky === 'layered' && tier !== 'low' && (
         <KnowledgeHorizon activity={activeBoost} />
       )}
-      <CosmicBackground tier={tier} />
+      <CosmicBackground tier={tier} arrival={arrivalScalarRef} />
 
       {/* The recall stream: distant glints are REAL trails from the pheromone
           map (strength = core brightness, walks = cage size, freshness =
@@ -1295,8 +1409,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
-        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} />
-        <AccretionCore activity={activeBoost} burst={burstRef} />
+        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
+        <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} />
       </Float>
       
       {/* Kept OUTSIDE Float so the bottom wires stay rigidly attached to the static UI. 

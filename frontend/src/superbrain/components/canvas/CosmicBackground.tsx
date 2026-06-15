@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
@@ -71,7 +71,7 @@ const STAR_COUNTS: Record<QualityTier, number> = {
   low: 1200,
 };
 
-function Starfield({ count }: { count: number }) {
+function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObject<number> }) {
   const pointsRef = useRef<THREE.Points>(null);
 
   const stars = useMemo(() => {
@@ -107,7 +107,10 @@ function Starfield({ count }: { count: number }) {
 
   const uniforms = useMemo(() => ({
     uTime: STARFIELD_TIME_UNIFORM,
-    uAtlas: { value: getGlyphAtlas() }
+    uAtlas: { value: getGlyphAtlas() },
+    // Coalescence funnel strength: 1 = arriving (stars funnel hard inward),
+    // 0 = settled (canon drift-by). Default 0 keeps the canon REST field.
+    uArrival: { value: 0 },
   }), []);
 
   // Approval hold: the VOYAGE ITSELF holds its breath — the field's clock
@@ -134,6 +137,7 @@ function Starfield({ count }: { count: number }) {
     const hold = holdRef.current;
     hold.blend = THREE.MathUtils.damp(hold.blend, hold.target, 2.5, delta);
     STARFIELD_TIME_UNIFORM.value += delta * (1 - 0.7 * hold.blend);
+    uniforms.uArrival.value = arrival?.current ?? 0;
   });
 
   return (
@@ -147,11 +151,13 @@ function Starfield({ count }: { count: number }) {
         onBeforeCompile={(shader) => {
           shader.uniforms.uTime = uniforms.uTime;
           shader.uniforms.uAtlas = uniforms.uAtlas;
-          
+          shader.uniforms.uArrival = uniforms.uArrival;
+
           shader.vertexShader = shader.vertexShader.replace(
             '#include <common>',
             `#include <common>
              uniform float uTime;
+             uniform float uArrival;
              attribute float aSpriteIndex;
              attribute float aSize;
              varying float vAlpha;
@@ -179,8 +185,12 @@ function Starfield({ count }: { count: number }) {
              
              // The "grasp" range is 25 units.
              // As the particle enters this radius, pull goes from 0.0 to 1.0.
-             float pull = smoothstep(25.0, 2.0, distToCenter);
-             
+             // Coalescence widens the grasp radius and snaps stars in HARDER so
+             // the field reads as funneling inward; uArrival==0 reproduces the
+             // exact canon 25->2 grasp (purely additive, no canon change).
+             float graspRange = mix(25.0, 42.0, uArrival);
+             float pull = clamp(smoothstep(graspRange, 2.0, distToCenter) * (1.0 + uArrival * 0.6), 0.0, 1.0);
+
              if (pull > 0.0) {
                  // Instant, straight-line gravitational pull directly to the core
                  // pow() gives it a sharp, accelerating snap rather than a linear slide
@@ -260,10 +270,17 @@ function Starfield({ count }: { count: number }) {
   );
 }
 
-export default function CosmicBackground({ tier = 'high' }: { tier?: QualityTier }) {
+export default function CosmicBackground({
+  tier = 'high',
+  arrival,
+}: {
+  tier?: QualityTier;
+  /** Shared coalescence scalar: 1 = arriving (funnel inward), 0 = settled. */
+  arrival?: MutableRefObject<number>;
+}) {
   return (
     <group>
-      <Starfield count={STAR_COUNTS[tier]} />
+      <Starfield count={STAR_COUNTS[tier]} arrival={arrival} />
     </group>
   );
 }
