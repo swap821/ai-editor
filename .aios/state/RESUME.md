@@ -49,7 +49,9 @@ The canon "living brain" milestone is BUILT in the lab (1a→3a), a coherent gor
   the SAME entity"). Deep-research done → `.aios/state/NERVOUS_SYSTEM_REIMAGINATION.md` (4 distinct identities;
   KEY code finding: the nerves are the lone OPAQUE element while every other energy layer is ADDITIVE → make
   them additive LIGHT-conduits = distinct-from-tissue yet cohesive). Operator PICKED **"Fiber-Optic Control-Bus"**
-  → BUILDING now (wf wi1tj9ww2, Sonnet impl + Haiku/Sonnet verify): additive light-cables, whispered carrier,
+  → BUILT in lab + SUPERVISED (port tips frozen by my own grep; AdditiveBlending+depthWrite:false; tissue
+  levers deleted; lab vitest 38/38 my re-run) — AWAITING operator browser review at :3000, then port (--allow-canon).
+  (wf wi1tj9ww2, Sonnet impl + Haiku/Sonnet verify): additive light-cables, whispered carrier,
   sharp signal-beads that surge on uBurst + FREEZE mid-cable on uHold; ports/geometry/tabX frozen. Supersedes
   the rejected re-skin. SUPERVISE on land (re-run lab vitest + grep port tips). NervousSystem.tsx is canon → port
   is full-FIDELITY-gated.
