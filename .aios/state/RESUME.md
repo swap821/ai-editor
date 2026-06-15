@@ -9,6 +9,21 @@ Operator: "keep working until the final GOAT version, full trust, use ultracode 
 (History: a usage limit hit mid-W2 + recovered; W2 resumed cleanly via resumeFromRunId — see
 [[workflow-limit-recovery]]. All tracks current as of this checkpoint.)
 
+**PROCESS DISCIPLINE codified THIS session (APPLY, don't re-derive or re-advise — it's in AGENTS.md):**
+§XII = read the `.aios/` docs + `aios/` code BEFORE acting (never hallucinate; read the matching design spec
+first). §XIII = the shared toolkit (8 design skills now project-installed in `skills-lock.json` + `.claude/
+skills/` so Codex/fresh clones get them; MCPs are account-tied). §III recall-at-START / §IV leave-everything-
+current-at-END = the operator's session ritual. Deliberate model allocation in workflows: Sonnet/Opus for
+substance, Haiku for read-only checks ([[workflow-default-working-style]]). The operator's eye is the FINAL
+aesthetic arbiter — I cannot see WebGL headlessly; build lab-first, he signs off in his browser.
+
+**★ SINGLE NEXT ACTION — a VISUAL REVIEW PASS with the operator** (stop stacking blind): he reviews the canon
+(brain + the new FIBER-OPTIC bus + calm space) at :3000, then (1) RELINK the backend so it reacts live — a
+stuck `:8000` zombie lacks the `:3000` CORS; restart on a clean port OR clear :8000 and start with
+`AIOS_CORS_ORIGINS` including `http://localhost:3000`; (2) PORT the blessed canon to product (`npm run port`
++ commit with `tools/check_canon_frozen.py --allow-canon`); (3) push the lab to `swap821/gag-demo` (backup).
+Then resume the remaining waves.
+
 ### CANON TRACK (lab-only, gitignored, NONE ported yet — needs operator browser review + guard break-glass)
 The canon "living brain" milestone is BUILT in the lab (1a→3a), a coherent gorgeous whole:
 - ✅ Phase 0: canon tag `pre-nextgen-canon-v1` pushed (rollback).
@@ -30,8 +45,16 @@ The canon "living brain" milestone is BUILT in the lab (1a→3a), a coherent gor
   flesh + churning dust. Bless or tune (every effect has documented tuning knobs in its workflow output).
 - **THEN port:** canon-freeze guard now has break-glass — port with `npm run port` then commit using
   `python tools/check_canon_frozen.py --allow-canon` (operator-authorized; default still blocks accidental edits).
-- ⏭ Canon NEXT after his review: Phase 3 (voyage — nebula depth + camera; camera is the riskiest-blind, do
-  with his feedback) → Phase 4 (truth-in-light: route-privacy tint, earned-act pulse, swarm mesh, star-birth).
+- 🟡 NERVOUS SYSTEM (the work-bus): operator rejected the first organic-teal re-skin ("brain + bus look like
+  the SAME entity"). Deep-research done → `.aios/state/NERVOUS_SYSTEM_REIMAGINATION.md` (4 distinct identities;
+  KEY code finding: the nerves are the lone OPAQUE element while every other energy layer is ADDITIVE → make
+  them additive LIGHT-conduits = distinct-from-tissue yet cohesive). Operator PICKED **"Fiber-Optic Control-Bus"**
+  → BUILDING now (wf wi1tj9ww2, Sonnet impl + Haiku/Sonnet verify): additive light-cables, whispered carrier,
+  sharp signal-beads that surge on uBurst + FREEZE mid-cable on uHold; ports/geometry/tabX frozen. Supersedes
+  the rejected re-skin. SUPERVISE on land (re-run lab vitest + grep port tips). NervousSystem.tsx is canon → port
+  is full-FIDELITY-gated.
+- ⏭ Canon AFTER the bus + his review: Phase 3b (camera choreography — riskiest-blind, do WITH his feedback) →
+  Phase 4 (truth-in-light: route-privacy tint, earned-act pulse, swarm mesh, star-birth).
 
 ### PRODUCT TRACK (premium-working, product-only — shipped to feat/renovation-p0)
 - ✅ W0-1 killed the fabricated "Amazon Bedrock connected" greeting (the one outright lie) → honest greeting.
@@ -47,9 +70,14 @@ The canon "living brain" milestone is BUILT in the lab (1a→3a), a coherent gor
   three/drei/postprocessing/monaco vendor chunks; vendor-three ~730KB is irreducible, isolated); typescript +
   `typecheck` script + tsconfig + product src/types/{web-speech,env}.d.ts → `tsc --noEmit` CLEAN (fixed the
   SpeechRecognition errors WITHOUT editing generated tree). Supervised: build/vitest 91/tsc all green.
-- ⏭ Product NEXT (increasingly visual → favor his eyes): W1 (stylesheet/a11y substrate: extract App.jsx 142
-  inline styles + focus-visible + reduced-motion + ARIA — the unlock, but visual-faithfulness needs review) ·
-  W3 (voice end-to-end finish) · W4 (responsive) · W6 (coverage/polish) · W5 leftovers (self-host Monaco, CI YAML).
+- ✅ W1 a11y substrate (shipped 56e6f52): faithful extraction of App.jsx's 142 inline styles → App.css (hover→
+  :hover; dynamic runtime-color styles correctly kept inline) + :focus-visible (approval buttons first) +
+  reduced-motion gates. Faithfulness verified (no value drift); build/vitest 91/tsc clean. Classic-face visual
+  = operator browser confirm (faithful = pixel-identical).
+- ✅ Project-installed the 8 design skills (15c5efe): committed `.claude/skills/` + `skills-lock.json` so all
+  collaborators get them; raw 1.3GB gstack clone deliberately excluded.
+- ⏭ Product NEXT (increasingly visual → favor his eyes): W3 (voice end-to-end finish) · W4 (responsive) ·
+  W6 (coverage/polish) · W5 leftovers (self-host Monaco, CI YAML). All shipped product work is on feat/renovation-p0.
 
 LAB CAVEAT: all canon-track edits live in the gitignored lab (GAG demo/gag-orchestrator). Operator should
 push the lab to swap821/gag-demo so a fresh clone's `npm run port` stays consistent.
