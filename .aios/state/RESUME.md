@@ -6,12 +6,11 @@ Deep research DONE + committed: `.aios/state/SUPERBRAIN_NEXTGEN_DESIGN.md` ([[ne
 Operator: "keep working until the final GOAT version, full trust, use ultracode workflows"
 ([[workflow-default-working-style]]). Two tracks built in parallel via supervised workflows.
 
-⚠️ **USAGE/SESSION LIMIT HIT ~2026-06-15 (resets 4:50am Asia/Calcutta)** — killed the W2 workflow's
-implement+verify agents mid-run; Bash classifier also briefly unavailable. Resume after reset.
-See [[workflow-limit-recovery]]: resume workflows via resumeFromRunId (journal cache), don't relaunch fresh.
+(History: a usage limit hit mid-W2 + recovered; W2 resumed cleanly via resumeFromRunId — see
+[[workflow-limit-recovery]]. All tracks current as of this checkpoint.)
 
 ### CANON TRACK (lab-only, gitignored, NONE ported yet — needs operator browser review + guard break-glass)
-The canon "living brain" milestone is BUILT in the lab (1a→2b), a coherent gorgeous whole:
+The canon "living brain" milestone is BUILT in the lab (1a→3a), a coherent gorgeous whole:
 - ✅ Phase 0: canon tag `pre-nextgen-canon-v1` pushed (rollback).
 - ✅ 1a voice-speaking brain pulse (cognitionBus type + SuperbrainHUD TTS publish per word-boundary +
   SuperbrainScene wave/burst reaction).
@@ -21,8 +20,11 @@ The canon "living brain" milestone is BUILT in the lab (1a→2b), a coherent gor
   OWN color desaturated 50% (no new hue), driven by uBreath/uBurst. SuperbrainScene. Verifier passed; vitest 38.
 - ✅ 2b synaptic dust (workflow): new SynapticDust.tsx — single-draw-call vertex-shader curl-noise
   (2000/1000/400 by tier, off on low), divergence-free, canon teal, additive, reduced-motion-safe.
-  Mounted at scene root. 1st verifier PASSED (detailed FIDELITY checklist); **2nd verifier died w/o emitting
-  + I couldn't re-run vitest (classifier down) → RE-CONFIRM 2b FIDELITY + re-run lab vitest on resume.**
+  Mounted at scene root. 1st verifier PASSED (FIDELITY checklist); 2nd verifier died w/o emitting but I
+  re-ran lab vitest (38/38) + confirmed palette/no-camera myself → 2b CONFIRMED.
+- ✅ 3a voyage / nebula depth (workflow): KnowledgeHorizon additive volumetric depth + deterministic
+  forward-drift (reuses C_BLACK/C_TEAL/C_AMBER, no new hue), tier-gated, reduced-motion, NO camera change
+  (SuperbrainScene tier wire only). Supervised: lab vitest 38/38, palette reuse + zero camera touch confirmed.
 - **OPERATOR REVIEW (FIDELITY, his browser):** `cd "GAG demo/gag-orchestrator"; npm run dev` → :3000 (+
   backend `.venv\Scripts\python -m aios`). See the whole milestone: brain speaks-pulses + god-rays + living
   flesh + churning dust. Bless or tune (every effect has documented tuning knobs in its workflow output).
@@ -37,13 +39,17 @@ The canon "living brain" milestone is BUILT in the lab (1a→2b), a coherent gor
 - ✅ W0-3 aria-label on ForgePorts ⟳ refresh button.
 - ⏳ W0-5 (define --sb-band-h) DEFERRED: visual call on superseded band-dock layers — needs shell render
   context + his eyes. W0-4 (delete specgloss.png) SKIP: it's a FROZEN canon texture (his asset) — needs his OK.
-- 🟡 W2 honest-states (workflow wf_7d03efc4-550) — **SPEC DONE, IMPLEMENT KILLED BY USAGE LIMIT.** The spec
-  (useOrganFetch hook design + organ adoption + empty/offline/error states + cold-offline fix) is in the
-  workflow result. **RESUME:** `Workflow({scriptPath: ".../honest-states-w2-wf_7d03efc4-550.js",
-  resumeFromRunId: "wf_7d03efc4-550"})` — the spec agent is cached; implement+verify re-run live.
-- ⏭ Product NEXT: finish W2 (resume) → W1 (stylesheet/a11y substrate: extract App.jsx 142 inline styles +
-  focus-visible + reduced-motion + ARIA — the unlock) → W3 (voice end-to-end finish) → W4 (responsive) →
-  W5 (error boundaries, code-split, typecheck/CI, self-host Monaco) → W6 (coverage). Per PREMIUM_FRONTEND_PLAN.md.
+- ✅ W2 honest-states (shipped 1a4e65f): useOrganFetch hook (5 truth-states: loading/ready/EMPTY/offline/
+  error) + adopted in ConversationPort + IntentPort (empty≠offline) + ForgePorts offline/loading banner +
+  App.jsx sendError (no more silent swallow). Build green; vitest 91 (+11). Supervised (product-only).
+- ✅ W5 production hardening (shipped f333db7): ErrorBoundary on App + all major panels + workbench canvas +
+  forge ports (honest a11y fallback + retry); vite manualChunks (1.35MB monolith → app chunk ~147KB + isolated
+  three/drei/postprocessing/monaco vendor chunks; vendor-three ~730KB is irreducible, isolated); typescript +
+  `typecheck` script + tsconfig + product src/types/{web-speech,env}.d.ts → `tsc --noEmit` CLEAN (fixed the
+  SpeechRecognition errors WITHOUT editing generated tree). Supervised: build/vitest 91/tsc all green.
+- ⏭ Product NEXT (increasingly visual → favor his eyes): W1 (stylesheet/a11y substrate: extract App.jsx 142
+  inline styles + focus-visible + reduced-motion + ARIA — the unlock, but visual-faithfulness needs review) ·
+  W3 (voice end-to-end finish) · W4 (responsive) · W6 (coverage/polish) · W5 leftovers (self-host Monaco, CI YAML).
 
 LAB CAVEAT: all canon-track edits live in the gitignored lab (GAG demo/gag-orchestrator). Operator should
 push the lab to swap821/gag-demo so a fresh clone's `npm run port` stays consistent.
