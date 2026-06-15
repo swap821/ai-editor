@@ -535,7 +535,7 @@ describe('OrgansDock', () => {
     fireEvent.click(screen.getByRole('button', { name: /open organs dock/i }));
     pickOrgan(/conversation/i);
     await waitFor(() =>
-      expect(screen.getByText(/No dialogue yet this session/i)).toBeInTheDocument()
+      expect(screen.getByText(/No conversation yet this session/i)).toBeInTheDocument()
     );
     expect(document.body.querySelector('.organs-msg')).toBeNull();
   });

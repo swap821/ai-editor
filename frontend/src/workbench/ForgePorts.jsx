@@ -66,6 +66,10 @@ export default function ForgePorts() {
   const [files, setFiles] = useState(DEFAULT_FILES);
   const [active, setActive] = useState('index.html');
   const [pending, setPending] = useState(null); // a YELLOW write awaiting your authorization
+  // Honest workspace fetch states (W2-3): loading on the first read; a quiet OFFLINE
+  // banner when loadWorkspace() can't reach the backend (it used to fail silently).
+  const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [workspaceError, setWorkspaceError] = useState(null);
   const editorFlaring = useFlare(isWriteEvt);
   const previewFlaring = useFlare(isRenderEvt);
 
@@ -99,12 +103,21 @@ export default function ForgePorts() {
   // to show the file the mind actually wrote. Honest offline: keep current files.
   const seenRef = useRef(new Set());
   const loadWorkspace = useCallback(async () => {
+    setWorkspaceLoading(true);
     try {
       const r = await fetch(`${API_BASE}/api/v1/development/workspace`, { headers: API_HEADERS });
-      if (!r.ok) return;
+      if (!r.ok) {
+        // No longer silent (W2-3): surface the truth with the status code. A 5xx is
+        // a real backend error; any other not-ok is a link/route problem. Keep the
+        // current files either way — never fake content.
+        setWorkspaceError(r.status >= 500 ? `Backend error ${r.status}` : `Workspace fetch failed (${r.status})`);
+        return;
+      }
       const data = await r.json();
       const list = Array.isArray(data.files) ? data.files : [];
-      if (!list.length) return; // empty / backend down — keep the welcome files
+      // Reaching here means the link is healthy — clear any prior offline banner.
+      setWorkspaceError(null);
+      if (!list.length) return; // empty workspace — keep the welcome files (not an error)
       const next = {};
       for (const f of list) next[f.path] = { language: langOf(f.path), content: f.content || '' };
       const newest = list[0].path; // most-recent write
@@ -113,8 +126,12 @@ export default function ForgePorts() {
       setFiles(next);
       // Jump to a FRESHLY-written file; otherwise keep the operator's current tab.
       setActive((cur) => (isNewFile ? newest : cur && cur in next ? cur : newest));
-    } catch {
-      // backend unreachable — keep current files, never fake content
+    } catch (err) {
+      // Backend unreachable — keep current files, never fake content, but no longer
+      // SILENT: a quiet offline banner tells the operator the link is down (W2-3/W2-5).
+      setWorkspaceError(`Workspace offline — ${err?.message || 'AI-OS unreachable'}`);
+    } finally {
+      setWorkspaceLoading(false);
     }
   }, []);
 
@@ -165,6 +182,19 @@ export default function ForgePorts() {
               </button>
               <span className="forge-link" />
             </div>
+            {/* Honest workspace states (W2-3): a loading line on the first read, and a
+                quiet OFFLINE/error banner when loadWorkspace() can't reach the backend
+                (it used to fail silently). aria-live so AT announces the link drop. */}
+            {workspaceLoading && !workspaceError && (
+              <div className="forge-loading" role="status">
+                Loading workspace…
+              </div>
+            )}
+            {workspaceError && (
+              <div className="forge-error" role="status" aria-live="polite">
+                ⚠ {workspaceError}
+              </div>
+            )}
             <div className="forge-tabs">
               {Object.keys(files).map((name) => (
                 <button

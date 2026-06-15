@@ -57,6 +57,38 @@
   text-overflow: ellipsis;
 }
 
+/* W2-3 · honest workspace states (was a silent fail). A muted loading line on the
+   first read; a quiet OFFLINE/error banner when the workspace fetch can't reach the
+   backend. Reuses existing tokens (--text-3 muted, --danger) — no new hue, no motion. */
+.forge-loading {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-3, #6b7088);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.forge-error {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--danger, #f87171);
+  background: rgba(248, 113, 113, 0.08);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.28);
+  border-left: 3px solid var(--danger, #f87171);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* A real cognition event landed on this port · the nerve surge, echoed.
    STATIC class swap (no transition on the blurred parent → no per-frame re-raster;
    blueprint §2.2 "truth-states are static class swaps"). The actual MOVING surge

@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE, API_HEADERS } from '../../config';
-import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
 import { getSessionId } from '../../superbrain/lib/sessionId';
+import { useOrganFetch } from '../../lib/useOrganFetch';
 
 /* ─── INTENT PORT · PER-TURN SHARED UNDERSTANDING ──────────────────────────────
    A read-only window into the superbrain's UNDERSTANDING layer: the latest
@@ -35,10 +34,13 @@ import { getSessionId } from '../../superbrain/lib/sessionId';
    on 'synthesis' / 'SYNTHESIS COMPLETE' (a turn finished → a new frame exists) and
    on 'synthesis' / 'AI-OS LINK ESTABLISHED' (a (re)connect), plus once on mount.
 
-   Honest states: loading on first fetch; a calm "no alignment yet" placeholder when
-   the session has no frame (alignment === null); on a failed fetch keep the last
-   frame and show a quiet `· link offline` tag. NEVER fabricate a frame — REAL DATA
-   ONLY.
+   Honest states (now via the shared useOrganFetch hook — five truth-states):
+   loading on first fetch; a calm EMPTY "no understanding frame yet" placeholder when
+   the session has no frame (alignment === null — network OK, backend answered, just
+   no frame, distinct from offline); on a network failure keep the last frame and
+   show a quiet `· link offline` tag (cold-offline shows the OFFLINE placeholder
+   immediately, never "loading forever"); on a 5xx an honest error. NEVER fabricate
+   a frame — REAL DATA ONLY.
    ──────────────────────────────────────────────────────────────────────────── */
 
 const LIMIT = 1;
@@ -92,70 +94,68 @@ function asList(value) {
   return value.map((v) => String(v ?? '')).filter(Boolean);
 }
 
+// The REAL request — POST { sessionId, limit }. A function so each (re)fetch reads
+// the current shared session id (the data flow is UNCHANGED; the hook only adds states).
+const intentInit = () => ({
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+  body: JSON.stringify({ sessionId: getSessionId(), limit: LIMIT }),
+});
+
+// Read `alignment` verbatim — the latest frame object, or null before any turn.
+// A null return → the hook reports phase 'empty' (no frame yet, distinct from
+// offline). We never reconstruct or default missing scalar fields.
+const mapAlignment = (json) =>
+  (json && typeof json.alignment === 'object' ? json.alignment : null);
+
+// Bus matchers: a turn completed (a fresh frame exists), or the link (re)connected.
+const INTENT_EVENTS = ['synthesis/SYNTHESIS COMPLETE', 'synthesis/AI-OS LINK ESTABLISHED'];
+
 export default function IntentPort() {
-  // undefined = not loaded yet; null = loaded, session has no frame; object = frame.
-  const [frame, setFrame] = useState(undefined);
-  const [phase, setPhase] = useState('loading'); // loading | live | offline
-  // Whether a prior fetch ever succeeded — decides keep-last (offline tag on a
-  // populated frame) vs the first-load offline placeholder.
-  const hadDataRef = useRef(false);
+  const { data: frame, phase, hadData } = useOrganFetch(
+    `${API_BASE}/api/v1/conversation/session`,
+    { events: INTENT_EVENTS, onData: mapAlignment, init: intentInit },
+  );
 
-  const fetchFrame = useCallback(async () => {
-    const sessionId = getSessionId();
-    try {
-      const r = await fetch(`${API_BASE}/api/v1/conversation/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...API_HEADERS },
-        body: JSON.stringify({ sessionId, limit: LIMIT }),
-      });
-      if (!r.ok) throw new Error(`bad status ${r.status}`);
-      const json = await r.json();
-      // `alignment` is the latest frame, or null before any turn. We read it
-      // verbatim — never reconstruct or default missing scalar fields.
-      const a = json && typeof json.alignment === 'object' ? json.alignment : null;
-      hadDataRef.current = true;
-      setFrame(a);
-      setPhase('live');
-    } catch {
-      // Keep the last-rendered frame; surface a quiet offline tag. Never throw.
-      setPhase('offline');
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchFrame();
-    const unsub = subscribeCognition((e) => {
-      if (!e || e.type !== 'synthesis') return;
-      const label = String(e.label || '');
-      // A turn completed (a fresh frame exists), or the link (re)connected.
-      if (label === 'SYNTHESIS COMPLETE' || label === 'AI-OS LINK ESTABLISHED') {
-        void fetchFrame();
-      }
-    });
-    return () => unsub();
-  }, [fetchFrame]);
-
-  // First load, nothing yet → honest loading / offline (never a fabricated frame).
-  if (frame === undefined) {
+  // LOADING — first fetch in flight (skeletons carry an accessible label).
+  if (phase === 'loading') {
     return (
       <section aria-label="Intent frame">
         <p className="organs-port-title">Reasoning · Understanding Frame</p>
-        {phase === 'offline' && !hadDataRef.current ? (
-          <p className="organs-note organs-note--offline">
-            INTENT OFFLINE — AI-OS unreachable.
-          </p>
-        ) : (
-          <>
-            <div className="organs-skel" aria-hidden="true" />
-            <div className="organs-skel" aria-hidden="true" />
-          </>
-        )}
+        <div className="organs-skel" role="status" aria-label="Loading understanding frame…" />
+        <div className="organs-skel" aria-hidden="true" />
       </section>
     );
   }
 
-  // Loaded, but the session has formed no frame yet (alignment === null).
-  if (frame === null) {
+  // OFFLINE, first load (no data ever) — honest cold-offline placeholder (W2-5),
+  // NOT a perpetual skeleton.
+  if (phase === 'offline' && !hadData) {
+    return (
+      <section aria-label="Intent frame">
+        <p className="organs-port-title">Reasoning · Understanding Frame</p>
+        <p className="organs-note organs-note--offline" aria-live="polite">
+          INTENT OFFLINE — AI-OS unreachable.
+        </p>
+      </section>
+    );
+  }
+
+  // ERROR — the backend answered with a 5xx (or malformed JSON). Surface it.
+  if (phase === 'error' && !hadData) {
+    return (
+      <section aria-label="Intent frame">
+        <p className="organs-port-title">Reasoning · Understanding Frame</p>
+        <p className="organs-note organs-note--offline" aria-live="polite">
+          INTENT ERROR — the AI-OS returned a server error. Retry shortly.
+        </p>
+      </section>
+    );
+  }
+
+  // EMPTY — network succeeded, backend answered, but the session has formed no
+  // frame yet (alignment === null). DISTINCT from offline.
+  if (phase === 'empty' || frame == null) {
     return (
       <section aria-label="Intent frame">
         <p className="organs-port-title">
@@ -170,6 +170,9 @@ export default function IntentPort() {
     );
   }
 
+  // READY (or keep-last while offline/error after a prior good fetch): a quiet
+  // "· link offline" tag when the latest refresh could not reach the link.
+  const stale = phase === 'offline' || phase === 'error';
   const intent = String(frame.intent || 'unknown');
   const gloss = INTENT_GLOSS[intent] || '';
   const confidencePct = pct(frame.confidence);
@@ -188,7 +191,7 @@ export default function IntentPort() {
     <section aria-label="Intent frame">
       <p className="organs-port-title">
         Reasoning · Understanding Frame
-        {phase === 'offline' && <span className="organs-stale">· link offline</span>}
+        {stale && <span className="organs-stale" aria-live="polite">· link offline</span>}
       </p>
 
       {/* CLARIFYING QUESTION — the loudest truth-state. When the deterministic

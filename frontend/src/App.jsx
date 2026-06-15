@@ -546,6 +546,11 @@ export default function App() {
   const [alignmentEvaluationRevision, setAlignmentEvaluationRevision] = useState(0);
   const [input, setInput]              = useState('');
   const [isStreaming, setIsStreaming]   = useState(false);
+  // W2-3 honest send path: a transport/backend failure on the typed OR voice send
+  // surfaces an inline banner, so a fetch that never reached the AI-OS is never a
+  // silent "sent, nothing happened". null | { code, message, isNetworkError }.
+  const [sendError, setSendError]       = useState(null);
+  const sendErrorTimerRef = useRef(null);
 
   // Default to "Auto": the agent picks the best installed model — the user
   // doesn't have to. They can still override via the picker.
@@ -588,6 +593,8 @@ export default function App() {
   useEffect(() => { terminalEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termHistory]);
   useEffect(() => { gitEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [gitHistory]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  // Clear the send-error auto-dismiss timer on unmount (no dangling timeout).
+  useEffect(() => () => { if (sendErrorTimerRef.current) clearTimeout(sendErrorTimerRef.current); }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -726,7 +733,16 @@ export default function App() {
   // the user turn; the paused assistant turn is never recorded (no `done`), so
   // resuming simply replays the same history with the approved command(s) now
   // whitelisted in `approvedCmds`.
-  const streamGenerate = async (historyMessages, tokens = []) => {
+  // W2-3: surface a send/transport failure as an inline banner (auto-dismiss), so a
+  // turn that never reached the AI-OS is honest, never a silent "sent, nothing
+  // happened". The error is ALSO kept in the chat bubble (below) for context.
+  const surfaceSendError = useCallback((err) => {
+    setSendError(err);
+    if (sendErrorTimerRef.current) clearTimeout(sendErrorTimerRef.current);
+    sendErrorTimerRef.current = setTimeout(() => setSendError(null), 6000);
+  }, []);
+
+  const streamGenerate = async (historyMessages, tokens = [], onError = null) => {
     const aiMsgId = Date.now() + 1;
     setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '', loading: true, steps: [], streaming: false }]);
     setIsStreaming(true);
@@ -742,7 +758,12 @@ export default function App() {
         body: JSON.stringify({ messages: historyMessages, modelId: selectedModel, sessionId, approvalTokens: tokens })
       });
 
-      if (!response.ok) throw new Error(`Server error ${response.status}`);
+      if (!response.ok) {
+        // The POST reached the server but it answered not-ok — surface the code so
+        // the operator sees the truth (a 5xx is a backend error, retryable).
+        onError?.({ code: response.status, message: `Send failed: HTTP ${response.status}.`, isNetworkError: false });
+        throw new Error(`Server error ${response.status}`);
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -820,6 +841,17 @@ export default function App() {
         for (const frame of frames) processEvent(frame.event, frame.data);
       }
     } catch (err) {
+      // A network-layer throw (failed to fetch / aborted) vs a parse/other error.
+      // (A not-ok response already called onError above; calling again here is
+      // harmless and keeps the single most-recent error shown.)
+      const isNetworkError = err?.name === 'TypeError' || err?.name === 'AbortError';
+      onError?.({
+        code: isNetworkError ? 'NETWORK_ERROR' : 'SEND_ERROR',
+        message: err?.message || 'Send failed. Check your connection.',
+        isNetworkError,
+      });
+      // STILL surface the error in the chat bubble so the failed turn persists in
+      // context — the banner is the loud signal, the bubble is the record.
       setMessages(prev => prev.map(m =>
         m.id === aiMsgId ? { ...m, text: `Error: ${err.message}`, loading: false, streaming: false } : m
       ));
@@ -873,7 +905,7 @@ export default function App() {
       id: Date.now(), sender: 'ai', steps: [],
       text: `✅ Approved — resuming with ${approvedSummary} authorised…`,
     }]);
-    await streamGenerate(convHistory, newTokens);
+    await streamGenerate(convHistory, newTokens, surfaceSendError);
   };
 
   const handleRejectAction = async () => {
@@ -946,6 +978,14 @@ export default function App() {
         m.id === aiMsgId ? { ...m, text: reply, loading: false } : m));
       speakReply(reply);
     } catch (err) {
+      // Honest, never silent (W2-3): the failed reply stays in the bubble AND the
+      // inline send-error banner fires, so a voice turn that never reached the
+      // AI-OS is loud. streamChatReply already throws with the status / detail.
+      surfaceSendError({
+        code: 'VOICE_SEND_ERROR',
+        message: `Voice send failed: ${err?.message || 'AI-OS unreachable'}.`,
+        isNetworkError: err?.name === 'TypeError' || err?.name === 'AbortError',
+      });
       setMessages(prev => prev.map(m =>
         m.id === aiMsgId
           ? { ...m, text: `Voice link issue: ${err.message}. You can type instead.`, loading: false, error: true }
@@ -1045,6 +1085,7 @@ export default function App() {
 
     setInput('');
     setAlignmentFrame(null);
+    setSendError(null); // clear any prior send error on a fresh turn
     if (isListening) recognitionRef.current?.stop();
 
     // Add user message to UI
@@ -1059,9 +1100,10 @@ export default function App() {
     setConvHistory(newHistory);
 
     // A fresh request starts with a clean approval whitelist, then streams the
-    // turn (which pauses for human approval if it hits a YELLOW command).
+    // turn (which pauses for human approval if it hits a YELLOW command). A
+    // transport/backend failure surfaces an inline banner (W2-3) — never silent.
     setApprovalTokens([]);
-    await streamGenerate(newHistory, []);
+    await streamGenerate(newHistory, [], surfaceSendError);
   };
 
   const handleCorrectAlignment = async (corrections) => {
@@ -1620,6 +1662,44 @@ export default function App() {
                         : voiceSpeaking
                         ? 'Jarvis is speaking…'
                         : null}
+                    </div>
+                  )}
+
+                  {/* W2-3 · honest send-error banner. A typed OR voice send that fails
+                      to reach the AI-OS surfaces HERE inline (assertive aria-live), so a
+                      turn is never a silent "sent, nothing happened". Auto-dismisses (6s)
+                      and is operator-dismissable. No animation (reduced-motion-safe). */}
+                  {sendError && (
+                    <div
+                      role="alert"
+                      aria-live="assertive"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '8px 12px', marginBottom: 8, borderRadius: 8,
+                        background: 'var(--danger-dim, rgba(248,113,113,0.10))',
+                        border: '1px solid var(--danger, #f87171)',
+                        borderLeft: '3px solid var(--danger, #f87171)',
+                        color: 'var(--text-1)', fontSize: 12, lineHeight: 1.4,
+                      }}
+                    >
+                      <span aria-hidden="true" style={{ color: 'var(--danger, #f87171)' }}>⚠</span>
+                      <div style={{ flex: 1 }}>
+                        {sendError.message}
+                        {sendError.isNetworkError && ' Check your connection.'}
+                        {typeof sendError.code === 'number' && sendError.code >= 500 && ' Server error — try again.'}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSendError(null)}
+                        aria-label="Dismiss error"
+                        style={{
+                          flexShrink: 0, background: 'none', border: 'none',
+                          color: 'var(--text-3)', cursor: 'pointer', padding: 2,
+                          fontSize: 13, lineHeight: 1,
+                        }}
+                      >
+                        ✕
+                      </button>
                     </div>
                   )}
 
