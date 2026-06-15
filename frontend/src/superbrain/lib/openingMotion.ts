@@ -30,8 +30,9 @@ export function cubicBezier(p1x: number, p1y: number, p2x: number, p2y: number):
     }
     let lo = 0;
     let hi = 1;
+    let iter = 0;
     t = x;
-    while (lo < hi) {
+    while (lo < hi && ++iter < 64) {
       const cur = sampleX(t);
       if (Math.abs(cur - x) < 1e-6) break;
       if (cur < x) lo = t;

@@ -114,7 +114,12 @@ export function getLifecycleSnapshot(): Readonly<LifecycleSnapshot> {
 
 export function subscribeLifecycle(listener: Listener): () => void {
   listeners.add(listener);
-  listener(snapshot); // immediate, like cognitionBus consumers expect
+  try {
+    listener(snapshot); // immediate, like cognitionBus consumers expect
+  } catch {
+    listeners.delete(listener);
+    throw new Error('subscribeLifecycle: listener threw on initial call');
+  }
   return () => {
     listeners.delete(listener);
   };
@@ -146,9 +151,11 @@ export function transitionToArriving(mode: ArrivalMode): void {
   emit();
 }
 
-/** The "user spoke" signal: a directive wakes the being. Ignored unless in
- *  REST (ARRIVING keeps cinematic priority; ATTENTIVE is already awake). */
+/** The "user spoke" signal. Ignored in ARRIVING (cinematic priority). In
+ *  ATTENTIVE it resets the decay timer (keep-alive) and increments
+ *  directiveCount; only in REST does it trigger a transition to ATTENTIVE. */
 export function notifyDirective(): void {
+  if (snapshot.state === LifecycleState.ARRIVING) return; // cinematic priority: ignore during arrival
   setState(deriveNextState(now(), snapshot, { type: 'directive' }, config), 1);
 }
 

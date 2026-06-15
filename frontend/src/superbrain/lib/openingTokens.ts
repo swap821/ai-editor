@@ -27,7 +27,8 @@ export const OPENING_TIMINGS = {
 export const OPENING_EASING = {
   /** Cinematic settle: slow-out, gentle overshoot-free landing. */
   coalescence: [0.16, 1, 0.3, 1] as const,
-  /** Awakening seed spread. */
+  /** Awakening seed spread. Consumed by openingMotion.ts once
+   *  ArrivalMode.AWAKENING is wired in the scene (P1 Task 5). */
   awaken: [0.22, 1, 0.36, 1] as const,
   /** Quick attentive notice. */
   notice: [0.32, 0.72, 0, 1] as const,

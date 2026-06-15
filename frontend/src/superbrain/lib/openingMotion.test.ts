@@ -53,6 +53,9 @@ describe('ignitionPulse', () => {
     const peak = ignitionPulse(OPENING_TIMINGS.ignitionPeakMs);
     expect(peak).toBeGreaterThan(0.9);
   });
+  it('is 0 for negative elapsed (pre-arrival)', () => {
+    expect(ignitionPulse(-1)).toBeCloseTo(0, 5);
+  });
 });
 
 describe('awakenNotice', () => {

@@ -101,4 +101,13 @@ describe('singleton + subscribers', () => {
     expect(getLifecycleSnapshot().state).toBe(LifecycleState.ATTENTIVE);
     expect(getLifecycleSnapshot().directiveCount).toBe(1);
   });
+
+  it('notifyDirective during ARRIVING does not reset the timer or wake the being', () => {
+    transitionToArriving(ArrivalMode.COALESCENCE);
+    const t0 = getLifecycleSnapshot().lastTransitionAt;
+    notifyDirective();
+    expect(getLifecycleSnapshot().lastTransitionAt).toBe(t0);
+    expect(getLifecycleSnapshot().state).toBe(LifecycleState.ARRIVING);
+    expect(getLifecycleSnapshot().directiveCount).toBe(0);
+  });
 });
