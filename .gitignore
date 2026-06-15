@@ -6,6 +6,9 @@ vector_index.faiss
 node_modules/
 .env
 
+# --- Brainstorming visual-companion session files (local scratch) ---
+.superpowers/
+
 # --- Python / aios ---
 .venv/
 __pycache__/
