@@ -48,7 +48,12 @@ engine. Do not confuse them.
    completed+verified step, and the single next action.
 2. Read `warnings.md` + the last ~10 `experiences.jsonl` entries; surface any
    warning that bears on the next action.
-3. Present the next step and **wait for the operator's go**. Do not auto-run
+3. **RECALL, don't cold-start (operator's standing ritual).** Pull the §XII knowledge
+   that bears on the next action — the matching `.aios/state/` design spec (read it IN
+   FULL before building that feature), `.aios/memory/` lessons, and `aios/` code as ground
+   truth — and the §XIII toolkit (know which skills/MCP/plugins are available; invoke the
+   design/motion skills for any UI work). Start grounded, never from scratch.
+4. Present the next step and **wait for the operator's go**. Do not auto-run
    YELLOW/RED just because RESUME.md named it next.
 If RESUME.md is missing/stale, say so plainly; never fabricate continuity.
 
@@ -77,6 +82,11 @@ appears, and always before stopping. It must always answer: current goal · last
 completed+verified step · **the single next action** · open approvals/blockers ·
 active files · notes-not-yet-promoted. Append one Experience Object (§V) per
 finished unit of work; on failure, a mistake row. Reflect last (§VI).
+**Session-end currency (operator's standing ritual — nothing left stale):** before
+stopping, bring ALL of it up to date — RESUME + the Tier-1 docs + any `.aios/state/`
+spec you touched (the doc-currency convention, §XII), and the §XIII toolkit map if the
+available skills/MCP/plugins changed. The contract is: **start by recalling everything,
+end by leaving everything current.**
 
 ## V. EXPERIENCE OBJECT (append one JSON line to `experiences.jsonl`)
 ```json
