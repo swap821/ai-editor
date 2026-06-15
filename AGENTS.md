@@ -153,3 +153,39 @@ resume yourself — say so if asked). Don't report a task done without evidence
 - **Config is centralized** in `aios/config.py` (single source of truth). Subsystems are injected via FastAPI `Depends(...)` so tests override them with fakes — never add network/model/shell side-effects to a test path.
 - **Frozen core (§VIII controlled self-modification).** The security spine — `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py` — is FROZEN. Any change to it follows the full §VIII flow (Observe→Analyse→Propose→Test→Verify→Human Review→Approve→Deploy) and is treated as **RED**: the product agent literally cannot touch it (`SCOPE_ROOTS` = `training_ground/` only → an attempt classifies RED/refused), and the Self-Analysis module treats it as **Tier T4 = RED + frozen** (a fix may be *proposed* for human review, but *applying* one is RED/blocked). Never weaken a guardrail to make a test pass; keep these modules deterministic and fail-closed.
 - **Build vs blueprint:** the blueprint says "~35%"; the *code* is ~75–80% of MVP. Trust the code. See `.aios/state/RESUME.md`.
+
+## XII. DON'T REINVENT — READ THE EXISTING KNOWLEDGE BEFORE THINKING FROM SCRATCH
+The operator keeps this knowledge **current on purpose** so agents resume from prior work instead of
+hallucinating. When uncertain about state, a past decision, a prior lesson, or how a subsystem works:
+**READ it — do not guess.** Read the matching design doc BEFORE building a feature. There are TWO bases:
+
+**(1) `.aios/` — the builder notebook (continuity + lessons + plans):**
+- `state/RESUME.md` — where we are / the single next action (read FIRST, every session).
+- `state/` plans & specs — `SYSTEM_TRUE_PICTURE` · `BACKEND_TRUE_PICTURE` · `HIDDEN_KNOWLEDGE` (architecture);
+  `PLAN` · `FUTURE_FRONTIER` · `RENOVATION_PLAN` · `PREMIUM_FRONTEND_PLAN` (roadmaps); `SUPERBRAIN_NEXTGEN_DESIGN` ·
+  `NERVOUS_SYSTEM_REDESIGN` · `SHELL_REDESIGN` · `HUD_RENOVATION_SPEC` · `JARVIS_VOICE_PLAN` · `MULTI_LLM_PLAN` ·
+  `FRONTEND_HARMONY_MAP` (feature/design specs — read the matching one BEFORE building it).
+- `memory/` — **LESSONS, not optional:** `warnings.md` (patterns that harmed ≥2×, read at bootstrap),
+  `experiences.jsonl` (what worked), `mistakes.jsonl` (what failed + the fix), `trusted_workflows.md` (≥3× wins).
+  Check these before redoing a class of work so a prior mistake isn't repeated (see §III).
+- `coordination/README.md` — the Claude↔Codex handoff/lease protocol (see §III-A).
+
+**(2) `aios/` — the product backend: the CODE is the ground truth.** For how the system actually behaves,
+read the code, don't assume: `config.py` (single config truth), `api/main.py` (routes/SSE), `core/`,
+`memory/` (the product's own memory engine), `security/` (the frozen spine), `agents/`.
+
+Dated evidence (CEO_LOG, EVIDENCE_CURRICULUM, AUDIT, the dated snapshots) is HISTORY — never rewrite; add a
+superseded banner. Refresh Tier-1 docs + RESUME after a feature (the doc-currency convention).
+
+## XIII. SHARED TOOLKIT — skills / MCP / plugins (invoke them; keep them collaborator-shared)
+Design/frontend work MUST invoke the relevant skill (don't coast on memory of one):
+- **PROJECT-level** (shared via the repo — every collaborator has them; tracked in `skills-lock.json`):
+  `design-taste-frontend`, `ui-ux-pro-max`.
+- **USER-level** (installed per-machine in `~/.claude/skills/`, **NOT auto-shared** — install before relying on them):
+  `design-motion-principles`, `impeccable`, `gstack-*` (design-review/qa/scrape/diagram). To make one truly
+  collaborator-shared, **project-install it** (into `.claude/skills/` + `skills-lock.json`) and commit.
+- **MCPs** (Figma, Canva, Motion, Slack, …) are claude.ai connectors = **session/account-tied** — available to a
+  connected Claude session, NOT to Codex or headless/cron runs. Use where they fit (Figma/Canva for 2D design;
+  not for live WebGL shaders); never assume a peer agent has them.
+- **Honest limit:** skills sharpen REASONING; they do NOT replace VISUAL verification (no headless WebGL) — the
+  final 3D aesthetic call is the operator's browser (FIDELITY law).
