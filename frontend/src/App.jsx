@@ -21,6 +21,7 @@ import {
 } from './lib/conversation';
 import { parseSseBuffer } from './lib/sse';
 import { submitAlignmentFeedback } from './lib/alignmentEvaluation';
+import './App.css';
 
 /* ─── Premium Resize Handles ─────────────────────────────────────────── */
 const ResizeHandle = () => (
@@ -230,67 +231,41 @@ function ModelSelector({ value, onChange, models }) {
   const recentModels = recent.map(id => allModels.find(m => m.id === id)).filter(Boolean);
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
+    <div ref={containerRef} className="model-selector-root">
       {/* Trigger */}
       <button
         onClick={() => { if (!open) setHighlighted(0); setOpen(!open); }}
-        style={{
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "6px 12px 6px 10px",
-          borderRadius: 10,
-          background: open ? "rgba(59,130,246,0.12)" : "var(--surface-3)",
-          border: open ? "1px solid rgba(59,130,246,0.35)" : "1px solid var(--border)",
-          boxShadow: open ? "0 0 20px rgba(59,130,246,0.15), inset 0 1px 0 rgba(255,255,255,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
-          cursor: "pointer", transition: "all 0.2s ease",
-          fontFamily: "inherit", outline: "none",
-        }}
+        className={open ? "model-selector-trigger is-open" : "model-selector-trigger"}
       >
-        <div style={{
-          width: 26, height: 26, borderRadius: 7,
-          background: provider ? `${provider.color}18` : "var(--surface-4)",
-          border: provider ? `1px solid ${provider.color}30` : "1px solid var(--border)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, color: provider?.color || "var(--text-3)",
-          flexShrink: 0, transition: "all 0.2s",
-        }}>
+        <div
+          className="model-selector-icon"
+          style={provider ? {
+            '--ms-icon-bg': `${provider.color}18`,
+            '--ms-icon-border': `${provider.color}30`,
+            '--ms-icon-color': provider.color,
+          } : undefined}
+        >
           {provider?.icon || "◆"}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>
+        <div className="model-selector-label">
+          <span className="model-selector-label-name">
             {current?.name || "Select Model"}
           </span>
-          <span style={{ fontSize: 10, color: "var(--text-3)", fontWeight: 500, lineHeight: 1.2 }}>
+          <span className="model-selector-label-group">
             {current?.group || "Model"}
           </span>
         </div>
-        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ marginLeft: 4, flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className={open ? "model-selector-dropdown-chevron is-open" : "model-selector-dropdown-chevron"}>
           <path d="M1 1L5 5L9 1" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 8px)", right: 0,
-          width: 380, maxHeight: 520,
-          background: "rgba(14,15,20,0.96)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 14,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(59,130,246,0.08), 0 0 40px rgba(59,130,246,0.06)",
-          backdropFilter: "blur(24px) saturate(1.5)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.5)",
-          zIndex: 100,
-          display: "flex", flexDirection: "column",
-          overflow: "hidden",
-          animation: "dropdownIn 0.18s cubic-bezier(0.16,1,0.3,1)",
-        }}>
+        <div className="model-selector-dropdown">
           {/* Search */}
-          <div style={{
-            padding: "12px 14px 10px",
-            borderBottom: "1px solid rgba(255,255,255,0.04)",
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+          <div className="model-selector-search">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="model-selector-search-icon">
               <circle cx="6" cy="6" r="5" stroke="var(--text-3)" strokeWidth="1.5"/>
               <path d="M10 10L13 13" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
@@ -299,28 +274,24 @@ function ModelSelector({ value, onChange, models }) {
               value={search}
               onChange={e => { setSearch(e.target.value); setHighlighted(0); }}
               placeholder="Search models, providers, tags…"
-              style={{
-                flex: 1, background: "transparent", border: "none", outline: "none",
-                color: "var(--text-1)", fontSize: 12.5, fontFamily: "inherit",
-                caretColor: "var(--accent)",
-              }}
+              className="model-selector-search-input"
             />
             {search && (
-              <button onClick={() => { setSearch(""); inputRef.current?.focus(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 2, display: "flex" }}>
+              <button onClick={() => { setSearch(""); inputRef.current?.focus(); }} className="model-selector-search-clear-btn">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
               </button>
             )}
-            <span style={{ fontSize: 10, color: "var(--text-3)", background: "var(--surface-3)", padding: "2px 6px", borderRadius: 5, fontFamily: '"Geist Mono", monospace' }}>
+            <span className="model-selector-search-count">
               {flatList.length}
             </span>
           </div>
 
           {/* List */}
-          <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: "6px 8px" }}>
+          <div ref={listRef} className="model-selector-list">
             {/* Recent Section */}
             {!search && recentModels.length > 0 && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ padding: "6px 8px 4px", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-3)", display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="model-selector-recent-section">
+                <div className="model-selector-recent-header">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1V5L7 7" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   Recent
                 </div>
@@ -334,7 +305,7 @@ function ModelSelector({ value, onChange, models }) {
                     onClick={() => selectModel(m.id)}
                   />
                 ))}
-                <div style={{ height: 1, background: "rgba(255,255,255,0.04)", margin: "6px 8px" }} />
+                <div className="model-selector-recent-divider" />
               </div>
             )}
 
@@ -342,11 +313,11 @@ function ModelSelector({ value, onChange, models }) {
             {Object.entries(grouped).map(([group, items]) => {
               const meta = PROVIDER_META[group] || { color: "var(--text-3)", icon: "◆" };
               return (
-                <div key={group} style={{ marginBottom: 4 }}>
-                  <div style={{ padding: "6px 8px 4px", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-3)", display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ color: meta.color, fontSize: 11 }}>{meta.icon}</span>
-                    <span style={{ color: meta.color, opacity: 0.8 }}>{group}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 9, color: "var(--text-3)", opacity: 0.6, fontWeight: 500, letterSpacing: 0, textTransform: "none" }}>{items.length}</span>
+                <div key={group} className="model-selector-group">
+                  <div className="model-selector-group-header" style={{ '--mg-color': meta.color }}>
+                    <span className="model-selector-group-header-icon">{meta.icon}</span>
+                    <span className="model-selector-group-header-label">{group}</span>
+                    <span className="model-selector-group-header-count">{items.length}</span>
                   </div>
                   {items.map(m => (
                     <ModelRow
@@ -363,8 +334,8 @@ function ModelSelector({ value, onChange, models }) {
             })}
 
             {flatList.length === 0 && (
-              <div style={{ padding: 32, textAlign: "center", color: "var(--text-3)", fontSize: 12 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ margin: "0 auto 8px", opacity: 0.3 }}>
+              <div className="model-selector-empty">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="model-selector-empty-icon">
                   <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="1.5"/>
                   <path d="M21 21L16.65 16.65" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
@@ -374,23 +345,17 @@ function ModelSelector({ value, onChange, models }) {
           </div>
 
           {/* Footer */}
-          <div style={{
-            padding: "8px 14px",
-            borderTop: "1px solid rgba(255,255,255,0.04)",
-            fontSize: 10, color: "var(--text-3)",
-            display: "flex", alignItems: "center", gap: 12,
-            background: "rgba(0,0,0,0.2)",
-          }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <kbd style={{ background: "var(--surface-3)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px", fontFamily: '"Geist Mono", monospace', fontSize: 9 }}>↑↓</kbd>
+          <div className="model-selector-footer">
+            <span className="model-selector-footer-item">
+              <kbd className="model-selector-kbd">↑↓</kbd>
               <span>Navigate</span>
             </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <kbd style={{ background: "var(--surface-3)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px", fontFamily: '"Geist Mono", monospace', fontSize: 9 }}>↵</kbd>
+            <span className="model-selector-footer-item">
+              <kbd className="model-selector-kbd">↵</kbd>
               <span>Select</span>
             </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <kbd style={{ background: "var(--surface-3)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px", fontFamily: '"Geist Mono", monospace', fontSize: 9 }}>esc</kbd>
+            <span className="model-selector-footer-item">
+              <kbd className="model-selector-kbd">esc</kbd>
               <span>Close</span>
             </span>
           </div>
@@ -403,49 +368,42 @@ function ModelSelector({ value, onChange, models }) {
 function ModelRow({ model, group, isActive, isHighlighted, onClick }) {
   const meta = PROVIDER_META[group] || { color: "var(--text-3)" };
   const tags = inferModelTags(model.id);
+  const rowClasses = ["model-row"];
+  if (isActive) rowClasses.push("is-active");
+  if (isHighlighted && !isActive) rowClasses.push("is-highlighted");
   return (
     <button
       onClick={onClick}
-      style={{
-        width: "100%", display: "flex", alignItems: "center", gap: 10,
-        padding: "7px 10px",
-        borderRadius: 8,
-        background: isActive ? "rgba(59,130,246,0.12)" : isHighlighted ? "rgba(255,255,255,0.04)" : "transparent",
-        border: isActive ? "1px solid rgba(59,130,246,0.25)" : "1px solid transparent",
-        color: "var(--text-1)", cursor: "pointer", transition: "all 0.12s ease",
-        textAlign: "left", outline: "none",
-        boxShadow: isActive ? "0 0 12px rgba(59,130,246,0.06)" : "none",
-      }}
-      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; } }}
-      onMouseLeave={e => { if (!isActive && !isHighlighted) { e.currentTarget.style.background = "transparent"; } }}
+      className={rowClasses.join(" ")}
     >
-      <div style={{
-        width: 7, height: 7, borderRadius: "50%",
-        background: meta.color,
-        boxShadow: isActive ? `0 0 8px ${meta.color}80` : "none",
-        flexShrink: 0, transition: "box-shadow 0.2s",
-      }} />
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: isActive ? 600 : 500, color: isActive ? "var(--text-1)" : "var(--text-2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div
+        className="model-row-indicator"
+        style={{
+          '--row-color': meta.color,
+          '--row-glow': `${meta.color}80`,
+        }}
+      />
+      <div className="model-row-content">
+        <div className="model-row-name-row">
+          <span className="model-row-name">
             {model.name}
           </span>
           {isActive && (
-            <span style={{ fontSize: 9, fontWeight: 700, color: "var(--accent)", background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 4, padding: "1px 5px", flexShrink: 0 }}>
+            <span className="model-row-active-badge">
               ACTIVE
             </span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        <div className="model-row-tags">
           {tags.slice(0, 3).map(tag => (
-            <span key={tag} style={{ fontSize: 9, fontWeight: 600, color: "var(--text-3)", background: "var(--surface-3)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px" }}>
+            <span key={tag} className="model-row-tag">
               {tag}
             </span>
           ))}
         </div>
       </div>
       {isActive && (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, color: "var(--accent)" }}>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="model-row-check">
           <path d="M2.5 7.5L5.5 10.5L11.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       )}
@@ -472,46 +430,22 @@ function NewFileDialog({ onConfirm, onCancel }) {
     if (trimmed) onConfirm(trimmed);
   };
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }} onClick={onCancel}>
-      <div style={{
-        background: 'var(--surface-2)', border: '1px solid var(--border)',
-        borderRadius: 14, padding: '20px 22px', minWidth: 300,
-        boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)', marginBottom: 12 }}>New File</div>
+    <div className="new-file-dialog-overlay" onClick={onCancel}>
+      <div className="new-file-dialog-content" onClick={e => e.stopPropagation()}>
+        <div className="new-file-dialog-title">New File</div>
         <form onSubmit={submit}>
           <input
             ref={inputRef}
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="filename.js"
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              background: 'var(--surface-3)', border: '1px solid var(--border)',
-              borderRadius: 8, padding: '8px 12px',
-              fontSize: 13, color: 'var(--text-1)', outline: 'none', fontFamily: 'inherit',
-            }}
-            onFocus={e => { e.target.style.borderColor = 'rgba(59,130,246,0.5)'; }}
-            onBlur={e => { e.target.style.borderColor = 'var(--border)'; }}
+            className="new-file-dialog-input"
           />
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" style={{
-              flex: 1, background: 'var(--accent)', color: '#fff',
-              border: 'none', borderRadius: 8, padding: '7px 0',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}>
+          <div className="new-file-dialog-actions">
+            <button type="submit" className="new-file-dialog-btn-create">
               Create
             </button>
-            <button type="button" onClick={onCancel} style={{
-              flex: 1, background: 'var(--surface-3)',
-              color: 'var(--text-2)', border: '1px solid var(--border)',
-              borderRadius: 8, padding: '7px 0',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}>
+            <button type="button" onClick={onCancel} className="new-file-dialog-btn-cancel">
               Cancel
             </button>
           </div>
@@ -1140,68 +1074,27 @@ export default function App() {
   return (
     <ErrorBoundary name="App">
     <div
-      className="h-screen w-screen flex flex-col select-none overflow-hidden"
-      style={{
-        // Surfaces, accent, border and text vars now inherit from the global
-        // token layer (src/styles/tokens.css) — single source of truth.
-        // Only App-specific semantic aliases are declared locally.
-        // Transparent + own stacking context so the AmbientVoid (z-index:-1)
-        // shows as the backdrop behind translucent panels.
-        background: 'transparent',
-        position: 'relative',
-        isolation: 'isolate',
-        color: 'var(--text-1)',
-        fontFamily: 'var(--font-sans)',
-        '--border-hover': 'var(--border-strong)',
-        '--green': 'var(--success)',
-        '--amber': 'var(--warn)',
-        '--red':   'var(--danger)',
-      }}
+      className="app-root h-screen w-screen flex flex-col select-none overflow-hidden"
     >
       <AmbientVoid energy={isStreaming ? 1 : 0.15} />
 
       {/* ══ TITLE BAR ══════════════════════════════════════════ */}
-      <header
-        className="h-11 shrink-0 flex items-center justify-between px-4"
-        style={{
-          background: 'rgba(14,15,20,0.85)',
-          borderBottom: '1px solid var(--border)',
-          backdropFilter: 'blur(12px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(12px) saturate(1.4)',
-          zIndex: 50,
-        }}
-      >
+      <header className="app-header-root h-11 shrink-0 flex items-center justify-between px-4">
         {/* Left cluster */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5">
-            <div
-              className="w-6 h-6 rounded-md flex items-center justify-center shadow-lg"
-              style={{ 
-                background: 'linear-gradient(135deg,#3b82f6 0%,#6366f1 100%)',
-                boxShadow: '0 2px 8px rgba(59,130,246,0.25), inset 0 1px 0 rgba(255,255,255,0.15)'
-              }}
-            >
+            <div className="app-header-logo w-6 h-6 rounded-md flex items-center justify-center shadow-lg">
               <Code size={13} color="#fff" strokeWidth={2.5} />
             </div>
-            <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-1)' }}>
+            <span className="app-header-title">
               AI Orchestrator
             </span>
-            <span
-              style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-                color: 'var(--accent)', background: 'var(--accent-dim)',
-                border: '1px solid var(--accent-glow)',
-                borderRadius: 4, padding: '2px 7px', textTransform: 'uppercase',
-                boxShadow: '0 0 12px rgba(59,130,246,0.08)',
-              }}
-            >
+            <span className="app-header-badge">
               Enterprise
             </span>
           </div>
 
-          <div
-            style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }}
-          />
+          <div className="app-header-divider" />
 
           <button
             onClick={() => {
@@ -1211,14 +1104,7 @@ export default function App() {
                 sidebarPanelRef.current?.expand();
               }
             }}
-            className="transition-all duration-200"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-3)', padding: '5px',
-              borderRadius: 6,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'transparent'; }}
+            className="sidebar-toggle-btn transition-all duration-200"
             title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           >
             {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
@@ -1248,21 +1134,17 @@ export default function App() {
                 + (activeBrain.auto ? ' · auto' : '');
               return (
                 <div
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  className="brain-indicator flex items-center gap-2 px-3 py-1.5 rounded-lg"
                   title={`Active brain: ${activeBrain.provider} · ${activeBrain.model}`
                     + ` (${activeBrain.privacy}${activeBrain.auto ? ', auto-routed' : ''})`}
                   style={{
-                    background: `${color}10`,
-                    border: `1px solid ${color}28`,
-                    fontSize: 11, fontWeight: 600, color,
-                    boxShadow: `0 0 12px ${color}10`,
+                    '--brain-color': color,
+                    '--brain-bg': `${color}10`,
+                    '--brain-border': `${color}28`,
+                    '--brain-shadow': `${color}10`,
                   }}
                 >
-                  <span style={{
-                    width: 6, height: 6, borderRadius: '50%', background: color,
-                    boxShadow: `0 0 8px ${color}`, display: 'inline-block',
-                    animation: 'breathe 2.5s ease-in-out infinite',
-                  }}/>
+                  <span className="brain-indicator-pulse" />
                   {label}
                 </div>
               );
@@ -1281,7 +1163,7 @@ export default function App() {
                   : 'Cloud');
             return (
               <div
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                className="brain-indicator flex items-center gap-2 px-3 py-1.5 rounded-lg"
                 title={isAuto
                   ? (autoModel ? `Agent auto-selected ${tag} (best installed model)` : 'The agent will pick the best installed model when you send a message.')
                   : (local
@@ -1290,40 +1172,20 @@ export default function App() {
                           : 'Ollama not reachable on :11434. Start it to run offline.')
                       : 'Inference runs on Amazon Bedrock (cloud).')}
                 style={{
-                  background: `${color}10`,
-                  border: `1px solid ${color}28`,
-                  fontSize: 11, fontWeight: 600, color,
-                  boxShadow: `0 0 12px ${color}10`,
+                  '--brain-color': color,
+                  '--brain-bg': `${color}10`,
+                  '--brain-border': `${color}28`,
+                  '--brain-shadow': `${color}10`,
                 }}
               >
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%', background: color,
-                  boxShadow: `0 0 8px ${color}`, display: 'inline-block',
-                  animation: 'breathe 2.5s ease-in-out infinite',
-                }}/>
+                <span className="brain-indicator-pulse" />
                 {label}
               </div>
             );
           })()}
 
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-            style={{
-              background: 'rgba(74,222,128,0.06)',
-              border: '1px solid rgba(74,222,128,0.15)',
-              fontSize: 11, fontWeight: 600, color: '#4ade80',
-              boxShadow: '0 0 12px rgba(74,222,128,0.06)',
-            }}
-          >
-            <span
-              style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: '#4ade80',
-                boxShadow: '0 0 8px #4ade80, 0 0 16px rgba(74,222,128,0.3)',
-                display: 'inline-block',
-                animation: 'breathe 2.5s ease-in-out infinite',
-              }}
-            />
+          <div className="gateway-indicator flex items-center gap-2 px-3 py-1.5 rounded-lg">
+            <span className="gateway-indicator-pulse" />
             Secure Gateway
           </div>
         </div>
@@ -1332,14 +1194,10 @@ export default function App() {
       {/* ══ MAIN BODY ══════════════════════════════════════════ */}
       {/* Padding leaves a margin of the 3D void around the workspace, and the
           PanelGroup is a rounded, shadowed "slab" floating in that space. */}
-      <div className="flex-1 overflow-hidden" style={{ padding: 12, position: 'relative', zIndex: 1 }}>
+      <div className="app-body flex-1 overflow-hidden">
         <PanelGroup
           orientation="vertical"
-          style={{
-            borderRadius: 16,
-            overflow: 'hidden',
-            boxShadow: '0 36px 100px -28px rgba(0,0,0,0.78), 0 0 0 1px rgba(255,255,255,0.05), 0 0 60px -20px rgba(99,102,241,0.18)',
-          }}
+          className="app-slab"
         >
 
           {/* Top 70% */}
@@ -1353,41 +1211,23 @@ export default function App() {
                 collapsible collapsedSize={0}
                 onCollapse={() => setSidebarOpen(false)}
                 onExpand={() => setSidebarOpen(true)}
-                style={{ background: 'var(--surface-1)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                className="sidebar-panel"
               >
-                <div style={{
-                  padding: '10px 10px 8px',
-                  fontSize: 10, fontWeight: 700,
-                  letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: 'var(--text-3)',
-                  borderBottom: '1px solid var(--border)',
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                  <FolderOpen size={11} style={{ color: 'var(--text-3)' }} />
-                  <span style={{ flex: 1 }}>Explorer</span>
+                <div className="sidebar-header">
+                  <FolderOpen size={11} className="sidebar-header-icon" />
+                  <span className="sidebar-header-label">Explorer</span>
                   <button
                     onClick={() => setShowNewFile(true)}
                     title="New file"
-                    style={{
-                      padding: 4, borderRadius: 5, border: 'none',
-                      background: 'none', cursor: 'pointer',
-                      color: 'var(--text-3)', display: 'flex',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'none'; }}
+                    className="new-file-btn"
                   >
                     <Plus size={13} />
                   </button>
                 </div>
 
-                <div style={{ flex: 1, padding: '8px 6px', overflowY: 'auto' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 7,
-                    padding: '4px 8px', marginBottom: 4,
-                    fontSize: 11, fontWeight: 600, color: 'var(--text-2)',
-                  }}>
-                    <FolderOpen size={13} style={{ color: 'var(--accent)' }} />
+                <div className="sidebar-tree">
+                  <div className="sidebar-project-row">
+                    <FolderOpen size={13} className="sidebar-project-icon" />
                     my-ai-project
                   </div>
 
@@ -1397,33 +1237,16 @@ export default function App() {
                     const active = activeFile === filename;
                     const canDelete = Object.keys(files).length > 1;
                     return (
-                      <div key={filename} style={{ position: 'relative' }} className="sidebar-file-row">
+                      <div key={filename} className="sidebar-file-row">
                         <button
                           onClick={() => setActiveFile(filename)}
-                          style={{
-                            width: '100%',
-                            display: 'flex', alignItems: 'center', gap: 7,
-                            padding: '5px 8px 5px 20px',
-                            borderRadius: 6, fontSize: 11.5,
-                            fontWeight: active ? 500 : 400,
-                            background: active ? 'var(--accent-dim)' : 'transparent',
-                            color: active ? 'var(--text-1)' : 'var(--text-2)',
-                            border: active ? '1px solid var(--accent-glow)' : '1px solid transparent',
-                            cursor: 'pointer', transition: 'all 0.12s',
-                            textAlign: 'left', position: 'relative',
-                          }}
-                          onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--surface-3)'; e.currentTarget.style.color = 'var(--text-1)'; } }}
-                          onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; } }}
+                          className={active ? "file-tab-btn is-active" : "file-tab-btn"}
                         >
                           {active && (
-                            <span style={{
-                              position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)',
-                              width: 3, height: 14, borderRadius: 2,
-                              background: 'var(--accent)', boxShadow: '0 0 6px rgba(59,130,246,0.4)',
-                            }}/>
+                            <span className="file-tab-active-indicator" />
                           )}
-                          <FileCode2 size={12} style={{ color, flexShrink: 0 }} />
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <FileCode2 size={12} className="file-tab-icon" style={{ '--file-icon-color': color }} />
+                          <span className="file-tab-name">
                             {filename}
                           </span>
                         </button>
@@ -1431,14 +1254,7 @@ export default function App() {
                           <button
                             onClick={() => handleDeleteFile(filename)}
                             title={`Delete ${filename}`}
-                            className="delete-btn"
-                            style={{
-                              position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
-                              padding: '2px 3px', borderRadius: 4, border: 'none',
-                              background: 'var(--surface-4)', cursor: 'pointer',
-                              color: '#f87171', display: 'none', alignItems: 'center',
-                              opacity: 0, transition: 'opacity 0.15s',
-                            }}
+                            className="file-delete-btn"
                           >
                             <Trash2 size={10} />
                           </button>
@@ -1453,33 +1269,18 @@ export default function App() {
               {/* ── AI BRAIN ── */}
               <Panel
                 defaultSize={25} minSize={15}
-                className={`ai-aura${isStreaming ? ' is-generating' : ''}`}
-                style={{ background: 'rgba(18,19,26,0.74)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)', display: 'flex', flexDirection: 'column', position: 'relative' }}
+                className={`ai-panel-root ai-aura${isStreaming ? ' is-generating' : ''}`}
               >
                 {/* Header */}
-                <div style={{
-                  padding: '0 14px', height: 40,
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  borderBottom: '1px solid var(--border)',
-                  fontSize: 10, fontWeight: 700,
-                  letterSpacing: '0.1em', textTransform: 'uppercase',
-                  color: 'var(--text-3)', flexShrink: 0,
-                  background: 'var(--surface-1)',
-                }}>
-                  <Bot size={12} style={{ color: 'var(--accent)' }} />
+                <div className="ai-panel-header">
+                  <Bot size={12} className="ai-panel-header-icon" />
                   AI Agent
                   {isStreaming && (
-                    <span style={{
-                      marginLeft: 4, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-                      color: '#34d399', background: 'rgba(52,211,153,0.1)',
-                      border: '1px solid rgba(52,211,153,0.2)',
-                      borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase',
-                      animation: 'breathe 1.5s ease-in-out infinite',
-                    }}>
+                    <span className="ai-working-badge">
                       Working
                     </span>
                   )}
-                  <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 500, color: 'var(--text-3)', letterSpacing: 0, textTransform: 'none' }}>
+                  <span className="ai-panel-turns">
                     {convHistory.length > 0 && `${Math.ceil(convHistory.length / 2)} turn${convHistory.length > 2 ? 's' : ''}`}
                   </span>
                 </div>
@@ -1494,13 +1295,8 @@ export default function App() {
                 />
 
                 {/* Messages */}
-                <div style={{
-                  flex: 1, overflowY: 'auto', padding: '14px 10px',
-                  display: 'flex', flexDirection: 'column', gap: 10,
-                  // Soft top fade so messages dissolve under the header as they scroll.
-                  WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 14px)',
-                  maskImage: 'linear-gradient(to bottom, transparent 0, #000 14px)',
-                }}>
+                {/* Soft top fade (mask) so messages dissolve under the header as they scroll. */}
+                <div className="messages-area">
                   {messages.map(msg => (
                     <MessageBubble key={msg.id} msg={msg} />
                   ))}
@@ -1513,45 +1309,24 @@ export default function App() {
                     Run / Reject controls are ALWAYS fully visible and can never
                     be clipped below the fold, regardless of scroll position. */}
                 {pendingAction && (
-                  <div style={{
-                    flexShrink: 0,
-                    position: 'relative',
-                    margin: '0 10px 10px',
-                    borderRadius: 14,
-                    padding: '13px 14px 12px',
-                    background: 'linear-gradient(180deg, rgba(251,191,36,0.08) 0%, rgba(18,19,26,0.72) 60%)',
-                    border: '1px solid rgba(251,191,36,0.30)',
-                    backdropFilter: 'blur(14px) saturate(1.4)',
-                    WebkitBackdropFilter: 'blur(14px) saturate(1.4)',
-                    overflow: 'hidden',
-                    animation: 'approvalIn 0.34s cubic-bezier(0.16,1,0.3,1), approvalGlow 3.4s ease-in-out 0.34s infinite',
-                  }}>
+                  <div className="approval-bar">
                     {/* sweeping top accent */}
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, overflow: 'hidden', borderRadius: '14px 14px 0 0' }}>
-                      <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '55%', background: 'linear-gradient(90deg, transparent, #fbbf24, transparent)', animation: 'sweep 2.8s ease-in-out infinite' }} />
+                    <div className="approval-bar-sweep">
+                      <div className="approval-bar-sweep-inner" />
                     </div>
 
                     {/* header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: 7, flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'rgba(251,191,36,0.14)', border: '1px solid rgba(251,191,36,0.32)',
-                        color: '#fbbf24', fontSize: 12,
-                      }}>⚠</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', letterSpacing: '-0.01em' }}>
+                    <div className="approval-bar-header">
+                      <span className="approval-icon">⚠</span>
+                      <span className="approval-title">
                         Security approval required
                       </span>
-                      <span style={{
-                        marginLeft: 'auto', fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-                        color: '#fbbf24', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.24)',
-                        borderRadius: 5, padding: '2px 7px',
-                      }}>Yellow</span>
+                      <span className="approval-status-badge">Yellow</span>
                     </div>
 
                     {/* explanation */}
                     {pendingAction.explanation && (
-                      <p style={{ color: 'var(--text-2)', margin: '0 0 9px', lineHeight: 1.55, fontSize: 11.5 }}>
+                      <p className="approval-explanation">
                         {pendingAction.explanation}
                       </p>
                     )}
@@ -1560,52 +1335,27 @@ export default function App() {
                     {pendingAction.diff ? (
                       <DiffView diff={pendingAction.diff} />
                     ) : (
-                      <div style={{
-                        background: '#0b0c10', borderRadius: 9, padding: '9px 11px',
-                        fontFamily: '"Geist Mono", monospace', fontSize: 11.5, color: '#7ee787',
-                        marginBottom: 11, overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)',
-                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-                      }}>
+                      <div className="approval-command-block">
                         {(pendingAction.commands || []).map((cmd, i) => (
-                          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: i < (pendingAction.commands.length - 1) ? 4 : 0 }}>
-                            <span style={{ color: 'var(--text-3)', userSelect: 'none' }}>$</span>
-                            <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{cmd}</span>
+                          <div key={i} className="approval-command-row">
+                            <span className="approval-command-prompt">$</span>
+                            <span className="approval-command-text">{cmd}</span>
                           </div>
                         ))}
                       </div>
                     )}
 
                     {/* actions */}
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="approval-actions">
                       <button
                         onClick={handleApproveAction}
-                        style={{
-                          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: '#fff',
-                          border: 'none', borderRadius: 9, padding: '9px 0', fontSize: 12.5, fontWeight: 700,
-                          cursor: 'pointer', boxShadow: '0 4px 14px rgba(34,197,94,0.28)',
-                          transition: 'transform 0.12s ease, box-shadow 0.2s, filter 0.2s',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(34,197,94,0.40)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(34,197,94,0.28)'; }}
-                        onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                        onMouseUp={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                        className="approval-btn-approve"
                       >
                         <Check size={14} strokeWidth={2.8} /> {pendingAction.creations ? 'Create file' : pendingAction.diff ? 'Apply edit' : 'Run command'}
                       </button>
                       <button
                         onClick={handleRejectAction}
-                        style={{
-                          flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          background: 'rgba(248,113,113,0.08)', color: '#f87171',
-                          border: '1px solid rgba(248,113,113,0.22)', borderRadius: 9,
-                          padding: '9px 18px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-                          transition: 'background 0.2s, transform 0.12s',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.16)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; }}
-                        onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
-                        onMouseUp={e => { e.currentTarget.style.transform = 'none'; }}
+                        className="approval-btn-reject"
                       >
                         <X size={14} strokeWidth={2.8} /> Reject
                       </button>
@@ -1614,32 +1364,18 @@ export default function App() {
                 )}
 
                 {/* Input area */}
-                <div style={{
-                  padding: '8px 10px 10px',
-                  borderTop: '1px solid var(--border)',
-                  background: 'var(--surface-1)',
-                  flexShrink: 0,
-                }}>
+                <div className="input-area">
                   {/* Suggested prompts — shown when input is empty and not streaming */}
                   {!input && !isStreaming && !pendingAction && messages.length <= 1 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                    <div className="suggested-prompts">
                       {SUGGESTED_PROMPTS.map((p, i) => (
                         <button
                           key={i}
                           onClick={() => setInput(p.text)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 5,
-                            padding: '4px 9px', borderRadius: 20,
-                            background: 'var(--surface-3)', border: '1px solid var(--border)',
-                            color: 'var(--text-3)', fontSize: 10.5, fontWeight: 500,
-                            cursor: 'pointer', fontFamily: 'inherit',
-                            transition: 'all 0.15s',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.3)'; e.currentTarget.style.background = 'rgba(59,130,246,0.06)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
+                          className="suggested-prompt-btn"
                         >
                           <span>{p.icon}</span>
-                          <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.text.split(' ').slice(0, 4).join(' ')}</span>
+                          <span className="suggested-prompt-text">{p.text.split(' ').slice(0, 4).join(' ')}</span>
                         </button>
                       ))}
                     </div>
@@ -1650,10 +1386,7 @@ export default function App() {
                     <div
                       role="status"
                       aria-live="polite"
-                      style={{
-                        fontSize: 10.5, marginBottom: 6, lineHeight: 1.4,
-                        color: voiceError ? '#f87171' : 'var(--text-3)',
-                      }}
+                      className={voiceError ? "voice-status is-error" : "voice-status"}
                     >
                       {voiceError
                         ? voiceError
@@ -1675,17 +1408,10 @@ export default function App() {
                     <div
                       role="alert"
                       aria-live="assertive"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '8px 12px', marginBottom: 8, borderRadius: 8,
-                        background: 'var(--danger-dim, rgba(248,113,113,0.10))',
-                        border: '1px solid var(--danger, #f87171)',
-                        borderLeft: '3px solid var(--danger, #f87171)',
-                        color: 'var(--text-1)', fontSize: 12, lineHeight: 1.4,
-                      }}
+                      className="send-error-banner"
                     >
-                      <span aria-hidden="true" style={{ color: 'var(--danger, #f87171)' }}>⚠</span>
-                      <div style={{ flex: 1 }}>
+                      <span aria-hidden="true" className="send-error-icon">⚠</span>
+                      <div className="send-error-text">
                         {sendError.message}
                         {sendError.isNetworkError && ' Check your connection.'}
                         {typeof sendError.code === 'number' && sendError.code >= 500 && ' Server error — try again.'}
@@ -1694,18 +1420,14 @@ export default function App() {
                         type="button"
                         onClick={() => setSendError(null)}
                         aria-label="Dismiss error"
-                        style={{
-                          flexShrink: 0, background: 'none', border: 'none',
-                          color: 'var(--text-3)', cursor: 'pointer', padding: 2,
-                          fontSize: 13, lineHeight: 1,
-                        }}
+                        className="send-error-dismiss"
                       >
                         ✕
                       </button>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 7 }}>
+                  <div className="input-controls-row">
                     {/* Voice (talk to Jarvis) button — push to talk; the mind talks back. */}
                     <button
                       type="button"
@@ -1713,31 +1435,9 @@ export default function App() {
                       aria-label={isListening ? 'Stop listening' : 'Talk to Jarvis (voice)'}
                       aria-pressed={isListening}
                       title="Talk to Jarvis — speak, and the mind replies aloud"
-                      style={{
-                        flexShrink: 0, padding: '7px', borderRadius: 9,
-                        background: isListening
-                          ? 'rgba(248,113,113,0.12)'
-                          : voiceSpeaking
-                          ? 'rgba(59,130,246,0.12)'
-                          : 'var(--surface-3)',
-                        color: isListening ? '#f87171' : voiceSpeaking ? 'var(--accent)' : 'var(--text-3)',
-                        cursor: 'pointer', transition: 'all 0.2s',
-                        boxShadow: isListening
-                          ? '0 0 12px rgba(248,113,113,0.2)'
-                          : voiceSpeaking
-                          ? '0 0 12px rgba(59,130,246,0.2)'
-                          : 'none',
-                        border: isListening
-                          ? '1px solid rgba(248,113,113,0.25)'
-                          : voiceSpeaking
-                          ? '1px solid rgba(59,130,246,0.25)'
-                          : '1px solid var(--border)',
-                        marginBottom: 1,
-                      }}
-                      onMouseEnter={e => { if (!isListening && !voiceSpeaking) { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-4)'; } }}
-                      onMouseLeave={e => { if (!isListening && !voiceSpeaking) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface-3)'; } }}
+                      className={`voice-btn${isListening ? ' is-listening' : voiceSpeaking ? ' is-speaking' : ''}`}
                     >
-                      <Mic size={14} style={isListening ? { animation: 'pulse 1s ease-in-out infinite' } : {}} />
+                      <Mic size={14} className={isListening ? 'voice-mic-icon-listening' : undefined} />
                     </button>
 
                     {/* Spoken-language toggle: Indian English <-> Hindi (Hinglish). */}
@@ -1746,21 +1446,13 @@ export default function App() {
                       onClick={cycleVoiceLang}
                       aria-label={`Voice language: ${voiceLang === 'hi-IN' ? 'Hindi' : 'Indian English'} (tap to switch)`}
                       title="Switch spoken language (EN-IN / HI-IN)"
-                      style={{
-                        flexShrink: 0, padding: '7px 8px', borderRadius: 9,
-                        background: 'var(--surface-3)', color: 'var(--text-3)',
-                        border: '1px solid var(--border)', cursor: 'pointer',
-                        fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
-                        transition: 'all 0.2s', marginBottom: 1,
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.background = 'var(--surface-4)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'var(--surface-3)'; }}
+                      className="voice-lang-btn"
                     >
                       {voiceLang === 'hi-IN' ? 'HI' : 'EN'}
                     </button>
 
                     {/* Auto-expanding textarea */}
-                    <div style={{ flex: 1, position: 'relative' }}>
+                    <div className="textarea-wrapper">
                       <textarea
                         ref={textareaRef}
                         value={input}
@@ -1773,26 +1465,10 @@ export default function App() {
                           : `Ask about ${activeFile}, or describe what to build…`
                         }
                         rows={1}
-                        style={{
-                          width: '100%', boxSizing: 'border-box',
-                          background: 'var(--surface-3)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 10, padding: '8px 12px',
-                          fontSize: 12.5, color: 'var(--text-1)',
-                          outline: 'none', fontFamily: 'inherit',
-                          resize: 'none', lineHeight: 1.5,
-                          opacity: (pendingAction || isStreaming) ? 0.45 : 1,
-                          transition: 'border-color 0.2s, box-shadow 0.2s',
-                          overflow: 'hidden',
-                        }}
-                        onFocus={e => { e.target.style.borderColor = 'rgba(59,130,246,0.4)'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.07)'; }}
-                        onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
+                        className={(pendingAction || isStreaming) ? "textarea-input is-disabled" : "textarea-input"}
                       />
                       {input && (
-                        <div style={{
-                          position: 'absolute', bottom: 5, right: 8,
-                          fontSize: 9, color: 'var(--text-3)', pointerEvents: 'none',
-                        }}>
+                        <div className="textarea-hint">
                           ↵ send · ⇧↵ newline
                         </div>
                       )}
@@ -1803,20 +1479,10 @@ export default function App() {
                       type="button"
                       onClick={handleSendMessage}
                       disabled={!input.trim() || !!pendingAction || isStreaming}
-                      style={{
-                        flexShrink: 0, padding: '7px 9px', borderRadius: 9,
-                        border: 'none',
-                        background: (!input.trim() || pendingAction || isStreaming) ? 'var(--surface-3)' : 'var(--accent)',
-                        color: (!input.trim() || pendingAction || isStreaming) ? 'var(--text-3)' : '#fff',
-                        cursor: (!input.trim() || pendingAction || isStreaming) ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.2s',
-                        display: 'flex', alignItems: 'center',
-                        boxShadow: (!input.trim() || pendingAction || isStreaming) ? 'none' : '0 2px 8px rgba(59,130,246,0.25)',
-                        marginBottom: 1,
-                      }}
+                      className={(!input.trim() || pendingAction || isStreaming) ? "send-btn is-disabled" : "send-btn"}
                     >
                       {isStreaming
-                        ? <Sparkles size={14} style={{ animation: 'pulse 1s ease-in-out infinite' }} />
+                        ? <Sparkles size={14} className="send-btn-icon-streaming" />
                         : <Send size={14} strokeWidth={2.5} />
                       }
                     </button>
@@ -1832,13 +1498,13 @@ export default function App() {
                   "Open workspace" pill — and slides in. */}
               <Panel
                 defaultSize={60} minSize={20}
-                style={{ background: 'transparent', display: 'flex', flexDirection: 'column', position: 'relative' }}
+                className="workspace-panel"
               >
                 {workspaceOpen ? (
-                  <div className="workspace-in" style={{ position: 'absolute', inset: 0, display: 'flex', minWidth: 0 }}>
+                  <div className="workspace-in workspace-inner">
                     {/* Code editor */}
-                    <div style={{ flex: 1.7, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--surface-0)', borderRight: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-1)', borderBottom: '1px solid var(--border)', flexShrink: 0, overflowX: 'auto', padding: '0 4px', gap: 2 }}>
+                    <div className="editor-container">
+                      <div className="workspace-tab-bar">
                         {Object.keys(files).map(filename => {
                           const ext    = getExt(filename);
                           const color  = fileIconColor[ext] || '#8b8fa8';
@@ -1847,22 +1513,9 @@ export default function App() {
                             <button
                               key={filename}
                               onClick={() => setActiveFile(filename)}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 7,
-                                padding: '0 14px', height: 36,
-                                fontSize: 12, fontWeight: active ? 500 : 400,
-                                color: active ? 'var(--text-1)' : 'var(--text-3)',
-                                background: active ? 'var(--surface-0)' : 'transparent',
-                                border: 'none',
-                                borderTop: active ? '2px solid var(--accent)' : '2px solid transparent',
-                                borderBottom: active ? '1px solid var(--surface-0)' : '1px solid transparent',
-                                borderRadius: '8px 8px 0 0', cursor: 'pointer',
-                                transition: 'all 0.15s', flexShrink: 0, position: 'relative', top: 1,
-                              }}
-                              onMouseEnter={e => { if (!active) { e.currentTarget.style.color = 'var(--text-2)'; e.currentTarget.style.background = 'var(--surface-2)'; } }}
-                              onMouseLeave={e => { if (!active) { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.background = 'transparent'; } }}
+                              className={active ? "workspace-tab-btn is-active" : "workspace-tab-btn"}
                             >
-                              <FileCode2 size={12} style={{ color: active ? color : 'inherit', opacity: active ? 1 : 0.6 }} />
+                              <FileCode2 size={12} className="workspace-tab-icon" style={{ '--file-icon-color': color }} />
                               {filename}
                             </button>
                           );
@@ -1870,14 +1523,12 @@ export default function App() {
                         <button
                           onClick={() => setWorkspaceOpen(false)}
                           title="Hide workspace"
-                          style={{ marginLeft: 'auto', flexShrink: 0, height: 36, padding: '0 12px', background: 'transparent', border: 'none', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}
-                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)'; }}
+                          className="workspace-hide-btn"
                         >
                           <X size={13} /> Hide
                         </button>
                       </div>
-                      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                      <div className="editor-canvas-wrap">
                         <CodeCanvas
                           code={files[activeFile].content}
                           onChange={newCode => setFiles(prev => ({ ...prev, [activeFile]: { ...prev[activeFile], content: newCode } }))}
@@ -1886,28 +1537,26 @@ export default function App() {
                       </div>
                     </div>
                     {/* Live preview */}
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: '#f8f9fb', color: '#111' }}>
-                      <div style={{ height: 38, display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', background: '#eef0f3', borderBottom: '1px solid rgba(0,0,0,0.06)', flexShrink: 0 }}>
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c940', display: 'inline-block', border: '1px solid rgba(0,0,0,0.06)' }} />
-                        <div style={{ flex: 1, marginLeft: 6, background: '#e2e5e9', borderRadius: 6, height: 24, display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 10.5, color: '#6b7280', fontFamily: '"Geist Mono", monospace', border: '1px solid rgba(0,0,0,0.04)' }}>
+                    <div className="preview-container">
+                      <div className="preview-header">
+                        <span className="preview-window-control is-red" />
+                        <span className="preview-window-control is-yellow" />
+                        <span className="preview-window-control is-green" />
+                        <div className="preview-url-bar">
                           preview://localhost
                         </div>
-                        <Play size={12} style={{ color: '#9ca3af' }} />
+                        <Play size={12} className="preview-play-icon" />
                       </div>
-                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div className="preview-canvas-wrap">
                         <LivePreview files={files} />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                  <div className="workspace-placeholder">
                     <button
                       onClick={() => setWorkspaceOpen(true)}
-                      style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderRadius: 999, background: 'rgba(18,19,26,0.5)', border: '1px solid rgba(255,255,255,0.10)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', color: 'var(--text-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 12px 44px -14px rgba(0,0,0,0.65)' }}
-                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.45)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-2)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; }}
+                      className="open-workspace-btn"
                     >
                       <Code size={14} /> Open workspace
                     </button>
@@ -1923,16 +1572,9 @@ export default function App() {
           {/* ══ BOTTOM DRAWER ══════════════════════════════════ */}
           <Panel
             defaultSize={30} minSize={10} collapsible
-            style={{ background: 'var(--surface-1)', display: 'flex', flexDirection: 'column' }}
+            className="bottom-drawer"
           >
-            <div
-              style={{
-                height: 38, display: 'flex', alignItems: 'stretch',
-                background: 'var(--surface-2)',
-                borderBottom: '1px solid var(--border)',
-                flexShrink: 0, padding: '0 6px', gap: 2,
-              }}
-            >
+            <div className="bottom-tab-bar">
               {[
                 { id: 'terminal', icon: <Terminal size={13} />, label: 'Terminal' },
                 { id: 'git',      icon: <GitBranch size={13} />, label: 'Git Bash' },
@@ -1943,20 +1585,7 @@ export default function App() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveBottomTab(tab.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 7,
-                    padding: '0 16px',
-                    border: 'none', background: 'transparent',
-                    color: activeBottomTab === tab.id ? 'var(--text-1)' : 'var(--text-3)',
-                    borderBottom: activeBottomTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
-                    fontSize: 12, fontWeight: activeBottomTab === tab.id ? 600 : 400,
-                    cursor: 'pointer', transition: 'all 0.15s',
-                    borderRadius: '6px 6px 0 0',
-                    position: 'relative',
-                    top: 1,
-                  }}
-                  onMouseEnter={e => { if (activeBottomTab !== tab.id) e.currentTarget.style.color = 'var(--text-2)'; }}
-                  onMouseLeave={e => { if (activeBottomTab !== tab.id) e.currentTarget.style.color = 'var(--text-3)'; }}
+                  className={activeBottomTab === tab.id ? "bottom-tab-btn is-active" : "bottom-tab-btn"}
                 >
                   {tab.icon}
                   {tab.label}
@@ -1964,48 +1593,32 @@ export default function App() {
               ))}
             </div>
 
-            <div style={{ flex: 1, overflow: 'hidden', background: 'var(--surface-0)' }}>
+            <div className="bottom-content">
 
               {activeBottomTab === 'terminal' && (
                 <div
-                  style={{
-                    height: '100%', display: 'flex', flexDirection: 'column',
-                    padding: '12px 16px',
-                    fontFamily: '"Geist Mono", "Fira Code", "Cascadia Code", monospace',
-                    fontSize: 12.5, color: '#c9cdd4',
-                    overflowY: 'auto', cursor: 'text',
-                  }}
+                  className="terminal-view"
                   onClick={() => document.getElementById('term-input').focus()}
                 >
-                  {termHistory.map((line, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        color: line.startsWith('user@')       ? '#4ade80'
-                             : line.startsWith('[AI AGENT]')  ? 'var(--accent)'
-                             : line.startsWith('[ERROR]')     ? '#f87171'
-                             : '#8b8fa8',
-                        marginTop: line.startsWith('user@') || line.startsWith('[AI AGENT]') ? 6 : 0,
-                        fontWeight: line.startsWith('[AI AGENT]') ? 600 : 400,
-                        paddingLeft: line.startsWith('user@') || line.startsWith('[AI AGENT]') ? 0 : 16,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {line}
-                    </div>
-                  ))}
-                  <form onSubmit={handleTerminalSubmit} style={{ display: 'flex', alignItems: 'center', color: '#4ade80', marginTop: 6 }}>
-                    <span style={{ marginRight: 10, userSelect: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>user@desktop:~/ai-editor$</span>
+                  {termHistory.map((line, i) => {
+                    let lineClass = "terminal-line";
+                    if (line.startsWith('user@')) lineClass += " is-user";
+                    else if (line.startsWith('[AI AGENT]')) lineClass += " is-agent";
+                    else if (line.startsWith('[ERROR]')) lineClass += " is-error";
+                    return (
+                      <div key={i} className={lineClass}>
+                        {line}
+                      </div>
+                    );
+                  })}
+                  <form onSubmit={handleTerminalSubmit} className="terminal-prompt">
+                    <span className="terminal-prompt-label">user@desktop:~/ai-editor$</span>
                     <input
                       id="term-input"
                       type="text"
                       value={termInput}
                       onChange={e => setTermInput(e.target.value)}
-                      style={{
-                        flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                        color: '#e8eaed', fontFamily: 'inherit', fontSize: 'inherit',
-                        caretColor: 'var(--accent)',
-                      }}
+                      className="terminal-input"
                       autoComplete="off"
                       spellCheck="false"
                     />
@@ -2016,40 +1629,25 @@ export default function App() {
 
               {activeBottomTab === 'git' && (
                 <div
-                  style={{
-                    height: '100%', display: 'flex', flexDirection: 'column',
-                    padding: '12px 16px',
-                    fontFamily: '"Geist Mono", "Fira Code", monospace',
-                    fontSize: 12.5, color: '#93c5fd',
-                    overflowY: 'auto', cursor: 'text',
-                  }}
+                  className="git-view"
                   onClick={() => document.getElementById('git-input')?.focus()}
                 >
                   {gitHistory.map((line, i) => (
                     <div
                       key={i}
-                      style={{
-                        color: line.includes('user@') ? '#93c5fd' : '#8b8fa8',
-                        marginTop: line.includes('user@') ? 6 : 0,
-                        paddingLeft: line.includes('user@') ? 0 : 16,
-                        lineHeight: 1.7,
-                      }}
+                      className={line.includes('user@') ? "git-line is-user" : "git-line"}
                     >
                       {line}
                     </div>
                   ))}
-                  <form onSubmit={handleGitSubmit} style={{ display: 'flex', alignItems: 'center', color: '#93c5fd', marginTop: 6 }}>
-                    <span style={{ marginRight: 10, userSelect: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>user@desktop:~/ai-editor (main)$</span>
+                  <form onSubmit={handleGitSubmit} className="git-prompt">
+                    <span className="git-prompt-label">user@desktop:~/ai-editor (main)$</span>
                     <input
                       id="git-input"
                       type="text"
                       value={gitInput}
                       onChange={e => setGitInput(e.target.value)}
-                      style={{
-                        flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                        color: '#e8eaed', fontFamily: 'inherit', fontSize: 'inherit',
-                        caretColor: 'var(--accent)',
-                      }}
+                      className="git-input"
                       autoComplete="off"
                       spellCheck="false"
                     />
@@ -2099,7 +1697,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
         ::-webkit-scrollbar-corner { background: transparent; }
-        .sidebar-file-row:hover .delete-btn {
+        .sidebar-file-row:hover .file-delete-btn {
           display: flex !important;
           opacity: 1 !important;
         }
