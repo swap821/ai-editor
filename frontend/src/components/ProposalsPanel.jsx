@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import DiffView from './DiffView';
+import { ErrorBoundary } from './ErrorBoundary';
 import { API_BASE, API_HEADERS } from '../config';
 
 // The agent's proposer identity — the backend refuses an apply approved by it
@@ -110,6 +111,7 @@ export default function ProposalsPanel() {
   };
 
   return (
+    <ErrorBoundary name="ProposalsPanel">
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* header: title + the human approver id */}
       <div style={{
@@ -238,5 +240,6 @@ export default function ProposalsPanel() {
         })}
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

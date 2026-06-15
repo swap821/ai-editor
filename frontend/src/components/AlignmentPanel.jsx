@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ErrorBoundary } from './ErrorBoundary';
 
 const LABELS = {
   constraints: 'Constraints',
@@ -127,6 +128,7 @@ export default function AlignmentPanel({
   };
 
   return (
+    <ErrorBoundary name="AlignmentPanel">
     <section
       aria-label="Shared understanding"
       style={{
@@ -370,5 +372,6 @@ export default function AlignmentPanel({
         </div>
       )}
     </section>
+    </ErrorBoundary>
   );
 }

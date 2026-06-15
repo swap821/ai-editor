@@ -1,9 +1,12 @@
+import { ErrorBoundary } from './ErrorBoundary';
+
 // Render a unified diff with +/- line colouring for the approval preview.
 // Added lines are green, removed lines red, hunk headers blue; the file-header
 // lines (--- / +++) stay dim so they don't read as deletions/additions.
 export default function DiffView({ diff }) {
   const lines = (diff || '').split('\n');
   return (
+    <ErrorBoundary name="DiffView">
     <pre
       data-testid="diff-view"
       style={{
@@ -33,5 +36,6 @@ export default function DiffView({ diff }) {
         );
       })}
     </pre>
+    </ErrorBoundary>
   );
 }

@@ -10,6 +10,7 @@ import AlignmentEvaluationPanel from './components/AlignmentEvaluationPanel';
 import DiffView from './components/DiffView';
 import ProposalsPanel from './components/ProposalsPanel';
 import AmbientVoid from './components/AmbientVoid';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { API_BASE, API_HEADERS } from './config';
 import { getSessionId } from './superbrain/lib/sessionId';
 import { streamChatReply } from './lib/voiceChat';
@@ -1137,6 +1138,7 @@ export default function App() {
 
   /* ─── Render ────────────────────────────────────────────────── */
   return (
+    <ErrorBoundary name="App">
     <div
       className="h-screen w-screen flex flex-col select-none overflow-hidden"
       style={{
@@ -2111,5 +2113,6 @@ export default function App() {
         />
       )}
     </div>
+    </ErrorBoundary>
   );
 }

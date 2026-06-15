@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ErrorBoundary } from './ErrorBoundary';
 
 /* ─── PreviewFrame ────────────────────────────────────────────────────────
    Owns its loading state. Mounted with key={srcDoc} by the parent, so every
@@ -36,8 +37,20 @@ function PreviewFrame({ srcDoc }) {
 
 /* ─── LivePreview ─────────────────────────────────────────────────────────
    Renders the user's html/css/js in a sandboxed iframe, with an empty state
-   and a runtime-error overlay for the user's own script.                    */
-export default function LivePreview({ files }) {
+   and a runtime-error overlay for the user's own script.
+
+   Thin wrapper: the implementation (LivePreviewInner) has two return paths
+   (empty-state + iframe), so the ErrorBoundary wraps the whole component once
+   here — covering both — without altering any internal logic.                 */
+export default function LivePreview(props) {
+  return (
+    <ErrorBoundary name="LivePreview">
+      <LivePreviewInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+function LivePreviewInner({ files }) {
   const css  = files?.['style.css']?.content  || '';
   const html = files?.['index.html']?.content || '';
   const js   = files?.['app.js']?.content     || '';

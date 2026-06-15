@@ -1,7 +1,9 @@
 import Editor from '@monaco-editor/react';
+import { ErrorBoundary } from './ErrorBoundary';
 
 export default function CodeCanvas({ code, onChange, language }) {
   return (
+    <ErrorBoundary name="CodeCanvas">
     <div className="w-full h-full">
       <Editor
         height="100%"
@@ -20,5 +22,6 @@ export default function CodeCanvas({ code, onChange, language }) {
         }}
       />
     </div>
+    </ErrorBoundary>
   );
 }

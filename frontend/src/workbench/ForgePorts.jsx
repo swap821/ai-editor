@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Html } from '@react-three/drei';
 import CodeCanvas from '../components/CodeCanvas';
 import LivePreview from '../components/LivePreview';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { API_BASE, API_HEADERS } from '../config';
 import { subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { getPendingApproval } from '../superbrain/lib/aiosAdapter';
@@ -164,8 +165,12 @@ export default function ForgePorts() {
 
   return (
     <>
-      {/* PORT 01 — EDITOR, at the left nerve port */}
+      {/* PORT 01 — EDITOR, at the left nerve port. The boundary lives INSIDE
+          <Html> (which portals to the DOM), so it's a valid DOM boundary that
+          isolates an editor-panel render fault from the rest of the forge — it is
+          never placed between the canvas and <Html> (that would break R3F). */}
       <Html position={PORT_EDITOR} zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
+        <ErrorBoundary name="ForgePorts">
         <div className="forge-anchor">
           <div className={`forge-port forge-editor${editorFlaring ? ' is-flaring' : ''}`}>
             <div className="forge-head">
@@ -224,10 +229,12 @@ export default function ForgePorts() {
             <span className="forge-socket" aria-hidden="true" />
           </div>
         </div>
+        </ErrorBoundary>
       </Html>
 
-      {/* PORT 02 — PREVIEW, at the right nerve port */}
+      {/* PORT 02 — PREVIEW, at the right nerve port (boundary inside <Html>, as above) */}
       <Html position={PORT_PREVIEW} zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
+        <ErrorBoundary name="ForgePorts">
         <div className="forge-anchor">
           <div className={`forge-port forge-preview${previewFlaring ? ' is-flaring' : ''}`}>
             <div className="forge-head">
@@ -241,6 +248,7 @@ export default function ForgePorts() {
             <span className="forge-socket" aria-hidden="true" />
           </div>
         </div>
+        </ErrorBoundary>
       </Html>
     </>
   );
