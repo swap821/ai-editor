@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "899b84384f74f540ea5284d9b2e9234e050998b42eacc805410b518d4226c0b3"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "6337038fe1fe6bbe1b9f252ab678ee575859190bab6f0f246f4061824eb40875"
+    },
+    "design-motion-principles": {
+      "source": "kylezantos/design-motion-principles",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/design-motion-principles/SKILL.md",
+      "computedHash": "d0164f16382be52d0733aa3c0aaf35ee68e9a8322abee19422803c25c3f5379c"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/impeccable/SKILL.md",
+      "computedHash": "f2f9947518334b88aa69a4688c3556de8b5ca511508a0f4559b3b0e7a75fca21"
+    },
+    "gstack-design-review": {
+      "source": "garrytan/gstack",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/gstack-design-review/SKILL.md",
+      "computedHash": "a9d15e69facaaa97ab58767d44f221405bcf9ea8968cd61d0dee6fa8a39d5923"
+    },
+    "gstack-diagram": {
+      "source": "garrytan/gstack",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/gstack-diagram/SKILL.md",
+      "computedHash": "2e3098800ab4c4b288ef38da6d1f5945517314066d5b2de5180ab75ee9d266d7"
+    },
+    "gstack-qa": {
+      "source": "garrytan/gstack",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/gstack-qa/SKILL.md",
+      "computedHash": "b90172b387dceaa7d04779206c428b6d7e333a89b979ffe2a694d34c35b34458"
+    },
+    "gstack-scrape": {
+      "source": "garrytan/gstack",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/gstack-scrape/SKILL.md",
+      "computedHash": "23c7e8a19da4e503f82c9a4fad4155739923fe71fc85ed697da98f258ff558f1"
+    }
+  }
+}
