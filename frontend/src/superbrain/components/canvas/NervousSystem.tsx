@@ -115,6 +115,16 @@ const VERTEBRA_RADIAL_SEGMENTS = 20; // torus minor resolution (round)
 const VERTEBRA_TUBULAR_SEGMENTS = 64;// torus major resolution (smooth ring)
 const VERTEBRA_GIRTH: number = 2;   // # of stacked rings per vertebra (a short vertical band of girth, not a single flat hoop)
 const VERTEBRA_GIRTH_SPACING = 0.028;// vertical spacing (world-u) between the stacked rings of one vertebra
+const SPINOUS_LEN_TOP = 0.11;
+const SPINOUS_LEN_BOT = 0.15;
+const SPINOUS_R = 0.02;
+const TRANSVERSE_LEN_TOP = 0.085;
+const TRANSVERSE_LEN_BOT = 0.12;
+const TRANSVERSE_R = 0.018;
+const DISC_TUBE = 0.018;
+const DISC_R_SCALE = 1.12;
+const PROC_TUBE_SEGMENTS = 14;
+const PROC_RADIAL_SEGMENTS = 8;
 
 // --- Bilateral NERVE ROOTS (paired, fanning longer/wider toward the base) ---
 const ROOT_PAIRS_PER_SEGMENT: number = 2; // root PAIRS (left+right) per vertebral anchor
@@ -310,6 +320,28 @@ function bakeBirthConstant(geo: THREE.BufferGeometry, point: THREE.Vector3) {
   geo.setAttribute('aBirth', new THREE.BufferAttribute(birth, 3));
 }
 
+const NERVE_ATTRIBUTE_NAMES = [
+  'position',
+  'normal',
+  'uv',
+  'objectPos',
+  'color',
+  'aArc',
+  'aBirth',
+] as const;
+
+function assertNerveAttributeSet(geo: THREE.BufferGeometry, label: string) {
+  const attrs = Object.keys(geo.attributes).sort();
+  const expected = [...NERVE_ATTRIBUTE_NAMES].sort();
+  const missing = expected.filter((name) => !attrs.includes(name));
+  const extra = attrs.filter((name) => !expected.includes(name as (typeof NERVE_ATTRIBUTE_NAMES)[number]));
+  console.assert(
+    missing.length === 0 && extra.length === 0,
+    `Nerve geometry attribute mismatch in ${label}`,
+    { missing, extra, attrs }
+  );
+}
+
 export default function NervousSystem({
   burst,
   uniforms,
@@ -348,7 +380,7 @@ export default function NervousSystem({
         // window.__NERVE). LOCKED at 24 after a browser sweep (12=leopard-coarse,
         // 18=good, 26=finest; 24 = brain-dense stipple without thin-tube shimmer).
         webScale: 24,
-        webOctaves: 1, // nerve never runs 2-octave (the fine sparkle is a cortex luxury)
+        webOctaves: 'tier', // high tier gets brain-parity two-octave texture; lower tiers stay single-octave
         breathUniform: uniforms.uBreath,
         flowUniform: NERVE_FLOW_UNIFORM,
         reduceMotionUniform: NERVE_REDUCEMOTION_UNIFORM,
@@ -465,13 +497,19 @@ export default function NervousSystem({
     stemGeo.dispose();
     cordGeo.dispose();
 
-    // ── 2) VERTEBRAE — 24 stacked tori (2 per segment × 12) → merged (1 call) ──
+    // ── 2) VERTEBRAE — stacked centrum rings + discs + processes → merged (1 call) ──
     const vertebraGeos: THREE.BufferGeometry[] = [];
+    const pushVertebraGeo = (geo: THREE.BufferGeometry, label: string) => {
+      assertNerveAttributeSet(geo, label);
+      vertebraGeos.push(geo);
+    };
     if (VERTEBRA_RINGS) {
       SEGMENT_ANCHORS.forEach((anchor, i) => {
         const f = SEGMENT_COUNT === 1 ? 0 : i / (SEGMENT_COUNT - 1);
         const segArc = 0.05 + f * 0.7;
         const ringR = THREE.MathUtils.lerp(VERTEBRA_RING_TOP_R, VERTEBRA_RING_BOTTOM_R, f);
+        const bodyR = ringR * (1.0 + 0.35 * THREE.MathUtils.smoothstep(f, 0.55, 1.0));
+        const vertebraBirth = new THREE.Vector3(anchor.x, anchor.y, anchor.z);
         const stackSpan = (VERTEBRA_GIRTH - 1) * VERTEBRA_GIRTH_SPACING;
         for (let g = 0; g < VERTEBRA_GIRTH; g++) {
           const gy =
@@ -479,7 +517,7 @@ export default function NervousSystem({
               ? anchor.y
               : anchor.y + (g / (VERTEBRA_GIRTH - 1) - 0.5) * stackSpan;
           const torus = new THREE.TorusGeometry(
-            ringR,
+            bodyR,
             VERTEBRA_RING_TUBE,
             VERTEBRA_RADIAL_SEGMENTS,
             VERTEBRA_TUBULAR_SEGMENTS
@@ -489,15 +527,92 @@ export default function NervousSystem({
           torus.translate(anchor.x, gy, anchor.z);
           // GROWTH: the vertebra collapses to its spine anchor, then blooms OUT of
           // the cord as the front reaches its segment — "generated from the spine".
-          bakeBirthConstant(torus, new THREE.Vector3(anchor.x, gy, anchor.z));
+          bakeBirthConstant(torus, vertebraBirth);
           // light, legible jitter only (a touch of organic life, not chaos)
           bakeNerveAttributes(torus, random, () => segArc + (random() - 0.5) * 0.01, 0.04);
-          vertebraGeos.push(torus);
+          pushVertebraGeo(torus, `vertebra-${i}-centrum-${g}`);
+        }
+
+        if (i < SEGMENT_ANCHORS.length - 1) {
+          const discY = (anchor.y + SEGMENT_ANCHORS[i + 1].y) * 0.5;
+          const disc = new THREE.TorusGeometry(
+            bodyR * DISC_R_SCALE,
+            DISC_TUBE,
+            PROC_RADIAL_SEGMENTS,
+            VERTEBRA_TUBULAR_SEGMENTS
+          );
+          disc.rotateX(Math.PI / 2);
+          disc.translate(anchor.x, discY, anchor.z);
+          bakeBirthConstant(disc, vertebraBirth);
+          bakeNerveAttributes(disc, random, () => segArc + (random() - 0.5) * 0.01, 0.04);
+          pushVertebraGeo(disc, `vertebra-${i}-disc`);
+        }
+
+        const spLen = THREE.MathUtils.lerp(SPINOUS_LEN_TOP, SPINOUS_LEN_BOT, f);
+        const tilt =
+          THREE.MathUtils.lerp(0.15, 0.85, THREE.MathUtils.smoothstep(f, 0.15, 0.55)) *
+          (1.0 - 0.5 * THREE.MathUtils.smoothstep(f, 0.75, 1.0));
+        const p0 = new THREE.Vector3(anchor.x, anchor.y, anchor.z - bodyR * 0.2);
+        const p1 = new THREE.Vector3(
+          anchor.x,
+          anchor.y - spLen * tilt * 0.4,
+          anchor.z - bodyR - spLen * 0.45
+        );
+        const p2 = new THREE.Vector3(
+          anchor.x,
+          anchor.y - spLen * tilt,
+          anchor.z - bodyR - spLen * 0.95
+        );
+        const spinous = makeTaperedTube(
+          [p0, p1, p2],
+          PROC_TUBE_SEGMENTS,
+          PROC_RADIAL_SEGMENTS,
+          (t) => SPINOUS_R * (1.0 - 0.55 * t),
+          vertebraBirth
+        );
+        bakeNerveAttributes(spinous, random, () => segArc + (random() - 0.5) * 0.012, 0.05);
+        pushVertebraGeo(spinous, `vertebra-${i}-spinous`);
+
+        const tpLen = THREE.MathUtils.lerp(TRANSVERSE_LEN_TOP, TRANSVERSE_LEN_BOT, f);
+        const fwd =
+          0.06 *
+          THREE.MathUtils.smoothstep(f, 0.2, 0.55) *
+          (1.0 - THREE.MathUtils.smoothstep(f, 0.7, 1.0));
+        for (const side of [-1, 1] as const) {
+          const q0 = new THREE.Vector3(anchor.x, anchor.y, anchor.z);
+          const q1 = new THREE.Vector3(
+            anchor.x + side * tpLen * 0.5,
+            anchor.y + 0.01,
+            anchor.z + fwd * 0.5
+          );
+          const q2 = new THREE.Vector3(
+            anchor.x + side * tpLen,
+            anchor.y + 0.005,
+            anchor.z + fwd
+          );
+          const transverse = makeTaperedTube(
+            [q0, q1, q2],
+            PROC_TUBE_SEGMENTS,
+            PROC_RADIAL_SEGMENTS,
+            (t) => TRANSVERSE_R * (0.7 + 0.5 * t),
+            vertebraBirth
+          );
+          bakeNerveAttributes(
+            transverse,
+            random,
+            () => segArc + (random() - 0.5) * 0.012,
+            0.05
+          );
+          pushVertebraGeo(transverse, `vertebra-${i}-transverse-${side}`);
         }
       });
     }
     const vertebraeBundle =
       vertebraGeos.length > 0 ? mergeGeometries(vertebraGeos, false) : null;
+    console.assert(
+      vertebraGeos.length === 0 || vertebraeBundle !== null,
+      'Vertebrae merge failed; sub-part attributes must match exactly'
+    );
     vertebraGeos.forEach((g) => g.dispose());
 
     // ── 3) BILATERAL NERVE ROOTS — 48 tubes → merged (1 call) ─────────────────
