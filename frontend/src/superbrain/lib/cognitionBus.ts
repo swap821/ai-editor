@@ -34,9 +34,8 @@ export type CognitionEventType =
    *  stayed local. `data` carries {provider, model, privacy, task, auto}. The
    *  sovereignty row shows it; additive, so the canon idle frame is untouched. */
   | 'route'
-  /** TTS speak-back in progress (per word-boundary) — drives the voice→3D pulse.
-   *  Published by the HUD/App voice loop. (BUG-D: was missing from the product
-   *  union though the lab + the voice loop publish it.) */
+  /** Live voice phase in progress (listening / question-up / reply-down /
+   *  speak-back) — drives the conversational pulse through the 3D body. */
   | 'voice-speaking';
 
 export interface CognitionEvent {

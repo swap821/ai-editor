@@ -57,6 +57,12 @@ export interface BrainMaterialOptions {
   /** Nerve flow-band GAIN (0 at rest → no traveling pulse / steady calm glow; >0
    *  only on real cognition activity → the impulse visibly races down). Default 1. */
   flowGainUniform?: { value: number } | null;
+  /** Upward question flow phase (0..1 over the intake->brainstem band). */
+  intakeFlowUniform?: { value: number } | null;
+  /** Upward question flow gain. */
+  intakeGainUniform?: { value: number } | null;
+  /** 0..1 warmth mix for the reply-down flow. */
+  replyWarmUniform?: { value: number } | null;
 }
 
 // ── NERVE TUNABLES (operator tunes the cord's share of the brain's life) ─────
@@ -66,6 +72,10 @@ const NERVE_BREATH_DEPTH = 0.08;
 /** Downward data-flow band: a gaussian impulse in arc-space, brain→spray. */
 const NERVE_FLOW_BAND_SHARP = 7.0;   // higher = tighter band (~14% of the body at 7.0)
 const NERVE_FLOW_BAND_GAIN = 0.9;    // peak extra emission at the impulse head
+/** Upward intake band: a tighter cyan packet running intake->brainstem only. */
+const NERVE_INTAKE_BAND_SHARP = 11.0;
+const NERVE_INTAKE_BAND_GAIN = 0.88;
+const NERVE_INTAKE_ARC_MAX = 0.24;
 
 /** Resolve the octave count actually compiled for a (mode, tier, request). */
 function resolveOctaves(webOctaves: 1 | 2 | 'tier', tier: QualityTier): 1 | 2 {
@@ -91,6 +101,9 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
     reduceMotionUniform = null,
     growUniform = null,
     flowGainUniform = null,
+    intakeFlowUniform = null,
+    intakeGainUniform = null,
+    replyWarmUniform = null,
   } = options;
 
   const isNerve = bodyMode === 'nerve';
@@ -156,6 +169,9 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
       shader.uniforms.uReduceMotion = reduceMotionUniform ?? { value: 0 };
       shader.uniforms.uGrow = growUniform ?? { value: 1 };
       shader.uniforms.uFlowGain = flowGainUniform ?? { value: 1 };
+      shader.uniforms.uIntakeFlow = intakeFlowUniform ?? { value: 0 };
+      shader.uniforms.uIntakeGain = intakeGainUniform ?? { value: 0 };
+      shader.uniforms.uReplyWarm = replyWarmUniform ?? { value: 0 };
       // NERVE web-aesthetic leaves — the cord is a SMOOTH tube with no gyri/sulci
       // (unlike the GLB cortex), so its Voronoi must run FAR finer + higher-
       // contrast to read as the same living flesh. These are live-tunable
@@ -205,7 +221,7 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
        uniform float uHold;
        uniform float uArrival;
        uniform float uIgnite;
-       ${isNerve ? 'uniform float uBreath;\n       uniform float uFlow;\n       uniform float uFlowGain;\n       uniform float uReduceMotion;\n       uniform float uGrow;\n       uniform float uNerveScale;\n       uniform float uNerveContrastLo;\n       uniform float uNerveContrastHi;\n       uniform float uNerveCoreGlow;\n       uniform float uNerveFresnel;\n       varying float vArc;\n       varying float vBorn;' : ''}
+       ${isNerve ? 'uniform float uBreath;\n       uniform float uFlow;\n       uniform float uFlowGain;\n       uniform float uIntakeFlow;\n       uniform float uIntakeGain;\n       uniform float uReplyWarm;\n       uniform float uReduceMotion;\n       uniform float uGrow;\n       uniform float uNerveScale;\n       uniform float uNerveContrastLo;\n       uniform float uNerveContrastHi;\n       uniform float uNerveCoreGlow;\n       uniform float uNerveFresnel;\n       varying float vArc;\n       varying float vBorn;' : ''}
        varying vec3 vLocalPos;
 
        vec3 hash33(vec3 p) {
@@ -347,7 +363,14 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
        float flowBand = exp(-pow((vArc - flowHead) * ${NERVE_FLOW_BAND_SHARP.toFixed(1)}, 2.0));
        // uFlowGain is 0 at REST (steady calm glow — no traveling strobe) and only
        // rises on real cognition activity, when a command visibly races down the cord.
-       totalEmissiveRadiance += safeColor * flowBand * ${NERVE_FLOW_BAND_GAIN.toFixed(2)} * uFlowGain * (1.0 - uReduceMotion);
+       vec3 flowColor = mix(safeColor, vec3(1.0, 0.62, 0.22), clamp(uReplyWarm, 0.0, 1.0));
+       totalEmissiveRadiance += flowColor * flowBand * ${NERVE_FLOW_BAND_GAIN.toFixed(2)} * uFlowGain * (1.0 - uReduceMotion);
+       // Question-up band: a cooler cyan packet rising from the brainstem intake
+       // into the cortex on conversational send. Purely nerve-gated and dark at rest.
+       float intakeHead = mix(${NERVE_INTAKE_ARC_MAX.toFixed(2)}, 0.0, fract(uIntakeFlow));
+       float intakeBand = exp(-pow((vArc - intakeHead) * ${NERVE_INTAKE_BAND_SHARP.toFixed(1)}, 2.0));
+       vec3 intakeColor = mix(safeColor, vec3(0.36, 0.88, 0.98), 0.88);
+       totalEmissiveRadiance += intakeColor * intakeBand * ${NERVE_INTAKE_BAND_GAIN.toFixed(2)} * uIntakeGain * (1.0 - uReduceMotion);
        // GROWTH reveal: an unborn part (collapsed onto its birth point) is dark,
        // so the spine visibly GENERATES downward — vertebrae igniting as the front
        // reaches them. A thin leading hot-line at the growth front sells the birth.

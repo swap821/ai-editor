@@ -884,6 +884,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
   const directivePendingRef = useRef(false);
+  const replyGlowRef = useRef(0);
   const uniforms = SCENE_UNIFORMS;
   
   const idleRef = useRef<IdleControllerState>({
@@ -952,6 +953,17 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           event.type === 'synthesis'
         ) {
           holdRef.current.active = false;
+        }
+        if (event.type === 'voice-speaking') {
+          const phase = String(event.data?.phase ?? '');
+          if (event.source === 'reply' && (phase === 'reply-start' || phase === 'reply' || phase === 'reply-complete')) {
+            replyGlowRef.current = Math.max(
+              replyGlowRef.current,
+              THREE.MathUtils.clamp(event.intensity ?? 0.72, 0.28, 1),
+            );
+            burstRef.current.intensity = Math.max(burstRef.current.intensity, 0.28);
+          }
+          return;
         }
         if (event.type === 'approval-resolved' && event.label === 'approved') {
           // The operator's decision executes: a thought-wave fires from the
@@ -1057,6 +1069,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const time = state.clock.elapsedTime;
     const current = burstRef.current;
     const hold = holdRef.current;
+    replyGlowRef.current = THREE.MathUtils.damp(replyGlowRef.current, 0, 2.6, delta);
 
     // The hold blend eases in/out; while engaged the organism neither bursts,
     // free-associates, nor drifts into the idle attract mode.
@@ -1111,6 +1124,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     } else if (posture.state === LifecycleState.ATTENTIVE) {
       awakenTarget = reducedMotionRef.current ? 1 : awakenNotice(sinceState);
     }
+    awakenTarget = Math.max(awakenTarget, replyGlowRef.current);
     uniforms.uArrival.value = arrivalTarget;
     uniforms.uIgnite.value = igniteTarget;
     // AWAKENING return: the cortex still reveals/ignites, but the field stays

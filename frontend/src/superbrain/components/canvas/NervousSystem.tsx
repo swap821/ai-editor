@@ -4,6 +4,7 @@ import { useMemo, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { createSeededRandom } from '@/lib/seededRandom';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
+import { subscribeCognition } from '@/lib/cognitionBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import type { BurstRef, CognitionUniforms } from './SuperbrainScene';
 
@@ -61,6 +62,7 @@ const NERVE_LUMINANCE_FLOOR = 0.12;
 //    / SuperbrainScene stay untouched — additive, reversible) ────────────────
 const FLOW_PERIOD_S = 3.5;   // seconds for one impulse to sweep brain→spray
 const FLOW_BURST_KICK = 2.4; // extra flow advance (body-lengths) on a cognition burst — a command races down the cord
+const INTAKE_FLOW_PERIOD_S = 0.86; // a short brainstem→cortex packet, visibly faster than the full reply descent
 
 /** Module-level uniform leaves (the bundle mounts once); frame-loop-mutable.
  *  uFlow lives here so the brain shader / SuperbrainScene stay UNTOUCHED. */
@@ -70,6 +72,9 @@ const NERVE_REDUCEMOTION_UNIFORM = { value: 0 };
 // strobe), rising only on real cognition activity (a burst) so the impulse
 // visibly races down the spine when the being is actually thinking, then decays.
 const NERVE_FLOWGAIN_UNIFORM = { value: 0 };
+const NERVE_INTAKE_UNIFORM = { value: 0 };
+const NERVE_INTAKEGAIN_UNIFORM = { value: 0 };
+const NERVE_REPLYWARM_UNIFORM = { value: 0 };
 
 // ── GROWTH (the spine SLOWLY GENERATES downward, vertebra by vertebra) ────────
 // uGrow sweeps 0→1 in body-arc; each mesh part is born (inflates from its birth
@@ -386,8 +391,52 @@ export default function NervousSystem({
         reduceMotionUniform: NERVE_REDUCEMOTION_UNIFORM,
         growUniform: NERVE_GROW_UNIFORM,
         flowGainUniform: NERVE_FLOWGAIN_UNIFORM,
+        intakeFlowUniform: NERVE_INTAKE_UNIFORM,
+        intakeGainUniform: NERVE_INTAKEGAIN_UNIFORM,
+        replyWarmUniform: NERVE_REPLYWARM_UNIFORM,
       }),
     [uniforms, tier]
+  );
+
+  useEffect(() => {
+    NERVE_INTAKEGAIN_UNIFORM.value = 0;
+    NERVE_REPLYWARM_UNIFORM.value = 0;
+    NERVE_INTAKE_UNIFORM.value = 0;
+    return () => {
+      NERVE_INTAKEGAIN_UNIFORM.value = 0;
+      NERVE_REPLYWARM_UNIFORM.value = 0;
+      NERVE_INTAKE_UNIFORM.value = 0;
+    };
+  }, []);
+
+  useEffect(
+    () =>
+      subscribeCognition((event) => {
+        if (event.type !== 'voice-speaking') return;
+        const phase = String(event.data?.phase ?? '');
+        const intensity = THREE.MathUtils.clamp(event.intensity ?? 0.72, 0.25, 1);
+        if (phase === 'question') {
+          NERVE_INTAKE_UNIFORM.value = 0;
+          NERVE_INTAKEGAIN_UNIFORM.value = Math.max(NERVE_INTAKEGAIN_UNIFORM.value, intensity);
+          return;
+        }
+        if (event.source === 'reply' && phase === 'reply-start') {
+          NERVE_FLOW_UNIFORM.value = Math.floor(NERVE_FLOW_UNIFORM.value);
+          NERVE_FLOWGAIN_UNIFORM.value = Math.max(NERVE_FLOWGAIN_UNIFORM.value, intensity);
+          NERVE_REPLYWARM_UNIFORM.value = 1;
+          return;
+        }
+        if (event.source === 'reply' && phase === 'reply') {
+          NERVE_FLOWGAIN_UNIFORM.value = Math.max(NERVE_FLOWGAIN_UNIFORM.value, intensity);
+          NERVE_REPLYWARM_UNIFORM.value = Math.max(NERVE_REPLYWARM_UNIFORM.value, 0.85);
+          return;
+        }
+        if (event.source === 'reply' && phase === 'reply-complete') {
+          NERVE_FLOWGAIN_UNIFORM.value = Math.max(NERVE_FLOWGAIN_UNIFORM.value, intensity * 0.75);
+          NERVE_REPLYWARM_UNIFORM.value = Math.max(NERVE_REPLYWARM_UNIFORM.value, 0.6);
+        }
+      }),
+    []
   );
 
   useEffect(() => {
@@ -412,6 +461,9 @@ export default function NervousSystem({
     if (NERVE_REDUCEMOTION_UNIFORM.value < 0.5) {
       NERVE_FLOW_UNIFORM.value +=
         delta / FLOW_PERIOD_S + burst.current.intensity * FLOW_BURST_KICK * delta;
+      if (NERVE_INTAKEGAIN_UNIFORM.value > 0.01) {
+        NERVE_INTAKE_UNIFORM.value += delta / INTAKE_FLOW_PERIOD_S;
+      }
     }
     // Steady at rest: the impulse band is only visible when the being is actually
     // thinking. Quick attack to the burst level, gentle ~1.4s release so a command
@@ -420,6 +472,8 @@ export default function NervousSystem({
       THREE.MathUtils.clamp(burst.current.intensity, 0, 1),
       NERVE_FLOWGAIN_UNIFORM.value - delta * 0.7
     );
+    NERVE_INTAKEGAIN_UNIFORM.value = Math.max(0, NERVE_INTAKEGAIN_UNIFORM.value - delta * 1.35);
+    NERVE_REPLYWARM_UNIFORM.value = Math.max(0, NERVE_REPLYWARM_UNIFORM.value - delta * 0.58);
 
     // GROWTH: the spine generates once on the being's birth — advances after the
     // brain has had a moment to coalesce, easing 0→1 over GROW_DURATION_S.
