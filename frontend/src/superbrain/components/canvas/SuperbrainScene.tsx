@@ -21,6 +21,7 @@ import MemoryGalaxy from './MemoryGalaxy';
 import OrganSurface from './OrganSurface';
 import RegionPins from './RegionPins';
 import NodeLattice from './NodeLattice';
+import MaterializationLayer from './MaterializationLayer';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
@@ -809,6 +810,7 @@ function BrainModel({
       {NODE_BRAIN && (
         <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} />
       )}
+      <MaterializationLayer reducedMotion={reduceMotion} />
       {/* Anatomical callouts ride INSIDE the group: pinned to the lobes,
           breathing and banking with the organism. */}
       {SHOW_REGION_PINS && <RegionPins />}

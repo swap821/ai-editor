@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Billboard, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { sendVoiceTurn } from '../superbrain/lib/aiosAdapter';
+import { sendDirective, sendVoiceTurn } from '../superbrain/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { isWorkIntent } from '../superbrain/lib/intentRouting';
 
 const INTAKE_LOCAL = new THREE.Vector3(0, -1.08, -0.42);
 const PROMPT_TEXT_LOCAL = new THREE.Vector3(0, -0.3, 0.06);
@@ -130,7 +131,9 @@ export default function BrainstemIntake() {
     try {
       const caret = input.value.length;
       input.setSelectionRange(caret, caret);
-    } catch {}
+    } catch {
+      // Some hidden-input implementations do not support selection ranges.
+    }
     syncDraftFromInput();
   }, [syncDraftFromInput]);
 
@@ -146,6 +149,9 @@ export default function BrainstemIntake() {
     async (rawText) => {
       const text = String(rawText ?? '').trim();
       if (!text || busyRef.current) return;
+      // CLAUDE?: keep this intent router simple for P3.1; refine the work/chat
+      // split once the operator judges which prompts should materialize.
+      const workIntent = isWorkIntent(text);
 
       const turnToken = turnTokenRef.current + 1;
       turnTokenRef.current = turnToken;
@@ -164,23 +170,39 @@ export default function BrainstemIntake() {
       targetPulseRef.current = Math.max(targetPulseRef.current, 1);
       emitVoicePhase('brainstem', 'question', 1, { text });
 
-      let replyStarted = false;
-      const handleReplyChunk = (partialReply) => {
-        if (turnTokenRef.current !== turnToken) return;
-        const visibleReply = clampSceneText(partialReply, 220);
-        if (!visibleReply) return;
-        if (!replyStarted) {
-          replyStarted = true;
-          emitVoicePhase('reply', 'reply-start', 0.92, { text, reply: visibleReply });
-        }
-        setReplyText(visibleReply);
-        emitVoicePhase('reply', 'reply', 0.82, { text, reply: visibleReply });
-      };
-
       try {
-        const reply = await sendVoiceTurn(text, { onChunk: handleReplyChunk });
-        if (turnTokenRef.current !== turnToken) return;
-        const visibleReply = clampSceneText(reply, 220);
+        let visibleReply = '';
+        let paused = false;
+        let replyStarted = false;
+
+        if (workIntent) {
+          publishCognition({
+            type: 'directive',
+            label: text.slice(0, 80),
+            intensity: 1,
+            source: 'brainstem',
+          });
+          const result = await sendDirective(text);
+          if (turnTokenRef.current !== turnToken) return;
+          paused = result.paused;
+          visibleReply = clampSceneText(result.answer, 220);
+        } else {
+          const handleReplyChunk = (partialReply) => {
+            if (turnTokenRef.current !== turnToken) return;
+            const chunkReply = clampSceneText(partialReply, 220);
+            if (!chunkReply) return;
+            if (!replyStarted) {
+              replyStarted = true;
+              emitVoicePhase('reply', 'reply-start', 0.92, { text, reply: chunkReply });
+            }
+            setReplyText(chunkReply);
+            emitVoicePhase('reply', 'reply', 0.82, { text, reply: chunkReply });
+          };
+          const reply = await sendVoiceTurn(text, { onChunk: handleReplyChunk });
+          if (turnTokenRef.current !== turnToken) return;
+          visibleReply = clampSceneText(reply, 220);
+        }
+
         if (visibleReply) {
           if (!replyStarted) {
             emitVoicePhase('reply', 'reply-start', 0.92, { text, reply: visibleReply });
@@ -188,14 +210,25 @@ export default function BrainstemIntake() {
           setReplyText(visibleReply);
           emitVoicePhase('reply', 'reply', 0.82, { text, reply: visibleReply });
         }
+        if (paused && !visibleReply) {
+          setRouteLabel('approval pending');
+        }
         const elapsedMs = performance.now() - turnStartedAtRef.current;
         const nextRouteLabel = formatRouteLabel(routeDataRef.current, elapsedMs);
         if (nextRouteLabel) setRouteLabel(nextRouteLabel);
-        emitVoicePhase('reply', 'reply-complete', 0.62, {
-          text,
-          reply: visibleReply,
-          elapsedMs: Math.max(1, Math.round(elapsedMs)),
-        });
+        if (visibleReply || !paused) {
+          emitVoicePhase('reply', 'reply-complete', 0.62, {
+            text,
+            reply: visibleReply,
+            elapsedMs: Math.max(1, Math.round(elapsedMs)),
+          });
+        } else {
+          emitVoicePhase('reply', 'reply-complete', 0.52, {
+            text,
+            paused: true,
+            elapsedMs: Math.max(1, Math.round(elapsedMs)),
+          });
+        }
       } catch (error) {
         if (turnTokenRef.current !== turnToken) return;
         const detail = error instanceof Error ? error.message : 'voice mind unavailable';
@@ -223,7 +256,9 @@ export default function BrainstemIntake() {
     if (listeningRef.current) {
       try {
         rec.stop();
-      } catch {}
+      } catch {
+        // Ignore redundant stop calls while the browser tears down recognition.
+      }
       return;
     }
     recognitionHandledRef.current = false;
@@ -452,7 +487,9 @@ export default function BrainstemIntake() {
       rec.onerror = null;
       try {
         rec.abort();
-      } catch {}
+      } catch {
+        // Recognition may already be closed during effect cleanup.
+      }
     };
   }, [emitVoicePhase, submitTurn]);
 
