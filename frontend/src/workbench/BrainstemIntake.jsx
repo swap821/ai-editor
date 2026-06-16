@@ -5,8 +5,20 @@ import * as THREE from 'three';
 import { sendDirective, sendVoiceTurn } from '../superbrain/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
+import { shouldReduceMotion } from '../superbrain/lib/openingMotion';
+import {
+  BRAINSTEM_INTAKE_LOCAL,
+  getInputSurfacePlacement,
+} from '../superbrain/lib/materializedSurfaceAnchors';
+import {
+  beginRetractingMaterializedTab,
+  getFirstMaterializedTab,
+  upsertInputSurface,
+  useTabStore,
+} from '../superbrain/lib/tabStore';
+import MaterializedTab from '../superbrain/components/canvas/MaterializedTab';
 
-const INTAKE_LOCAL = new THREE.Vector3(0, -1.08, -0.42);
+const INTAKE_LOCAL = new THREE.Vector3(...BRAINSTEM_INTAKE_LOCAL);
 const PROMPT_TEXT_LOCAL = new THREE.Vector3(0, -0.3, 0.06);
 const ROUTE_TEXT_LOCAL = new THREE.Vector3(0.54, -0.08, -0.02);
 const REPLY_TEXT_LOCAL = new THREE.Vector3(0.82, 1.02, 0.22);
@@ -91,11 +103,15 @@ export default function BrainstemIntake() {
 
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [typedDraftText, setTypedDraftText] = useState('');
   const [draftText, setDraftText] = useState('');
   const [promptText, setPromptText] = useState('');
   const [replyText, setReplyText] = useState('');
   const [routeLabel, setRouteLabel] = useState('');
   const [errorText, setErrorText] = useState('');
+  const { tabs } = useTabStore();
+  const reduceMotion = useMemo(() => shouldReduceMotion(), []);
+  const inputSurfaceTab = tabs[0]?.kind === 'input' ? tabs[0] : null;
 
   const conduits = useMemo(
     () => [
@@ -118,7 +134,7 @@ export default function BrainstemIntake() {
 
   const syncDraftFromInput = useCallback(() => {
     const input = hiddenInputRef.current;
-    setDraftText(clampSceneText(input?.value ?? '', 120));
+    setTypedDraftText(clampSceneText(input?.value ?? '', 120));
   }, []);
 
   const focusTypedInput = useCallback((seed = '') => {
@@ -142,7 +158,7 @@ export default function BrainstemIntake() {
     if (!input) return;
     input.value = '';
     input.blur();
-    setDraftText('');
+    setTypedDraftText('');
   }, []);
 
   const submitTurn = useCallback(
@@ -152,6 +168,7 @@ export default function BrainstemIntake() {
       // CLAUDE?: keep this intent router simple for P3.1; refine the work/chat
       // split once the operator judges which prompts should materialize.
       const workIntent = isWorkIntent(text);
+      const showSceneConversation = !workIntent;
 
       const turnToken = turnTokenRef.current + 1;
       turnTokenRef.current = turnToken;
@@ -161,7 +178,8 @@ export default function BrainstemIntake() {
       setListening(false);
       listeningRef.current = false;
       setErrorText('');
-      setPromptText(clampSceneText(text, 132));
+      setDraftText('');
+      setPromptText(showSceneConversation ? clampSceneText(text, 132) : '');
       setReplyText('');
       setRouteLabel('');
       routeDataRef.current = null;
@@ -195,7 +213,9 @@ export default function BrainstemIntake() {
               replyStarted = true;
               emitVoicePhase('reply', 'reply-start', 0.92, { text, reply: chunkReply });
             }
-            setReplyText(chunkReply);
+            if (showSceneConversation) {
+              setReplyText(chunkReply);
+            }
             emitVoicePhase('reply', 'reply', 0.82, { text, reply: chunkReply });
           };
           const reply = await sendVoiceTurn(text, { onChunk: handleReplyChunk });
@@ -207,7 +227,9 @@ export default function BrainstemIntake() {
           if (!replyStarted) {
             emitVoicePhase('reply', 'reply-start', 0.92, { text, reply: visibleReply });
           }
-          setReplyText(visibleReply);
+          if (showSceneConversation) {
+            setReplyText(visibleReply);
+          }
           emitVoicePhase('reply', 'reply', 0.82, { text, reply: visibleReply });
         }
         if (paused && !visibleReply) {
@@ -264,6 +286,7 @@ export default function BrainstemIntake() {
     recognitionHandledRef.current = false;
     setErrorText('');
     setDraftText('');
+    setTypedDraftText('');
     clearTypedInput();
     try {
       rec.start();
@@ -280,6 +303,17 @@ export default function BrainstemIntake() {
   useEffect(() => {
     listeningRef.current = listening;
   }, [listening]);
+
+  useEffect(() => {
+    if (typedDraftText) {
+      upsertInputSurface(typedDraftText, getInputSurfacePlacement());
+      return;
+    }
+    const current = getFirstMaterializedTab();
+    if (current?.kind === 'input') {
+      beginRetractingMaterializedTab(current.id);
+    }
+  }, [typedDraftText]);
 
   useEffect(() => {
     const prompt = window.setTimeout(() => {
@@ -373,7 +407,7 @@ export default function BrainstemIntake() {
         event.preventDefault();
         input.value = '';
         input.blur();
-        setDraftText('');
+        setTypedDraftText('');
       }
     };
     const handleWindowKeyDown = (event) => {
@@ -392,7 +426,7 @@ export default function BrainstemIntake() {
         event.preventDefault();
         input.value = '';
         input.blur();
-        setDraftText('');
+        setTypedDraftText('');
         return;
       }
       if (event.key === 'Backspace') {
@@ -436,6 +470,7 @@ export default function BrainstemIntake() {
       listeningRef.current = true;
       setListening(true);
       setErrorText('');
+      setTypedDraftText('');
       emitVoicePhase('brainstem', 'listening', 0.56);
       targetPulseRef.current = Math.max(targetPulseRef.current, 0.72);
     };
@@ -558,7 +593,7 @@ export default function BrainstemIntake() {
     }
   });
 
-  const intakeLabel = draftText || (listening ? 'listening...' : busy ? promptText : promptText);
+  const intakeLabel = listening ? draftText || 'listening...' : promptText;
   const statusLabel = errorText || routeLabel;
   const statusColor = errorText ? ERROR : AMBER;
 
@@ -665,6 +700,7 @@ export default function BrainstemIntake() {
           </Text>
         </Billboard>
       ) : null}
+      {inputSurfaceTab ? <MaterializedTab tab={inputSurfaceTab} reducedMotion={reduceMotion} /> : null}
     </group>
   );
 }
