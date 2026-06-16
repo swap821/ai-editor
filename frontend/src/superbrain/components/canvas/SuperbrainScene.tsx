@@ -20,6 +20,8 @@ import KnowledgeHorizon from './KnowledgeHorizon';
 import MemoryGalaxy from './MemoryGalaxy';
 import OrganSurface from './OrganSurface';
 import RegionPins from './RegionPins';
+import NodeLattice from './NodeLattice';
+import { makeBrainMaterial } from '@/lib/brainMaterial';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -33,9 +35,11 @@ import type { QualityTier } from '@/components/QualityTierProvider';
 export type SkyMode = 'voyage' | 'layered';
 
 /** Anatomical region pins (RESEARCH/MEMORY/TOOLS/SIGNALS callouts bound to
- *  the same live channels as the intake rows). Additive layer — the
- *  operator's call (VISION.md): flip to false to remove without a trace. */
-const SHOW_REGION_PINS = true;
+ *  the same live channels as the intake rows). RegionPins renders drei <Html>
+ *  (2D DOM floating chips) — under the operator's PURE-3D home law that is not
+ *  allowed in the experience, so the pins are off here. Flip to true only if
+ *  RegionPins is ever reworked into pure 3D (sprites/meshes, no <Html>). */
+const SHOW_REGION_PINS = false;
 
 /** THE ORGANISM NOTICES YOU: a damped 1-2 degree attentive lean toward the
  *  operator's pointer — presence, not control (the voyage motion always
@@ -644,198 +648,36 @@ function BrainModel({
   const attendRef = useRef({ x: 0, y: 0 });
   const { scene } = useGLTF('/models/brain.glb');
 
+  /** COMPUTER BRAIN (operator's truth: the being only WEARS a brain SHAPE — the
+   *  interior is a NETWORK OF NODES, not organic flesh).
+   *    NODE_BRAIN = true  → the cortex GLB becomes a quiet near-transparent
+   *                         GLASS CRANIUM (no Voronoi web, no procedural bump,
+   *                         no organic emission) and the luminous interior is
+   *                         the <NodeLattice> node-network. The brain SILHOUETTE,
+   *                         uArrival coalescence, uBreath pulse + uHold amber
+   *                         all stay wired.
+   *    NODE_BRAIN = false → restores the canon ORGAN-FLESH path BYTE-FOR-BYTE
+   *                         (the entire Voronoi/bump/emission shader below runs
+   *                         unchanged and the lattice does not mount). Fully
+   *                         recoverable — no orphaned code, just this const.
+   *  Final aesthetic call is the operator's browser. */
+  const NODE_BRAIN = false;
+  /** a11y: freeze packet travel + snap coalescence to assembled. Captured once
+   *  (same source as the scene's reduced-motion posture). */
+  const reduceMotion = useMemo(() => shouldReduceMotion(), []);
+
   const brainAsset = useMemo(() => {
     const clone = scene.clone(true);
     const materials: THREE.Material[] = [];
     
     applyRegionVertexColors(clone);
-    
-      const mat = new THREE.MeshPhysicalMaterial({
-        vertexColors: true,
-        color: 0x010308, // Dark base
-        roughness: 0.2,
-        metalness: 0.1,
-        emissive: 0x000000,
-        
-        // Deep glass polish (opaque but highly reflective)
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.05,
-      });
 
-      mat.onBeforeCompile = (shader) => {
-        // Link the shared sentience leaves into the brain shader
-        shader.uniforms.uTime = uniforms.uTime;
-        shader.uniforms.uHold = uniforms.uHold;
-        // Opening envelopes: drive the cortex reveal (coalescence) + the
-        // single-shot ignition seed flash, shader-side. All default to the
-        // SETTLED value (0) so canon REST emission is byte-identical.
-        shader.uniforms.uArrival = uniforms.uArrival;
-        shader.uniforms.uIgnite = uniforms.uIgnite;
-
-        // Pass local position to fragment shader for stable high-frequency noise
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <common>',
-          `#include <common>
-           varying vec3 vLocalPos;
-          `
-        );
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <begin_vertex>',
-          `#include <begin_vertex>
-           vLocalPos = position * 2.0; // Stabilized local scale
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <common>',
-          `#include <common>
-           uniform float uTime;
-           uniform float uHold;
-           uniform float uArrival;
-           uniform float uIgnite;
-           varying vec3 vLocalPos;
-
-           vec3 hash33(vec3 p) {
-               p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-                        dot(p, vec3(269.5, 183.3, 246.1)),
-                        dot(p, vec3(113.5, 271.9, 124.6)));
-               return fract(sin(p) * 43758.5453123);
-           }
-
-           // Animated 3D Voronoi for flowing, living neural synapses
-           float voronoi(vec3 x) {
-               vec3 p = floor(x);
-               vec3 f = fract(x);
-               float res = 100.0;
-               for(int k=-1; k<=1; k++) {
-                   for(int j=-1; j<=1; j++) {
-                       for(int i=-1; i<=1; i++) {
-                           vec3 b = vec3(float(i), float(j), float(k));
-                           vec3 h = hash33(p + b);
-                           // Animate the cell points smoothly over time
-                           // (frozen on the low tier: same web, zero per-frame churn)
-                           ${tier === 'low'
-                             ? 'vec3 anim = vec3(0.5);'
-                             : 'vec3 anim = 0.5 + 0.5 * sin(uTime * 1.2 + 6.2831 * h);'}
-                           vec3 r = vec3(b) - f + anim;
-                           float d = dot(r, r);
-                           if(d < res) res = d;
-                       }
-                   }
-               }
-               return sqrt(res);
-           }
-
-            // Continuous glowing neural web (edges of the Voronoi cells)
-           float microDetail(vec3 pos) {
-               float scale = 0.6; 
-               // Do not invert! We want distance to center. 
-               // Centers are 0.0 (dark), edges are ~0.8 (bright)
-               float v1 = voronoi(pos * scale);
-               ${tier === 'high'
-                 ? `float v2 = voronoi(pos * scale * 2.0 + vec3(v1));
-               // Combine into a multi-scale continuous web
-               float webbing = v1 * 0.7 + v2 * 0.3;`
-                 : `// Single-octave web below the high tier (half the loops)
-               float webbing = v1;`}
-               
-               // Isolate the highest values to create thin, sharp, glowing interconnected lines
-               return smoothstep(0.4, 0.8, webbing);
-           }
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <normal_fragment_begin>',
-          `#include <normal_fragment_begin>
-           // PROCEDURAL BUMP MAPPING (Normal Perturbation)
-           // Smooth, thick organic bump (lowered multiplier from 0.08 to 0.015 to prevent sandy artifacts)
-           // Evaluated ONCE per fragment and shared with the emission pass
-           // below (each microDetail call is two 27-cell animated Voronoi
-           // loops — the single heaviest cost on screen).
-           float gNeuralWeb = microDetail(vLocalPos);
-           float h = gNeuralWeb * 0.015;
-           vec3 vSigmaX = dFdx(vViewPosition);
-           vec3 vSigmaY = dFdy(vViewPosition);
-           vec3 vN = normal;
-           vec3 R1 = cross(vSigmaY, vN);
-           vec3 R2 = cross(vN, vSigmaX);
-           float fDet = dot(vSigmaX, R1);
-           float vGradX = dFdx(h);
-           float vGradY = dFdy(h);
-           vec3 vGrad = sign(fDet) * (vGradX * R1 + vGradY * R2);
-           normal = normalize(abs(fDet) * vN - vGrad);
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <color_fragment>',
-          `#include <color_fragment>
-           // Make the diffuse base extremely dark so the emissive glow pops.
-           // color_fragment already applies vColor to diffuseColor, but we want it
-           // to be driven purely by emission.
-           diffuseColor.rgb = vec3(0.01, 0.02, 0.04);
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <emissivemap_fragment>',
-          `#include <emissivemap_fragment>
-           
-           // The neural synapse pattern, computed once in the bump pass above.
-           float cDetail = gNeuralWeb;
-           
-           // Extract RGB safely regardless of whether vColor is vec3 or vec4
-           vec3 safeColor = vColor.rgb;
-           
-           // 1. Core Regional Glow: Drive the emission intensely using the baked regional colors,
-           // modulated by the Voronoi network so it looks incredibly detailed and organic!
-           // Reduced pow() to make the web slightly thicker and increased multiplier for intense bloom!
-           totalEmissiveRadiance += safeColor * pow(cDetail, 1.5) * 4.0;
-           
-           // 2. Vibrant Edge Rim Light: Smooth Fresnel that dynamically matches the region's color!
-           vec3 viewDir = normalize(vViewPosition);
-           vec3 geomNormal = normalize(vNormal); 
-           float fresnel = pow(1.0 - max(dot(viewDir, geomNormal), 0.0), 2.5);
-           
-           // Organic breathing pulse — held steady and bright during an
-           // approval hold (bated breath, not a flatline).
-           float pulse = sin(uTime * 2.0) * 0.5 + 0.5;
-           float pulseMix = mix(mix(0.7, 1.5, pulse), 1.25, uHold);
-
-           // Add the dynamic rim light, heavily multiplying the local region color
-           totalEmissiveRadiance += safeColor * fresnel * 2.0 * pulseMix;
-
-           // Approval hold: the whole cortex tints toward YELLOW-zone amber —
-           // structure preserved, hue deferring to the operator.
-           vec3 holdTone = vec3(1.0, 0.62, 0.22);
-           totalEmissiveRadiance = mix(
-             totalEmissiveRadiance,
-             totalEmissiveRadiance * holdTone + holdTone * 0.05,
-             uHold * 0.85
-           );
-
-           // ── Opening reveal (additive: uArrival==0 -> canon REST) ──
-           // reveal: 0 while the field is still streaming in -> 1 settled. The
-           // cortex is DIMMER while arriving (a dormant being lighting up; the
-           // AWAKENING return reads as "dark -> lights up", COALESCENCE as
-           // "condenses into light"). A small floor keeps a faint seed glow so
-           // the form is never fully black before ignition.
-           float reveal = 1.0 - uArrival;
-           totalEmissiveRadiance *= mix(0.12, 1.0, reveal);
-           // uIgnite is the single-shot seed flash (NOT a loop): a warm white
-           // surge from the cortex core, peaking mid-coalescence then gone.
-           totalEmissiveRadiance += safeColor * uIgnite * 1.6 + vec3(0.9, 0.95, 1.0) * uIgnite * 0.5;
-          `
-        );
-      };
-      
-      // The GLSL varies by tier, so the compiled-program cache key MUST too —
-      // a constant key made THREE reuse the first-compiled (possibly
-      // degraded) program for the whole session, no matter what FIDELITY
-      // said. The operator's eyes caught what three rounds of instruments
-      // missed.
-      mat.customProgramCacheKey = () => `superbrain_v7_${tier}`;
+      // The brain's living-flesh material — Voronoi neural-web + region/palette
+      // vertex colours + luminance ladder + fresnel glow, pulsing on the shared
+      // uTime/uHold/uArrival/uIgnite. Extracted to a shared factory so the
+      // nervous system can wear the IDENTICAL material; cortex defaults
+      // reproduce the canon brain byte-for-byte (cache key superbrain_v8_*_organ_cortex_oN).
+      const mat = makeBrainMaterial({ tier, uniforms, nodeBrain: NODE_BRAIN });
 
       clone.traverse((object) => {
         if (object instanceof THREE.Mesh) {
@@ -959,6 +801,14 @@ function BrainModel({
         uniforms={uniforms}
         count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
       />
+      {/* COMPUTER BRAIN INTERIOR: the node-network lattice (nodes + edges +
+          backbone bus, 3 draw calls). Mounts ONLY under NODE_BRAIN; rides the
+          group's scale/rotation/drift for free (brain-group-local coords). It
+          consumes uArrival/uBreath/uHold/uBurst from the shared uniforms; flip
+          NODE_BRAIN off to remove it and restore the canon organ cortex. */}
+      {NODE_BRAIN && (
+        <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} />
+      )}
       {/* Anatomical callouts ride INSIDE the group: pinned to the lobes,
           breathing and banking with the organism. */}
       {SHOW_REGION_PINS && <RegionPins />}
@@ -999,7 +849,7 @@ function CameraDrift({
       + Math.sin(time * 0.12) * 0.12
       + focus * 0.22
       + Math.sin(orbitAngle) * orbitRadius;
-    const targetY = 0.2
+    const targetY = -0.6
       + state.pointer.y * 0.15
       + Math.cos(time * 0.1) * 0.06
       + Math.cos(orbitAngle) * orbitRadius * 0.3;
@@ -1008,7 +858,7 @@ function CameraDrift({
     // impulse (decayed by the scene root over ~2s) dollies in by up to 0.45 —
     // issuing a command feels like the engine surging.
     const dollyWave = Math.sin(time * Math.PI * 2 * 0.04) * 0.12;
-    const targetZ = 7.5 - focus * 0.55 - activity * 0.14 // hero framing: zoomed out to 7.5 for soothing size
+    const targetZ = 9.6 - focus * 0.55 - activity * 0.14 // tall-being hero framing: pulled back to fit the full vertical CNS (brain crown → cauda-equina spray)
       + dollyWave
       - push.current.value * 0.45;
 
@@ -1017,7 +867,7 @@ function CameraDrift({
     state.camera.position.z = THREE.MathUtils.damp(state.camera.position.z, targetZ, 1.8, delta);
     // The lookAt leads the brain's lateral drift slightly — pursuit framing,
     // the camera chasing a mind in motion rather than panning a tripod.
-    state.camera.lookAt(brainDriftX(time) * 0.35, 0.62, -1.2);
+    state.camera.lookAt(brainDriftX(time) * 0.35, -1.6, -1.2);
 
     // Idle attract-mode pitch: a ±2° sine composed AFTER the lookAt as a
     // pure local-X rotation, scaled by the idle blend — zero effect until
@@ -1415,7 +1265,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       
       {/* Kept OUTSIDE Float so the bottom wires stay rigidly attached to the static UI. 
           The top wires plug deep inside the brain, so they just slide 0.1 units inside the brain as it bobs. */}
-      <NervousSystem burst={burstRef} uniforms={uniforms} />
+      <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} />
 
       <PostFX />
     </>

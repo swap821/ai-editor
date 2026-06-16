@@ -6,17 +6,21 @@ import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import SuperbrainScene, { type BrainSurface, type SkyMode } from './SuperbrainScene';
-import SuperbrainHUD, { type CognitiveMode } from '@/components/ui/SuperbrainHUD';
-import BootSequence from '@/components/ui/BootSequence';
+import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import {
   QualityTierProvider,
   useQualityTier,
   type QualityTier,
 } from '@/components/QualityTierProvider';
 import TierGovernor from './TierGovernor';
-import { sendDirective, startAiosPolling } from '@/lib/aiosAdapter';
+import { startAiosPolling } from '@/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
-import { notifyDirective, tickLifecycle } from '@/lib/lifecycleStateMachine';
+import {
+  transitionToArriving,
+  ArrivalMode,
+  notifyDirective,
+  tickLifecycle,
+} from '@/lib/lifecycleStateMachine';
 
 /** Device-pixel-ratio budget per effective tier — the cheapest fill-rate lever. */
 const TIER_DPR: Record<QualityTier, [number, number]> = {
@@ -67,54 +71,54 @@ function readStoredSurface(): BrainSurface | null {
 
 function WorkspaceInner({ children }: { children?: ReactNode }) {
   const { tier, perfTier } = useQualityTier();
-  const [mode, setMode] = useState<CognitiveMode>('orchestrate');
-  const [activity, setActivity] = useState(0.72);
-  const [lastDirective, setLastDirective] = useState('Mapping the active knowledge horizon');
-  // Boot choreography contract: "is-booting" while the kernel boot overlay is
-  // up, "is-booted" once it unmounts — HUD entrance animations key off it.
+  // The pure-3D home has no 2D HUD to drive these, so they are the scene's
+  // resting defaults rather than React state. SuperbrainScene still consumes
+  // them; directives now reach the being through the cognition bus + posture
+  // machine (see the bridge effect below), not a DOM command bar.
+  const mode: CognitiveMode = 'orchestrate';
+  const activity = 0.72;
+  // Boot choreography contract: "is-booting" until the first frame settles,
+  // then "is-booted" once AIOS polling starts. Now flipped by the on-mount
+  // arrival effect (the 2D boot overlay that used to flip it was removed).
   const [booted, setBooted] = useState(false);
-  const timeoutRef = useRef<number | null>(null);
   // GPU context-loss resilience: a lost context first gets a grace window to
   // restore in place (preventDefault opts in); if it never comes back, bumping
   // this key remounts the Canvas — a black dead screen is never acceptable on
   // a machine where Ollama can evict the GPU at any moment.
   const [glEpoch, setGlEpoch] = useState(0);
   const restoreTimerRef = useRef<number | null>(null);
-  const [skyMode, setSkyMode] = useState<SkyMode>(() => readStoredSky() ?? 'voyage');
-
-  const handleSkyModeChange = useCallback((next: SkyMode) => {
-    setSkyMode(next);
-    try {
-      window.localStorage.setItem(SKY_STORAGE_KEY, next);
-    } catch {
-      // Private mode etc. — the session still gets the chosen sky.
-    }
-  }, []);
-
-  const [surface, setSurface] = useState<BrainSurface>(() => readStoredSurface() ?? 'web');
-
-  const handleSurfaceChange = useCallback((next: BrainSurface) => {
-    setSurface(next);
-    try {
-      window.localStorage.setItem(SURFACE_STORAGE_KEY, next);
-    } catch {
-      // Private mode etc. — the session still gets the chosen surface.
-    }
-  }, []);
+  // The operator's sovereign sky/surface choices still load from storage so
+  // the being renders the chosen look; the topbar that wrote them lived in the
+  // removed 2D HUD, so there are no setters here.
+  const skyMode: SkyMode = readStoredSky() ?? 'voyage';
+  const surface: BrainSurface = readStoredSurface() ?? 'web';
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
       if (restoreTimerRef.current) {
         window.clearTimeout(restoreTimerRef.current);
       }
     };
   }, []);
 
-  const handleBootComplete = useCallback(() => {
+  // ARRIVAL (moved out of the removed 2D BootSequence overlay): on mount, start
+  // AIOS polling (flips the className to is-booted) and, after a short settle so
+  // the first frame / GLB lands, open the being. First-ever load on this device
+  // coalesces (A); a return awakens (C). Reduced-motion is honored by the scene
+  // (it renders the settled REST state immediately).
+  useEffect(() => {
     setBooted(true);
+    const id = window.setTimeout(() => {
+      let firstEver = true;
+      try {
+        firstEver = window.localStorage.getItem('gag-has-arrived-v1') === null;
+        window.localStorage.setItem('gag-has-arrived-v1', '1');
+      } catch {
+        // Private mode: treat as first-ever (coalescence) — the richer opening.
+      }
+      transitionToArriving(firstEver ? ArrivalMode.COALESCENCE : ArrivalMode.AWAKENING);
+    }, 400);
+    return () => window.clearTimeout(id);
   }, []);
 
   const handleCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
@@ -188,33 +192,6 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
     };
   }, []);
 
-  const handleDirective = useCallback((directive: string) => {
-    setMode('synthesize');
-    setActivity(1);
-    setLastDirective(directive);
-    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-
-    // The directive drives a REAL supervised turn; the stream's lifecycle —
-    // not a canned timer — decides when the organism settles.
-    void sendDirective(directive).then((result) => {
-      if (result.paused) {
-        // The supervised mind is holding its breath for its operator.
-        setLastDirective('Awaiting operator approval');
-        setActivity(0.9);
-        return;
-      }
-      timeoutRef.current = window.setTimeout(() => {
-        setMode('orchestrate');
-        setActivity(0.72);
-      }, 800);
-    });
-  }, []);
-
-  const handleModeChange = useCallback((nextMode: CognitiveMode) => {
-    setMode(nextMode);
-    setActivity(nextMode === 'observe' ? 0.42 : nextMode === 'synthesize' ? 1 : 0.72);
-  }, []);
-
   return (
       <main className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
         <div className="scene-layer" aria-hidden="true">
@@ -244,17 +221,6 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
             <TierGovernor />
             <Suspense fallback={null}>
               <SuperbrainScene mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
-              <SuperbrainHUD
-                mode={mode}
-                activity={activity}
-                lastDirective={lastDirective}
-                onModeChange={handleModeChange}
-                onDirective={handleDirective}
-                skyMode={skyMode}
-                onSkyModeChange={handleSkyModeChange}
-                surface={surface}
-                onSurfaceChange={handleSurfaceChange}
-              />
               {/* Product-side forge ports (editor/preview) mount here, INSIDE the
                   one canvas, so the canon nerves plug into them. Renders nothing
                   when no children are passed (home/?ui=superbrain unchanged). */}
@@ -263,15 +229,6 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
           </Canvas>
         </WebGLErrorBoundary>
       </div>
-
-      <div className="atmosphere-layer" aria-hidden="true" />
-      <div className="grid-layer" aria-hidden="true" />
-      <div id="hud-portal-root" />
-
-        {/* Kernel boot overlay — the Canvas mounts underneath so the GLB and
-            shaders compile during boot. Fully unmounts on completion and never
-            re-mounts (booted is never reset). */}
-        {!booted && <BootSequence onComplete={handleBootComplete} />}
       </main>
   );
 }

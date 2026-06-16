@@ -271,10 +271,12 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
           });
           break;
         case 'code': {
-          // Generated code used to vanish into the default branch — at
-          // minimum the organism announces the artifact honestly.
+          // Generated code used to vanish into the default branch. Capture it so
+          // the forge can surface the brain's ACTUAL emitted code
+          // (getLastEmittedCode), then announce the artifact honestly on the bus.
           const code = String(frame.data.code ?? '');
           const language = String(frame.data.language ?? 'text');
+          lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
           publishCognition({
             type: 'knowledge-acquired',
             label: 'CODE EMITTED',
@@ -573,6 +575,14 @@ const seenAutonomyStatus = new Map<string, string>();
 /** The brain's actual trail field — what the grasp system may recall. */
 export function getKnownTrails(): readonly TrailRow[] {
   return knownTrails;
+}
+
+/** The brain's most-recent emitted code artifact (the `code` SSE frame), captured
+ *  so the forge can show what it actually wrote (was previously discarded). Null
+ *  until the first emission this session. */
+let lastEmittedCode: { code: string; language: string; filepath: string } | null = null;
+export function getLastEmittedCode(): { code: string; language: string; filepath: string } | null {
+  return lastEmittedCode;
 }
 
 /** The earned-autonomy ledger as of the last poll (null offline / older backend). */

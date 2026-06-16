@@ -25,6 +25,22 @@ export const METRIC_BASES: Record<MetricKey, number> = {
 
 const METRIC_KEYS = Object.keys(METRIC_BASES) as MetricKey[];
 
+/** Semantic routing of a knowledge-acquired label to its metric channel, by what
+ *  the event MEANS. (BUG-B: the old `label.includes(key)` over the metric KEYS
+ *  never matched a real label like "VERIFICATION GREEN" or "trail #N reinforced",
+ *  so every bump silently round-robined.) Returns null for an unrecognized label. */
+const METRIC_ROUTES: ReadonlyArray<readonly [RegExp, MetricKey]> = [
+  [/verif|build|\bcode\b|create|edit|exec|\brun\b|test|compile|tool/i, 'tools'],
+  [/recall|memory|skill|trail|master|capab|lesson|reflect|knowledge/i, 'memory'],
+  [/research|read|search|archive|web|fetch|grep|inspect|list|mythos/i, 'research'],
+  [/signal|route|synth|telemetr|intent|autonom|titan|delta/i, 'signals'],
+];
+
+export function routeMetric(label: string): MetricKey | null {
+  for (const [re, key] of METRIC_ROUTES) if (re.test(label)) return key;
+  return null;
+}
+
 type Snapshot = Record<MetricKey, number>;
 
 /** Live base values the ticker drifts around. Defaults to the demo lore
@@ -108,10 +124,9 @@ function startTicker() {
 
   cognitionUnsubscribe = subscribeCognition((event) => {
     if (event.type !== 'knowledge-acquired') return;
-    // Route the bump by label keyword when possible, else rotate channels.
-    const label = (event.label ?? '').toLowerCase();
-    const matched = METRIC_KEYS.find((key) => label.includes(key));
-    const key = matched ?? METRIC_KEYS[rotation++ % METRIC_KEYS.length];
+    // Route the bump to the channel the event MEANS; rotate only as a genuine
+    // fallback for an unrecognized label (BUG-B fix — see routeMetric).
+    const key = routeMetric(event.label ?? '') ?? METRIC_KEYS[rotation++ % METRIC_KEYS.length];
     bumps[key] += 2.5 + (event.intensity ?? 0.5) * 1.5;
   });
 }

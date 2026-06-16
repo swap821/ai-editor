@@ -33,7 +33,11 @@ export type CognitionEventType =
   /** The active brain for a turn: which provider/model served it and whether it
    *  stayed local. `data` carries {provider, model, privacy, task, auto}. The
    *  sovereignty row shows it; additive, so the canon idle frame is untouched. */
-  | 'route';
+  | 'route'
+  /** TTS speak-back in progress (per word-boundary) — drives the voice→3D pulse.
+   *  Published by the HUD/App voice loop. (BUG-D: was missing from the product
+   *  union though the lab + the voice loop publish it.) */
+  | 'voice-speaking';
 
 export interface CognitionEvent {
   type: CognitionEventType;

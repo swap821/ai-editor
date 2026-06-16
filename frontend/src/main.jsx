@@ -12,10 +12,12 @@ import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 // everything works at one URL. Lazy on every side: each UI's stack loads only
 // when it is the one being mounted.
 //
-//   /              -> the official shell (default; ?ui=shell is a kept alias)
+//   /              -> the PURE-3D living being (SuperbrainApp) — the official home
+//                     (operator law: everything 3D, zero 2D chrome in the canvas)
+//   ?ui=shell      -> the manufacturing form (SuperbrainShell) — kept reachable;
+//                     its 2D forge/organs are slated to be rebuilt as 3D materialized tabs
 //   ?ui=classic    -> the classic IDE (fallback, byte-untouched)
-//   ?ui=home       -> the bare canon superbrain home (SuperbrainApp), kept
-//                     reachable for parity review against the frozen brain+space
+//   ?ui=home       -> alias of the pure-3D being (kept)
 const SuperbrainApp = lazy(() => import('./superbrain/SuperbrainApp.jsx'))
 const SuperbrainShell = lazy(() => import('./superbrain/SuperbrainShell.jsx'))
 const ui = new URLSearchParams(window.location.search).get('ui')
@@ -34,13 +36,13 @@ createRoot(document.getElementById('root')).render(
     <ErrorBoundary name="App">
       {ui === 'classic' ? (
         <App />
-      ) : ui === 'home' || ui === 'superbrain' ? (
+      ) : ui === 'shell' ? (
         <Suspense fallback={null}>
-          <SuperbrainApp />
+          <SuperbrainShell />
         </Suspense>
       ) : (
         <Suspense fallback={null}>
-          <SuperbrainShell />
+          <SuperbrainApp />
         </Suspense>
       )}
     </ErrorBoundary>
