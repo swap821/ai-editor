@@ -158,8 +158,15 @@ resume yourself — say so if asked). Don't report a task done without evidence
   `?ui=classic`. Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced
   into `frontend/src/superbrain/` via `npm run port` — never edit those product files directly
   (they are overwritten); product-safe files are `main.jsx`/`SuperbrainApp.jsx`/`SuperbrainShell.jsx`/
-  `config.js`/`vite.config.js`/the classic `App.jsx` + new files. FIDELITY: no auto-degrade, his
-  assets untouched, before/after screenshots in his browser for any visual change.
+  `config.js`/`vite.config.js`/the classic `App.jsx` + new files. CANON (operator, 2026-06-19 —
+  supersedes the old broad FIDELITY freeze): the lab is an **UNRESTRICTED build space** — geometry,
+  anatomy, nerve positions, shaders, structure, and motion are ALL free to evolve toward a 100%-working
+  alive-brain. The ONLY sacred canon is his **palette + textures** ("that's what I imagined; everything
+  else doesn't matter"): `check_css_canon.py` guards the color palette, `check_canon_frozen.py` now
+  guards ONLY his texture/GLB assets (break-glass `--allow-canon`); no auto-degrade of palette/texture.
+  Product (`frontend/src/superbrain/`) is gated solely by the operator's `:5173` look at `npm run port`
+  time — never hand-edit product files (overwritten). (This relaxes ONLY the visual canon; the SECURITY
+  frozen core below is unchanged and stays RED.)
 - **Config is centralized** in `aios/config.py` (single source of truth). Subsystems are injected via FastAPI `Depends(...)` so tests override them with fakes — never add network/model/shell side-effects to a test path.
 - **Frozen core (§VIII controlled self-modification).** The security spine — `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py` — is FROZEN. Any change to it follows the full §VIII flow (Observe→Analyse→Propose→Test→Verify→Human Review→Approve→Deploy) and is treated as **RED**: the product agent literally cannot touch it (`SCOPE_ROOTS` = `training_ground/` only → an attempt classifies RED/refused), and the Self-Analysis module treats it as **Tier T4 = RED + frozen** (a fix may be *proposed* for human review, but *applying* one is RED/blocked). Never weaken a guardrail to make a test pass; keep these modules deterministic and fail-closed.
 - **Build vs blueprint:** the blueprint says "~35%"; the *code* is ~75–80% of MVP. Trust the code. See `.aios/state/RESUME.md`.
@@ -205,4 +212,4 @@ Design/frontend work MUST invoke the relevant skill (don't coast on memory of on
   connected Claude session, NOT to Codex or headless/cron runs. Use where they fit (Figma/Canva for 2D design;
   not for live WebGL shaders); never assume a peer agent has them.
 - **Honest limit:** skills sharpen REASONING; they do NOT replace VISUAL verification (no headless WebGL) — the
-  final 3D aesthetic call is the operator's browser (FIDELITY law).
+  final palette/texture aesthetic call is the operator's browser (the one sacred canon; see §XI).
