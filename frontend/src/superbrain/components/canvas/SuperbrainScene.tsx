@@ -28,7 +28,7 @@ import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
-import { deriveBodyPosture, postureColor01 } from '@/lib/bodyPosture';
+import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
@@ -220,6 +220,12 @@ const SCENE_UNIFORMS = createCognitionUniforms();
 
 /** Scratch color for per-frame posture damping (no per-frame allocation). */
 const POSTURE_SCRATCH = new THREE.Color();
+
+// Dev tint dial — tune the posture STRENGTH live in the operator's browser:
+//   window.__POSTURE.brainTint = 0.72;  window.__POSTURE.flowScale = 1.4
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as unknown as { __POSTURE?: typeof POSTURE_DIAL }).__POSTURE = POSTURE_DIAL;
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Travel convention: the brain voyages toward -Z (into deep knowledge        */
@@ -1434,14 +1440,20 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
     POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);
     uniforms.uPosture.value.lerp(POSTURE_SCRATCH, Math.min(1, delta * 3.0));
-    const postureTintTarget = livePhase === 'rest' || livePhase === 'booting' ? 0.12 : 0.55;
+    const postureTintTarget =
+      livePhase === 'rest' || livePhase === 'booting' ? POSTURE_DIAL.restTint : POSTURE_DIAL.brainTint;
     uniforms.uPostureTint.value = THREE.MathUtils.damp(
       uniforms.uPostureTint.value,
-      postureTintTarget * (reducedMotionRef.current ? 0.8 : 1),
+      Math.min(0.8, postureTintTarget) * (reducedMotionRef.current ? 0.8 : 1),
       2.5,
       delta,
     );
-    uniforms.uFlow.value = THREE.MathUtils.damp(uniforms.uFlow.value, bodyPosture.flow, 2.0, delta);
+    uniforms.uFlow.value = THREE.MathUtils.damp(
+      uniforms.uFlow.value,
+      bodyPosture.flow * POSTURE_DIAL.flowScale,
+      2.0,
+      delta,
+    );
 
     /* ── thought-wave scheduler: Poisson-ish idle waves + event waves ── */
     const waves = waveRef.current;

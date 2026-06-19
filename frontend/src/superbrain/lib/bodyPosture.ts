@@ -68,3 +68,25 @@ export function postureColor01(
 ): [number, number, number] {
   return [color[0] / 255, color[1] / 255, color[2] / 255];
 }
+
+/**
+ * Live tuning dial for the posture-color STRENGTH — the operator's FIDELITY call.
+ * SuperbrainScene exposes this on `window.__POSTURE` in dev, so the strength can be
+ * dialed in the real browser without a code change, e.g.:
+ *   window.__POSTURE.brainTint = 0.72   // push toward the demoplan's dramatic shift
+ *   window.__POSTURE.flowScale = 1.4    // faster signal flow
+ * Read per-frame by the scene-root damping (brain/nerve — live) and at render by the
+ * surfaces. Consumers HARD-cap the tint at <=0.8 (the regional palette stays legible).
+ */
+export const POSTURE_DIAL = {
+  /** brain/nerve tint over the regional palette when alive (non-rest). 0..0.8. */
+  brainTint: 0.55,
+  /** brain/nerve tint at rest (subtle violet wash). */
+  restTint: 0.12,
+  /** materialized work/approval surface tint. */
+  surfaceTint: 0.3,
+  /** materialized input surface tint (brainstem). */
+  inputSurfaceTint: 0.42,
+  /** global signal-flow speed multiplier. */
+  flowScale: 1,
+};

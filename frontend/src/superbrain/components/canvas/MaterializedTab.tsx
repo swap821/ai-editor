@@ -18,7 +18,7 @@ import {
 import type { MaterializedApprovalSurface, MaterializedTabKind, MaterializedTabRecord } from '@/lib/tabStore';
 import { REST_TURN_METABOLISM, type TurnMetabolismSnapshot } from '@/lib/turnMetabolism';
 import { deriveVertebraConductorRoots } from '@/lib/vertebraConductorRoots';
-import { BODY_POSTURES, postureColor01, type BodyPosture } from '@/lib/bodyPosture';
+import { BODY_POSTURES, postureColor01, POSTURE_DIAL, type BodyPosture } from '@/lib/bodyPosture';
 import {
   beginRetractingMaterializedTab,
   clearMaterializedTab,
@@ -913,7 +913,7 @@ export default function MaterializedTab({
     const [r, g, b] = postureColor01(posture.color);
     return new THREE.Color(r, g, b);
   }, [posture.color]);
-  const bodyPostureTint = tab.kind === 'input' ? 0.42 : 0.3;
+  const bodyPostureTint = tab.kind === 'input' ? POSTURE_DIAL.inputSurfaceTint : POSTURE_DIAL.surfaceTint;
   const tubeRadius = tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * 0.52;
   const facesCamera = tab.kind === 'input';
   const isFocused = tab.kind === 'input' || focused;
