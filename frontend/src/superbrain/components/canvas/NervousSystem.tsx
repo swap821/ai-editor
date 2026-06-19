@@ -446,8 +446,11 @@ export default function NervousSystem({
     // visibly travels down the body). Frozen amplitude under reduced motion is
     // handled in-shader; freeze the advance too so it isn't stuck mid-band.
     if (NERVE_REDUCEMOTION_UNIFORM.value < 0.5) {
+      // Posture flow: the impulse descent rides uFlow — rest crawls (~0.6x),
+      // streaming races (~1.8x) — so the cord's signal speed reads the live state.
+      const flowK = 0.4 + uniforms.uFlow.value * 1.4;
       NERVE_FLOW_UNIFORM.value +=
-        delta / FLOW_PERIOD_S + burst.current.intensity * FLOW_BURST_KICK * delta;
+        (delta / FLOW_PERIOD_S) * flowK + burst.current.intensity * FLOW_BURST_KICK * delta;
       if (NERVE_INTAKEGAIN_UNIFORM.value > 0.01) {
         NERVE_INTAKE_UNIFORM.value += delta / INTAKE_FLOW_PERIOD_S;
       }
@@ -457,6 +460,9 @@ export default function NervousSystem({
     // lingers as it travels, then the cord returns to a calm steady glow.
     NERVE_FLOWGAIN_UNIFORM.value = Math.max(
       THREE.MathUtils.clamp(burst.current.intensity, 0, 1),
+      // Posture floor: think/stream show a faint STEADY traveling band even without
+      // a discrete cognition burst; rest (flow 0.16) stays exactly calm (floor 0).
+      Math.max(0, uniforms.uFlow.value - 0.16) * 0.42,
       NERVE_FLOWGAIN_UNIFORM.value - delta * 0.7
     );
     NERVE_INTAKEGAIN_UNIFORM.value = Math.max(0, NERVE_INTAKEGAIN_UNIFORM.value - delta * 1.35);
