@@ -18,6 +18,7 @@ import {
 import type { MaterializedApprovalSurface, MaterializedTabKind, MaterializedTabRecord } from '@/lib/tabStore';
 import { REST_TURN_METABOLISM, type TurnMetabolismSnapshot } from '@/lib/turnMetabolism';
 import { deriveVertebraConductorRoots } from '@/lib/vertebraConductorRoots';
+import { BODY_POSTURES, postureColor01, type BodyPosture } from '@/lib/bodyPosture';
 import {
   beginRetractingMaterializedTab,
   clearMaterializedTab,
@@ -874,6 +875,7 @@ export default function MaterializedTab({
   metabolism = REST_TURN_METABOLISM,
   outcome = REST_OUTCOME_IMPRINT,
   waitingIndex = 0,
+  posture = BODY_POSTURES.rest,
 }: {
   tab: MaterializedTabRecord;
   reducedMotion: boolean;
@@ -881,6 +883,7 @@ export default function MaterializedTab({
   metabolism?: TurnMetabolismSnapshot;
   outcome?: OutcomeImprintSnapshot;
   waitingIndex?: number;
+  posture?: BodyPosture;
 }) {
   const camera = useThree((state) => state.camera);
   const viewportWidth = useThree((state) => state.size.width);
@@ -903,6 +906,14 @@ export default function MaterializedTab({
   const dimensions = SURFACE_DIMENSIONS[tab.kind];
   const metabolismColor = useMemo(() => new THREE.Color(metabolism.tint), [metabolism.tint]);
   const outcomeColor = useMemo(() => new THREE.Color(outcome.tint), [outcome.tint]);
+  // Posture (spectral-v1): the surface tissue settles into the body's current hue,
+  // blended OVER the canon palette as the TERMINAL step (after metabolism/outcome
+  // transients). The luminous code <Text> stays canon for legibility.
+  const postureColor = useMemo(() => {
+    const [r, g, b] = postureColor01(posture.color);
+    return new THREE.Color(r, g, b);
+  }, [posture.color]);
+  const bodyPostureTint = tab.kind === 'input' ? 0.42 : 0.3;
   const tubeRadius = tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * 0.52;
   const facesCamera = tab.kind === 'input';
   const isFocused = tab.kind === 'input' || focused;
@@ -1167,6 +1178,8 @@ export default function MaterializedTab({
       const workspaceFeed = tab.kind === 'input' ? 1 : 0.38;
       mat.color.lerp(outcomeColor, outcomeSurfaceExcitation * 0.26);
       mat.emissive.lerp(outcomeColor, outcomeSurfaceExcitation * 0.36);
+      mat.color.lerp(postureColor, bodyPostureTint);
+      mat.emissive.lerp(postureColor, bodyPostureTint);
       mat.emissiveIntensity =
         (tab.kind === 'input' ? 1.1 : 0.64 + liveProgress * 0.38) *
         pose.tubeOpacity *
@@ -1282,6 +1295,7 @@ export default function MaterializedTab({
       if (tab.kind === 'approval') {
         mat.emissive.copy(theme.frame).lerp(metabolismColor, surfaceExcitation * 0.18);
         mat.emissive.lerp(outcomeColor, outcomeSurfaceExcitation * (organMaterial.role === 'scar' ? 0.04 : 0.12));
+        mat.emissive.lerp(postureColor, bodyPostureTint);
         mat.emissiveIntensity =
           skin.emissiveIntensity *
           (0.55 + slabProgress * 0.45) *
@@ -1295,6 +1309,7 @@ export default function MaterializedTab({
           mat.emissive.copy(theme.frame).lerp(metabolismColor, surfaceExcitation * bodyMetabolismMix);
         }
         mat.emissive.lerp(outcomeColor, outcomeSurfaceExcitation * bodyOutcomeMix);
+        mat.emissive.lerp(postureColor, bodyPostureTint);
         mat.emissiveIntensity =
           skin.emissiveIntensity *
           (0.55 + slabProgress * 0.45) *

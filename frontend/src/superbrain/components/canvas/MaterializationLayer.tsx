@@ -19,6 +19,7 @@ import { getOutcomeImprintSnapshot, useOutcomeImprint } from '@/lib/outcomeImpri
 import { deriveAnatomicalRootSystem } from '@/lib/anatomicalRootSystem';
 import { deriveOrganMaterialState } from '@/lib/organMaterialState';
 import { deriveOrganismLifecycle } from '@/lib/organismLifecycle';
+import { deriveBodyPosture } from '@/lib/bodyPosture';
 import { setOrganismPhase } from '@/lib/organismPhaseBus';
 import { deriveSpinalRootActuator } from '@/lib/spinalRootActuator';
 import { deriveSurfaceShapeGrammar, SURFACE_SHAPE_DIMENSIONS } from '@/lib/surfaceShapeGrammar';
@@ -381,6 +382,8 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
     setOrganismPhase(organism.phase);
   }, [organism.phase]);
 
+  const bodyPosture = deriveBodyPosture({ phase: organism.phase });
+
   if (orchestration.surfaces.length === 0 && !completionVisible) return null;
 
   return (
@@ -401,6 +404,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
             reducedMotion={reducedMotion}
             focused={focused}
             waitingIndex={waitingIndex}
+            posture={bodyPosture}
             metabolism={metabolism}
             outcome={outcome}
           />
