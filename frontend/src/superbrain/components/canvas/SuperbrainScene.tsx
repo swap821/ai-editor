@@ -1320,7 +1320,9 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const metabolismPulse = reducedMotionRef.current
       ? 0.5
       : 0.5 + 0.5 * Math.sin(time * metabolismRate + metabolism.changedAt * 0.001);
-    replyGlowRef.current = THREE.MathUtils.damp(replyGlowRef.current, 0, 2.6, delta);
+    // Reply speaking-glow lingers a touch longer so the cortex visibly brightens
+    // for the whole reply, not just per-chunk flickers (Phase-6 "it talks back").
+    replyGlowRef.current = THREE.MathUtils.damp(replyGlowRef.current, 0, 1.8, delta);
 
     // The hold blend eases in/out; while engaged the organism neither bursts,
     // free-associates, nor drifts into the idle attract mode.

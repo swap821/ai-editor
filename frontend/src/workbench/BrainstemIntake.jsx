@@ -589,7 +589,8 @@ export default function BrainstemIntake() {
 
     if (replyBillboardRef.current) {
       replyBillboardRef.current.position.y = REPLY_TEXT_LOCAL.y + Math.sin(time * 0.74 + 0.6) * 0.03;
-      replyBillboardRef.current.scale.setScalar(0.98 + glow * 0.1);
+      // Reply emanates: a more pronounced swell as the being speaks (Phase-6).
+      replyBillboardRef.current.scale.setScalar(0.92 + glow * 0.22);
     }
 
     if (routeBillboardRef.current) {
@@ -691,14 +692,15 @@ export default function BrainstemIntake() {
       {replyText ? (
         <Billboard ref={replyBillboardRef} position={REPLY_TEXT_LOCAL.toArray()} follow>
           <Text
-            color="#ffd38f"
-            fontSize={0.115}
-            maxWidth={1.55}
+            color="#ffe3a8"
+            fontSize={0.16}
+            maxWidth={1.7}
             lineHeight={1.18}
             anchorX="center"
             anchorY="middle"
-            outlineWidth={0.01}
-            outlineColor="#120902"
+            outlineWidth={0.012}
+            outlineBlur={0.14}
+            outlineColor="#1a0d02"
             textAlign="center"
           >
             {replyText}
