@@ -17,6 +17,8 @@ import {
   useTabStore,
 } from '../superbrain/lib/tabStore';
 import MaterializedTab from '../superbrain/components/canvas/MaterializedTab';
+import { deriveBodyPosture } from '../superbrain/lib/bodyPosture';
+import { getOrganismPhase } from '../superbrain/lib/organismPhaseBus';
 
 const INTAKE_LOCAL = new THREE.Vector3(...BRAINSTEM_INTAKE_LOCAL);
 const PROMPT_TEXT_LOCAL = new THREE.Vector3(0, -0.3, 0.06);
@@ -112,6 +114,9 @@ export default function BrainstemIntake() {
   const { tabs } = useTabStore();
   const reduceMotion = useMemo(() => shouldReduceMotion(), []);
   const inputSurfaceTab = tabs.find((tab) => tab.kind === 'input') ?? null;
+  // The brainstem-owned input surface tints with the whole body's current posture
+  // (spectral-v1), so intake reads as the same living tissue as the rest of the body.
+  const inputPosture = deriveBodyPosture({ phase: getOrganismPhase() });
 
   const conduits = useMemo(
     () => [
@@ -700,7 +705,9 @@ export default function BrainstemIntake() {
           </Text>
         </Billboard>
       ) : null}
-      {inputSurfaceTab ? <MaterializedTab tab={inputSurfaceTab} reducedMotion={reduceMotion} /> : null}
+      {inputSurfaceTab ? (
+        <MaterializedTab tab={inputSurfaceTab} reducedMotion={reduceMotion} posture={inputPosture} />
+      ) : null}
     </group>
   );
 }
