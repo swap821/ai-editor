@@ -212,12 +212,12 @@
 .app-header-root {
   background: rgba(14,15,20,0.85);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px) saturate(1.4);
-  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
   z-index: 50;
 }
 .app-header-logo {
-  background: linear-gradient(135deg,#3b82f6 0%,#6366f1 100%);
+  background: var(--accent-grad);
   box-shadow: 0 2px 8px rgba(59,130,246,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
 }
 .app-header-title {
@@ -461,8 +461,8 @@
 /* ── AI Brain panel ──────────────────────────────────────────────────────── */
 .ai-panel-root {
   background: rgba(18,19,26,0.74);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -526,8 +526,8 @@
   padding: 13px 14px 12px;
   background: linear-gradient(180deg, rgba(251,191,36,0.08) 0%, rgba(18,19,26,0.72) 60%);
   border: 1px solid rgba(251,191,36,0.30);
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
   overflow: hidden;
   animation: approvalIn 0.34s cubic-bezier(0.16,1,0.3,1), approvalGlow 3.4s ease-in-out 0.34s infinite;
 }
@@ -1085,8 +1085,8 @@
   border-radius: 999px;
   background: rgba(18,19,26,0.5);
   border: 1px solid rgba(255,255,255,0.10);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   color: var(--text-2);
   font-size: 12px;
   font-weight: 600;
@@ -1272,8 +1272,8 @@
   inset: 0;
   z-index: 200;
   background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1430,11 +1430,11 @@
   width: 380px;
   max-height: 520px;
   background: rgba(14,15,20,0.96);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--hairline);
   border-radius: 14px;
   box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(59,130,246,0.08), 0 0 40px rgba(59,130,246,0.06);
-  backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   z-index: 100;
   display: flex;
   flex-direction: column;
