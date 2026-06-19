@@ -50,3 +50,17 @@ AI-OS v6 Assessment and Self-Analysis Design.pdf
 
 # Operator's visual lab (own nested git repo)
 GAG demo/
+
+# --- Orphaned multi-agent swarm scaffolding ---
+# The .agents/<phase> dirs (orchestrator/explorer/challenger/reviewer/auditor/
+# implementer/sentinel + ORIGINAL_REQUEST.md) are a superseded Phase-1 swarm run;
+# the real work lives on the committed Claude-plans/Codex-builds track. Keep the
+# tracked project-installed design skills under .agents/skills/, ignore the rest.
+/.agents/*
+!/.agents/skills/
+/agents/
+# One-off cloned external design toolkit (contains nested foreign .git repos).
+/codex-design-workspace/
+# Reserved audit scratch + escalated dev-server logs (local only).
+.aios/audit/
+.aios/state/vite-escalated-*.log
