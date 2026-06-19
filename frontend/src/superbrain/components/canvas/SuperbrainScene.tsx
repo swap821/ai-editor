@@ -28,6 +28,8 @@ import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
+import { deriveBodyPosture, postureColor01 } from '@/lib/bodyPosture';
+import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -174,6 +176,12 @@ export interface CognitionUniforms {
   uIgnite: { value: number };
   /** First-speak attentive notice, 0..1 (drives cortex brighten + nerve light). */
   uAwaken: { value: number };
+  /** Spectral-v1 posture HUE (damped) — the whole body's current state color. */
+  uPosture: { value: THREE.Color };
+  /** Posture blend strength 0..0.8 over the regional palette (0 = byte-identical canon). */
+  uPostureTint: { value: number };
+  /** Damped signal-flow rate (rest 0.16 → stream 1.0) — drives spine/nerve speed. */
+  uFlow: { value: number };
 }
 
 const createCognitionUniforms = (): CognitionUniforms => ({
@@ -196,6 +204,10 @@ const createCognitionUniforms = (): CognitionUniforms => ({
   uArrival: { value: 0 },
   uIgnite: { value: 0 },
   uAwaken: { value: 0 },
+  // Posture (spectral-v1): rest violet, tint 0 (canon), rest flow. Damped each frame.
+  uPosture: { value: new THREE.Color(150 / 255, 120 / 255, 255 / 255) },
+  uPostureTint: { value: 0 },
+  uFlow: { value: 0.16 },
 });
 
 /** YELLOW-zone amber — the approval hold's signature color. Accent only. */
@@ -205,6 +217,9 @@ const HOLD_TINT = new THREE.Color('#b96a14');
  *  exactly once), so frame-loop mutation is architecture, not a hook-rule
  *  violation. */
 const SCENE_UNIFORMS = createCognitionUniforms();
+
+/** Scratch color for per-frame posture damping (no per-frame allocation). */
+const POSTURE_SCRATCH = new THREE.Color();
 
 /* -------------------------------------------------------------------------- */
 /*  Travel convention: the brain voyages toward -Z (into deep knowledge        */
@@ -1410,6 +1425,23 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     if (holding > 0.01) {
       uniforms.uModeTint.value.lerp(HOLD_TINT, Math.min(1, delta * 2.5) * holding);
     }
+
+    // ── Posture (spectral-v1): the whole body reads its state off its hue.
+    //    Damp toward the live lifecycle phase's posture color/flow so state
+    //    changes GLIDE. Tint stays low at rest (canon look) and rises once alive.
+    const livePhase = getOrganismPhase();
+    const bodyPosture = deriveBodyPosture({ phase: livePhase });
+    const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
+    POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);
+    uniforms.uPosture.value.lerp(POSTURE_SCRATCH, Math.min(1, delta * 3.0));
+    const postureTintTarget = livePhase === 'rest' || livePhase === 'booting' ? 0.12 : 0.55;
+    uniforms.uPostureTint.value = THREE.MathUtils.damp(
+      uniforms.uPostureTint.value,
+      postureTintTarget * (reducedMotionRef.current ? 0.8 : 1),
+      2.5,
+      delta,
+    );
+    uniforms.uFlow.value = THREE.MathUtils.damp(uniforms.uFlow.value, bodyPosture.flow, 2.0, delta);
 
     /* ── thought-wave scheduler: Poisson-ish idle waves + event waves ── */
     const waves = waveRef.current;

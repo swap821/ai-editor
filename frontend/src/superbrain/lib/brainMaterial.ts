@@ -63,6 +63,10 @@ export interface BrainMaterialOptions {
   intakeGainUniform?: { value: number } | null;
   /** 0..1 warmth mix for the reply-down flow. */
   replyWarmUniform?: { value: number } | null;
+  /** Spectral-v1 posture HUE (damped THREE.Color) blended OVER the regional palette. */
+  postureColorUniform?: { value: THREE.Color } | null;
+  /** Posture blend strength 0..0.8 (0 = byte-identical canon). */
+  postureTintUniform?: { value: number } | null;
 }
 
 // ── NERVE TUNABLES (operator tunes the cord's share of the brain's life) ─────
@@ -104,6 +108,8 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
     intakeFlowUniform = null,
     intakeGainUniform = null,
     replyWarmUniform = null,
+    postureColorUniform = null,
+    postureTintUniform = null,
   } = options;
 
   const isNerve = bodyMode === 'nerve';
@@ -162,6 +168,12 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
     // is byte-identical.
     shader.uniforms.uArrival = uniforms.uArrival;
     shader.uniforms.uIgnite = uniforms.uIgnite;
+    // Posture HUE (spectral-v1) — blended OVER the regional palette on BOTH the
+    // cortex and the nerve so the whole body shifts hue by lifecycle state.
+    // Defaults to rest violet, tint 0 (byte-identical canon when unsupplied).
+    shader.uniforms.uPostureColor =
+      postureColorUniform ?? uniforms.uPosture ?? { value: new THREE.Color(150 / 255, 120 / 255, 255 / 255) };
+    shader.uniforms.uPostureTint = postureTintUniform ?? uniforms.uPostureTint ?? { value: 0 };
     // NERVE-only leaves — the cord breathes + carries the downward impulse.
     if (isNerve) {
       shader.uniforms.uBreath = breathUniform ?? uniforms.uBreath;
@@ -221,6 +233,8 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
        uniform float uHold;
        uniform float uArrival;
        uniform float uIgnite;
+       uniform vec3 uPostureColor;
+       uniform float uPostureTint;
        ${isNerve ? 'uniform float uBreath;\n       uniform float uFlow;\n       uniform float uFlowGain;\n       uniform float uIntakeFlow;\n       uniform float uIntakeGain;\n       uniform float uReplyWarm;\n       uniform float uReduceMotion;\n       uniform float uGrow;\n       uniform float uNerveScale;\n       uniform float uNerveContrastLo;\n       uniform float uNerveContrastHi;\n       uniform float uNerveCoreGlow;\n       uniform float uNerveFresnel;\n       varying float vArc;\n       varying float vBorn;' : ''}
        varying vec3 vLocalPos;
 
@@ -319,6 +333,13 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
        // Extract RGB safely regardless of whether vColor is vec3 or vec4
        vec3 safeColor = vColor.rgb;
 
+       // ── Posture HUE (spectral-v1): blend the live posture color OVER the
+       //    SACRED regional palette — MULTIPLIED, never replaced, so each region
+       //    keeps its relative AO/luminance/structure and only its hue glides by
+       //    state. *1.9 restores energy lost multiplying two <1 colors.
+       //    uPostureTint==0 -> byte-identical canon. Feeds the whole emission ladder.
+       safeColor = mix(safeColor, safeColor * uPostureColor * 1.9, clamp(uPostureTint, 0.0, 0.8));
+
        // 1. Core Regional Glow: drive the emission with the baked regional
        // colors, modulated by the Voronoi network (detailed + organic).
        totalEmissiveRadiance += safeColor * pow(cDetail, 1.5) * ${isNerve ? 'uNerveCoreGlow' : '4.0'};
@@ -386,7 +407,7 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
   // compiled-program cache key MUST include every branch — a constant key makes
   // THREE reuse the first-compiled (possibly degraded) program for the session.
   mat.customProgramCacheKey = () =>
-    `superbrain_v8_${tier}_${nodeBrain ? 'node' : 'organ'}_${bodyMode}_o${octaves}`;
+    `superbrain_v9_${tier}_${nodeBrain ? 'node' : 'organ'}_${bodyMode}_o${octaves}`;
 
   // Expose the nerve aesthetic leaves so the caller can live-tune them
   // (NervousSystem copies window.__NERVE into these each frame during dial-in).

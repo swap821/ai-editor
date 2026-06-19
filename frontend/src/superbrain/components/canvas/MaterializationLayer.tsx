@@ -19,6 +19,7 @@ import { getOutcomeImprintSnapshot, useOutcomeImprint } from '@/lib/outcomeImpri
 import { deriveAnatomicalRootSystem } from '@/lib/anatomicalRootSystem';
 import { deriveOrganMaterialState } from '@/lib/organMaterialState';
 import { deriveOrganismLifecycle } from '@/lib/organismLifecycle';
+import { setOrganismPhase } from '@/lib/organismPhaseBus';
 import { deriveSpinalRootActuator } from '@/lib/spinalRootActuator';
 import { deriveSurfaceShapeGrammar, SURFACE_SHAPE_DIMENSIONS } from '@/lib/surfaceShapeGrammar';
 import {
@@ -372,6 +373,13 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
   const rootSystem = deriveAnatomicalRootSystem({ surfaces: orchestration.surfaces, metabolism, outcome });
   const organism = deriveOrganismLifecycle({ orchestration, metabolism, outcome, completion, rootSystem });
   const completionVisible = organism.completionState !== 'idle' && organism.completionState !== 'held';
+
+  // Publish the live phase to the scene-root frame loop (drives the spectral-v1
+  // body posture color/flow). Hook stays above the early return so it runs every
+  // render, including at rest when this layer renders nothing.
+  useEffect(() => {
+    setOrganismPhase(organism.phase);
+  }, [organism.phase]);
 
   if (orchestration.surfaces.length === 0 && !completionVisible) return null;
 
