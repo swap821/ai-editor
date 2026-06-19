@@ -380,17 +380,23 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
       <AnatomicalConductorOverlay anatomy={anatomy} rootSystem={rootSystem} reducedMotion={reducedMotion} />
       <AttentionConductionPulse tabs={tabs} attention={orchestration.attention} reducedMotion={reducedMotion} />
       <CompletionMemoryBead reflex={completion} reducedMotion={reducedMotion} />
-      {orchestration.surfaces.map(({ tab, focused, waitingIndex }) => (
-        <MaterializedTab
-          key={tab.id}
-          tab={tab}
-          reducedMotion={reducedMotion}
-          focused={focused}
-          waitingIndex={waitingIndex}
-          metabolism={metabolism}
-          outcome={outcome}
-        />
-      ))}
+      {/* The input surface is brainstem-anatomy and is rendered by BrainstemIntake
+          (the brainstem owns intake). The vertebra-seated work/approval/content
+          surfaces are rendered here. Excluding kind:'input' collapses the former
+          duplicate input render (one renderer per surface). */}
+      {orchestration.surfaces
+        .filter(({ tab }) => tab.kind !== 'input')
+        .map(({ tab, focused, waitingIndex }) => (
+          <MaterializedTab
+            key={tab.id}
+            tab={tab}
+            reducedMotion={reducedMotion}
+            focused={focused}
+            waitingIndex={waitingIndex}
+            metabolism={metabolism}
+            outcome={outcome}
+          />
+        ))}
     </>
   );
 }
