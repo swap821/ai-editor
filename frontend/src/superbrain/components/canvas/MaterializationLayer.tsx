@@ -388,7 +388,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
 
   return (
     <>
-      <AnatomicalConductorOverlay anatomy={anatomy} rootSystem={rootSystem} reducedMotion={reducedMotion} />
+      <AnatomicalConductorOverlay anatomy={anatomy} rootSystem={rootSystem} reducedMotion={reducedMotion} bodyPosture={bodyPosture} />
       <AttentionConductionPulse tabs={tabs} attention={orchestration.attention} reducedMotion={reducedMotion} />
       <CompletionMemoryBead reflex={completion} reducedMotion={reducedMotion} />
       {/* The input surface is brainstem-anatomy and is rendered by BrainstemIntake

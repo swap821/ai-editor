@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber';
+import { BODY_POSTURES, postureColor01, POSTURE_DIAL, type BodyPosture } from '@/lib/bodyPosture';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { AnatomicalConductorSnapshot, AnatomicalVertebraSignal } from '@/lib/anatomicalConductor';
@@ -65,10 +66,12 @@ export default function AnatomicalConductorOverlay({
   anatomy,
   rootSystem,
   reducedMotion,
+  bodyPosture = BODY_POSTURES.rest,
 }: {
   anatomy: AnatomicalConductorSnapshot;
   rootSystem?: AnatomicalRootSystemSnapshot;
   reducedMotion: boolean;
+  bodyPosture?: BodyPosture;
 }) {
   const socketRefs = useRef<THREE.Mesh[]>([]);
   const nodeRefs = useRef<THREE.Mesh[]>([]);
@@ -79,7 +82,13 @@ export default function AnatomicalConductorOverlay({
   const caudaPunctaRefs = useRef<THREE.Mesh[]>([]);
   const trunkRef = useRef<THREE.Mesh>(null);
   const beadRefs = useRef<THREE.Mesh[]>([]);
-  const trunkColor = useMemo(() => new THREE.Color(anatomy.trunkTint), [anatomy.trunkTint]);
+  // Posture wash: the conductor trunk/beads/cauda/puncta settle into the body's
+  // current hue (spectral-v1), blended OVER the anatomy tint. Role-colored signals
+  // and fans (amber hold / red error) keep their semantic colors on top.
+  const trunkColor = useMemo(() => {
+    const [pr, pg, pb] = postureColor01(bodyPosture.color);
+    return new THREE.Color(anatomy.trunkTint).lerp(new THREE.Color(pr, pg, pb), POSTURE_DIAL.surfaceTint);
+  }, [anatomy.trunkTint, bodyPosture.color]);
 
   const activeSignals = anatomy.vertebrae.filter((signal) => signal.role !== 'idle');
 
