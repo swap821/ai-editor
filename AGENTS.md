@@ -191,6 +191,13 @@ superseded banner. Refresh Tier-1 docs + RESUME after a feature (the doc-currenc
 Design/frontend work MUST invoke the relevant skill (don't coast on memory of one):
 - **PROJECT-level** (shared via the repo — every collaborator has them; tracked in `skills-lock.json`):
   `design-taste-frontend`, `ui-ux-pro-max`.
+  External-design helpers now project-installed in both `.claude/skills/` and `.agents/skills/`:
+  `figma-extract`, `token-map`, `canvas-automation`, `templated-automation`. These sharpen Figma/token
+  migration and Composio/Rube Canvas/Templated workflows, but they still require the matching external
+  connector/MCP to be available at runtime.
+  Note: `ComposioHQ/awesome-codex-skills` did not contain `figma-tokens-generator` or
+  `canva-template-generator` on 2026-06-18; use the installed equivalents above unless upstream restores
+  those exact paths.
 - **USER-level** (installed per-machine in `~/.claude/skills/`, **NOT auto-shared** — install before relying on them):
   `design-motion-principles`, `impeccable`, `gstack-*` (design-review/qa/scrape/diagram). To make one truly
   collaborator-shared, **project-install it** (into `.claude/skills/` + `skills-lock.json`) and commit.
