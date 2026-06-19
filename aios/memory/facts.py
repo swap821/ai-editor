@@ -152,3 +152,48 @@ class SemanticFacts:
         sql += " ORDER BY id DESC"
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
+
+    def traverse(self, start: str, max_depth: int = 2) -> list[sqlite3.Row]:
+        """Walk the ACTIVE fact graph outward from *start*, following
+        ``object -> subject`` links up to *max_depth* hops — the multi-hop
+        reasoning that single-hop :meth:`facts_for` cannot do.
+
+        Each active fact ``(s, p, o)`` is an edge ``s --p--> o``; the walk
+        follows each object as the next subject. Returns rows with the hop
+        ``depth`` (1 = directly stated) and a delimiter-bounded ``path``,
+        ordered by depth. A path-membership check guards against cycles, and
+        *max_depth* is clamped to ``[1, 4]`` (the path string grows with depth,
+        so the recursion stays cheap). Example: ``traverse('project')`` can
+        surface ``project --uses--> FastAPI --needs--> uvicorn`` at depth 2.
+
+        Uses ``idx_facts_sp (subject, predicate)`` to accelerate each hop's
+        ``f.subject = g.object`` join. Pure read; no writes, no security path.
+        """
+        start = (start or "").strip()
+        if not start:
+            return []
+        depth = max(1, min(int(max_depth), 4))
+        # Recursive CTE. ``path`` is bounded by the marker char so the cycle
+        # guard matches whole nodes (not substrings): '→a→b→' contains '→a→'
+        # but not '→ab→'.
+        sql = """
+        WITH RECURSIVE graph(subject, predicate, object, depth, path) AS (
+            SELECT subject, predicate, object, 1,
+                   '→' || subject || '→' || object || '→'
+            FROM semantic_facts
+            WHERE subject = :start AND status = 'active'
+            UNION ALL
+            SELECT f.subject, f.predicate, f.object, g.depth + 1,
+                   g.path || f.object || '→'
+            FROM semantic_facts f
+            JOIN graph g ON f.subject = g.object
+            WHERE g.depth < :max_depth
+              AND f.status = 'active'
+              AND g.path NOT LIKE '%→' || f.object || '→%'
+        )
+        SELECT subject, predicate, object, depth, path
+        FROM graph
+        ORDER BY depth, subject, predicate
+        """
+        with get_connection(self.db_path) as conn:
+            return conn.execute(sql, {"start": start, "max_depth": depth}).fetchall()

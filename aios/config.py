@@ -375,16 +375,18 @@ API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 #: Optional bearer token protecting every /api/* route. Required by startup
 #: policy whenever API_HOST is configured beyond loopback.
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
-#: Browser origins permitted to call the API (the Vite dev server and the
-#: production-preview server — ``npm run showcase`` — by default; both are
-#: loopback-only). Comma-separated via ``AIOS_CORS_ORIGINS`` to add deployed
-#: front-end origins.
+#: Browser origins permitted to call the API. Defaults cover the loopback dev
+#: surfaces only: the Vite dev server (:5173), the production-preview/``npm run
+#: showcase`` server (:4173), and the GAG superbrain lab (:3000) used for the
+#: lab-first → port review loop. All loopback-only; comma-separated via
+#: ``AIOS_CORS_ORIGINS`` to add deployed front-end origins.
 API_CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
     o.strip()
     for o in _env_str(
         "AIOS_CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173"
-        ",http://localhost:4173,http://127.0.0.1:4173",
+        ",http://localhost:4173,http://127.0.0.1:4173"
+        ",http://localhost:3000,http://127.0.0.1:3000",
     ).split(",")
     if o.strip()
 )

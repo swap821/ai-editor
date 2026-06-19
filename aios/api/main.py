@@ -770,6 +770,33 @@ def reconcile_fact(
     return asdict(result)
 
 
+@app.get("/api/v1/memory/facts/graph")
+def memory_facts_graph(
+    start: str,
+    depth: int = 2,
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> dict[str, Any]:
+    """Multi-hop fact-graph traversal from *start* — the transitive reasoning
+    single-hop ``facts_for`` cannot do (G1). Read-only: returns the active-fact
+    edges reachable within *depth* hops, each with its hop ``depth`` and a
+    ``path``, so the planner (or the lattice's fact view) can reason over
+    transitive knowledge. ``depth`` is clamped to [1, 4] in ``traverse``."""
+    if not start.strip():
+        raise HTTPException(status_code=422, detail="start is required")
+    rows = facts.traverse(start, max_depth=depth)
+    edges = [
+        {
+            "subject": r["subject"],
+            "predicate": r["predicate"],
+            "object": r["object"],
+            "depth": r["depth"],
+            "path": r["path"],
+        }
+        for r in rows
+    ]
+    return {"start": start.strip(), "depth": max(1, min(int(depth), 4)), "edges": edges}
+
+
 @app.get("/api/v1/development/metrics")
 def development_metrics(
     tracker: DevelopmentTracker = Depends(get_development_tracker),
@@ -1981,10 +2008,16 @@ def generate(
             # Reuse pheromone: trails that were recalled into this turn's
             # context share its verifier verdict — minus the trail the agent
             # re-walked directly, which record_attempt already credited.
+            # Exclude ONLY the trail the agent re-walked directly (already credited
+            # by record_attempt) so it isn't double-credited. When direct_id is
+            # None (no direct walk, or record_attempt failed) there is nothing to
+            # exclude, so every recalled trail correctly earns reuse credit. The
+            # explicit None check documents that intent (the old `!= direct_id` was
+            # an always-true int-vs-None compare — same behavior, but a smell).
             reused_ids = [
                 int(s["skill_id"])
                 for s in recalled_skills
-                if int(s["skill_id"]) != direct_id
+                if direct_id is None or int(s["skill_id"]) != direct_id
             ]
             if reused_ids:
                 try:
@@ -2189,6 +2222,12 @@ def _enforce_chat_rate_limit(session_id: str) -> None:
     """
     now = time.monotonic()
     cutoff = now - _CHAT_RATE_WINDOW_S
+    # BUG-F fix: evict fully-expired sessions so the map can't grow without bound
+    # as fresh session ids keep arriving (each browser session mints a new one).
+    # Previously every session left a key forever. This bounds the map to
+    # sessions active within the window.
+    for sid in [s for s, ts in _CHAT_HITS.items() if not any(t > cutoff for t in ts)]:
+        del _CHAT_HITS[sid]
     hits = [t for t in _CHAT_HITS.get(session_id, ()) if t > cutoff]
     if len(hits) >= _CHAT_RATE_MAX:
         _CHAT_HITS[session_id] = hits

@@ -155,3 +155,31 @@ def test_throttle_window_expiry_lets_traffic_resume(
         ).status_code
         == 200
     )
+
+
+def test_expired_sessions_are_evicted_from_the_map(
+    shield_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BUG-F: fully-expired sessions are evicted so the throttle map can't grow
+    without bound as fresh session ids keep arriving (each browser session mints
+    a new id)."""
+    clock = {"t": 5000.0}
+    monkeypatch.setattr(main.time, "monotonic", lambda: clock["t"])
+    for i in range(20):
+        assert (
+            shield_client.post(
+                "/api/v1/chat", json={"transcript": "hi", "sessionId": f"ephemeral-{i}"}
+            ).status_code
+            == 200
+        )
+    assert len(main._CHAT_HITS) == 20  # all registered within the window
+    # Advance past the window so every prior hit expires, then one new session calls.
+    clock["t"] += main._CHAT_RATE_WINDOW_S + 1.0
+    assert (
+        shield_client.post(
+            "/api/v1/chat", json={"transcript": "hi", "sessionId": "survivor"}
+        ).status_code
+        == 200
+    )
+    # The 20 expired sessions were evicted; only the live one remains (no leak).
+    assert len(main._CHAT_HITS) == 1

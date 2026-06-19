@@ -573,3 +573,60 @@ def test_reconcile_rejects_empty_object(db_path: Path) -> None:
     assert res.committed is False
     # The existing fact is untouched (not superseded by a blank value).
     assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["8000"]
+
+
+# --------------------------------------------------------------------------- #
+# G1 — multi-hop fact-graph traversal (the reasoning single-hop facts_for can't do)
+# --------------------------------------------------------------------------- #
+def test_traverse_single_hop_returns_direct_facts(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    # Distinct predicates: same subject+predicate with a different object is a
+    # contradiction (rejected), so two direct facts need different predicates.
+    facts.add_fact("project", "uses", "FastAPI")
+    facts.add_fact("project", "persists_with", "SQLite")
+    rows = facts.traverse("project", max_depth=1)
+    assert {r["object"] for r in rows} == {"FastAPI", "SQLite"}
+    assert all(r["depth"] == 1 for r in rows)
+
+
+def test_traverse_follows_multi_hop_chain(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("project", "uses", "FastAPI")
+    facts.add_fact("FastAPI", "needs", "uvicorn")
+    facts.add_fact("uvicorn", "needs", "asgi")
+    rows = facts.traverse("project", max_depth=3)
+    # The transitive reach facts_for (single-hop) cannot produce.
+    assert {r["object"]: r["depth"] for r in rows} == {"FastAPI": 1, "uvicorn": 2, "asgi": 3}
+
+
+def test_traverse_respects_max_depth(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("a", "to", "b")
+    facts.add_fact("b", "to", "c")
+    facts.add_fact("c", "to", "d")
+    rows = facts.traverse("a", max_depth=2)
+    assert {r["object"] for r in rows} == {"b", "c"}  # d is depth 3, beyond the limit
+
+
+def test_traverse_terminates_on_cycle(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("a", "to", "b")
+    facts.add_fact("b", "to", "a")  # cycle back to the start
+    rows = facts.traverse("a", max_depth=4)
+    # Terminates (no infinite loop) and never revisits an already-walked node.
+    assert {(r["subject"], r["object"]) for r in rows} == {("a", "b")}
+
+
+def test_traverse_ignores_superseded_facts(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("project", "uses", "FastAPI")
+    facts.reconcile("project", "uses", "Flask")  # supersedes FastAPI; Flask is active
+    rows = facts.traverse("project", max_depth=1)
+    assert {r["object"] for r in rows} == {"Flask"}
+
+
+def test_traverse_empty_or_unknown_start_returns_nothing(db_path: Path) -> None:
+    facts = SemanticFacts(db_path)
+    facts.add_fact("project", "uses", "FastAPI")
+    assert facts.traverse("   ", max_depth=2) == []
+    assert facts.traverse("nonexistent", max_depth=2) == []
