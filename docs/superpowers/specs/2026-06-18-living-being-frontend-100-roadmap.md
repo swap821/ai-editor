@@ -1,7 +1,7 @@
 # Living-Being Frontend 100% Working Blueprint
 
 **Date:** 2026-06-18  
-**Status:** Roadmap v2; Phase 1 product port verified; Phase 2 anatomical root-system product port verified; Phase 3 lifecycle lab proof verified; Phase 3 product sync next after operator acceptance  
+**Status:** Roadmap v2; Phase 1 product port verified; Phase 2 anatomical root-system product port verified; Phase 3 lifecycle product port verified; Phase 4 next
 **Owner:** operator (kumarswapnil82)  
 **Builder note:** This document turns the current 60-70% living-being lab into a concrete build reference for reaching the operator's intended 100% working organism.
 
@@ -278,7 +278,25 @@ The GAG lab may prototype quickly. The product only receives a mechanism when:
 - Verified after the slice: focused tests passed 3 files / 27 tests, full lab `npm test` passed 32 files / 215 tests, `node --check tools/probe-phase3-lifecycle.mjs` passed, lab `npm run build` passed, and `node tools/probe-phase3-lifecycle.mjs` passed against `http://localhost:3000/`.
 - Visual check: screenshots are nonblank and framed. Intake, approval, conducting, settle, and error states show the expected surface/body relationship; reabsorbing is visually subtle after pullback, with the lifecycle hook proving the retracting surface frame.
 
-**Remaining for full Phase 3 exit:** operator aesthetic approval of the lab screenshots, then deliberate product sync through the port manifest plus product tests/build/browser proof.
+**2026-06-19 checkpoint - Phase 3 product port verified:**
+
+- Operator continued after the lab proof; treated as approval to run the Phase 3 product sync gate.
+- `npm run port -- --dry-run` confirmed the product manifest included 55 live source files, 22 test/support files, 5 assets, generated CSS, `organismLifecycle.ts`, `organismLifecycle.test.ts`, and the `MaterializationLayer` lifecycle hook.
+- `npm run port` copied 83 files into `frontend/src/superbrain`; product `brain.glb` was stripped only in the product copy.
+- Product gates passed: `frontend` `npm test` passed 39 files / 237 tests and `npm run build` passed.
+- Product browser proof passed against `http://localhost:5173/?ui=superbrain`: `tools/probe-phase3-lifecycle.mjs http://localhost:5173/?ui=superbrain` verified one canvas plus intake, approval hold, conducting, completion settle, explicit reabsorbing surface state, and error repair lifecycle snapshots.
+- The product proof now drives the real hidden `BrainstemIntake` typing path for intake when present, while preserving the lab dev-hook fallback.
+- Product screenshots generated and visually checked:
+  - `C:/tmp/gag-phase3-lifecycle-intake.png`
+  - `C:/tmp/gag-phase3-lifecycle-approval.png`
+  - `C:/tmp/gag-phase3-lifecycle-conducting.png`
+  - `C:/tmp/gag-phase3-lifecycle-settle.png`
+  - `C:/tmp/gag-phase3-lifecycle-reabsorbing.png`
+  - `C:/tmp/gag-phase3-lifecycle-error.png`
+  - `C:/tmp/gag-phase3-lifecycle-probe.json`
+- Visual follow-up for Phase 4: product intake briefly shows duplicate ownership because `BrainstemIntake` renders the real input surface while `MaterializationLayer` also observes the same input tab. The lifecycle proof is valid, but the visible ownership should collapse into one renderer path.
+
+**Remaining for full Phase 3 exit:** reviewer approval of the product-sync handoff.
 
 ### Phase 4 - Real work loop through the body
 
@@ -714,4 +732,4 @@ No new organs. No new motion. No new surfaces. The being is alive; do not add an
 
 ## 19. Single next action
 
-Review the Phase 3 lifecycle lab proof with the operator. If accepted, run the lab-to-product port manifest, sync the accepted Phase 3 files into `frontend/src/superbrain`, then verify product tests/build/browser proof before continuing Phase 4.
+Review the Phase 3 product-sync handoff. If accepted, start Phase 4: route real backend work intent through the living intake and collapse product intake ownership so one renderer path owns the visible input surface.

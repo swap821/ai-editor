@@ -7,6 +7,13 @@ import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import type { BurstRef, CognitionUniforms } from './SuperbrainScene';
+import {
+  CORD_Z,
+  SEGMENT_COUNT,
+  SEGMENT_TOP_Y,
+  SEGMENT_BOTTOM_Y,
+  SEGMENT_ANCHORS,
+} from '@/lib/spineAnatomy';
 
 // ============================================================================
 // THE LIVING NERVOUS SYSTEM — MESH, wearing the BRAIN'S EXACT material
@@ -98,7 +105,6 @@ let nerveGrowElapsed = 0;     // module-level clock for the one-shot birth (surv
 const CORD_TOP_Y = -0.60;        // cord-born Y — emerges from the brainstem-stub bottom
 const CORD_STEM_EXIT_Y = -0.95;  // first descending control point — the stem-to-cord transition zone
 const CORD_BOTTOM_Y = -3.1;      // conus-tip Y — bottom of the cord (spray origin)
-const CORD_Z = -0.42;            // base depth (Z) the cord descends at
 const CORD_SIGMA = 0.18;         // cord trunk RADIUS (world-u) — a substantial, ~uniform thick tube
 const CORD_SIGMA_TOP_EASE = 1.18;// at the very top (arc<0.16) ease the radius to this × CORD_SIGMA so it tucks INTO the brainstem stub instead of ballooning at the seam
 const CORD_RADIAL_SEGMENTS = 32; // smooth round tube
@@ -109,22 +115,19 @@ const STEM_RADIAL_SEGMENTS = 32;
 const STEM_TUBE_SEGMENTS = 80;
 
 // --- VERTEBRAL SEGMENTS (addressable anchors — later phase seats a 3D tab at each) ---
-const SEGMENT_COUNT: number = 12; // # of evenly-spaced vertebral anchors down the cord
-const SEGMENT_TOP_Y = -0.92;     // Y of the topmost (cervical) anchor
-const SEGMENT_BOTTOM_Y = -2.85;  // Y of the lowest (lumbar/sacral) anchor
 const VERTEBRA_RINGS = true;     // draw a chunky torus band at each anchor (the "vertebra" / tab-seat marker)
-const VERTEBRA_RING_TOP_R = 0.07;    // torus MAJOR radius at the top anchor (substantial node girth)
-const VERTEBRA_RING_BOTTOM_R = 0.10; // torus MAJOR radius at the bottom anchor (grows downward)
+const VERTEBRA_RING_TOP_R = 0.19;    // torus MAJOR radius at the top anchor (just outside cord)
+const VERTEBRA_RING_BOTTOM_R = 0.23; // torus MAJOR radius at the bottom anchor (grows downward)
 const VERTEBRA_RING_TUBE = 0.045;    // torus MINOR (tube) radius — the chunky segment girth, distinctly thicker than the web detail so vertebrae stay crisp
 const VERTEBRA_RADIAL_SEGMENTS = 20; // torus minor resolution (round)
 const VERTEBRA_TUBULAR_SEGMENTS = 64;// torus major resolution (smooth ring)
 const VERTEBRA_GIRTH: number = 2;   // # of stacked rings per vertebra (a short vertical band of girth, not a single flat hoop)
 const VERTEBRA_GIRTH_SPACING = 0.028;// vertical spacing (world-u) between the stacked rings of one vertebra
-const SPINOUS_LEN_TOP = 0.11;
-const SPINOUS_LEN_BOT = 0.15;
-const SPINOUS_R = 0.02;
-const TRANSVERSE_LEN_TOP = 0.085;
-const TRANSVERSE_LEN_BOT = 0.12;
+const SPINOUS_LEN_TOP = 0.22;
+const SPINOUS_LEN_BOT = 0.30;
+const SPINOUS_R = 0.025;
+const TRANSVERSE_LEN_TOP = 0.20;
+const TRANSVERSE_LEN_BOT = 0.28;
 const TRANSVERSE_R = 0.018;
 const DISC_TUBE = 0.018;
 const DISC_R_SCALE = 1.12;
@@ -154,24 +157,6 @@ const SPRAY_RADIUS_TOP = 0.04;       // spray tube RADIUS at the conus (the will
 const SPRAY_RADIUS_TIP = 0.03;       // spray tube RADIUS at the tips (softest, broadest fan)
 const SPRAY_RADIAL_SEGMENTS = 12;    // spray is thin → low radial count
 const SPRAY_TUBE_SEGMENTS = 48;      // arc subdivisions along a spray filament
-
-/**
- * SEGMENT_ANCHORS — the evenly-spaced vertebral anchor positions (group-local
- * Vector3), top→bottom. EXPORTED so the orchestration phase (P4) can SEAT a
- * materialized 3D tab at each vertebra: the rest-state cord and the future
- * conductor are literally the same anatomy (the spinal-cord law).
- * Index 0 = topmost (cervical), index SEGMENT_COUNT-1 = lowest (lumbar/sacral).
- */
-export const SEGMENT_ANCHORS: ReadonlyArray<THREE.Vector3> = Array.from(
-  { length: SEGMENT_COUNT },
-  (_, i) => {
-    const f = SEGMENT_COUNT === 1 ? 0 : i / (SEGMENT_COUNT - 1); // 0 (top) → 1 (bottom)
-    const y = THREE.MathUtils.lerp(SEGMENT_TOP_Y, SEGMENT_BOTTOM_Y, f);
-    // sit ON the cord (which bows gently forward mid-descent), not beside it
-    const z = CORD_Z + Math.sin(f * Math.PI) * 0.04;
-    return new THREE.Vector3(0, y, z);
-  }
-);
 
 // ── ARC-RAMP COLOUR SAMPLER (brain palette, region down the body arc) ────────
 const _tmpA = new THREE.Color();
@@ -351,10 +336,12 @@ export default function NervousSystem({
   burst,
   uniforms,
   tier = 'high',
+  reducedMotion = false,
 }: {
   burst: BurstRef;
   uniforms: CognitionUniforms;
   tier?: QualityTier;
+  reducedMotion?: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
 

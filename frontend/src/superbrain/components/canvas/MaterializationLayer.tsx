@@ -1,14 +1,36 @@
 import { useEffect } from 'react';
 import { getLastEmittedCode, subscribePendingApproval, type PendingApproval } from '@/lib/aiosAdapter';
+import { deriveAnatomicalConductor } from '@/lib/anatomicalConductor';
 import { subscribeCognition } from '@/lib/cognitionBus';
+import {
+  getCompletionReflexSnapshot,
+  ingestCompletionReflexEvent,
+  markCompletionReflexReabsorbing,
+  useCompletionReflex,
+} from '@/lib/completionReflex';
 import {
   getApprovalSurfacePlacement,
   getContentSurfacePlacement,
   getInputSurfacePlacement,
+  selectNextAvailableVertebraSeat,
 } from '@/lib/materializedSurfaceAnchors';
+import { deriveMaterializedSurfacePose } from '@/lib/materializedSurfacePose';
+import { getOutcomeImprintSnapshot, useOutcomeImprint } from '@/lib/outcomeImprint';
+import { deriveAnatomicalRootSystem } from '@/lib/anatomicalRootSystem';
+import { deriveOrganMaterialState } from '@/lib/organMaterialState';
+import { deriveOrganismLifecycle } from '@/lib/organismLifecycle';
+import { deriveSpinalRootActuator } from '@/lib/spinalRootActuator';
+import { deriveSurfaceShapeGrammar, SURFACE_SHAPE_DIMENSIONS } from '@/lib/surfaceShapeGrammar';
 import {
   beginRetractingMaterializedTab,
-  getFirstMaterializedTab,
+  focusMaterializedTab,
+  focusNextMaterializedTab,
+  focusPreviousMaterializedTab,
+  getFocusedMaterializedTab,
+  getMaterializedTabByKind,
+  getOccupiedVertebraSeats,
+  getSeatForPendingApproval,
+  getTabStoreSnapshot,
   showApprovalSurface,
   showContentSurface,
   upsertInputSurface,
@@ -16,6 +38,11 @@ import {
   type MaterializedApprovalSurface,
   type MaterializedTabContent,
 } from '@/lib/tabStore';
+import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
+import { getTurnMetabolismSnapshot, useTurnMetabolism } from '@/lib/turnMetabolism';
+import AnatomicalConductorOverlay from './AnatomicalConductorOverlay';
+import AttentionConductionPulse from './AttentionConductionPulse';
+import CompletionMemoryBead from './CompletionMemoryBead';
 import MaterializedTab from './MaterializedTab';
 
 const DEV_STUB_CONTENT: MaterializedTabContent = {
@@ -49,8 +76,26 @@ function normalizeApproval(pending: PendingApproval | null): MaterializedApprova
   };
 }
 
+function reabsorbInputSurface(): void {
+  const input = getMaterializedTabByKind('input');
+  if (input?.kind === 'input' && input.lifecycle !== 'retracting') {
+    beginRetractingMaterializedTab(input.id);
+  }
+}
+
 export default function MaterializationLayer({ reducedMotion }: { reducedMotion: boolean }) {
-  const { tabs } = useTabStore();
+  const { tabs, focusId, attention } = useTabStore();
+  const metabolism = useTurnMetabolism();
+  const outcome = useOutcomeImprint();
+  const completion = useCompletionReflex();
+
+  useEffect(
+    () =>
+      subscribeCognition((event) => {
+        ingestCompletionReflexEvent(event, getFocusedMaterializedTab());
+      }),
+    [],
+  );
 
   useEffect(
     () =>
@@ -58,7 +103,14 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
         if (event.type !== 'knowledge-acquired' || event.label !== 'CODE EMITTED') return;
         const content = normalizeContent(getLastEmittedCode());
         if (!content) return;
-        showContentSurface(content, getContentSurfacePlacement());
+        const approvalSeat = getSeatForPendingApproval(content.filepath);
+        const seatIndex = approvalSeat ?? selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+        reabsorbInputSurface();
+        showContentSurface(content, getContentSurfacePlacement(seatIndex));
+        const approval = getMaterializedTabByKind('approval');
+        if (approval && (approvalSeat === null || approval.seatIndex === approvalSeat)) {
+          beginRetractingMaterializedTab(approval.id);
+        }
       }),
     [],
   );
@@ -68,11 +120,14 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
       subscribePendingApproval((pending) => {
         const approval = normalizeApproval(pending);
         if (approval) {
-          showApprovalSurface(approval, getApprovalSurfacePlacement());
+          const current = getMaterializedTabByKind('approval');
+          const seatIndex = current?.seatIndex ?? selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+          reabsorbInputSurface();
+          showApprovalSurface(approval, getApprovalSurfacePlacement(seatIndex));
           return;
         }
-        const current = getFirstMaterializedTab();
-        if (current?.kind === 'approval') {
+        const current = getMaterializedTabByKind('approval');
+        if (current?.kind === 'approval' && current.approval?.token !== 'dev-approval') {
           beginRetractingMaterializedTab(current.id);
         }
       }),
@@ -80,25 +135,58 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
   );
 
   useEffect(() => {
+    if (!completion.reabsorbReady || !completion.targetId) return;
+
+    const target = getTabStoreSnapshot().tabs.find((tab) => tab.id === completion.targetId);
+    if (!target || target.lifecycle === 'retracting') {
+      markCompletionReflexReabsorbing(completion.targetId);
+      return;
+    }
+    if (target.kind === 'input' || target.lifecycle !== 'live') return;
+
+    markCompletionReflexReabsorbing(target.id);
+    beginRetractingMaterializedTab(target.id);
+  }, [completion.intensity, completion.reabsorbReady, completion.targetId]);
+
+  useEffect(() => {
     if (process.env.NODE_ENV === 'production') return undefined;
     const host = window as typeof window & {
-      __materializeTab?: (content?: Partial<MaterializedTabContent>) => void;
-      __materializeInput?: (text?: string) => void;
-      __materializeApproval?: (partial?: Partial<MaterializedApprovalSurface>) => void;
+      __materializeTab?: (content?: Partial<MaterializedTabContent>) => unknown;
+      __materializeInput?: (text?: string) => unknown;
+      __materializeApproval?: (partial?: Partial<MaterializedApprovalSurface>) => unknown;
+      __focusMaterializedTab?: (id: string) => void;
+      __conductNextMaterializedTab?: () => unknown;
+      __conductPreviousMaterializedTab?: () => unknown;
+      __reabsorbMaterializedTab?: (id?: string) => void;
+      __getMaterializedTabs?: typeof getTabStoreSnapshot;
+      __getLivingOrchestration?: () => ReturnType<typeof deriveLivingOrchestration>;
+      __getTurnMetabolism?: typeof getTurnMetabolismSnapshot;
+      __getOutcomeImprint?: typeof getOutcomeImprintSnapshot;
+      __getCompletionReflex?: typeof getCompletionReflexSnapshot;
+      __getAnatomicalConductor?: () => ReturnType<typeof deriveAnatomicalConductor>;
+      __getAnatomicalRootSystem?: () => ReturnType<typeof deriveAnatomicalRootSystem>;
+      __getOrganismLifecycle?: () => ReturnType<typeof deriveOrganismLifecycle>;
+      __getSpinalRootActuators?: () => unknown;
+      __getOrganMaterialStates?: () => unknown;
+      __getSurfaceShapeGrammars?: () => unknown;
     };
     host.__materializeTab = (content = {}) => {
       const next = normalizeContent({
         ...DEV_STUB_CONTENT,
         ...content,
       });
-      if (!next) return;
-      showContentSurface(next, getContentSurfacePlacement());
+      if (!next) return null;
+      const seatIndex = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+      reabsorbInputSurface();
+      return showContentSurface(next, getContentSurfacePlacement(seatIndex));
     };
     host.__materializeInput = (text = 'build a living input surface') => {
-      upsertInputSurface(text, getInputSurfacePlacement());
+      return upsertInputSurface(text, getInputSurfacePlacement());
     };
     host.__materializeApproval = (partial = {}) => {
-      showApprovalSurface(
+      const seatIndex = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+      reabsorbInputSurface();
+      return showApprovalSurface(
         {
           token: 'dev-approval',
           summary: 'Approval required to materialize demo.py',
@@ -110,22 +198,198 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
           content: 'export const demo = true;\n',
           ...partial,
         },
-        getApprovalSurfacePlacement(),
+        getApprovalSurfacePlacement(seatIndex),
       );
+    };
+    host.__getMaterializedTabs = getTabStoreSnapshot;
+    host.__focusMaterializedTab = focusMaterializedTab;
+    host.__conductNextMaterializedTab = focusNextMaterializedTab;
+    host.__conductPreviousMaterializedTab = focusPreviousMaterializedTab;
+    host.__reabsorbMaterializedTab = beginRetractingMaterializedTab;
+    host.__getLivingOrchestration = () => deriveLivingOrchestration(getTabStoreSnapshot());
+    host.__getTurnMetabolism = getTurnMetabolismSnapshot;
+    host.__getOutcomeImprint = getOutcomeImprintSnapshot;
+    host.__getCompletionReflex = getCompletionReflexSnapshot;
+    host.__getAnatomicalConductor = () => {
+      const snapshot = getTabStoreSnapshot();
+      const orchestration = deriveLivingOrchestration(snapshot);
+      return deriveAnatomicalConductor({ tabs: snapshot.tabs, orchestration });
+    };
+    host.__getAnatomicalRootSystem = () => {
+      const snapshot = getTabStoreSnapshot();
+      const orchestration = deriveLivingOrchestration(snapshot);
+      return deriveAnatomicalRootSystem({
+        surfaces: orchestration.surfaces,
+        metabolism: getTurnMetabolismSnapshot(),
+        outcome: getOutcomeImprintSnapshot(),
+      });
+    };
+    host.__getOrganismLifecycle = () => {
+      const snapshot = getTabStoreSnapshot();
+      const orchestration = deriveLivingOrchestration(snapshot);
+      const currentMetabolism = getTurnMetabolismSnapshot();
+      const currentOutcome = getOutcomeImprintSnapshot();
+      const currentCompletion = getCompletionReflexSnapshot();
+      const currentRootSystem = deriveAnatomicalRootSystem({
+        surfaces: orchestration.surfaces,
+        metabolism: currentMetabolism,
+        outcome: currentOutcome,
+      });
+      return deriveOrganismLifecycle({
+        orchestration,
+        metabolism: currentMetabolism,
+        outcome: currentOutcome,
+        completion: currentCompletion,
+        rootSystem: currentRootSystem,
+      });
+    };
+    host.__getSpinalRootActuators = () => {
+      const snapshot = getTabStoreSnapshot();
+      const orchestration = deriveLivingOrchestration(snapshot);
+      const currentMetabolism = getTurnMetabolismSnapshot();
+      const currentOutcome = getOutcomeImprintSnapshot();
+      return orchestration.surfaces.map(({ tab, focused, waitingIndex, role }) => ({
+        id: tab.id,
+        kind: tab.kind,
+        lifecycle: tab.lifecycle,
+        surfaceRole: role,
+        ...deriveSpinalRootActuator({
+          kind: tab.kind,
+          lifecycle: tab.lifecycle,
+          focused,
+          waitingIndex,
+          metabolism: currentMetabolism,
+          outcome: currentOutcome,
+        }),
+      }));
+    };
+    host.__getOrganMaterialStates = () => {
+      const snapshot = getTabStoreSnapshot();
+      const orchestration = deriveLivingOrchestration(snapshot);
+      const currentMetabolism = getTurnMetabolismSnapshot();
+      const currentOutcome = getOutcomeImprintSnapshot();
+      return orchestration.surfaces.map(({ tab, focused, waitingIndex, role }) => {
+        const isFocused = tab.kind === 'input' || focused;
+        const actuator = deriveSpinalRootActuator({
+          kind: tab.kind,
+          lifecycle: tab.lifecycle,
+          focused: isFocused,
+          waitingIndex,
+          metabolism: currentMetabolism,
+          outcome: currentOutcome,
+        });
+        return {
+          id: tab.id,
+          kind: tab.kind,
+          lifecycle: tab.lifecycle,
+          surfaceRole: role,
+          ...deriveOrganMaterialState({
+            kind: tab.kind,
+            lifecycle: tab.lifecycle,
+            focused: isFocused,
+            waitingIndex,
+            metabolism: currentMetabolism,
+            outcome: currentOutcome,
+            actuator,
+          }),
+        };
+      });
+    };
+    host.__getSurfaceShapeGrammars = () => {
+      const snapshot = getTabStoreSnapshot();
+      const orchestration = deriveLivingOrchestration(snapshot);
+      const currentMetabolism = getTurnMetabolismSnapshot();
+      const currentOutcome = getOutcomeImprintSnapshot();
+      return orchestration.surfaces.map(({ tab, focused, waitingIndex, role }) => {
+        const isFocused = tab.kind === 'input' || focused;
+        const pose = deriveMaterializedSurfacePose({
+          kind: tab.kind,
+          focused: isFocused,
+          targetLocal: tab.targetLocal,
+          waitingIndex,
+        });
+        const actuator = deriveSpinalRootActuator({
+          kind: tab.kind,
+          lifecycle: tab.lifecycle,
+          focused: isFocused,
+          waitingIndex,
+          metabolism: currentMetabolism,
+          outcome: currentOutcome,
+        });
+        const material = deriveOrganMaterialState({
+          kind: tab.kind,
+          lifecycle: tab.lifecycle,
+          focused: isFocused,
+          waitingIndex,
+          metabolism: currentMetabolism,
+          outcome: currentOutcome,
+          actuator,
+        });
+        return {
+          id: tab.id,
+          kind: tab.kind,
+          lifecycle: tab.lifecycle,
+          surfaceRole: role,
+          ...deriveSurfaceShapeGrammar({
+            kind: tab.kind,
+            lifecycle: tab.lifecycle,
+            focused: isFocused,
+            waitingIndex,
+            role: material.role,
+            originLocal: tab.originLocal,
+            targetLocal: pose.targetLocal,
+            dimensions: SURFACE_SHAPE_DIMENSIONS[tab.kind],
+            rootGripCount: tab.kind === 'input' ? 0 : 4,
+            actuator,
+          }),
+        };
+      });
     };
     return () => {
       delete host.__materializeTab;
       delete host.__materializeInput;
       delete host.__materializeApproval;
+      delete host.__focusMaterializedTab;
+      delete host.__conductNextMaterializedTab;
+      delete host.__conductPreviousMaterializedTab;
+      delete host.__reabsorbMaterializedTab;
+      delete host.__getMaterializedTabs;
+      delete host.__getLivingOrchestration;
+      delete host.__getTurnMetabolism;
+      delete host.__getOutcomeImprint;
+      delete host.__getCompletionReflex;
+      delete host.__getAnatomicalConductor;
+      delete host.__getAnatomicalRootSystem;
+      delete host.__getOrganismLifecycle;
+      delete host.__getSpinalRootActuators;
+      delete host.__getOrganMaterialStates;
+      delete host.__getSurfaceShapeGrammars;
     };
   }, []);
 
-  if (tabs.length === 0) return null;
+  const orchestration = deriveLivingOrchestration({ tabs, focusId, attention });
+  const anatomy = deriveAnatomicalConductor({ tabs, orchestration });
+  const rootSystem = deriveAnatomicalRootSystem({ surfaces: orchestration.surfaces, metabolism, outcome });
+  const organism = deriveOrganismLifecycle({ orchestration, metabolism, outcome, completion, rootSystem });
+  const completionVisible = organism.completionState !== 'idle' && organism.completionState !== 'held';
+
+  if (orchestration.surfaces.length === 0 && !completionVisible) return null;
 
   return (
     <>
-      {tabs.filter((tab) => tab.kind !== 'input').map((tab) => (
-        <MaterializedTab key={tab.id} tab={tab} reducedMotion={reducedMotion} />
+      <AnatomicalConductorOverlay anatomy={anatomy} rootSystem={rootSystem} reducedMotion={reducedMotion} />
+      <AttentionConductionPulse tabs={tabs} attention={orchestration.attention} reducedMotion={reducedMotion} />
+      <CompletionMemoryBead reflex={completion} reducedMotion={reducedMotion} />
+      {orchestration.surfaces.map(({ tab, focused, waitingIndex }) => (
+        <MaterializedTab
+          key={tab.id}
+          tab={tab}
+          reducedMotion={reducedMotion}
+          focused={focused}
+          waitingIndex={waitingIndex}
+          metabolism={metabolism}
+          outcome={outcome}
+        />
       ))}
     </>
   );

@@ -12,7 +12,7 @@ import {
 } from '../superbrain/lib/materializedSurfaceAnchors';
 import {
   beginRetractingMaterializedTab,
-  getFirstMaterializedTab,
+  getMaterializedTabByKind,
   upsertInputSurface,
   useTabStore,
 } from '../superbrain/lib/tabStore';
@@ -111,7 +111,7 @@ export default function BrainstemIntake() {
   const [errorText, setErrorText] = useState('');
   const { tabs } = useTabStore();
   const reduceMotion = useMemo(() => shouldReduceMotion(), []);
-  const inputSurfaceTab = tabs[0]?.kind === 'input' ? tabs[0] : null;
+  const inputSurfaceTab = tabs.find((tab) => tab.kind === 'input') ?? null;
 
   const conduits = useMemo(
     () => [
@@ -309,7 +309,7 @@ export default function BrainstemIntake() {
       upsertInputSurface(typedDraftText, getInputSurfacePlacement());
       return;
     }
-    const current = getFirstMaterializedTab();
+    const current = getMaterializedTabByKind('input');
     if (current?.kind === 'input') {
       beginRetractingMaterializedTab(current.id);
     }

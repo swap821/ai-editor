@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Html } from '@react-three/drei';
 import CodeCanvas from '../components/CodeCanvas';
 import LivePreview from '../components/LivePreview';
+import DiffView from '../components/DiffView';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { API_BASE, API_HEADERS } from '../config';
 import { subscribeCognition } from '../superbrain/lib/cognitionBus';
@@ -215,6 +216,14 @@ export default function ForgePorts() {
             {pending && pending.filepath && (
               <div className="forge-pending" title={pending.filepath}>
                 ⏳ PENDING · {baseName(pending.filepath)} — not applied yet. Authorize in the panel.
+              </div>
+            )}
+            {/* P0a — a YELLOW EDIT shows its REAL unified diff (the decision surface),
+                not just the banner. Creates already open their proposed content in the
+                editor above; edits carry only the diff, so we render it here. */}
+            {pending && pending.kind === 'edit' && pending.diff && (
+              <div className="forge-diff" role="region" aria-label="Proposed edit diff">
+                <DiffView diff={pending.diff} />
               </div>
             )}
             <div className="forge-canvas">

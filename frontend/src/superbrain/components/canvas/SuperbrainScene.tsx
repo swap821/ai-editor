@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Float, useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import AccretionCore from './AccretionCore';
@@ -23,6 +23,11 @@ import RegionPins from './RegionPins';
 import NodeLattice from './NodeLattice';
 import MaterializationLayer from './MaterializationLayer';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
+import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
+import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
+import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
+import { useTabStore } from '@/lib/tabStore';
+import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -645,8 +650,21 @@ function BrainModel({
   arrival: MutableRefObject<number>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const brainVisualRef = useRef<THREE.Group>(null);
   /** Damped pointer-attention lean (CURSOR_ATTENTION). */
   const attendRef = useRef({ x: 0, y: 0 });
+  const postureRef = useRef({ yaw: 0, pitch: 0, roll: 0, offsetX: 0, offsetY: 0, scaleBoost: 0 });
+  const { tabs, focusId, attention } = useTabStore();
+  const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
+  const orchestration = useMemo(
+    () => deriveLivingOrchestration({ tabs, focusId, attention }),
+    [tabs, focusId, attention],
+  );
+  const workspaceCount = orchestration.workspaceCount;
+  const brainPresence = useMemo(
+    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight }),
+    [workspaceCount, viewportWidth, viewportHeight],
+  );
   const { scene } = useGLTF('/models/brain.glb');
 
   /** COMPUTER BRAIN (operator's truth: the being only WEARS a brain SHAPE — the
@@ -722,13 +740,49 @@ function BrainModel({
 
     /* ── Brain group animation ── */
     if (groupRef.current) {
+      const postureTarget = deriveBrainAttentionPosture({
+        tabs,
+        focusId,
+        attention: orchestration.attention,
+        nowMs: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+      });
+      const postureMotionScale = reduceMotion ? 0.42 : 1;
+      const postureFollow = reduceMotion ? 7.5 : 4.2;
+      const posture = postureRef.current;
+      posture.yaw = THREE.MathUtils.damp(posture.yaw, postureTarget.yaw * postureMotionScale, postureFollow, delta);
+      posture.pitch = THREE.MathUtils.damp(
+        posture.pitch,
+        postureTarget.pitch * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+      posture.roll = THREE.MathUtils.damp(posture.roll, postureTarget.roll * postureMotionScale, postureFollow, delta);
+      posture.offsetX = THREE.MathUtils.damp(
+        posture.offsetX,
+        postureTarget.offsetX * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+      posture.offsetY = THREE.MathUtils.damp(
+        posture.offsetY,
+        postureTarget.offsetY * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+      posture.scaleBoost = THREE.MathUtils.damp(
+        posture.scaleBoost,
+        postureTarget.scaleBoost * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+
       // Asymmetric systolic breath (shared uniform — the same rhythm every
       // shader layer breathes with) + burst expansion kick. Coalescence pulls
       // the cortex in from the scale floor (0.85, never 0) toward 1 as uArrival
       // -> 0; a fresh awakening lifts it a touch while attentive. Additive:
       // uArrival==0 && uAwaken==0 reproduces the exact canon scale.
       const arrivalScale = THREE.MathUtils.lerp(1, /*floor*/ 0.85, uniforms.uArrival.value);
-      const scale = BRAIN_SCALE * (1 + uniforms.uBreath.value * 0.006) * arrivalScale
+      const scale = BRAIN_SCALE * (1 + uniforms.uBreath.value * 0.006) * arrivalScale * (1 + posture.scaleBoost)
         + activity * 0.05 + burstPow * 0.15 + uniforms.uAwaken.value * 0.04;
       const damped = THREE.MathUtils.damp(groupRef.current.scale.x, scale, 2.4, delta);
       groupRef.current.scale.setScalar(damped);
@@ -738,18 +792,21 @@ function BrainModel({
       groupRef.current.rotation.y = -0.78
         + Math.sin(time * 0.11) * 0.22
         + Math.sin(time * 0.31) * 0.04
-        + burstPow * 0.025;
+        + burstPow * 0.025
+        + posture.yaw;
       // Constant forward lean: the mind is pitched INTO the voyage (-Z).
       groupRef.current.rotation.x = FORWARD_LEAN
-        + Math.sin(time * 0.21) * 0.065 + Math.cos(time * 0.13) * 0.025;
+        + Math.sin(time * 0.21) * 0.065 + Math.cos(time * 0.13) * 0.025
+        + posture.pitch;
       // Bank into the turn like a ship — roll follows the NEGATIVE direction
       // of the lateral drift velocity, amplitude ~0.03 rad.
       groupRef.current.rotation.z = Math.sin(time * 0.17) * 0.045 + Math.cos(time * 0.11) * 0.02
-        - brainDriftVelocityX(time) * BANK_GAIN;
+        - brainDriftVelocityX(time) * BANK_GAIN
+        + posture.roll;
 
       // A slow exploratory drift keeps the intelligence moving through space.
-      groupRef.current.position.x = brainDriftX(time);
-      groupRef.current.position.y = 0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07;
+      groupRef.current.position.x = brainDriftX(time) + posture.offsetX;
+      groupRef.current.position.y = 0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07 + posture.offsetY;
 
       // THE ORGANISM NOTICES YOU: a damped attentive lean toward the
       // pointer, ADDED after the voyage math so it can only ever tilt the
@@ -766,54 +823,200 @@ function BrainModel({
         groupRef.current.rotation.x += -attend.y * 0.022 * awakenLean;
       }
     }
+
+    if (brainVisualRef.current) {
+      const scale = THREE.MathUtils.damp(brainVisualRef.current.scale.x, brainPresence.mainBrainScale, 3.2, delta);
+      brainVisualRef.current.scale.setScalar(scale);
+    }
   });
 
   return (
     <group ref={groupRef} rotation={[0.04, -0.82, 0]} position={[0, -0.35, -1.2]}>
-      
-      {/* The base surface: canon emission shell, or the operator's painted
-          flesh — the energy skin below breathes over BOTH. While the flesh
-          textures stream in, the canon shell stands in (no blink). */}
-      {surface === 'organ' ? (
-        <Suspense fallback={<primitive object={brainAsset.object} />}>
-          <OrganSurface />
-        </Suspense>
-      ) : (
-        <primitive object={brainAsset.object} />
-      )}
-      <primitive object={neuralSkin.object} scale={1.004} />
-      
-      {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
-          Tier budget: low drops the aura shells entirely; medium keeps the
-          membrane but drops the interior nucleus glow. */}
-      {tier !== 'low' && (
-        <NeuralAura
+      <group ref={brainVisualRef}>
+        {/* The base surface: canon emission shell, or the operator's painted
+            flesh — the energy skin below breathes over BOTH. While the flesh
+            textures stream in, the canon shell stands in (no blink). */}
+        {surface === 'organ' ? (
+          <Suspense fallback={<primitive object={brainAsset.object} />}>
+            <OrganSurface />
+          </Suspense>
+        ) : (
+          <primitive object={brainAsset.object} />
+        )}
+        <primitive object={neuralSkin.object} scale={1.004} />
+
+        {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
+            Tier budget: low drops the aura shells entirely; medium keeps the
+            membrane but drops the interior nucleus glow. */}
+        {tier !== 'low' && (
+          <NeuralAura
+            activity={activity}
+            mode={mode}
+            source={brainAsset.object}
+            uniforms={uniforms}
+            shells={tier === 'high' ? 2 : 1}
+            arrival={arrival}
+          />
+        )}
+        <CorticalSignals
           activity={activity}
-          mode={mode}
           source={brainAsset.object}
           uniforms={uniforms}
-          shells={tier === 'high' ? 2 : 1}
-          arrival={arrival}
+          count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
         />
-      )}
-      <CorticalSignals
-        activity={activity}
-        source={brainAsset.object}
-        uniforms={uniforms}
-        count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
-      />
-      {/* COMPUTER BRAIN INTERIOR: the node-network lattice (nodes + edges +
-          backbone bus, 3 draw calls). Mounts ONLY under NODE_BRAIN; rides the
-          group's scale/rotation/drift for free (brain-group-local coords). It
-          consumes uArrival/uBreath/uHold/uBurst from the shared uniforms; flip
-          NODE_BRAIN off to remove it and restore the canon organ cortex. */}
-      {NODE_BRAIN && (
-        <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} />
-      )}
+        {/* COMPUTER BRAIN INTERIOR: the node-network lattice (nodes + edges +
+            backbone bus, 3 draw calls). Mounts ONLY under NODE_BRAIN; rides the
+            group's scale/rotation/drift for free (brain-group-local coords). It
+            consumes uArrival/uBreath/uHold/uBurst from the shared uniforms; flip
+            NODE_BRAIN off to remove it and restore the canon organ cortex. */}
+        {NODE_BRAIN && (
+          <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} />
+        )}
+      </group>
       <MaterializationLayer reducedMotion={reduceMotion} />
       {/* Anatomical callouts ride INSIDE the group: pinned to the lobes,
           breathing and banking with the organism. */}
       {SHOW_REGION_PINS && <RegionPins />}
+    </group>
+  );
+}
+
+function PointerBrainClone({
+  uniforms,
+  tier,
+  reducedMotion,
+}: {
+  uniforms: CognitionUniforms;
+  tier: QualityTier;
+  reducedMotion: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const materialOpacityRef = useRef(0);
+  const postureRef = useRef({ pitch: 0, roll: 0, offsetX: 0, offsetY: 0, offsetZ: 0, scaleBoost: 0 });
+  const { tabs, focusId, attention } = useTabStore();
+  const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
+  const orchestration = useMemo(
+    () => deriveLivingOrchestration({ tabs, focusId, attention }),
+    [tabs, focusId, attention],
+  );
+  const workspaceCount = orchestration.workspaceCount;
+  const brainPresence = useMemo(
+    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight }),
+    [workspaceCount, viewportWidth, viewportHeight],
+  );
+  const brainPresenceRef = useRef(brainPresence);
+  const { scene } = useGLTF('/models/brain.glb');
+
+  const brainClone = useMemo(() => {
+    const clone = scene.clone(true);
+    applyRegionVertexColors(clone);
+    const material = makeBrainMaterial({ tier, uniforms, nodeBrain: false });
+    material.transparent = true;
+    material.opacity = 0;
+    material.depthWrite = false;
+    clone.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.material = material;
+        object.renderOrder = 18;
+      }
+    });
+    return { object: clone, materials: [material] };
+  }, [scene, tier, uniforms]);
+
+  useEffect(() => {
+    return () => {
+      brainClone.materials.forEach((material) => material.dispose());
+    };
+  }, [brainClone]);
+
+  useEffect(() => {
+    brainPresenceRef.current = brainPresence;
+  }, [brainPresence]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return undefined;
+    const host = window as typeof window & {
+      __getBrainPresenceLayout?: () => ReturnType<typeof deriveBrainPresenceLayout>;
+    };
+    host.__getBrainPresenceLayout = () => brainPresenceRef.current;
+    return () => {
+      delete host.__getBrainPresenceLayout;
+    };
+  }, []);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+    const postureTarget = deriveBrainAttentionPosture({
+      tabs,
+      focusId,
+      attention: orchestration.attention,
+      nowMs: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+    });
+    const postureMotionScale = reducedMotion ? 0.38 : 1;
+    const postureFollow = reducedMotion ? 9.5 : 5.4;
+    const posture = postureRef.current;
+    posture.pitch = THREE.MathUtils.damp(
+      posture.pitch,
+      postureTarget.pitch * 0.75 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.roll = THREE.MathUtils.damp(
+      posture.roll,
+      postureTarget.roll * 1.45 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.offsetX = THREE.MathUtils.damp(
+      posture.offsetX,
+      postureTarget.offsetX * 1.8 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.offsetY = THREE.MathUtils.damp(
+      posture.offsetY,
+      postureTarget.offsetY * 1.35 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.offsetZ = THREE.MathUtils.damp(
+      posture.offsetZ,
+      postureTarget.intensity * 0.12 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.scaleBoost = THREE.MathUtils.damp(
+      posture.scaleBoost,
+      postureTarget.scaleBoost * 1.5 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    const [baseX, baseY, baseZ] = brainPresence.miniBrainPosition;
+    const pointerInfluence = brainPresence.pointerInfluence * (reducedMotion ? 0.35 : 1);
+    const dockPostureTravel = brainPresence.mode === 'docked' ? 0.24 : 1;
+    const targetX = baseX + state.pointer.x * 1.46 * pointerInfluence + posture.offsetX * dockPostureTravel;
+    const targetY = baseY + state.pointer.y * 0.8 * pointerInfluence + posture.offsetY * dockPostureTravel;
+    const targetZ = baseZ + posture.offsetZ * dockPostureTravel;
+    const follow = reducedMotion ? 9.5 : 4.8;
+    groupRef.current.position.x = THREE.MathUtils.damp(groupRef.current.position.x, targetX, follow, delta);
+    groupRef.current.position.y = THREE.MathUtils.damp(groupRef.current.position.y, targetY, follow, delta);
+    groupRef.current.position.z = THREE.MathUtils.damp(groupRef.current.position.z, targetZ, follow, delta);
+    groupRef.current.lookAt(state.camera.position);
+    groupRef.current.rotation.x += posture.pitch;
+    groupRef.current.rotation.z += state.pointer.x * 0.08 * pointerInfluence + posture.roll;
+    const scale = BRAIN_SCALE * brainPresence.miniBrainScale * (1.04 + uniforms.uBreath.value * 0.022 + posture.scaleBoost);
+    groupRef.current.scale.setScalar(scale);
+
+    const opacityTarget = reducedMotion ? Math.min(0.58, brainPresence.miniBrainOpacity) : brainPresence.miniBrainOpacity;
+    materialOpacityRef.current = THREE.MathUtils.damp(materialOpacityRef.current, opacityTarget, 3.6, delta);
+    brainClone.materials.forEach((material) => {
+      material.opacity = materialOpacityRef.current;
+    });
+  });
+
+  return (
+    <group ref={groupRef} position={brainPresence.miniBrainPosition} scale={BRAIN_SCALE * brainPresence.miniBrainScale}>
+      <primitive object={brainClone.object} />
     </group>
   );
 }
@@ -887,6 +1090,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
   const directivePendingRef = useRef(false);
   const replyGlowRef = useRef(0);
+  const metabolismRef = useRef(getTurnMetabolismSnapshot());
+  const metabolismColorRef = useRef(new THREE.Color(metabolismRef.current.tint));
   const uniforms = SCENE_UNIFORMS;
   
   const idleRef = useRef<IdleControllerState>({
@@ -927,6 +1132,14 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         postureRef.current.state = snap.state;
         if (snap.arrivalMode) postureRef.current.mode = snap.arrivalMode;
         postureRef.current.enteredAt = performance.now();
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      subscribeTurnMetabolism((snapshot) => {
+        metabolismRef.current = snapshot;
       }),
     [],
   );
@@ -1071,6 +1284,21 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const time = state.clock.elapsedTime;
     const current = burstRef.current;
     const hold = holdRef.current;
+    const metabolism = metabolismRef.current;
+    const metabolismMotionScale = reducedMotionRef.current ? 0.35 : 1;
+    const metabolismRate =
+      metabolism.phase === 'error'
+        ? 7.2
+        : metabolism.phase === 'working'
+          ? 4.4
+          : metabolism.phase === 'thinking'
+            ? 2.8
+            : metabolism.phase === 'approval'
+              ? 1.2
+              : 1.8;
+    const metabolismPulse = reducedMotionRef.current
+      ? 0.5
+      : 0.5 + 0.5 * Math.sin(time * metabolismRate + metabolism.changedAt * 0.001);
     replyGlowRef.current = THREE.MathUtils.damp(replyGlowRef.current, 0, 2.6, delta);
 
     // The hold blend eases in/out; while engaged the organism neither bursts,
@@ -1146,11 +1374,19 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const swell = 0.5 + 0.5 * Math.sin(time * TAU * 0.043 + 1.7);
     const tide = 0.5 + 0.5 * Math.sin(time * TAU * 0.017 + 4.2);
     const breath = systole * 0.62 + swell * 0.26 + tide * 0.12;
+    const metabolicBreath = THREE.MathUtils.clamp(
+      breath + metabolism.breathGain * metabolismMotionScale * (0.55 + metabolismPulse * 0.45),
+      0,
+      1.35,
+    );
     // The approval hold freezes the breath exactly where it was caught.
-    uniforms.uBreath.value = THREE.MathUtils.lerp(breath, hold.breathAtHold, holding);
-    uniforms.uRimGain.value = 1.4 * (0.85 + 0.3 * breath);   // ±15%
-    uniforms.uSssScale.value = 0.9 * (0.8 + 0.4 * breath);   // ±20%
-    uniforms.uBurst.value = current.intensity;
+    uniforms.uBreath.value = THREE.MathUtils.lerp(metabolicBreath, hold.breathAtHold, holding);
+    uniforms.uRimGain.value = 1.4 * (0.85 + 0.3 * uniforms.uBreath.value);
+    uniforms.uSssScale.value = 0.9 * (0.8 + 0.4 * uniforms.uBreath.value);
+    uniforms.uBurst.value = Math.max(
+      current.intensity,
+      metabolism.rootExcitation * metabolismMotionScale * (0.35 + metabolismPulse * 0.65),
+    );
 
     // Virtual rose backlight BEHIND the brain (view space, ~opposite the
     // camera), slowly orbiting ±15° so the transmission cue wanders.
@@ -1164,6 +1400,13 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       MODE_EMISSIVE[mode] ?? MODE_EMISSIVE.observe,
       Math.min(1, delta * 2.5),
     );
+    if (metabolism.phase !== 'rest') {
+      metabolismColorRef.current.set(metabolism.tint);
+      uniforms.uModeTint.value.lerp(
+        metabolismColorRef.current,
+        Math.min(1, delta * 3.1) * Math.min(0.72, metabolism.intensity * metabolismMotionScale),
+      );
+    }
     if (holding > 0.01) {
       uniforms.uModeTint.value.lerp(HOLD_TINT, Math.min(1, delta * 2.5) * holding);
     }
@@ -1278,10 +1521,14 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
         <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} />
       </Float>
+
+      {tier !== 'low' && (
+        <PointerBrainClone uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
+      )}
       
       {/* Kept OUTSIDE Float so the bottom wires stay rigidly attached to the static UI. 
           The top wires plug deep inside the brain, so they just slide 0.1 units inside the brain as it bobs. */}
-      <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} />
+      <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
 
       <PostFX />
     </>
