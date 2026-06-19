@@ -24,9 +24,13 @@ Convert the living-being frontend blueprint into a 100% working live organism. *
 ## Single Next Action
 **Phase 4a COMPLETE** (commits 62cf1de→2453d86): the spectral-v1 posture-color system is wired into the whole 3D body — bodyPosture contract (62cf1de), brain hue (d0e9af5), nerve hue + flow speed (4c75bc8), vertebra surfaces (1f03dfd), brainstem intake (2453d86). The body shifts COLOR + signal-SPEED by the REAL lifecycle phase (rest violet → think magenta → stream cyan → hold amber → complete green → error red), blended OVER the sacred regional palette (tint ≤0.8; ==0 byte-identical canon; brainMaterial cache key v8→v9). All gates green (tsc · 254 tests · build); v9 shader compiles; software-GL verified (canon at rest, hue shifts across phases, zero runtime errors); lab-mirrored (BrainstemIntake is product-only). Damped posture lives in SCENE_UNIFORMS (uPosture/uPostureTint/uFlow); live phase flows MaterializationLayer → organismPhaseBus → scene-root useFrame.
 
-**THE ONE PENDING CALL = operator's :5173 real-GPU eye:** judge the TINT STRENGTH — currently CONSERVATIVE/palette-preserving (brain ~0.55, surfaces ~0.30) vs the demoplan's dramatic full-cyan. It's a one-constant dial (uPostureTint target in SuperbrainScene + bodyPostureTint in MaterializedTab). Software-GL colors are approximate; only his GPU is the FIDELITY arbiter.
+**LIVE NOW (since Phase 4a):** (1) posture-strength DIAL — `window.__POSTURE` (commit 07220b3) lets the operator tune tint/flow live in his real browser (brainTint 0.55↔0.8, surfaceTint, flowScale) and report values to bake. (2) Phase-6 REPLY emanation amplified (commit 0c032fe): bigger glowing reply text + longer cortex speaking-glow. The reply DATA pipeline is confirmed healthy (POST /api/v1/chat streams text_chunk Hinglish via llama3.2:3b; sendVoiceTurn accumulates data.text).
 
-NEXT (after his strength sign-off): tune the dial, then optional polish — (a) bring the secondary regions onto the same posture (AnatomicalConductorOverlay/AttentionConductionPulse beads, AccretionCore, CorticalSignals fireflies); (b) amplify the conversational REPLY emanation (Phase-6 voice); (c) continue the alive arc. Self-verify each via kimi-webbridge; gates green + commit per slice.
+**OPERATOR-EYE QUEUE (only his real GPU can settle these — software-GL is approximate):**
+- TINT STRENGTH: slide `window.__POSTURE.brainTint`/`surfaceTint`/`flowScale` to taste, report numbers → I bake as defaults + capture canon goldens.
+- REPLY PROMINENCE/PLACEMENT: reply sits upper-right (clear of the brain); if weak, next tune = descend-through-the-stem placement (`REPLY_TEXT_LOCAL` in BrainstemIntake).
+
+NEXT build (independent; uses the shared dial so re-tuning is free): bring the secondary regions onto the posture — AnatomicalConductorOverlay/AttentionConductionPulse beads, AccretionCore, CorticalSignals fireflies. Then continue the alive arc. Self-verify each; gates green + commit per slice.
 
 ## Open Approvals / Blockers
 - Phase 3 product sync is implementation-verified; reviewer approval is still pending.
