@@ -1565,7 +1565,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
         <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
-        <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} />
+        <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />
       </Float>
 
       {tier !== 'low' && (
