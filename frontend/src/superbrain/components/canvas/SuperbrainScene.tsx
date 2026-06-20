@@ -884,29 +884,19 @@ function BrainModel({
         ))}
         {BEING_MODE === 'mesh' && <primitive object={neuralSkin.object} scale={1.004} />}
         {BEING_MODE === 'points' && (
+          /* ONE CLOUD: brain + spine are a single point geometry. The spine is
+             FUSED in with its cord-top welded to the brain's real brainstem
+             vertices (spineScale = 1/BRAIN_SCALE maps scene→brain-local). It rides
+             the brain's exact transform → the join is perfect by construction and
+             orbit-proof forever; no offsets to tune. */
           <BrainPointField
             kind="brain"
             source={brainAsset.object}
             uniforms={uniforms}
             count={tier === 'high' ? 60000 : tier === 'medium' ? 45000 : 30000}
+            spineScale={1 / BRAIN_SCALE}
+            spineCount={tier === 'high' ? 24000 : tier === 'medium' ? 17000 : 11000}
           />
-        )}
-        {BEING_MODE === 'points' && (
-          /* RIGID ONE BODY: the spine is a CHILD of the brain's own group, sharing
-             the brain's exact transform (rotation/scale/position/Float) — the cord
-             is welded to the brainstem and stays aligned from EVERY orbit angle,
-             permanently (no more drift). 1/BRAIN_SCALE counter-scale keeps the
-             scene-authored cord at its intended size; the offset lands the cord-top
-             on the brainstem; sitting on the brain's central axis (x0,z0) keeps it
-             yaw-invariant so it never swings off. */
-          <group scale={1 / BRAIN_SCALE} position={[0, -0.081, 0.139]}>
-            <BrainPointField
-              kind="spine"
-              uniforms={uniforms}
-              baseSize={3}
-              count={tier === 'high' ? 24000 : tier === 'medium' ? 17000 : 11000}
-            />
-          </group>
         )}
 
         {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
