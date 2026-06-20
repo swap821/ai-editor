@@ -265,6 +265,7 @@ export function showReplySurface(
     seatIndex?: number | null;
   } = {},
 ): MaterializedTabRecord {
+  // language is intentionally empty: the renderer branches on REPLY_FILEPATH before inspecting it
   return showContentSurface({ code: text, language: '', filepath: REPLY_FILEPATH }, options);
 }
 
