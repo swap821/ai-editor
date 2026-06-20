@@ -105,8 +105,8 @@ export const SATELLITES_PER_HUB: Record<QualityTier, number> = { high: 24, mediu
 export const EDGE_K: Record<QualityTier, number> = { high: 3, medium: 2, low: 0 };
 
 /** NODE_SIZE — energy-sphere radii (brain-group-local units). */
-const HUB_RADIUS = 0.032;
-const SAT_RADIUS = 0.018;
+const HUB_RADIUS = 0.05;
+const SAT_RADIUS = 0.03;
 /** EDGE_MAX_DIST proxy: satellite scatter radius around each hub. Clusters stay
  *  distinct (R2); intra-cluster k-NN only ever links within this sphere. */
 const LOBE_RADIUS = 0.11;
@@ -598,8 +598,8 @@ const NODE_FRAGMENT = /* glsl */ `
     float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.5);
 
     // Energy sphere: dim core + bright region-hued fresnel halo.
-    vec3 core = vColor * 0.30;
-    vec3 rim = vColor * fres * 0.85;
+    vec3 core = vColor * 0.55;
+    vec3 rim = vColor * fres * 1.35;
     vec3 col = (core + rim) * uNodeGain;
 
     // P2 — DATA-TRUE per-node firing: when this node's hub ran its kind of real

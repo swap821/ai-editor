@@ -205,7 +205,7 @@ export default function BrainPointField({
     // node lattice shows through (operator's reveal-while-working idea).
     const bodyTarget =
       kind === 'brain' && (phase === 'working' || phase === 'conducting' || phase === 'materializing')
-        ? 0.5
+        ? 0.4
         : 1.0;
     if (reduce) {
       // reduced motion: snap to the settled state (no inrush/dissolve translation).
