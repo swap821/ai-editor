@@ -8,11 +8,15 @@ import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { shouldReduceMotion } from '../superbrain/lib/openingMotion';
 import {
   BRAINSTEM_INTAKE_LOCAL,
+  getContentSurfacePlacement,
   getInputSurfacePlacement,
+  selectNextAvailableVertebraSeat,
 } from '../superbrain/lib/materializedSurfaceAnchors';
 import {
   beginRetractingMaterializedTab,
   getMaterializedTabByKind,
+  getOccupiedVertebraSeats,
+  showReplySurface,
   upsertInputSurface,
   useTabStore,
 } from '../superbrain/lib/tabStore';
@@ -31,7 +35,6 @@ const POINTS_BEING = readBeingMode() === 'points';
 const INTAKE_LOCAL = new THREE.Vector3(...BRAINSTEM_INTAKE_LOCAL);
 const PROMPT_TEXT_LOCAL = new THREE.Vector3(0, -0.3, 0.06);
 const ROUTE_TEXT_LOCAL = new THREE.Vector3(0.54, -0.08, -0.02);
-const REPLY_TEXT_LOCAL = new THREE.Vector3(0.82, 1.02, 0.22);
 
 const CYAN = new THREE.Color('#5ce1e6');
 const AMBER = new THREE.Color('#e0a84f');
@@ -91,7 +94,6 @@ function formatRouteLabel(routeData, elapsedMs) {
 export default function BrainstemIntake() {
   const groupRef = useRef(null);
   const intakeBillboardRef = useRef(null);
-  const replyBillboardRef = useRef(null);
   const routeBillboardRef = useRef(null);
   const coreRef = useRef(null);
   const outerRingRef = useRef(null);
@@ -110,6 +112,7 @@ export default function BrainstemIntake() {
   const routeDataRef = useRef(null);
   const listeningRef = useRef(false);
   const busyRef = useRef(false);
+  const replyTabIdRef = useRef(null);
 
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -174,6 +177,25 @@ export default function BrainstemIntake() {
     setTypedDraftText('');
   }, []);
 
+  const materializeReply = useCallback((text) => {
+    const clean = clampSceneText(text, 220);
+    if (!clean) return;
+    const seat =
+      replyTabIdRef.current == null
+        ? selectNextAvailableVertebraSeat(getOccupiedVertebraSeats())
+        : undefined;
+    const placement = getContentSurfacePlacement(seat);
+    const tab = showReplySurface(clean, placement);
+    replyTabIdRef.current = tab.id;
+  }, []);
+
+  const retractReply = useCallback(() => {
+    if (replyTabIdRef.current) {
+      beginRetractingMaterializedTab(replyTabIdRef.current);
+      replyTabIdRef.current = null;
+    }
+  }, []);
+
   const submitTurn = useCallback(
     async (rawText) => {
       const text = String(rawText ?? '').trim();
@@ -194,6 +216,7 @@ export default function BrainstemIntake() {
       setDraftText('');
       setPromptText(showSceneConversation ? clampSceneText(text, 132) : '');
       setReplyText('');
+      retractReply();
       setRouteLabel('');
       routeDataRef.current = null;
       turnStartedAtRef.current = performance.now();
@@ -228,6 +251,7 @@ export default function BrainstemIntake() {
             }
             if (showSceneConversation) {
               setReplyText(chunkReply);
+              materializeReply(chunkReply);
             }
             emitVoicePhase('reply', 'reply', 0.82, { text, reply: chunkReply });
           };
@@ -242,6 +266,7 @@ export default function BrainstemIntake() {
           }
           if (showSceneConversation) {
             setReplyText(visibleReply);
+            materializeReply(visibleReply);
           }
           emitVoicePhase('reply', 'reply', 0.82, { text, reply: visibleReply });
         }
@@ -277,7 +302,7 @@ export default function BrainstemIntake() {
         }
       }
     },
-    [clearTypedInput, emitVoicePhase],
+    [clearTypedInput, emitVoicePhase, materializeReply, retractReply],
   );
 
   const toggleListening = useCallback(() => {
@@ -338,10 +363,13 @@ export default function BrainstemIntake() {
   useEffect(() => {
     if (!replyText) return undefined;
     const reply = window.setTimeout(() => {
-      if (!busyRef.current) setReplyText('');
+      if (!busyRef.current) {
+        setReplyText('');
+        retractReply();
+      }
     }, REPLY_DWELL_MS);
     return () => window.clearTimeout(reply);
-  }, [replyText]);
+  }, [replyText, retractReply]);
 
   useEffect(() => {
     if (!routeLabel) return undefined;
@@ -601,12 +629,6 @@ export default function BrainstemIntake() {
       intakeBillboardRef.current.scale.setScalar(0.96 + glow * 0.08);
     }
 
-    if (replyBillboardRef.current) {
-      replyBillboardRef.current.position.y = REPLY_TEXT_LOCAL.y + Math.sin(time * 0.74 + 0.6) * 0.03;
-      // Reply emanates: a more pronounced swell as the being speaks (Phase-6).
-      replyBillboardRef.current.scale.setScalar(0.92 + glow * 0.22);
-    }
-
     if (routeBillboardRef.current) {
       routeBillboardRef.current.position.y = ROUTE_TEXT_LOCAL.y + Math.sin(time * 0.86 + 1.1) * 0.015;
       routeBillboardRef.current.scale.setScalar(0.94 + glow * 0.05);
@@ -709,24 +731,6 @@ export default function BrainstemIntake() {
           </Billboard>
         ) : null}
       </group>
-      {replyText ? (
-        <Billboard ref={replyBillboardRef} position={REPLY_TEXT_LOCAL.toArray()} follow>
-          <Text
-            color="#ffe3a8"
-            fontSize={0.16}
-            maxWidth={1.7}
-            lineHeight={1.18}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.012}
-            outlineBlur={0.14}
-            outlineColor="#1a0d02"
-            textAlign="center"
-          >
-            {replyText}
-          </Text>
-        </Billboard>
-      ) : null}
       {inputSurfaceTab ? (
         <MaterializedTab tab={inputSurfaceTab} reducedMotion={reduceMotion} posture={inputPosture} />
       ) : null}
