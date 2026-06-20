@@ -34,6 +34,7 @@ import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 import BrainPointField from './BrainPointField';
 import IdentityReadout from './IdentityReadout';
+import HorizonGlow from './HorizonGlow';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
  *  "AN AGENTIC AI-OS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
@@ -1653,6 +1654,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       {BEING_MODE !== 'points' && (
         <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
       )}
+
+      {BEING_MODE === 'points' && <HorizonGlow />}
 
       <PostFX />
     </>
