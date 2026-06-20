@@ -41,6 +41,20 @@ const RETRACT_DURATION_MS = 380;
 const BASE_TUBE_RADIUS = 0.012;
 const UMBILICAL_SEGMENTS = 32;
 const UMBILICAL_RADIAL_SEGMENTS = 10;
+// ORCHESTRATION HUD (2+ tabs): tabs are anchored relative to the CAMERA so they hold
+// fixed SCREEN positions (center focus / corners) regardless of the being's rotation
+// or the slow orbit. pose.targetLocal x/y are reinterpreted as screen right/up offsets.
+const HUD_DIST = 6.0; // distance in front of the camera
+const HUD_SPREAD_X = 1.15;
+const HUD_SPREAD_Y = 1.0;
+const HUD_BOW = 0.12; // a gentle upward bow on the HUD nerve
+const HUD_REBUILD_EPS = 0.015; // rebuild the nerve geometry only when the tab moved this much (slow orbit -> rare)
+const _camFwd = new THREE.Vector3();
+const _camRight = new THREE.Vector3();
+const _camUp = new THREE.Vector3();
+const _hudPos = new THREE.Vector3();
+const _hudOrigin = new THREE.Vector3();
+const _hudMid = new THREE.Vector3();
 const BEAD_COUNT = 4;
 const CONDUCTOR_BEAD_COUNT = 4;
 const CONDUCTOR_PUNCTA_PER_ROOT = 6;
@@ -936,6 +950,10 @@ export default function MaterializedTab({
   const frameRef = useRef<THREE.LineSegments>(null);
   const labelRef = useRef<THREE.Object3D>(null);
   const beadRefs = useRef<THREE.Mesh[]>([]);
+  // HUD nerve: the active curve (origin -> camera-anchored tab) + last rebuild position,
+  // so the umbilical + its beads follow the tab as the view orbits (rebuilt sparsely).
+  const curveRef = useRef<THREE.CatmullRomCurve3 | null>(null);
+  const lastHudLocalRef = useRef<THREE.Vector3 | null>(null);
 
   const dimensions = SURFACE_DIMENSIONS[tab.kind];
   const metabolismColor = useMemo(() => new THREE.Color(metabolism.tint), [metabolism.tint]);
@@ -957,9 +975,10 @@ export default function MaterializedTab({
   const tubeRadius =
     tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * (POINTS ? 0.4 : 0.52);
   // Points: the FOCUSED/attended tab faces the camera so the code you're reading
-  // stays legible from any orbit angle (still anchored at its position by the
-  // umbilical); waiting/orchestration tabs stay seated in-world. (operator option #2)
-  const facesCamera = tab.kind === 'input' || (POINTS && focused);
+  // stays legible from any orbit angle. In ORCHESTRATION (2+ tabs) EVERY work tab is
+  // a camera-anchored HUD element (center focus / corners), all facing the camera.
+  const isHudTab = POINTS && tab.kind !== 'input' && (workspaceCount ?? 1) >= 2;
+  const facesCamera = tab.kind === 'input' || (POINTS && focused) || isHudTab;
   const isFocused = tab.kind === 'input' || focused;
   const pose = useMemo(
     () =>
@@ -1326,8 +1345,41 @@ export default function MaterializedTab({
     // The umbilical ends at the same point, so the nerve stays plugged in as the
     // tab turns to face you.
     if (orientationRef.current) {
-      orientationRef.current.position.copy(curve.getPointAt(slabT));
-      if (facesCamera) orientationRef.current.lookAt(camera.position);
+      if (isHudTab) {
+        // CAMERA-ANCHORED HUD: hold a fixed SCREEN position (center focus / corners),
+        // independent of the being's rotation + the slow orbit. pose.targetLocal x/y
+        // are screen right/up offsets; place at a fixed distance in front of the camera.
+        _camFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        _camRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        _camUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+        _hudPos
+          .copy(camera.position)
+          .addScaledVector(_camFwd, HUD_DIST)
+          .addScaledVector(_camRight, pose.targetLocal[0] * HUD_SPREAD_X)
+          .addScaledVector(_camUp, pose.targetLocal[1] * HUD_SPREAD_Y);
+        orientationRef.current.parent?.worldToLocal(_hudPos); // -> the tab group's local space
+        orientationRef.current.position.copy(_hudPos);
+        orientationRef.current.lookAt(camera.position);
+        // Redraw the nerve from the spine origin to the (moving) HUD tab — sparsely
+        // (only once it has shifted enough) so the umbilical stays plugged in without
+        // rebuilding the tube every frame.
+        if (!lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudPos) > HUD_REBUILD_EPS) {
+          _hudOrigin.set(tab.originLocal[0], tab.originLocal[1], tab.originLocal[2]);
+          _hudMid.copy(_hudOrigin).lerp(_hudPos, 0.5);
+          _hudMid.y += HUD_BOW;
+          const c = new THREE.CatmullRomCurve3([_hudOrigin.clone(), _hudMid.clone(), _hudPos.clone()]);
+          curveRef.current = c;
+          if (tubeRef.current) {
+            tubeRef.current.geometry.dispose();
+            tubeRef.current.geometry = new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
+          }
+          lastHudLocalRef.current = _hudPos.clone();
+        }
+      } else {
+        curveRef.current = null;
+        orientationRef.current.position.copy(curve.getPointAt(slabT));
+        if (facesCamera) orientationRef.current.lookAt(camera.position);
+      }
     }
 
     if (slabRef.current) {
@@ -1410,7 +1462,7 @@ export default function MaterializedTab({
       if (!bead) return;
       const t = clamp01((beadTravel + index * 0.19) % 1);
       const pathT = clamp01(0.08 + t * 0.84 * Math.max(reachProgress, 0.24));
-      bead.position.copy(curve.getPointAt(pathT));
+      bead.position.copy((curveRef.current ?? curve).getPointAt(pathT));
       bead.scale.setScalar(tab.kind === 'input' ? 0.38 + liveProgress * 0.5 : 0.28 + liveProgress * 0.34);
       const mat = bead.material as THREE.MeshBasicMaterial;
       mat.color.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.45);

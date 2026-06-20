@@ -106,13 +106,12 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
       // FORWARD — large, bright, pulled toward the viewer; the being docks small to
       // clear the center. (1 tab = "a tab is born" → the lateral peer below.)
       if ((input.workCount ?? 1) >= 2) {
+        // HUD offsets (screen right/up): the focus sits CENTER but just BELOW the
+        // docked mini-brain (prototype: brain on top, active tab center). Sized so
+        // it never engulfs the being. MaterializedTab places it camera-relative.
         return {
-          targetLocal: tuple(
-            0.18 + compactness * 0.12,
-            0.18 + compactness * 0.16,
-            1.2 - compactness * 0.06,
-          ),
-          scale: round3(clamp(1.22 - compactness * 0.4, 0.82, 1.22)),
+          targetLocal: tuple(0, -0.34 + compactness * 0.06, 1.2),
+          scale: round3(clamp(0.82 - compactness * 0.16, 0.6, 0.82)),
           opacity: 1,
           tubeOpacity: 1,
         };

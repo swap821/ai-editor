@@ -146,7 +146,7 @@ export default function GagosChrome() {
   const msgSeqRef = useRef(0);
   const recognitionRef = useRef(null);
   const threadRef = useRef(null);
-  const lastWorkTabIdRef = useRef(null);
+  const workTabIdsRef = useRef([]); // accumulated work tabs (orchestration); newest = center focus
 
   // Live active-LLM line from the router's `route` cognition events.
   useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
@@ -218,12 +218,9 @@ export default function GagosChrome() {
     try {
       if (workIntent) {
         // WORK: the answer materializes as a luminous slab GROWN from a vertebra
-        // (poster phase 4) — the surface anchor is fused onto the visible spine.
-        // The PREVIOUS work reabsorbs first (phase 7: it dissolves up the spine).
-        if (lastWorkTabIdRef.current) {
-          beginRetractingMaterializedTab(lastWorkTabIdRef.current);
-          lastWorkTabIdRef.current = null;
-        }
+        // (poster phase 4). Work tabs ACCUMULATE into the orchestration — the newest
+        // becomes the center focus, older ones move to the corners; the OLDEST only
+        // reabsorbs up the spine once we exceed the cap (handled after materialize).
         // Own this turn's work materialization so the backend's CODE EMITTED
         // auto-fire (MaterializationLayer) doesn't ALSO spawn a duplicate tab.
         claimWorkMaterialization();
@@ -242,7 +239,12 @@ export default function GagosChrome() {
           const filepath = workFilepath(text, language);
           const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
           const tab = showContentSurface({ code: code || '// (empty)', language, filepath }, getContentSurfacePlacement(seat));
-          lastWorkTabIdRef.current = tab.id;
+          workTabIdsRef.current.push(tab.id);
+          // Cap the orchestration: beyond 5 tabs the OLDEST reabsorbs up the spine (phase 7).
+          while (workTabIdsRef.current.length > 5) {
+            const oldest = workTabIdsRef.current.shift();
+            if (oldest) beginRetractingMaterializedTab(oldest);
+          }
           pushMessage('gagos', `↳ materialized ${filepath}`);
           releaseWorkMaterialization();
         }
