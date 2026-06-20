@@ -30,7 +30,9 @@ Convert the living-being frontend blueprint into a 100% working live organism. *
 - TINT STRENGTH: slide `window.__POSTURE.brainTint`/`surfaceTint`/`flowScale` to taste, report numbers → I bake as defaults + capture canon goldens.
 - REPLY PROMINENCE/PLACEMENT: reply sits upper-right (clear of the brain); if weak, next tune = descend-through-the-stem placement (`REPLY_TEXT_LOCAL` in BrainstemIntake).
 
-NEXT build (independent; uses the shared dial so re-tuning is free): bring the secondary regions onto the posture — AnatomicalConductorOverlay/AttentionConductionPulse beads, AccretionCore, CorticalSignals fireflies. Then continue the alive arc. Self-verify each; gates green + commit per slice.
+**FULL-BODY POSTURE SWEEP DONE**: conductor overlay (3a24fca), cortical fireflies (3329f10), accretion core (5eafe43). EVERY visible region now reads the posture — brain, nerve (hue+flow), vertebra surfaces, brainstem intake, conductor overlay, cortical fireflies, accretion core — one body, many postures, all riding the shared POSTURE_DIAL. (AttentionConductionPulse's gold bead left as a deliberate POSTURE_GOLD accent.) The posture SYSTEM is complete; only the STRENGTH (operator's `window.__POSTURE` dial) + reply placement remain for his real-GPU eye.
+
+NEXT alive-arc threads (operator's pick): (a) bake the chosen tint as defaults + capture canon goldens after his dial verdict; (b) deeper work-streaming choreography (code materializing line-by-line as the being works); (c) other demoplan polish. Self-verify each; gates green + commit per slice.
 
 ## Open Approvals / Blockers
 - Phase 3 product sync is implementation-verified; reviewer approval is still pending.
