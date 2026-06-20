@@ -150,6 +150,7 @@ export default function PostFX() {
   // Point-field being uses a gentler bloom so the glow hugs the body; the mesh
   // being keeps the hot cinematic bloom. Selected by the ?being= substrate flag.
   const bloom = readBeingMode() === 'points' ? POST_FX.bloomPoints : POST_FX.bloom;
+  const vignette = readBeingMode() === 'points' ? POST_FX.vignettePoints : POST_FX.vignette;
 
   const aberrationOffset = useMemo(
     () => new Vector2(POST_FX.chromaticAberration.offset[0], POST_FX.chromaticAberration.offset[1]),
@@ -198,8 +199,8 @@ export default function PostFX() {
       {/* Vignette: darkness eased 0.7 -> 0.62 — the grade now carries the
           cinema; the heavier vignette was crushing corner text */}
       <Vignette
-        offset={POST_FX.vignette.offset}
-        darkness={POST_FX.vignette.darkness}
+        offset={vignette.offset}
+        darkness={vignette.darkness}
         blendFunction={BlendFunction.NORMAL}
       />
 

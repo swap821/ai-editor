@@ -218,6 +218,8 @@ export const POST_FX = {
   // Darkness eased 0.7 -> 0.62: the grade now carries the cinema; the
   // heavier vignette was crushing corner text.
   vignette: { offset: 0.28, darkness: 0.62 },
+  // Points being frames the void a touch more strongly to read as a "home".
+  vignettePoints: { offset: 0.32, darkness: 0.76 },
 
   noise: { opacity: 0.025 },
 };
