@@ -31,6 +31,8 @@ import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMe
 import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
+import { readBeingMode } from '@/lib/beingMode';
+import BrainPointField from './BrainPointField';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
  *  "AN AGENTIC AI-OS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
@@ -60,6 +62,9 @@ const CURSOR_ATTENTION = true;
  *  flash their star). Additive layer, honest dormancy — the operator's
  *  call (VISION.md): flip to false to remove without a trace. */
 const SHOW_MEMORY_GALAXY = true;
+
+/** Substrate: 'mesh' (default, the working being) or 'points' (?being=points). */
+const BEING_MODE = readBeingMode();
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -861,14 +866,21 @@ function BrainModel({
         {/* The base surface: canon emission shell, or the operator's painted
             flesh — the energy skin below breathes over BOTH. While the flesh
             textures stream in, the canon shell stands in (no blink). */}
-        {surface === 'organ' ? (
+        {BEING_MODE === 'mesh' && (surface === 'organ' ? (
           <Suspense fallback={<primitive object={brainAsset.object} />}>
             <OrganSurface />
           </Suspense>
         ) : (
           <primitive object={brainAsset.object} />
+        ))}
+        {BEING_MODE === 'mesh' && <primitive object={neuralSkin.object} scale={1.004} />}
+        {BEING_MODE === 'points' && (
+          <BrainPointField
+            source={brainAsset.object}
+            uniforms={uniforms}
+            count={tier === 'high' ? 80000 : tier === 'medium' ? 60000 : 40000}
+          />
         )}
-        <primitive object={neuralSkin.object} scale={1.004} />
 
         {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
             Tier budget: low drops the aura shells entirely; medium keeps the
