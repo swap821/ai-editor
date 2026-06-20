@@ -10,6 +10,8 @@ export interface MaterializedSurfacePoseInput {
   viewportHeight?: number;
   /** points-being: place the born tab as a lateral peer beside the being (poster phase 4). */
   points?: boolean;
+  /** active work-tab count — drives orchestration (2+) vs single-tab placement. */
+  workCount?: number;
 }
 
 export interface MaterializedSurfacePose {

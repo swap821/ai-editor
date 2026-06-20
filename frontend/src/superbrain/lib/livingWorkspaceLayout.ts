@@ -11,6 +11,8 @@ export interface LivingWorkspacePoseInput {
   viewportHeight?: number;
   /** points-being: born tab grows as a LATERAL PEER beside the being (poster phase 4). */
   points?: boolean;
+  /** number of active work tabs — drives the orchestration (2+) vs single-tab layout. */
+  workCount?: number;
 }
 
 export interface LivingWorkspacePose {
@@ -24,6 +26,8 @@ export interface BrainPresenceInput {
   workspaceCount: number;
   viewportWidth?: number;
   viewportHeight?: number;
+  /** points-being: dock the being clearly smaller on 2+ tabs so the center-forward focus tab owns the middle. */
+  points?: boolean;
 }
 
 export interface BrainPresenceLayout {
@@ -98,7 +102,22 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
     // low-center over the spine/cauda. The offset is brain-local so it rotates
     // WITH the being (stays a side-peer under orbit, never a fixed world-right).
     if (input.points) {
-      // beside the CORTEX (poster panels 4 & 5: the born/focused tab is a brain-
+      // LOCKED ORCHESTRATION MODEL (2+ tabs): the attended tab owns DEAD-CENTER +
+      // FORWARD — large, bright, pulled toward the viewer; the being docks small to
+      // clear the center. (1 tab = "a tab is born" → the lateral peer below.)
+      if ((input.workCount ?? 1) >= 2) {
+        return {
+          targetLocal: tuple(
+            0.18 + compactness * 0.12,
+            0.18 + compactness * 0.16,
+            1.2 - compactness * 0.06,
+          ),
+          scale: round3(clamp(1.22 - compactness * 0.4, 0.82, 1.22)),
+          opacity: 1,
+          tubeOpacity: 1,
+        };
+      }
+      // SINGLE tab — beside the CORTEX (poster panel 4: the born tab is a brain-
       // sized peer at cortex height, pulled forward), brain-local so it orbits.
       return {
         targetLocal: tuple(
@@ -130,21 +149,22 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
   // are addressable seats", front=focus / back=waiting. The seat offset is
   // brain-local so each tab stays on its vertebra under orbit.
   if (input.points) {
-    // ORCHESTRATION (poster phase 5): the spine EXTENDS and waiting tabs seat at
-    // vertebrae spread DOWN BOTH SIDES (not clustered behind the focus). Alternate
-    // left/right, descend a tier each pair, starting below the cortex-level focus.
-    // Brain-local so each tab rides its vertebra under orbit.
-    const side = index % 2 === 0 ? -1 : 1; // index 0 = left (opposite the right-side focus)
-    const tier = Math.floor(index / 2);
+    // LOCKED ORCHESTRATION MODEL: waiting tabs park in the FOUR CORNERS — small,
+    // dim, idling, nerve-tethered from the spine; pulled to center when attended.
+    // index -> TL, TR, BL, BR; a 5th+ recesses deeper. Brain-local (rides orbit).
+    const CORNERS: readonly Vec3Tuple[] = [
+      [-1.32, 0.62, 0.25], // top-left
+      [1.32, 0.62, 0.25], // top-right
+      [-1.32, -1.02, 0.25], // bottom-left
+      [1.32, -1.02, 0.25], // bottom-right
+    ];
+    const ring = Math.floor(index / 4);
+    const [cx, cy, cz] = CORNERS[index % 4];
     return {
-      targetLocal: tuple(
-        side * (0.9 + tier * 0.05),
-        -0.5 - tier * 0.62,
-        0.4 - tier * 0.06,
-      ),
-      scale: round3(clamp(0.58 - tier * 0.05, 0.38, 0.58)),
-      opacity: round3(clamp(0.55 - tier * 0.08, 0.26, 0.55)),
-      tubeOpacity: round3(clamp(0.52 - tier * 0.06, 0.26, 0.52)),
+      targetLocal: tuple(cx * (1 + ring * 0.1), cy - ring * 0.22, cz - ring * 0.12),
+      scale: round3(clamp(0.42 - ring * 0.05, 0.26, 0.42)),
+      opacity: round3(clamp(0.4 - ring * 0.08, 0.2, 0.4)),
+      tubeOpacity: round3(clamp(0.4 - ring * 0.06, 0.2, 0.4)),
     };
   }
 
@@ -181,7 +201,14 @@ export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPrese
 
   return {
     mode,
-    mainBrainScale: round3(clamp(1 - load * 0.16 - compactness * 0.07, 0.76, 1)),
+    // LOCKED MODEL: in points mode with 2+ tabs the being docks clearly small (the
+    // mini-brain) so the dead-center focus tab owns the middle. Mesh/single-tab keep
+    // the mild dock.
+    mainBrainScale: round3(
+      input.points && workspaceCount >= 2
+        ? clamp(0.62 - load * 0.12 - compactness * 0.05, 0.5, 0.62)
+        : clamp(1 - load * 0.16 - compactness * 0.07, 0.76, 1),
+    ),
     miniBrainScale: round3(clamp(0.205 - workspaceCount * 0.007 - compactness * 0.03, 0.108, 0.205)),
     miniBrainOpacity: round3(clamp(0.68 + load * 0.18 - compactness * 0.04, 0.58, 0.88)),
     miniBrainPosition: tuple(0, 0.26 + compactness * 0.14 - load * 0.04, 1.06 + compactness * 0.04 - load * 0.035),

@@ -905,6 +905,7 @@ export default function MaterializedTab({
   outcome = REST_OUTCOME_IMPRINT,
   waitingIndex = 0,
   posture = BODY_POSTURES.rest,
+  workspaceCount = 1,
 }: {
   tab: MaterializedTabRecord;
   reducedMotion: boolean;
@@ -913,6 +914,7 @@ export default function MaterializedTab({
   outcome?: OutcomeImprintSnapshot;
   waitingIndex?: number;
   posture?: BodyPosture;
+  workspaceCount?: number;
 }) {
   const camera = useThree((state) => state.camera);
   const viewportWidth = useThree((state) => state.size.width);
@@ -969,8 +971,9 @@ export default function MaterializedTab({
         viewportWidth,
         viewportHeight,
         points: POINTS,
+        workCount: workspaceCount,
       }),
-    [isFocused, tab.kind, tab.targetLocal, viewportHeight, viewportWidth, waitingIndex],
+    [isFocused, tab.kind, tab.targetLocal, viewportHeight, viewportWidth, waitingIndex, workspaceCount],
   );
   const skin = useMemo(
     () =>

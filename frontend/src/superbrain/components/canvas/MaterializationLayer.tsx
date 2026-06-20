@@ -419,6 +419,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
             reducedMotion={reducedMotion}
             focused={focused}
             waitingIndex={waitingIndex}
+            workspaceCount={orchestration.workspaceCount}
             posture={bodyPosture}
             metabolism={metabolism}
             outcome={outcome}

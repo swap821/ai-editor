@@ -696,7 +696,7 @@ function BrainModel({
   );
   const workspaceCount = orchestration.workspaceCount;
   const brainPresence = useMemo(
-    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight }),
+    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight, points: BEING_MODE === 'points' }),
     [workspaceCount, viewportWidth, viewportHeight],
   );
   const { scene } = useGLTF('/models/brain.glb');
@@ -963,7 +963,7 @@ function PointerBrainClone({
   );
   const workspaceCount = orchestration.workspaceCount;
   const brainPresence = useMemo(
-    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight }),
+    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight, points: BEING_MODE === 'points' }),
     [workspaceCount, viewportWidth, viewportHeight],
   );
   const brainPresenceRef = useRef(brainPresence);
