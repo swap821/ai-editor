@@ -16,6 +16,13 @@ describe('formatActiveBrainLine', () => {
   it('shows a sensible default when nothing is known', () => {
     expect(formatActiveBrainLine({})).toBe('auto');
   });
+  it('coerces non-string fields without throwing', () => {
+    // route data is typed unknown; a backend could send a numeric model id
+    expect(formatActiveBrainLine({ model: 7 as unknown as string, privacy: 'cloud' })).toBe('7 · cloud');
+  });
+  it('falls back to provider when model is an empty string', () => {
+    expect(formatActiveBrainLine({ model: '', provider: 'ollama', privacy: 'local' })).toBe('ollama · local');
+  });
 });
 
 describe('active brain store', () => {

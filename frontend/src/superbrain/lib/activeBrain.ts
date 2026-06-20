@@ -25,8 +25,8 @@ export function subscribeActiveBrain(listener: () => void): () => void {
 
 /** One compact line for the GAGOS readout, e.g. "Opus 4.8 · cloud". */
 export function formatActiveBrainLine(brain: ActiveBrain): string {
-  const name = (brain.model || brain.provider || '').trim();
-  const privacy = (brain.privacy || '').trim().toLowerCase();
+  const name = String(brain.model || brain.provider || '').trim();
+  const privacy = String(brain.privacy || '').trim().toLowerCase();
   if (!name) return 'auto';
   return privacy ? `${name} · ${privacy}` : name;
 }
