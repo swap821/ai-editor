@@ -108,17 +108,21 @@ const FIREFLY_VERTEX_SHADER = /* glsl */ `
 const FIREFLY_FRAGMENT_SHADER = /* glsl */ `
   varying vec3 vColor;
   varying float vAlpha;
+  uniform vec3 uPostureColor;
+  uniform float uPostureTint;
 
   void main() {
     float dist = length(gl_PointCoord - 0.5);
     if (dist > 0.5) discard;
-    
+
     // Soft glowing edge
     float glow = 1.0 - smoothstep(0.0, 0.5, dist);
     // Bright hot core
     float core = 1.0 - smoothstep(0.0, 0.15, dist);
-    
+
     vec3 finalColor = mix(vColor, vec3(1.0), core * 0.6);
+    // Posture wash: the cortical motes shift toward the body's current hue.
+    finalColor = mix(finalColor, finalColor * uPostureColor * 1.9, clamp(uPostureTint, 0.0, 0.8));
     gl_FragColor = vec4(finalColor, vAlpha * glow);
   }
 `;
@@ -229,6 +233,8 @@ export default function CorticalSignals({
       uWaveTimes: uniforms.uWaveTimes,
       uActivity: { value: 0 },
       uPixelRatio: { value: 1 },
+      uPostureColor: uniforms.uPosture,
+      uPostureTint: uniforms.uPostureTint,
     }),
     [uniforms],
   );
