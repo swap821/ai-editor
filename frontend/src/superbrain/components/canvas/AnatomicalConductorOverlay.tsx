@@ -87,8 +87,11 @@ export default function AnatomicalConductorOverlay({
   // and fans (amber hold / red error) keep their semantic colors on top.
   const trunkColor = useMemo(() => {
     const [pr, pg, pb] = postureColor01(bodyPosture.color);
-    return new THREE.Color(anatomy.trunkTint).lerp(new THREE.Color(pr, pg, pb), POSTURE_DIAL.surfaceTint);
-  }, [anatomy.trunkTint, bodyPosture.color]);
+    return new THREE.Color(anatomy.trunkTint).lerp(
+      new THREE.Color(pr, pg, pb),
+      Math.min(0.8, bodyPosture.tint * POSTURE_DIAL.surfaceScale),
+    );
+  }, [anatomy.trunkTint, bodyPosture.color, bodyPosture.tint]);
 
   const activeSignals = anatomy.vertebrae.filter((signal) => signal.role !== 'idle');
 

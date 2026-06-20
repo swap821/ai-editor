@@ -914,7 +914,10 @@ export default function MaterializedTab({
     const [r, g, b] = postureColor01(posture.color);
     return new THREE.Color(r, g, b);
   }, [posture.color]);
-  const bodyPostureTint = tab.kind === 'input' ? POSTURE_DIAL.inputSurfaceTint : POSTURE_DIAL.surfaceTint;
+  const bodyPostureTint = Math.min(
+    0.8,
+    posture.tint * POSTURE_DIAL.surfaceScale * (tab.kind === 'input' ? POSTURE_DIAL.inputBoost : 1),
+  );
   const tubeRadius = tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * 0.52;
   const facesCamera = tab.kind === 'input';
   const isFocused = tab.kind === 'input' || focused;

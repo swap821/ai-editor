@@ -21,6 +21,14 @@ describe('bodyPosture — spectral-v1 palette', () => {
     expect(BODY_POSTURES.stream.flow).toBeGreaterThan(BODY_POSTURES.think.flow);
     expect(BODY_POSTURES.think.flow).toBeGreaterThan(BODY_POSTURES.rest.flow);
   });
+
+  it('carries the spectral-v1 per-posture tint strength (rest clean → stronger when active)', () => {
+    expect(BODY_POSTURES.rest.tint).toBe(0);
+    expect(BODY_POSTURES.stream.tint).toBeGreaterThan(BODY_POSTURES.think.tint);
+    expect(BODY_POSTURES.error.tint).toBeGreaterThanOrEqual(BODY_POSTURES.stream.tint);
+    expect(BODY_POSTURES.rest.tint).toBeLessThan(BODY_POSTURES.complete.tint);
+    for (const p of Object.values(BODY_POSTURES)) expect(p.tint).toBeLessThanOrEqual(0.8);
+  });
 });
 
 describe('postureKeyForPhase — real lifecycle phases map to postures', () => {

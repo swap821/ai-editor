@@ -221,8 +221,9 @@ const SCENE_UNIFORMS = createCognitionUniforms();
 /** Scratch color for per-frame posture damping (no per-frame allocation). */
 const POSTURE_SCRATCH = new THREE.Color();
 
-// Dev tint dial — tune the posture STRENGTH live in the operator's browser:
-//   window.__POSTURE.brainTint = 0.72;  window.__POSTURE.flowScale = 1.4
+// Dev tint dial — tune the posture STRENGTH live in the operator's browser
+// (scales each posture's intrinsic spectral tint; 1.0 = exact demoplan strength):
+//   window.__POSTURE.brainScale = 1.3;  window.__POSTURE.surfaceScale = 0.8;  window.__POSTURE.flowScale = 1.4
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   (window as unknown as { __POSTURE?: typeof POSTURE_DIAL }).__POSTURE = POSTURE_DIAL;
 }
@@ -1442,11 +1443,13 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
     POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);
     uniforms.uPosture.value.lerp(POSTURE_SCRATCH, Math.min(1, delta * 3.0));
-    const postureTintTarget =
-      livePhase === 'rest' || livePhase === 'booting' ? POSTURE_DIAL.restTint : POSTURE_DIAL.brainTint;
+    // Each posture carries its OWN spectral-v1 tint strength (rest≈0 clean →
+    // stream/error strong) so every posture's intensity matches the demoplan;
+    // POSTURE_DIAL.brainScale is the global multiplier the operator tunes.
+    const postureTintTarget = Math.min(0.8, bodyPosture.tint * POSTURE_DIAL.brainScale);
     uniforms.uPostureTint.value = THREE.MathUtils.damp(
       uniforms.uPostureTint.value,
-      Math.min(0.8, postureTintTarget) * (reducedMotionRef.current ? 0.8 : 1),
+      postureTintTarget * (reducedMotionRef.current ? 0.8 : 1),
       2.5,
       delta,
     );
