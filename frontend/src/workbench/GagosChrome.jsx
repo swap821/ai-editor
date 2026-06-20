@@ -27,7 +27,23 @@ import {
   setActiveBrain,
   subscribeActiveBrain,
 } from '../superbrain/lib/activeBrain';
-import { setConversationPhase } from '../superbrain/lib/conversationPhaseBus';
+import {
+  getConversationPhase,
+  setConversationPhase,
+  subscribeConversationPhase,
+} from '../superbrain/lib/conversationPhaseBus';
+
+/** The poster reads STATUS OFF THE BODY (Thinking/Streaming/Complete/Error). The
+ *  dot hues mirror the being's spectral-v1 posture colours so the chrome and the
+ *  body never disagree (purple think / cyan stream / green complete / red error). */
+const PHASE_META = {
+  idle: { label: 'resting', color: '#9a7bff' },
+  awakening: { label: 'awakening', color: '#b69cff' },
+  thinking: { label: 'thinking', color: '#a855f7' },
+  streaming: { label: 'streaming', color: '#22d3ee' },
+  complete: { label: 'complete', color: '#34d399' },
+  error: { label: 'error', color: '#f87171' },
+};
 import { showContentSurface, getOccupiedVertebraSeats, beginRetractingMaterializedTab } from '../superbrain/lib/tabStore';
 import {
   getContentSurfacePlacement,
@@ -117,6 +133,7 @@ export default function GagosChrome() {
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
   );
   const [modelLine, setModelLine] = useState(() => formatActiveBrainLine(getActiveBrain()));
+  const [convPhase, setConvPhase] = useState(() => getConversationPhase());
 
   const busyRef = useRef(false);
   const turnTokenRef = useRef(0);
@@ -127,6 +144,17 @@ export default function GagosChrome() {
 
   // Live active-LLM line from the router's `route` cognition events.
   useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
+  // Live state read off the body: subscribe for instant phase changes + a light
+  // poll so the lazy decay of complete/error → idle (rest) is reflected too.
+  useEffect(() => {
+    const sync = () => setConvPhase(getConversationPhase());
+    const unsub = subscribeConversationPhase(sync);
+    const id = window.setInterval(sync, 500);
+    return () => {
+      unsub();
+      window.clearInterval(id);
+    };
+  }, []);
   useEffect(
     () =>
       subscribeCognition((event) => {
@@ -290,6 +318,16 @@ export default function GagosChrome() {
         <span className="gagos-pill">
           <span className="gagos-dot gagos-dot--model" />
           {modelLine}
+        </span>
+        <span className="gagos-pill gagos-pill--state">
+          <span
+            className="gagos-dot"
+            style={{
+              background: PHASE_META[convPhase].color,
+              boxShadow: `0 0 6px ${PHASE_META[convPhase].color}`,
+            }}
+          />
+          {PHASE_META[convPhase].label}
         </span>
         <span className="gagos-pill gagos-pill--supervised">
           <span className="gagos-dot gagos-dot--supervised" />

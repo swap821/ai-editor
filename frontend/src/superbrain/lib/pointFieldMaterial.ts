@@ -29,9 +29,11 @@ const VERTEX = /* glsl */ `
   varying float vBand;
   varying float vSeed;
   varying float vAlpha;
+  varying float vAxis;       // raw normalized body axis (0 roots -> 1 cortex) for ignite weighting
   void main() {
     vColor = aColor;
     vSeed = aPhase;
+    vAxis = aBand;
     vec3 p = position;
     // BREATHE: coherent whole-body inhale/exhale along the surface normal
     // (shared phase), plus a tiny per-point shimmer so the surface lives.
@@ -72,12 +74,17 @@ const FRAGMENT = /* glsl */ `
   varying float vViewZ;
   varying float vBand;
   varying float vSeed;
+  varying float vAxis;
   uniform vec3 uPostureColor;
   uniform float uPostureTint;
   uniform float uGlowMul;
   uniform float uFogDensity;
   uniform float uTime;
   uniform float uBodyOpacity; // 1 = solid; <1 dims the cloud so inner memory-nodes show through
+  uniform float uIgnite;      // single-shot arrival "ignition of awareness" flash (cortex-weighted luminance)
+  uniform float uAwaken;      // conversation: the cortex HEATS while the being notices/converses (cortex-weighted luminance)
+  uniform float uStatePulse;  // orchestration: "nerves carry the state" — a luminance pulse travels the spine/roots while working
+  uniform float uReabsorbGlow; // reabsorption: the brain INHALES — a soft glow as a tab's energy returns up into the cortex
   void main() {
     // Soft round sprite — rebuilt from the known-good base (1-d*2 stays in [0,1],
     // so pow() never goes NaN; the old smoothstep/fog path was producing NaN that
@@ -93,7 +100,24 @@ const FRAGMENT = /* glsl */ `
     vec3 c = mix(vColor, vColor * uPostureColor, clamp(uPostureTint, 0.0, 0.8));
     c += vColor * vBand * 0.4;                  // flow band brightens as it sweeps
     c *= uGlowMul;
-    gl_FragColor = vec4(c * intensity * uBodyOpacity, intensity);
+    // ARRIVAL ignition: a single-shot "ignition of awareness" flash, weighted to
+    // the cortex (vAxis high), luminance-only — pushes RGB past the bloom knee so
+    // the existing PostFX flares once. NEVER touches hue (sacred palette).
+    float ignite = clamp(uIgnite, 0.0, 1.0) * smoothstep(0.45, 1.0, vAxis);
+    // AWAKENING (poster phase 3): the cortex visibly HEATS (luminance only) while
+    // the being notices/converses — weighted to the head (vAxis high), capped at
+    // +0.5x so the existing bloom blooms but the hue is preserved.
+    float awaken = clamp(uAwaken, 0.0, 1.0) * smoothstep(0.4, 1.0, vAxis) * 0.5;
+    // ORCHESTRATION (poster phase 5): "nerves carry the state" — a luminance pulse
+    // travels the SPINE/roots (vAxis low) at a metabolic rate while the being works.
+    // Luminance only; hue preserved.
+    float spineMask = 1.0 - smoothstep(0.35, 0.55, vAxis);
+    float statePulse = clamp(uStatePulse, 0.0, 1.0) * spineMask *
+                       (0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.0 - vAxis * 12.0)));
+    // REABSORPTION (poster phase 7): the brain INHALES — a soft cortex-weighted
+    // glow as a finished tab's energy returns up the spine into the being.
+    float reabsorbGlow = clamp(uReabsorbGlow, 0.0, 1.0) * smoothstep(0.45, 1.0, vAxis) * 0.55;
+    gl_FragColor = vec4(c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow), intensity);
   }
 `;
 
@@ -105,11 +129,15 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uTime: overrides.uTime ?? { value: 0 },
       uPixelRatio: { value: 1.5 }, // set per-frame from the renderer DPR
       uRefDist: { value: 15.0 },   // ~ camera→brain distance (points-mode poster camera z)
-      uSize: { value: 3.2 },       // finer puncta (poster's dense fine-dot read; pairs with higher counts)
+      uSize: { value: 2.8 },       // finer puncta (poster's dense fine-dot read; pairs with the 200k+ count on the RTX 3050)
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
       uFogDensity: { value: 0.02 },// subtle recession only (thin depth slab)
       uGlowMul: { value: 2.4 },    // >1 so the existing PostFX Bloom (threshold 1.0) catches it
       uBodyOpacity: { value: 1.0 },// damped to ~0.5 while orchestrating so inner memory-nodes show
+      uIgnite: { value: 0 },       // single-shot arrival ignition flash (cortex-weighted luminance, no hue change)
+      uAwaken: { value: 0 },       // conversation cortex-heat (cortex-weighted luminance, no hue change)
+      uStatePulse: { value: 0 },   // orchestration spine state-pulse (spine-weighted luminance, no hue change)
+      uReabsorbGlow: { value: 0 }, // reabsorption brain-inhale glow (cortex-weighted luminance, no hue change)
       uGrow: { value: 0 },
       uFlow: { value: 0.16 },
       uFlowSpeed: { value: 0.16 },
@@ -125,6 +153,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v8';
+  material.customProgramCacheKey = () => 'pointfield_v12';
   return material;
 }

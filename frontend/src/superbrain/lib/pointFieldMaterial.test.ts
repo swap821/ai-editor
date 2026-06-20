@@ -16,8 +16,8 @@ describe('createPointFieldMaterial', () => {
   it('exposes the tunable + posture uniforms', () => {
     const m = createPointFieldMaterial();
     for (const key of ['uTime','uPixelRatio','uRefDist','uSize','uAttenK','uFogDensity','uGlowMul',
-                        'uGrow','uFlow','uFlowSpeed','uCurlAmp','uArrival','uReabsorb',
-                        'uPostureColor','uPostureTint']) {
+                        'uGrow','uFlow','uFlowSpeed','uCurlAmp','uArrival','uReabsorb','uIgnite','uAwaken','uStatePulse','uReabsorbGlow',
+                        'uBodyOpacity','uPostureColor','uPostureTint']) {
       expect(m.uniforms[key]).toBeDefined();
     }
   });
@@ -34,6 +34,6 @@ describe('createPointFieldMaterial', () => {
   it('emits above 1.0 for bloom and has a versioned cache key', () => {
     const m = createPointFieldMaterial();
     expect(m.uniforms.uGlowMul.value).toBeGreaterThan(1.0);
-    expect(m.customProgramCacheKey()).toContain('v8');
+    expect(m.customProgramCacheKey()).toContain('v12');
   });
 });

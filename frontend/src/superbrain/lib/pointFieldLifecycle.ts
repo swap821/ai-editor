@@ -30,7 +30,11 @@ const PHASE_TARGETS: Record<OrganismLifecyclePhase, LifecycleTargets> = {
   approval_hold:     { grow: 1,   flow: 0.34, arrival: 1, reabsorb: 0 },
   error_repair:      { grow: 1,   flow: 0.22, arrival: 1, reabsorb: 0 },
   completion_settle: { grow: 1,   flow: 0.3,  arrival: 1, reabsorb: 0 },
-  reabsorbing:       { grow: 1,   flow: 0.3,  arrival: 1, reabsorb: 1 },
+  // POSTER LAW (phase 7): the BEING persists — "the voyage never stops". When a
+  // work-tab reabsorbs, only the SLAB dies (ReabsorptionParticles + slab retract);
+  // the brain+spine cloud must NOT evaporate. So reabsorb stays 0 here. A future
+  // distinct `dying` phase would own the full-being dissolve (reabsorb→1).
+  reabsorbing:       { grow: 1,   flow: 0.3,  arrival: 1, reabsorb: 0 },
 };
 
 const REST_FALLBACK: LifecycleTargets = PHASE_TARGETS.rest;

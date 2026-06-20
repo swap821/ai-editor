@@ -33,7 +33,8 @@ export const BODY_AXIS_MAX = 0.7;
 
 // ── Internal region constants ─────────────────────────────────────────────────
 const TAU = Math.PI * 2;
-const ROOT_FILAMENTS = 6;
+const ROOT_FILAMENTS = 11; // poster phase 2: a WIDE luminous root splay (was 6)
+const INTAKE_RING_COUNT = 5; // concentric "you speak here" base ripple rings
 
 // ── Project-standard mulberry32 PRNG (byte-identical to pointFieldSampler.ts) ─
 function createSeededRandom(seed: number) {
@@ -98,10 +99,11 @@ export function buildSpinePoints(count: number, seed: number): PointFieldData {
 
   const random = createSeededRandom(seed);
 
-  // Region budgets
-  const cordN  = Math.round(count * 0.45);
-  const vertN  = Math.round(count * 0.15);
-  const rootN  = count - cordN - vertN;
+  // Region budgets (ringN added for the poster's brainstem-intake base ripple)
+  const cordN  = Math.round(count * 0.38);
+  const vertN  = Math.round(count * 0.12);
+  const ringN  = Math.round(count * 0.10);
+  const rootN  = count - cordN - vertN - ringN;
 
   const col: [number, number, number] = [0, 0, 0];
   const dir = new THREE.Vector3();
@@ -195,6 +197,50 @@ export function buildSpinePoints(count: number, seed: number): PointFieldData {
     );
   }
 
+  // ── 2b. INTAKE RINGS (poster phase 2 — "you speak here") ──────────────────
+  // Concentric point rings on the horizontal plane at the base: the brainstem
+  // intake ripple where the user's words enter. Flat disc centered on the cord
+  // axis so it reads as ground ripples from every orbit angle. In the brain's
+  // own palette at the root-base end (bf≈0, full multicolour — NOT the violet join).
+  const ringBaseY = SEGMENT_BOTTOM_Y - 0.5;
+  for (let i = 0; i < ringN; i++, wi++) {
+    const ringIdx = Math.floor(random() * INTAKE_RING_COUNT);
+    const ringR = 0.28 + (ringIdx / (INTAKE_RING_COUNT - 1)) * 1.05; // 0.28 → 1.33
+    const ang = random() * TAU;
+    const rr = ringR + (random() - 0.5) * 0.025; // soft band, not a hard wire
+    const x = Math.cos(ang) * rr;
+    const y = ringBaseY + (random() - 0.5) * 0.02;
+    const pz = CORD_Z + Math.sin(ang) * rr;
+
+    positions[wi * 3]     = x;
+    positions[wi * 3 + 1] = y;
+    positions[wi * 3 + 2] = pz;
+
+    // disc faces up so the breathe/flow normal displacement reads as a ripple
+    normals[wi * 3]     = 0;
+    normals[wi * 3 + 1] = 1;
+    normals[wi * 3 + 2] = 0;
+
+    paletteColor(0.05, random(), col);
+    colors[wi * 3]     = col[0];
+    colors[wi * 3 + 1] = col[1];
+    colors[wi * 3 + 2] = col[2];
+
+    sizes[wi]  = 0.6 + random() * 0.6; // keep within the [0.6,1.4] field-size bound
+    phases[wi] = random() * TAU;
+    speeds[wi] = 0.6 + random() * 0.8;
+    births[wi] = random();
+
+    dir.set(random() * 2 - 1, random() * 2 - 1, random() * 2 - 1);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 1, 0);
+    dir.normalize();
+    scatter[wi * 3]     = dir.x;
+    scatter[wi * 3 + 1] = dir.y;
+    scatter[wi * 3 + 2] = dir.z;
+
+    bands[wi] = clamp((y - BODY_AXIS_MIN) / (BODY_AXIS_MAX - BODY_AXIS_MIN), 0, 1);
+  }
+
   // ── 3. ROOTS / CAUDA SPRAY ───────────────────────────────────────────────
   for (let i = 0; i < rootN; i++, wi++) {
     const side     = random() < 0.5 ? -1 : 1;
@@ -203,8 +249,8 @@ export function buildSpinePoints(count: number, seed: number): PointFieldData {
     // attach Y: higher fi (outer filament) attaches lower
     const baseY    = lerp(-1.9, SEGMENT_BOTTOM_Y, fiF);
     const t        = random();                               // 0=attach, 1=tip
-    const angleOut = lerp(0.2, 1.15, fiF);                  // wider for outer
-    const len      = 1.1 + fi * 0.14;
+    const angleOut = lerp(0.2, 1.4, fiF);                   // wider splay (poster's wide luminous roots)
+    const len      = 1.1 + fi * 0.16;
 
     let x  = side * Math.sin(angleOut) * t * len;
     let y  = baseY - Math.cos(angleOut) * t * len * 0.55 - t * 0.25;

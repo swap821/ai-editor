@@ -205,21 +205,59 @@ export default function BrainPointField({
     // node lattice shows through (operator's reveal-while-working idea).
     const bodyTarget =
       kind === 'brain' && (phase === 'working' || phase === 'conducting' || phase === 'materializing')
-        ? 0.4
+        ? 0.28
         : 1.0;
+    // ARRIVAL bridge (poster phase 1): the scene's cinematic uArrival is INVERTED
+    // from the point material's (scene: 1=mid-arrival/scattered, 0=settled; point
+    // material: 0=scattered inrush origin, 1=condensed). Bridge them so the cloud
+    // explodes-then-condenses in LOCKSTEP with the star funnel on load, and stays
+    // condensed at rest. min() lets the lifecycle's own arrival stay authoritative
+    // when it's lower (e.g. booting=0 keeps it scattered pre-ignition).
+    const arrivalTarget = Math.min(t.arrival, 1 - uniforms.uArrival.value);
     if (reduce) {
       // reduced motion: snap to the settled state (no inrush/dissolve translation).
       u.uGrow.value = t.grow;
-      u.uArrival.value = t.arrival;
+      u.uArrival.value = arrivalTarget;
       u.uReabsorb.value = t.reabsorb;
       u.uFlowSpeed.value = 0.05 + t.flow * 0.2;
       u.uBodyOpacity.value = bodyTarget;
     } else {
       u.uGrow.value = THREE.MathUtils.damp(u.uGrow.value, t.grow, 2, delta);
-      u.uArrival.value = THREE.MathUtils.damp(u.uArrival.value, t.arrival, 1.6, delta);
+      u.uArrival.value = THREE.MathUtils.damp(u.uArrival.value, arrivalTarget, 1.6, delta);
       u.uReabsorb.value = THREE.MathUtils.damp(u.uReabsorb.value, t.reabsorb, 1.6, delta);
       u.uFlowSpeed.value = THREE.MathUtils.damp(u.uFlowSpeed.value, 0.05 + t.flow * 0.2, 3, delta);
       u.uBodyOpacity.value = THREE.MathUtils.damp(u.uBodyOpacity.value, bodyTarget, 3, delta);
+    }
+    // ARRIVAL ignition flash — direct passthrough of the scene's single-shot
+    // ignition pulse (no damp, so the flash's timing/shape is preserved).
+    if (u.uIgnite) u.uIgnite.value = uniforms.uIgnite.value;
+    // AWAKENING (poster phase 3): the cortex HEATS while the being notices /
+    // converses. Scoped to the NON-dimmed engaged phases (attentive=thinking,
+    // intake) so it never fights the working-phase memory-node reveal (which
+    // dims the cloud). Luminance only — the fragment weights it to the cortex.
+    if (u.uAwaken) {
+      const awakenTarget = phase === 'attentive' || phase === 'intake' ? 1 : 0;
+      u.uAwaken.value = reduce
+        ? awakenTarget
+        : THREE.MathUtils.damp(u.uAwaken.value, awakenTarget, 4, delta);
+    }
+    // ORCHESTRATION (poster phase 5): the spine/roots pulse with metabolic state
+    // while the being works/conducts/materializes ("nerves carry the state").
+    if (u.uStatePulse) {
+      const stateTarget =
+        phase === 'working' || phase === 'conducting' || phase === 'materializing' ? 1 : 0;
+      u.uStatePulse.value = reduce
+        ? stateTarget
+        : THREE.MathUtils.damp(u.uStatePulse.value, stateTarget, 3, delta);
+    }
+    // REABSORPTION (poster phase 7): the brain inhales as a finished tab returns
+    // its energy up the spine. The damp gives a smooth rise-then-fall around the
+    // brief reabsorbing beat.
+    if (u.uReabsorbGlow) {
+      const reabsorbTarget = phase === 'reabsorbing' ? 1 : 0;
+      u.uReabsorbGlow.value = reduce
+        ? reabsorbTarget
+        : THREE.MathUtils.damp(u.uReabsorbGlow.value, reabsorbTarget, 2.5, delta);
     }
   });
 

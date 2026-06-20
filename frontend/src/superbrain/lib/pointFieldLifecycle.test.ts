@@ -44,9 +44,11 @@ describe('lifecycleTargets', () => {
     expect(working.flow).toBeGreaterThan(rest.flow);
   });
 
-  it('reabsorbing → reabsorb === 1', () => {
+  it('reabsorbing → reabsorb === 0 (the being persists; only the slab dies)', () => {
+    // Poster phase 7: a work-tab reabsorption must NOT dissolve the brain+spine
+    // cloud — "the voyage never stops". The slab death is owned elsewhere.
     const t = lifecycleTargets('reabsorbing');
-    expect(t.reabsorb).toBe(1);
+    expect(t.reabsorb).toBe(0);
   });
 
   it('unknown phase falls back to rest row', () => {

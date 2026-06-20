@@ -9,6 +9,8 @@ export interface LivingWorkspacePoseInput {
   waitingIndex?: number;
   viewportWidth?: number;
   viewportHeight?: number;
+  /** points-being: born tab grows as a LATERAL PEER beside the being (poster phase 4). */
+  points?: boolean;
 }
 
 export interface LivingWorkspacePose {
@@ -91,6 +93,22 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
   }
 
   if (input.focused) {
+    // POSTER phase 4 (points being): the born tab is a LATERAL PEER beside the
+    // being — it grows OUT to the side at ~cortex-mid height, not a panel tucked
+    // low-center over the spine/cauda. The offset is brain-local so it rotates
+    // WITH the being (stays a side-peer under orbit, never a fixed world-right).
+    if (input.points) {
+      return {
+        targetLocal: tuple(
+          1.02 + compactness * 0.18,
+          -0.18 + compactness * 0.2,
+          0.74 - compactness * 0.04,
+        ),
+        scale: round3(clamp(1.08 - compactness * 0.42, 0.72, 1.08)),
+        opacity: 1,
+        tubeOpacity: 1,
+      };
+    }
     return {
       targetLocal: tuple(
         ACTIVE_WORKSPACE_TARGET[0] + compactness * 0.44,
@@ -104,6 +122,21 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
   }
 
   const index = Math.max(0, input.waitingIndex ?? 0);
+
+  // ORCHESTRATION (poster phase 5, points being): waiting tabs sit at their OWN
+  // vertebra seat (input.targetLocal), pushed BACK + dimmer with depth — "vertebrae
+  // are addressable seats", front=focus / back=waiting. The seat offset is
+  // brain-local so each tab stays on its vertebra under orbit.
+  if (input.points) {
+    const [tx, ty, tz] = input.targetLocal;
+    return {
+      targetLocal: tuple(tx, ty, tz - 0.22 - index * 0.06),
+      scale: round3(clamp(0.6 - index * 0.045, 0.4, 0.6)),
+      opacity: round3(clamp(0.5 - index * 0.05, 0.22, 0.5)),
+      tubeOpacity: round3(clamp(0.5 - index * 0.04, 0.22, 0.5)),
+    };
+  }
+
   const waitingSlot = deriveWaitingSlot(index);
   return {
     targetLocal: tuple(

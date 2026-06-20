@@ -897,9 +897,9 @@ function BrainModel({
             kind="brain"
             source={brainAsset.object}
             uniforms={uniforms}
-            count={tier === 'high' ? 90000 : tier === 'medium' ? 60000 : 40000}
+            count={tier === 'high' ? 200000 : tier === 'medium' ? 60000 : 40000}
             spineScale={1 / BRAIN_SCALE}
-            spineCount={tier === 'high' ? 28000 : tier === 'medium' ? 18000 : 11000}
+            spineCount={tier === 'high' ? 56000 : tier === 'medium' ? 18000 : 11000}
           />
         )}
 

@@ -111,7 +111,8 @@ const SAT_RADIUS = 0.03;
  *  distinct (R2); intra-cluster k-NN only ever links within this sphere. */
 const LOBE_RADIUS = 0.11;
 /** GLOW levers (idle brightness; firing/burst push past the bloom knee). */
-const NODE_GAIN = 0.7; // idle node brightness — keep BELOW the PostFX bloom knee
+const NODE_GAIN = 1.1; // node brightness — pushed past the PostFX bloom knee so the
+                       // memory nodes POP/bloom through the translucent cortex during reveal
 const EDGE_CARRIER_GAIN = 4.0; // lobe-wire always-visible (dial down if too web-like)
 const BACKBONE_CARRIER_GAIN = 4.5; // major bus slightly brighter than lobe edges
 const SIGNAL_GAIN = 3.0; // packet peak luma >> 1 so glitters cross the bloom knee
@@ -597,9 +598,10 @@ const NODE_FRAGMENT = /* glsl */ `
     vec3 V = normalize(vViewDirV);
     float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.5);
 
-    // Energy sphere: dim core + bright region-hued fresnel halo.
-    vec3 core = vColor * 0.55;
-    vec3 rim = vColor * fres * 1.35;
+    // Energy sphere: bright region-hued core + brighter fresnel halo (hue
+    // UNCHANGED — only luminance is lifted, so the sacred palette holds).
+    vec3 core = vColor * 0.72;
+    vec3 rim = vColor * fres * 1.7;
     vec3 col = (core + rim) * uNodeGain;
 
     // P2 — DATA-TRUE per-node firing: when this node's hub ran its kind of real

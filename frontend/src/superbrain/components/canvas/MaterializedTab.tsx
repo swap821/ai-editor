@@ -6,7 +6,7 @@ import { readBeingMode } from '@/lib/beingMode';
 // position), but the slab geometry is authored for the old mesh-spine scale, so
 // counter-scale the slab body/content to match the fused being. Mesh = 1.
 const POINTS = readBeingMode() === 'points';
-const POINTS_SLAB_SCALE = POINTS ? 0.34 : 1;
+const POINTS_SLAB_SCALE = POINTS ? 0.66 : 1; // poster phase 4: the born tab is a brain-sized peer, not a tiny panel
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -586,43 +586,59 @@ function deterministic01(value: number): number {
 
 function makePointFieldPositions(dimensions: SurfaceDimensions, kind: MaterializedTabKind, shapeGrammar: SurfaceShapeGrammar) {
   const count = shapeGrammar.puncta.count;
-  const attachmentEdges = shapeGrammar.attachment.edges.length > 0 ? shapeGrammar.attachment.edges : (['left'] as const);
+  // POSTER (phase 4): the tab is BUILT FROM POINTS — a dotted-particle border on
+  // ALL FOUR edges + a sparse interior grain (not just the attachment edge). ~70%
+  // of puncta ring the border, ~30% sprinkle the interior so the face reads as one
+  // point-field organism, not flat glass. Deterministic (seeded) so it's stable.
+  const BORDER_EDGES = ['top', 'right', 'bottom', 'left'] as const;
+  const interiorStart = Math.floor(count * 0.7);
+  const halfW = dimensions.width * 0.5;
+  const halfH = dimensions.height * 0.5;
   return Array.from({ length: count }, (_, index) => {
     const n = index + 1;
-    const edge = attachmentEdges[index % attachmentEdges.length] ?? 'left';
     const xNorm = deterministic01(n * 12.9898);
     const yNorm = deterministic01(n * 78.233);
-    const along = Math.pow(xNorm, shapeGrammar.puncta.falloffPower);
-    const cross = yNorm - 0.5;
-    const halfW = dimensions.width * 0.5;
-    const halfH = dimensions.height * 0.5;
     const disruption =
       shapeGrammar.puncta.disruption > 0
         ? Math.sin(n * 3.41) * shapeGrammar.puncta.disruption * Math.min(dimensions.width, dimensions.height) * 0.08
         : 0;
-    let x = cross * dimensions.width * 0.72;
-    let y = cross * dimensions.height * 0.72;
-
-    if (edge === 'left') {
-      x = -halfW + dimensions.width * (0.08 + along * 0.78) + disruption;
-      y = cross * dimensions.height * 0.86;
-    } else if (edge === 'right') {
-      x = halfW - dimensions.width * (0.08 + along * 0.78) + disruption;
-      y = cross * dimensions.height * 0.86;
-    } else if (edge === 'top') {
-      x = cross * dimensions.width * 0.82;
-      y = halfH - dimensions.height * (0.12 + along * 0.72) + disruption;
+    let x: number;
+    let y: number;
+    let isBorder: boolean;
+    let density: number;
+    if (index < interiorStart) {
+      // BORDER ring — distribute evenly across all four edges.
+      const edge = BORDER_EDGES[index % BORDER_EDGES.length];
+      const t = deterministic01(n * 41.17); // position along the edge 0..1
+      const inset = 0.06;
+      if (edge === 'top') {
+        x = (t - 0.5) * dimensions.width * (1 - inset * 2);
+        y = halfH - dimensions.height * inset + disruption;
+      } else if (edge === 'bottom') {
+        x = (t - 0.5) * dimensions.width * (1 - inset * 2);
+        y = -halfH + dimensions.height * inset + disruption;
+      } else if (edge === 'left') {
+        x = -halfW + dimensions.width * inset + disruption;
+        y = (t - 0.5) * dimensions.height * (1 - inset * 2);
+      } else {
+        x = halfW - dimensions.width * inset + disruption;
+        y = (t - 0.5) * dimensions.height * (1 - inset * 2);
+      }
+      isBorder = true;
+      density = shapeGrammar.puncta.freeDensity;
     } else {
-      x = cross * dimensions.width * 0.82;
-      y = -halfH + dimensions.height * (0.12 + along * 0.72) + disruption;
+      // INTERIOR sparse grain across the face.
+      x = (xNorm - 0.5) * dimensions.width * 0.88;
+      y = (yNorm - 0.5) * dimensions.height * 0.88;
+      isBorder = false;
+      density = shapeGrammar.puncta.attachmentDensity * 0.6;
     }
-    const density = THREE.MathUtils.lerp(shapeGrammar.puncta.attachmentDensity, shapeGrammar.puncta.freeDensity, along);
     return {
       key: `organ-point-${kind}-${index}`,
       position: [Number(x.toFixed(4)), Number(y.toFixed(4)), dimensions.thickness + 0.03] as [number, number, number],
       scale: Number((0.72 + ((index * 37) % 11) / 30).toFixed(4)),
       phase: Number((index * 0.47).toFixed(4)),
-      edge: along < 0.2,
+      edge: isBorder, // border puncta read brighter than interior grain (see OrganPointFieldSkin)
       density: Number(density.toFixed(4)),
     };
   });
@@ -933,7 +949,10 @@ export default function MaterializedTab({
     0.8,
     posture.tint * POSTURE_DIAL.surfaceScale * (tab.kind === 'input' ? POSTURE_DIAL.inputBoost : 1),
   );
-  const tubeRadius = tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * 0.52;
+  // Points being (poster phase 4): a thick, bright UMBILICAL nerve is the panel's
+  // signature "fed by nerves" read — fatten the content/approval cord (mesh keeps 0.52).
+  const tubeRadius =
+    tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * (POINTS ? 1.0 : 0.52);
   const facesCamera = tab.kind === 'input';
   const isFocused = tab.kind === 'input' || focused;
   const pose = useMemo(
@@ -945,6 +964,7 @@ export default function MaterializedTab({
         waitingIndex,
         viewportWidth,
         viewportHeight,
+        points: POINTS,
       }),
     [isFocused, tab.kind, tab.targetLocal, viewportHeight, viewportWidth, waitingIndex],
   );
@@ -1196,7 +1216,8 @@ export default function MaterializedTab({
       const mat = tubeRef.current.material as THREE.MeshStandardMaterial;
       mat.color.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.28);
       mat.emissive.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.44);
-      const workspaceFeed = tab.kind === 'input' ? 1 : 0.38;
+      // Points being: brighten the umbilical so it reads as a bright cord (poster).
+      const workspaceFeed = tab.kind === 'input' ? 1 : POINTS ? 0.72 : 0.38;
       mat.color.lerp(outcomeColor, outcomeSurfaceExcitation * 0.26);
       mat.emissive.lerp(outcomeColor, outcomeSurfaceExcitation * 0.36);
       mat.color.lerp(postureColor, bodyPostureTint);
@@ -1367,7 +1388,11 @@ export default function MaterializedTab({
       labelRef.current.scale.setScalar(0.96 + slabProgress * 0.04);
     }
 
-    const beadTravel = (state.clock.elapsedTime * 0.28) % 1;
+    // WORKING (poster phase 6): "live state flows through the nerves" — the
+    // umbilical beads RACE faster while the being works (surfaceExcitation is the
+    // metabolic working signal), accentuated on the single points-mode cord.
+    const beadFlowSpeed = 0.28 + surfaceExcitation * (POINTS ? 0.7 : 0.4);
+    const beadTravel = (state.clock.elapsedTime * beadFlowSpeed) % 1;
     beadRefs.current.forEach((bead, index) => {
       if (!bead) return;
       const t = clamp01((beadTravel + index * 0.19) % 1);
@@ -1381,7 +1406,7 @@ export default function MaterializedTab({
         0.96,
         (0.24 + liveProgress * 0.68) *
           pose.tubeOpacity *
-          (tab.kind === 'input' ? 1 : 0.46) *
+          (tab.kind === 'input' ? 1 : POINTS ? 0.7 : 0.46) *
           (1 + surfaceExcitation * 0.5 + outcomeSurfaceExcitation * 0.42),
       );
     });
@@ -1748,6 +1773,21 @@ export default function MaterializedTab({
                   skin={skin}
                 />
               </>
+            )}
+            {/* Points being (poster phase 4): the tab is BUILT FROM POINTS — render
+                the point-field skin (dotted-particle border on all 4 edges + sparse
+                interior grain) so the slab reads as one organism with the brain.
+                Body stays dark glass so the puncta dominate. */}
+            {POINTS && tab.kind !== 'input' && (
+              <OrganPointFieldSkin
+                dimensions={dimensions}
+                focused={isFocused}
+                kind={tab.kind}
+                material={organMaterial}
+                reducedMotion={reducedMotion}
+                shapeGrammar={shapeGrammar}
+                skin={skin}
+              />
             )}
             {tab.kind !== 'input' ? (
               <OutcomeImprintSkin

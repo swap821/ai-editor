@@ -8,6 +8,8 @@ export interface MaterializedSurfacePoseInput {
   waitingIndex?: number;
   viewportWidth?: number;
   viewportHeight?: number;
+  /** points-being: place the born tab as a lateral peer beside the being (poster phase 4). */
+  points?: boolean;
 }
 
 export interface MaterializedSurfacePose {
