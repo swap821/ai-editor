@@ -1630,11 +1630,12 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
             instead of drifting apart). Authored in scene space; Float moves both
             together, preserving their alignment. */}
         {BEING_MODE === 'points' && (
-          // Orbit-proof join: sit the cord at the brain's DEPTH (z -1.2) and on its
-          // centerline (x 0) — directly below the brain center — so it stays under
-          // the brain from every orbit angle, not just front-on. (Cord is authored
-          // at z -0.42, so dz -0.78 brings it onto the brain's z-plane.)
-          <group position={[0, 0, -0.78]}>
+          // Orbit-proof join: land the cord-top EXACTLY on the brain's brainstem
+          // exit (measured world delta), so the join is one shared 3D point at the
+          // brain's depth — aligned front-on AND from every orbit angle. (Cord is
+          // authored at scene (0,-0.42,-0.42); this offset moves the cord-top onto
+          // the brainstem at world ~(-0.06,-0.40,-1.17).)
+          <group position={[0.082, 0.015, -0.697]}>
             <BrainPointField
               kind="spine"
               uniforms={uniforms}
