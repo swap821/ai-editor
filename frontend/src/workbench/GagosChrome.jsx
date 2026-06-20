@@ -5,15 +5,17 @@
  * text, no DOM chrome" direction read as floating debug labels. The being stays
  * the diegetic 3D hero on the canvas; identity / live status / the conversation
  * now live in a real, minimal 2D layer so the experience reads as a finished
- * product. This deliberately overrides the older PURE-3D law for the chrome only
- * (the being itself is untouched).
+ * product.
+ *
+ * Conversation is a left-docked CHAT THREAD (history) + input — docked left so it
+ * never overlaps the centered being / spine; newest message sits at the bottom by
+ * the input, history scrolls above it.
  *
  * Mounted as a DOM sibling of <WorkspaceCanvas/> (outside the <Canvas>), product
- * only — like BrainstemIntake, this file is NOT mirrored to the lab.
- *
- * It drives turns through the same adapter the being already listens to
- * (sendDirective / sendVoiceTurn) and publishes the same cognition events
- * (directive / voice-speaking) so the 3D being still reacts (posture, glow).
+ * only — like BrainstemIntake, this file is NOT mirrored to the lab. It drives
+ * turns through the same adapter the being already listens to (sendDirective /
+ * sendVoiceTurn) and publishes the same cognition events (directive /
+ * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sendDirective, sendVoiceTurn } from '../superbrain/lib/aiosAdapter';
@@ -27,11 +29,10 @@ import {
 } from '../superbrain/lib/activeBrain';
 import './GagosChrome.css';
 
-const REPLY_DWELL_MS = 16_000;
+const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
 
-function clampText(text, max = 240) {
-  // Strip light markdown so the spoken caption reads as clean prose, not source:
-  // **bold**/*italic*/__u__ markers, leading #/>, and list bullets.
+function cleanText(text, max = 600) {
+  // Strip light markdown so the caption reads as clean prose, not source.
   const compact = String(text ?? '')
     .replace(/\*\*|__|`/g, '')
     .replace(/(^|\s)[*_](\S)/g, '$1$2')
@@ -73,8 +74,8 @@ function SendIcon({ busy }) {
 }
 
 export default function GagosChrome() {
+  const [messages, setMessages] = useState([]); // { id, role:'user'|'gagos', text }
   const [draft, setDraft] = useState('');
-  const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceSupported] = useState(
@@ -84,11 +85,11 @@ export default function GagosChrome() {
 
   const busyRef = useRef(false);
   const turnTokenRef = useRef(0);
+  const msgSeqRef = useRef(0);
   const recognitionRef = useRef(null);
-  const replyTimerRef = useRef(null);
+  const threadRef = useRef(null);
 
-  // Live active-LLM line: the router publishes `route` cognition events; mirror
-  // them into the activeBrain store and re-render the model pill.
+  // Live active-LLM line from the router's `route` cognition events.
   useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
   useEffect(
     () =>
@@ -104,14 +105,20 @@ export default function GagosChrome() {
     [],
   );
 
-  const showReply = useCallback((text) => {
-    const clean = clampText(text);
-    if (!clean) return;
-    setReply(clean);
-    if (replyTimerRef.current) window.clearTimeout(replyTimerRef.current);
-    replyTimerRef.current = window.setTimeout(() => {
-      if (!busyRef.current) setReply('');
-    }, REPLY_DWELL_MS);
+  // Keep the newest message in view as the thread grows / streams.
+  useEffect(() => {
+    const el = threadRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  const pushMessage = useCallback((role, text) => {
+    const id = (msgSeqRef.current += 1);
+    setMessages((prev) => [...prev, { id, role, text }].slice(-MAX_MESSAGES));
+    return id;
+  }, []);
+
+  const updateMessage = useCallback((id, text) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text } : m)));
   }, []);
 
   const submit = useCallback(async (raw) => {
@@ -124,8 +131,9 @@ export default function GagosChrome() {
     busyRef.current = true;
     setBusy(true);
     setDraft('');
-    setReply('');
-    if (replyTimerRef.current) window.clearTimeout(replyTimerRef.current);
+
+    pushMessage('user', cleanText(text, 400));
+    const gagosId = pushMessage('gagos', '');
 
     // wake the being — same events the posture machine + scene already react to
     publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 1, data: { phase: 'question', text } });
@@ -137,27 +145,27 @@ export default function GagosChrome() {
       if (workIntent) {
         const result = await sendDirective(text);
         if (turnTokenRef.current !== token) return;
-        if (result?.answer) showReply(result.answer);
-        else if (result?.paused) showReply('Holding for your approval.');
+        const answer = cleanText(result?.answer) || (result?.paused ? 'Holding for your approval.' : '');
+        updateMessage(gagosId, answer || 'Done.');
       } else {
         const final = await sendVoiceTurn(text, {
           onChunk: (partial) => {
             if (turnTokenRef.current !== token) return;
-            const chunk = clampText(partial);
+            const chunk = cleanText(partial);
             if (chunk) {
-              setReply(chunk);
+              updateMessage(gagosId, chunk);
               publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.82, data: { phase: 'reply', reply: chunk } });
             }
           },
         });
         if (turnTokenRef.current !== token) return;
-        if (final) showReply(final);
+        updateMessage(gagosId, cleanText(final) || '…');
       }
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.6, data: { phase: 'reply-complete' } });
     } catch (error) {
       if (turnTokenRef.current !== token) return;
       const detail = error instanceof Error ? error.message : 'link unavailable';
-      showReply(`I could not reach my mind just now (${detail}).`);
+      updateMessage(gagosId, `I could not reach my mind just now (${detail}).`);
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
     } finally {
       if (turnTokenRef.current === token) {
@@ -165,7 +173,7 @@ export default function GagosChrome() {
         setBusy(false);
       }
     }
-  }, [showReply]);
+  }, [pushMessage, updateMessage]);
 
   // Web Speech voice input (mic button). Graceful when unsupported.
   useEffect(() => {
@@ -185,7 +193,7 @@ export default function GagosChrome() {
         if (r.isFinal) finalText += r[0].transcript;
         else interim += r[0].transcript;
       }
-      setDraft(clampText(finalText || interim, 200));
+      setDraft(cleanText(finalText || interim, 200));
       if (finalText.trim()) void submit(finalText);
     };
     recognitionRef.current = rec;
@@ -206,8 +214,6 @@ export default function GagosChrome() {
     setDraft('');
     try { rec.start(); } catch { /* already started */ }
   }, [listening]);
-
-  useEffect(() => () => { if (replyTimerRef.current) window.clearTimeout(replyTimerRef.current); }, []);
 
   const canSend = draft.trim().length > 0 && !busy;
 
@@ -230,14 +236,13 @@ export default function GagosChrome() {
         </span>
       </div>
 
-      <div className="gagos-convo">
-        <div className={`gagos-reply ${reply ? 'is-visible' : ''}`}>
-          {reply ? (
-            <>
-              <span className="gagos-reply-who">GAGOS</span>
-              {reply}
-            </>
-          ) : null}
+      <div className="gagos-chat">
+        <div className="gagos-thread" ref={threadRef}>
+          {messages.map((m) => (
+            <div key={m.id} className={`gagos-msg gagos-msg--${m.role}`}>
+              {m.role === 'gagos' && !m.text ? <span className="gagos-typing"><i /><i /><i /></span> : m.text}
+            </div>
+          ))}
         </div>
 
         <div className="gagos-bar">

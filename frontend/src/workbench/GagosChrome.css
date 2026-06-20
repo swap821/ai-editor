@@ -92,45 +92,83 @@
   color: rgba(200, 245, 225, 0.78);
 }
 
-/* ── Bottom-center conversation ───────────────────────────────────────── */
-.gagos-convo {
+/* ── Bottom-left chat (history thread + input) ───────────────────────────
+   Docked left so the conversation never overlaps the centered being / spine;
+   history grows upward, newest message sits at the bottom by the input. */
+.gagos-chat {
   position: absolute;
-  left: 50%;
-  bottom: 38px;
-  transform: translateX(-50%);
-  width: min(680px, calc(100vw - 64px));
+  left: 32px;
+  bottom: 34px;
+  width: min(430px, 40vw);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  gap: 14px;
+  pointer-events: none; /* only the thread + bar capture */
 }
 
-/* the being's reply, as a clean caption above the bar */
-.gagos-reply {
-  max-width: 620px;
-  text-align: center;
-  font-size: 15.5px;
-  line-height: 1.62;
+.gagos-thread {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* few messages pin to the bottom, near the input */
+  gap: 9px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 2px 6px 2px 2px;
+  /* fade history out at the top so it dissolves into the void */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 100%);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.gagos-thread::-webkit-scrollbar { width: 6px; }
+.gagos-thread::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
+
+.gagos-msg {
+  max-width: 90%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
   font-weight: 350;
-  color: rgba(238, 244, 255, 0.9);
-  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.6);
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
-  pointer-events: none;
+  word-break: break-word;
+  animation: gagos-msg-in 0.32s ease both;
 }
-.gagos-reply.is-visible {
-  opacity: 1;
-  transform: translateY(0);
+.gagos-msg--user {
+  align-self: flex-end;
+  background: rgba(139, 110, 255, 0.18);
+  border: 1px solid rgba(139, 110, 255, 0.3);
+  color: #eef0ff;
+  border-bottom-right-radius: 5px;
 }
-.gagos-reply .gagos-reply-who {
-  display: block;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: rgba(150, 130, 255, 0.7);
-  margin-bottom: 7px;
+.gagos-msg--gagos {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(238, 244, 255, 0.92);
+  border-bottom-left-radius: 5px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* streaming "GAGOS is thinking" dots, shown until the first token lands */
+.gagos-typing { display: inline-flex; gap: 4px; padding: 2px 0; }
+.gagos-typing i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(180, 200, 255, 0.7);
+  animation: gagos-typing 1.1s ease-in-out infinite;
+}
+.gagos-typing i:nth-child(2) { animation-delay: 0.15s; }
+.gagos-typing i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes gagos-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gagos-typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
 }
 
 /* the input bar */
@@ -230,7 +268,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gagos-reply { transition: opacity 0.2s ease; transform: none; }
+  .gagos-msg { animation: none; }
+  .gagos-typing i { animation: none; }
   .gagos-mic.is-listening { animation: none; }
   .gagos-send.is-busy svg { animation: none; }
 }
