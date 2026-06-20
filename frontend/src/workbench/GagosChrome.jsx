@@ -28,7 +28,7 @@ import {
   subscribeActiveBrain,
 } from '../superbrain/lib/activeBrain';
 import { setConversationPhase } from '../superbrain/lib/conversationPhaseBus';
-import { showContentSurface, getOccupiedVertebraSeats } from '../superbrain/lib/tabStore';
+import { showContentSurface, getOccupiedVertebraSeats, beginRetractingMaterializedTab } from '../superbrain/lib/tabStore';
 import {
   getContentSurfacePlacement,
   selectNextAvailableVertebraSeat,
@@ -123,6 +123,7 @@ export default function GagosChrome() {
   const msgSeqRef = useRef(0);
   const recognitionRef = useRef(null);
   const threadRef = useRef(null);
+  const lastWorkTabIdRef = useRef(null);
 
   // Live active-LLM line from the router's `route` cognition events.
   useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
@@ -184,6 +185,11 @@ export default function GagosChrome() {
       if (workIntent) {
         // WORK: the answer materializes as a luminous slab GROWN from a vertebra
         // (poster phase 4) — the surface anchor is fused onto the visible spine.
+        // The PREVIOUS work reabsorbs first (phase 7: it dissolves up the spine).
+        if (lastWorkTabIdRef.current) {
+          beginRetractingMaterializedTab(lastWorkTabIdRef.current);
+          lastWorkTabIdRef.current = null;
+        }
         const result = await sendDirective(text);
         if (turnTokenRef.current !== token) return;
         if (result?.paused) {
@@ -192,7 +198,8 @@ export default function GagosChrome() {
           const { code, language } = extractWork(result?.answer);
           const filepath = workFilepath(text, language);
           const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
-          showContentSurface({ code: code || '// (empty)', language, filepath }, getContentSurfacePlacement(seat));
+          const tab = showContentSurface({ code: code || '// (empty)', language, filepath }, getContentSurfacePlacement(seat));
+          lastWorkTabIdRef.current = tab.id;
           pushMessage('gagos', `↳ materialized ${filepath}`);
         }
         setConversationPhase('idle'); // the slab's working posture takes the body

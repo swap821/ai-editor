@@ -1176,7 +1176,9 @@ export default function MaterializedTab({
           setMaterializedTabLifecycle(tab.id, 'live', now);
         }
       } else if (tab.lifecycle === 'retracting') {
-        const retractProgress = clamp01(elapsed / RETRACT_DURATION_MS);
+        // Points being: a slower retract so the slab visibly dissolves while the
+        // reabsorption motes stream up the spine (poster phase 7).
+        const retractProgress = clamp01(elapsed / (POINTS ? 1300 : RETRACT_DURATION_MS));
         reachProgress = 1 - retractProgress;
         slabProgress = 1 - retractProgress;
         liveProgress = 1 - retractProgress;

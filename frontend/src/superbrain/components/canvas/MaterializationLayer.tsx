@@ -46,6 +46,7 @@ import AnatomicalConductorOverlay from './AnatomicalConductorOverlay';
 import AttentionConductionPulse from './AttentionConductionPulse';
 import CompletionMemoryBead from './CompletionMemoryBead';
 import MaterializedTab from './MaterializedTab';
+import ReabsorptionParticles from './ReabsorptionParticles';
 import { readBeingMode } from '@/lib/beingMode';
 
 // Point-field being: the per-tab umbilical (MaterializedTab) + the conversation/
@@ -419,6 +420,20 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
             outcome={outcome}
           />
         ))}
+      {/* Phase 7: a retracting work slab dissolves into motes that stream up the
+          spine back into the brain (points being). */}
+      {POINTS &&
+        orchestration.surfaces
+          .filter(({ tab }) => tab.kind !== 'input' && tab.lifecycle === 'retracting')
+          .map(({ tab }) => (
+            <ReabsorptionParticles
+              key={`reabsorb-${tab.id}`}
+              origin={tab.originLocal}
+              target={[0, 0.1, 0]}
+              startedAt={tab.phaseStartedAt}
+              durationMs={1300}
+            />
+          ))}
     </>
   );
 }
