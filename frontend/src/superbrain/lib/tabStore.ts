@@ -249,6 +249,25 @@ export function showContentSurface(
   return tab;
 }
 
+/** Sentinel filepath that marks a content surface as the being's spoken reply
+ *  (so MaterializedTab renders it as the being's voice, not a code file). */
+export const REPLY_FILEPATH = 'gagos://reply';
+
+/** The being's reply, materialized on the existing vertebra-seated content slab.
+ *  Reuses showContentSurface so the slab unfurl/retract + line-by-line reveal
+ *  ("speaking") come for free; the REPLY_FILEPATH sentinel re-skins the chrome. */
+export function showReplySurface(
+  text: string,
+  options: {
+    bornAt?: number;
+    originLocal?: [number, number, number];
+    targetLocal?: [number, number, number];
+    seatIndex?: number | null;
+  } = {},
+): MaterializedTabRecord {
+  return showContentSurface({ code: text, language: '', filepath: REPLY_FILEPATH }, options);
+}
+
 export function upsertInputSurface(
   text: string,
   options: {

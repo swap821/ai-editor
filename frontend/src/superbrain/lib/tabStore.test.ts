@@ -14,6 +14,8 @@ import {
   setMaterializedTabLifecycle,
   showApprovalSurface,
   showContentSurface,
+  showReplySurface,
+  REPLY_FILEPATH,
   upsertInputSurface,
   updateMaterializedTab,
 } from './tabStore';
@@ -142,5 +144,26 @@ describe('tabStore', () => {
     clearMaterializedTab(tab.id);
     expect(getTabStoreSnapshot().tabs).toHaveLength(1);
     expect(getFirstMaterializedTab()?.id).toBe(first.id);
+  });
+});
+
+describe('showReplySurface', () => {
+  beforeEach(() => __resetTabStoreForTests());
+
+  it('materializes the reply as a content tab tagged with REPLY_FILEPATH', () => {
+    const tab = showReplySurface('Main theek hoon.', { seatIndex: 2 });
+    expect(tab.kind).toBe('content');
+    expect(tab.content?.filepath).toBe(REPLY_FILEPATH);
+    expect(tab.content?.code).toBe('Main theek hoon.');
+    expect(tab.seatIndex).toBe(2);
+    expect(getMaterializedTabByKind('content')?.id).toBe(tab.id);
+  });
+
+  it('updates the SAME tab on a follow-up reply (no duplicate slabs)', () => {
+    const first = showReplySurface('one', { seatIndex: 2 });
+    const second = showReplySurface('one two', { seatIndex: 2 });
+    expect(second.id).toBe(first.id);
+    expect(second.content?.code).toBe('one two');
+    expect(getTabStoreSnapshot().tabs.filter((t) => t.content?.filepath === REPLY_FILEPATH)).toHaveLength(1);
   });
 });
