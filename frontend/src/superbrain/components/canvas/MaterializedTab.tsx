@@ -23,6 +23,7 @@ import {
   beginRetractingMaterializedTab,
   clearMaterializedTab,
   focusMaterializedTab,
+  REPLY_FILEPATH,
   setMaterializedTabLifecycle,
 } from '@/lib/tabStore';
 
@@ -210,6 +211,7 @@ function toUiLabel(value: string): string {
 
 function getSurfaceHeader(tab: MaterializedTabRecord): string {
   if (tab.kind === 'content') {
+    if (tab.content?.filepath === REPLY_FILEPATH) return 'GAGOS';
     return tab.content?.filepath ? baseName(tab.content.filepath) : 'materialized tab';
   }
   if (tab.kind === 'input') {
@@ -221,7 +223,10 @@ function getSurfaceHeader(tab: MaterializedTabRecord): string {
 }
 
 function getSurfaceFooter(tab: MaterializedTabRecord): string {
-  if (tab.kind === 'content') return tab.content?.language ?? 'text';
+  if (tab.kind === 'content') {
+    if (tab.content?.filepath === REPLY_FILEPATH) return '';
+    return tab.content?.language ?? 'text';
+  }
   if (tab.kind === 'input') return 'press enter to send';
   if (!tab.approval) return 'human review';
   const token = tab.approval.token ? tab.approval.token.slice(0, 10) : 'pending';
