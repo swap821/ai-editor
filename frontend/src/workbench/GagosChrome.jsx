@@ -28,9 +28,43 @@ import {
   subscribeActiveBrain,
 } from '../superbrain/lib/activeBrain';
 import { setConversationPhase } from '../superbrain/lib/conversationPhaseBus';
+import { showContentSurface, getOccupiedVertebraSeats } from '../superbrain/lib/tabStore';
+import {
+  getContentSurfacePlacement,
+  selectNextAvailableVertebraSeat,
+} from '../superbrain/lib/materializedSurfaceAnchors';
 import './GagosChrome.css';
 
 const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
+
+const LANG_EXT = {
+  python: 'py', py: 'py', javascript: 'js', js: 'js', jsx: 'jsx', typescript: 'ts',
+  ts: 'ts', tsx: 'tsx', bash: 'sh', sh: 'sh', shell: 'sh', json: 'json',
+  html: 'html', css: 'css', sql: 'sql', go: 'go', rust: 'rs', c: 'c', cpp: 'cpp', text: 'txt',
+};
+
+/** Pull a fenced code block out of a work answer (keep code chars intact); fall
+ *  back to the prose as plain text. */
+function extractWork(answer) {
+  const raw = String(answer ?? '');
+  const fence = raw.match(/```(\w+)?\s*\n([\s\S]*?)```/);
+  if (fence) return { code: fence[2].replace(/\s+$/, ''), language: (fence[1] || 'text').toLowerCase() };
+  return { code: cleanText(raw, 1200), language: 'text' };
+}
+
+/** A friendly slab filename from the request, e.g. "reverse-a-string.py". */
+function workFilepath(text, language) {
+  const slug = String(text)
+    .replace(/^(write|build|create|make|code|implement|fix|add|generate)\b/i, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .split('-')
+    .filter(Boolean)
+    .slice(0, 4)
+    .join('-') || 'work';
+  return `${slug}.${LANG_EXT[language] || 'txt'}`;
+}
 
 function cleanText(text, max = 600) {
   // Strip light markdown so the caption reads as clean prose, not source.
@@ -134,7 +168,9 @@ export default function GagosChrome() {
     setDraft('');
 
     pushMessage('user', cleanText(text, 400));
-    const gagosId = pushMessage('gagos', '');
+    // Chat replies stream into a 2D bubble; WORK grows a 3D slab from the being,
+    // so a chat bubble is only created for the conversational (non-work) path.
+    const gagosId = workIntent ? null : pushMessage('gagos', '');
 
     // wake the being — same events the posture machine + scene already react to,
     // plus the conversation posture so the body visibly shifts purple→cyan→green.
@@ -146,11 +182,22 @@ export default function GagosChrome() {
 
     try {
       if (workIntent) {
+        // WORK: the answer materializes as a luminous slab GROWN from a vertebra
+        // (poster phase 4) — the surface anchor is fused onto the visible spine.
         const result = await sendDirective(text);
         if (turnTokenRef.current !== token) return;
-        const answer = cleanText(result?.answer) || (result?.paused ? 'Holding for your approval.' : '');
-        updateMessage(gagosId, answer || 'Done.');
+        if (result?.paused) {
+          pushMessage('gagos', 'Holding for your approval before I build that.');
+        } else {
+          const { code, language } = extractWork(result?.answer);
+          const filepath = workFilepath(text, language);
+          const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+          showContentSurface({ code: code || '// (empty)', language, filepath }, getContentSurfacePlacement(seat));
+          pushMessage('gagos', `↳ materialized ${filepath}`);
+        }
+        setConversationPhase('idle'); // the slab's working posture takes the body
       } else {
+        // CHAT: stream the reply into the 2D thread bubble.
         const final = await sendVoiceTurn(text, {
           onChunk: (partial) => {
             if (turnTokenRef.current !== token) return;
@@ -164,13 +211,14 @@ export default function GagosChrome() {
         });
         if (turnTokenRef.current !== token) return;
         updateMessage(gagosId, cleanText(final) || '…');
+        setConversationPhase('complete');
       }
-      setConversationPhase('complete');
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.6, data: { phase: 'reply-complete' } });
     } catch (error) {
       if (turnTokenRef.current !== token) return;
       const detail = error instanceof Error ? error.message : 'link unavailable';
-      updateMessage(gagosId, `I could not reach my mind just now (${detail}).`);
+      const msg = `I could not reach my mind just now (${detail}).`;
+      if (gagosId) updateMessage(gagosId, msg); else pushMessage('gagos', msg);
       setConversationPhase('error');
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
     } finally {

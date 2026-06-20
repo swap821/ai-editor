@@ -1,4 +1,11 @@
 import { Text } from '@react-three/drei';
+import { readBeingMode } from '@/lib/beingMode';
+
+// In the point-field being the spine is welded into the brain cloud at
+// spineScale (1/BRAIN_SCALE ≈ 0.33); surface ANCHORS are fused (correct
+// position), but the slab geometry is authored for the old mesh-spine scale, so
+// counter-scale the slab body/content to match the fused being. Mesh = 1.
+const POINTS_SLAB_SCALE = readBeingMode() === 'points' ? 0.34 : 1;
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -1288,9 +1295,9 @@ export default function MaterializedTab({
     if (slabRef.current) {
       const eased = easing(slabProgress);
       slabRef.current.scale.set(
-        (0.74 + eased * 0.26) * pose.scale,
-        Math.max(0.01, eased) * pose.scale,
-        (0.7 + eased * 0.3) * pose.scale,
+        (0.74 + eased * 0.26) * pose.scale * POINTS_SLAB_SCALE,
+        Math.max(0.01, eased) * pose.scale * POINTS_SLAB_SCALE,
+        (0.7 + eased * 0.3) * pose.scale * POINTS_SLAB_SCALE,
       );
       slabRef.current.position.copy(curve.getPointAt(slabT));
     }

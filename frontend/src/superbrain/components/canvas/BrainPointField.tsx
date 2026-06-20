@@ -9,6 +9,7 @@ import { createPointFieldMaterial } from '@/lib/pointFieldMaterial';
 import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
+import { setSpineFusion } from '@/lib/spineFusionBus';
 import type { CognitionUniforms } from './SuperbrainScene';
 
 /** Concatenate two point-field datasets into one (brain first, then spine). */
@@ -106,6 +107,8 @@ export default function BrainPointField({
         const tx = anchor[0] - cordTop[0] * s;
         const ty = anchor[1] - cordTop[1] * s;
         const tz = anchor[2] - cordTop[2] * s;
+        // Publish the EXACT weld so work slabs can anchor onto the visible spine.
+        setSpineFusion(s, [tx, ty, tz]);
         const sp = spine.positions;
         for (let i = 0; i < spine.count; i++) {
           sp[i * 3] = sp[i * 3] * s + tx;

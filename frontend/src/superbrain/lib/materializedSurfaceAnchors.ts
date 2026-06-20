@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
+import { readBeingMode } from '@/lib/beingMode';
+import { fuseSpinePoint } from '@/lib/spineFusionBus';
 
 export interface MaterializedSurfacePlacement {
   originLocal: [number, number, number];
@@ -50,8 +52,16 @@ export function selectNextAvailableVertebraSeat(occupiedSeats: readonly number[]
 function getSeatedVertebraPlacement(offset: THREE.Vector3, seatIndex?: number | null): MaterializedSurfacePlacement {
   const resolvedSeat = normalizeSeatIndex(seatIndex ?? DEFAULT_VERTEBRA_SEAT_INDEX);
   const anchor = SEGMENT_ANCHORS[resolvedSeat];
-  const origin = anchor.clone().add(SEAT_FEED_OFFSET);
-  const target = anchor.clone().add(offset);
+  // In the POINT-FIELD being the spine is welded into the brain cloud (scaled +
+  // offset by BrainPointField); map the raw vertebra anchor through the SAME
+  // fusion so the slab grows from the VISIBLE vertebra, not the old mesh-spine
+  // coords. Mesh mode keeps the raw anchor.
+  const base =
+    readBeingMode() === 'points'
+      ? new THREE.Vector3(...fuseSpinePoint([anchor.x, anchor.y, anchor.z]))
+      : anchor.clone();
+  const origin = base.clone().add(SEAT_FEED_OFFSET);
+  const target = base.clone().add(offset);
   return {
     originLocal: toTuple(origin),
     targetLocal: toTuple(target),
