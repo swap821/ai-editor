@@ -32,7 +32,11 @@ Convert the living-being frontend blueprint into a 100% working live organism. *
 
 **FULL-BODY POSTURE SWEEP DONE**: conductor overlay (3a24fca), cortical fireflies (3329f10), accretion core (5eafe43). EVERY visible region now reads the posture — brain, nerve (hue+flow), vertebra surfaces, brainstem intake, conductor overlay, cortical fireflies, accretion core — one body, many postures, all riding the shared POSTURE_DIAL. (AttentionConductionPulse's gold bead left as a deliberate POSTURE_GOLD accent.) The posture SYSTEM is complete; only the STRENGTH (operator's `window.__POSTURE` dial) + reply placement remain for his real-GPU eye.
 
-NEXT alive-arc threads (operator's pick): (a) bake the chosen tint as defaults + capture canon goldens after his dial verdict; (b) deeper work-streaming choreography (code materializing line-by-line as the being works); (c) other demoplan polish. Self-verify each; gates green + commit per slice.
+**WORK-STREAMING DONE** (9a3dfc7): content code now materializes LINE BY LINE (~90ms/line + active-line cursor; reduced-motion shows whole) — the demoplan "Showing Work" phase. The being visibly writes its output into the vertebra surface.
+
+**The demoplan 7-phase arc is now substantially realized**: arrival · rest · awakening/conversation (wake + reply) · materialization · orchestration (multi-tab) · working+showing-work (line-by-line stream) · reabsorption — with the full-body posture system (color/flow/speed by REAL state) overlaying all. Branch 97+ ahead of master.
+
+NEXT (operator's pick): (a) **his `:5173` dial verdict** → bake the tint + capture canon goldens (the real unlock); (b) reply placement tune; (c) true per-chunk backend code streaming (currently a visual reveal of received code); (d) further polish. Self-verify each; gates green + commit per slice.
 
 ## Open Approvals / Blockers
 - Phase 3 product sync is implementation-verified; reviewer approval is still pending.
