@@ -66,9 +66,9 @@ const STARFIELD_TIME_UNIFORM = { value: 0 };
 
 /** Star budget per quality tier — the field is pure backdrop, so it thins first. */
 const STAR_COUNTS: Record<QualityTier, number> = {
-  high: 4500,
-  medium: 2500,
-  low: 1200,
+  high: 3000,
+  medium: 1800,
+  low: 900,
 };
 
 function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObject<number> }) {
@@ -212,14 +212,14 @@ function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObje
              // Allow distanceScale to magnify the particle up to 2.5x when very close to camera
              float distanceScale = clamp(20.0 / length(mvPosition.xyz), 0.2, 1.5);
              
-             // Base size is large enough to be legible
-             float finalSize = aSize * 15.0 * distanceScale;
-             
+             // Larger so near glyphs READ as symbols (the knowledge-field), not dots
+             float finalSize = aSize * 22.0 * distanceScale;
+
              // As it gets grasped by the brain, it physically shrinks (dissolves)
-             finalSize *= (1.0 - (vPull * 0.8)); 
-             
-             // Cap at 24px so it never completely breaks the screen into giant rectangles
-             gl_PointSize = clamp(finalSize, 2.0, 24.0);`
+             finalSize *= (1.0 - (vPull * 0.8));
+
+             // Cap so near glyphs are legible symbols, not giant rectangles
+             gl_PointSize = clamp(finalSize, 2.0, 34.0);`
           );
 
           shader.fragmentShader = shader.fragmentShader.replace(
