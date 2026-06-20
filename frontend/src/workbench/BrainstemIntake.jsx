@@ -180,13 +180,17 @@ export default function BrainstemIntake() {
   const materializeReply = useCallback((text) => {
     const clean = clampSceneText(text, 220);
     if (!clean) return;
-    const seat =
-      replyTabIdRef.current == null
-        ? selectNextAvailableVertebraSeat(getOccupiedVertebraSeats())
-        : undefined;
-    const placement = getContentSurfacePlacement(seat);
-    const tab = showReplySurface(clean, placement);
-    replyTabIdRef.current = tab.id;
+    if (replyTabIdRef.current == null) {
+      // FIRST call: pick a free vertebra seat and store the placement.
+      const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+      const placement = getContentSurfacePlacement(seat);
+      const tab = showReplySurface(clean, placement);
+      replyTabIdRef.current = tab.id;
+    } else {
+      // STREAMING UPDATE: no placement — showContentSurface keeps the current
+      // origin/target/seatIndex via its `?? current` fallbacks (no seat jump).
+      showReplySurface(clean);
+    }
   }, []);
 
   const retractReply = useCallback(() => {
