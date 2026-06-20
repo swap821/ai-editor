@@ -949,10 +949,11 @@ export default function MaterializedTab({
     0.8,
     posture.tint * POSTURE_DIAL.surfaceScale * (tab.kind === 'input' ? POSTURE_DIAL.inputBoost : 1),
   );
-  // Points being (poster phase 4): a thick, bright UMBILICAL nerve is the panel's
-  // signature "fed by nerves" read — fatten the content/approval cord (mesh keeps 0.52).
+  // Points being (poster phase 4): the umbilical is a THIN glowing nerve FIBER
+  // (the poster's delicate fiber-optic look), NOT a fat opaque pipe — the bright
+  // traveling bead/packet carries the "fed by nerves" read, not tube bulk.
   const tubeRadius =
-    tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * (POINTS ? 1.0 : 0.52);
+    tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * (POINTS ? 0.4 : 0.52);
   const facesCamera = tab.kind === 'input';
   const isFocused = tab.kind === 'input' || focused;
   const pose = useMemo(
@@ -1850,7 +1851,9 @@ export default function MaterializedTab({
               <>
                 <mesh position={[0, -0.01, dimensions.thickness + 0.006]} scale={[0.88, 0.72, 1]} renderOrder={9}>
                   <primitive object={slabShapeGeometry} attach="geometry" />
-                  <meshBasicMaterial color={theme.plate} transparent opacity={skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
+                  {/* Points: a solid dark backing so the luminous code READS (the
+                      dark-glass body alone let the starfield bleed through). */}
+                  <meshBasicMaterial color={theme.plate} transparent opacity={POINTS ? 0.82 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
                 </mesh>
                 <mesh position={[0, dimensions.height * 0.31, dimensions.thickness + 0.008]} renderOrder={9}>
                   <planeGeometry args={[dimensions.width * 0.78, dimensions.height * 0.1]} />
@@ -1891,11 +1894,11 @@ export default function MaterializedTab({
                     key={`content-line-${tab.id}-${index}`}
                     position={[
                       -dimensions.width * 0.38,
-                      dimensions.height * 0.16 - index * 0.035,
+                      dimensions.height * 0.16 - index * (POINTS ? 0.046 : 0.035),
                       dimensions.thickness + 0.02,
                     ]}
-                    color={theme.text}
-                    fontSize={0.025}
+                    color={POINTS ? theme.header : theme.text}
+                    fontSize={POINTS ? 0.034 : 0.025}
                     anchorX="left"
                     anchorY="middle"
                     outlineWidth={0.0016}
