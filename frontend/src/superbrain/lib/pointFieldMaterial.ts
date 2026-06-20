@@ -104,7 +104,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uTime: overrides.uTime ?? { value: 0 },
       uPixelRatio: { value: 1.5 }, // set per-frame from the renderer DPR
       uRefDist: { value: 15.0 },   // ~ camera→brain distance (points-mode poster camera z)
-      uSize: { value: 4.5 },       // puncta in CSS px (poster fine-dot read)
+      uSize: { value: 3.2 },       // finer puncta (poster's dense fine-dot read; pairs with higher counts)
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
       uFogDensity: { value: 0.02 },// subtle recession only (thin depth slab)
       uGlowMul: { value: 2.4 },    // >1 so the existing PostFX Bloom (threshold 1.0) catches it
