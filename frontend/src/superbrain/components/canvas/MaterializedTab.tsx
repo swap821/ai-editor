@@ -954,7 +954,10 @@ export default function MaterializedTab({
   // traveling bead/packet carries the "fed by nerves" read, not tube bulk.
   const tubeRadius =
     tab.kind === 'input' ? BASE_TUBE_RADIUS * 0.8 : BASE_TUBE_RADIUS * (POINTS ? 0.4 : 0.52);
-  const facesCamera = tab.kind === 'input';
+  // Points: the FOCUSED/attended tab faces the camera so the code you're reading
+  // stays legible from any orbit angle (still anchored at its position by the
+  // umbilical); waiting/orchestration tabs stay seated in-world. (operator option #2)
+  const facesCamera = tab.kind === 'input' || (POINTS && focused);
   const isFocused = tab.kind === 'input' || focused;
   const pose = useMemo(
     () =>
