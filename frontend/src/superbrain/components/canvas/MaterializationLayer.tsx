@@ -46,6 +46,12 @@ import AnatomicalConductorOverlay from './AnatomicalConductorOverlay';
 import AttentionConductionPulse from './AttentionConductionPulse';
 import CompletionMemoryBead from './CompletionMemoryBead';
 import MaterializedTab from './MaterializedTab';
+import { readBeingMode } from '@/lib/beingMode';
+
+// Point-field being: the per-tab umbilical (MaterializedTab) + the conversation/
+// completion postures cover conduction; the mesh-era scene overlays render at
+// mesh-spine coords (a misplaced ring + sprawling lines in points) — gate off.
+const POINTS = readBeingMode() === 'points';
 
 const DEV_STUB_CONTENT: MaterializedTabContent = {
   code: "export function hello(name = 'AI-OS') {\n  return `Hello, ${name}`;\n}\n",
@@ -388,9 +394,13 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
 
   return (
     <>
-      <AnatomicalConductorOverlay anatomy={anatomy} rootSystem={rootSystem} reducedMotion={reducedMotion} bodyPosture={bodyPosture} />
-      <AttentionConductionPulse tabs={tabs} attention={orchestration.attention} reducedMotion={reducedMotion} />
-      <CompletionMemoryBead reflex={completion} reducedMotion={reducedMotion} />
+      {!POINTS && (
+        <>
+          <AnatomicalConductorOverlay anatomy={anatomy} rootSystem={rootSystem} reducedMotion={reducedMotion} bodyPosture={bodyPosture} />
+          <AttentionConductionPulse tabs={tabs} attention={orchestration.attention} reducedMotion={reducedMotion} />
+          <CompletionMemoryBead reflex={completion} reducedMotion={reducedMotion} />
+        </>
+      )}
       {/* The input surface is brainstem-anatomy and is rendered by BrainstemIntake
           (the brainstem owns intake). The vertebra-seated work/approval/content
           surfaces are rendered here. Excluding kind:'input' collapses the former
