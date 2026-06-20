@@ -5,7 +5,8 @@ import { readBeingMode } from '@/lib/beingMode';
 // spineScale (1/BRAIN_SCALE ≈ 0.33); surface ANCHORS are fused (correct
 // position), but the slab geometry is authored for the old mesh-spine scale, so
 // counter-scale the slab body/content to match the fused being. Mesh = 1.
-const POINTS_SLAB_SCALE = readBeingMode() === 'points' ? 0.34 : 1;
+const POINTS = readBeingMode() === 'points';
+const POINTS_SLAB_SCALE = POINTS ? 0.34 : 1;
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -1335,6 +1336,13 @@ export default function MaterializedTab({
           organMaterial.tissue.emissiveGain *
           (1 + surfaceExcitation * 0.14 + outcomeSurfaceExcitation * 0.12);
       }
+      // Points being: read as DARK near-black GLASS (not a heavy teal fill).
+      if (POINTS) {
+        mat.opacity *= 0.42;
+        mat.emissiveIntensity *= 0.22;
+        mat.roughness = 0.12;
+        mat.metalness = 0.3;
+      }
     }
 
     if (frameRef.current) {
@@ -1346,6 +1354,11 @@ export default function MaterializedTab({
         organMaterial.tissue.frameOpacityScale *
         pose.opacity *
         (1 + surfaceExcitation * 0.42 + outcomeSurfaceExcitation * 0.46);
+      // Points being: a THIN glowing neon edge (spectral cyan).
+      if (POINTS) {
+        mat.color.set('#36d6ff');
+        mat.opacity = Math.min(0.95, mat.opacity * 3.2 + 0.4);
+      }
     }
 
     if (labelRef.current) {
@@ -1546,6 +1559,11 @@ export default function MaterializedTab({
         />
       </mesh>
 
+      {/* Points being: keep ONLY the main umbilical (tubeRef above); drop the
+          per-root tube fan + all the node/bead/puncta dots so the nerve reads
+          as one clean filament (poster look). */}
+      {!POINTS && (
+      <>
       {conductorGeometries.map((geometry, index) => (
         <mesh
           key={`vertebra-conductor-core-${tab.id}-${conductor.roots[index]?.id ?? index}`}
@@ -1664,6 +1682,8 @@ export default function MaterializedTab({
           );
         }),
       )}
+      </>
+      )}
 
       {Array.from({ length: BEAD_COUNT }, (_, index) => (
         <mesh
@@ -1701,26 +1721,32 @@ export default function MaterializedTab({
             >
               <lineBasicMaterial color={theme.frame.clone()} transparent opacity={0.7} />
             </lineSegments>
-            <LivingMembraneSkin
-              dimensions={dimensions}
-              kind={tab.kind}
-              material={organMaterial}
-              metabolism={metabolism}
-              outcome={outcome}
-              shapeGrammar={shapeGrammar}
-              skin={skin}
-              surfaceGeometry={slabShapeGeometry}
-              theme={theme}
-            />
-            <OrganPointFieldSkin
-              dimensions={dimensions}
-              focused={isFocused}
-              kind={tab.kind}
-              material={organMaterial}
-              reducedMotion={reducedMotion}
-              shapeGrammar={shapeGrammar}
-              skin={skin}
-            />
+            {/* Points being: drop the membrane veins/dots + surface point-field
+                dots so the slab reads as clean dark glass (poster look). */}
+            {!POINTS && (
+              <>
+                <LivingMembraneSkin
+                  dimensions={dimensions}
+                  kind={tab.kind}
+                  material={organMaterial}
+                  metabolism={metabolism}
+                  outcome={outcome}
+                  shapeGrammar={shapeGrammar}
+                  skin={skin}
+                  surfaceGeometry={slabShapeGeometry}
+                  theme={theme}
+                />
+                <OrganPointFieldSkin
+                  dimensions={dimensions}
+                  focused={isFocused}
+                  kind={tab.kind}
+                  material={organMaterial}
+                  reducedMotion={reducedMotion}
+                  shapeGrammar={shapeGrammar}
+                  skin={skin}
+                />
+              </>
+            )}
             {tab.kind !== 'input' ? (
               <OutcomeImprintSkin
                 dimensions={dimensions}
@@ -1852,12 +1878,14 @@ export default function MaterializedTab({
                 >
                   {contentOverflowLabel}
                 </Text>
-                <ReabsorbNode
-                  position={[dimensions.width * 0.45, dimensions.height * 0.4, dimensions.thickness + 0.04]}
-                  color={theme.text}
-                  disabled={!interactive}
-                  onActivate={() => beginRetractingMaterializedTab(tab.id)}
-                />
+                {!POINTS && (
+                  <ReabsorbNode
+                    position={[dimensions.width * 0.45, dimensions.height * 0.4, dimensions.thickness + 0.04]}
+                    color={theme.text}
+                    disabled={!interactive}
+                    onActivate={() => beginRetractingMaterializedTab(tab.id)}
+                  />
+                )}
               </>
             ) : (
               <>
@@ -1964,12 +1992,14 @@ export default function MaterializedTab({
                         void handleReject();
                       }}
                     />
-                    <ReabsorbNode
-                      position={[dimensions.width * 0.45, dimensions.height * 0.4, dimensions.thickness + 0.04]}
-                      color={theme.text}
-                      disabled={!interactive || approvalBusy}
-                      onActivate={() => beginRetractingMaterializedTab(tab.id)}
-                    />
+                    {!POINTS && (
+                      <ReabsorbNode
+                        position={[dimensions.width * 0.45, dimensions.height * 0.4, dimensions.thickness + 0.04]}
+                        color={theme.text}
+                        disabled={!interactive || approvalBusy}
+                        onActivate={() => beginRetractingMaterializedTab(tab.id)}
+                      />
+                    )}
                   </>
                 ) : null}
               </>
