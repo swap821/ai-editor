@@ -174,6 +174,7 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
     shader.uniforms.uPostureColor =
       postureColorUniform ?? uniforms.uPosture ?? { value: new THREE.Color(150 / 255, 120 / 255, 255 / 255) };
     shader.uniforms.uPostureTint = postureTintUniform ?? uniforms.uPostureTint ?? { value: 0 };
+    shader.uniforms.uPostureCommit = uniforms.uPostureCommit ?? { value: 0 };
     // NERVE-only leaves — the cord breathes + carries the downward impulse.
     if (isNerve) {
       shader.uniforms.uBreath = breathUniform ?? uniforms.uBreath;
@@ -235,6 +236,7 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
        uniform float uIgnite;
        uniform vec3 uPostureColor;
        uniform float uPostureTint;
+       uniform float uPostureCommit;
        ${isNerve ? 'uniform float uBreath;\n       uniform float uFlow;\n       uniform float uFlowGain;\n       uniform float uIntakeFlow;\n       uniform float uIntakeGain;\n       uniform float uReplyWarm;\n       uniform float uReduceMotion;\n       uniform float uGrow;\n       uniform float uNerveScale;\n       uniform float uNerveContrastLo;\n       uniform float uNerveContrastHi;\n       uniform float uNerveCoreGlow;\n       uniform float uNerveFresnel;\n       varying float vArc;\n       varying float vBorn;' : ''}
        varying vec3 vLocalPos;
 
@@ -338,7 +340,14 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
        //    keeps its relative AO/luminance/structure and only its hue glides by
        //    state. *1.9 restores energy lost multiplying two <1 colors.
        //    uPostureTint==0 -> byte-identical canon. Feeds the whole emission ladder.
-       safeColor = mix(safeColor, safeColor * uPostureColor * 1.9, clamp(uPostureTint, 0.0, 0.8));
+       // Multiply (preserve regional structure) vs committed flat hue (the poster);
+       // uPostureCommit dials between them. Both keep per-region luminance, so the
+       // brain's bright/dark structure survives even when fully committed.
+       vec3 posMul = safeColor * uPostureColor * 1.9;
+       float postureLum = dot(safeColor, vec3(0.299, 0.587, 0.114));
+       vec3 posCommit = uPostureColor * postureLum * 2.4;
+       vec3 posCol = mix(posMul, posCommit, clamp(uPostureCommit, 0.0, 1.0));
+       safeColor = mix(safeColor, posCol, clamp(uPostureTint, 0.0, 0.8));
 
        // 1. Core Regional Glow: drive the emission with the baked regional
        // colors, modulated by the Voronoi network (detailed + organic).
@@ -407,7 +416,7 @@ export function makeBrainMaterial(options: BrainMaterialOptions): THREE.MeshPhys
   // compiled-program cache key MUST include every branch — a constant key makes
   // THREE reuse the first-compiled (possibly degraded) program for the session.
   mat.customProgramCacheKey = () =>
-    `superbrain_v9_${tier}_${nodeBrain ? 'node' : 'organ'}_${bodyMode}_o${octaves}`;
+    `superbrain_v10_${tier}_${nodeBrain ? 'node' : 'organ'}_${bodyMode}_o${octaves}`;
 
   // Expose the nerve aesthetic leaves so the caller can live-tune them
   // (NervousSystem copies window.__NERVE into these each frame during dial-in).

@@ -91,4 +91,8 @@ export const POSTURE_DIAL = {
   inputBoost: 1.15,
   /** global signal-flow speed multiplier. */
   flowScale: 1,
+  /** Brain/nerve blend MODE: 0 = multiply (preserve the regional palette, canon-safe),
+   *  1 = commit the whole body to the posture hue (the demoplan look). The operator
+   *  dials this to match the demoplan exactly. Surfaces already commit (CPU lerp). */
+  commit: 0.5,
 };

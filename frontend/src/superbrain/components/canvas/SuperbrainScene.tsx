@@ -182,6 +182,8 @@ export interface CognitionUniforms {
   uPostureTint: { value: number };
   /** Damped signal-flow rate (rest 0.16 → stream 1.0) — drives spine/nerve speed. */
   uFlow: { value: number };
+  /** Posture blend MODE 0..1: 0 = multiply (preserve palette), 1 = commit to the hue (poster). */
+  uPostureCommit: { value: number };
 }
 
 const createCognitionUniforms = (): CognitionUniforms => ({
@@ -208,6 +210,7 @@ const createCognitionUniforms = (): CognitionUniforms => ({
   uPosture: { value: new THREE.Color(150 / 255, 120 / 255, 255 / 255) },
   uPostureTint: { value: 0 },
   uFlow: { value: 0.16 },
+  uPostureCommit: { value: 0 },
 });
 
 /** YELLOW-zone amber — the approval hold's signature color. Accent only. */
@@ -1457,6 +1460,12 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       uniforms.uFlow.value,
       bodyPosture.flow * POSTURE_DIAL.flowScale,
       2.0,
+      delta,
+    );
+    uniforms.uPostureCommit.value = THREE.MathUtils.damp(
+      uniforms.uPostureCommit.value,
+      THREE.MathUtils.clamp(POSTURE_DIAL.commit, 0, 1),
+      2.5,
       delta,
     );
 
