@@ -817,40 +817,49 @@ function BrainModel({
       const damped = THREE.MathUtils.damp(groupRef.current.scale.x, scale, 2.4, delta);
       groupRef.current.scale.setScalar(damped);
 
-      // Hold a cinematic three-quarter silhouette instead of spinning into
-      // unreadable rear angles. Restores the classic, recognizable brain shape.
-      groupRef.current.rotation.y = -0.78
-        + Math.sin(time * 0.11) * 0.22
-        + Math.sin(time * 0.31) * 0.04
-        + burstPow * 0.025
-        + posture.yaw;
-      // Constant forward lean: the mind is pitched INTO the voyage (-Z).
-      groupRef.current.rotation.x = FORWARD_LEAN
-        + Math.sin(time * 0.21) * 0.065 + Math.cos(time * 0.13) * 0.025
-        + posture.pitch;
-      // Bank into the turn like a ship — roll follows the NEGATIVE direction
-      // of the lateral drift velocity, amplitude ~0.03 rad.
-      groupRef.current.rotation.z = Math.sin(time * 0.17) * 0.045 + Math.cos(time * 0.11) * 0.02
-        - brainDriftVelocityX(time) * BANK_GAIN
-        + posture.roll;
+      if (BEING_MODE === 'points') {
+        // ONE BODY: in points mode the brain holds a STATIC pose so the spine —
+        // which shares the same Float — stays rigidly joined (no independent bob /
+        // drift / cursor-lean pulling the brain off the cord). The gentle shared
+        // drift comes from Float; life comes from the vertex-shader breathe.
+        groupRef.current.rotation.set(FORWARD_LEAN, -0.78, 0);
+        groupRef.current.position.set(0, 0.12, -1.2); // preserve the established depth
+      } else {
+        // Hold a cinematic three-quarter silhouette instead of spinning into
+        // unreadable rear angles. Restores the classic, recognizable brain shape.
+        groupRef.current.rotation.y = -0.78
+          + Math.sin(time * 0.11) * 0.22
+          + Math.sin(time * 0.31) * 0.04
+          + burstPow * 0.025
+          + posture.yaw;
+        // Constant forward lean: the mind is pitched INTO the voyage (-Z).
+        groupRef.current.rotation.x = FORWARD_LEAN
+          + Math.sin(time * 0.21) * 0.065 + Math.cos(time * 0.13) * 0.025
+          + posture.pitch;
+        // Bank into the turn like a ship — roll follows the NEGATIVE direction
+        // of the lateral drift velocity, amplitude ~0.03 rad.
+        groupRef.current.rotation.z = Math.sin(time * 0.17) * 0.045 + Math.cos(time * 0.11) * 0.02
+          - brainDriftVelocityX(time) * BANK_GAIN
+          + posture.roll;
 
-      // A slow exploratory drift keeps the intelligence moving through space.
-      groupRef.current.position.x = brainDriftX(time) + posture.offsetX;
-      groupRef.current.position.y = 0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07 + posture.offsetY;
+        // A slow exploratory drift keeps the intelligence moving through space.
+        groupRef.current.position.x = brainDriftX(time) + posture.offsetX;
+        groupRef.current.position.y = 0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07 + posture.offsetY;
 
-      // THE ORGANISM NOTICES YOU: a damped attentive lean toward the
-      // pointer, ADDED after the voyage math so it can only ever tilt the
-      // gaze a degree or two — never steer the journey.
-      if (CURSOR_ATTENTION) {
-        const attend = attendRef.current;
-        attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
-        attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
-        // A fresh awakening leans a touch harder toward the operator, then
-        // eases back as the state-driven uAwaken decays — interruptible, never
-        // a fixed keyframe. awakenLean == 1 at rest (canon lean preserved).
-        const awakenLean = 1 + uniforms.uAwaken.value * 0.6;
-        groupRef.current.rotation.y += attend.x * 0.035 * awakenLean;
-        groupRef.current.rotation.x += -attend.y * 0.022 * awakenLean;
+        // THE ORGANISM NOTICES YOU: a damped attentive lean toward the
+        // pointer, ADDED after the voyage math so it can only ever tilt the
+        // gaze a degree or two — never steer the journey.
+        if (CURSOR_ATTENTION) {
+          const attend = attendRef.current;
+          attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
+          attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
+          // A fresh awakening leans a touch harder toward the operator, then
+          // eases back as the state-driven uAwaken decays — interruptible, never
+          // a fixed keyframe. awakenLean == 1 at rest (canon lean preserved).
+          const awakenLean = 1 + uniforms.uAwaken.value * 0.6;
+          groupRef.current.rotation.y += attend.x * 0.035 * awakenLean;
+          groupRef.current.rotation.x += -attend.y * 0.022 * awakenLean;
+        }
       }
     }
 
@@ -876,16 +885,19 @@ function BrainModel({
         {BEING_MODE === 'mesh' && <primitive object={neuralSkin.object} scale={1.004} />}
         {BEING_MODE === 'points' && (
           <BrainPointField
+            kind="brain"
             source={brainAsset.object}
             uniforms={uniforms}
-            count={tier === 'high' ? 80000 : tier === 'medium' ? 60000 : 40000}
+            count={tier === 'high' ? 60000 : tier === 'medium' ? 45000 : 30000}
           />
         )}
 
         {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
             Tier budget: low drops the aura shells entirely; medium keeps the
             membrane but drops the interior nucleus glow. */}
-        {tier !== 'low' && (
+        {/* Mesh-era brain overlays — in points mode the point cloud IS the being,
+            so these are gated off (they were overlapping/competing with it). */}
+        {tier !== 'low' && BEING_MODE !== 'points' && (
           <NeuralAura
             activity={activity}
             mode={mode}
@@ -895,12 +907,14 @@ function BrainModel({
             arrival={arrival}
           />
         )}
-        <CorticalSignals
-          activity={activity}
-          source={brainAsset.object}
-          uniforms={uniforms}
-          count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
-        />
+        {BEING_MODE !== 'points' && (
+          <CorticalSignals
+            activity={activity}
+            source={brainAsset.object}
+            uniforms={uniforms}
+            count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
+          />
+        )}
         {/* COMPUTER BRAIN INTERIOR: the node-network lattice (nodes + edges +
             backbone bus, 3 draw calls). Mounts ONLY under NODE_BRAIN; rides the
             group's scale/rotation/drift for free (brain-group-local coords). It
@@ -1582,12 +1596,12 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           spin, quarantine = red stain); each absorb fires a label-anchored
           cortical burst at the matching anatomical region. Dormant when no
           trails are known — nothing pretends to arrive. */}
-      {tier !== 'low' && <CognitiveGrasp activity={activeBoost} />}
+      {tier !== 'low' && BEING_MODE !== 'points' && <CognitiveGrasp activity={activeBoost} />}
 
       {/* The brain's life written in stars — real trails only, see the
           component header. Outside Float: the galaxy is the world the mind
           moves through, not a passenger on its bob. */}
-      {SHOW_MEMORY_GALAXY && <MemoryGalaxy />}
+      {SHOW_MEMORY_GALAXY && BEING_MODE !== 'points' && <MemoryGalaxy />}
 
       {/* Post-processing lives ONLY in <PostFX/> (mounted below). A second
           EffectComposer here used to render the entire scene twice per frame
@@ -1607,16 +1621,41 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
         <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
-        <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />
+        {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
+        {BEING_MODE !== 'points' && (
+          <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />
+        )}
+        {/* Points mode: the spine/roots ride the SAME Float as the brain so the
+            whole organism bobs as ONE body (the cord stays joined to the brainstem
+            instead of drifting apart). Authored in scene space; Float moves both
+            together, preserving their alignment. */}
+        {BEING_MODE === 'points' && (
+          // Orbit-proof join: sit the cord at the brain's DEPTH (z -1.2) and on its
+          // centerline (x 0) — directly below the brain center — so it stays under
+          // the brain from every orbit angle, not just front-on. (Cord is authored
+          // at z -0.42, so dz -0.78 brings it onto the brain's z-plane.)
+          <group position={[0, 0, -0.78]}>
+            <BrainPointField
+              kind="spine"
+              uniforms={uniforms}
+              baseSize={3}
+              count={tier === 'high' ? 24000 : tier === 'medium' ? 17000 : 11000}
+            />
+          </group>
+        )}
       </Float>
 
-      {tier !== 'low' && (
+      {tier !== 'low' && BEING_MODE !== 'points' && (
         <PointerBrainClone uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
       )}
       
-      {/* Kept OUTSIDE Float so the bottom wires stay rigidly attached to the static UI. 
-          The top wires plug deep inside the brain, so they just slide 0.1 units inside the brain as it bobs. */}
-      <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
+      {/* Kept OUTSIDE Float so the bottom wires stay rigidly attached to the static UI.
+          The top wires plug deep inside the brain, so they just slide 0.1 units inside the brain as it bobs.
+          In points mode the spine/roots are part of the BrainPointField cloud, so the
+          mesh nerve tree is gated off (it was the hot-green source). */}
+      {BEING_MODE !== 'points' && (
+        <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
+      )}
 
       <PostFX />
     </>

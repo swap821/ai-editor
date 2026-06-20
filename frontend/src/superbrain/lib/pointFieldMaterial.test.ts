@@ -10,8 +10,7 @@ describe('createPointFieldMaterial', () => {
     expect(m.depthWrite).toBe(false);
     expect(m.transparent).toBe(true);
     expect(m.toneMapped).toBe(false);
-    expect(m.blending).toBe(THREE.CustomBlending);
-    expect(m.premultipliedAlpha).toBe(true);
+    expect(m.blending).toBe(THREE.AdditiveBlending);
   });
 
   it('exposes the tunable + posture uniforms', () => {
@@ -35,6 +34,6 @@ describe('createPointFieldMaterial', () => {
   it('emits above 1.0 for bloom and has a versioned cache key', () => {
     const m = createPointFieldMaterial();
     expect(m.uniforms.uGlowMul.value).toBeGreaterThan(1.0);
-    expect(m.customProgramCacheKey()).toContain('v4');
+    expect(m.customProgramCacheKey()).toContain('v6');
   });
 });

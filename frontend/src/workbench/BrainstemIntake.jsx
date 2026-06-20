@@ -19,6 +19,14 @@ import {
 import MaterializedTab from '../superbrain/components/canvas/MaterializedTab';
 import { deriveBodyPosture } from '../superbrain/lib/bodyPosture';
 import { getOrganismPhase } from '../superbrain/lib/organismPhaseBus';
+import { readBeingMode } from '../superbrain/lib/beingMode';
+
+// In the point-field being, the brainstem intake's cyan ring/core/conduit
+// apparatus reads as a foreign teal "asterisk" floating off the spine — and it
+// followed the OLD drifting brain path while the point being holds a static pose.
+// So in points mode we pin it to the brainstem and hide the chrome apparatus,
+// keeping only the functional text intake (prompt/reply) that appears on use.
+const POINTS_BEING = readBeingMode() === 'points';
 
 const INTAKE_LOCAL = new THREE.Vector3(...BRAINSTEM_INTAKE_LOCAL);
 const PROMPT_TEXT_LOCAL = new THREE.Vector3(0, -0.3, 0.06);
@@ -540,8 +548,14 @@ export default function BrainstemIntake() {
     targetPulseRef.current = Math.max(0, targetPulseRef.current - delta * 0.62);
 
     if (groupRef.current) {
-      groupRef.current.position.set(brainDriftX(time), brainDriftY(time), -1.2);
-      groupRef.current.rotation.z = Math.sin(time * 0.26) * 0.045;
+      if (POINTS_BEING) {
+        // Pin to the static brainstem (matches the point being's static pose).
+        groupRef.current.position.set(0, 0.12, -1.2);
+        groupRef.current.rotation.z = 0;
+      } else {
+        groupRef.current.position.set(brainDriftX(time), brainDriftY(time), -1.2);
+        groupRef.current.rotation.z = Math.sin(time * 0.26) * 0.045;
+      }
     }
 
     const pulse = pulseRef.current;
@@ -609,52 +623,58 @@ export default function BrainstemIntake() {
         event.stopPropagation();
         toggleListening();
       }}>
-        <mesh ref={outerRingRef} renderOrder={4}>
-          <torusGeometry args={[0.24, 0.012, 14, 96]} />
-          <meshBasicMaterial
-            color="#5ce1e6"
-            transparent
-            opacity={0.42}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </mesh>
-        <mesh ref={innerRingRef} rotation={[Math.PI / 2, 0, Math.PI / 5]} renderOrder={4}>
-          <torusGeometry args={[0.14, 0.008, 12, 72]} />
-          <meshBasicMaterial
-            color="#5ce1e6"
-            transparent
-            opacity={0.32}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </mesh>
-        <mesh ref={coreRef} renderOrder={5}>
-          <sphereGeometry args={[0.045, 20, 12]} />
-          <meshBasicMaterial
-            color="#5ce1e6"
-            transparent
-            opacity={0.48}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </mesh>
-        {conduits.map((curve, index) => (
-          <mesh key={`brainstem-conduit-${index}`} renderOrder={3}>
-            <tubeGeometry args={[curve, 28, 0.006, 6, false]} />
-            <meshBasicMaterial
-              ref={(mat) => {
-                conduitMatsRef.current[index] = mat;
-              }}
-              color="#5ce1e6"
-              transparent
-              opacity={0.2}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-            />
-          </mesh>
-        ))}
-        <pointLight ref={lightRef} color="#5ce1e6" intensity={0.36} distance={2.2} />
+        {/* The ring/core/conduit chrome is hidden in the point-field being (it read
+            as a foreign teal asterisk); the text intake below still works. */}
+        {!POINTS_BEING && (
+          <>
+            <mesh ref={outerRingRef} renderOrder={4}>
+              <torusGeometry args={[0.24, 0.012, 14, 96]} />
+              <meshBasicMaterial
+                color="#5ce1e6"
+                transparent
+                opacity={0.42}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+              />
+            </mesh>
+            <mesh ref={innerRingRef} rotation={[Math.PI / 2, 0, Math.PI / 5]} renderOrder={4}>
+              <torusGeometry args={[0.14, 0.008, 12, 72]} />
+              <meshBasicMaterial
+                color="#5ce1e6"
+                transparent
+                opacity={0.32}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+              />
+            </mesh>
+            <mesh ref={coreRef} renderOrder={5}>
+              <sphereGeometry args={[0.045, 20, 12]} />
+              <meshBasicMaterial
+                color="#5ce1e6"
+                transparent
+                opacity={0.48}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+              />
+            </mesh>
+            {conduits.map((curve, index) => (
+              <mesh key={`brainstem-conduit-${index}`} renderOrder={3}>
+                <tubeGeometry args={[curve, 28, 0.006, 6, false]} />
+                <meshBasicMaterial
+                  ref={(mat) => {
+                    conduitMatsRef.current[index] = mat;
+                  }}
+                  color="#5ce1e6"
+                  transparent
+                  opacity={0.2}
+                  blending={THREE.AdditiveBlending}
+                  depthWrite={false}
+                />
+              </mesh>
+            ))}
+            <pointLight ref={lightRef} color="#5ce1e6" intensity={0.36} distance={2.2} />
+          </>
+        )}
         {intakeLabel ? (
           <Billboard ref={intakeBillboardRef} position={PROMPT_TEXT_LOCAL.toArray()} follow>
             <Text

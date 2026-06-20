@@ -52,7 +52,7 @@ const VERTEX = /* glsl */ `
 // P1 fragment: soft radial halo + tight bright core + additive-safe depth fog.
 // Emits color values above 1.0 so the existing PostFX Bloom (threshold 1.0) catches it.
 const FRAGMENT = /* glsl */ `
-  precision mediump float;
+  precision highp float;
   varying vec3 vColor;
   varying float vViewZ;
   varying float vBand;
@@ -63,19 +63,21 @@ const FRAGMENT = /* glsl */ `
   uniform float uFogDensity;
   uniform float uTime;
   void main() {
+    // Soft round sprite — rebuilt from the known-good base (1-d*2 stays in [0,1],
+    // so pow() never goes NaN; the old smoothstep/fog path was producing NaN that
+    // silently blanked the whole field).
     float d = length(gl_PointCoord - 0.5);
-    float halo = pow(1.0 - clamp(d / 0.5, 0.0, 1.0), 2.5);
-    float core = smoothstep(0.16, 0.0, d);
-    float i = halo * 0.65 + core * 0.9;
-    // gentle per-point twinkle (breathe, don't strobe) — desynced by aPhase
-    i *= 0.8 + 0.2 * sin(uTime * 0.7 + vSeed);
-    float fog = 1.0 - exp(-uFogDensity * uFogDensity * vViewZ * vViewZ);
-    i *= (1.0 - fog);
-    if (i <= 0.003) discard;
+    if (d > 0.5) discard;
+    float t = clamp(1.0 - d * 2.0, 0.0, 1.0);
+    float glow = pow(t, 2.4);                 // wide soft halo
+    float core = pow(t, 9.0);                  // tight bright core
+    float intensity = glow * 0.7 + core * 0.6;
+    // gentle desynced twinkle
+    intensity *= 0.82 + 0.18 * sin(uTime * 0.7 + vSeed);
     vec3 c = mix(vColor, vColor * uPostureColor, clamp(uPostureTint, 0.0, 0.8));
-    c += vColor * vBand * 0.3;   // flow band brightens as it sweeps (subtle)
+    c += vColor * vBand * 0.4;                  // flow band brightens as it sweeps
     c *= uGlowMul;
-    gl_FragColor = vec4(c * i, i);
+    gl_FragColor = vec4(c * intensity, intensity);
   }
 `;
 
@@ -87,10 +89,10 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uTime: overrides.uTime ?? { value: 0 },
       uPixelRatio: { value: 1.5 }, // set per-frame from the renderer DPR
       uRefDist: { value: 15.0 },   // ~ camera→brain distance (points-mode poster camera z)
-      uSize: { value: 3.0 },       // small puncta in CSS px (poster fine-dot read)
+      uSize: { value: 4.5 },       // puncta in CSS px (poster fine-dot read)
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
-      uFogDensity: { value: 0.05 },
-      uGlowMul: { value: 1.6 },    // >1 so the existing PostFX Bloom (threshold 1.0) catches it
+      uFogDensity: { value: 0.02 },// subtle recession only (thin depth slab)
+      uGlowMul: { value: 2.4 },    // >1 so the existing PostFX Bloom (threshold 1.0) catches it
       uGrow: { value: 0 },
       uFlow: { value: 0.16 },
       uFlowSpeed: { value: 0.16 },
@@ -102,14 +104,10 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     },
     transparent: true,
     depthWrite: false,
-    depthTest: true,
+    depthTest: false,
     toneMapped: false,
-    blending: THREE.CustomBlending,
-    blendEquation: THREE.AddEquation,
-    blendSrc: THREE.OneFactor,
-    blendDst: THREE.OneFactor,
-    premultipliedAlpha: true,
+    blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v4';
+  material.customProgramCacheKey = () => 'pointfield_v6';
   return material;
 }
