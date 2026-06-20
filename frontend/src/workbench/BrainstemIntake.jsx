@@ -35,6 +35,7 @@ const POINTS_BEING = readBeingMode() === 'points';
 const INTAKE_LOCAL = new THREE.Vector3(...BRAINSTEM_INTAKE_LOCAL);
 const PROMPT_TEXT_LOCAL = new THREE.Vector3(0, -0.3, 0.06);
 const ROUTE_TEXT_LOCAL = new THREE.Vector3(0.54, -0.08, -0.02);
+const REPLY_TEXT_LOCAL = new THREE.Vector3(0.82, 1.02, 0.22);
 
 const CYAN = new THREE.Color('#5ce1e6');
 const AMBER = new THREE.Color('#e0a84f');
@@ -113,6 +114,8 @@ export default function BrainstemIntake() {
   const listeningRef = useRef(false);
   const busyRef = useRef(false);
   const replyTabIdRef = useRef(null);
+  const replyBillboardRef = useRef(null);
+  const lastReplyTextRef = useRef('');
 
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -178,8 +181,10 @@ export default function BrainstemIntake() {
   }, []);
 
   const materializeReply = useCallback((text) => {
+    if (!POINTS_BEING) return;
     const clean = clampSceneText(text, 220);
-    if (!clean) return;
+    if (!clean || clean === lastReplyTextRef.current) return;
+    lastReplyTextRef.current = clean;
     if (replyTabIdRef.current == null) {
       // FIRST call: pick a free vertebra seat and store the placement.
       const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
@@ -194,10 +199,12 @@ export default function BrainstemIntake() {
   }, []);
 
   const retractReply = useCallback(() => {
+    if (!POINTS_BEING) return;
     if (replyTabIdRef.current) {
       beginRetractingMaterializedTab(replyTabIdRef.current);
       replyTabIdRef.current = null;
     }
+    lastReplyTextRef.current = '';
   }, []);
 
   const submitTurn = useCallback(
@@ -637,6 +644,11 @@ export default function BrainstemIntake() {
       routeBillboardRef.current.position.y = ROUTE_TEXT_LOCAL.y + Math.sin(time * 0.86 + 1.1) * 0.015;
       routeBillboardRef.current.scale.setScalar(0.94 + glow * 0.05);
     }
+
+    if (replyBillboardRef.current) {
+      replyBillboardRef.current.position.y = REPLY_TEXT_LOCAL.y + Math.sin(time * 0.74 + 0.6) * 0.03;
+      replyBillboardRef.current.scale.setScalar(0.92 + glow * 0.22);
+    }
   });
 
   const intakeLabel = listening ? draftText || 'listening...' : promptText;
@@ -766,6 +778,24 @@ export default function BrainstemIntake() {
       </group>
       {inputSurfaceTab ? (
         <MaterializedTab tab={inputSurfaceTab} reducedMotion={reduceMotion} posture={inputPosture} />
+      ) : null}
+      {!POINTS_BEING && replyText ? (
+        <Billboard ref={replyBillboardRef} position={REPLY_TEXT_LOCAL.toArray()} follow>
+          <Text
+            color="#ffe3a8"
+            fontSize={0.16}
+            maxWidth={1.7}
+            lineHeight={1.18}
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.012}
+            outlineBlur={0.14}
+            outlineColor="#1a0d02"
+            textAlign="center"
+          >
+            {replyText}
+          </Text>
+        </Billboard>
       ) : null}
     </group>
   );
