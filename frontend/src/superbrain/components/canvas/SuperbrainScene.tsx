@@ -33,6 +33,7 @@ import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 import BrainPointField from './BrainPointField';
+import IdentityReadout from './IdentityReadout';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
  *  "AN AGENTIC AI-OS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
@@ -1572,7 +1573,9 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
            front-on; orbit-able. Replaces the drifting cinematic camera in
            points mode so the organism reads like the flat 2D poster. */
         <>
-          <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]} />
+          <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]}>
+            <IdentityReadout />
+          </PerspectiveCamera>
           <OrbitControls
             makeDefault
             enablePan={false}
