@@ -27,6 +27,7 @@ import {
   setActiveBrain,
   subscribeActiveBrain,
 } from '../superbrain/lib/activeBrain';
+import { setConversationPhase } from '../superbrain/lib/conversationPhaseBus';
 import './GagosChrome.css';
 
 const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
@@ -135,7 +136,9 @@ export default function GagosChrome() {
     pushMessage('user', cleanText(text, 400));
     const gagosId = pushMessage('gagos', '');
 
-    // wake the being — same events the posture machine + scene already react to
+    // wake the being — same events the posture machine + scene already react to,
+    // plus the conversation posture so the body visibly shifts purple→cyan→green.
+    setConversationPhase('thinking');
     publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 1, data: { phase: 'question', text } });
     if (workIntent) {
       publishCognition({ type: 'directive', label: text.slice(0, 80), intensity: 1, source: 'gagos' });
@@ -153,6 +156,7 @@ export default function GagosChrome() {
             if (turnTokenRef.current !== token) return;
             const chunk = cleanText(partial);
             if (chunk) {
+              setConversationPhase('streaming');
               updateMessage(gagosId, chunk);
               publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.82, data: { phase: 'reply', reply: chunk } });
             }
@@ -161,11 +165,13 @@ export default function GagosChrome() {
         if (turnTokenRef.current !== token) return;
         updateMessage(gagosId, cleanText(final) || '…');
       }
+      setConversationPhase('complete');
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.6, data: { phase: 'reply-complete' } });
     } catch (error) {
       if (turnTokenRef.current !== token) return;
       const detail = error instanceof Error ? error.message : 'link unavailable';
       updateMessage(gagosId, `I could not reach my mind just now (${detail}).`);
+      setConversationPhase('error');
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
     } finally {
       if (turnTokenRef.current === token) {

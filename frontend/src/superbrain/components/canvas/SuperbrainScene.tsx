@@ -30,6 +30,7 @@ import { useTabStore } from '@/lib/tabStore';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
 import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
+import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 import BrainPointField from './BrainPointField';
@@ -1478,7 +1479,10 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     // ── Posture (spectral-v1): the whole body reads its state off its hue.
     //    Damp toward the live lifecycle phase's posture color/flow so state
     //    changes GLIDE. Tint stays low at rest (canon look) and rises once alive.
-    const livePhase = getOrganismPhase();
+    // An active CHAT turn (GagosChrome) drives the conversation posture with
+    // PRIORITY so the being visibly comes alive — thinking purple → streaming
+    // cyan → complete green — then falls back to the idle organism phase.
+    const livePhase = conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase();
     const bodyPosture = deriveBodyPosture({ phase: livePhase });
     const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
     POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);

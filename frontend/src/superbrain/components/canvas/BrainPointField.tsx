@@ -8,6 +8,7 @@ import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePoint
 import { createPointFieldMaterial } from '@/lib/pointFieldMaterial';
 import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
+import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { CognitionUniforms } from './SuperbrainScene';
 
 /** Concatenate two point-field datasets into one (brain first, then spine). */
@@ -193,7 +194,9 @@ export default function BrainPointField({
     // Drive breathe / flow / arrival-inrush / reabsorption from the live organism
     // phase (the lifecycle gesture engine). All motion runs in the vertex shader;
     // here we only damp a few scalar uniforms via ref (zero per-point CPU).
-    const t = lifecycleTargets(getOrganismPhase());
+    // A live chat turn drives the gesture targets (faster flow while streaming),
+    // with priority over the idle organism phase.
+    const t = lifecycleTargets(conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase());
     if (reduce) {
       // reduced motion: snap to the settled state (no inrush/dissolve translation).
       u.uGrow.value = t.grow;
