@@ -63,9 +63,39 @@ export default function BrainPointField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geometry, material, gl]);
 
+  // Honor reduced-motion: freeze the breathe/flow gains (the lit field stays
+  // fully visible — we never blank it; large translations are the trigger).
+  const reduce = useMemo(
+    () =>
+      typeof window !== 'undefined' &&
+      !!window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
+
+  // Dev-only live tuning dials: e.g. window.__POINTFIELD.uSize = 4,
+  // window.__POINTFIELD.uGlowMul = 1.4, window.__POINTFIELD.uAttenK = 0.1.
+  useEffect(() => {
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') return;
+    (window as unknown as { __POINTFIELD?: unknown }).__POINTFIELD = new Proxy(
+      {},
+      {
+        get: (_t, key: string) => material.uniforms[key]?.value,
+        set: (_t, key: string, value: number) => {
+          if (material.uniforms[key]) material.uniforms[key].value = value;
+          return true;
+        },
+      },
+    );
+  }, [material]);
+
   useFrame(() => {
-    // uTime is the shared leaf; keep uPixelRatio fresh against DPR changes.
+    // uTime is the shared leaf (advanced by the scene); keep uPixelRatio fresh
+    // and drive the breathe/flow gains. All motion runs in the vertex shader.
     setDpr();
+    const u = material.uniforms;
+    u.uGrow.value = reduce ? 0 : 1;
+    u.uFlowSpeed.value = 0.05 + (uniforms.uFlow.value ?? 0.16) * 0.18;
   });
 
   return (
