@@ -640,6 +640,7 @@ export default function BrainstemIntake() {
   });
 
   const intakeLabel = listening ? draftText || 'listening...' : promptText;
+  const idleInviting = !busy && !listening && !promptText && !replyText && !errorText;
   const statusLabel = errorText || routeLabel;
   const statusColor = errorText ? ERROR : AMBER;
 
@@ -651,6 +652,18 @@ export default function BrainstemIntake() {
       }}>
         {/* The ring/core/conduit chrome is hidden in the point-field being (it read
             as a foreign teal asterisk); the text intake below still works. */}
+        {POINTS_BEING && (
+          <mesh ref={coreRef} renderOrder={5}>
+            <sphereGeometry args={[0.05, 20, 14]} />
+            <meshBasicMaterial
+              color="#7fe9ff"
+              transparent
+              opacity={0.5}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        )}
         {!POINTS_BEING && (
           <>
             <mesh ref={outerRingRef} renderOrder={4}>
@@ -731,6 +744,22 @@ export default function BrainstemIntake() {
               outlineColor="#031016"
             >
               {statusLabel}
+            </Text>
+          </Billboard>
+        ) : null}
+        {idleInviting ? (
+          <Billboard position={[0, -0.52, 0.04]} follow>
+            <Text
+              color="#9fd6e6"
+              fontSize={0.06}
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.004}
+              outlineColor="#03121a"
+              letterSpacing={0.06}
+              fillOpacity={0.7}
+            >
+              speak to me
             </Text>
           </Billboard>
         ) : null}
