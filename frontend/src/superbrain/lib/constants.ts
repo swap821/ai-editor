@@ -196,7 +196,7 @@ export const POST_FX = {
   // radial sprite already carries the glow, so a low intensity keeps the halo hugging
   // the body instead of bleeding a wide haze into the clean void. PostFX picks this
   // block in points mode; mesh mode keeps `bloom` above byte-for-byte.
-  bloomPoints: { intensity: 0.5, luminanceThreshold: 1.0, luminanceSmoothing: 0.25 },
+  bloomPoints: { intensity: 0.66, luminanceThreshold: 1.0, luminanceSmoothing: 0.36 },
 
   chromaticAberration: { offset: [0.00055, 0.00055] as [number, number] },
 

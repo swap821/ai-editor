@@ -472,11 +472,11 @@ function applyRegionVertexColors(root: THREE.Object3D) {
       // Sharpen region dominance: a linear blend of complementary hues makes
       // mud (red + cyan = washed pink). The exponent pushes each vertex toward
       // its strongest region while the fbm wobble keeps boundaries organic.
-      const pFrontal = Math.pow(wFrontal, 2.6);
-      const pParietal = Math.pow(wParietal, 2.6);
-      const pTemporal = Math.pow(wTemporal, 2.6);
-      const pOccipital = Math.pow(wOccipital, 2.6);
-      const pCerebellum = Math.pow(wCerebellum, 2.6);
+      const pFrontal = Math.pow(wFrontal, 1.85);
+      const pParietal = Math.pow(wParietal, 1.85);
+      const pTemporal = Math.pow(wTemporal, 1.85);
+      const pOccipital = Math.pow(wOccipital, 1.85);
+      const pCerebellum = Math.pow(wCerebellum, 1.85);
 
       const total = pFrontal + pParietal + pTemporal + pOccipital + pCerebellum;
       out.setRGB(
