@@ -11,14 +11,15 @@ import {
   subscribeActiveBrain,
   formatActiveBrainLine,
 } from '@/lib/activeBrain';
+import { GagosDial } from '@/lib/gagosDial';
 
 // View-space anchor: child of the camera, so this is metres in front of the lens.
 // Tuned for the points-mode fov=26 camera; operator fine-tunes via window.__GAGOS.
 const ANCHOR = { x: -1.92, y: 1.12, z: -4 };
 
-const NAME_COLOR = new THREE.Color('#cdbbff'); // spectral violet, lifted for legibility
-const META_COLOR = new THREE.Color('#7fe9ff'); // spectral cyan
-const DOT_COLOR = new THREE.Color('#9b6bff');
+const NAME_COLOR = new THREE.Color('#cdbbff').multiplyScalar(1.8); // spectral violet, emissive for bloom
+const META_COLOR = new THREE.Color('#7fe9ff').multiplyScalar(1.4); // spectral cyan
+const DOT_COLOR = new THREE.Color('#9b6bff').multiplyScalar(1.4);
 
 interface IdentityReadoutProps {
   name?: string;
@@ -29,6 +30,7 @@ export default function IdentityReadout({ name = 'GAGOS', supervised = true }: I
   const groupRef = useRef<THREE.Group>(null);
   const [modelLine, setModelLine] = useState(() => formatActiveBrainLine(getActiveBrain()));
   const speakingRef = useRef(0); // 0..1, decays; dims the cluster while speaking
+  const lastDimRef = useRef(1);
 
   useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
 
@@ -49,17 +51,19 @@ export default function IdentityReadout({ name = 'GAGOS', supervised = true }: I
 
   useFrame((_s, delta) => {
     speakingRef.current = Math.max(0, speakingRef.current - delta * 0.6);
-    const dial = (window as unknown as { __GAGOS?: { x?: number; y?: number; z?: number; horizon?: number } }).__GAGOS;
+    const dial = (window as unknown as { __GAGOS?: GagosDial }).__GAGOS;
     if (dial && groupRef.current) {
       groupRef.current.position.set(dial.x ?? ANCHOR.x, dial.y ?? ANCHOR.y, dial.z ?? ANCHOR.z);
     }
-    if (groupRef.current) {
-      // dim ~35% while speaking so it never competes with the reply slab.
-      const dim = 1 - speakingRef.current * 0.35;
-      groupRef.current.traverse((o: THREE.Object3D) => {
+    // dim ~35% while speaking so it never competes with the reply slab.
+    const dim = 1 - speakingRef.current * 0.35;
+    if (groupRef.current && Math.abs(dim - lastDimRef.current) > 0.001) {
+      lastDimRef.current = dim;
+      groupRef.current.traverse((o) => {
         const mesh = o as THREE.Mesh;
-        if (mesh.material && !Array.isArray(mesh.material) && 'opacity' in mesh.material) {
-          (mesh.material as THREE.Material & { opacity: number }).opacity = dim;
+        const mat = mesh.material;
+        if (mat && !Array.isArray(mat) && 'opacity' in mat) {
+          (mat as THREE.Material & { opacity: number }).opacity = dim;
         }
       });
     }
@@ -67,7 +71,7 @@ export default function IdentityReadout({ name = 'GAGOS', supervised = true }: I
 
   return (
     <group ref={groupRef} position={[ANCHOR.x, ANCHOR.y, ANCHOR.z]}>
-      <Text fontSize={0.2} anchorX="left" anchorY="top" color={NAME_COLOR.getStyle()}
+      <Text fontSize={0.2} anchorX="left" anchorY="top" color={NAME_COLOR}
             outlineWidth={0.006} outlineColor="#05010f" letterSpacing={0.18}
             material-toneMapped={false} material-transparent>
         {name}
@@ -78,7 +82,7 @@ export default function IdentityReadout({ name = 'GAGOS', supervised = true }: I
           <meshBasicMaterial color={DOT_COLOR} toneMapped={false} transparent />
         </mesh>
         <Text position={[0.14, 0.02, 0]} fontSize={0.085} anchorX="left" anchorY="top"
-              color={META_COLOR.getStyle()} outlineWidth={0.004} outlineColor="#031016"
+              color={META_COLOR} outlineWidth={0.004} outlineColor="#031016"
               material-toneMapped={false} material-transparent>
           {modelLine}
         </Text>

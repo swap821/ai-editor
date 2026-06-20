@@ -1579,6 +1579,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         <>
           <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]}>
             <IdentityReadout />
+            <HorizonGlow />
           </PerspectiveCamera>
           <OrbitControls
             makeDefault
@@ -1654,8 +1655,6 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       {BEING_MODE !== 'points' && (
         <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
       )}
-
-      {BEING_MODE === 'points' && <HorizonGlow />}
 
       <PostFX />
     </>

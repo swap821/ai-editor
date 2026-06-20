@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { GagosDial } from '@/lib/gagosDial';
 
 // A wide, soft vertical-gradient band; additive, faint, far behind the being.
 const VERT = /* glsl */ `
@@ -31,13 +32,13 @@ interface HorizonGlowProps {
 export default function HorizonGlow({ color = '#3a1f7a', opacity = 0.16 }: HorizonGlowProps) {
   const matRef = useRef<THREE.ShaderMaterial>(null);
   useFrame(() => {
-    const dial = (window as unknown as { __GAGOS?: { x?: number; y?: number; z?: number; horizon?: number } }).__GAGOS;
+    const dial = (window as unknown as { __GAGOS?: GagosDial }).__GAGOS;
     if (dial?.horizon !== undefined && matRef.current) {
       matRef.current.uniforms.uOpacity.value = dial.horizon;
     }
   });
   return (
-    <mesh position={[0, -3.2, -10]} renderOrder={0} frustumCulled={false}>
+    <mesh position={[0, -3.0, -16]} renderOrder={0} frustumCulled={false}>
       <planeGeometry args={[60, 14, 1, 1]} />
       <shaderMaterial
         ref={matRef}
