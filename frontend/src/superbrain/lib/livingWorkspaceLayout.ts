@@ -98,11 +98,13 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
     // low-center over the spine/cauda. The offset is brain-local so it rotates
     // WITH the being (stays a side-peer under orbit, never a fixed world-right).
     if (input.points) {
+      // beside the CORTEX (poster panels 4 & 5: the born/focused tab is a brain-
+      // sized peer at cortex height, pulled forward), brain-local so it orbits.
       return {
         targetLocal: tuple(
-          1.02 + compactness * 0.18,
-          -0.18 + compactness * 0.2,
-          0.74 - compactness * 0.04,
+          1.05 + compactness * 0.18,
+          0.12 + compactness * 0.2,
+          0.78 - compactness * 0.04,
         ),
         scale: round3(clamp(1.08 - compactness * 0.42, 0.72, 1.08)),
         opacity: 1,
@@ -128,12 +130,21 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
   // are addressable seats", front=focus / back=waiting. The seat offset is
   // brain-local so each tab stays on its vertebra under orbit.
   if (input.points) {
-    const [tx, ty, tz] = input.targetLocal;
+    // ORCHESTRATION (poster phase 5): the spine EXTENDS and waiting tabs seat at
+    // vertebrae spread DOWN BOTH SIDES (not clustered behind the focus). Alternate
+    // left/right, descend a tier each pair, starting below the cortex-level focus.
+    // Brain-local so each tab rides its vertebra under orbit.
+    const side = index % 2 === 0 ? -1 : 1; // index 0 = left (opposite the right-side focus)
+    const tier = Math.floor(index / 2);
     return {
-      targetLocal: tuple(tx, ty, tz - 0.22 - index * 0.06),
-      scale: round3(clamp(0.6 - index * 0.045, 0.4, 0.6)),
-      opacity: round3(clamp(0.5 - index * 0.05, 0.22, 0.5)),
-      tubeOpacity: round3(clamp(0.5 - index * 0.04, 0.22, 0.5)),
+      targetLocal: tuple(
+        side * (0.9 + tier * 0.05),
+        -0.5 - tier * 0.62,
+        0.4 - tier * 0.06,
+      ),
+      scale: round3(clamp(0.58 - tier * 0.05, 0.38, 0.58)),
+      opacity: round3(clamp(0.55 - tier * 0.08, 0.26, 0.55)),
+      tubeOpacity: round3(clamp(0.52 - tier * 0.06, 0.26, 0.52)),
     };
   }
 
