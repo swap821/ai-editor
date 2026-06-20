@@ -15,15 +15,20 @@ const VERTEX = /* glsl */ `
   uniform float uTime;       // shared scene clock — drives breathe/flow
   uniform float uGrow;       // 0 = no breath, 1 = full breath gain
   uniform float uFlowSpeed;  // body-axis flow-band sweep speed
+  uniform float uArrival;    // 0 = scattered inrush origin, 1 = condensed in place
+  uniform float uReabsorb;   // 0 = present, 1 = dissolved up/away
   attribute float aSize;
   attribute vec3 aColor;
   attribute vec3 aNormal;    // surface normal — breathe displaces along it
   attribute float aPhase;    // 0..2π per-point desync (shimmer + twinkle seed)
   attribute float aBand;     // normalized body-axis coord (flow band)
+  attribute vec3 aScatter;   // unit scatter dir (arrival origin / reabsorb exit)
+  attribute float aBirth;    // 0..1 per-point stagger
   varying vec3 vColor;
   varying float vViewZ;
   varying float vBand;
   varying float vSeed;
+  varying float vAlpha;
   void main() {
     vColor = aColor;
     vSeed = aPhase;
@@ -34,17 +39,27 @@ const VERTEX = /* glsl */ `
     p += aNormal * (uGrow * 0.014 * length(position) * breath);
     p += aNormal * 0.002 * sin(uTime * 1.7 + aPhase);
     // FLOW BAND: a soft gaussian highlight sweeping the body axis (subtle on the
-    // brain; reads strongly once the spine is points in P5).
+    // brain; reads strongly down the spine).
     float center = fract(uTime * uFlowSpeed);
     float band = exp(-pow((aBand - center) / 0.12, 2.0));
     vBand = band;
+    // ARRIVAL inrush: stream in from a scattered origin and condense (staggered
+    // by aBirth, ease-out so points decelerate as they settle).
+    vec3 origin = p + aScatter * 2.0;
+    float ta = clamp((uArrival - aBirth * 0.4) / 0.6, 0.0, 1.0);
+    p = mix(origin, p, 1.0 - pow(1.0 - ta, 3.0));
+    // REABSORPTION: rise + scatter away, fade + shrink (staggered, inverse order).
+    vec3 exitP = p + vec3(0.0, 4.0, 0.0) + aScatter * 1.5;
+    float tr = clamp((uReabsorb - (1.0 - aBirth) * 0.4) / 0.6, 0.0, 1.0);
+    p = mix(p, exitP, pow(tr, 2.0));
+    vAlpha = 1.0 - tr;
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     vViewZ = -mv.z;
     // Weak, reference-normalized depth scaling: atten ~ 1 at the brain so points
     // stay a near-constant pixel size (the flat-poster read); never the runaway
     // drawingBufferHeight/z factor that balloons every point to the 64px clamp.
     float atten = mix(1.0, uRefDist / -mv.z, clamp(uAttenK, 0.0, 1.0));
-    gl_PointSize = min(uSize * aSize * uPixelRatio * atten * (1.0 + band * 0.2), 64.0);
+    gl_PointSize = min(uSize * aSize * uPixelRatio * atten * (1.0 + band * 0.2) * vAlpha, 64.0);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -108,6 +123,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v6';
+  material.customProgramCacheKey = () => 'pointfield_v7';
   return material;
 }

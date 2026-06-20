@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { samplePointField, type PointFieldSource, type PointFieldData } from '@/lib/pointFieldSampler';
 import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePointField';
 import { createPointFieldMaterial } from '@/lib/pointFieldMaterial';
+import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
+import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import type { CognitionUniforms } from './SuperbrainScene';
 
 /**
@@ -119,13 +121,26 @@ export default function BrainPointField({
     );
   }, [material, kind]);
 
-  useFrame(() => {
-    // uTime is the shared leaf (advanced by the scene); keep uPixelRatio fresh
-    // and drive the breathe/flow gains. All motion runs in the vertex shader.
+  useFrame((_state, delta) => {
+    // uTime is the shared leaf (advanced by the scene); keep uPixelRatio fresh.
     setDpr();
     const u = material.uniforms;
-    u.uGrow.value = reduce ? 0 : 1;
-    u.uFlowSpeed.value = 0.05 + (uniforms.uFlow.value ?? 0.16) * 0.18;
+    // Drive breathe / flow / arrival-inrush / reabsorption from the live organism
+    // phase (the lifecycle gesture engine). All motion runs in the vertex shader;
+    // here we only damp a few scalar uniforms via ref (zero per-point CPU).
+    const t = lifecycleTargets(getOrganismPhase());
+    if (reduce) {
+      // reduced motion: snap to the settled state (no inrush/dissolve translation).
+      u.uGrow.value = t.grow;
+      u.uArrival.value = t.arrival;
+      u.uReabsorb.value = t.reabsorb;
+      u.uFlowSpeed.value = 0.05 + t.flow * 0.2;
+    } else {
+      u.uGrow.value = THREE.MathUtils.damp(u.uGrow.value, t.grow, 2, delta);
+      u.uArrival.value = THREE.MathUtils.damp(u.uArrival.value, t.arrival, 1.6, delta);
+      u.uReabsorb.value = THREE.MathUtils.damp(u.uReabsorb.value, t.reabsorb, 1.6, delta);
+      u.uFlowSpeed.value = THREE.MathUtils.damp(u.uFlowSpeed.value, 0.05 + t.flow * 0.2, 3, delta);
+    }
   });
 
   return (

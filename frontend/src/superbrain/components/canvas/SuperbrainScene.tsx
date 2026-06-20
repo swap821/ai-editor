@@ -891,6 +891,23 @@ function BrainModel({
             count={tier === 'high' ? 60000 : tier === 'medium' ? 45000 : 30000}
           />
         )}
+        {BEING_MODE === 'points' && (
+          /* RIGID ONE BODY: the spine is a CHILD of the brain's own group, sharing
+             the brain's exact transform (rotation/scale/position/Float) — the cord
+             is welded to the brainstem and stays aligned from EVERY orbit angle,
+             permanently (no more drift). 1/BRAIN_SCALE counter-scale keeps the
+             scene-authored cord at its intended size; the offset lands the cord-top
+             on the brainstem; sitting on the brain's central axis (x0,z0) keeps it
+             yaw-invariant so it never swings off. */
+          <group scale={1 / BRAIN_SCALE} position={[0, -0.081, 0.139]}>
+            <BrainPointField
+              kind="spine"
+              uniforms={uniforms}
+              baseSize={3}
+              count={tier === 'high' ? 24000 : tier === 'medium' ? 17000 : 11000}
+            />
+          </group>
+        )}
 
         {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
             Tier budget: low drops the aura shells entirely; medium keeps the
@@ -1624,25 +1641,6 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
         {BEING_MODE !== 'points' && (
           <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />
-        )}
-        {/* Points mode: the spine/roots ride the SAME Float as the brain so the
-            whole organism bobs as ONE body (the cord stays joined to the brainstem
-            instead of drifting apart). Authored in scene space; Float moves both
-            together, preserving their alignment. */}
-        {BEING_MODE === 'points' && (
-          // Orbit-proof join: land the cord-top EXACTLY on the brain's brainstem
-          // exit (measured world delta), so the join is one shared 3D point at the
-          // brain's depth — aligned front-on AND from every orbit angle. (Cord is
-          // authored at scene (0,-0.42,-0.42); this offset moves the cord-top onto
-          // the brainstem at world ~(-0.06,-0.40,-1.17).)
-          <group position={[0.082, 0.015, -0.697]}>
-            <BrainPointField
-              kind="spine"
-              uniforms={uniforms}
-              baseSize={3}
-              count={tier === 'high' ? 24000 : tier === 'medium' ? 17000 : 11000}
-            />
-          </group>
         )}
       </Float>
 
