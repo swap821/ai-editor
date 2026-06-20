@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { Float, useGLTF } from '@react-three/drei';
+import { Float, useGLTF, PerspectiveCamera, OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
@@ -1546,7 +1546,25 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
 
   return (
     <>
-      <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
+      {BEING_MODE === 'points' ? (
+        /* Poster framing: low FOV (near-orthographic flatness), dollied back,
+           front-on; orbit-able. Replaces the drifting cinematic camera in
+           points mode so the organism reads like the flat 2D poster. */
+        <>
+          <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]} />
+          <OrbitControls
+            makeDefault
+            enablePan={false}
+            target={[0, -0.5, 0]}
+            enableDamping
+            dampingFactor={0.08}
+            minDistance={6}
+            maxDistance={40}
+          />
+        </>
+      ) : (
+        <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
+      )}
 
       {/* Cinematic deep space background */}
       {/* The sky serves the VOYAGE: the operator's knowledge field flying
@@ -1554,7 +1572,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           photographic dome sits far behind it for depth — it may add to the
           voyage, never replace it. (Dome skipped on low tier: the
           full-screen fbm pass is the budget, and the brain is the show.) */}
-      {sky === 'layered' && tier !== 'low' && (
+      {sky === 'layered' && tier !== 'low' && BEING_MODE !== 'points' && (
         <KnowledgeHorizon activity={activeBoost} />
       )}
       <CosmicBackground tier={tier} arrival={arrivalScalarRef} />

@@ -47,17 +47,16 @@ export default function BrainPointField({
     [uniforms],
   );
 
-  // uScale must track the real drawing-buffer height (size attenuation correctness).
-  const setScale = () => {
-    const v = new THREE.Vector2();
-    gl.getDrawingBufferSize(v);
-    material.uniforms.uScale.value = v.height * 0.5;
+  // Keep the on-screen point size DPR-correct: write the renderer's pixel ratio
+  // into uPixelRatio (the vertex multiplies by it). Re-applied on resize/DPR change.
+  const setDpr = () => {
+    material.uniforms.uPixelRatio.value = gl.getPixelRatio();
   };
   useEffect(() => {
-    setScale();
-    window.addEventListener('resize', setScale);
+    setDpr();
+    window.addEventListener('resize', setDpr);
     return () => {
-      window.removeEventListener('resize', setScale);
+      window.removeEventListener('resize', setDpr);
       geometry.dispose();
       material.dispose();
     };
@@ -65,8 +64,8 @@ export default function BrainPointField({
   }, [geometry, material, gl]);
 
   useFrame(() => {
-    // uTime already shared; keep uScale fresh against DPR changes.
-    setScale();
+    // uTime is the shared leaf; keep uPixelRatio fresh against DPR changes.
+    setDpr();
   });
 
   return (
