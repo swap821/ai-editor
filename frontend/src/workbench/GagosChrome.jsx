@@ -44,7 +44,13 @@ const PHASE_META = {
   complete: { label: 'complete', color: '#34d399' },
   error: { label: 'error', color: '#f87171' },
 };
-import { showContentSurface, getOccupiedVertebraSeats, beginRetractingMaterializedTab } from '../superbrain/lib/tabStore';
+import {
+  showContentSurface,
+  getOccupiedVertebraSeats,
+  beginRetractingMaterializedTab,
+  claimWorkMaterialization,
+  releaseWorkMaterialization,
+} from '../superbrain/lib/tabStore';
 import {
   getContentSurfacePlacement,
   selectNextAvailableVertebraSeat,
@@ -218,9 +224,18 @@ export default function GagosChrome() {
           beginRetractingMaterializedTab(lastWorkTabIdRef.current);
           lastWorkTabIdRef.current = null;
         }
+        // Own this turn's work materialization so the backend's CODE EMITTED
+        // auto-fire (MaterializationLayer) doesn't ALSO spawn a duplicate tab.
+        claimWorkMaterialization();
         const result = await sendDirective(text);
-        if (turnTokenRef.current !== token) return;
+        if (turnTokenRef.current !== token) {
+          releaseWorkMaterialization();
+          return;
+        }
         if (result?.paused) {
+          // Approval pause: hand materialization back to the backend flow (it fires
+          // CODE EMITTED on approve, which MaterializationLayer then materializes).
+          releaseWorkMaterialization();
           pushMessage('gagos', 'Holding for your approval before I build that.');
         } else {
           const { code, language } = extractWork(result?.answer);
@@ -229,6 +244,7 @@ export default function GagosChrome() {
           const tab = showContentSurface({ code: code || '// (empty)', language, filepath }, getContentSurfacePlacement(seat));
           lastWorkTabIdRef.current = tab.id;
           pushMessage('gagos', `↳ materialized ${filepath}`);
+          releaseWorkMaterialization();
         }
         setConversationPhase('idle'); // the slab's working posture takes the body
       } else {

@@ -215,6 +215,29 @@ function buildMaterializedTab(
   };
 }
 
+// ── Work-materialization claim ───────────────────────────────────────────────
+// GagosChrome (the 2D driver) and the backend's `CODE EMITTED` event (handled in
+// MaterializationLayer) are TWO triggers for the same work tab. When the backend
+// emits during a GagosChrome work turn, BOTH fire -> duplicate tabs. GagosChrome
+// claims the turn so the auto-fire steps aside; whoever isn't claiming materializes.
+let workMaterializationClaimUntil = 0;
+
+/** GagosChrome claims this work turn (it will materialize the tab itself). */
+export function claimWorkMaterialization(windowMs = 15000): void {
+  workMaterializationClaimUntil =
+    (typeof performance !== 'undefined' ? performance.now() : Date.now()) + windowMs;
+}
+
+/** Release early (e.g. an approval pause hands materialization back to the backend flow). */
+export function releaseWorkMaterialization(): void {
+  workMaterializationClaimUntil = 0;
+}
+
+/** True while GagosChrome owns work materialization — the CODE EMITTED auto-fire skips. */
+export function isWorkMaterializationClaimed(): boolean {
+  return (typeof performance !== 'undefined' ? performance.now() : Date.now()) < workMaterializationClaimUntil;
+}
+
 export function showContentSurface(
   content: MaterializedTabContent,
   options: {

@@ -1311,14 +1311,21 @@ export default function MaterializedTab({
       node.scale.setScalar(root.clampScale * (0.84 + actuatorPulse * 0.08));
     });
 
-    if (facesCamera && orientationRef.current) {
-      orientationRef.current.lookAt(camera.position);
-    }
-
     const slabT =
       tab.lifecycle === 'reaching' || tab.lifecycle === 'retracting'
         ? clamp01(Math.max(reachProgress, 0.04))
         : 1;
+
+    // orientationRef carries the slab POSITION *and* the optional camera-facing, so
+    // the tab rotates IN PLACE at the umbilical endpoint. (Facing the camera by
+    // rotating a group parked at the origin swung the offset slab OFF the nerve —
+    // the visible gap.) No scale on this node = no shear; slabRef does scale only.
+    // The umbilical ends at the same point, so the nerve stays plugged in as the
+    // tab turns to face you.
+    if (orientationRef.current) {
+      orientationRef.current.position.copy(curve.getPointAt(slabT));
+      if (facesCamera) orientationRef.current.lookAt(camera.position);
+    }
 
     if (slabRef.current) {
       const eased = easing(slabProgress);
@@ -1327,7 +1334,6 @@ export default function MaterializedTab({
         Math.max(0.01, eased) * pose.scale * POINTS_SLAB_SCALE,
         (0.7 + eased * 0.3) * pose.scale * POINTS_SLAB_SCALE,
       );
-      slabRef.current.position.copy(curve.getPointAt(slabT));
     }
 
     if (bodyRef.current) {

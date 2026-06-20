@@ -33,6 +33,7 @@ import {
   getOccupiedVertebraSeats,
   getSeatForPendingApproval,
   getTabStoreSnapshot,
+  isWorkMaterializationClaimed,
   showApprovalSurface,
   showContentSurface,
   upsertInputSurface,
@@ -110,6 +111,9 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
     () =>
       subscribeCognition((event) => {
         if (event.type !== 'knowledge-acquired' || event.label !== 'CODE EMITTED') return;
+        // GagosChrome owns work materialization during its turn; skip so we don't
+        // spawn a duplicate of the tab it will create from the same code emission.
+        if (isWorkMaterializationClaimed()) return;
         const content = normalizeContent(getLastEmittedCode());
         if (!content) return;
         const approvalSeat = getSeatForPendingApproval(content.filepath);
