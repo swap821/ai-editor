@@ -58,6 +58,9 @@ const SHOW_REGION_PINS = false;
  *  remove without a trace. */
 const CURSOR_ATTENTION = true;
 
+// Restrained "voyaging" — a slow auto-orbit; operator tunes live (try 0.10–0.30).
+const VOYAGE_SPEED = 0.18;
+
 /** The memory galaxy: every REAL trail a persistent star orbiting the mind
  *  (strength = brightness, walks = size, quarantine = red pulse; recalls
  *  flash their star). Additive layer, honest dormancy — the operator's
@@ -1584,6 +1587,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
             dampingFactor={0.08}
             minDistance={6}
             maxDistance={40}
+            autoRotate
+            autoRotateSpeed={VOYAGE_SPEED}
           />
         </>
       ) : (
