@@ -809,6 +809,41 @@ export async function pollOnce(): Promise<void> {
   }
 }
 
+/* -------------------------------------------------------- facts graph */
+
+/** A single edge from the backend knowledge-graph. */
+export interface FactEdge {
+  subject: string;
+  predicate: string;
+  object: string;
+  depth: number;
+}
+
+interface FactGraphResponse {
+  edges?: FactEdge[];
+}
+
+/**
+ * Fetch the knowledge-graph neighbourhood around `start`.
+ * Returns the edge array, or [] on any error (never throws).
+ */
+export async function fetchFactGraph(
+  start = 'project',
+  depth = 2,
+): Promise<FactEdge[]> {
+  try {
+    const res = await fetch(
+      `${AIOS_BASE}/api/v1/memory/facts/graph?start=${encodeURIComponent(start)}&depth=${depth}`,
+      { headers: authHeaders() },
+    );
+    if (!res.ok) return [];
+    const body = (await res.json()) as FactGraphResponse;
+    return Array.isArray(body.edges) ? body.edges : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Start the trails/metrics poll. Returns a stop function. */
 export function startAiosPolling(intervalMs = 20_000): () => void {
   if (typeof window === 'undefined') return () => undefined;

@@ -714,7 +714,7 @@ function BrainModel({
    *                         unchanged and the lattice does not mount). Fully
    *                         recoverable — no orphaned code, just this const.
    *  Final aesthetic call is the operator's browser. */
-  const NODE_BRAIN = false;
+  const NODE_BRAIN = BEING_MODE === 'points';
   /** a11y: freeze packet travel + snap coalescence to assembled. Captured once
    *  (same source as the scene's reduced-motion posture). */
   const reduceMotion = useMemo(() => shouldReduceMotion(), []);

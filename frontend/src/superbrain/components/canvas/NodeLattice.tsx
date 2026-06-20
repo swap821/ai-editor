@@ -40,12 +40,14 @@
 /*   • uBreath/uHold/uBurst ride for free from SCENE_UNIFORMS.                 */
 /* -------------------------------------------------------------------------- */
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeCognition } from '@/lib/cognitionBus';
+import { fetchFactGraph, getKnownTrails } from '@/lib/aiosAdapter';
+import type { FactEdge, TrailRow } from '@/lib/aiosAdapter';
 import type { CognitionUniforms } from './SuperbrainScene';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
@@ -217,17 +219,166 @@ const MAX_CENTER_DIST = (() => {
   return Math.max(BRAIN_CENTER.distanceTo(lo), BRAIN_CENTER.distanceTo(hi));
 })();
 
+/** Max real nodes before we cap (prevents InstancedMesh explosion on big graphs). */
+const MAX_REAL_NODES = 160;
+
+/** Deterministic integer hash of a string — used to assign entities to hubs
+ *  and to seed per-entity positional jitter. Stable across reloads. */
+function strHash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+/** Real-data input for buildLatticeData. Both fields are optional; whichever
+ *  is non-empty first wins (graph > trails > synthetic). */
+export interface RealLatticeData {
+  graphEdges?: FactEdge[];
+  trails?: TrailRow[];
+}
+
 /**
  * Build the DATA-TRUE lattice topology. Deterministic (seeded) so mounts and
- * screenshot baselines stay identical. Edges are STRICTLY intra-region (each
- * lobe is a distinct cluster); cross-region connection is the backbone only.
+ * screenshot baselines stay identical.
+ *
+ * Priority: real.graphEdges → real.trails → synthetic fallback.
+ * Edges are STRICTLY intra-region (each lobe is a distinct cluster) in the
+ * synthetic path; cross-region connection is the backbone only.
  */
-export function buildLatticeData(tier: QualityTier): LatticeData {
+export function buildLatticeData(tier: QualityTier, real?: RealLatticeData): LatticeData {
   // House rule: never unseeded randomness.
   const random = createSeededRandom(0x4e4f4445); // "NODE"
 
   const igniteDelayFor = (p: THREE.Vector3) =>
     THREE.MathUtils.clamp(BRAIN_CENTER.distanceTo(p) / MAX_CENTER_DIST, 0, 1);
+
+  /* ================================================================
+   * BRANCH A — knowledge-graph edges (subject → predicate → object)
+   * ============================================================== */
+  if (real?.graphEdges && real.graphEdges.length > 0) {
+    // Collect unique entity strings (subjects + objects).
+    const entitySet = new Set<string>();
+    for (const e of real.graphEdges) {
+      entitySet.add(e.subject);
+      entitySet.add(e.object);
+    }
+    // Cap: prefer shallowest entities (depth 1 before depth 2, etc.).
+    // We use a stable sort keyed on the min depth the entity appears at.
+    const depthOf = new Map<string, number>();
+    for (const e of real.graphEdges) {
+      depthOf.set(e.subject, Math.min(depthOf.get(e.subject) ?? 99, e.depth));
+      depthOf.set(e.object, Math.min(depthOf.get(e.object) ?? 99, e.depth));
+    }
+    let entities = Array.from(entitySet).sort(
+      (a, b) => (depthOf.get(a) ?? 0) - (depthOf.get(b) ?? 0),
+    );
+    if (entities.length > MAX_REAL_NODES) entities = entities.slice(0, MAX_REAL_NODES);
+
+    // Build one LatticeNode per entity.
+    const posMap = new Map<string, THREE.Vector3>();
+    const nodes: LatticeNode[] = [];
+    for (const entity of entities) {
+      const h = strHash(entity);
+      const hi = h % HUBS.length;
+      const hub = HUBS[hi];
+      // Seeded offset inside LOBE_RADIUS so positions are stable across re-renders.
+      const rng = createSeededRandom(h);
+      const dir = randomUnit(rng);
+      const r = LOBE_RADIUS * Math.cbrt(rng());
+      const pos = hub.pos.clone().addScaledVector(dir, r);
+      clampInward(pos);
+      posMap.set(entity, pos);
+      const depth = depthOf.get(entity) ?? 1;
+      nodes.push({
+        pos,
+        color: new THREE.Color(hub.color),
+        radius: SAT_RADIUS,
+        hub: hi,
+        isHub: false,
+        igniteDelay: THREE.MathUtils.clamp(depth / 3, 0, 1),
+      });
+    }
+
+    // Build one LatticeEdge per fact (subject→object pair in entity set).
+    const edgeRng = createSeededRandom(0x46415445); // "FATE"
+    const edges: LatticeEdge[] = [];
+    const entityInSet = new Set(entities);
+    for (const e of real.graphEdges) {
+      if (!entityInSet.has(e.subject) || !entityInSet.has(e.object)) continue;
+      const a = posMap.get(e.subject)!;
+      const b = posMap.get(e.object)!;
+      const hi = strHash(e.subject) % HUBS.length;
+      const color = new THREE.Color(HUBS[hi].color).multiplyScalar(0.85);
+      edges.push({ a, b, color, phase: edgeRng() * TAU, speed: 0.5 + edgeRng() * 1.5 });
+    }
+    return { nodes, edges };
+  }
+
+  /* ================================================================
+   * BRANCH B — live skill-trail nodes (pheromone map)
+   * ============================================================== */
+  if (real?.trails && real.trails.length > 0) {
+    // Cap: prefer strongest (highest strength) trails.
+    let trails = [...real.trails].sort((a, b) => b.strength - a.strength);
+    if (trails.length > MAX_REAL_NODES) trails = trails.slice(0, MAX_REAL_NODES);
+
+    const nodes: LatticeNode[] = [];
+    const posBySkill = new Map<number, THREE.Vector3>();
+    for (const t of trails) {
+      const hi = strHash(t.goal_pattern) % HUBS.length;
+      const hub = HUBS[hi];
+      const rng = createSeededRandom(strHash(String(t.skill_id)));
+      const dir = randomUnit(rng);
+      const r = LOBE_RADIUS * Math.cbrt(rng());
+      const pos = hub.pos.clone().addScaledVector(dir, r);
+      clampInward(pos);
+      posBySkill.set(t.skill_id, pos);
+      nodes.push({
+        pos,
+        color: new THREE.Color(hub.color),
+        radius: SAT_RADIUS * (0.6 + THREE.MathUtils.clamp(t.strength, 0, 1) * 0.8),
+        hub: hi,
+        isHub: false,
+        igniteDelay: THREE.MathUtils.clamp(1 - t.freshness, 0, 1),
+      });
+    }
+
+    // Edges: link trails that share the same hub to their 1-2 nearest same-hub peers.
+    const edgeRng = createSeededRandom(0x54524c53); // "TRLS"
+    const edges: LatticeEdge[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; i < trails.length; i++) {
+      const ti = trails[i];
+      const hiI = strHash(ti.goal_pattern) % HUBS.length;
+      const posI = posBySkill.get(ti.skill_id)!;
+      // Find up to 2 nearest same-hub peers.
+      const peers = trails
+        .map((tj, j) => ({
+          j,
+          hi: strHash(tj.goal_pattern) % HUBS.length,
+          d: posI.distanceTo(posBySkill.get(tj.skill_id)!),
+        }))
+        .filter((x) => x.j !== i && x.hi === hiI)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 2);
+      for (const { j } of peers) {
+        const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const posJ = posBySkill.get(trails[j].skill_id)!;
+        const color = new THREE.Color(HUBS[hiI].color).multiplyScalar(0.8);
+        edges.push({ a: posI, b: posJ, color, phase: edgeRng() * TAU, speed: 0.4 + edgeRng() });
+      }
+    }
+    return { nodes, edges };
+  }
+
+  /* ================================================================
+   * BRANCH C — synthetic fallback (original implementation, unchanged)
+   * ============================================================== */
 
   /* ---- nodes: 1 hub per anchor + tier-budgeted satellites per lobe ---- */
   const nodes: LatticeNode[] = [];
@@ -501,8 +652,52 @@ export default function NodeLattice({
   const reducedMotionUniform = useRef({ value: reducedMotion ? 1 : 0 });
   reducedMotionUniform.current.value = reducedMotion ? 1 : 0;
 
+  // ── REAL-DATA self-fetch ──────────────────────────────────────────────────
+  // Mount once: try knowledge-graph, fall back to trails. If both are empty,
+  // `real` stays undefined → synthetic fallback in buildLatticeData.
+  // Re-fetch on every `telemetry` cognition event (debounced: only one
+  // in-flight fetch at a time via the fetchingRef guard).
+  const [real, setReal] = useState<RealLatticeData | undefined>(undefined);
+  const fetchingRef = useRef(false);
+
+  const doFetch = () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    void (async () => {
+      try {
+        const [graphEdges, trails] = await Promise.all([
+          fetchFactGraph('project', 2),
+          Promise.resolve(getKnownTrails() as TrailRow[]),
+        ]);
+        // Only set real if we have actual data — keeps synthetic alive offline.
+        if (graphEdges.length > 0 || trails.length > 0) {
+          setReal({ graphEdges, trails });
+        }
+      } finally {
+        fetchingRef.current = false;
+      }
+    })();
+  };
+
+  // Initial fetch on mount.
+  useEffect(() => {
+    doFetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-fetch on telemetry events (trails may have grown since mount).
+  useEffect(() => {
+    return subscribeCognition((event) => {
+      if (event.type === 'telemetry') {
+        doFetch();
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────
+
   const built = useMemo(() => {
-    const { nodes, edges } = buildLatticeData(tier);
+    const { nodes, edges } = buildLatticeData(tier, real);
 
     /* ---- 1. NODES → InstancedMesh ---- */
     const nodeGeo = new THREE.IcosahedronGeometry(1, 1); // unit; per-instance scale = radius
@@ -656,7 +851,7 @@ export default function NodeLattice({
       nodeMesh, nodeGeo, nodeMat, edgeMesh, edgeGeo, edgeMat, backboneMesh, backboneGeo, backboneMat,
       activationArr, activationAttr, hubOfInstance,
     };
-  }, [uniforms, tier]);
+  }, [uniforms, tier, real]);
 
   // P2 — live firing: bump the activation of the hub a real cognition event maps
   // to (DATA-TRUE; same tool->lobe routing the cortex uses), then decay it each
