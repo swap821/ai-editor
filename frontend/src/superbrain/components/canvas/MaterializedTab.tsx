@@ -889,6 +889,7 @@ export default function MaterializedTab({
   const viewportWidth = useThree((state) => state.size.width);
   const viewportHeight = useThree((state) => state.size.height);
   const [approvalBusy, setApprovalBusy] = useState(false);
+  const [revealedCount, setRevealedCount] = useState(0);
   const orientationRef = useRef<THREE.Group>(null);
   const slabRef = useRef<THREE.Group>(null);
   const tubeRef = useRef<THREE.Mesh>(null);
@@ -1450,6 +1451,29 @@ export default function MaterializedTab({
   const approvalOverflowLabel =
     approvalPreview.hiddenLines > 0 ? `+${approvalPreview.hiddenLines} more lines` : footerLabel;
 
+  // Work-streaming (demoplan "Showing Work"): the content code reveals LINE BY LINE
+  // as the being writes it, with a cursor on the active line. Reduced motion shows
+  // it whole. The reveal restarts whenever the code changes (a fresh emission).
+  useEffect(() => {
+    const total = contentPreview.lines.length;
+    if (tab.kind !== 'content' || total === 0) {
+      setRevealedCount(0);
+      return undefined;
+    }
+    if (reducedMotion) {
+      setRevealedCount(total);
+      return undefined;
+    }
+    setRevealedCount(1);
+    let n = 1;
+    const id = window.setInterval(() => {
+      n += 1;
+      setRevealedCount(n);
+      if (n >= total) window.clearInterval(id);
+    }, 90);
+    return () => window.clearInterval(id);
+  }, [contentPreview.lines, tab.kind, reducedMotion]);
+
   const handleApprove = async () => {
     if (buttonDisabled) return;
     setApprovalBusy(true);
@@ -1762,7 +1786,7 @@ export default function MaterializedTab({
                 >
                   {footerLabel}
                 </Text>
-                {contentPreview.lines.map((line, index) => (
+                {contentPreview.lines.slice(0, revealedCount).map((line, index, shown) => (
                   <Text
                     key={`content-line-${tab.id}-${index}`}
                     position={[
@@ -1778,7 +1802,10 @@ export default function MaterializedTab({
                     outlineColor={theme.outline}
                     renderOrder={10}
                   >
-                    {line || ' '}
+                    {(line || ' ') +
+                      (index === shown.length - 1 && revealedCount < contentPreview.lines.length
+                        ? '▌'
+                        : '')}
                   </Text>
                 ))}
                 <Text
