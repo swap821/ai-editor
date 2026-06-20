@@ -895,6 +895,8 @@ export default function MaterializedTab({
   const viewportHeight = useThree((state) => state.size.height);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [revealedCount, setRevealedCount] = useState(0);
+  const revealedCountRef = useRef(0);
+  const revealTabIdRef = useRef<string | null>(null);
   const orientationRef = useRef<THREE.Group>(null);
   const slabRef = useRef<THREE.Group>(null);
   const tubeRef = useRef<THREE.Mesh>(null);
@@ -1459,28 +1461,43 @@ export default function MaterializedTab({
   const approvalOverflowLabel =
     approvalPreview.hiddenLines > 0 ? `+${approvalPreview.hiddenLines} more lines` : footerLabel;
 
+  // Keep revealedCountRef in sync so the reveal effect can read current count
+  // without depending on the state value (which would cause re-fires).
+  useEffect(() => { revealedCountRef.current = revealedCount; }, [revealedCount]);
+
   // Work-streaming (demoplan "Showing Work"): the content code reveals LINE BY LINE
   // as the being writes it, with a cursor on the active line. Reduced motion shows
-  // it whole. The reveal restarts whenever the code changes (a fresh emission).
+  // it whole. On a new surface (different tab.id) the reveal starts from line 1;
+  // when the SAME surface grows (streaming chunks), we continue from the current
+  // revealed position — no per-chunk snap-back to line 1.
   useEffect(() => {
     const total = contentPreview.lines.length;
     if (tab.kind !== 'content' || total === 0) {
       setRevealedCount(0);
+      revealTabIdRef.current = null;
       return undefined;
     }
     if (reducedMotion) {
       setRevealedCount(total);
+      revealTabIdRef.current = tab.id;
       return undefined;
     }
-    setRevealedCount(1);
-    let n = 1;
+    // New surface (different tab.id) → start from top.
+    // Same surface that grew (streaming) → continue from where we are.
+    const isNewSurface = revealTabIdRef.current !== tab.id;
+    let n = isNewSurface
+      ? 1
+      : Math.min(Math.max(revealedCountRef.current, 1), total);
+    revealTabIdRef.current = tab.id;
+    setRevealedCount(n);
+    if (n >= total) return undefined;
     const id = window.setInterval(() => {
       n += 1;
       setRevealedCount(n);
       if (n >= total) window.clearInterval(id);
     }, 90);
     return () => window.clearInterval(id);
-  }, [contentPreview.lines, tab.kind, reducedMotion]);
+  }, [contentPreview.lines.length, tab.id, tab.kind, reducedMotion]);
 
   const handleApprove = async () => {
     if (buttonDisabled) return;
