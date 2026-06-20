@@ -4,24 +4,22 @@
  * same real-data bindings (the adapter talks to this very backend). Mounted
  * only behind the ?ui=superbrain flag so the classic frontend is untouched.
  *
- * OPERATOR'S LAW — the home is PURE 3D: everything the operator sees is the
- * living being on the canvas, no 2D / DOM chrome anywhere. The only thing
- * mounted here is <WorkspaceCanvas/> (the one <Canvas> + the 3D scene). The
- * former DOM organs (CyberCursor, OrgansDock, ApprovalSafetyNet, the HUD, the
- * boot overlay, the atmosphere/grid layers) were removed; their lifecycle
- * wiring (AIOS polling, cognition bus, posture machine) lives on inside the
- * canvas so the being still arrives, listens and reacts.
+ * CHROME (2026-06-20): the home was PURE 3D, but raw in-world 3D text read as
+ * floating debug labels (operator: "not professional"). The being stays the
+ * diegetic 3D hero on the canvas; identity / live status / the conversation now
+ * live in <GagosChrome/>, a crisp 2D product layer DOM-sibling to the canvas.
+ * GagosChrome drives turns through the same adapter and cognition bus the being
+ * already listens to, so the organism still arrives, listens and reacts.
  */
 import WorkspaceCanvas from '@/components/canvas/WorkspaceCanvas';
-import BrainstemIntake from '../workbench/BrainstemIntake';
+import GagosChrome from '../workbench/GagosChrome';
 import './superbrain.css';
 
 export default function SuperbrainApp() {
   return (
     <div className="font-sans antialiased">
-      <WorkspaceCanvas>
-        <BrainstemIntake />
-      </WorkspaceCanvas>
+      <WorkspaceCanvas />
+      <GagosChrome />
     </div>
   );
 }

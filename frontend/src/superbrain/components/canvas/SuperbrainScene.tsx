@@ -33,7 +33,6 @@ import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 import BrainPointField from './BrainPointField';
-import IdentityReadout from './IdentityReadout';
 import HorizonGlow from './HorizonGlow';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -1578,7 +1577,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
            points mode so the organism reads like the flat 2D poster. */
         <>
           <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]}>
-            <IdentityReadout />
+            {/* Identity/status moved to the 2D GagosChrome layer (2026-06-20);
+                the camera keeps only the in-world horizon backdrop. */}
             <HorizonGlow />
           </PerspectiveCamera>
           <OrbitControls

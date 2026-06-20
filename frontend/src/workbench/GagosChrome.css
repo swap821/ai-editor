@@ -1,0 +1,236 @@
+/* GagosChrome — the crisp 2D product interface layer over the 3D being.
+   Operator-approved pivot (2026-06-20): the being stays the diegetic 3D hero,
+   but identity / status / conversation become a real, minimal 2D UI so the
+   experience reads as a finished product, not floating debug labels.
+   Product-only (not mirrored to lab), like BrainstemIntake. */
+
+.gagos-chrome {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none; /* the 3D being stays orbit-draggable; only controls capture */
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: #eaf0fb;
+}
+
+/* ── Top-left identity lockup ─────────────────────────────────────────── */
+.gagos-lockup {
+  position: absolute;
+  top: 30px;
+  left: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  user-select: none;
+}
+.gagos-wordmark {
+  font-size: 21px;
+  font-weight: 300;
+  letter-spacing: 0.42em;
+  /* trailing letter-spacing pads the right edge; nudge back so the G aligns left */
+  margin-right: -0.42em;
+  color: rgba(245, 247, 255, 0.94);
+  text-shadow: 0 0 22px rgba(139, 110, 255, 0.45), 0 0 2px rgba(180, 200, 255, 0.4);
+}
+.gagos-rule {
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(155, 130, 255, 0.7), rgba(155, 130, 255, 0));
+}
+.gagos-subtitle {
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  margin-right: -0.42em;
+  color: rgba(180, 195, 225, 0.42);
+}
+
+/* ── Top-right status cluster ─────────────────────────────────────────── */
+.gagos-status {
+  position: absolute;
+  top: 30px;
+  right: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+}
+.gagos-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: rgba(228, 236, 250, 0.82);
+  white-space: nowrap;
+}
+.gagos-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.gagos-dot--model {
+  background: #7fe9ff;
+  box-shadow: 0 0 9px rgba(127, 233, 255, 0.85);
+}
+.gagos-dot--supervised {
+  background: #5ef0b0;
+  box-shadow: 0 0 9px rgba(94, 240, 176, 0.8);
+}
+.gagos-pill--supervised {
+  color: rgba(200, 245, 225, 0.78);
+}
+
+/* ── Bottom-center conversation ───────────────────────────────────────── */
+.gagos-convo {
+  position: absolute;
+  left: 50%;
+  bottom: 38px;
+  transform: translateX(-50%);
+  width: min(680px, calc(100vw - 64px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* the being's reply, as a clean caption above the bar */
+.gagos-reply {
+  max-width: 620px;
+  text-align: center;
+  font-size: 15.5px;
+  line-height: 1.62;
+  font-weight: 350;
+  color: rgba(238, 244, 255, 0.9);
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  pointer-events: none;
+}
+.gagos-reply.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.gagos-reply .gagos-reply-who {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(150, 130, 255, 0.7);
+  margin-bottom: 7px;
+}
+
+/* the input bar */
+.gagos-bar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 9px 9px 20px;
+  border-radius: 18px;
+  background: rgba(10, 14, 26, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  box-shadow: 0 10px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.gagos-bar:focus-within {
+  border-color: rgba(139, 110, 255, 0.45);
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(139, 110, 255, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.gagos-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(244, 248, 255, 0.95);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 350;
+  letter-spacing: 0.01em;
+}
+.gagos-input::placeholder {
+  color: rgba(190, 202, 226, 0.4);
+}
+
+.gagos-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.2s ease, opacity 0.2s ease;
+}
+.gagos-btn:active {
+  transform: scale(0.92);
+}
+.gagos-mic {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 230, 248, 0.8);
+}
+.gagos-mic:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.gagos-mic.is-listening {
+  background: rgba(255, 90, 120, 0.18);
+  color: #ff9bb0;
+  box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.35), 0 0 18px rgba(255, 90, 120, 0.35);
+  animation: gagos-pulse 1.4s ease-in-out infinite;
+}
+.gagos-send {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, #8b6eff, #6a35ff);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(106, 53, 255, 0.5);
+}
+.gagos-send:hover {
+  filter: brightness(1.12);
+}
+.gagos-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+.gagos-send.is-busy {
+  pointer-events: none;
+}
+.gagos-send.is-busy svg {
+  animation: gagos-spin 0.9s linear infinite;
+}
+
+@keyframes gagos-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.35), 0 0 14px rgba(255, 90, 120, 0.3); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.5), 0 0 24px rgba(255, 90, 120, 0.55); }
+}
+@keyframes gagos-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gagos-reply { transition: opacity 0.2s ease; transform: none; }
+  .gagos-mic.is-listening { animation: none; }
+  .gagos-send.is-busy svg { animation: none; }
+}
