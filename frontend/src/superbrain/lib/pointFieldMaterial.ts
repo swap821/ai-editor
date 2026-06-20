@@ -77,6 +77,7 @@ const FRAGMENT = /* glsl */ `
   uniform float uGlowMul;
   uniform float uFogDensity;
   uniform float uTime;
+  uniform float uBodyOpacity; // 1 = solid; <1 dims the cloud so inner memory-nodes show through
   void main() {
     // Soft round sprite — rebuilt from the known-good base (1-d*2 stays in [0,1],
     // so pow() never goes NaN; the old smoothstep/fog path was producing NaN that
@@ -92,7 +93,7 @@ const FRAGMENT = /* glsl */ `
     vec3 c = mix(vColor, vColor * uPostureColor, clamp(uPostureTint, 0.0, 0.8));
     c += vColor * vBand * 0.4;                  // flow band brightens as it sweeps
     c *= uGlowMul;
-    gl_FragColor = vec4(c * intensity, intensity);
+    gl_FragColor = vec4(c * intensity * uBodyOpacity, intensity);
   }
 `;
 
@@ -108,6 +109,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
       uFogDensity: { value: 0.02 },// subtle recession only (thin depth slab)
       uGlowMul: { value: 2.4 },    // >1 so the existing PostFX Bloom (threshold 1.0) catches it
+      uBodyOpacity: { value: 1.0 },// damped to ~0.5 while orchestrating so inner memory-nodes show
       uGrow: { value: 0 },
       uFlow: { value: 0.16 },
       uFlowSpeed: { value: 0.16 },
@@ -123,6 +125,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v7';
+  material.customProgramCacheKey = () => 'pointfield_v8';
   return material;
 }

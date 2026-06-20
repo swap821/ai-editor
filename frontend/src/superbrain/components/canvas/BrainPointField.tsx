@@ -199,18 +199,27 @@ export default function BrainPointField({
     // here we only damp a few scalar uniforms via ref (zero per-point CPU).
     // A live chat turn drives the gesture targets (faster flow while streaming),
     // with priority over the idle organism phase.
-    const t = lifecycleTargets(conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase());
+    const phase = conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase();
+    const t = lifecycleTargets(phase);
+    // Orchestrating/working: the brain cloud fades to ~50% so the inner memory-
+    // node lattice shows through (operator's reveal-while-working idea).
+    const bodyTarget =
+      kind === 'brain' && (phase === 'working' || phase === 'conducting' || phase === 'materializing')
+        ? 0.5
+        : 1.0;
     if (reduce) {
       // reduced motion: snap to the settled state (no inrush/dissolve translation).
       u.uGrow.value = t.grow;
       u.uArrival.value = t.arrival;
       u.uReabsorb.value = t.reabsorb;
       u.uFlowSpeed.value = 0.05 + t.flow * 0.2;
+      u.uBodyOpacity.value = bodyTarget;
     } else {
       u.uGrow.value = THREE.MathUtils.damp(u.uGrow.value, t.grow, 2, delta);
       u.uArrival.value = THREE.MathUtils.damp(u.uArrival.value, t.arrival, 1.6, delta);
       u.uReabsorb.value = THREE.MathUtils.damp(u.uReabsorb.value, t.reabsorb, 1.6, delta);
       u.uFlowSpeed.value = THREE.MathUtils.damp(u.uFlowSpeed.value, 0.05 + t.flow * 0.2, 3, delta);
+      u.uBodyOpacity.value = THREE.MathUtils.damp(u.uBodyOpacity.value, bodyTarget, 3, delta);
     }
   });
 
