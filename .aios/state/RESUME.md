@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-21T12:45:00+05:30
+Last updated: 2026-06-21T15:45:00+05:30
 
 ## Current Goal
 Convert the living-being frontend blueprint into a 100% working live organism. **Phase 3 LANDED + Claude-reviewer-approved (commit 2eda588, against pinned snapshot 0ff2ea0).** Current lane: **ORCHESTRATION (poster panel 5) — the LOCKED MODEL + its SOUL**: the being CROWNS the top, shrinks with tab-count, the spine feeds the focus, waiting tabs hang nerve-tethered in the corners. Codex on leave until 2026-06-25; Claude is solo (builder + reviewer). Operator steering remotely; visual sign-off delegated to Claude via kimi-webbridge at :5173. Canon re-scoped 2026-06-19: lab unrestricted, only palette+textures sacred. **2026-06-21 SINGLE-FRONTEND COLLAPSE (operator):** the points-being GAGOS is now the ONE official frontend at the clean root `/` — `?ui=classic` / `?ui=shell` and all non-points surfaces DELETED; default flipped mesh→points (product + lab). New front: renovate this single frontend to world-class (north-star: `.aios/state/GAGOS_RENOVATION_NORTHSTAR.md`). Test on `:5173/` (no params).
@@ -40,7 +40,17 @@ Convert the living-being frontend blueprint into a 100% working live organism. *
 - Coordination handoff was attempted once and succeeded before this final RESUME refresh; a final hash-pinned reviewer handoff should follow this file update so the tree snapshot includes current resume state.
 
 ## Single Next Action
-**(2026-06-21 afternoon — CURRENT):** Renovate the single official frontend (points-being GAGOS at `/`) to world-class — front-door → elevate per `.aios/state/GAGOS_RENOVATION_NORTHSTAR.md`. Sacred poster palette untouched; structural/coherence polish first; the operator's `:5173` eye gates every visual change. The Phase-4a posture work below is COMPLETE — historical context.
+**(2026-06-21 afternoon — CURRENT):** FRONT-DOOR RENOVATION LARGELY DONE + committed — 8 commits `cfe669a`→`6f52621`: single-GAGOS collapse · the being speaks first (greeting + 3 starters) · orchestrated chrome arrival + live state-pill pulse · living cyan conversation (voice bubble + streaming caret) · responsive · auto-focus · honest-states (polled offline pill + classified error + Retry) · keyboard a11y (skip-to-chat first-focusable + SR live narration) · persona Jarvis→GAGOS (anchor strengthened) · honest work-materialization (code tab ONLY for real code; alignment preamble stripped; conversation shown as chat). All product-safe (survive `npm run port`); `vite build` + 209/209 tests green throughout.
+
+**NEXT = OPERATOR'S RTX (the being is his hero — can't be judged headlessly, FIDELITY law):**
+1. **Glow elevation** — do it LIVE on `window.__POINTFIELD.uGlowMul` / `window.__POSTURE` dials (a blind headless attempt over-hazed + was reverted byte-clean; the being code is untouched). Investigation mapped the knobs: `pointFieldMaterial.ts` (core weight, posture energy-restore ×1.6), `constants.ts` `bloomPoints` (threshold-gate), exposure. Bake the operator's dialed values + capture goldens.
+2. **Fresh-load condense** — root cause found: arrival fires `transitionToArriving(COALESCENCE | AWAKENING)` on mount (`WorkspaceCanvas.tsx`). LIKELY a degraded-test-browser artifact (clean loads condensed fine; ~17 reloads exhaust WebGL contexts) — confirm with ONE clean reload on the RTX; fix mapped if real.
+
+**PENDING IN THE BROWSER:** an approval slab is HELD (`create training_ground/reverse_string.py`) — operator APPROVE/REJECT (never self-approved; the gate is the thesis).
+**HONEST CAVEAT:** the local 3B model holds the GAGOS identity inconsistently (prompt forcefully strengthened; a larger local model = rock-solid).
+**Untracked (prior audit session, operator's call):** `.github/` (CI) + `SYSTEM_AUDIT_2026-06-21.md`.
+
+The Phase-4a posture work below is COMPLETE — historical context.
 
 **Phase 4a COMPLETE** (commits 62cf1de→2453d86): the spectral-v1 posture-color system is wired into the whole 3D body — bodyPosture contract (62cf1de), brain hue (d0e9af5), nerve hue + flow speed (4c75bc8), vertebra surfaces (1f03dfd), brainstem intake (2453d86). The body shifts COLOR + signal-SPEED by the REAL lifecycle phase (rest violet → think magenta → stream cyan → hold amber → complete green → error red), blended OVER the sacred regional palette (tint ≤0.8; ==0 byte-identical canon; brainMaterial cache key v8→v9). All gates green (tsc · 254 tests · build); v9 shader compiles; software-GL verified (canon at rest, hue shifts across phases, zero runtime errors); lab-mirrored (BrainstemIntake is product-only). Damped posture lives in SCENE_UNIFORMS (uPosture/uPostureTint/uFlow); live phase flows MaterializationLayer → organismPhaseBus → scene-root useFrame.
 
