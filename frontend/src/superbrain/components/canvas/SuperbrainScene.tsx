@@ -1600,7 +1600,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
             dampingFactor={0.08}
             minDistance={6}
             maxDistance={40}
-            autoRotate
+            autoRotate={!reducedMotionRef.current}
             autoRotateSpeed={VOYAGE_SPEED}
           />
         </>

@@ -42,6 +42,8 @@
   opacity: 1;
   outline: 2px solid #06121a;
   outline-offset: 2px;
+  /* WCAG 2.4.13/1.4.11: white halo delimits the dark ring against BOTH the cyan chip and the black void. */
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55);
 }
 
 /* Screen-reader-only live region (narrates the being's state). */
@@ -90,7 +92,8 @@
   letter-spacing: 0.42em;
   text-transform: uppercase;
   margin-right: -0.42em;
-  color: rgba(180, 195, 225, 0.42);
+  /* WCAG AA: alpha lifted 0.42->0.62 so the subtitle clears 4.5:1 over the void (hue unchanged). */
+  color: rgba(190, 202, 226, 0.62);
 }
 
 /* ── Top-right status cluster ─────────────────────────────────────────── */
@@ -294,7 +297,8 @@
   letter-spacing: 0.01em;
 }
 .gagos-input::placeholder {
-  color: rgba(190, 202, 226, 0.4);
+  /* WCAG AA: alpha lifted 0.4->0.62 so the placeholder hint clears 4.5:1 over the bar (hue unchanged). */
+  color: rgba(190, 202, 226, 0.62);
 }
 
 .gagos-btn {
