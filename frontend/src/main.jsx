@@ -1,50 +1,25 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 
-// THE SUPERBRAIN INTEGRATION SHELL IS THE OFFICIAL FRONTEND (operator's
-// decision, 2026-06-14): the clean root URL (no flag) IS the whole system.
-// The shell is superbrain-as-lead — the persistent voyaging brain + the
-// renovated HUD, an in-app home <-> workbench toggle (no URL change), the
-// read-only governance/learning organs, and the approval safety-net — so
-// everything works at one URL. Lazy on every side: each UI's stack loads only
-// when it is the one being mounted.
+// GAGOS — THE VOYAGING MIND is the one and only frontend (operator's decision,
+// 2026-06-21): the points-being lives at the clean root URL. No ?ui flags, no
+// classic IDE, no manufacturing shell — one mind, one URL.
 //
-//   /              -> the PURE-3D living being (SuperbrainApp) — the official home
-//                     (operator law: everything 3D, zero 2D chrome in the canvas)
-//   ?ui=shell      -> the manufacturing form (SuperbrainShell) — kept reachable;
-//                     its 2D forge/organs are slated to be rebuilt as 3D materialized tabs
-//   ?ui=classic    -> the classic IDE (fallback, byte-untouched)
-//   ?ui=home       -> alias of the pure-3D being (kept)
+// The superbrain tree is PORT-MANAGED (overwritten byte-for-byte by `npm run
+// port`), so the error boundary that protects it is mounted HERE in this
+// product-authored file — a DOM parent of the lazy shell, outside its Suspense
+// subtree — catching a render fault anywhere in the superbrain subtree without
+// editing any generated file.
 const SuperbrainApp = lazy(() => import('./superbrain/SuperbrainApp.jsx'))
-const SuperbrainShell = lazy(() => import('./superbrain/SuperbrainShell.jsx'))
-const ui = new URLSearchParams(window.location.search).get('ui')
 
-// W5-1 TOP-LEVEL ERROR BOUNDARY (product-safe seam): the superbrain shells live
-// in the PORT-MANAGED tree (overwritten byte-for-byte by `npm run port`), so the
-// boundary that protects them is mounted HERE — main.jsx is a product-authored
-// file that is NEVER touched by the port. Wrapping at the mount point (a DOM
-// parent of the lazy shell, outside its Suspense subtree) catches a render fault
-// anywhere in the superbrain subtree — the 3D canvas, the workbench organs mount,
-// and ForgePorts — and shows the honest fallback instead of white-screening the
-// whole app, with no edit to any generated file. The classic <App/> already
-// self-wraps at its own top level; this is its additional outermost net.
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary name="App">
-      {ui === 'classic' ? (
-        <App />
-      ) : ui === 'shell' ? (
-        <Suspense fallback={null}>
-          <SuperbrainShell />
-        </Suspense>
-      ) : (
-        <Suspense fallback={null}>
-          <SuperbrainApp />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <SuperbrainApp />
+      </Suspense>
     </ErrorBoundary>
   </StrictMode>,
 )

@@ -2,12 +2,12 @@
 export type BeingMode = 'points' | 'mesh';
 
 /**
- * Which being substrate to render. Default 'mesh' (the working scene) for the
- * whole build; opt into the point-field with ?being=points. The default flips
- * to 'points' only after operator FIDELITY sign-off (final task).
+ * Which being substrate to render. Default 'points' — the official voyaging mind.
+ * Operator FIDELITY sign-off given 2026-06-21: the point-field IS the frontend.
+ * ?being=mesh is retained only as an internal escape hatch.
  */
 export function readBeingMode(search?: string): BeingMode {
   const raw = search ?? (typeof window !== 'undefined' ? window.location.search : '');
   const value = new URLSearchParams(raw).get('being');
-  return value === 'points' ? 'points' : 'mesh';
+  return value === 'mesh' ? 'mesh' : 'points';
 }
