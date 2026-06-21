@@ -64,3 +64,40 @@ When the being "turns to" a waiting tab, that tab animates **corner → dead-cen
 - **Attention-switch animation** (corner → center): v1 quick eased lerp vs a richer pull-forward choreography? (default: quick lerp.)
 - **Tab typing** (media / docs / browser / terminal labels + icons, per the prototype): adopt now or later? (default: later — keep filepath labels.)
 - **Reconciliation with VARIANT H poster panel 5** (tabs seated along the spine): the operator's locked model (corners + center-forward) **wins**; the poster panel was concept art, this prototype is the head.
+
+---
+
+## 8. THE SOUL — deep principles for a BEAUTIFUL orchestration (2026-06-21)
+
+> The first pass got the tab POSITIONS (focus center / corners, camera-anchored). This section captures what makes it the *living* orchestration — analyzed line-by-line from `synthesis-v2.html`. Orchestration is the HERO state; these are must-haves. Operator: "brain's size gets smaller to accommodate more tabs, brain goes on top like every alive being and controls using nerves coming from the vertebra — orchestrating is the main thing, it should look beautiful."
+>
+> Sacred unchanged: palette + textures untouched; luminance / geometry / motion / scale / position only.
+
+### P1 — Brain ON TOP + CONTINUOUS shrink with load
+The brain crowns the composition (top-center); the spine descends BELOW it down the center; the focus tab sits *below* the brain, never behind/over it. (Prototype: `.mini` at `top:14px`, spine at `top:74px` running down.) The brain scale **flexes continuously with tab count** (prototype legend), not a one-step dock — roughly: 1 tab ≈ 0.9, 2 ≈ 0.7, 3 ≈ 0.58, 4 ≈ 0.5, 5+ ≈ 0.44 (tune live), eased. The docked being also **rises** (a `mainBrainOffsetY`) so the brain sits at the top of frame with the spine + vertebrae visible beneath it.
+*Files:* `livingWorkspaceLayout.deriveBrainPresenceLayout` (progressive `mainBrainScale` curve + new `mainBrainOffsetY`), `SuperbrainScene` BrainModel (apply scale + offsetY in points).
+
+### P2 — Control nerves from the VERTEBRA nearest each tab
+Each tab's umbilical roots at the vertebra CLOSEST to it (prototype: upper vertebra `M200,150` feeds the top tabs, lower `M200,330` feeds the bottom tabs) — not one generic seat. Nerves are THIN, glowing (additive), with occasional travelling CONTROL PULSES (the NervousSystem packet language), staggered per nerve. This is "the being controls via nerves from the vertebrae."
+*Files:* `materializedSurfaceAnchors` (pick the seat/vertebra by the tab's screen quadrant), `MaterializedTab` (HUD nerve: thin + travelling pulse), `spineAnatomy` (vertebra positions).
+
+### P3 — Data flows DOWN the spine into the focus
+While the focus works, luminance beads/packets stream DOWN the spine (brain → focus) — "watch the data flow down to it." The being is visibly *driving* the attended tab.
+*Files:* `pointFieldMaterial` / `BrainPointField` (a downward spine flow gated on orchestration) or a small dedicated spine-bead.
+
+### P4 — The focus is the living HERO
+The attended tab: focus-pulse cyan edge, clean header (title + a subtle "working" indicator), a sense of live work (the existing line-reveal + bead flow; a cycling code→result feel is a later nice-to-have). Larger + brighter than waiting tabs, refined point-built skin, dead-center below the brain.
+
+### P5 — Waiting tabs: dim, idling, ready, vertebra-tethered
+4 corners (have), dim + recessed (have); ADD a gentle idle bob + a soft "waiting" pulse dot; each tethered to its vertebra nerve. Pulled to center when attended (attention-switch animation still deferred; the snap works).
+
+### What "beautiful" means here (the bar)
+- Clear HIERARCHY: brain (crown) ▸ focus (hero, center) ▸ waiting (dim, corners).
+- Elegant NERVES: thin glowing fibers from the vertebrae with travelling light — never fat pipes.
+- ALIVE: brain breathes + shrinks with load; data flows down; focus pulses; waiting tabs idle.
+
+### Build order (each verified live on :5173, fresh tab, operator gates beauty)
+1. **P1** brain on top + continuous shrink — the foundation of the hierarchy.
+2. **P2** vertebra-rooted nerves — the control read.
+3. **P3** spine data-flow-down — the alive-driving read.
+4. **P4 + P5** beautiful focus + waiting polish.
