@@ -112,8 +112,11 @@ const FRAGMENT = /* glsl */ `
     // travels the SPINE/roots (vAxis low) at a metabolic rate while the being works.
     // Luminance only; hue preserved.
     float spineMask = 1.0 - smoothstep(0.35, 0.55, vAxis);
-    float statePulse = clamp(uStatePulse, 0.0, 1.0) * spineMask *
-                       (0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * 3.0 - vAxis * 12.0)));
+    // SOUL P3: while orchestrating, data flows DOWN the spine into the work — the
+    // pulse travels brain→roots (+vAxis so the peak descends as uTime grows) with
+    // sharper bead-like crests, reading as the being DRIVING the focused tab.
+    float spineWave = 0.5 + 0.5 * sin(uTime * 3.0 + vAxis * 14.0);
+    float statePulse = clamp(uStatePulse, 0.0, 1.0) * spineMask * (0.4 + 0.6 * pow(spineWave, 2.2));
     // REABSORPTION (poster phase 7): the brain INHALES — a soft cortex-weighted
     // glow as a finished tab's energy returns up the spine into the being.
     float reabsorbGlow = clamp(uReabsorbGlow, 0.0, 1.0) * smoothstep(0.45, 1.0, vAxis) * 0.55;
@@ -153,6 +156,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v12';
+  material.customProgramCacheKey = () => 'pointfield_v13';
   return material;
 }
