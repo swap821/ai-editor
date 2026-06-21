@@ -1364,6 +1364,15 @@ export default function MaterializedTab({
           .addScaledVector(_camFwd, HUD_DIST)
           .addScaledVector(_camRight, pose.targetLocal[0] * HUD_SPREAD_X)
           .addScaledVector(_camUp, pose.targetLocal[1] * HUD_SPREAD_Y);
+        // SOUL P4/P5: the focus gently BREATHES; waiting tabs IDLE-bob (staggered),
+        // so the orchestration feels alive. Small + slow, so the nerve (rebuilt on
+        // movement) follows without churn. The nerve endpoint bobs with the tab.
+        if (!reducedMotion) {
+          const bob = isFocused
+            ? Math.sin(state.clock.elapsedTime * 1.1) * 0.04
+            : Math.sin(state.clock.elapsedTime * 1.5 + (waitingIndex ?? 0) * 1.3) * 0.08;
+          _hudPos.addScaledVector(_camUp, bob);
+        }
         orientationRef.current.parent?.worldToLocal(_hudPos); // -> the tab group's local space
         orientationRef.current.position.copy(_hudPos);
         orientationRef.current.lookAt(camera.position);
