@@ -415,8 +415,27 @@ export default function GagosChrome() {
 
   const canSend = draft.trim().length > 0 && !busy;
 
+  // Screen-reader narration of the being's live state (the visualization is
+  // aria-hidden, so the meaning must survive without sight).
+  const statusAnnouncement = !online
+    ? 'GAGOS is offline'
+    : convPhase === 'thinking' || convPhase === 'awakening'
+      ? 'GAGOS is thinking'
+      : convPhase === 'streaming'
+        ? 'GAGOS is replying'
+        : convPhase === 'complete'
+          ? 'GAGOS replied'
+          : convPhase === 'error'
+            ? 'GAGOS could not complete that turn'
+            : '';
+
   return (
     <div className="gagos-chrome">
+      <button type="button" className="gagos-skip" onClick={() => inputRef.current?.focus()}>
+        Skip to the chat
+      </button>
+      <div className="gagos-sr-only" role="status" aria-live="polite">{statusAnnouncement}</div>
+
       <div className="gagos-lockup">
         <div className="gagos-wordmark">GAGOS</div>
         <div className="gagos-rule" />

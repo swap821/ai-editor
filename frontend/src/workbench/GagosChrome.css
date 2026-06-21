@@ -15,6 +15,49 @@
   color: #eaf0fb;
 }
 
+/* Keyboard a11y: the first Tab jumps past the aria-hidden visualization
+   straight to the chat. Hidden until focused, then a real visible affordance. */
+.gagos-skip {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translate(-50%, -160%);
+  z-index: 60;
+  pointer-events: auto;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #06121a;
+  background: #7bf5fb;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+}
+.gagos-skip:focus {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  outline: 2px solid #06121a;
+  outline-offset: 2px;
+}
+
+/* Screen-reader-only live region (narrates the being's state). */
+.gagos-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 /* ── Top-left identity lockup ─────────────────────────────────────────── */
 .gagos-lockup {
   position: absolute;
@@ -432,6 +475,7 @@
   .gagos-lockup, .gagos-status, .gagos-bar { animation: none; }
   .gagos-pill--state.is-active .gagos-dot { animation: none; }
   .gagos-caret { animation: none; }
+  .gagos-skip { transition: none; }
 }
 
 /* ── Responsive: keep the front door usable on tablets + phones ───────────
