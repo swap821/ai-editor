@@ -101,3 +101,14 @@ The attended tab: focus-pulse cyan edge, clean header (title + a subtle "working
 2. **P2** vertebra-rooted nerves — the control read.
 3. **P3** spine data-flow-down — the alive-driving read.
 4. **P4 + P5** beautiful focus + waiting polish.
+
+---
+
+## 9. STATUS 2026-06-21 — crown fix LANDED (P1 corrected + focus-nerve law)
+
+The first SOUL P1 pass raised the brain but the FOCUS tab was still too large (`scale 0.82`) and centered too high (`y −0.34`), so its top edge reached into the brainstem and the brain read as *embedded* in the slab — the operator's "brain is not on top" complaint. Corrected:
+
+- **Focus pose lowered + shrunk** (`livingWorkspaceLayout.ts`, points-orchestration focus branch): `y −0.34 → −0.62`, `scale 0.82 → 0.64`. The brain + upper spine now own the top of frame; the focus sits clearly below with the spine plunging into its top (the P3 "fed by the spine" read).
+- **Focus-nerve law** (`MaterializedTab.tsx`): the FOCUS is fed by the spine DIRECTLY and carries **no umbilical** — a separate curved nerve arced back into the slab as an errant pipe. Only WAITING tabs are vertebra-nerve-tethered now. (The chat input keeps its cord via the non-HUD path.)
+
+Verified live on `:5173 &being=points` at 3 and 4 tabs: brain (crown) ▸ spine (feeding) ▸ focus (hero, center-below) ▸ waiting (corners, tethered). 209/209 superbrain tests green; mirrored to the gitignored `GAG demo/gag-orchestrator`. Open polish for the operator's eye: waiting-corner scale (`0.42 → ~0.34`) to sharpen hierarchy; bottom-left corner overlaps the chat box at 4 tabs.

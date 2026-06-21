@@ -1376,29 +1376,40 @@ export default function MaterializedTab({
         orientationRef.current.parent?.worldToLocal(_hudPos); // -> the tab group's local space
         orientationRef.current.position.copy(_hudPos);
         orientationRef.current.lookAt(camera.position);
-        // Redraw the nerve from the spine origin to the (moving) HUD tab — sparsely
-        // (only once it has shifted enough) so the umbilical stays plugged in without
-        // rebuilding the tube every frame.
-        if (!lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudPos) > HUD_REBUILD_EPS) {
-          // SOUL P2: root the nerve at the VISIBLE vertebra nearest this tab — upper
-          // vertebra for the focus + top corners, lower for the bottom corners — scaled
-          // by the brain's current dock scale (the visible spine shrank in P1).
-          {
-            const ds = getBrainDockScale() || 1;
-            const vi = isFocused || (waitingIndex ?? 0) <= 1 ? NERVE_VERTEBRA_UPPER : NERVE_VERTEBRA_LOWER;
-            const va = SEGMENT_ANCHORS[vi];
-            const vf = fuseSpinePoint([va.x, va.y, va.z]);
-            _hudOrigin.set(vf[0] * ds, vf[1] * ds, vf[2] * ds);
+        // SOUL: the FOCUS owns dead-center and the SPINE plunges straight into it
+        // (P3 data-flow-down) — a separate curved umbilical would arc back out and
+        // re-enter the slab as an errant pipe. So the focus carries NO umbilical;
+        // only WAITING tabs are nerve-tethered to their nearest vertebra. (The chat
+        // input keeps its cord via the non-HUD else branch below.)
+        if (isFocused) {
+          if (tubeRef.current) tubeRef.current.visible = false;
+          curveRef.current = null;
+        } else {
+          if (tubeRef.current) tubeRef.current.visible = true;
+          // Redraw the nerve from the spine origin to the (moving) HUD tab — sparsely
+          // (only once it has shifted enough) so the umbilical stays plugged in without
+          // rebuilding the tube every frame.
+          if (!lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudPos) > HUD_REBUILD_EPS) {
+            // SOUL P2: root the nerve at the VISIBLE vertebra nearest this tab — upper
+            // vertebra for the top corners, lower for the bottom corners — scaled by
+            // the brain's current dock scale (the visible spine shrank in P1).
+            {
+              const ds = getBrainDockScale() || 1;
+              const vi = (waitingIndex ?? 0) <= 1 ? NERVE_VERTEBRA_UPPER : NERVE_VERTEBRA_LOWER;
+              const va = SEGMENT_ANCHORS[vi];
+              const vf = fuseSpinePoint([va.x, va.y, va.z]);
+              _hudOrigin.set(vf[0] * ds, vf[1] * ds, vf[2] * ds);
+            }
+            _hudMid.copy(_hudOrigin).lerp(_hudPos, 0.5);
+            _hudMid.y += HUD_BOW;
+            const c = new THREE.CatmullRomCurve3([_hudOrigin.clone(), _hudMid.clone(), _hudPos.clone()]);
+            curveRef.current = c;
+            if (tubeRef.current) {
+              tubeRef.current.geometry.dispose();
+              tubeRef.current.geometry = new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
+            }
+            lastHudLocalRef.current = _hudPos.clone();
           }
-          _hudMid.copy(_hudOrigin).lerp(_hudPos, 0.5);
-          _hudMid.y += HUD_BOW;
-          const c = new THREE.CatmullRomCurve3([_hudOrigin.clone(), _hudMid.clone(), _hudPos.clone()]);
-          curveRef.current = c;
-          if (tubeRef.current) {
-            tubeRef.current.geometry.dispose();
-            tubeRef.current.geometry = new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
-          }
-          lastHudLocalRef.current = _hudPos.clone();
         }
       } else {
         curveRef.current = null;

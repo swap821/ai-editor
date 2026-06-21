@@ -1,9 +1,19 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-19T12:37:56+05:30
+Last updated: 2026-06-21T10:12:00+05:30
 
 ## Current Goal
-Convert the living-being frontend blueprint into a 100% working live organism. **Phase 3 LANDED + Claude-reviewer-approved (commit 2eda588, against pinned snapshot 0ff2ea0).** Current lane: **Phase 4 — the real work loop through the living body** (the "SUPERBRAIN ALIVE" push). Codex on leave until 2026-06-25; Claude is solo (builder + reviewer). Operator steering remotely; visual sign-off delegated to Claude via kimi-webbridge at :5173. Canon re-scoped 2026-06-19: lab unrestricted, only palette+textures sacred.
+Convert the living-being frontend blueprint into a 100% working live organism. **Phase 3 LANDED + Claude-reviewer-approved (commit 2eda588, against pinned snapshot 0ff2ea0).** Current lane: **ORCHESTRATION (poster panel 5) — the LOCKED MODEL + its SOUL**: the being CROWNS the top, shrinks with tab-count, the spine feeds the focus, waiting tabs hang nerve-tethered in the corners. Codex on leave until 2026-06-25; Claude is solo (builder + reviewer). Operator steering remotely; visual sign-off delegated to Claude via kimi-webbridge at :5173. Canon re-scoped 2026-06-19: lab unrestricted, only palette+textures sacred. Test on `:5173/?ui=superbrain&being=points`.
+
+## SESSION 2026-06-21 — Orchestration "brain on top" crown fix (LANDED)
+- **The operator's complaint** ("brain is not on top and many more flaws") was root-caused live, not guessed: the orchestration FOCUS tab was too large (`scale 0.82`) and centered too high (`y −0.34`), so its top edge reached up into the brainstem — the brain looked *embedded* in the slab. A second flaw: a redundant curved umbilical was drawn from a vertebra arcing back into the focus tab (an errant "fat pipe" ending mid-air), even though the spine already plunges straight into it.
+- **Fix (sacred palette/textures untouched — geometry/scale/position only):**
+  - `livingWorkspaceLayout.ts` — lowered + shrank the points-orchestration focus pose (`y −0.34 → −0.62`, `scale 0.82 → 0.64`) so the brain + upper spine own the top of frame and the spine feeds DOWN into the focus.
+  - `MaterializedTab.tsx` — the FOCUS is now fed by the spine directly (no umbilical); only WAITING tabs get a vertebra-rooted nerve. Errant pipe gone.
+- **Verified LIVE on :5173 &being=points** at 3 and 4 tabs: brain crowns → spine descends → plunges into the focus hero (center) → waiting tabs nerve-tethered in the corners. 209/209 superbrain tests green; mirrored to gitignored `GAG demo/gag-orchestrator`.
+- **Also committed (poster-palette chrome alignment, was uncommitted in the worktree):** `superbrain.css` neon-tetrad set to the poster's "STATUS FROM BODY" legend (`--neon-cyan #7bf5fb`, `--neon-purple #b06eff`, `--neon-green #54f0a0`, `--neon-orange #ff7e40`), deeper purple-black void; `index.css` aura, `shell.css` cosmos/voyage-dot, `GagosChrome.css` wordmark, `SuperbrainHUD.tsx` "ONE BODY · MANY POSTURES · THE INTERFACE IS ALIVE" footer — all conforming the DOM chrome to the poster bible.
+- **Strategic decision (Unreal Engine question):** NO to Unreal — it's a native game engine, not a web library; the only web paths (Pixel Streaming / dead HTML5 export) cost a GPU per user, kill local-first, and mean a full rewrite. Stay browser-native; the real fidelity jump is **WebGPU + TSL + GPU compute particles** (already the `nextgen-3d-design-direction` plan). Offered to spike a flagged WebGPU point-field prototype for A/B — awaiting operator go.
+- **NEXT (operator's eye):** his :5173 fidelity verdict on the crown; optional tuning I flagged — shrink waiting-corner scale (`0.42 → ~0.34`) to sharpen hierarchy, and nudge the bottom-left corner off the chat box at 4 tabs.
 
 ## Last Completed + Verified
 - Operator continued after the Phase 3 lab proof; treated as approval to run the product sync gate.
