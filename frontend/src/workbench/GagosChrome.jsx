@@ -18,7 +18,7 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sendDirective, sendVoiceTurn } from '../superbrain/lib/aiosAdapter';
+import { sendDirective, sendVoiceTurn, getLastEmittedCode } from '../superbrain/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { API_BASE } from '../config';
@@ -66,13 +66,28 @@ const LANG_EXT = {
   html: 'html', css: 'css', sql: 'sql', go: 'go', rust: 'rs', c: 'c', cpp: 'cpp', text: 'txt',
 };
 
-/** Pull a fenced code block out of a work answer (keep code chars intact); fall
- *  back to the prose as plain text. */
+/** The backend's alignment frame prepends "Unverified assumptions before
+ *  proceeding: ..." / "Unresolved but treated as non-blocking: ..." lines (and a
+ *  memory-recall step can echo them); strip them so the artifact/reply reads clean. */
+function stripAlignmentPreamble(answer) {
+  return String(answer ?? '')
+    .replace(
+      /^(?:\s*(?:Unverified assumptions before proceeding:[^\n]*|Unresolved but treated as non-blocking:[^\n]*)\s*\n?)+/gi,
+      '',
+    )
+    .replace(/^\s+/, '');
+}
+
+/** Pull the brain's ACTUAL emitted code out of a work answer. Returns `hasCode`
+ *  so the caller can tell a real artifact from a conversational reply — the agent
+ *  often asks to clarify instead of writing code, and that is NOT a code tab. */
 function extractWork(answer) {
-  const raw = String(answer ?? '');
+  const raw = stripAlignmentPreamble(answer);
   const fence = raw.match(/```(\w+)?\s*\n([\s\S]*?)```/);
-  if (fence) return { code: fence[2].replace(/\s+$/, ''), language: (fence[1] || 'text').toLowerCase() };
-  return { code: cleanText(raw, 1200), language: 'text' };
+  if (fence) {
+    return { code: fence[2].replace(/\s+$/, ''), language: (fence[1] || 'text').toLowerCase(), hasCode: true };
+  }
+  return { code: '', language: 'text', hasCode: false };
 }
 
 /** A friendly slab filename from the request, e.g. "reverse-a-string.py". */
@@ -297,6 +312,7 @@ export default function GagosChrome() {
         // Own this turn's work materialization so the backend's CODE EMITTED
         // auto-fire (MaterializationLayer) doesn't ALSO spawn a duplicate tab.
         claimWorkMaterialization();
+        const beforeCode = getLastEmittedCode();
         const result = await sendDirective(text);
         if (turnTokenRef.current !== token) {
           releaseWorkMaterialization();
@@ -308,17 +324,35 @@ export default function GagosChrome() {
           releaseWorkMaterialization();
           pushMessage('gagos', 'Holding for your approval before I build that.');
         } else {
-          const { code, language } = extractWork(result?.answer);
-          const filepath = workFilepath(text, language);
-          const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
-          const tab = showContentSurface({ code: code || '// (empty)', language, filepath }, getContentSurfacePlacement(seat));
-          workTabIdsRef.current.push(tab.id);
-          // Cap the orchestration: beyond 5 tabs the OLDEST reabsorbs up the spine (phase 7).
-          while (workTabIdsRef.current.length > 5) {
-            const oldest = workTabIdsRef.current.shift();
-            if (oldest) beginRetractingMaterializedTab(oldest);
+          // Prefer the brain's ACTUAL emitted code (the dedicated `code` SSE frame,
+          // captured in the adapter) over the prose `answer` — which carries the
+          // reasoning/alignment preamble, not the artifact. Freshness by reference:
+          // the adapter swaps this object on every new code frame, so a different
+          // ref means THIS turn emitted code (never a stale earlier artifact).
+          const emitted = getLastEmittedCode();
+          const fresh = emitted && emitted !== beforeCode && emitted.code ? emitted : null;
+          const extracted = extractWork(result?.answer);
+          const code = fresh ? fresh.code : extracted.code;
+          const language = fresh ? (fresh.language || 'text').toLowerCase() : extracted.language;
+          const hasCode = Boolean((fresh || extracted.hasCode) && code.trim());
+          if (hasCode) {
+            // A real artifact -> grow a code tab from a vertebra (poster phase 4-6).
+            const filepath =
+              (fresh?.filepath ? fresh.filepath.split(/[\\/]/).pop() : '') || workFilepath(text, language);
+            const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+            const tab = showContentSurface({ code, language, filepath }, getContentSurfacePlacement(seat));
+            workTabIdsRef.current.push(tab.id);
+            // Cap the orchestration: beyond 5 tabs the OLDEST reabsorbs up the spine (phase 7).
+            while (workTabIdsRef.current.length > 5) {
+              const oldest = workTabIdsRef.current.shift();
+              if (oldest) beginRetractingMaterializedTab(oldest);
+            }
+            pushMessage('gagos', `↳ I've materialized ${filepath} on the spine.`);
+          } else {
+            // No code -> the being is CONVERSING (e.g. asking to clarify). Show its
+            // words as a normal reply; never grow an empty/garbage "code" tab.
+            pushMessage('gagos', cleanText(stripAlignmentPreamble(result?.answer)) || '…');
           }
-          pushMessage('gagos', `↳ I've materialized ${filepath} on the spine.`);
           releaseWorkMaterialization();
         }
         setConversationPhase('idle'); // the slab's working posture takes the body
