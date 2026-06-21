@@ -107,9 +107,9 @@
           loader.dataset.done = '1';
           window.setTimeout(function () { if (loader && loader.parentNode) loader.parentNode.removeChild(loader); }, 700);
         }
-        window.addEventListener('gagos:ready', dismiss);           /* opt-in: scene dispatches when shaders are warm */
-        window.addEventListener('load', function () { window.setTimeout(dismiss, 450); });
-        window.setTimeout(dismiss, 9000);                          /* safety net */
+        window.addEventListener('gagos:ready', dismiss);           /* PRIMARY: the scene dispatches this on its first rendered frame */
+        window.addEventListener('load', function () { window.setTimeout(dismiss, 2500); }); /* grace fallback if the scene never signals */
+        window.setTimeout(dismiss, 9000);                          /* hard safety net */
       })();
     </script>
   </body>

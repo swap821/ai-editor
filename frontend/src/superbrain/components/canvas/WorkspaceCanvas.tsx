@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
@@ -28,6 +28,23 @@ const TIER_DPR: Record<QualityTier, [number, number]> = {
   medium: [1, 1.25],
   low: [1, 1],
 };
+
+/** Boot handoff: fire `gagos:ready` ONCE the scene is actually rendering (the
+ *  first frame after Suspense resolves = shaders warming, GLB landed), so the
+ *  index.html boot loader dismisses precisely when the being is up — not on a
+ *  guessed timer that fires before the heavy 3D is ready. One extra rAF so the
+ *  frame has painted before the crossfade. Pure additive signal: no render. */
+function ReadySignal() {
+  const fired = useRef(false);
+  useFrame(() => {
+    if (fired.current) return;
+    fired.current = true;
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => window.dispatchEvent(new Event('gagos:ready')));
+    }
+  });
+  return null;
+}
 
 export default function WorkspaceCanvas({ children }: { children?: ReactNode }) {
   return (
@@ -221,6 +238,7 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
             <TierGovernor />
             <Suspense fallback={null}>
               <SuperbrainScene mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
+              <ReadySignal />
               {/* Product-side forge ports (editor/preview) mount here, INSIDE the
                   one canvas, so the canon nerves plug into them. Renders nothing
                   when no children are passed (home/?ui=superbrain unchanged). */}
