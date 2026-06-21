@@ -27,13 +27,17 @@ export interface BodyPosture {
   label: string;
 }
 
-/** The spectral-v1 palette (+ amber HOLD). Sacred per the operator's bible. */
+/** The posture palette, aligned to the VARIANT-H poster's "STATUS FROM BODY"
+ *  hero tetrad — cyan #7bf5fb (working), purple #b06eff (thinking),
+ *  green #54f0a0 (complete), orange #ff7e40 (holding). Hues are the poster's;
+ *  the per-posture INTENSITY (flow + tint, scaled by POSTURE_DIAL) is the
+ *  operator's FIDELITY call, dialed on RTX. Sacred per the operator's bible. */
 export const BODY_POSTURES: Record<BodyPostureKey, BodyPosture> = {
-  rest: { key: 'rest', color: [150, 120, 255], flow: 0.16, tint: 0.0, label: 'Resting' },
-  think: { key: 'think', color: [196, 78, 255], flow: 0.55, tint: 0.46, label: 'Thinking' },
-  stream: { key: 'stream', color: [54, 214, 255], flow: 1.0, tint: 0.7, label: 'Streaming' },
-  hold: { key: 'hold', color: [224, 168, 79], flow: 0.34, tint: 0.5, label: 'Holding' },
-  complete: { key: 'complete', color: [62, 240, 160], flow: 0.3, tint: 0.55, label: 'Complete' },
+  rest: { key: 'rest', color: [158, 120, 245], flow: 0.16, tint: 0.0, label: 'Resting' },
+  think: { key: 'think', color: [176, 110, 255], flow: 0.55, tint: 0.46, label: 'Thinking' },
+  stream: { key: 'stream', color: [123, 245, 251], flow: 1.0, tint: 0.7, label: 'Streaming' },
+  hold: { key: 'hold', color: [255, 126, 64], flow: 0.34, tint: 0.5, label: 'Holding' },
+  complete: { key: 'complete', color: [84, 240, 160], flow: 0.3, tint: 0.55, label: 'Complete' },
   error: { key: 'error', color: [255, 92, 72], flow: 0.22, tint: 0.8, label: 'Error' },
 };
 

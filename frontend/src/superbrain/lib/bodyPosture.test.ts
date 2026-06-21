@@ -9,11 +9,12 @@ import {
 } from './bodyPosture';
 
 describe('bodyPosture — spectral-v1 palette', () => {
-  it('keeps the spectral-v1 state colors exactly', () => {
-    expect(BODY_POSTURES.rest.color).toEqual([150, 120, 255]);
-    expect(BODY_POSTURES.think.color).toEqual([196, 78, 255]);
-    expect(BODY_POSTURES.stream.color).toEqual([54, 214, 255]);
-    expect(BODY_POSTURES.complete.color).toEqual([62, 240, 160]);
+  it('keeps the poster "STATUS FROM BODY" tetrad colors exactly', () => {
+    expect(BODY_POSTURES.rest.color).toEqual([158, 120, 245]);
+    expect(BODY_POSTURES.think.color).toEqual([176, 110, 255]); // poster purple #b06eff
+    expect(BODY_POSTURES.stream.color).toEqual([123, 245, 251]); // poster cyan #7bf5fb
+    expect(BODY_POSTURES.hold.color).toEqual([255, 126, 64]); // poster orange #ff7e40
+    expect(BODY_POSTURES.complete.color).toEqual([84, 240, 160]); // poster green #54f0a0
     expect(BODY_POSTURES.error.color).toEqual([255, 92, 72]);
   });
 
@@ -64,8 +65,8 @@ describe('deriveBodyPosture + postureColor01', () => {
   it('normalizes an sRGB triple to 0..1 for Three uniforms', () => {
     expect(postureColor01([255, 0, 51])).toEqual([1, 0, 51 / 255]);
     const [r, g, b] = postureColor01(BODY_POSTURES.stream.color);
-    expect(r).toBeCloseTo(54 / 255);
-    expect(g).toBeCloseTo(214 / 255);
-    expect(b).toBeCloseTo(1);
+    expect(r).toBeCloseTo(123 / 255);
+    expect(g).toBeCloseTo(245 / 255);
+    expect(b).toBeCloseTo(251 / 255);
   });
 });
