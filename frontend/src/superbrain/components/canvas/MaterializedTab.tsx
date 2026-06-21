@@ -1478,9 +1478,9 @@ export default function MaterializedTab({
         organMaterial.tissue.frameOpacityScale *
         pose.opacity *
         (1 + surfaceExcitation * 0.42 + outcomeSurfaceExcitation * 0.46);
-      // Points being: a THIN glowing neon edge (spectral cyan).
+      // Points being: a THIN glowing neon edge (poster cyan #7bf5fb).
       if (POINTS) {
-        mat.color.set('#36d6ff');
+        mat.color.set('#7bf5fb');
         mat.opacity = Math.min(0.95, mat.opacity * 3.2 + 0.4);
       }
     }
