@@ -685,6 +685,7 @@ function BrainModel({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const brainVisualRef = useRef<THREE.Group>(null);
+  const dockYRef = useRef(0); // SOUL P1: eased rise so the brain crowns the top while orchestrating
   /** Damped pointer-attention lean (CURSOR_ATTENTION). */
   const attendRef = useRef({ x: 0, y: 0 });
   const postureRef = useRef({ yaw: 0, pitch: 0, roll: 0, offsetX: 0, offsetY: 0, scaleBoost: 0 });
@@ -848,7 +849,11 @@ function BrainModel({
 
         // A slow exploratory drift keeps the intelligence moving through space.
         groupRef.current.position.x = brainDriftX(time) + posture.offsetX;
-        groupRef.current.position.y = 0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07 + posture.offsetY;
+        // SOUL P1: ease the being UP while orchestrating so the (shrinking) brain
+        // crowns the top of frame with the spine descending beneath it.
+        dockYRef.current = THREE.MathUtils.damp(dockYRef.current, brainPresence.mainBrainOffsetY, 2.5, delta);
+        groupRef.current.position.y =
+          0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07 + posture.offsetY + dockYRef.current;
 
         // THE ORGANISM NOTICES YOU: a damped attentive lean toward the
         // pointer, ADDED after the voyage math so it can only ever tilt the

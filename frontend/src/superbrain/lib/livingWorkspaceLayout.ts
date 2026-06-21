@@ -33,6 +33,8 @@ export interface BrainPresenceInput {
 export interface BrainPresenceLayout {
   mode: 'rest' | 'docked';
   mainBrainScale: number;
+  /** points orchestration: raise the being so the brain crowns the top (on top). */
+  mainBrainOffsetY: number;
   miniBrainScale: number;
   miniBrainOpacity: number;
   miniBrainPosition: Vec3Tuple;
@@ -190,6 +192,7 @@ export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPrese
     return {
       mode,
       mainBrainScale: 1,
+      mainBrainOffsetY: 0,
       miniBrainScale: 0.205,
       miniBrainOpacity: 0.5,
       miniBrainPosition: [0.44, 0.16, 1.12],
@@ -198,16 +201,24 @@ export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPrese
     };
   }
 
+  // SOUL P1: in points ORCHESTRATION (2+ tabs) the brain CROWNS the top and SHRINKS
+  // CONTINUOUSLY with tab count (it delegates attention down to the body as work
+  // grows). 1 tab keeps the full being (the lateral-peer materialization). Mesh keeps
+  // the mild dock. Tuned values; the BrainModel eases toward these.
+  const pointsOrchestrating = !!input.points && workspaceCount >= 2;
+
   return {
     mode,
-    // LOCKED MODEL: in points mode with 2+ tabs the being docks clearly small (the
-    // mini-brain) so the dead-center focus tab owns the middle. Mesh/single-tab keep
-    // the mild dock.
     mainBrainScale: round3(
-      input.points && workspaceCount >= 2
-        ? clamp(0.62 - load * 0.12 - compactness * 0.05, 0.5, 0.62)
+      input.points
+        ? pointsOrchestrating
+          ? clamp(1.04 - workspaceCount * 0.13 - compactness * 0.04, 0.42, 0.78) // 2→0.78,3→0.65,4→0.52,5→0.42
+          : clamp(1 - load * 0.16 - compactness * 0.05, 0.9, 1) // 1 tab: ~full
         : clamp(1 - load * 0.16 - compactness * 0.07, 0.76, 1),
     ),
+    // raise the being so the (small) brain sits at the top of frame, spine descending
+    // beneath it; more tabs -> a touch higher. Only when points-orchestrating.
+    mainBrainOffsetY: round3(pointsOrchestrating ? clamp(1.1 + (workspaceCount - 2) * 0.12, 1.1, 1.7) : 0),
     miniBrainScale: round3(clamp(0.205 - workspaceCount * 0.007 - compactness * 0.03, 0.108, 0.205)),
     miniBrainOpacity: round3(clamp(0.68 + load * 0.18 - compactness * 0.04, 0.58, 0.88)),
     miniBrainPosition: tuple(0, 0.26 + compactness * 0.14 - load * 0.04, 1.06 + compactness * 0.04 - load * 0.035),
