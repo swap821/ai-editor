@@ -118,7 +118,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI OS - Jarvis",
+    title="GAGOS - AI OS",
     version=aios.__version__,
     summary="Local-first, memory-driven, security-gated, human-supervised AI OS.",
     lifespan=lifespan,
@@ -1462,13 +1462,13 @@ _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
 _EPISODIC = EpisodicMemory()
 
 
-#: System prompt for the lean conversational endpoint (the "Jarvis" voice mind,
+#: System prompt for the lean conversational endpoint (the GAGOS voice mind,
 #: Slice 1). It is CONVERSATION, not the coding forge: no file edits, no tool
 #: loop — just a warm, technically deep Hinglish chat. The operator-facts context
 #: block (REAL approved facts only; absent when none) is appended at request time,
 #: and the honesty law is stated inline so the model never invents personal facts.
 CHAT_SYSTEM_PROMPT = (
-    "Tu operator ka personal AI-OS hai — uska apna 'Jarvis'. Tu ek saathi ki "
+    "Tu GAGOS hai — operator ka personal AI-OS, 'the voyaging mind'. Tu ek saathi ki "
     "tarah baat karta hai: natural HINGLISH mein (English aur Hindi ka fluid mix), "
     "jaise operator khud likhta/bolta hai — uske tone aur mix ko match kar. "
     "Concise reh, warm reh, lekin technically deep — code, architecture, ya kuch "
