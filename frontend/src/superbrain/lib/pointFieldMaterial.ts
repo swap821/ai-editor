@@ -94,10 +94,14 @@ const FRAGMENT = /* glsl */ `
     float t = clamp(1.0 - d * 2.0, 0.0, 1.0);
     float glow = pow(t, 2.4);                 // wide soft halo
     float core = pow(t, 9.0);                  // tight bright core
-    float intensity = glow * 0.7 + core * 0.6;
+    float intensity = glow * 0.62 + core * 0.85;
     // gentle desynced twinkle
     intensity *= 0.82 + 0.18 * sin(uTime * 0.7 + vSeed);
-    vec3 c = mix(vColor, vColor * uPostureColor, clamp(uPostureTint, 0.0, 0.8));
+    // Energy-restore (x1.6): vColor * uPostureColor multiplies two sub-1 colors,
+    // darkening the cloud under a strong posture tint (the think dim). The cortex
+    // already compensates (brainMaterial); the point shader did not. Scalar lift =
+    // brightness only, hue/saturation preserved (sacred palette).
+    vec3 c = mix(vColor, vColor * uPostureColor * 1.6, clamp(uPostureTint, 0.0, 0.8));
     c += vColor * vBand * 0.4;                  // flow band brightens as it sweeps
     c *= uGlowMul;
     // ARRIVAL ignition: a single-shot "ignition of awareness" flash, weighted to
@@ -135,7 +139,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uSize: { value: 2.8 },       // finer puncta (poster's dense fine-dot read; pairs with the 200k+ count on the RTX 3050)
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
       uFogDensity: { value: 0.02 },// subtle recession only (thin depth slab)
-      uGlowMul: { value: 2.4 },    // >1 so the existing PostFX Bloom (threshold 1.0) catches it
+      uGlowMul: { value: 2.55 },   // >1 so PostFX Bloom catches it (modest lift; operator's RTX dial: window.__POINTFIELD.uGlowMul)
       uBodyOpacity: { value: 1.0 },// damped to ~0.5 while orchestrating so inner memory-nodes show
       uIgnite: { value: 0 },       // single-shot arrival ignition flash (cortex-weighted luminance, no hue change)
       uAwaken: { value: 0 },       // conversation cortex-heat (cortex-weighted luminance, no hue change)
@@ -156,6 +160,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v13';
+  material.customProgramCacheKey = () => 'pointfield_v14';
   return material;
 }
