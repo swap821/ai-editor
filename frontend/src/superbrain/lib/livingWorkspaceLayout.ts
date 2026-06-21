@@ -212,13 +212,18 @@ export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPrese
     mainBrainScale: round3(
       input.points
         ? pointsOrchestrating
-          ? clamp(1.04 - workspaceCount * 0.13 - compactness * 0.04, 0.42, 0.78) // 2→0.78,3→0.65,4→0.52,5→0.42
+          ? // MATH: the brain's PRESENCE divides among the tabs — inverse of count,
+            // so each added tab shrinks the head to make room for the work. A small
+            // screen-size factor too (prototype: "flexes with tab count + screen size").
+            // N=2→0.70, 3→0.54, 4→0.44, 5→0.37, 6+→floor 0.34.
+            clamp((1 / (1 + 0.42 * (workspaceCount - 1))) * (1 - compactness * 0.12), 0.34, 0.82)
           : clamp(1 - load * 0.16 - compactness * 0.05, 0.9, 1) // 1 tab: ~full
         : clamp(1 - load * 0.16 - compactness * 0.07, 0.76, 1),
     ),
-    // raise the being so the (small) brain sits at the top of frame, spine descending
-    // beneath it; more tabs -> a touch higher. Only when points-orchestrating.
-    mainBrainOffsetY: round3(pointsOrchestrating ? clamp(1.1 + (workspaceCount - 2) * 0.12, 1.1, 1.7) : 0),
+    // CROWN higher: the smaller the brain (more tabs), the HIGHER it rises so it
+    // sits at the very top of frame; nerves reach DOWN from its vertebrae to the
+    // tabs below. Only when points-orchestrating.
+    mainBrainOffsetY: round3(pointsOrchestrating ? clamp(1.72 + (workspaceCount - 2) * 0.16, 1.72, 2.4) : 0),
     miniBrainScale: round3(clamp(0.205 - workspaceCount * 0.007 - compactness * 0.03, 0.108, 0.205)),
     miniBrainOpacity: round3(clamp(0.68 + load * 0.18 - compactness * 0.04, 0.58, 0.88)),
     miniBrainPosition: tuple(0, 0.26 + compactness * 0.14 - load * 0.04, 1.06 + compactness * 0.04 - load * 0.035),
