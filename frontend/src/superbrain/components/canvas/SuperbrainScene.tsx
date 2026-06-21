@@ -75,6 +75,7 @@ const BEING_MODE = readBeingMode();
 // three/webgpu is code-split OUT of the default WebGL bundle (only fetched on the flag).
 const GPU_MODE = readGpuMode();
 const GpuBrainPointField = lazy(() => import('./GpuBrainPointField'));
+const GpuPostFX = lazy(() => import('./GpuPostFX'));
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -1687,9 +1688,15 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       )}
 
       {/* PostFX is the WebGL EffectComposer (AgX + Bloom) — it cannot run on the
-          WebGPU renderer. Under the ?gpu=webgpu spike it's gated off; the TSL
-          bloom/AgX pass is the documented follow-up (SPIKE §4). */}
+          WebGPU renderer. Under the ?gpu=webgpu spike the TSL equivalent
+          (scene → Bloom → AgX) renders instead, lazy so three/webgpu stays out of
+          the default bundle. */}
       {GPU_MODE !== 'webgpu' && <PostFX />}
+      {GPU_MODE === 'webgpu' && (
+        <Suspense fallback={null}>
+          <GpuPostFX />
+        </Suspense>
+      )}
     </>
   );
 }

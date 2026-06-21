@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => {
               // (three.webgpu.js / three.tsl.js) — they are reached ONLY via the
               // flagged ?gpu=webgpu DYNAMIC imports, so leaving them ungrouped lets
               // rolldown keep them in an ASYNC chunk (never shipped to default users).
-              { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/](?!build[\\/]three\.(?:webgpu|tsl))/ },
+              { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/](?!build[\\/]three\.(?:webgpu|tsl)|examples[\\/]jsm[\\/]tsl[\\/])/ },
               { name: 'vendor-drei', test: /[\\/]node_modules[\\/]@react-three[\\/]drei[\\/]/ },
               { name: 'vendor-postprocessing', test: /[\\/]node_modules[\\/]postprocessing[\\/]/ },
               { name: 'vendor-r3f', test: /[\\/]node_modules[\\/]@react-three[\\/]/ },
