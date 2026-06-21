@@ -58,8 +58,12 @@ export default defineConfig(({ mode }) => {
           codeSplitting: {
             groups: [
               // ORDER MATTERS: first matching group wins. three.js core must be
-              // matched before drei/r3f so the ~600 KB monolith lands here.
-              { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/]/ },
+              // matched before drei/r3f so the ~600 KB monolith lands here. The
+              // NEGATIVE LOOKAHEAD excludes the self-contained WebGPU/TSL builds
+              // (three.webgpu.js / three.tsl.js) — they are reached ONLY via the
+              // flagged ?gpu=webgpu DYNAMIC imports, so leaving them ungrouped lets
+              // rolldown keep them in an ASYNC chunk (never shipped to default users).
+              { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/](?!build[\\/]three\.(?:webgpu|tsl))/ },
               { name: 'vendor-drei', test: /[\\/]node_modules[\\/]@react-three[\\/]drei[\\/]/ },
               { name: 'vendor-postprocessing', test: /[\\/]node_modules[\\/]postprocessing[\\/]/ },
               { name: 'vendor-r3f', test: /[\\/]node_modules[\\/]@react-three[\\/]/ },

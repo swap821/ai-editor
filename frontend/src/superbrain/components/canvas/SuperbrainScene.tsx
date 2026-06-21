@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Float, useGLTF, PerspectiveCamera, OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -33,6 +33,7 @@ import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
+import { readGpuMode } from '@/lib/gpuMode';
 import { setBrainDockScale } from '@/lib/spineFusionBus';
 import BrainPointField from './BrainPointField';
 
@@ -70,6 +71,10 @@ const SHOW_MEMORY_GALAXY = true;
 
 /** Substrate: 'mesh' (default, the working being) or 'points' (?being=points). */
 const BEING_MODE = readBeingMode();
+// Flagged WebGPU look-spike (?gpu=webgpu) — opt-in + capability-gated. Lazy so
+// three/webgpu is code-split OUT of the default WebGL bundle (only fetched on the flag).
+const GPU_MODE = readGpuMode();
+const GpuBrainPointField = lazy(() => import('./GpuBrainPointField'));
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -896,7 +901,21 @@ function BrainModel({
           <primitive object={brainAsset.object} />
         ))}
         {BEING_MODE === 'mesh' && <primitive object={neuralSkin.object} scale={1.004} />}
-        {BEING_MODE === 'points' && (
+        {BEING_MODE === 'points' && GPU_MODE === 'webgpu' && (
+          /* SPIKE (?gpu=webgpu): the same brain+fused-spine geometry, simulated as
+             GPU compute particles (250k–1M). Lazy + Suspense so three/webgpu stays
+             out of the default bundle. Falls back to nothing while the chunk loads. */
+          <Suspense fallback={null}>
+            <GpuBrainPointField
+              source={brainAsset.object}
+              uniforms={uniforms}
+              count={tier === 'high' ? 250000 : tier === 'medium' ? 120000 : 60000}
+              spineScale={1 / BRAIN_SCALE}
+              spineCount={tier === 'high' ? 70000 : tier === 'medium' ? 30000 : 16000}
+            />
+          </Suspense>
+        )}
+        {BEING_MODE === 'points' && GPU_MODE !== 'webgpu' && (
           /* ONE CLOUD: brain + spine are a single point geometry. The spine is
              FUSED in with its cord-top welded to the brain's real brainstem
              vertices (spineScale = 1/BRAIN_SCALE maps scene→brain-local). It rides
@@ -1667,7 +1686,10 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
       )}
 
-      <PostFX />
+      {/* PostFX is the WebGL EffectComposer (AgX + Bloom) — it cannot run on the
+          WebGPU renderer. Under the ?gpu=webgpu spike it's gated off; the TSL
+          bloom/AgX pass is the documented follow-up (SPIKE §4). */}
+      {GPU_MODE !== 'webgpu' && <PostFX />}
     </>
   );
 }
