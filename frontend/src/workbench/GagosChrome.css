@@ -94,6 +94,28 @@
   background: #54f0a0;
   box-shadow: 0 0 9px rgba(84, 240, 160, 0.85), 0 0 18px rgba(84, 240, 160, 0.28);
 }
+/* Honest offline state — the connection dot tells the truth, never a faked status. */
+.gagos-dot--offline {
+  background: #f87171;
+  box-shadow: 0 0 9px rgba(248, 113, 113, 0.85), 0 0 18px rgba(248, 113, 113, 0.28);
+}
+/* Retry on a failed turn — a graceful way back, never a silent dead-end. */
+.gagos-retry {
+  display: inline-block;
+  margin-left: 9px;
+  padding: 2px 11px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: #aef3ff;
+  background: rgba(123, 245, 251, 0.1);
+  border: 1px solid rgba(123, 245, 251, 0.3);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.gagos-retry:hover { background: rgba(123, 245, 251, 0.18); border-color: rgba(123, 245, 251, 0.5); }
+.gagos-retry:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
 .gagos-pill--supervised {
   color: rgba(200, 250, 228, 0.80);
 }

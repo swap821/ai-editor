@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { sendDirective, sendVoiceTurn } from '../superbrain/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
+import { API_BASE } from '../config';
 import {
   formatActiveBrainLine,
   getActiveBrain,
@@ -180,6 +181,7 @@ export default function GagosChrome() {
   );
   const [modelLine, setModelLine] = useState(() => formatActiveBrainLine(getActiveBrain()));
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
+  const [online, setOnline] = useState(true); // honest backend reachability (polled)
 
   const busyRef = useRef(false);
   const turnTokenRef = useRef(0);
@@ -231,9 +233,30 @@ export default function GagosChrome() {
     }
   }, []);
 
-  const pushMessage = useCallback((role, text) => {
+  // Honest connection state: poll the backend /health so the chrome tells you the
+  // truth ("offline") instead of pretending GAGOS is reachable. No faked status.
+  useEffect(() => {
+    let alive = true;
+    const ping = async () => {
+      const ctrl = new AbortController();
+      const to = window.setTimeout(() => ctrl.abort(), 3000);
+      try {
+        const res = await fetch(`${API_BASE}/health`, { signal: ctrl.signal });
+        if (alive) setOnline(res.ok);
+      } catch {
+        if (alive) setOnline(false);
+      } finally {
+        window.clearTimeout(to);
+      }
+    };
+    ping();
+    const id = window.setInterval(ping, 12000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, []);
+
+  const pushMessage = useCallback((role, text, extra) => {
     const id = (msgSeqRef.current += 1);
-    setMessages((prev) => [...prev, { id, role, text }].slice(-MAX_MESSAGES));
+    setMessages((prev) => [...prev, { id, role, text, ...(extra || {}) }].slice(-MAX_MESSAGES));
     return id;
   }, []);
 
@@ -316,12 +339,21 @@ export default function GagosChrome() {
         updateMessage(gagosId, cleanText(final) || '…');
         setConversationPhase('complete');
       }
+      setOnline(true); // a completed turn is proof the backend is reachable
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.6, data: { phase: 'reply-complete' } });
     } catch (error) {
       if (turnTokenRef.current !== token) return;
       const detail = error instanceof Error ? error.message : 'link unavailable';
-      const msg = `I could not reach my mind just now (${detail}).`;
-      if (gagosId) updateMessage(gagosId, msg); else pushMessage('gagos', msg);
+      const offline = error instanceof TypeError || /failed to fetch|networkerror|load failed|abort/i.test(detail);
+      if (offline) setOnline(false);
+      const msg = offline
+        ? "I can't reach my backend right now. It may be offline; your words are safe, retry when it's back."
+        : `That turn was interrupted (${detail}).`;
+      if (gagosId) {
+        setMessages((prev) => prev.map((m) => (m.id === gagosId ? { ...m, text: msg, retry: text } : m)));
+      } else {
+        pushMessage('gagos', msg, { retry: text });
+      }
       setConversationPhase('error');
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
     } finally {
@@ -393,8 +425,8 @@ export default function GagosChrome() {
 
       <div className="gagos-status">
         <span className="gagos-pill">
-          <span className="gagos-dot gagos-dot--model" />
-          {modelLine}
+          <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} />
+          {online ? modelLine : 'offline'}
         </span>
         <span className={`gagos-pill gagos-pill--state ${convPhase !== 'idle' ? 'is-active' : ''}`}>
           <span
@@ -443,7 +475,15 @@ export default function GagosChrome() {
               <div key={m.id} className={`gagos-msg gagos-msg--${m.role}`}>
                 {m.role === 'gagos' && !m.text
                   ? <span className="gagos-typing"><i /><i /><i /></span>
-                  : <>{m.text}{streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}</>}
+                  : <>
+                      {m.text}
+                      {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
+                      {m.retry ? (
+                        <button type="button" className="gagos-retry" onClick={() => submit(m.retry)}>
+                          Retry
+                        </button>
+                      ) : null}
+                    </>}
               </div>
             );
           })}
