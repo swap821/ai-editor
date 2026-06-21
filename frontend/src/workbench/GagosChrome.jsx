@@ -464,14 +464,14 @@ export default function GagosChrome() {
             : '';
 
   return (
-    <div className="gagos-chrome">
+    <div className="gagos-chrome" role="main" aria-label="GAGOS conversation">
       <button type="button" className="gagos-skip" onClick={() => inputRef.current?.focus()}>
         Skip to the chat
       </button>
-      <div className="gagos-sr-only" role="status" aria-live="polite">{statusAnnouncement}</div>
+      <div className="gagos-sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
 
       <div className="gagos-lockup">
-        <div className="gagos-wordmark">GAGOS</div>
+        <h1 className="gagos-wordmark">GAGOS</h1>
         <div className="gagos-rule" />
         <div className="gagos-subtitle">the voyaging mind</div>
       </div>
@@ -521,18 +521,19 @@ export default function GagosChrome() {
             </div>
           </div>
         ) : null}
-        <div className="gagos-thread" ref={threadRef}>
+        <div className="gagos-thread" ref={threadRef} role="log" aria-label="Conversation with GAGOS" tabIndex={0}>
           {messages.map((m, i) => {
             const streaming = m.role === 'gagos' && i === messages.length - 1 && busy && !!m.text;
             return (
               <div key={m.id} className={`gagos-msg gagos-msg--${m.role}`}>
+                <span className="gagos-sr-only">{m.role === 'gagos' ? 'GAGOS: ' : 'You: '}</span>
                 {m.role === 'gagos' && !m.text
                   ? <span className="gagos-typing"><i /><i /><i /></span>
                   : <>
                       {m.text}
                       {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
                       {m.retry ? (
-                        <button type="button" className="gagos-retry" onClick={() => submit(m.retry)}>
+                        <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
                           Retry
                         </button>
                       ) : null}
@@ -552,6 +553,10 @@ export default function GagosChrome() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') { e.preventDefault(); void submit(draft); }
+              else if (e.key === 'Escape') {
+                if (listening) { recognitionRef.current?.stop(); }
+                else if (draft) { setDraft(''); }
+              }
             }}
             aria-label="Talk to GAGOS"
           />
@@ -571,7 +576,8 @@ export default function GagosChrome() {
             className={`gagos-btn gagos-send ${busy ? 'is-busy' : ''}`}
             onClick={() => void submit(draft)}
             disabled={!canSend && !busy}
-            aria-label="Send"
+            aria-busy={busy}
+            aria-label={busy ? 'Sending…' : 'Send'}
           >
             <SendIcon busy={busy} />
           </button>

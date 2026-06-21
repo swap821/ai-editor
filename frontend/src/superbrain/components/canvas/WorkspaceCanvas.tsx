@@ -210,11 +210,12 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
   }, []);
 
   return (
-      <main className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
+      <div className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
         <div className="scene-layer" aria-hidden="true">
         <WebGLErrorBoundary>
           <Canvas
             key={glEpoch}
+            tabIndex={-1}
             camera={{ position: [0, 0.25, 8.5], fov: CAMERA.fov, near: CAMERA.near, far: CAMERA.far }}
             dpr={TIER_DPR[perfTier]}
             onCreated={handleCreated}
@@ -247,6 +248,6 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
           </Canvas>
         </WebGLErrorBoundary>
       </div>
-      </main>
+      </div>
   );
 }
