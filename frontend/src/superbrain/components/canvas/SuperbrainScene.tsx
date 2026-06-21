@@ -33,6 +33,7 @@ import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
+import { setBrainDockScale } from '@/lib/spineFusionBus';
 import BrainPointField from './BrainPointField';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -875,6 +876,9 @@ function BrainModel({
     if (brainVisualRef.current) {
       const scale = THREE.MathUtils.damp(brainVisualRef.current.scale.x, brainPresence.mainBrainScale, 3.2, delta);
       brainVisualRef.current.scale.setScalar(scale);
+      // SOUL P2: publish the eased dock scale so the work-tab nerves anchor on the
+      // *visible* (shrunken) vertebrae (they render as a sibling of this scaled group).
+      setBrainDockScale(scale);
     }
   });
 

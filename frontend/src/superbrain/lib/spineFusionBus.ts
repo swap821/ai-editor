@@ -40,6 +40,22 @@ export function fuseSpinePoint(p: readonly [number, number, number]): [number, n
   return [p[0] * f.spineScale + f.weld[0], p[1] * f.spineScale + f.weld[1], p[2] * f.spineScale + f.weld[2]];
 }
 
+// ── Brain dock scale ─────────────────────────────────────────────────────────
+// The brain (brainVisualRef) shrinks while orchestrating (SOUL P1). The work slabs
+// + their nerves render as a SIBLING of that scaling group, so to anchor a nerve on
+// the *visible* (shrunken) vertebra they multiply the fused vertebra by this eased
+// dock scale. SuperbrainScene publishes it each frame; 1 = full size (rest).
+let brainDockScale = 1;
+
+export function setBrainDockScale(scale: number): void {
+  brainDockScale = scale;
+}
+
+export function getBrainDockScale(): number {
+  return brainDockScale;
+}
+
 export function __resetSpineFusionForTests(): void {
   fusion = IDENTITY;
+  brainDockScale = 1;
 }

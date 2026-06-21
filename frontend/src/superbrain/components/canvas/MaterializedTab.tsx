@@ -12,6 +12,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { approvePendingApproval, rejectPendingApproval } from '@/lib/aiosAdapter';
 import { deriveMaterializedSurfacePose } from '@/lib/materializedSurfacePose';
+import { fuseSpinePoint, getBrainDockScale } from '@/lib/spineFusionBus';
+import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
 import { deriveMaterializedSurfaceSkin, type MaterializedSurfaceSkin } from '@/lib/materializedSurfaceSkin';
 import { deriveOrganMaterialState, type OrganMaterialState } from '@/lib/organMaterialState';
 import { formatMaterializedTextPreview } from '@/lib/materializedTextPreview';
@@ -49,6 +51,11 @@ const HUD_SPREAD_X = 1.15;
 const HUD_SPREAD_Y = 1.0;
 const HUD_BOW = 0.12; // a gentle upward bow on the HUD nerve
 const HUD_REBUILD_EPS = 0.015; // rebuild the nerve geometry only when the tab moved this much (slow orbit -> rare)
+// SOUL P2: which vertebra a tab's nerve roots at — the UPPER vertebra feeds the focus
+// + the top corners, the LOWER vertebra feeds the bottom corners (prototype: nerves
+// emerge from the spine vertebra nearest each tab). 0=top..11=bottom.
+const NERVE_VERTEBRA_UPPER = 2;
+const NERVE_VERTEBRA_LOWER = 7;
 const _camFwd = new THREE.Vector3();
 const _camRight = new THREE.Vector3();
 const _camUp = new THREE.Vector3();
@@ -1364,7 +1371,16 @@ export default function MaterializedTab({
         // (only once it has shifted enough) so the umbilical stays plugged in without
         // rebuilding the tube every frame.
         if (!lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudPos) > HUD_REBUILD_EPS) {
-          _hudOrigin.set(tab.originLocal[0], tab.originLocal[1], tab.originLocal[2]);
+          // SOUL P2: root the nerve at the VISIBLE vertebra nearest this tab — upper
+          // vertebra for the focus + top corners, lower for the bottom corners — scaled
+          // by the brain's current dock scale (the visible spine shrank in P1).
+          {
+            const ds = getBrainDockScale() || 1;
+            const vi = isFocused || (waitingIndex ?? 0) <= 1 ? NERVE_VERTEBRA_UPPER : NERVE_VERTEBRA_LOWER;
+            const va = SEGMENT_ANCHORS[vi];
+            const vf = fuseSpinePoint([va.x, va.y, va.z]);
+            _hudOrigin.set(vf[0] * ds, vf[1] * ds, vf[2] * ds);
+          }
           _hudMid.copy(_hudOrigin).lerp(_hudPos, 0.5);
           _hudMid.y += HUD_BOW;
           const c = new THREE.CatmullRomCurve3([_hudOrigin.clone(), _hudMid.clone(), _hudPos.clone()]);
