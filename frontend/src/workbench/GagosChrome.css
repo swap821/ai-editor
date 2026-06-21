@@ -64,11 +64,12 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 13px;
+  padding: 7px 14px 7px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.032);
+  background: rgba(255, 255, 255, 0.042);
   /* Subtle cyan tint matches poster pill borders */
-  border: 1px solid rgba(123, 245, 251, 0.10);
+  border: 1px solid rgba(123, 245, 251, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px) saturate(1.15);
   -webkit-backdrop-filter: blur(10px) saturate(1.15);
   font-size: 12px;
@@ -102,7 +103,7 @@
    history grows upward, newest message sits at the bottom by the input. */
 .gagos-chat {
   position: absolute;
-  left: 32px;
+  left: 36px;
   bottom: 34px;
   width: min(430px, 40vw);
   display: flex;
@@ -149,20 +150,22 @@
 }
 .gagos-msg--gagos {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.046);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(238, 244, 255, 0.92);
+  background: rgba(123, 245, 251, 0.05);
+  border: 1px solid rgba(123, 245, 251, 0.16);
+  color: rgba(238, 244, 255, 0.93);
   border-bottom-left-radius: 5px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 22px -14px rgba(123, 245, 251, 0.45), inset 0 0 0 1px rgba(123, 245, 251, 0.04);
 }
 
 /* streaming "GAGOS is thinking" dots, shown until the first token lands */
 .gagos-typing { display: inline-flex; gap: 4px; padding: 2px 0; }
 .gagos-typing i {
   width: 5px; height: 5px; border-radius: 50%;
-  background: rgba(180, 200, 255, 0.7);
+  background: rgba(123, 245, 251, 0.85);
+  box-shadow: 0 0 8px rgba(123, 245, 251, 0.45);
   animation: gagos-typing 1.1s ease-in-out infinite;
 }
 .gagos-typing i:nth-child(2) { animation-delay: 0.15s; }
@@ -176,6 +179,20 @@
   0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
   30% { opacity: 1; transform: translateY(-3px); }
 }
+
+/* Streaming caret — the reply types itself out with a living cyan cursor. */
+.gagos-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: #7bf5fb;
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(123, 245, 251, 0.7);
+  animation: gagos-caret-blink 1s steps(2, start) infinite;
+}
+@keyframes gagos-caret-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
 
 /* the input bar */
 .gagos-bar {
@@ -228,8 +245,8 @@
   transform: scale(0.92);
 }
 .gagos-mic {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   color: rgba(220, 230, 248, 0.8);
@@ -244,8 +261,8 @@
   animation: gagos-pulse 1.4s ease-in-out infinite;
 }
 .gagos-send {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   /* Poster: send is the deepest purple element — the spine / orchestration channel */
   background: linear-gradient(150deg, #b06eff, #6a1eff);
@@ -275,9 +292,140 @@
   to { transform: rotate(360deg); }
 }
 
+/* ── First-run welcome: the being speaks first (zero-state only) ──────────
+   Shown only while the thread is empty — a warm greeting + clickable starter
+   prompts that pre-fill the intake. Disappears the instant a turn begins. */
+.gagos-welcome {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px 2px;
+  animation: gagos-welcome-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.46s both;
+}
+.gagos-welcome__eyebrow {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(123, 245, 251, 0.6);
+}
+.gagos-welcome__greeting {
+  font-size: 16px;
+  line-height: 1.55;
+  font-weight: 360;
+  color: rgba(236, 242, 255, 0.9);
+  max-width: 31ch;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.6);
+}
+.gagos-welcome__name {
+  color: #aef3ff;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 18px rgba(123, 245, 251, 0.5);
+}
+.gagos-welcome__prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+.gagos-starter {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 13px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(123, 245, 251, 0.12);
+  color: rgba(228, 236, 250, 0.84);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 360;
+  cursor: pointer;
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  transition: background 0.22s ease, border-color 0.22s ease, transform 0.16s ease, box-shadow 0.22s ease;
+}
+.gagos-starter:hover {
+  background: rgba(123, 245, 251, 0.07);
+  border-color: rgba(123, 245, 251, 0.34);
+  box-shadow: 0 6px 26px -12px rgba(123, 245, 251, 0.4), inset 0 0 0 1px rgba(123, 245, 251, 0.06);
+  transform: translateY(-1px);
+}
+.gagos-starter:focus-visible {
+  outline: 2px solid rgba(123, 245, 251, 0.6);
+  outline-offset: 2px;
+}
+.gagos-starter:active { transform: translateY(0) scale(0.99); }
+.gagos-starter__icon {
+  flex: none;
+  display: inline-flex;
+  width: 26px; height: 26px;
+  align-items: center; justify-content: center;
+  border-radius: 8px;
+  color: #7bf5fb;
+  background: rgba(123, 245, 251, 0.08);
+}
+.gagos-starter__label { flex: 1; min-width: 0; line-height: 1.35; }
+.gagos-starter__arrow {
+  flex: none;
+  color: rgba(123, 245, 251, 0.5);
+  font-size: 14px;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.gagos-starter:hover .gagos-starter__arrow { transform: translateX(3px); color: rgba(123, 245, 251, 0.9); }
+
+@keyframes gagos-welcome-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Orchestrated arrival + live state pulse ─────────────────────────────
+   The chrome settles in as one coordinated system (identity → status →
+   intake → invitation); the state pill breathes while the being is active. */
+.gagos-lockup { animation: gagos-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both; }
+.gagos-status { animation: gagos-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both; }
+.gagos-bar    { animation: gagos-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.34s both; }
+@keyframes gagos-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.gagos-pill--state.is-active .gagos-dot { animation: gagos-dot-pulse 1.5s ease-in-out infinite; }
+@keyframes gagos-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50%      { transform: scale(1.35); opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gagos-msg { animation: none; }
   .gagos-typing i { animation: none; }
   .gagos-mic.is-listening { animation: none; }
   .gagos-send.is-busy svg { animation: none; }
+  .gagos-welcome { animation: none; }
+  .gagos-starter, .gagos-starter__arrow { transition: none; }
+  .gagos-lockup, .gagos-status, .gagos-bar { animation: none; }
+  .gagos-pill--state.is-active .gagos-dot { animation: none; }
+  .gagos-caret { animation: none; }
+}
+
+/* ── Responsive: keep the front door usable on tablets + phones ───────────
+   The being stays the centered hero; the conversation reflows to the bottom
+   edge so it never fights the spine on narrow screens. */
+@media (max-width: 1024px) {
+  .gagos-chat { width: min(420px, 52vw); }
+}
+@media (max-width: 640px) {
+  .gagos-lockup { top: 18px; left: 18px; gap: 7px; }
+  .gagos-wordmark { font-size: 18px; letter-spacing: 0.34em; margin-right: -0.34em; }
+  .gagos-subtitle { font-size: 8.5px; letter-spacing: 0.34em; margin-right: -0.34em; }
+  .gagos-status { top: 16px; right: 14px; gap: 6px; }
+  .gagos-pill { padding: 6px 11px 6px 10px; font-size: 11px; }
+  .gagos-chat { left: 14px; right: 14px; width: auto; bottom: 16px; gap: 11px; }
+  .gagos-thread { max-height: 42vh; }
+  .gagos-welcome__greeting { font-size: 15px; max-width: none; }
+  .gagos-starter { font-size: 13px; min-height: 46px; }
 }

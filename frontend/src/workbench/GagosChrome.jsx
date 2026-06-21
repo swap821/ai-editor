@@ -130,6 +130,46 @@ function SendIcon({ busy }) {
   );
 }
 
+function MemoryIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M5 12a7 7 0 0 1 7-7" />
+      <path d="M19 12a7 7 0 0 1-7 7" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3l7 2.6v5.1c0 4.3-3 7-7 8.3-4-1.3-7-4-7-8.3V5.6z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
+function CodeGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="8 9 5 12 8 15" />
+      <polyline points="16 9 19 12 16 15" />
+    </svg>
+  );
+}
+
+/** First-run starter prompts — the being's three superpowers (memory, supervised
+ *  safety, materialized work). Clicking PRE-FILLS the intake (never auto-sends —
+ *  the operator stays in control); the work prompt then grows a 3D slab. */
+const STARTER_PROMPTS = [
+  { label: 'What do you remember about this project?', text: 'What do you remember about this project?', Icon: MemoryIcon },
+  { label: 'How does your approval gate keep me safe?', text: 'Explain how your supervised approval gate keeps me safe.', Icon: ShieldIcon },
+  { label: 'Write a function to reverse a string', text: 'Write a Python function to reverse a string.', Icon: CodeGlyph },
+];
+
 export default function GagosChrome() {
   const [messages, setMessages] = useState([]); // { id, role:'user'|'gagos', text }
   const [draft, setDraft] = useState('');
@@ -146,6 +186,7 @@ export default function GagosChrome() {
   const msgSeqRef = useRef(0);
   const recognitionRef = useRef(null);
   const threadRef = useRef(null);
+  const inputRef = useRef(null);
   const workTabIdsRef = useRef([]); // accumulated work tabs (orchestration); newest = center focus
 
   // Live active-LLM line from the router's `route` cognition events.
@@ -180,6 +221,15 @@ export default function GagosChrome() {
     const el = threadRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // The intake is ready the instant you arrive — focus it on mount (desktop only,
+  // so a phone keyboard never springs up unasked).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el && typeof window !== 'undefined' && window.matchMedia('(min-width: 641px)').matches) {
+      el.focus();
+    }
+  }, []);
 
   const pushMessage = useCallback((role, text) => {
     const id = (msgSeqRef.current += 1);
@@ -245,7 +295,7 @@ export default function GagosChrome() {
             const oldest = workTabIdsRef.current.shift();
             if (oldest) beginRetractingMaterializedTab(oldest);
           }
-          pushMessage('gagos', `↳ materialized ${filepath}`);
+          pushMessage('gagos', `↳ I've materialized ${filepath} on the spine.`);
           releaseWorkMaterialization();
         }
         setConversationPhase('idle'); // the slab's working posture takes the body
@@ -322,6 +372,15 @@ export default function GagosChrome() {
     try { rec.start(); } catch { /* already started */ }
   }, [listening]);
 
+  const startWith = useCallback((text) => {
+    setDraft(text);
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      try { el.setSelectionRange(text.length, text.length); } catch { /* non-text input */ }
+    }
+  }, []);
+
   const canSend = draft.trim().length > 0 && !busy;
 
   return (
@@ -337,7 +396,7 @@ export default function GagosChrome() {
           <span className="gagos-dot gagos-dot--model" />
           {modelLine}
         </span>
-        <span className="gagos-pill gagos-pill--state">
+        <span className={`gagos-pill gagos-pill--state ${convPhase !== 'idle' ? 'is-active' : ''}`}>
           <span
             className="gagos-dot"
             style={{
@@ -354,16 +413,45 @@ export default function GagosChrome() {
       </div>
 
       <div className="gagos-chat">
-        <div className="gagos-thread" ref={threadRef}>
-          {messages.map((m) => (
-            <div key={m.id} className={`gagos-msg gagos-msg--${m.role}`}>
-              {m.role === 'gagos' && !m.text ? <span className="gagos-typing"><i /><i /><i /></span> : m.text}
+        {messages.length === 0 && !busy ? (
+          <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
+            <p className="gagos-welcome__eyebrow">the voyaging mind · listening</p>
+            <p className="gagos-welcome__greeting">
+              I'm <span className="gagos-welcome__name">GAGOS</span>, a supervised mind that
+              remembers. Where shall we begin?
+            </p>
+            <div className="gagos-welcome__prompts">
+              {STARTER_PROMPTS.map(({ label, text, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="gagos-starter"
+                  onClick={() => startWith(text)}
+                >
+                  <span className="gagos-starter__icon"><Icon /></span>
+                  <span className="gagos-starter__label">{label}</span>
+                  <span className="gagos-starter__arrow" aria-hidden="true">→</span>
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+        ) : null}
+        <div className="gagos-thread" ref={threadRef}>
+          {messages.map((m, i) => {
+            const streaming = m.role === 'gagos' && i === messages.length - 1 && busy && !!m.text;
+            return (
+              <div key={m.id} className={`gagos-msg gagos-msg--${m.role}`}>
+                {m.role === 'gagos' && !m.text
+                  ? <span className="gagos-typing"><i /><i /><i /></span>
+                  : <>{m.text}{streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}</>}
+              </div>
+            );
+          })}
         </div>
 
         <div className="gagos-bar">
           <input
+            ref={inputRef}
             className="gagos-input"
             type="text"
             value={draft}
