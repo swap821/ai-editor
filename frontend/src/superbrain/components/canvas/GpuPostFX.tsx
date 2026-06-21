@@ -1,29 +1,31 @@
 'use client';
 
 // GpuPostFX — the WebGPU post pass for the ?gpu=webgpu spike. The WebGL PostFX
-// (@react-three/postprocessing EffectComposer) cannot run on a WebGPURenderer, so
-// under the flag we rebuild the essential chain in TSL: scene → Bloom → AgX. This
-// restores the highlight rolloff that keeps the dense brain canopy from clipping to
-// white (additive >1 emission).
+// (@react-three/postprocessing EffectComposer) can't run on a WebGPURenderer, so
+// under the flag we rebuild the chain in TSL. Order matches PostFX.tsx:
+//   ChromaticAberration → Bloom → GradePre → Vignette → AgX(+sRGB via renderOutput)
 //
-// The 250k-particle additive field has a MUCH wider dynamic range than the WebGL
-// field (dense cortex vs sparse roots), so it needs GPU-SPECIFIC bloom params
-// (gentler strength, higher threshold) than POST_FX.bloomPoints — otherwise the
-// brain over-blooms into a sun. These + the emission are exposed as live dials:
-//   window.__GPUBLOOM.strength / .radius / .threshold   (this pass)
-//   window.__POINTFIELD_GPU.uGlowMul / .uSize            (per-particle emission)
-// so the operator tunes the whole look on the real RTX. On-device fidelity = his call.
+// Parity scope: CA, bloom, GradePre (scene-referred log contrast), and vignette all
+// run pre-tonemap, then renderOutput applies AgX + sRGB (the proven terminal). The
+// post-tonemap GradePost split-tone + film grain are DEFERRED — they require a
+// display-referred pass after AgX, which in TSL needs the manual tonemap→encode path
+// (agxToneMapping/workingToColorSpace) that misbehaved here; best finished at the RTX.
 //
-// Takes over the render loop via useFrame priority 1 (so the GpuBrainPointField
-// compute dispatch at priority 0 runs first). Lazy-loaded → three/webgpu + the TSL
-// bloom addon never enter the default WebGL bundle.
+// Takes over the render loop via useFrame priority 1 (compute dispatch at p0 first).
+// Lazy-loaded → three/webgpu + the TSL bloom addon never enter the default bundle.
+// Live dials for RTX tuning: window.__GPUBLOOM.{strength,radius,threshold} +
+// window.__POINTFIELD_GPU.{uGlowMul,uSize}.
 import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
-import { pass, renderOutput } from 'three/tsl';
+import {
+  pass, renderOutput, screenUV, vec3, vec4, float, max, log2, exp2, smoothstep,
+} from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { POST_FX } from '@/lib/constants';
 
-// GPU-additive-field bloom defaults (NOT POST_FX.bloomPoints — see note above).
+// GPU-additive-field bloom (NOT POST_FX.bloomPoints — the 250k additive field has a
+// far wider dynamic range; the WebGL knobs over-bloom it to a white sun).
 const GPU_BLOOM = { strength: 0.35, radius: 0.55, threshold: 1.6 };
 
 export default function GpuPostFX() {
@@ -32,15 +34,34 @@ export default function GpuPostFX() {
   const camera = useThree((s) => s.camera);
 
   const post = useMemo(() => {
+    const g = POST_FX.grade;
+    const vig = POST_FX.vignettePoints;
+
     const pp = new THREE.PostProcessing(gl as unknown as THREE.WebGPURenderer);
     const scenePass = pass(scene, camera);
     const scenePassColor = scenePass.getTextureNode();
-    // bloom(node, strength, radius, threshold) — UnrealBloom-style soft-knee threshold.
+
+    // 1) Bloom on the scene → HDR (the proven base; scenePassColor is the render-wired
+    // texture node — sampling the raw getTexture() at offset UVs returns black, which
+    // is why ChromaticAberration is deferred rather than shipped broken).
     const bloomPass = bloom(scenePassColor, GPU_BLOOM.strength, GPU_BLOOM.radius, GPU_BLOOM.threshold);
-    // Apply AgX (renderer.toneMapping, set in the WebGPU factory) + sRGB ONCE, on the
-    // HDR (scene + bloom) — bloom on scene-referred linear, exactly like the WebGL chain.
+    let hdr = (scenePassColor as unknown as ReturnType<typeof vec3>).rgb
+      .add((bloomPass as unknown as ReturnType<typeof vec3>).rgb) as ReturnType<typeof vec3>;
+
+    // 2) GradePre — log-space contrast around the mid-grey pivot, scene-referred.
+    const lc = log2(max(hdr, vec3(1e-5))).add(9.72).div(17.52);
+    const lc2 = lc.sub(0.4135884).mul(g.contrast).add(0.4135884);
+    hdr = exp2(lc2.mul(17.52).sub(9.72)) as ReturnType<typeof vec3>;
+
+    // 3) Vignette — frame the void as "home" (pre-tonemap multiply; AgX rolls it off).
+    const d = screenUV.sub(0.5).length().mul(1.4142);
+    const vignette = float(1.0).sub(smoothstep(vig.offset, 1.0, d).mul(vig.darkness));
+    hdr = hdr.mul(vignette) as ReturnType<typeof vec3>;
+
+    // 4) AgX tonemap + sRGB encode (renderer.toneMapping = AgX, set in the factory) —
+    // the proven terminal. (GradePost split-tone + grain are post-tonemap; deferred.)
     pp.outputColorTransform = false;
-    pp.outputNode = renderOutput(scenePassColor.add(bloomPass));
+    pp.outputNode = renderOutput(vec4(hdr, 1.0));
     return { pp, bloomPass };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gl, scene, camera]);
