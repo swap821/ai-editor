@@ -56,7 +56,7 @@ export default function GpuBrainPointField({
   count = 250000,
   spineScale = 1,
   spineCount = 0,
-  baseSize = 2.8,
+  baseSize = 1.5, // conservative no-bloom default (see gpuPointFieldTSL P.uGlowMul note)
 }: {
   source?: THREE.Object3D;
   uniforms: CognitionUniforms;

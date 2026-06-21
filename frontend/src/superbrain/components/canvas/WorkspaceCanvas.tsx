@@ -161,7 +161,9 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
   }, []);
 
   const handleCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
-    if (!gl.capabilities.isWebGL2) {
+    // WebGPURenderer (the ?gpu=webgpu spike) has no `.capabilities` — guard so the
+    // WebGL2 probe never throws and aborts the whole scene mount under WebGPU.
+    if (gl.capabilities && !gl.capabilities.isWebGL2) {
       console.warn('WebGL 2 is not available. Falling back to lower quality rendering or failing.');
     }
     // Listeners live and die with this canvas element; a remount re-attaches

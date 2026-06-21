@@ -75,8 +75,12 @@ export function buildGpuPointField(anchors: GpuAnchors): GpuPointField {
   const P = {
     uPostureColor: uniform(new THREE.Color(0.62, 0.47, 1.0)),
     uPostureTint: uniform(0),
-    uGlowMul: uniform(2.55),
-    uSize: uniform(2.8),
+    // CONSERVATIVE no-bloom defaults: PostFX (AgX+Bloom) is gated off under WebGPU,
+    // so the WebGL path's uGlowMul 2.55 would clip the additive field to white. 0.42
+    // reveals the sacred-colored puncta; raise it once the TSL bloom/AgX pass lands.
+    // Live-tune both via window.__POINTFIELD_GPU.
+    uGlowMul: uniform(0.42),
+    uSize: uniform(1.5),
     uIgnite: uniform(0),
     uAwaken: uniform(0),
     uStatePulse: uniform(0),
