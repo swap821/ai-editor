@@ -1,9 +1,19 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-21T15:45:00+05:30
+Last updated: 2026-06-21T20:40:00+05:30
 
 ## Current Goal
 Convert the living-being frontend blueprint into a 100% working live organism. **Phase 3 LANDED + Claude-reviewer-approved (commit 2eda588, against pinned snapshot 0ff2ea0).** Current lane: **ORCHESTRATION (poster panel 5) — the LOCKED MODEL + its SOUL**: the being CROWNS the top, shrinks with tab-count, the spine feeds the focus, waiting tabs hang nerve-tethered in the corners. Codex on leave until 2026-06-25; Claude is solo (builder + reviewer). Operator steering remotely; visual sign-off delegated to Claude via kimi-webbridge at :5173. Canon re-scoped 2026-06-19: lab unrestricted, only palette+textures sacred. **2026-06-21 SINGLE-FRONTEND COLLAPSE (operator):** the points-being GAGOS is now the ONE official frontend at the clean root `/` — `?ui=classic` / `?ui=shell` and all non-points surfaces DELETED; default flipped mesh→points (product + lab). New front: renovate this single frontend to world-class (north-star: `.aios/state/GAGOS_RENOVATION_NORTHSTAR.md`). Test on `:5173/` (no params).
+
+## SESSION 2026-06-21 (evening) — POSTER-PALETTE MATCH "everything" (LANDED + committed)
+- **Operator directive (remote):** "remember poster? i want same visual aesthetics and color palettes of everything" + "keep going i m going remote." Made the live frontend's color palette match the VARIANT-H poster's hero tetrad across EVERY rendering layer. Conservative (operator away): hue-only re-points, intensity/density left as his RTX FIDELITY dials.
+- **Poster tetrad (the single source of accent truth):** cyan `#7bf5fb` · purple `#b06eff` · green `#54f0a0` · orange `#ff7e40`. The poster has ZERO blue.
+- **3 commits (all product-safe + lab-mirrored, build + 209/209 green throughout, live-verified in a FRESH kimi tab to dodge the degraded-GPU-context artifact):**
+  1. `56a2c5e` **chrome blue→cyan** — the global accent ramp was still blue→indigo (`#3b82f6`/`#60a5fa`/`#6366f1`), live on every `:focus-visible` ring + `--accent-grad`/`-dim`/`-glow` + `--info`. Re-pointed the whole ramp in `tokens.css` to poster cyan with a cyan→purple hero gradient; `index.css` `@theme --color-accent` → cyan. (`tokens.css`/`index.css` are product-side globals, NOT lab-ported.)
+  2. `21df8c8` **being posture spectral → poster tetrad** — `bodyPosture.ts` BODY_POSTURES hues had drifted off the "STATUS FROM BODY" legend (stream was `#36d6ff` deep blue-cyan). Re-pointed: stream→`#7bf5fb`, think→`#b06eff`, rest→calm lavender `#9e78f5`, hold→`#ff7e40`, complete→`#54f0a0`, error unchanged (warm alarm). Per-posture INTENSITY (flow/tint/`POSTURE_DIAL`) UNTOUCHED = his RTX call. Tests re-pinned to the tetrad (18 + 209 green); lab-mirrored. Live: the materializing crown now blooms the brighter poster cyan (verified via `__materializeTab`).
+  3. `4049874` **tab neon edge → poster cyan** — `MaterializedTab.tsx` points-mode slab frame was hardcoded `#36d6ff` → `#7bf5fb`. Per-role tab content palettes left as-is (already a poster-harmonious cyan/warm/green family). Lab-mirrored.
+- **Sweep clean:** only remaining non-poster blue is `constants.ts:22 indigo:'#6366f1'` — verified DEAD (old organ/panel system deleted; zero active consumer). Left untouched (lab-sacred file, no visible gain).
+- **NEXT (operator's RTX, FIDELITY-gated):** final brightness/density/saturation of the being via `__POINTFIELD`/`__POSTURE` dials; drive a real cloud-Gemini code turn (set `AIOS_ROUTER_CLOUD_TASKS`) to tour think-purple→stream-cyan→hold-orange→complete-green live + capture goldens; the HELD approval slab (`reverse_string.py`) still awaits his APPROVE/REJECT (never self-approved).
 
 ## SESSION 2026-06-21 (afternoon) — SINGLE-FRONTEND COLLAPSE + renovation kickoff (LANDED, uncommitted)
 - **Operator decision (explicit, repeated):** the points-being GAGOS at the clean root `/` is THE one and only official frontend — "delete forcefully everything not related to this." SUPERSEDES the older "keep `?ui=classic` fallback" caveat (CEO 2026-06-16) and the Shell-as-official line.
