@@ -478,12 +478,13 @@ export default function GagosChrome() {
 
       <div className="gagos-status">
         <span className="gagos-pill">
-          <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} />
+          <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} aria-hidden="true" />
           {online ? modelLine : 'offline'}
         </span>
         <span className={`gagos-pill gagos-pill--state ${convPhase !== 'idle' ? 'is-active' : ''}`}>
           <span
             className="gagos-dot"
+            aria-hidden="true"
             style={{
               background: PHASE_META[convPhase].color,
               boxShadow: `0 0 6px ${PHASE_META[convPhase].color}`,
@@ -491,8 +492,11 @@ export default function GagosChrome() {
           />
           {PHASE_META[convPhase].label}
         </span>
-        <span className="gagos-pill gagos-pill--supervised">
-          <span className="gagos-dot gagos-dot--supervised" />
+        <span
+          className="gagos-pill gagos-pill--supervised"
+          aria-label="Supervised: a human approval gate guards risky actions"
+        >
+          <span className="gagos-dot gagos-dot--supervised" aria-hidden="true" />
           supervised
         </span>
       </div>

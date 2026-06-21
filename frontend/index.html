@@ -105,6 +105,10 @@
         function dismiss() {
           if (loader.dataset.done) return;
           loader.dataset.done = '1';
+          /* Narrate the handoff to assistive tech before the loader leaves (it is a
+             role=status polite live region) — otherwise the scene-ready transition is silent. */
+          var label = loader.querySelector('.boot-label');
+          if (label) label.textContent = 'The voyaging mind is ready';
           window.setTimeout(function () { if (loader && loader.parentNode) loader.parentNode.removeChild(loader); }, 700);
         }
         window.addEventListener('gagos:ready', dismiss);           /* PRIMARY: the scene dispatches this on its first rendered frame */
