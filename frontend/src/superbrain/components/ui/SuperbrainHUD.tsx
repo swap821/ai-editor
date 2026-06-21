@@ -1811,6 +1811,11 @@ export default function SuperbrainHUD({
             </span>
             <i className="glass-grain" aria-hidden />
           </form>
+          {/* Poster tagline: "ONE BODY. MANY POSTURES. THE INTERFACE IS ALIVE."
+              Wide-tracked mono footer — the organism's manifesto at rest. */}
+          <footer className="hud-footer" aria-hidden="true">
+            ONE BODY&nbsp;·&nbsp;MANY POSTURES&nbsp;·&nbsp;THE INTERFACE IS ALIVE
+          </footer>
         </div>,
         document.getElementById('hud-portal-root') || document.body
       )}

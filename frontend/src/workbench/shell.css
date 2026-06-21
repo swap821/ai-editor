@@ -126,11 +126,13 @@
   bottom: 0;
   z-index: 0;
   pointer-events: none;
+  /* Poster deep nebula: purple-violet dominant with cyan edge aurora */
   background:
-    radial-gradient(1200px 520px at 72% -6%, rgba(64, 42, 122, 0.20), transparent 70%),
-    radial-gradient(900px 480px at 16% 24%, rgba(22, 58, 120, 0.16), transparent 70%),
-    radial-gradient(720px 560px at 90% 84%, rgba(42, 22, 96, 0.14), transparent 72%),
-    #02030a;
+    radial-gradient(1200px 520px at 68% -8%,  rgba(88, 30, 180, 0.22), transparent 70%),
+    radial-gradient(900px 480px at 14% 22%,   rgba(30, 45, 140, 0.16), transparent 70%),
+    radial-gradient(720px 560px at 88% 82%,   rgba(60, 16, 110, 0.18), transparent 72%),
+    radial-gradient(600px 400px at 42% 60%,   rgba(20, 80, 120, 0.10), transparent 68%),
+    #030108;
 }
 .sb-cosmos::after {
   content: '';
@@ -190,8 +192,9 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  /* Poster neon cyan for the voyage/active state dot */
+  background: var(--neon-cyan, #7bf5fb);
+  box-shadow: 0 0 9px rgba(123, 245, 251, 0.85), 0 0 18px rgba(123, 245, 251, 0.28);
 }
 
 /* The unified directive input — fills the rest of the dock row. */
@@ -272,8 +275,8 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  background: var(--neon-cyan, #7bf5fb);
+  box-shadow: 0 0 9px rgba(123, 245, 251, 0.85), 0 0 18px rgba(123, 245, 251, 0.28);
 }
 
 /* ── The workbench itself: glass slabs in the void ──────────────────────── */

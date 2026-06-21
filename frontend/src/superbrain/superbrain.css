@@ -17,15 +17,24 @@
  * sparklines at reduced opacity). Everything else is neutral: the brain
  * supplies the color in this composition; the HUD is the instrument. */
 :root {
-  --bg: #010307;
-  --bg-panel: rgba(11, 14, 20, 0.5);
-  --text-1: rgba(232, 238, 250, 0.92);
-  --text-2: rgba(160, 170, 190, 0.6);
-  --text-3: rgba(120, 130, 150, 0.38);
-  --hairline: rgba(255, 255, 255, 0.08);
-  --accent: #5ce1e6;
-  --state-ok: #58d68d;
-  --state-busy: #e0a84f;
+  /* ── POSTER PALETTE (canonical design bible: VARIANT H: POINT-FIELD ORGANISM) ── */
+  --bg: #030108;                          /* deeper purple-black to match poster void */
+  --bg-panel: rgba(8, 6, 18, 0.52);
+  --text-1: rgba(232, 238, 250, 0.93);
+  --text-2: rgba(160, 170, 196, 0.62);
+  --text-3: rgba(120, 130, 155, 0.40);
+  --hairline: rgba(255, 255, 255, 0.09);
+
+  /* Neon tetrad — poster "STATUS FROM BODY" legend exact values */
+  --neon-cyan:   #7bf5fb;   /* Thinking / primary accent */
+  --neon-purple: #b06eff;   /* Streaming / alt accent     */
+  --neon-green:  #54f0a0;   /* Complete / state-ok        */
+  --neon-orange: #ff7e40;   /* Error / state-busy         */
+
+  --accent:    var(--neon-cyan);          /* primary accent = poster cyan */
+  --state-ok:  var(--neon-green);         /* #54f0a0  */
+  --state-busy: var(--neon-orange);       /* #ff7e40  */
+
   --mono: var(--font-jetbrains-mono), monospace;
   --display: var(--font-outfit), sans-serif;
 
@@ -40,10 +49,16 @@
 
   /* Edge-lit rim: top stop brightness. Focus states TOGGLE this variable —
    * never animate paint properties on a backdrop-filtered element. */
-  --rim-top: 0.16;
+  --rim-top: 0.18;
 
   /* Static feTurbulence grain tile, shared by panel grain and frame grain. */
   --grain-noise: url("/grain.svg");
+
+  /* Per-phase accent hook — JS sets this on .superbrain-experience via dataset;
+   * CSS reads it so every glass rim, mode dot, and status light can tint
+   * together with zero JS juggling. Defaults to the primary cyan. */
+  --phase-accent: var(--neon-cyan);
+  --phase-accent-dim: rgba(123, 245, 251, 0.18);
 }
 
 * {
@@ -107,7 +122,7 @@ button {
   inset: 0;
   isolation: isolate;
   overflow: hidden;
-  background: #010307;
+  background: #030108; /* poster void — deeper purple-black */
 }
 
 .scene-layer,
@@ -126,8 +141,12 @@ button {
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 50% 48%, transparent 16%, rgba(34, 10, 68, 0.07) 48%, rgba(1, 3, 7, 0.8) 100%),
-    linear-gradient(90deg, rgba(1, 3, 7, 0.72), transparent 25%, transparent 75%, rgba(1, 3, 7, 0.72));
+    /* Purple nebula bloom behind the brain — matches poster's deep violet core */
+    radial-gradient(ellipse 62% 54% at 50% 46%, rgba(80, 18, 140, 0.13) 0%, transparent 70%),
+    /* Faint cyan aurora at upper-right (poster luminance source) */
+    radial-gradient(ellipse 38% 32% at 72% 22%, rgba(60, 200, 220, 0.06) 0%, transparent 65%),
+    radial-gradient(ellipse at 50% 48%, transparent 14%, rgba(34, 10, 72, 0.10) 46%, rgba(3, 1, 8, 0.85) 100%),
+    linear-gradient(90deg, rgba(3, 1, 8, 0.76), transparent 22%, transparent 78%, rgba(3, 1, 8, 0.76));
 }
 
 .grid-layer {
@@ -286,7 +305,9 @@ button {
   font-family: var(--display);
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  /* Poster wide-tracking on the wordmark */
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 20px rgba(123, 245, 251, 0.18);
 }
 
 .brand-wordmark span {
@@ -346,9 +367,35 @@ button {
   transition: background-color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);
 }
 
+/* ── Poster-exact per-phase status dot states (STATUS FROM BODY legend) ── */
+/* Thinking = cyan  |  Streaming = purple  |  Complete = green  |  Error = orange */
+.status-dot--thinking {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(123, 245, 251, 0.85), 0 0 22px rgba(123, 245, 251, 0.35);
+  animation: breathe 2s var(--ease-loop) infinite;
+}
+.status-dot--streaming {
+  background: var(--neon-purple);
+  box-shadow: 0 0 10px rgba(176, 110, 255, 0.85), 0 0 22px rgba(176, 110, 255, 0.35);
+  animation: breathe 1.4s var(--ease-loop) infinite;
+}
+.status-dot--complete {
+  background: var(--neon-green);
+  box-shadow: 0 0 10px rgba(84, 240, 160, 0.85), 0 0 20px rgba(84, 240, 160, 0.30);
+}
+.status-dot--error {
+  background: var(--neon-orange);
+  box-shadow: 0 0 10px rgba(255, 126, 64, 0.9), 0 0 20px rgba(255, 126, 64, 0.35);
+  animation: breathe 0.8s var(--ease-loop) infinite;
+}
+.status-dot--idle {
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: none;
+}
+
 .status-dot--live {
-  background: var(--accent);
-  box-shadow: 0 0 8px rgba(92, 225, 230, 0.7);
+  background: var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(123, 245, 251, 0.75), 0 0 22px rgba(123, 245, 251, 0.28);
   animation: breathe 2.2s var(--ease-loop) infinite;
 }
 
@@ -356,13 +403,13 @@ button {
    local; amber = a policy-permitted cloud escalation left the machine. Inherits
    the 6px size/shape from .status-dot; only the colour/glow differ. */
 .brain-dot--local {
-  background: #34d399;
-  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
+  background: var(--neon-green);
+  box-shadow: 0 0 9px rgba(84, 240, 160, 0.78), 0 0 18px rgba(84, 240, 160, 0.28);
   animation: breathe 2.2s var(--ease-loop) infinite;
 }
 .brain-dot--cloud {
-  background: #fbbf24;
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.7);
+  background: var(--neon-orange);
+  box-shadow: 0 0 9px rgba(255, 126, 64, 0.78), 0 0 18px rgba(255, 126, 64, 0.28);
   animation: breathe 2.2s var(--ease-loop) infinite;
 }
 
@@ -412,8 +459,10 @@ button {
   font-weight: 600;
   letter-spacing: 0.07em;
   color: var(--text-1);
-  text-shadow: 0 0 24px rgba(150, 200, 255, 0.12);
-  /* Keep the hero from re-centering when the mode number changes width. */
+  /* Poster: dual glow — cyan bloom + faint purple halo = the two dominant nerve colors */
+  text-shadow:
+    0 0 28px rgba(123, 245, 251, 0.16),
+    0 0 52px rgba(176, 110, 255, 0.08);
   font-variant-numeric: tabular-nums;
 }
 
@@ -425,7 +474,8 @@ button {
 .core-sub {
   margin: 8px 0 0;
   font-size: 11px;
-  letter-spacing: 0.08em;
+  /* Wider tracking matches poster's subtitle style */
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--text-2);
 }
@@ -440,11 +490,13 @@ button {
   pointer-events: auto;
 }
 
+/* Poster-accurate 4-hue cycle: cyan → purple → green → orange (the full tetrad) */
 @keyframes powerSurge {
-  0% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
-  33% { box-shadow: 0 15px 30px -5px rgba(25, 212, 240, 0.7); border-bottom-color: rgba(25, 212, 240, 1.0); }
-  66% { box-shadow: 0 15px 35px -5px rgba(168, 230, 43, 0.8); border-bottom-color: rgba(168, 230, 43, 1.0); }
-  100% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
+  0%   { box-shadow: 0 18px 32px -6px rgba(123, 245, 251, 0.72); border-bottom-color: rgba(123, 245, 251, 1.0); }
+  25%  { box-shadow: 0 18px 36px -6px rgba(176, 110, 255, 0.80); border-bottom-color: rgba(176, 110, 255, 1.0); }
+  50%  { box-shadow: 0 18px 38px -6px rgba(84, 240, 160, 0.84);  border-bottom-color: rgba(84, 240, 160, 1.0);  }
+  75%  { box-shadow: 0 18px 36px -6px rgba(255, 126, 64, 0.80);  border-bottom-color: rgba(255, 126, 64, 1.0);  }
+  100% { box-shadow: 0 18px 32px -6px rgba(123, 245, 251, 0.72); border-bottom-color: rgba(123, 245, 251, 1.0); }
 }
 
 /* CANON CONTRACT: the old `animation: powerSurge !important` on these asides
@@ -588,26 +640,33 @@ aside.right-console {
   box-shadow: 0 0 14px rgba(255, 92, 92, 0.25);
 }
 
+/* Poster neon tetrad surge — translates with scaleX to avoid blur re-raster */
 @keyframes wireGlowSurge {
-  0% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
-  50% { opacity: 0.6; transform: translateY(-5px) scaleX(1.1); }
-  100% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
+  0%   { opacity: 0.28; transform: translateY(0)    scaleX(0.82); }
+  50%  { opacity: 0.92; transform: translateY(-6px) scaleX(1.12); }
+  100% { opacity: 0.28; transform: translateY(0)    scaleX(0.82); }
 }
 
-/* Multi-colored light surging UP into the bottom of the panels from the wires */
-/* Wire-glow lives on a real .console-glow child (consoles use ::after for the
- * scanline), so .glass-surface::before is free for the edge-lit rim again. */
+/* Multi-colored light surging UP into the bottom of the panels from the wires.
+ * Using poster-exact neon tetrad colors at higher opacity for vivid effect. */
 .left-console .console-glow,
 .right-console .console-glow {
   position: absolute;
-  bottom: -5px; /* Stay inside bounds so it isn't clipped by overflow: hidden */
-  left: 10%;
-  right: 10%;
-  height: 60px;
-  background: linear-gradient(90deg, rgba(255,59,40,0.8), rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
-  filter: blur(30px);
+  bottom: -5px;
+  left: 6%;
+  right: 6%;
+  height: 72px;
+  /* Poster tetrad: cyan → purple → green → orange */
+  background: linear-gradient(
+    90deg,
+    rgba(123, 245, 251, 0.92),
+    rgba(176, 110, 255, 0.90),
+    rgba(84,  240, 160, 0.88),
+    rgba(255, 126, 64,  0.90)
+  );
+  filter: blur(28px);
   z-index: -1;
-  animation: wireGlowSurge 3s var(--ease-loop) infinite;
+  animation: wireGlowSurge 3.2s var(--ease-loop) infinite;
   pointer-events: none;
 }
 
@@ -665,7 +724,9 @@ aside.right-console {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 510;
-  letter-spacing: 0.12em;
+  /* Poster wide-tracked caps — signature look of the phase headers */
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
 }
 
 .eyebrow > span {
@@ -757,7 +818,8 @@ aside.right-console {
   color: var(--text-2);
   font-size: 11px;
   font-weight: 510;
-  letter-spacing: 0.08em;
+  /* Poster mode labels use wide tracking */
+  letter-spacing: 0.16em;
   transition: color 200ms var(--ease-out-quart);
 }
 
@@ -765,6 +827,7 @@ aside.right-console {
   margin-top: 3px;
   color: var(--text-3);
   font-size: 10px;
+  letter-spacing: 0.06em;
 }
 
 .mode-dot {
@@ -801,11 +864,15 @@ aside.right-console {
 
 .mode-button.is-active .mode-copy strong {
   color: var(--text-1);
+  /* Active mode label gets a faint cyan glow — poster live-phase highlight */
+  text-shadow: 0 0 16px rgba(123, 245, 251, 0.28);
 }
 
 .mode-button.is-active .mode-dot {
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(92, 225, 230, 0.8);
+  background: var(--phase-accent, var(--neon-cyan));
+  box-shadow:
+    0 0 10px rgba(123, 245, 251, 0.85),
+    0 0 22px rgba(123, 245, 251, 0.30);
 }
 
 /* ---------- Objective card ---------- */
@@ -959,9 +1026,9 @@ aside.right-console {
 
 @keyframes orb-flash {
   0% {
-    background: var(--accent);
-    box-shadow: 0 0 12px rgba(92, 225, 230, 0.8);
-    transform: scale(1.45);
+    background: var(--neon-cyan);
+    box-shadow: 0 0 14px rgba(123, 245, 251, 0.90), 0 0 28px rgba(123, 245, 251, 0.35);
+    transform: scale(1.55);
   }
   100% {
     background: var(--text-2);
@@ -1247,20 +1314,26 @@ aside.right-console {
   pointer-events: auto;
 }
 
-/* Multi-colored light surging DOWN into the top of the command bar from the wires */
-/* Wire-glow lives on ::after so ::before is free for the edge-lit rim above
- * (both were ::before; the later one silently killed the rim + focus toggle). */
+/* Multi-colored light surging DOWN into the top of the command bar — poster spine colors */
+/* Wire-glow lives on ::after so ::before is free for the edge-lit rim above. */
 .command-bar::after {
   content: '';
   position: absolute;
-  top: -5px; /* Stay inside bounds */
-  left: 20%;
-  right: 20%;
-  height: 60px;
-  background: linear-gradient(90deg, rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
-  filter: blur(30px);
+  top: -5px;
+  left: 8%;   /* wider spread than consoles — the command bar is the spine mouth */
+  right: 8%;
+  height: 72px;
+  /* Tetrad reversed to run purple→cyan→green so the bar reads differently from panels */
+  background: linear-gradient(
+    90deg,
+    rgba(176, 110, 255, 0.88),
+    rgba(123, 245, 251, 0.92),
+    rgba(84,  240, 160, 0.86),
+    rgba(255, 126, 64,  0.84)
+  );
+  filter: blur(28px);
   z-index: -1;
-  animation: wireGlowSurge 3s var(--ease-loop) infinite reverse;
+  animation: wireGlowSurge 3.2s var(--ease-loop) infinite reverse;
   pointer-events: none;
 }
 
@@ -1336,15 +1409,17 @@ aside.right-console {
   gap: 8px;
   border: 0;
   border-radius: 10px;
-  background: var(--accent);
-  color: #04181a;
+  /* Poster: the Execute button is the deepest neon-cyan element on screen */
+  background: linear-gradient(135deg, var(--neon-cyan), color-mix(in srgb, var(--neon-cyan) 72%, #0a2830));
+  color: #031215;
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   cursor: pointer;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 6px 22px rgba(92, 225, 230, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    0 6px 24px rgba(123, 245, 251, 0.34),
+    0 2px 8px rgba(123, 245, 251, 0.18);
   transition: box-shadow 200ms var(--ease-out-quart);
 }
 
@@ -1367,9 +1442,9 @@ aside.right-console {
 
 .command-bar .execute-button:hover {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 0 24px rgba(92, 225, 230, 0.38),
-    0 6px 26px rgba(92, 225, 230, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    0 0 28px rgba(123, 245, 251, 0.55),
+    0 6px 30px rgba(123, 245, 251, 0.38);
 }
 
 /* Dim return-key affordance inside Execute. */
@@ -1389,9 +1464,12 @@ aside.right-console {
   color: var(--text-3);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
+  /* Poster footer: "ONE BODY. MANY POSTURES. THE INTERFACE IS ALIVE." in wide-tracked mono */
+  letter-spacing: 0.28em;
   white-space: nowrap;
   pointer-events: none;
+  /* Faint cyan glow on the footer tagline — matches poster's bottom annotation */
+  text-shadow: 0 0 18px rgba(123, 245, 251, 0.14);
 }
 
 /* ---------- Shared animation ---------- */
@@ -1690,12 +1768,15 @@ aside.right-console {
 }
 
 .fidelity-button strong {
-  color: #9ff0ff;
+  /* Poster neon cyan for the fidelity tier readout */
+  color: var(--neon-cyan);
   transition: color 200ms var(--ease-out-quart);
+  text-shadow: 0 0 12px rgba(123, 245, 251, 0.40);
 }
 
 .fidelity-button:hover strong {
   color: #ffffff;
+  text-shadow: 0 0 16px rgba(123, 245, 251, 0.55);
 }
 
 /* Keyboard focus: a restrained white-alpha ring (per this file's hover law —
@@ -1836,4 +1917,50 @@ aside.right-console {
 
 .approval-actions button:active:not(:disabled) {
   transform: translateY(1px);
+}
+
+/* ── Per-phase HUD accent hooks ────────────────────────────────────────────
+ * JavaScript sets data-phase on .superbrain-experience and the matching
+ * [data-phase] block overrides --phase-accent for that cycle state. Every
+ * glass rim, mode dot, and status light that reads --phase-accent changes
+ * without any additional JS. Defaults to cyan (arrival / rest). */
+[data-phase='arrival']        { --phase-accent: var(--neon-cyan);   --phase-accent-dim: rgba(123,245,251,0.18); }
+[data-phase='rest']           { --phase-accent: rgba(176,110,255,0.7); --phase-accent-dim: rgba(176,110,255,0.10); }
+[data-phase='awakening']      { --phase-accent: var(--neon-cyan);   --phase-accent-dim: rgba(123,245,251,0.16); }
+[data-phase='materialization']{ --phase-accent: var(--neon-green);  --phase-accent-dim: rgba(84,240,160,0.14); }
+[data-phase='orchestration']  { --phase-accent: var(--neon-purple); --phase-accent-dim: rgba(176,110,255,0.16); }
+[data-phase='working']        { --phase-accent: var(--neon-orange); --phase-accent-dim: rgba(255,126,64,0.14); }
+[data-phase='reabsorption']   { --phase-accent: rgba(160,170,190,0.45); --phase-accent-dim: rgba(160,170,190,0.08); }
+
+/* ── Poster-style phase-label annotation chips ─────────────────────────────
+ * Utility classes for floating callout chips on the brain (style reference:
+ * poster panels like "1. ARRIVAL", "4. MATERIALIZATION" etc.). */
+.phase-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid rgba(123, 245, 251, 0.22);
+  border-radius: 6px;
+  background: rgba(3, 1, 12, 0.68);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 250, 0.82);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.phase-label-num {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 10px rgba(123, 245, 251, 0.55);
+}
+.phase-label-line {
+  display: block;
+  width: 24px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(123, 245, 251, 0.55), transparent);
 }

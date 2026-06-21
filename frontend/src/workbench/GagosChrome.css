@@ -32,12 +32,14 @@
   /* trailing letter-spacing pads the right edge; nudge back so the G aligns left */
   margin-right: -0.42em;
   color: rgba(245, 247, 255, 0.94);
-  text-shadow: 0 0 22px rgba(139, 110, 255, 0.45), 0 0 2px rgba(180, 200, 255, 0.4);
+  /* Poster cyan glow on the wordmark — matches the nerve/spine color */
+  text-shadow: 0 0 24px rgba(123, 245, 251, 0.42), 0 0 3px rgba(200, 230, 255, 0.38);
 }
 .gagos-rule {
   width: 34px;
   height: 1px;
-  background: linear-gradient(90deg, rgba(155, 130, 255, 0.7), rgba(155, 130, 255, 0));
+  /* Poster cyan gradient rule — matches dominant nerve color */
+  background: linear-gradient(90deg, rgba(123, 245, 251, 0.72), rgba(123, 245, 251, 0));
 }
 .gagos-subtitle {
   font-size: 9.5px;
@@ -64,13 +66,14 @@
   gap: 8px;
   padding: 6px 13px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  background: rgba(255, 255, 255, 0.032);
+  /* Subtle cyan tint matches poster pill borders */
+  border: 1px solid rgba(123, 245, 251, 0.10);
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
   font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   color: rgba(228, 236, 250, 0.82);
   white-space: nowrap;
 }
@@ -80,16 +83,18 @@
   border-radius: 50%;
   flex: none;
 }
+/* Poster "Model: GPT-4" dot — purple (Streaming/Model channel color) */
 .gagos-dot--model {
-  background: #7fe9ff;
-  box-shadow: 0 0 9px rgba(127, 233, 255, 0.85);
+  background: #b06eff;
+  box-shadow: 0 0 9px rgba(176, 110, 255, 0.88), 0 0 18px rgba(176, 110, 255, 0.30);
 }
+/* Poster "Mode: Supervised" dot — green (Complete/Supervised state) */
 .gagos-dot--supervised {
-  background: #5ef0b0;
-  box-shadow: 0 0 9px rgba(94, 240, 176, 0.8);
+  background: #54f0a0;
+  box-shadow: 0 0 9px rgba(84, 240, 160, 0.85), 0 0 18px rgba(84, 240, 160, 0.28);
 }
 .gagos-pill--supervised {
-  color: rgba(200, 245, 225, 0.78);
+  color: rgba(200, 250, 228, 0.80);
 }
 
 /* ── Bottom-left chat (history thread + input) ───────────────────────────
@@ -136,15 +141,16 @@
 }
 .gagos-msg--user {
   align-self: flex-end;
-  background: rgba(139, 110, 255, 0.18);
-  border: 1px solid rgba(139, 110, 255, 0.3);
+  /* Poster purple tint for user messages — the operator's channel color */
+  background: rgba(176, 110, 255, 0.14);
+  border: 1px solid rgba(176, 110, 255, 0.28);
   color: #eef0ff;
   border-bottom-right-radius: 5px;
 }
 .gagos-msg--gagos {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.046);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: rgba(238, 244, 255, 0.92);
   border-bottom-left-radius: 5px;
   backdrop-filter: blur(8px);
@@ -180,16 +186,17 @@
   width: 100%;
   padding: 9px 9px 9px 20px;
   border-radius: 18px;
-  background: rgba(10, 14, 26, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(22px) saturate(1.25);
-  -webkit-backdrop-filter: blur(22px) saturate(1.25);
-  box-shadow: 0 10px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: rgba(8, 5, 20, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(22px) saturate(1.30);
+  -webkit-backdrop-filter: blur(22px) saturate(1.30);
+  box-shadow: 0 10px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .gagos-bar:focus-within {
-  border-color: rgba(139, 110, 255, 0.45);
-  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(139, 110, 255, 0.25),
+  /* Poster cyan focus ring instead of purple */
+  border-color: rgba(123, 245, 251, 0.38);
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(123, 245, 251, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .gagos-input {
@@ -240,12 +247,13 @@
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: linear-gradient(150deg, #8b6eff, #6a35ff);
+  /* Poster: send is the deepest purple element — the spine / orchestration channel */
+  background: linear-gradient(150deg, #b06eff, #6a1eff);
   color: #fff;
-  box-shadow: 0 4px 18px rgba(106, 53, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(176, 110, 255, 0.56), 0 0 12px rgba(176, 110, 255, 0.28);
 }
 .gagos-send:hover {
-  filter: brightness(1.12);
+  filter: brightness(1.14);
 }
 .gagos-send:disabled {
   opacity: 0.35;
