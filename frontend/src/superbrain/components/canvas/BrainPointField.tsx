@@ -10,6 +10,7 @@ import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import { setSpineFusion } from '@/lib/spineFusionBus';
+import { deriveCursorAttention } from '@/lib/cursorAttention';
 import type { CognitionUniforms } from './SuperbrainScene';
 
 /** Concatenate two point-field datasets into one (brain first, then spine). */
@@ -190,7 +191,7 @@ export default function BrainPointField({
     );
   }, [material, kind]);
 
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     // uTime is the shared leaf (advanced by the scene); keep uPixelRatio fresh.
     setDpr();
     const u = material.uniforms;
@@ -248,8 +249,19 @@ export default function BrainPointField({
       // Cortex HEATS while the being notices (thinking = attentive/intake) AND
       // while it SPEAKS BACK (reply streaming) — the poster's "cortex brightens as
       // it speaks". Luminance only (the fragment weights it to the head/cortex).
-      const awakenTarget =
+      const phaseAwaken =
         phase === 'attentive' || phase === 'intake' ? 1 : replyStreaming ? 0.9 : 0;
+      // THE BEING NOTICES YOU (poster phase 3): the cortex also warms toward the
+      // pointer — a gentle floor (≤0.32) that the conversational heat above always
+      // dominates. We feed the RAW pointer and let uAwaken's own damp smooth it
+      // (so no extra ref); the lean direction lives in the scene (cursorAttention).
+      const attn = deriveCursorAttention({
+        pointerX: state.pointer.x,
+        pointerY: state.pointer.y,
+        active: kind === 'brain',
+        reducedMotion: reduce,
+      });
+      const awakenTarget = Math.max(phaseAwaken, attn.brighten);
       u.uAwaken.value = reduce
         ? awakenTarget
         : THREE.MathUtils.damp(u.uAwaken.value, awakenTarget, 4, delta);
