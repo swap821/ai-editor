@@ -99,34 +99,32 @@
 /* ── Top-right status cluster ─────────────────────────────────────────── */
 .gagos-status {
   position: absolute;
-  top: 30px;
-  right: 36px;
+  top: 26px;
+  right: 30px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 9px;
+  gap: 7px;
 }
+/* Step 1B — de-pilled: NOT floating HUD pills. A quiet status whisper (a tiny
+   signal dot + low-key text) so the model / supervised / offline TRUST facts stay
+   legible (a safety/data signal — kept readable rather than debug-only), without
+   the boxed-pill chrome the "brain + panels" critique flagged. The richer move —
+   supervised/auto/error as in-scene BODY marks — is the next step. */
 .gagos-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px 7px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.042);
-  /* Subtle cyan tint matches poster pill borders */
-  border: 1px solid rgba(123, 245, 251, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px) saturate(1.15);
-  -webkit-backdrop-filter: blur(10px) saturate(1.15);
-  font-size: 12px;
+  gap: 7px;
+  /* no box: no padding/background/border/blur/shadow — just dot + whisper text */
+  font-size: 11px;
   font-weight: 400;
-  letter-spacing: 0.04em;
-  color: rgba(228, 236, 250, 0.82);
+  letter-spacing: 0.06em;
+  color: rgba(228, 236, 250, 0.5);
   white-space: nowrap;
 }
 .gagos-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex: none;
 }
@@ -163,7 +161,7 @@
 .gagos-retry:hover { background: rgba(123, 245, 251, 0.18); border-color: rgba(123, 245, 251, 0.5); }
 .gagos-retry:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
 .gagos-pill--supervised {
-  color: rgba(200, 250, 228, 0.80);
+  color: rgba(200, 250, 228, 0.5);
 }
 
 /* ── Bottom-left chat (history thread + input) ───────────────────────────
