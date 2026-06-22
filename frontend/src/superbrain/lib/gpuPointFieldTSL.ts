@@ -80,8 +80,8 @@ export function buildGpuPointField(anchors: GpuAnchors): GpuPointField {
     // lever that matters is SPRITE SIZE — small sprites overlap less per pixel, so the
     // canopy resolves into cortical folds + the sacred region palette instead of a
     // white blob. Low emission too. Live-tune via window.__POINTFIELD_GPU (+ __GPUBLOOM).
-    uGlowMul: uniform(0.1),
-    uSize: uniform(0.7),
+    uGlowMul: uniform(0.055),
+    uSize: uniform(0.6),
     uIgnite: uniform(0),
     uAwaken: uniform(0),
     uStatePulse: uniform(0),
