@@ -86,6 +86,10 @@ const FRAGMENT = /* glsl */ `
   uniform float uStatePulse;  // orchestration: "nerves carry the state" — a luminance pulse travels the spine/roots while working
   uniform float uReabsorbGlow; // reabsorption: the brain INHALES — a soft glow as a tab's energy returns up into the cortex
   uniform float uReplyRise;   // conversation: 0 idle .. 1 reply active — a luminance bead-band climbs the spine (vAxis 0->1) into the cortex as the being speaks back
+  uniform float uFogStart;     // depth haze: view-Z where recession begins (poster depth slab)
+  uniform float uHazeStrength; // depth haze: how strongly distant points recede toward zero (additive-correct; 0 = prior look)
+  uniform float uRolloffKnee;  // filmic highlight rolloff: luminance at/below this is byte-unchanged
+  uniform float uRolloff;      // filmic highlight rolloff: compress ONLY the hottest cores so they stay COLORED (hue-preserving) instead of clipping to white (0 = prior look)
   void main() {
     // Soft round sprite — rebuilt from the known-good base (1-d*2 stays in [0,1],
     // so pow() never goes NaN; the old smoothstep/fog path was producing NaN that
@@ -133,7 +137,27 @@ const FRAGMENT = /* glsl */ `
     float riseCenter = fract(uTime * 0.6);
     float riseBand = exp(-pow((vAxis - riseCenter) / 0.14, 2.0));
     float replyRise = riseActive * riseBand * 0.9;
-    gl_FragColor = vec4(c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise), intensity);
+    vec3 emissive = c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise);
+    // P2.1 DEPTH HAZE (poster depth-slab): distant points recede toward zero so the
+    // being reads as a VOLUME in space, not a flat decal. Additive-correct (dim, not
+    // alpha-blend). uFogStart/Density/Strength are live __POINTFIELD dials; strength 0
+    // reproduces the prior look exactly.
+    float haze = 1.0 - exp(-max(vViewZ - uFogStart, 0.0) * uFogDensity);
+    emissive *= (1.0 - clamp(haze * uHazeStrength, 0.0, 0.92));
+    // P2.2 FILMIC HIGHLIGHT ROLLOFF: compress ONLY the hottest cores (luminance above
+    // uRolloffKnee) so they stay COLORED instead of clipping to flat white. The bulk
+    // of the field (below the knee) is byte-unchanged — the crisp, no-white-haze look
+    // holds, because haze accumulation lives in the mid-values this never touches.
+    // Hue/saturation preserved (luminance-only scale → sacred palette).
+    float lum = max(dot(emissive, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    float over = max(lum - uRolloffKnee, 0.0);
+    // Below the knee: rolledLum == lum (NO-OP — the crisp field is byte-unchanged).
+    // Above the knee: compress only the excess. min(lum,knee) keeps the sub-knee
+    // base intact; a bare knee+over would boost every dim point up to the knee and
+    // wash the whole field (the regression live-verification caught).
+    float rolledLum = min(lum, uRolloffKnee) + over / (1.0 + over * uRolloff);
+    emissive *= rolledLum / lum;
+    gl_FragColor = vec4(emissive, intensity);
   }
 `;
 
@@ -147,7 +171,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uRefDist: { value: 15.0 },   // ~ camera→brain distance (points-mode poster camera z)
       uSize: { value: 2.8 },       // finer puncta (poster's dense fine-dot read; pairs with the 200k+ count on the RTX 3050)
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
-      uFogDensity: { value: 0.02 },// subtle recession only (thin depth slab)
+      uFogDensity: { value: 0.12 },// depth-haze falloff rate (was 0.02 + unused); pairs with uFogStart/uHazeStrength for the poster depth slab. Dial: window.__POINTFIELD.uFogDensity
       uGlowMul: { value: 1.35 },   // RTX-tuned crisp (was 2.55): lower emission so the dense cortex shows folds + the node lattice instead of a white-haze bloom. Still >1 so PostFX Bloom catches the brightest cores. Dial: window.__POINTFIELD.uGlowMul
       uBodyOpacity: { value: 1.0 },// damped to ~0.5 while orchestrating so inner memory-nodes show
       uIgnite: { value: 0 },       // single-shot arrival ignition flash (cortex-weighted luminance, no hue change)
@@ -155,6 +179,10 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uStatePulse: { value: 0 },   // orchestration spine state-pulse (spine-weighted luminance, no hue change)
       uReabsorbGlow: { value: 0 }, // reabsorption brain-inhale glow (cortex-weighted luminance, no hue change)
       uReplyRise: { value: 0 },    // conversation reply rise-band (spine->cortex luminance, no hue change)
+      uFogStart: { value: 15.0 },     // depth haze begins ~at the brain (camera ~uRefDist). Dial: window.__POINTFIELD.uFogStart
+      uHazeStrength: { value: 0.45 }, // subtle depth recession; raise on the RTX for a deeper poster slab. Dial: window.__POINTFIELD.uHazeStrength
+      uRolloffKnee: { value: 1.6 },   // luminance below this is untouched (the crisp field holds). Dial: window.__POINTFIELD.uRolloffKnee
+      uRolloff: { value: 0.5 },       // compress only the hottest cores so they stay colored. Dial: window.__POINTFIELD.uRolloff
       uGrow: { value: 0 },
       uFlow: { value: 0.16 },
       uFlowSpeed: { value: 0.16 },
@@ -170,6 +198,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v15';
+  material.customProgramCacheKey = () => 'pointfield_v16';
   return material;
 }
