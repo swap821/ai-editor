@@ -1785,6 +1785,25 @@ export default function MaterializedTab({
         />
       </mesh>
 
+      {/* Points being (poster phase 5): a state-tinted SOCKET glow at the vertebra
+          this tab's umbilical roots on — "each vertebra seats a tab; nerves carry the
+          state". The seat reads the tab's LIVE metabolism colour, so an occupied
+          vertebra glows with its tab's status (thinking/working/complete/error). Sits
+          on the visible cord via the same fused originLocal the umbilical starts from;
+          additive, depthWrite off, so it adds light to the spine. */}
+      {POINTS && (
+        <mesh position={tab.originLocal} renderOrder={7} frustumCulled={false}>
+          <sphereGeometry args={[0.05, 16, 12]} />
+          <meshBasicMaterial
+            color={metabolismColor}
+            transparent
+            opacity={0.85}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
       {/* Points being: keep ONLY the main umbilical (tubeRef above); drop the
           per-root tube fan + all the node/bead/puncta dots so the nerve reads
           as one clean filament (poster look). */}
