@@ -1951,20 +1951,23 @@ export default function MaterializedTab({
               <meshStandardMaterial
                 color={theme.body}
                 emissive={theme.outline}
-                emissiveIntensity={0.08}
+                emissiveIntensity={0.13}
                 roughness={organMaterial.tissue.roughness}
                 metalness={organMaterial.tissue.metalness}
                 transparent
-                opacity={0.92}
+                opacity={0.88}
               />
             </mesh>
+            {/* Step 3: soften the hard cyan border into a membrane RIM (was a crisp
+                0.7 outline = the "card border" tell). Low opacity so the contour
+                reads as a lit membrane edge, not a panel frame. */}
             <lineSegments
               ref={frameRef}
               geometry={slabFrameGeometry}
               position={[0, 0, dimensions.thickness + 0.001]}
               renderOrder={9}
             >
-              <lineBasicMaterial color={theme.frame.clone()} transparent opacity={0.7} />
+              <lineBasicMaterial color={theme.frame.clone()} transparent opacity={0.38} />
             </lineSegments>
             {/* Points being: drop the membrane veins/dots + surface point-field
                 dots so the slab reads as clean dark glass (poster look). */}
