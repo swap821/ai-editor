@@ -95,7 +95,10 @@ export const HUBS: Hub[] = [
 
 /* ---------------------------------------------------------------------------
  * TUNABLES — the operator's dials. Every visual knob lives here so the look
- * can be retuned without hunting through shader strings.
+ * can be retuned without hunting through shader strings. The brightness levers
+ * below (NODE_GAIN / *_CARRIER_GAIN / SIGNAL_GAIN) are also live-tunable at
+ * runtime via window.__NODELATTICE (dev-only) — dial in the real browser, then
+ * report the values to bake here as the new defaults.
  * ------------------------------------------------------------------------- */
 /** Tier budget — conservative for a 16GB box (matches NODE_BRAIN_RESEARCH).
  *  Total NODE_COUNT = (HUBS.length) + (HUBS.length × satellites). */
@@ -872,6 +875,59 @@ export default function NodeLattice({
       }
       firingRef.current = true;
     });
+  }, [built]);
+
+  // Dev-only live tuning dial — mirrors window.__POINTFIELD for the point-field.
+  // Tune the lattice vividness live in the operator's real-GPU browser, then
+  // report values to bake as the new TUNABLES defaults. Friendly keys map onto
+  // the three materials' brightness uniforms:
+  //   window.__NODELATTICE.nodeGain        = 1.6   // node sphere brightness (NODE_GAIN)
+  //   window.__NODELATTICE.edgeCarrier     = 5     // lobe-wire always-on glow (EDGE_CARRIER_GAIN)
+  //   window.__NODELATTICE.backboneCarrier = 5.5   // major-bus wire glow (BACKBONE_CARRIER_GAIN)
+  //   window.__NODELATTICE.signalGain      = 4     // travelling-packet peak luma (SIGNAL_GAIN)
+  // Skipped in production. Honest caveat: pushing brightness too far re-invites
+  // the additive white-haze the crisp pass just killed — dial up gently.
+  useEffect(() => {
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') return;
+    const { nodeMat, edgeMat, backboneMat } = built;
+    const dial: Record<string, { get: () => number; set: (v: number) => void }> = {
+      nodeGain: {
+        get: () => nodeMat.uniforms.uNodeGain.value,
+        set: (v) => { nodeMat.uniforms.uNodeGain.value = v; },
+      },
+      edgeCarrier: {
+        get: () => edgeMat.uniforms.uCarrierGain.value,
+        set: (v) => { edgeMat.uniforms.uCarrierGain.value = v; },
+      },
+      backboneCarrier: {
+        get: () => backboneMat.uniforms.uCarrierGain.value,
+        set: (v) => { backboneMat.uniforms.uCarrierGain.value = v; },
+      },
+      signalGain: {
+        // both wire materials share one SIGNAL_GAIN — keep the dial in lock-step.
+        get: () => edgeMat.uniforms.uSignalGain.value,
+        set: (v) => {
+          edgeMat.uniforms.uSignalGain.value = v;
+          backboneMat.uniforms.uSignalGain.value = v;
+        },
+      },
+    };
+    const w = window as unknown as { __NODELATTICE?: unknown };
+    w.__NODELATTICE = new Proxy(
+      {},
+      {
+        get: (_t, key: string) => dial[key]?.get(),
+        set: (_t, key: string, value: number) => {
+          dial[key]?.set(value);
+          return true;
+        },
+        ownKeys: () => Object.keys(dial),
+        getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+      },
+    );
+    return () => {
+      delete w.__NODELATTICE;
+    };
   }, [built]);
 
   useFrame(() => {
