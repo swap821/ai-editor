@@ -34,6 +34,6 @@ describe('createPointFieldMaterial', () => {
   it('emits above 1.0 for bloom and has a versioned cache key', () => {
     const m = createPointFieldMaterial();
     expect(m.uniforms.uGlowMul.value).toBeGreaterThan(1.0);
-    expect(m.customProgramCacheKey()).toContain('v15');
+    expect(m.customProgramCacheKey()).toContain('v16');
   });
 });
