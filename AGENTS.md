@@ -154,11 +154,12 @@ resume yourself — say so if asked). Don't report a task done without evidence
   (a YELLOW action class auto-applies after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES` consecutive
   verifier-backed successes, revoked on one failure — RED is never earnable) and
   `AIOS_SWARM_MAX_WORKERS` (ephemeral worker swarm: decompose → gated workers → synthesize).
-- **Frontend:** the **superbrain** 3D UI is the default mount; the classic IDE shell is at
-  `?ui=classic`. Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced
+- **Frontend:** since the 2026-06-21 single-frontend collapse, the ONLY UI is **GAGOS — the
+  points-being** at the clean root `/` (no `?ui=` params; the classic shell + all `?ui=` routes
+  were deleted). Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced
   into `frontend/src/superbrain/` via `npm run port` — never edit those product files directly
-  (they are overwritten); product-safe files are `main.jsx`/`SuperbrainApp.jsx`/`SuperbrainShell.jsx`/
-  `config.js`/`vite.config.js`/the classic `App.jsx` + new files. CANON (operator, 2026-06-19 —
+  (they are overwritten); product-safe files (NOT ported) are `main.jsx`/`SuperbrainApp.jsx`/
+  `config.js`/`vite.config.js`/`index.html`/`workbench/GagosChrome.{jsx,css}`/`styles/tokens.css` + new files. CANON (operator, 2026-06-19 —
   supersedes the old broad FIDELITY freeze): the lab is an **UNRESTRICTED build space** — geometry,
   anatomy, nerve positions, shaders, structure, and motion are ALL free to evolve toward a 100%-working
   alive-brain. The ONLY sacred canon is his **palette + textures** ("that's what I imagined; everything

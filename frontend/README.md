@@ -1,13 +1,13 @@
-# ai-editor frontend — the Superbrain Shell
+# ai-editor frontend — GAGOS, the points-being
 
-The React + Vite single-page app that is the **face of the AI-OS**. One bundle mounts
-one of three UIs by URL (`src/main.jsx`):
+The React + Vite single-page app that is the **face of the AI-OS**. Since the
+2026-06-21 single-frontend collapse it mounts ONE UI (`src/main.jsx` → `SuperbrainApp`):
 
 | URL | Mounts |
 |-----|--------|
-| `localhost:5173` (no flag) · `?ui=shell` | **The Superbrain Shell** (default) — the persistent 3D voyaging brain (`WorkspaceCanvas`), the renovated 2D HUD (`SuperbrainHUD`), an in-app home⇄workbench toggle, the read-only governance organs (`OrgansDock`), and the approval safety-net. |
-| `?ui=classic` | The classic IDE (`App.jsx`) — file tree · Monaco · live preview · chat · approval. The documented fallback face. |
-| `?ui=home` / `?ui=superbrain` | The bare canon brain home (`SuperbrainApp`) — parity-review only. |
+| `localhost:5173/` (no params) | **GAGOS — the voyaging mind**: the 3D point-field brain + spine + roots (`WorkspaceCanvas`) and the 2D chrome (`workbench/GagosChrome`), streaming supervised turns that materialize luminous 3D work surfaces on the being's spine. |
+
+(The classic IDE `App.jsx`, the `SuperbrainShell`, the `OrgansDock`, and all `?ui=` routes were deleted in the collapse — git history preserves them.)
 
 Both faces stream the **same supervised turn** over SSE from the backend, share one
 session, and bind through one data spine (`src/superbrain/lib/aiosAdapter.ts` →
