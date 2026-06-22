@@ -27,6 +27,7 @@ import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { deriveVoyageDrift } from '@/lib/voyageDrift';
+import { deriveOrganismCameraFrame } from '@/lib/organismCameraFrame';
 import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
@@ -1234,6 +1235,64 @@ function CameraDrift({
   return null;
 }
 
+/** Points-mode camera framing (Step-1): damp the camera FOV + the OrbitControls
+ *  target height toward the aspect-responsive frame so the organism FILLS portrait
+ *  / mobile instead of floating small in a black void. Drives only fov + target.y
+ *  (OrbitControls owns distance) so it never fights the controls. Desktop aspect →
+ *  the current look unchanged (fov 26 / target -0.5). Dev dial:
+ *  window.__CAMFRAME = { fov, targetY }; proof: window.__getOrganismCameraFrame(). */
+function OrganismFraming({
+  controlsRef,
+}: {
+  controlsRef: MutableRefObject<{ target: THREE.Vector3 } | null>;
+}) {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  const { tabs } = useTabStore();
+  const workspaceCount = useMemo(
+    () => tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').length,
+    [tabs],
+  );
+  const liveRef = useRef({ fov: 26, targetY: -0.5, aspect: 1.6 });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') return undefined;
+    const host = window as typeof window & { __getOrganismCameraFrame?: () => typeof liveRef.current };
+    host.__getOrganismCameraFrame = () => liveRef.current;
+    return () => {
+      delete host.__getOrganismCameraFrame;
+    };
+  }, []);
+
+  useFrame((_s, delta) => {
+    const aspect = size.height > 0 ? size.width / size.height : 1.6;
+    const frame = deriveOrganismCameraFrame({ aspect, activeSurfaceCount: workspaceCount });
+    // Dev live-tuning dial for the operator's real device (overrides the derived frame).
+    const dial =
+      typeof window !== 'undefined'
+        ? (window as unknown as { __CAMFRAME?: { fov?: number; targetY?: number } }).__CAMFRAME
+        : undefined;
+    const targetFov = typeof dial?.fov === 'number' ? dial.fov : frame.fov;
+    const targetY = typeof dial?.targetY === 'number' ? dial.targetY : frame.targetY;
+    const cam = camera as THREE.PerspectiveCamera;
+    const nextFov = THREE.MathUtils.damp(cam.fov, targetFov, 3, delta);
+    if (Math.abs(nextFov - cam.fov) > 0.001) {
+      cam.fov = nextFov;
+      cam.updateProjectionMatrix();
+    }
+    const controls = controlsRef.current;
+    if (controls) {
+      controls.target.y = THREE.MathUtils.damp(controls.target.y, targetY, 3, delta);
+    }
+    liveRef.current = {
+      fov: Math.round(cam.fov * 1000) / 1000,
+      targetY: Math.round((controls?.target.y ?? targetY) * 1000) / 1000,
+      aspect: Math.round(aspect * 1000) / 1000,
+    };
+  });
+  return null;
+}
+
 export default function SuperbrainScene({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web' }: SuperbrainSceneProps) {
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
@@ -1271,6 +1330,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   // synced into the ref each render so the frame loop stays ref-cheap, AND a live
   // OS toggle re-renders → re-evaluates autoRotate + the prop-fed children below.
   const reducedMotion = useReducedMotion();
+  /** OrbitControls handle so OrganismFraming can damp the target height (points). */
+  const orbitRef = useRef<{ target: THREE.Vector3 } | null>(null);
   const reducedMotionRef = useRef(reducedMotion);
   reducedMotionRef.current = reducedMotion;
   const arrivalScalarRef = useRef(0); // shared with AccretionCore/CosmicBackground/NeuralAura
@@ -1675,6 +1736,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
               in the 2D GagosChrome layer. */}
           <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]} />
           <OrbitControls
+            ref={orbitRef as never}
             makeDefault
             enablePan={false}
             target={[0, -0.5, 0]}
@@ -1685,6 +1747,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
             autoRotate={!reducedMotionRef.current}
             autoRotateSpeed={VOYAGE_SPEED}
           />
+          {/* Step-1 framing: fill portrait/mobile (fov + target by aspect). */}
+          <OrganismFraming controlsRef={orbitRef} />
         </>
       ) : (
         <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
