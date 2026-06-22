@@ -135,45 +135,6 @@ function SendIcon({ busy }) {
   );
 }
 
-function MemoryIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="2.6" />
-      <path d="M5 12a7 7 0 0 1 7-7" />
-      <path d="M19 12a7 7 0 0 1-7 7" />
-    </svg>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3l7 2.6v5.1c0 4.3-3 7-7 8.3-4-1.3-7-4-7-8.3V5.6z" />
-      <path d="M9 12l2 2 4-4" />
-    </svg>
-  );
-}
-
-function CodeGlyph() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="8 9 5 12 8 15" />
-      <polyline points="16 9 19 12 16 15" />
-    </svg>
-  );
-}
-
-/** First-run starter prompts — the being's three superpowers (memory, supervised
- *  safety, materialized work). Clicking PRE-FILLS the intake (never auto-sends —
- *  the operator stays in control); the work prompt then grows a 3D slab. */
-const STARTER_PROMPTS = [
-  { label: 'What do you remember about this project?', text: 'What do you remember about this project?', Icon: MemoryIcon },
-  { label: 'How does your approval gate keep me safe?', text: 'Explain how your supervised approval gate keeps me safe.', Icon: ShieldIcon },
-  { label: 'Write a function to reverse a string', text: 'Write a Python function to reverse a string.', Icon: CodeGlyph },
-];
 
 export default function GagosChrome() {
   const [messages, setMessages] = useState([]); // { id, role:'user'|'gagos', text }
@@ -430,15 +391,6 @@ export default function GagosChrome() {
     try { rec.start(); } catch { /* already started */ }
   }, [listening]);
 
-  const startWith = useCallback((text) => {
-    setDraft(text);
-    const el = inputRef.current;
-    if (el) {
-      el.focus();
-      try { el.setSelectionRange(text.length, text.length); } catch { /* non-text input */ }
-    }
-  }, []);
-
   const canSend = draft.trim().length > 0 && !busy;
 
   // Screen-reader narration of the being's live state (the visualization is
@@ -462,11 +414,9 @@ export default function GagosChrome() {
       </button>
       <div className="gagos-sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
 
-      <div className="gagos-lockup">
-        <h1 className="gagos-wordmark">GAGOS</h1>
-        <div className="gagos-rule" />
-        <div className="gagos-subtitle">the voyaging mind</div>
-      </div>
+      {/* SP3 (voice-into-body): the static wordmark lockup is retired — the BEING is
+          the identity (product law), and it introduces itself in the first-run greeting
+          below ("I'm GAGOS…"). No detached branding chrome. */}
 
       <div className="gagos-status">
         <span className="gagos-pill">
@@ -493,20 +443,9 @@ export default function GagosChrome() {
               I'm <span className="gagos-welcome__name">GAGOS</span>, a supervised mind that
               remembers. Where shall we begin?
             </p>
-            <div className="gagos-welcome__prompts">
-              {STARTER_PROMPTS.map(({ label, text, Icon }) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="gagos-starter"
-                  onClick={() => startWith(text)}
-                >
-                  <span className="gagos-starter__icon"><Icon /></span>
-                  <span className="gagos-starter__label">{label}</span>
-                  <span className="gagos-starter__arrow" aria-hidden="true">→</span>
-                </button>
-              ))}
-            </div>
+            {/* SP3 (voice-into-body): the starter-prompt chips are retired — they were
+                detached overlay clutter. The greeting invites you to type into the one
+                thin input below; the being's body carries everything else. */}
           </div>
         ) : null}
         <div className="gagos-thread" ref={threadRef} role="log" aria-label="Conversation with GAGOS" tabIndex={0}>

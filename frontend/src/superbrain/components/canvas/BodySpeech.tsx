@@ -53,19 +53,20 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
 
   return (
     <Billboard>
-      {/* Placement: a readable default above the cortex; the operator fine-tunes on
-          his RTX (this project defers final visual placement to his eye). */}
-      <group ref={groupRef} position={[0, 0.92, 0.35]} visible={false}>
+      {/* Placement: the being's words flow out to the RIGHT of its head into the dark
+          void — readable (off the bright cortex) yet clearly tethered to the mind that
+          speaks them. Billboarded to the camera. */}
+      <group ref={groupRef} position={[1.25, 0.62, 0.35]} visible={false}>
         <Text
           ref={textRef as never}
           color={col}
-          fontSize={0.085}
-          maxWidth={2.4}
-          lineHeight={1.25}
-          anchorX="center"
+          fontSize={0.082}
+          maxWidth={1.7}
+          lineHeight={1.3}
+          anchorX="left"
           anchorY="top"
-          textAlign="center"
-          outlineWidth={0.006}
+          textAlign="left"
+          outlineWidth={0.008}
           outlineColor="#02040a"
           material-toneMapped={false}
           renderOrder={12}
