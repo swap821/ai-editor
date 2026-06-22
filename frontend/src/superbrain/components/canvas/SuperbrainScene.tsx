@@ -24,6 +24,7 @@ import NodeLattice from './NodeLattice';
 import MaterializationLayer from './MaterializationLayer';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
+import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
@@ -690,6 +691,8 @@ function BrainModel({
   const dockYRef = useRef(0); // SOUL P1: eased rise so the brain crowns the top while orchestrating
   /** Damped pointer-attention lean (CURSOR_ATTENTION). */
   const attendRef = useRef({ x: 0, y: 0 });
+  /** Live cursor-attention snapshot for the __getCursorAttention proof hook. */
+  const cursorAttnRef = useRef({ leanYaw: 0, leanPitch: 0, brighten: 0, awaken: 0 });
   const postureRef = useRef({ yaw: 0, pitch: 0, roll: 0, offsetX: 0, offsetY: 0, scaleBoost: 0 });
   const { tabs, focusId, attention } = useTabStore();
   const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
@@ -771,6 +774,20 @@ function BrainModel({
     };
   }, [brainAsset, neuralSkin]);
 
+  // Proof hook (dev only): window.__getCursorAttention() → the live lean + cortex
+  // brighten the being is applying toward the pointer this frame. Used to verify
+  // the "being notices you" response live (move the cursor → values track it).
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return undefined;
+    const host = window as typeof window & {
+      __getCursorAttention?: () => typeof cursorAttnRef.current;
+    };
+    host.__getCursorAttention = () => cursorAttnRef.current;
+    return () => {
+      delete host.__getCursorAttention;
+    };
+  }, []);
+
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime;
     const burstPow = burst.current.intensity;
@@ -825,11 +842,32 @@ function BrainModel({
       groupRef.current.scale.setScalar(damped);
 
       if (BEING_MODE === 'points') {
-        // ONE BODY: in points mode the brain holds a STATIC rotation so the spine —
-        // which shares the same group — stays rigidly joined (no independent bob /
-        // drift / cursor-lean pulling the brain off the cord). The gentle shared
-        // drift comes from Float; life comes from the vertex-shader breathe.
+        // ONE BODY: in points mode the brain holds a STATIC base rotation so the
+        // spine — which shares the same group — stays rigidly joined. The gentle
+        // shared drift comes from Float; life comes from the vertex-shader breathe.
         groupRef.current.rotation.set(FORWARD_LEAN, -0.78, 0);
+        // THE BEING NOTICES YOU (poster phase 3): a damped attentive lean toward the
+        // pointer, ADDED onto the static base. Because brain + spine are ONE group,
+        // the WHOLE body turns as a rigid unit — the cord join is preserved (this is
+        // a whole-body lean, never an independent brain bob, which is what the static
+        // base guarded against). A fresh awakening leans a touch harder, then eases
+        // back as uAwaken decays. Reduced-motion suppresses the lean inside the
+        // contract (the cortex still warms via the brighten fold in BrainPointField).
+        if (CURSOR_ATTENTION) {
+          const attend = attendRef.current;
+          attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
+          attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
+          const a = deriveCursorAttention({
+            pointerX: attend.x,
+            pointerY: attend.y,
+            active: true,
+            reducedMotion: reduceMotion,
+          });
+          const awakenLean = 1 + uniforms.uAwaken.value * 0.6;
+          groupRef.current.rotation.y += a.leanYaw * awakenLean;
+          groupRef.current.rotation.x += a.leanPitch * awakenLean;
+          cursorAttnRef.current = { ...a, awaken: uniforms.uAwaken.value };
+        }
         // SOUL P1 (points orchestration): ease the WHOLE being UP while orchestrating
         // so the (shrinking) brain CROWNS the top with the spine descending into the
         // focus tab beneath it. mainBrainOffsetY is 0 at rest (position byte-identical
