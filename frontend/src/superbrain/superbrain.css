@@ -367,37 +367,12 @@ button {
   transition: background-color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);
 }
 
-/* ── Poster-exact per-phase status dot states (STATUS FROM BODY legend) ── */
-/* Thinking = cyan  |  Streaming = purple  |  Complete = green  |  Error = orange */
-.status-dot--thinking {
-  background: var(--neon-cyan);
-  box-shadow: 0 0 10px rgba(123, 245, 251, 0.85), 0 0 22px rgba(123, 245, 251, 0.35);
-  animation: breathe 2s var(--ease-loop) infinite;
-}
-.status-dot--streaming {
-  background: var(--neon-purple);
-  box-shadow: 0 0 10px rgba(176, 110, 255, 0.85), 0 0 22px rgba(176, 110, 255, 0.35);
-  animation: breathe 1.4s var(--ease-loop) infinite;
-}
-.status-dot--complete {
-  background: var(--neon-green);
-  box-shadow: 0 0 10px rgba(84, 240, 160, 0.85), 0 0 20px rgba(84, 240, 160, 0.30);
-}
-.status-dot--error {
-  background: var(--neon-orange);
-  box-shadow: 0 0 10px rgba(255, 126, 64, 0.9), 0 0 20px rgba(255, 126, 64, 0.35);
-  animation: breathe 0.8s var(--ease-loop) infinite;
-}
-.status-dot--idle {
-  background: rgba(255, 255, 255, 0.32);
-  box-shadow: none;
-}
-
-.status-dot--live {
-  background: var(--neon-cyan);
-  box-shadow: 0 0 10px rgba(123, 245, 251, 0.75), 0 0 22px rgba(123, 245, 251, 0.28);
-  animation: breathe 2.2s var(--ease-loop) infinite;
-}
+/* P2.4: the per-phase `.status-dot--*` legend was DELETED — it was dead code (its
+   only consumer, SuperbrainHUD, is unmounted; the live chrome uses `.gagos-dot--*`)
+   AND its mapping was INVERTED vs the sacred palette (it had thinking=cyan /
+   streaming=purple; the bible bodyPosture has think=PURPLE / stream=CYAN), so
+   reviving it would have shipped wrong hues. Status colour now has ONE source of
+   truth: bodyPosture.postureHex(). */
 
 /* The active-brain dot encodes data privacy at a glance: green = the turn stayed
    local; amber = a policy-permitted cloud escalation left the machine. Inherits

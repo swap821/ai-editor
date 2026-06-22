@@ -45,6 +45,15 @@ export const BODY_POSTURES: Record<BodyPostureKey, BodyPosture> = {
 export const POSTURE_GOLD: readonly [number, number, number] = [255, 210, 122];
 export const POSTURE_SNOW: readonly [number, number, number] = [170, 205, 225];
 
+/** SINGLE SOURCE OF TRUTH for a posture's HEX (the sacred poster tetrad). Any
+ *  other system that needs a posture colour as a hex string (status tints, the
+ *  CSS legend) derives it from HERE — never a parallel hardcoded map that can
+ *  drift (the drift P2.4 corrected: turnMetabolism + the dead status-dot CSS). */
+export function postureHex(key: BodyPostureKey): string {
+  const [r, g, b] = BODY_POSTURES[key].color;
+  return '#' + [r, g, b].map((c) => Math.round(c).toString(16).padStart(2, '0')).join('');
+}
+
 const PHASE_TO_POSTURE: Record<OrganismLifecyclePhase, BodyPostureKey> = {
   booting: 'rest',
   arrival: 'think',
