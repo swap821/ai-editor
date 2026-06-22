@@ -55,7 +55,26 @@ export function getBrainDockScale(): number {
   return brainDockScale;
 }
 
+// ── Cortex anchor ────────────────────────────────────────────────────────────
+// The brain-HEAD centroid in cloud-local space (where the point cloud is sampled).
+// BrainPointField publishes it once the geometry is built. Reabsorption motes
+// (rendered as a SIBLING of the scaled brain-visual group, in brain-group-local
+// space) read this and multiply by getBrainDockScale() to land in the *visible*
+// (shrunken, voyaging, crowned) cortex — "energy returns up the spine INTO the
+// brain". The hardcoded [0,0.1,0] it replaces missed the cortex every frame the
+// being scaled/voyaged. Default is that old point so behavior is safe pre-publish.
+let cortexAnchor: [number, number, number] = [0, 0.1, 0];
+
+export function setCortexAnchor(anchor: readonly [number, number, number]): void {
+  cortexAnchor = [anchor[0], anchor[1], anchor[2]];
+}
+
+export function getCortexAnchor(): [number, number, number] {
+  return cortexAnchor;
+}
+
 export function __resetSpineFusionForTests(): void {
   fusion = IDENTITY;
   brainDockScale = 1;
+  cortexAnchor = [0, 0.1, 0];
 }
