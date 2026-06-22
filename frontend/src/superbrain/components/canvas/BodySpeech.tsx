@@ -9,6 +9,7 @@ import { Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { getReplyVoice } from '@/lib/replyVoiceBus';
 import { deriveBodySpeech } from '@/lib/bodySpeech';
+import { useReducedMotion } from '@/lib/reducedMotion';
 
 interface TroikaText {
   text: string;
@@ -17,16 +18,14 @@ interface TroikaText {
   sync: () => void;
 }
 
-const REDUCED =
-  typeof window !== 'undefined' &&
-  !!window.matchMedia &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
   const groupRef = useRef<THREE.Group>(null);
   const textRef = useRef<TroikaText | null>(null);
   const col = useMemo(() => new THREE.Color(color), [color]);
   const lastText = useRef<string>('');
+  // REACTIVE reduced-motion (was a once-at-import module const) — the useFrame
+  // closure re-reads it on the re-render when the OS setting flips.
+  const reduced = useReducedMotion();
 
   useFrame(() => {
     const g = groupRef.current;
@@ -37,7 +36,7 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
       text: v.text,
       phase: v.phase,
       sinceMs: performance.now() - v.since,
-      reducedMotion: REDUCED,
+      reducedMotion: reduced,
     });
     g.visible = o.active;
     if (!o.active) return;

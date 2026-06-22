@@ -12,7 +12,8 @@ import PostFX from './PostFX';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeLifecycle, LifecycleState, ArrivalMode } from '@/lib/lifecycleStateMachine';
-import { coalescenceEnvelope, ignitionPulse, awakenNotice, shouldReduceMotion } from '@/lib/openingMotion';
+import { coalescenceEnvelope, ignitionPulse, awakenNotice } from '@/lib/openingMotion';
+import { useReducedMotion } from '@/lib/reducedMotion';
 import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
@@ -724,9 +725,9 @@ function BrainModel({
    *                         recoverable — no orphaned code, just this const.
    *  Final aesthetic call is the operator's browser. */
   const NODE_BRAIN = BEING_MODE === 'points';
-  /** a11y: freeze packet travel + snap coalescence to assembled. Captured once
-   *  (same source as the scene's reduced-motion posture). */
-  const reduceMotion = useMemo(() => shouldReduceMotion(), []);
+  /** a11y: freeze packet travel + snap coalescence to assembled. REACTIVE — flips
+   *  live when the operator toggles OS reduced-motion (was once-at-mount). */
+  const reduceMotion = useReducedMotion();
 
   const brainAsset = useMemo(() => {
     const clone = scene.clone(true);
@@ -1265,10 +1266,13 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   // operator's decision (approval-resolved) or when the conversation moves on.
   const holdRef = useRef({ active: false, breathAtHold: 0.5 });
 
-  // The being's posture, mirrored into a ref so the frame loop reads it
-  // without re-rendering. Reduced-motion is captured once and honored in the
-  // SAME frame logic below (no second code path, no auto-degrade of the look).
-  const reducedMotionRef = useRef(shouldReduceMotion());
+  // The being's posture, mirrored into a ref so the frame loop reads it without
+  // re-rendering. Reduced-motion is now REACTIVE (useReducedMotion): the value is
+  // synced into the ref each render so the frame loop stays ref-cheap, AND a live
+  // OS toggle re-renders → re-evaluates autoRotate + the prop-fed children below.
+  const reducedMotion = useReducedMotion();
+  const reducedMotionRef = useRef(reducedMotion);
+  reducedMotionRef.current = reducedMotion;
   const arrivalScalarRef = useRef(0); // shared with AccretionCore/CosmicBackground/NeuralAura
   const postureRef = useRef({
     state: LifecycleState.BOOTING as LifecycleState,
