@@ -13,6 +13,7 @@ import {
   type QualityTier,
 } from '@/components/QualityTierProvider';
 import TierGovernor from './TierGovernor';
+import { TIER_DPR } from '@/lib/perfBudget';
 import { startAiosPolling } from '@/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import {
@@ -21,14 +22,6 @@ import {
   notifyDirective,
   tickLifecycle,
 } from '@/lib/lifecycleStateMachine';
-
-/** Device-pixel-ratio budget per effective tier — the cheapest fill-rate lever. */
-const TIER_DPR: Record<QualityTier, [number, number]> = {
-  high: [1, 1.5],
-  medium: [1, 1.25],
-  low: [1, 1],
-};
-
 
 /** Boot handoff: fire `gagos:ready` ONCE the scene is actually rendering (the
  *  first frame after Suspense resolves = shaders warming, GLB landed), so the
