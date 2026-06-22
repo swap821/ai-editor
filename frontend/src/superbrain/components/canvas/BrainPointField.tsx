@@ -141,6 +141,7 @@ export default function BrainPointField({
         uTime: uniforms.uTime,
         uPostureColor: uniforms.uPosture,
         uPostureTint: uniforms.uPostureTint,
+        uBreath: uniforms.uBreath, // phase-lock: points breathe on the shared organism clock
       });
       m.uniforms.uSize.value = baseSize;
       return m;
