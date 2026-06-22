@@ -1,6 +1,15 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-22T19:30:00+05:30
+Last updated: 2026-06-22T20:50:00+05:30
+
+## SESSION 2026-06-22 (night) — POINTS CONDUCTOR + "VOICE INTO THE BODY" transformation (SP1+SP2)
+- **Points-native conductor (deferred P1.2) LANDED** (#21 `492615c` vertebra segmentation while orchestrating; #22 `47a5c53` state-tinted vertebra sockets at each tab's spine root). The spine now reveals distinct vertebrae + glowing per-tab state seats — poster phase 5 "vertebrae are addressable seats". Mesh conductor overlay stays gated; this is points-native shader/socket work. Live-verified (3 tabs), CI green.
+- **"VOICE INTO THE BODY" transformation STARTED** (full superpowers loop: brainstorming → spec `docs/superpowers/specs/2026-06-22-voice-into-body-design.md` → writing-plans `docs/.../plans/2026-06-22-voice-into-body-sp1.md` → subagent-driven build → live proof). Operator scope = **minimal hybrid** (keep a thin input; re-home reply + status into the body; drop clutter):
+  - **SP1 reply → in-scene body-speech LANDED** (#23): new `lib/bodySpeech.ts` (pure `deriveBodySpeech`) + `lib/replyVoiceBus.ts` (reads reply off the existing `voice-speaking` cognition events; `window.__getBodySpeech` hook) + `components/canvas/BodySpeech.tsx` (drei `<Text>` in `<Billboard>`, streams reply, glows/settles/fades) + scene mount. `GagosChrome` chat path NO LONGER renders the GAGOS reply as a DOM bubble (keeps user echo + the cognition events). Live-verified: reply renders as luminous text from the being.
+  - **SP2 status → off-body LANDED** (#24): retired the redundant DOM lifecycle state pill (+ unused PHASE_META); the body's posture colour carries the phase; chrome keeps only minimal model + supervised cues. Live-verified.
+- **OPERATOR DELEGATED FULL PLACEMENT/DESIGN AUTHORITY** (2026-06-22 night): "place anything beautifully according to u" — final visual placement is now MY call (verified live), no longer deferred to his eye. (Was the standing convention; now lifted.)
+- **NEXT:** SP3 (minimal input / chrome declutter — wordmark + prompt chips); finalize BodySpeech placement beautifully (my call now); then the remaining audit P2.3 (60fps relief-valve) + P2.4 (status-token single-source). All live-verifiable (kimi connected). Tests at 217 green; all 2026-06-22 PRs (#13-#24) merged.
+
 
 ## SESSION 2026-06-22 (evening) — roadmap builds verified+merged + kimi-webbridge RECONNECTED (GUI-automation saga)
 - **All 7 poster-fidelity PRs now MERGED to master** (#14 node dial, #15 reply-speak, #16 crown-raise, #17 work-tab dashboard, #18 lush render, #19 staged reabsorption, #20 arrival ignition ramp). Integrated master CI green. #19/#20 were live-verified this session: arrival reads seed→converge→full (dark→light ignition); reabsorption dissolves the tab + reabsorbs cleanly.
