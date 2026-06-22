@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, lazy, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Float, useGLTF, PerspectiveCamera, OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -33,7 +33,6 @@ import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
-import { readGpuMode } from '@/lib/gpuMode';
 import { setBrainDockScale } from '@/lib/spineFusionBus';
 import BrainPointField from './BrainPointField';
 
@@ -71,16 +70,6 @@ const SHOW_MEMORY_GALAXY = true;
 
 /** Substrate: 'mesh' (default, the working being) or 'points' (?being=points). */
 const BEING_MODE = readBeingMode();
-// Flagged WebGPU look-spike (?gpu=webgpu) — opt-in + capability-gated. Lazy so
-// three/webgpu is code-split OUT of the default WebGL bundle (only fetched on the flag).
-const GPU_MODE = readGpuMode();
-const GpuBrainPointField = lazy(() => import('./GpuBrainPointField'));
-const GpuPostFX = lazy(() => import('./GpuPostFX'));
-// In points mode the cortex is self-lit and the accretion core is gated off, so the
-// blue/violet scene light rig only lights the materialized-tab PBR slabs. Under WebGPU
-// that rig WASHES the slabs bright blue (the "flat washed tabs" bug); dim it hard so
-// the tabs read as the intended dark glass. WebGL default keeps the full rig (1.0).
-const WEBGPU_LIGHT_SCALE = GPU_MODE === 'webgpu' ? 0.15 : 1;
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -907,21 +896,7 @@ function BrainModel({
           <primitive object={brainAsset.object} />
         ))}
         {BEING_MODE === 'mesh' && <primitive object={neuralSkin.object} scale={1.004} />}
-        {BEING_MODE === 'points' && GPU_MODE === 'webgpu' && (
-          /* SPIKE (?gpu=webgpu): the same brain+fused-spine geometry, simulated as
-             GPU compute particles (250k–1M). Lazy + Suspense so three/webgpu stays
-             out of the default bundle. Falls back to nothing while the chunk loads. */
-          <Suspense fallback={null}>
-            <GpuBrainPointField
-              source={brainAsset.object}
-              uniforms={uniforms}
-              count={tier === 'high' ? 250000 : tier === 'medium' ? 120000 : 60000}
-              spineScale={1 / BRAIN_SCALE}
-              spineCount={tier === 'high' ? 70000 : tier === 'medium' ? 30000 : 16000}
-            />
-          </Suspense>
-        )}
-        {BEING_MODE === 'points' && GPU_MODE !== 'webgpu' && (
+        {BEING_MODE === 'points' && (
           /* ONE CLOUD: brain + spine are a single point geometry. The spine is
              FUSED in with its cord-top welded to the brain's real brainstem
              vertices (spineScale = 1/BRAIN_SCALE maps scene→brain-local). It rides
@@ -1665,12 +1640,12 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           exists for the OTHER scene objects (accretion core). */}
       <color attach="background" args={['#000000']} />
       <ambientLight intensity={0.14} color="#241145" />
-      <directionalLight position={[-6, 7, 1]} intensity={0.41 * WEBGPU_LIGHT_SCALE} color="#8fa8ff" />
-      <directionalLight position={[7, -2, 0]} intensity={0.42 * WEBGPU_LIGHT_SCALE} color="#bcd0ff" />
-      <directionalLight position={[0, -3, -8]} intensity={0.39 * WEBGPU_LIGHT_SCALE} color="#795cff" />
-      <pointLight position={[-4.5, 2.8, -1]} intensity={1.0 * WEBGPU_LIGHT_SCALE} distance={10} color="#5e8dff" />
-      <pointLight position={[3.5, 4.0, 3]} intensity={0.7 * WEBGPU_LIGHT_SCALE} distance={12} color="#c8a8ff" />
-      <pointLight position={[4.2, -2.6, -5]} intensity={(0.6 + activeBoost * 0.6) * WEBGPU_LIGHT_SCALE} distance={8} color="#ff5c9a" />
+      <directionalLight position={[-6, 7, 1]} intensity={0.41} color="#8fa8ff" />
+      <directionalLight position={[7, -2, 0]} intensity={0.42} color="#bcd0ff" />
+      <directionalLight position={[0, -3, -8]} intensity={0.39} color="#795cff" />
+      <pointLight position={[-4.5, 2.8, -1]} intensity={1.0} distance={10} color="#5e8dff" />
+      <pointLight position={[3.5, 4.0, 3]} intensity={0.7} distance={12} color="#c8a8ff" />
+      <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
         <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
@@ -1692,16 +1667,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
       )}
 
-      {/* PostFX is the WebGL EffectComposer (AgX + Bloom) — it cannot run on the
-          WebGPU renderer. Under the ?gpu=webgpu spike the TSL equivalent
-          (scene → Bloom → AgX) renders instead, lazy so three/webgpu stays out of
-          the default bundle. */}
-      {GPU_MODE !== 'webgpu' && <PostFX />}
-      {GPU_MODE === 'webgpu' && (
-        <Suspense fallback={null}>
-          <GpuPostFX />
-        </Suspense>
-      )}
+      <PostFX />
     </>
   );
 }

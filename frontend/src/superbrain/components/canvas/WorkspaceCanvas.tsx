@@ -6,7 +6,6 @@ import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import SuperbrainScene, { type BrainSurface, type SkyMode } from './SuperbrainScene';
-import { readGpuMode } from '@/lib/gpuMode';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import {
   QualityTierProvider,
@@ -30,26 +29,6 @@ const TIER_DPR: Record<QualityTier, [number, number]> = {
   low: [1, 1],
 };
 
-// Flagged WebGPU look-spike (?gpu=webgpu). Default '/' resolves to 'webgl' and the
-// block below is dead — the proven WebGLRenderer path runs verbatim.
-const GPU_MODE = readGpuMode();
-
-/** Async WebGPURenderer factory — dynamic-imports three/webgpu so it never enters
- *  the default bundle (only fetched when the flag is on). r3f v9 awaits an async
- *  gl factory; if WebGPU init throws, the WebGLErrorBoundary catches it. */
-async function createWebGpuRenderer(props: Record<string, unknown>): Promise<THREE.WebGLRenderer> {
-  const WEBGPU = await import('three/webgpu');
-  const renderer = new WEBGPU.WebGPURenderer({
-    ...props,
-    antialias: false,
-    alpha: false,
-    powerPreference: 'high-performance',
-  } as ConstructorParameters<typeof WEBGPU.WebGPURenderer>[0]);
-  renderer.toneMapping = THREE.AgXToneMapping;
-  renderer.toneMappingExposure = POST_FX.toneMappingExposure;
-  await renderer.init();
-  return renderer as unknown as THREE.WebGLRenderer;
-}
 
 /** Boot handoff: fire `gagos:ready` ONCE the scene is actually rendering (the
  *  first frame after Suspense resolves = shaders warming, GLB landed), so the
@@ -243,7 +222,7 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
             camera={{ position: [0, 0.25, 8.5], fov: CAMERA.fov, near: CAMERA.near, far: CAMERA.far }}
             dpr={TIER_DPR[perfTier]}
             onCreated={handleCreated}
-            gl={GPU_MODE === 'webgpu' ? createWebGpuRenderer : {
+            gl={{
               // The composer owns AA (4x MSAA on its input buffer at high
               // tier — PostFX.tsx): the canvas backbuffer only ever shows
               // the final fullscreen quad, so its own MSAA bought nothing.
