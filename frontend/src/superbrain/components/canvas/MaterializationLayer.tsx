@@ -48,6 +48,7 @@ import AttentionConductionPulse from './AttentionConductionPulse';
 import CompletionMemoryBead from './CompletionMemoryBead';
 import MaterializedTab from './MaterializedTab';
 import ReabsorptionParticles from './ReabsorptionParticles';
+import CorticalNerve from './CorticalNerve';
 import { readBeingMode } from '@/lib/beingMode';
 
 // Point-field being: the per-tab umbilical (MaterializedTab) + the conversation/
@@ -425,6 +426,17 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
             outcome={outcome}
           />
         ))}
+      {/* P1.3: a luminous nerve grows from the being's CORTEX to each live work
+          surface (the poster's "the mind extends a nerve to the work"). Additive —
+          the tab still seats on its vertebra socket + keeps its umbilical; this only
+          adds the cortical reach. Points-mode only (the cortex anchor is published by
+          the point cloud); retracting tabs reabsorb via motes instead. */}
+      {POINTS &&
+        orchestration.surfaces
+          .filter(({ tab }) => tab.kind !== 'input' && tab.lifecycle !== 'retracting')
+          .map(({ tab }) => (
+            <CorticalNerve key={`cnerve-${tab.id}`} target={tab.targetLocal} reducedMotion={reducedMotion} />
+          ))}
       {/* Phase 7: a retracting work slab dissolves into motes that stream up the
           spine back into the brain (points being). */}
       {POINTS &&
