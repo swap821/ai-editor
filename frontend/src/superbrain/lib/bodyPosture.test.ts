@@ -4,9 +4,26 @@ import {
   BODY_POSTURES,
   deriveBodyPosture,
   postureColor01,
+  postureHex,
   postureKeyForPhase,
   type BodyPostureKey,
 } from './bodyPosture';
+
+describe('postureHex — single source of truth for status hues (P2.4)', () => {
+  it('renders each posture as the sacred tetrad hex', () => {
+    expect(postureHex('rest')).toBe('#9e78f5');
+    expect(postureHex('think')).toBe('#b06eff');
+    expect(postureHex('stream')).toBe('#7bf5fb');
+    expect(postureHex('hold')).toBe('#ff7e40');
+    expect(postureHex('complete')).toBe('#54f0a0');
+    expect(postureHex('error')).toBe('#ff5c48');
+  });
+  it('always emits a 7-char #rrggbb (2-digit, zero-padded channels)', () => {
+    for (const key of Object.keys(BODY_POSTURES) as BodyPostureKey[]) {
+      expect(postureHex(key)).toMatch(/^#[0-9a-f]{6}$/);
+    }
+  });
+});
 
 describe('bodyPosture — spectral-v1 palette', () => {
   it('keeps the poster "STATUS FROM BODY" tetrad colors exactly', () => {

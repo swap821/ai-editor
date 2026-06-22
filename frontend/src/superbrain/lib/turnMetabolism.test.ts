@@ -4,6 +4,7 @@ import {
   deriveTurnMetabolismSnapshot,
   reduceTurnMetabolismEvent,
 } from './turnMetabolism';
+import { postureHex } from './bodyPosture';
 
 const NOW = 10_000;
 
@@ -30,7 +31,9 @@ describe('turnMetabolism', () => {
     expect(snapshot.phase).toBe('thinking');
     expect(snapshot.surfaceExcitation).toBeGreaterThan(0);
     expect(snapshot.rootExcitation).toBeGreaterThan(0);
-    expect(snapshot.tint).toBe('#8af5ff');
+    // P2.4: the tint is now single-sourced from the sacred palette — thinking
+    // wears the bible's 'think' hue (#b06eff purple), not the old drifted cyan.
+    expect(snapshot.tint).toBe(postureHex('think'));
   });
 
   it('lets real tool work outrank a recent thinking signal', () => {

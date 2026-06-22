@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { subscribeCognition, type CognitionEvent } from './cognitionBus';
+import { postureHex, type BodyPostureKey } from './bodyPosture';
 
 export type TurnMetabolismPhase = 'rest' | 'thinking' | 'working' | 'approval' | 'error' | 'settling';
 
@@ -29,7 +30,7 @@ export const REST_TURN_METABOLISM: TurnMetabolismSnapshot = {
   surfaceExcitation: 0,
   rootExcitation: 0,
   breathGain: 0,
-  tint: '#79ebff',
+  tint: postureHex('rest'), // single source (was a hardcoded #79ebff drift)
   held: false,
   changedAt: 0,
 };
@@ -41,13 +42,26 @@ const WINDOWS_MS: Record<Exclude<TurnMetabolismPhase, 'rest' | 'approval'>, numb
   settling: 1800,
 };
 
+// SINGLE SOURCE (P2.4): the metabolism tint is the sacred posture tetrad, mapped
+// by intent — NOT a parallel hex map (the old one had drifted off the poster:
+// rest/thinking were cyan instead of purple, working orange instead of the
+// poster's "working = cyan", settling cyan instead of green). bodyPosture.postureHex
+// is the one truth; this map only chooses WHICH posture each turn-phase wears.
+const PHASE_POSTURE: Record<TurnMetabolismPhase, BodyPostureKey> = {
+  rest: 'rest', // purple
+  thinking: 'think', // purple
+  working: 'stream', // cyan — the poster's "working" hue
+  approval: 'hold', // orange — holding for the operator
+  error: 'error', // orange-red
+  settling: 'complete', // green
+};
 const PHASE_TINT: Record<TurnMetabolismPhase, string> = {
-  rest: '#79ebff',
-  thinking: '#8af5ff',
-  working: '#ffbe78',
-  approval: '#ffc36e',
-  error: '#ff5f7a',
-  settling: '#a9fff3',
+  rest: postureHex(PHASE_POSTURE.rest),
+  thinking: postureHex(PHASE_POSTURE.thinking),
+  working: postureHex(PHASE_POSTURE.working),
+  approval: postureHex(PHASE_POSTURE.approval),
+  error: postureHex(PHASE_POSTURE.error),
+  settling: postureHex(PHASE_POSTURE.settling),
 };
 
 function nowMs(): number {
