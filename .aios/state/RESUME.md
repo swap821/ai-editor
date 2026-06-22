@@ -1,14 +1,16 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-22T20:50:00+05:30
+Last updated: 2026-06-22T21:20:00+05:30
 
 ## SESSION 2026-06-22 (night) — POINTS CONDUCTOR + "VOICE INTO THE BODY" transformation (SP1+SP2)
 - **Points-native conductor (deferred P1.2) LANDED** (#21 `492615c` vertebra segmentation while orchestrating; #22 `47a5c53` state-tinted vertebra sockets at each tab's spine root). The spine now reveals distinct vertebrae + glowing per-tab state seats — poster phase 5 "vertebrae are addressable seats". Mesh conductor overlay stays gated; this is points-native shader/socket work. Live-verified (3 tabs), CI green.
 - **"VOICE INTO THE BODY" transformation STARTED** (full superpowers loop: brainstorming → spec `docs/superpowers/specs/2026-06-22-voice-into-body-design.md` → writing-plans `docs/.../plans/2026-06-22-voice-into-body-sp1.md` → subagent-driven build → live proof). Operator scope = **minimal hybrid** (keep a thin input; re-home reply + status into the body; drop clutter):
   - **SP1 reply → in-scene body-speech LANDED** (#23): new `lib/bodySpeech.ts` (pure `deriveBodySpeech`) + `lib/replyVoiceBus.ts` (reads reply off the existing `voice-speaking` cognition events; `window.__getBodySpeech` hook) + `components/canvas/BodySpeech.tsx` (drei `<Text>` in `<Billboard>`, streams reply, glows/settles/fades) + scene mount. `GagosChrome` chat path NO LONGER renders the GAGOS reply as a DOM bubble (keeps user echo + the cognition events). Live-verified: reply renders as luminous text from the being.
   - **SP2 status → off-body LANDED** (#24): retired the redundant DOM lifecycle state pill (+ unused PHASE_META); the body's posture colour carries the phase; chrome keeps only minimal model + supervised cues. Live-verified.
+  - **SP3 minimal chrome + placement LANDED** (#25): retired the static wordmark lockup (the being self-introduces in the first-run greeting) + the starter-prompt chips (+ their dead code); kept one thin input + greeting + minimal cues. BodySpeech placement FINALIZED beside the head (reply flows right into the dark void, readable off the cortex). Live-verified.
+  - **→ "VOICE INTO THE BODY" TRANSFORMATION COMPLETE** (SP1+SP2+SP3 merged): the being now carries its own voice (reply = luminous body-speech) + state (posture); only a thin input + model/supervised cues remain as chrome. Big step toward "the interface is alive."
 - **OPERATOR DELEGATED FULL PLACEMENT/DESIGN AUTHORITY** (2026-06-22 night): "place anything beautifully according to u" — final visual placement is now MY call (verified live), no longer deferred to his eye. (Was the standing convention; now lifted.)
-- **NEXT:** SP3 (minimal input / chrome declutter — wordmark + prompt chips); finalize BodySpeech placement beautifully (my call now); then the remaining audit P2.3 (60fps relief-valve) + P2.4 (status-token single-source). All live-verifiable (kimi connected). Tests at 217 green; all 2026-06-22 PRs (#13-#24) merged.
+- **NEXT:** remaining audit P2.3 (60fps relief-valve), P2.4 (status-token single-source — unify the 3 drifting posture-colour sources + delete the inverted dead CSS legend), reactive reduced-motion. All live-verifiable (kimi connected). Tests at 217 green; all 2026-06-22 PRs (#13-#25) merged.
 
 
 ## SESSION 2026-06-22 (evening) — roadmap builds verified+merged + kimi-webbridge RECONNECTED (GUI-automation saga)
