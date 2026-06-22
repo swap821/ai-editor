@@ -1,6 +1,17 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-22T12:40:00+05:30
+Last updated: 2026-06-22T14:40:00+05:30
+
+## SESSION 2026-06-22 (afternoon) — POSTER-FIDELITY AUDIT + 4 BUILDS LANDED (operator: ultracode, "still 55-60% vs poster")
+- **Honest gap audit run** (ultracode workflow `wf_40fb8d29-5ec`: 34 agents, 3.6M tokens; per-aspect map→deep-web-research→adversarial-verify→synthesis; cross-checked vs live `:5173` frames). Verdict: **~57% perceived poster-fidelity but ~80% architecture** — the gap is mostly **authored-but-gated-off** behavior, not unbuilt. Full roadmap + landed-status banner: `.aios/state/GAGOS_POSTER_GAP_AUDIT.md`. Memory: [[gagos-poster-gap-audit]].
+- **4 PRs shipped + verified live (kimi-webbridge) + CI green + MERGED to master** (each luminance/geometry/data only — sacred palette untouched):
+  - **#14 `546b062`** — NodeLattice live vividness dial `window.__NODELATTICE.{nodeGain,edgeCarrier,backboneCarrier,signalGain}` (mirrors `__POINTFIELD`).
+  - **#15 `ac643f0`** — P0.1+P0.2: cortex BRIGHTENS (not dims) while speaking + reply RISES up the spine (`uReplyRise`). Root cause: chat `'streaming'`→organism `'working'` wrongly dimmed the cloud (0.28) + zeroed `uAwaken`. Fix in BrainPointField (dim gated on REAL lifecycle phase only) + pointFieldMaterial (`uReplyRise` band, cache key v14→v15) + dev hook `window.__GAGCONV.set('streaming')`. Verified: streaming → rise 0.98 / awaken 0.89 / body 1.
+  - **#16 `76d0352`** — P1.1 crown-raise: the points brain now RISES + crowns the top at 2+ tabs (was shrink-in-place). Applied `mainBrainOffsetY` (damped `dockYRef`) to the points group; tuned the offset (1.0→2.0) so the full crown stays in-frame. Spine still plunges into the focus.
+  - **#17 `34b1a0b`** — P0.4 live data-viz dashboard inside the FOCUSED work tab (`WorkTabLiveDashboard`): 4 channel bars (research/memory/tools/signals) + a tools sparkline bound to the REAL `metricsStore`; re-renders on the store tick (~1.8s, no per-frame cost); focused tab only.
+- **Verified integrated master CI green** (`34b1a0b`, backend+frontend). All 4 merged branches deleted (local+remote).
+- **DEFERRED honestly:** P1.2 (un-gate conductor overlay) — those components take mesh nerve geometry, deliberately gated off in points mode as misplaced; needs a points-native rewrite, not a one-line un-gate.
+- **NEXT (in flight):** continue the roadmap — cinematic "lush render" theme: P2.1 in-shader depth haze + P2.2 per-particle filmic rolloff + concentrated-core bloom (recover the poster's lush glow without re-inviting the white-haze). Then P2.3 60fps relief-valve, P2.4 status-token single-source, P2.5 staged reabsorption, P2.6 arrival ramp, points-native conductor.
 
 ## SESSION 2026-06-22 (midday) — PR #13 MERGED (conflict resolve: living-being wins) + CI ADDED & GREEN + repo cleanup
 - **PR #13 (`feat/living-being-p1` → master) was CONFLICTING and is now MERGED** (merge commit `2ceceda`). Root cause: PR #12 ("Frontend renovation + Jarvis voice Slice 1", `4757302`) landed on master the SAME morning and REBUILT the classic/workbench frontend (new `organs/` dock + `approval/` safety-net + big `SuperbrainHUD`/`superbrain.css` rework) — the exact layer this branch DELETED to make the points-being the single official frontend. A true architectural fork, not a trivial merge.
