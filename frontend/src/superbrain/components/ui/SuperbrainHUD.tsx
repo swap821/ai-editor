@@ -11,6 +11,8 @@ import {
   getLastTelemetry,
   getLinkState,
   getPendingApproval,
+  sendVoiceTurn,
+  subscribePendingApproval,
   type AiosTelemetry,
   type PendingApproval,
 } from '@/lib/aiosAdapter';
@@ -531,6 +533,17 @@ export default function SuperbrainHUD({
   onSurfaceChange,
 }: SuperbrainHUDProps) {
   const [directive, setDirective] = useState('');
+  // Jarvis VOICE (push-to-talk): speak -> POST /api/v1/chat -> the mind speaks
+  // back. A CONVERSATION channel, separate from the typed forge command bar: the
+  // conversational endpoint runs NO tools and has NO approval mechanism, so a
+  // spoken word can never redeem an approval token. The reply also flows to the
+  // conversation organs (the adapter publishes the real synthesis event).
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const [voiceLang, setVoiceLang] = useState<'en-IN' | 'hi-IN'>('en-IN');
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceSpeaking, setVoiceSpeaking] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   // Seed from the adapter, not from blank: the adapter outlives this component,
   // so a HUD remount (e.g. GPU context-loss recovery) must not drop a hold the
   // operator hasn't ruled on yet.
@@ -558,6 +571,23 @@ export default function SuperbrainHUD({
     }
     hadApprovalRef.current = present;
   }, [pendingApproval]);
+  /* SINGLE SOURCE OF TRUTH for the approval gate. Bind the actionable panel to
+   * the adapter's PERSISTED pending-approval state: subscribePendingApproval
+   * delivers the CURRENT truth immediately on subscribe (covering a late mount or
+   * a missed 'approval-required' bus event) and again on every change. Driving
+   * the panel from this — not from the fire-and-forget bus event alone — means a
+   * turn that genuinely paused is ALWAYS actionable, never a hung hold showing the
+   * text but no AUTHORIZE/REJECT. The bus handlers below stay as terminal
+   * narration + a redundant fast path; all read the same adapter state, so they
+   * are idempotent with this. */
+  useEffect(
+    () =>
+      subscribePendingApproval((pending) => {
+        setPendingApproval(pending);
+        setApprovalHold(pending !== null);
+      }),
+    [],
+  );
   const magnetRef = useRef<HTMLSpanElement>(null);
   useMagneticPull(magnetRef);
   const { baseTier, generating, setTier } = useQualityTier();
@@ -1017,6 +1047,119 @@ export default function SuperbrainHUD({
     },
     [],
   );
+
+  /* Web Speech recognition: created once; per-turn handlers (lang, onresult,
+   * onerror) are assigned in startVoice so each turn uses the current language
+   * and a fresh closure. */
+  useEffect(() => {
+    const w = window as typeof window & {
+      SpeechRecognition?: new () => SpeechRecognition;
+      webkitSpeechRecognition?: new () => SpeechRecognition;
+    };
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!SR) return; // unsupported -> the mic surfaces a text-only hint
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = false; // act on the FINAL transcript (one spoken turn)
+    rec.onstart = () => setVoiceListening(true);
+    rec.onend = () => setVoiceListening(false);
+    recognitionRef.current = rec;
+  }, []);
+
+  /* Speak the mind's reply back. Honest + non-blocking: no TTS -> stay silent
+   * (the reply still reaches the conversation organs). */
+  const speakVoiceReply = useCallback(
+    (text: string) => {
+      const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+      if (!synth || !text) return;
+      try {
+        synth.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = voiceLang;
+        utter.onstart = () => setVoiceSpeaking(true);
+        utter.onend = () => setVoiceSpeaking(false);
+        utter.onerror = () => setVoiceSpeaking(false);
+        synth.speak(utter);
+      } catch {
+        setVoiceSpeaking(false);
+      }
+    },
+    [voiceLang],
+  );
+
+  /* One spoken conversational turn -> the CONVERSATIONAL mind (sendVoiceTurn ->
+   * /api/v1/chat); the reply streams to the conversation organs (the adapter
+   * publishes the real synthesis) and is spoken back. A spoken turn can never
+   * approve anything: that endpoint has no tools and no approval mechanism. */
+  const handleVoiceTurn = useCallback(
+    async (transcript: string) => {
+      const text = transcript.trim();
+      if (!text || voiceBusy) return;
+      setVoiceBusy(true);
+      setVoiceError(null);
+      try {
+        const reply = await sendVoiceTurn(text);
+        if (reply) speakVoiceReply(reply);
+      } catch (err) {
+        setVoiceError(
+          `Voice link issue: ${err instanceof Error ? err.message : 'unknown'}. Try again or type.`,
+        );
+      } finally {
+        setVoiceBusy(false);
+      }
+    },
+    [voiceBusy, speakVoiceReply],
+  );
+
+  /* Start one push-to-talk turn. Handlers assigned here (not at mount) so each
+   * turn uses the current language and a fresh closure; every error path is
+   * honest (mic-denied, no-speech, generic) and always offers typing instead. */
+  const startVoice = useCallback(() => {
+    const rec = recognitionRef.current;
+    if (!rec) {
+      setVoiceError('Voice input is not supported in this browser. Type your directive instead.');
+      return;
+    }
+    if (voiceBusy) return;
+    rec.lang = voiceLang;
+    rec.onresult = (event: SpeechRecognitionEvent) => {
+      let finalText = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
+      }
+      if (finalText) void handleVoiceTurn(finalText);
+    };
+    rec.onerror = (event: SpeechRecognitionErrorEvent) => {
+      setVoiceListening(false);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setVoiceError('Microphone access was denied. Allow it to talk, or type instead.');
+      } else if (event.error === 'no-speech') {
+        setVoiceError('No speech heard. Tap the mic and try again.');
+      } else if (event.error !== 'aborted') {
+        setVoiceError(`Voice input error (${event.error}). You can type instead.`);
+      }
+    };
+    try {
+      setVoiceError(null);
+      rec.start();
+    } catch {
+      /* start() throws if already running; the toggle guards against that */
+    }
+  }, [voiceLang, voiceBusy, handleVoiceTurn]);
+
+  const toggleVoice = useCallback(() => {
+    const rec = recognitionRef.current;
+    if (!rec) {
+      setVoiceError('Voice input is not supported in this browser. Type your directive instead.');
+      return;
+    }
+    if (voiceListening) rec.stop();
+    else startVoice();
+  }, [voiceListening, startVoice]);
+
+  const cycleVoiceLang = useCallback(() => {
+    setVoiceLang((prev) => (prev === 'en-IN' ? 'hi-IN' : 'en-IN'));
+  }, []);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1503,6 +1646,23 @@ export default function SuperbrainHUD({
                   {submitError}
                 </span>
               ) : null}
+              {/* VOICE STATUS · honest, aria-live: the spoken-channel state
+                  (listening / thinking / speaking) or a clear mic problem. */}
+              {voiceError || voiceListening || voiceBusy || voiceSpeaking ? (
+                <span
+                  className={`command-voice-status${voiceError ? ' command-voice-status--error' : ''}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {voiceError
+                    ? voiceError
+                    : voiceListening
+                    ? `Listening (${voiceLang === 'hi-IN' ? 'Hindi' : 'Indian English'})…`
+                    : voiceBusy
+                    ? 'The mind is thinking…'
+                    : 'The mind is speaking…'}
+                </span>
+              ) : null}
             </div>
 
             {/* STATUS CLUSTER · real readouts (replaces the decorative magnifier).
@@ -1561,6 +1721,40 @@ export default function SuperbrainHUD({
               ) : null}
             </div>
 
+            {/* VOICE · push-to-talk conversation with the mind (it speaks back).
+                Separate from the typed forge: voice -> /api/v1/chat (no tools, no
+                approval), so a spoken word can never authorize an action. */}
+            <div className="voice-controls">
+              <button
+                type="button"
+                className={`voice-button${voiceListening ? ' is-listening' : ''}${
+                  voiceSpeaking ? ' is-speaking' : ''
+                }`}
+                onClick={toggleVoice}
+                aria-label={voiceListening ? 'Stop listening' : 'Talk to the mind (voice)'}
+                aria-pressed={voiceListening}
+                title="Talk to the mind — speak, and it replies aloud"
+              >
+                <svg className="voice-glyph" viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="6" y="1.6" width="4" height="8" rx="2" />
+                  <path d="M3.8 7.4a4.2 4.2 0 0 0 8.4 0" fill="none" />
+                  <line x1="8" y1="11.6" x2="8" y2="14" />
+                  <line x1="5.6" y1="14" x2="10.4" y2="14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="voice-lang"
+                onClick={cycleVoiceLang}
+                aria-label={`Voice language: ${
+                  voiceLang === 'hi-IN' ? 'Hindi' : 'Indian English'
+                } (tap to switch)`}
+                title="Switch spoken language (EN-IN / HI-IN)"
+              >
+                {voiceLang === 'hi-IN' ? 'HI' : 'EN'}
+              </button>
+            </div>
+
             <span className="execute-wrap" ref={magnetRef}>
               <motion.button
                 className={`execute-button${turnState !== 'idle' && turnState !== 'error' ? ' is-working' : ''}`}
@@ -1617,6 +1811,11 @@ export default function SuperbrainHUD({
             </span>
             <i className="glass-grain" aria-hidden />
           </form>
+          {/* Poster tagline: "ONE BODY. MANY POSTURES. THE INTERFACE IS ALIVE."
+              Wide-tracked mono footer — the organism's manifesto at rest. */}
+          <footer className="hud-footer" aria-hidden="true">
+            ONE BODY&nbsp;·&nbsp;MANY POSTURES&nbsp;·&nbsp;THE INTERFACE IS ALIVE
+          </footer>
         </div>,
         document.getElementById('hud-portal-root') || document.body
       )}

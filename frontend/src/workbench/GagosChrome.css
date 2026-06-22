@@ -1,0 +1,501 @@
+/* GagosChrome — the crisp 2D product interface layer over the 3D being.
+   Operator-approved pivot (2026-06-20): the being stays the diegetic 3D hero,
+   but identity / status / conversation become a real, minimal 2D UI so the
+   experience reads as a finished product, not floating debug labels.
+   Product-only (not mirrored to lab), like BrainstemIntake. */
+
+.gagos-chrome {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none; /* the 3D being stays orbit-draggable; only controls capture */
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: #eaf0fb;
+}
+
+/* Keyboard a11y: the first Tab jumps past the aria-hidden visualization
+   straight to the chat. Hidden until focused, then a real visible affordance. */
+.gagos-skip {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translate(-50%, -160%);
+  z-index: 60;
+  pointer-events: auto;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #06121a;
+  background: #7bf5fb;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+}
+.gagos-skip:focus {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  outline: 2px solid #06121a;
+  outline-offset: 2px;
+  /* WCAG 2.4.13/1.4.11: white halo delimits the dark ring against BOTH the cyan chip and the black void. */
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55);
+}
+
+/* Screen-reader-only live region (narrates the being's state). */
+.gagos-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ── Top-left identity lockup ─────────────────────────────────────────── */
+.gagos-lockup {
+  position: absolute;
+  top: 30px;
+  left: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  user-select: none;
+}
+.gagos-wordmark {
+  font-size: 21px;
+  font-weight: 300;
+  letter-spacing: 0.42em;
+  /* trailing letter-spacing pads the right edge; nudge back so the G aligns left */
+  margin-right: -0.42em;
+  color: rgba(245, 247, 255, 0.94);
+  /* Poster cyan glow on the wordmark — matches the nerve/spine color */
+  text-shadow: 0 0 24px rgba(123, 245, 251, 0.42), 0 0 3px rgba(200, 230, 255, 0.38);
+}
+.gagos-rule {
+  width: 34px;
+  height: 1px;
+  /* Poster cyan gradient rule — matches dominant nerve color */
+  background: linear-gradient(90deg, rgba(123, 245, 251, 0.72), rgba(123, 245, 251, 0));
+}
+.gagos-subtitle {
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  margin-right: -0.42em;
+  /* WCAG AA: alpha lifted 0.42->0.62 so the subtitle clears 4.5:1 over the void (hue unchanged). */
+  color: rgba(190, 202, 226, 0.62);
+}
+
+/* ── Top-right status cluster ─────────────────────────────────────────── */
+.gagos-status {
+  position: absolute;
+  top: 30px;
+  right: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+}
+.gagos-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.042);
+  /* Subtle cyan tint matches poster pill borders */
+  border: 1px solid rgba(123, 245, 251, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: rgba(228, 236, 250, 0.82);
+  white-space: nowrap;
+}
+.gagos-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+/* Poster "Model: GPT-4" dot — purple (Streaming/Model channel color) */
+.gagos-dot--model {
+  background: #b06eff;
+  box-shadow: 0 0 9px rgba(176, 110, 255, 0.88), 0 0 18px rgba(176, 110, 255, 0.30);
+}
+/* Poster "Mode: Supervised" dot — green (Complete/Supervised state) */
+.gagos-dot--supervised {
+  background: #54f0a0;
+  box-shadow: 0 0 9px rgba(84, 240, 160, 0.85), 0 0 18px rgba(84, 240, 160, 0.28);
+}
+/* Honest offline state — the connection dot tells the truth, never a faked status. */
+.gagos-dot--offline {
+  background: #f87171;
+  box-shadow: 0 0 9px rgba(248, 113, 113, 0.85), 0 0 18px rgba(248, 113, 113, 0.28);
+}
+/* Retry on a failed turn — a graceful way back, never a silent dead-end. */
+.gagos-retry {
+  display: inline-block;
+  margin-left: 9px;
+  padding: 2px 11px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: #aef3ff;
+  background: rgba(123, 245, 251, 0.1);
+  border: 1px solid rgba(123, 245, 251, 0.3);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.gagos-retry:hover { background: rgba(123, 245, 251, 0.18); border-color: rgba(123, 245, 251, 0.5); }
+.gagos-retry:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
+.gagos-pill--supervised {
+  color: rgba(200, 250, 228, 0.80);
+}
+
+/* ── Bottom-left chat (history thread + input) ───────────────────────────
+   Docked left so the conversation never overlaps the centered being / spine;
+   history grows upward, newest message sits at the bottom by the input. */
+.gagos-chat {
+  position: absolute;
+  left: 36px;
+  bottom: 34px;
+  width: min(430px, 40vw);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  pointer-events: none; /* only the thread + bar capture */
+}
+
+.gagos-thread {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* few messages pin to the bottom, near the input */
+  gap: 9px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 2px 6px 2px 2px;
+  /* fade history out at the top so it dissolves into the void */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 14%, #000 100%);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.gagos-thread::-webkit-scrollbar { width: 6px; }
+.gagos-thread::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
+
+.gagos-msg {
+  max-width: 90%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 350;
+  word-break: break-word;
+  animation: gagos-msg-in 0.32s ease both;
+}
+.gagos-msg--user {
+  align-self: flex-end;
+  /* Poster purple tint for user messages — the operator's channel color */
+  background: rgba(176, 110, 255, 0.14);
+  border: 1px solid rgba(176, 110, 255, 0.28);
+  color: #eef0ff;
+  border-bottom-right-radius: 5px;
+}
+.gagos-msg--gagos {
+  align-self: flex-start;
+  background: rgba(123, 245, 251, 0.05);
+  border: 1px solid rgba(123, 245, 251, 0.16);
+  color: rgba(238, 244, 255, 0.93);
+  border-bottom-left-radius: 5px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 22px -14px rgba(123, 245, 251, 0.45), inset 0 0 0 1px rgba(123, 245, 251, 0.04);
+}
+
+/* streaming "GAGOS is thinking" dots, shown until the first token lands */
+.gagos-typing { display: inline-flex; gap: 4px; padding: 2px 0; }
+.gagos-typing i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(123, 245, 251, 0.85);
+  box-shadow: 0 0 8px rgba(123, 245, 251, 0.45);
+  animation: gagos-typing 1.1s ease-in-out infinite;
+}
+.gagos-typing i:nth-child(2) { animation-delay: 0.15s; }
+.gagos-typing i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes gagos-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gagos-typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+/* Streaming caret — the reply types itself out with a living cyan cursor. */
+.gagos-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: #7bf5fb;
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(123, 245, 251, 0.7);
+  animation: gagos-caret-blink 1s steps(2, start) infinite;
+}
+@keyframes gagos-caret-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
+/* the input bar */
+.gagos-bar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 9px 9px 20px;
+  border-radius: 18px;
+  background: rgba(8, 5, 20, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(22px) saturate(1.30);
+  -webkit-backdrop-filter: blur(22px) saturate(1.30);
+  box-shadow: 0 10px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.gagos-bar:focus-within {
+  /* Poster cyan focus ring instead of purple */
+  border-color: rgba(123, 245, 251, 0.38);
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(123, 245, 251, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.gagos-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(244, 248, 255, 0.95);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 350;
+  letter-spacing: 0.01em;
+}
+.gagos-input::placeholder {
+  /* WCAG AA: alpha lifted 0.4->0.62 so the placeholder hint clears 4.5:1 over the bar (hue unchanged). */
+  color: rgba(190, 202, 226, 0.62);
+}
+
+.gagos-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.2s ease, opacity 0.2s ease;
+}
+.gagos-btn:active {
+  transform: scale(0.92);
+}
+.gagos-mic {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 230, 248, 0.8);
+}
+.gagos-mic:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.gagos-mic.is-listening {
+  background: rgba(255, 90, 120, 0.18);
+  color: #ff9bb0;
+  box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.35), 0 0 18px rgba(255, 90, 120, 0.35);
+  animation: gagos-pulse 1.4s ease-in-out infinite;
+}
+.gagos-send {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  /* Poster: send is the deepest purple element — the spine / orchestration channel */
+  background: linear-gradient(150deg, #b06eff, #6a1eff);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(176, 110, 255, 0.56), 0 0 12px rgba(176, 110, 255, 0.28);
+}
+.gagos-send:hover {
+  filter: brightness(1.14);
+}
+.gagos-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+.gagos-send.is-busy {
+  pointer-events: none;
+}
+.gagos-send.is-busy svg {
+  animation: gagos-spin 0.9s linear infinite;
+}
+
+@keyframes gagos-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.35), 0 0 14px rgba(255, 90, 120, 0.3); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.5), 0 0 24px rgba(255, 90, 120, 0.55); }
+}
+@keyframes gagos-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── First-run welcome: the being speaks first (zero-state only) ──────────
+   Shown only while the thread is empty — a warm greeting + clickable starter
+   prompts that pre-fill the intake. Disappears the instant a turn begins. */
+.gagos-welcome {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px 2px;
+  animation: gagos-welcome-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.46s both;
+}
+.gagos-welcome__eyebrow {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(123, 245, 251, 0.6);
+}
+.gagos-welcome__greeting {
+  font-size: 16px;
+  line-height: 1.55;
+  font-weight: 360;
+  color: rgba(236, 242, 255, 0.9);
+  max-width: 31ch;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.6);
+}
+.gagos-welcome__name {
+  color: #aef3ff;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 18px rgba(123, 245, 251, 0.5);
+}
+.gagos-welcome__prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+.gagos-starter {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 13px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(123, 245, 251, 0.12);
+  color: rgba(228, 236, 250, 0.84);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 360;
+  cursor: pointer;
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  transition: background 0.22s ease, border-color 0.22s ease, transform 0.16s ease, box-shadow 0.22s ease;
+}
+.gagos-starter:hover {
+  background: rgba(123, 245, 251, 0.07);
+  border-color: rgba(123, 245, 251, 0.34);
+  box-shadow: 0 6px 26px -12px rgba(123, 245, 251, 0.4), inset 0 0 0 1px rgba(123, 245, 251, 0.06);
+  transform: translateY(-1px);
+}
+.gagos-starter:focus-visible {
+  outline: 2px solid rgba(123, 245, 251, 0.6);
+  outline-offset: 2px;
+}
+.gagos-starter:active { transform: translateY(0) scale(0.99); }
+.gagos-starter__icon {
+  flex: none;
+  display: inline-flex;
+  width: 26px; height: 26px;
+  align-items: center; justify-content: center;
+  border-radius: 8px;
+  color: #7bf5fb;
+  background: rgba(123, 245, 251, 0.08);
+}
+.gagos-starter__label { flex: 1; min-width: 0; line-height: 1.35; }
+.gagos-starter__arrow {
+  flex: none;
+  color: rgba(123, 245, 251, 0.5);
+  font-size: 14px;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.gagos-starter:hover .gagos-starter__arrow { transform: translateX(3px); color: rgba(123, 245, 251, 0.9); }
+
+@keyframes gagos-welcome-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Orchestrated arrival + live state pulse ─────────────────────────────
+   The chrome settles in as one coordinated system (identity → status →
+   intake → invitation); the state pill breathes while the being is active. */
+.gagos-lockup { animation: gagos-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both; }
+.gagos-status { animation: gagos-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both; }
+.gagos-bar    { animation: gagos-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.34s both; }
+@keyframes gagos-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.gagos-pill--state.is-active .gagos-dot { animation: gagos-dot-pulse 1.5s ease-in-out infinite; }
+@keyframes gagos-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50%      { transform: scale(1.35); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gagos-msg { animation: none; }
+  .gagos-typing i { animation: none; }
+  .gagos-mic.is-listening { animation: none; }
+  .gagos-send.is-busy svg { animation: none; }
+  .gagos-welcome { animation: none; }
+  .gagos-starter, .gagos-starter__arrow { transition: none; }
+  .gagos-lockup, .gagos-status, .gagos-bar { animation: none; }
+  .gagos-pill--state.is-active .gagos-dot { animation: none; }
+  .gagos-caret { animation: none; }
+  .gagos-skip { transition: none; }
+}
+
+/* ── Responsive: keep the front door usable on tablets + phones ───────────
+   The being stays the centered hero; the conversation reflows to the bottom
+   edge so it never fights the spine on narrow screens. */
+@media (max-width: 1024px) {
+  .gagos-chat { width: min(420px, 52vw); }
+}
+@media (max-width: 640px) {
+  .gagos-lockup { top: 18px; left: 18px; gap: 7px; }
+  .gagos-wordmark { font-size: 18px; letter-spacing: 0.34em; margin-right: -0.34em; }
+  .gagos-subtitle { font-size: 8.5px; letter-spacing: 0.34em; margin-right: -0.34em; }
+  .gagos-status { top: 16px; right: 14px; gap: 6px; }
+  .gagos-pill { padding: 6px 11px 6px 10px; font-size: 11px; }
+  .gagos-chat { left: 14px; right: 14px; width: auto; bottom: 16px; gap: 11px; }
+  .gagos-thread { max-height: 42vh; }
+  .gagos-welcome__greeting { font-size: 15px; max-width: none; }
+  .gagos-starter { font-size: 13px; min-height: 46px; }
+}

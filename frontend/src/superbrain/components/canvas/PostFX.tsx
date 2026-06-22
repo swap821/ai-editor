@@ -40,6 +40,7 @@ import { POST_FX } from '@/lib/constants';
 import { Uniform, Vector2, Vector3 } from 'three';
 import { useMemo } from 'react';
 import { useQualityTier } from '@/components/QualityTierProvider';
+import { readBeingMode } from '@/lib/beingMode';
 
 // ── GradePre — scene-referred log-space contrast (runs BEFORE AgX) ─────────
 // Pivot 0.4135884 is mid-grey (0.18) in the log encoding; contrast > 1
@@ -146,6 +147,11 @@ export default function PostFX() {
   // thinks); the scene's geometry follows the structural tier elsewhere.
   const { perfTier: tier } = useQualityTier();
 
+  // Point-field being uses a gentler bloom so the glow hugs the body; the mesh
+  // being keeps the hot cinematic bloom. Selected by the ?being= substrate flag.
+  const bloom = readBeingMode() === 'points' ? POST_FX.bloomPoints : POST_FX.bloom;
+  const vignette = readBeingMode() === 'points' ? POST_FX.vignettePoints : POST_FX.vignette;
+
   const aberrationOffset = useMemo(
     () => new Vector2(POST_FX.chromaticAberration.offset[0], POST_FX.chromaticAberration.offset[1]),
     []
@@ -163,9 +169,9 @@ export default function PostFX() {
           fully; everything clamped ≤0.5 stays dark. intensity 2.5. */}
       <>{tier !== 'low' && (
         <Bloom
-          intensity={POST_FX.bloom.intensity}
-          luminanceThreshold={POST_FX.bloom.luminanceThreshold}
-          luminanceSmoothing={POST_FX.bloom.luminanceSmoothing}
+          intensity={bloom.intensity}
+          luminanceThreshold={bloom.luminanceThreshold}
+          luminanceSmoothing={bloom.luminanceSmoothing}
           mipmapBlur={tier === 'high'}
         />
       )}</>
@@ -193,8 +199,8 @@ export default function PostFX() {
       {/* Vignette: darkness eased 0.7 -> 0.62 — the grade now carries the
           cinema; the heavier vignette was crushing corner text */}
       <Vignette
-        offset={POST_FX.vignette.offset}
-        darkness={POST_FX.vignette.darkness}
+        offset={vignette.offset}
+        darkness={vignette.darkness}
         blendFunction={BlendFunction.NORMAL}
       />
 

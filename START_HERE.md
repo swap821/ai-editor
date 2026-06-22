@@ -51,7 +51,7 @@ either may review the other's work at any time. Full commands are in
 
 ## Verify the build is healthy anytime
 ```powershell
-.venv\Scripts\python -m pytest -q          # expect: 516 passed, 1 skipped
+.venv\Scripts\python -m pytest -q          # expect a green run (556 passed / 1 skipped as of 2026-06-15; grows as tests land)
 ```
 
 ## Run the actual app (to see it work)

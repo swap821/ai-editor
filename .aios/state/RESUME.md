@@ -1,276 +1,137 @@
 # RESUME MANIFEST
 
-## Current goal
-The AI-OS is a real, supervised, memory-driven cognitive system (see
-`.aios/state/BACKEND_TRUE_PICTURE.md` — the 8-agent deep read; NOT an MVP).
-Active front: extend its CAPABILITY (earned autonomy + worker swarm) and keep
-the superbrain frontend worthy of it. Two CEOs/Chief Architects: Claude + Codex
-(50/50, §III-A). Codex is OFFLINE, back ~2026-06-16 → documented pattern is
-operator-authorized landing + POST-HOC Codex inbox review.
+Last updated: 2026-06-22T02:10:00+05:30
 
-## Last completed and verified (2026-06-13, Claude session)
-1. RECOVERED the limit-killed Fable micro-detail audit (132 findings) and
-   shipped POLISH II–XI of the superbrain (sound, interaction a11y+visual,
-   motion/tokens, signal+galaxy shaders, chrome alignment, glass rim+approval
-   recipe, galaxy color-space, cortex casing, console rim+approval anchoring).
-   All committed + ported byte-faithful; goldens are documentary
-   (polish-ladder-complete.png). Held: approval-panel entrance, objective-bar
-   scaleX, section-label weight (judgment calls).
-2. BACKEND_TRUE_PICTURE.md — deep, honest architecture read (security spine,
-   cognition core, multi-store memory, stigmergic learning, RAG production path
-   + CAG-style recall-before-turn injection, self-apply).
-3. EARNED AUTONOMY (the evidence->GREEN bridge): `aios/core/autonomy.py`
-   AutonomyLedger; wired into ToolAgent's YELLOW seam + `main.py` make_agent;
-   `GET/POST /api/v1/development/autonomy`. Opt-in (`AIOS_EARNED_AUTONOMY`),
-   off by default, RED un-earnable, instant-revoke-on-failure, frozen spine
-   untouched. 13 tests.
-4. WORKER SWARM (ant-colony): `aios/agents/swarm.py` run_swarm (decompose -> N
-   ephemeral gated workers -> synthesize; stigmergic via conversation+sandbox+
-   trails; bounded by SWARM_MAX_WORKERS). Wired as the `swarm` request flag.
-   5 tests.
-5. LIVE-PROVEN both (backend on :8000, AIOS_EARNED_AUTONOMY=true, min=3):
-   - Swarm built a REAL verified file: `training_ground/wordcount.py` +
-     test (3 passed). 7B finished subtask 1, not subtask 2 (model-limited,
-     architecture proven). Driver: `swarm_demo.py` (operator-authorized,
-     curriculum-driver hard allowlist).
-   - Earned autonomy GRADUATED live (`earn_demo.py`): streak 1->3 = earned,
-     then turns 3/4/5 auto-granted writes with ZERO approvals, each VERIFY
-     PASS. Ledger: create_file:training_ground/*.py = earned, succ=6.
-   Full suite: 456 passed, 1 skipped. Pushed to swap821/ai-editor master.
-6. COORDINATION CATCH-UP done: routed earned-autonomy-and-swarm-v1 (builder
-   claude/reviewer codex), claimed lease -> hash-pinned handoff (msg 17) +
-   review-request (msg 18) to Codex; marked his msg #8 read; gitignored .aios/tmp.
-7. PRESERVED all of Fable 5.0's Jun 9-12 work: parent (backend+docs, 66 commits)
-   + lab superbrain both pushed; his pre-lab .agents/ build-notebooks folded into
-   the lab repo (build-history/) + pushed (off-machine, ab57a99); visual_test/
-   harness in a new local-only GAG demo/ repo (b3bb917) — operator to push to
-   swap821/gag-demo himself (agent blocked by exfil guardrail; one-liner given).
-8. SUPERBRAIN SHOWS ITS CAPABILITIES (lab faaf087 / product 1967fea): API forwards
-   the earned_autonomy SSE event (e9e9e09); aiosAdapter publishes AUTONOMOUS ACTION
-   (the brain acts on its own earned trust) + CAPABILITY EARNED (a class graduates)
-   + getAutonomy() getter. LIVE-PROVEN: ledger persists across restart (earned:1),
-   an earned create_file streams `event: earned_autonomy`. 26 lab + 456 backend tests.
+## SESSION 2026-06-22 (night) — WebGPU SPIKE SCAFFOLDED + LIVE-VERIFIED RENDERING (operator: "scaffold the WebGPU spike")
+- **"The Million-Mote Mind" is BUILT, flag-gated, and RENDERS on the real GPU.** Commits `dd22225` (scaffold) + `9ecd484` (mount fix + exposure). 214/214 tests green (209 + 5 gpuMode), build green.
+- **New files (lab-mirrored):** `lib/gpuMode.ts`(+test) — `?gpu=webgpu` opt-in + `navigator.gpu` gate + WebGL fallback; `lib/curlNoiseTSL.ts` — divergence-free curl Fn; `lib/gpuPointFieldTSL.ts` — compute (spring-to-home + curl + arrival/reabsorb) + SpriteNodeMaterial (sacred baked color + posture wash, hue never recomputed); `components/canvas/GpuBrainPointField.tsx` — drop-in for BrainPointField (same sampler/fused-spine/buses; dispatches compute each frame).
+- **Wiring (lab-mirrored):** SuperbrainScene lazy-swaps GpuBrainPointField under the flag (Suspense) + gates PostFX off under WebGPU; WorkspaceCanvas async WebGPURenderer factory (dynamic `import('three/webgpu')`).
+- **Bundle isolation PROVEN:** vite.config negative-lookahead keeps `three.webgpu`/`three.tsl` out of the eager `vendor-three` (716KB baseline) → they're a 620KB ASYNC chunk fetched ONLY on the flag. index.html does NOT preload it. Default `/` byte-identical.
+- **LIVE on Edge (real WebGPU), :5173/?gpu=webgpu:** TWO bugs fixed live → (1) `handleCreated` read `gl.capabilities.isWebGL2` which is undefined on WebGPURenderer → TypeError aborted the whole scene mount (black canvas) → guarded; (2) PostFX off → uGlowMul 2.55 clipped the additive field to white → dropped GPU defaults to uGlowMul 0.42/uSize 1.5. RESULT: the 250k GPU compute-particle being renders in the CORRECT silhouette (brain crown→spine→root-spiral) with sacred multicolor puncta visible in the spine/roots (screenshots in `.aios/tmp/webgpu-spike-*.jpg`).
+- **TSL BLOOM + AgX PASS LANDED** (`0d0be99`, operator: "build the TSL bloom pass next"): new `components/canvas/GpuPostFX.tsx` — scene → Bloom → AgX in TSL (`bloom()` from `three/addons/tsl/display/BloomNode.js`, `pass()`/`renderOutput()` from `three/tsl`, `PostProcessing` from `three/webgpu`), takes over the render loop via `useFrame` priority 1 (compute dispatch at p0 runs first), lazy-mounted under the flag. The 250k additive field needs GPU-SPECIFIC bloom (strength 0.35/radius 0.55/threshold 1.6, NOT POST_FX.bloomPoints) + low emission (uGlowMul 0.3) — dense cortex sums past threshold & glows, sparse roots stay crisp. vite.config negative-lookahead extended to also exclude `examples/jsm/tsl/` (BloomNode imports webgpu+tsl) → bloom addon stays async; verified index.html eager-preloads NONE of webgpu/tsl/BloomNode, vendor-three 716KB. LIVE on Edge: being reads as brain-crown(bloomed)→beaded-spine→fine-multicolor-root-spiral in an ethereal lavender voyage glow (no crash/white-out). Build+214 green.
+- **GRADE + VIGNETTE PARITY LANDED** (`18f0f42`, operator: "add the chromatic-aberration/vignette/grade parity"): GpuPostFX now does scenePassColor+bloom → **GradePre** (log-contrast, POST_FX.grade.contrast) → **Vignette** (POST_FX.vignettePoints 0.32/0.76, visibly frames the void) → AgX+sRGB via `renderOutput` (the proven terminal). DEFERRED (attempted, hit TSL walls, not shipped broken): **ChromaticAberration** — per-channel offset re-sample `texture(scenePass.getTexture(), offsetUV)` returns BLACK (raw texture not render-wired like the texture NODE) → blanked the being; **GradePost split-tone + grain** — post-tonemap/display-referred needs the manual `agxToneMapping→workingToColorSpace` path which produced black (renderOutput can't chain ops after it). Both best finished at RTX / a focused follow-up. Live on Edge: brain-crown→beaded-spine→root-spiral, vignette-framed + contrast-graded, no crash. Build+214 green.
+- **BRIGHTNESS/WHITE-WASH FIXED** (`3251944` then `3ba18f6`, operator on his RTX: "too bright/glowing" → "too much white still"): two causes — (1) SPRITE SIZE: the dense cortex over-accumulates under additive blending; small sprites overlap less/pixel → uSize 1.5→0.6. (2) THE BLOOM was washing the dense crown WHITE — strength 0.35→0.06 (near-off; AgX via renderOutput does the rolloff, bloom was actively hurting). Also uGlowMul 0.3→0.055. RTX-tuned live + baked. Fresh-tab verified: a VIVID full-spectrum point-field brain (cyan crown, magenta core, green/orange/purple regions, crisp cortical folds) → beaded spine → root-spiral, NO white wash. 214 green. KEY LESSON: for a dense additive point-field, BLOOM is the enemy of color (it sums to white); keep it a whisper + let AgX tonemap do the rolloff.
+- **NEXT (operator's RTX, FIDELITY):** judge the tamed look; finer taste via `window.__POINTFIELD_GPU.{uGlowMul,uSize}` + `window.__GPUBLOOM.{strength,radius,threshold}`. CONTEXT-WEAR NOTE: a tab reloaded ~15× exhausts its GPU context (scene won't mount) — a FRESH tab recovers; always fresh-tab before diagnosing a "broken" render.
 
-## DONE earlier (2026-06-13, on master + pushed)
-- **Whole-ai-editor 8-lens analysis** (commit 75406b1): `SYSTEM_TRUE_PICTURE.md`,
-  `HIDDEN_KNOWLEDGE.md`, refreshed `PLAN.md`, `BACKEND_TRUE_PICTURE.md` (doc set).
-  P0: live Bedrock token in `frontend/.env` (gitignored, never committed; rotate+relocate, PLAN H1).
-- **FUTURE_FRONTIER.md** (725 lines, commit 0d95b01): north-star above PLAN; spine =
-  Evidence-Locked Self-Improvement Flywheel; honest headline = frontier-grade ENGINEERING,
-  not yet a frontier AI SYSTEM (gates = intelligence/7B + isolation, not architecture).
+## SESSION 2026-06-22 — WebGPU SPIKE REMOVED; CRISP WebGL BEING IS HOME (RESOLVED)
+- **OUTCOME (operator: "remove webGPU it was a nice concept but webgl where we will work from"):** the WebGPU spike is fully REMOVED (commit `bd33c9e`; git history preserves it). It proved the being can render gorgeously as GPU compute particles, but the full-scene port hit a hard wall — **troika `<Text>` (drei `<Text>`) on every materialized tab CRASHES the entire WebGPU render** (verified: tab-mount → whole 3D scene black, permanent until reload; reabsorb doesn't recover). That + NodeLattice/CosmicBackground TSL ports = a multi-session project. The crisp look the spike taught us was the real prize, and it's now LIVE on WebGL.
+- **CRISP WebGL BEING LANDED (commit `1e6c12b`):** the white-haze was additive over-accumulation in the dense cortex (same on WebGL + WebGPU). Fix = smaller points + lower emission: `BrainPointField baseSize 3→2.0` + `pointFieldMaterial uGlowMul 2.55→1.35`. RTX-verified on the DEFAULT path: crisp multicolor brain (cyan crown, magenta core, green/orange/purple, cortical folds), beaded spine, root-spiral, **and the in-brain NodeLattice nodes are now VISIBLE** (they were always there, drowned by the haze) — solving BOTH operator asks (crisp look + visible binding nodes) on the working path (tabs/turns/lattice all intact). Dials live: `window.__POINTFIELD.uSize/uGlowMul`. Lab mirrored, 209/209 green, no webgpu chunks.
+- **Spike reference notes KEPT** (not WebGPU-in-product): `.aios/state/GAGOS_WEBGPU_SPIKE.md` (the "Million-Mote Mind" design) + `GAGOS_WEBGPU_PORT_MAP.json` (the GLSL→TSL port map + troika-blocker finding) — for if WebGPU is ever revived.
 
-## ACTIVE FRONT (2026-06-13): SUPERBRAIN ⇄ CLASSIC INTEGRATION  [MERGED + pushed to master 2d0d8d8 (branch feat/superbrain-integration retained)]
-Operator-directed: fold the classic IDE into the superbrain as ONE app. Canon tag
-`pre-integration-canon-v1` = rollback. Design **A** (superbrain is the LEAD: home form +
-manufacturing form). Docs: `.aios/state/SHELL_REDESIGN.md` + `NERVOUS_SYSTEM_REDESIGN.md`;
-memories [[superbrain-core-theme]] (his soul-line) + [[superbrain-integration-plan]].
+## SESSION 2026-06-22 — FULL-SCENE WebGPU/TSL PORT (operator chose "port whole scene"; mapped — SUPERSEDED by the removal above)
+- **Operator drove a code turn under ?gpu=webgpu → saw broken FLAT WASHED tabs + MISSING in-brain node lattice.** He chose (AskUserQuestion) to PORT THE WHOLE SCENE to WebGPU/TSL (not stay being-only). Ran mapping workflow `wf_49559f28-ab4` (13 agents; PAUSED once on a usage limit, RESUMED fine via resumeFromRunId — paused≠dead). Full map saved: `.aios/state/GAGOS_WEBGPU_PORT_MAP.json`.
+- **THE SURFACE IS TINY (12→2 ports + 1 non-port):** every mesh-era overlay (AccretionCore/CorticalSignals/NeuralAura/MemoryGalaxy/KnowledgeHorizon/CognitiveGrasp) + the cortex GLB material are GATED OFF in points mode → SKIP. HorizonGlow = dead code. ReabsorptionParticles already works. REAL surface:
+  1. **NodeLattice** (in-brain nodes, P0) — 3 custom GLSL ShaderMaterials (nodeMat :706, edgeMat :779, backboneMat :831; all additive/depthTest:false) → WebGPU silently drops them → INVISIBLE. Needs TSL port. HIGH.
+  2. **CosmicBackground** (P1) — built-in pointsMaterial whose look is ALL `onBeforeCompile` GLSL (:151) → WebGPU ignores it → degrades to faint plain dots (no glyphs/funnel). Needs TSL port (SpriteNodeMaterial). MEDIUM.
+  3. **MaterializedTab washed tabs = NOT A PORT** (zero custom shaders — all three.js built-ins: meshStandard slab/meshBasic/lineBasic/troika Text). The wash is the global lighting/AgX path (PBR slab lit by the off-tetrad BLUE light rig + WebGPU lighting/tonemap context), NOT the materials. Fix = lighting/material tweak (likely make the points slab unlit dark-glass under WebGPU), + verify troika <Text> survives WebGPURenderer.
+- **PHASED PLAN (in the JSON):** P0=shared TSL toolkit (additive-sprite factory + fresnel Fn + WIRE/packet Fn [edge+backbone share it, also =NervousSystem's] + discard→mask helper [WGSL has no discard] + instanced-attr access + uniform-bridge) → NodeLattice port + tab lighting fix. P1=CosmicBackground port. P2=cross-system bloom/brightness reconcile + reduced-motion parity + delete dead HorizonGlow. ALL dual-path/GPU_MODE-gated so the WebGL default never regresses (sacred palette + 214 tests). Reuse refs: lib/gpuPointFieldTSL.ts, GpuBrainPointField.tsx, GpuPostFX.tsx.
 
-**THE UNLOCK (operator-clarified):** the brain's NERVOUS SYSTEM is its CONTROL BUS — the
-wires PLUG INTO ui PORTS (left console x=-4.8, right x=+4.8, spinal=command bar), carry
-data packets, surge on uBurst, quiet on uHold (`NervousSystem.tsx`). Every tool, present or
-future, is a PORT. The first band-dock FAILED because it HID the panels the nerves plug into
-(severed them) AND a shorter band re-projected the hardcoded nerve tips (they dangle).
 
-**DONE + verified** (build clean, 29 product tests green; ONE canvas; canon scene+nerves
-byte-unchanged; home/`?ui=superbrain` + `?ui=classic` untouched):
-- **Phase 0**: canon tag + `frontend/FIDELITY_BASELINE.md`.
-- **Phase 1**: unified backend boundary — `vite.config.js` define bridges `VITE_*`→
-  `NEXT_PUBLIC_*` (one base URL); classic learns `earned_autonomy`; superbrain adapter gets
-  Bearer auth + shared `aios_session_id` (lab edit + byte-sync; closes the P0 default-UI auth gap).
-- **Phase 2 = THE EMBEDDED FORGE** (operator verdict: "impressed wow"): editor + preview
-  mounted as in-scene drei `<Html>` AT the canon nerve ports (-4.8 / +4.8), non-`transform`
-  + inner `translate(-50%,-100%)` = byte-exact canon anchor, so the REAL nerves plug into real
-  Monaco + LivePreview; ports FLARE on real cognitionBus events; command line at the spinal
-  rendezvous. The brain stays FULL/canon-framed (no band). ONE lab touch = a geometry-neutral
-  `children` slot on `WorkspaceCanvas` (lab commit 90e0394, synced; no re-golden). Product
-  files: `frontend/src/workbench/{ForgePorts.jsx, forge.css, CommandLine.jsx, shell.css,
-  manufacturing.css}`, `superbrain/SuperbrainShell.jsx`, `main.jsx` (`?ui=shell`). Commit 29824d8.
+## Current Goal
+Convert the living-being frontend blueprint into a 100% working live organism. **Phase 3 LANDED + Claude-reviewer-approved (commit 2eda588, against pinned snapshot 0ff2ea0).** Current lane: **ORCHESTRATION (poster panel 5) — the LOCKED MODEL + its SOUL**: the being CROWNS the top, shrinks with tab-count, the spine feeds the focus, waiting tabs hang nerve-tethered in the corners. Codex on leave until 2026-06-25; Claude is solo (builder + reviewer). Operator steering remotely; visual sign-off delegated to Claude via kimi-webbridge at :5173. Canon re-scoped 2026-06-19: lab unrestricted, only palette+textures sacred. **2026-06-21 SINGLE-FRONTEND COLLAPSE (operator):** the points-being GAGOS is now the ONE official frontend at the clean root `/` — `?ui=classic` / `?ui=shell` and all non-points surfaces DELETED; default flipped mesh→points (product + lab). **CURRENT (2026-06-22): the crisp WebGL points-being is HOME.** Across this session: front-door renovated, poster-palette matched (hero tetrad, zero blue), 7-layer multi-agent a11y/polish audit landed, and the being tuned CRISP (smaller points + lower glow killed the white-haze → cortical folds + the in-brain NodeLattice nodes now visible). WebGPU was spiked (gorgeous being) then REMOVED on operator's call — troika `<Text>` crashes the WebGPU render on every tab; the crisp look it taught us lives on WebGL where tabs/turns/lattice all work. Renovation north-star: `.aios/state/GAGOS_RENOVATION_NORTHSTAR.md`. Test on `:5173/` (no params).
 
-**HOW TO EXTEND (add a future tool-port):** the nerves are the universal control plane.
-Re-tenant a canon port (product-side: new `<Html>` at -4.8/+4.8/spinal) OR add a real 4th
-nerve (lab `NervousSystem.tsx` `leftTargetX/rightTargetX` + a 4th `addWireBundle` + move the
-matching `SuperbrainHUD` `<Html>` together + `npm run port` + FULL FIDELITY gate). Light any
-port by `publishCognition` on the bus. See `NERVOUS_SYSTEM_REDESIGN.md` §3/§6.
+## SESSION 2026-06-21/22 (night) — 7-LAYER MULTI-AGENT POLISH AUDIT (run + objective fixes landed)
+- **Operator (remote): "impressed… still need a 7-layer multi-agent workflow to make it inch perfect — accessibility, every scene/posture, color palettes."** Also re-floated Unreal "for samples" → I gave the honest no (native engine, no web delivery, looks don't translate to our additive point-field) and he chose **"Full + WebGPU look-spike"** (browser-native answer). Then: **"that poster should be given to every agent for reference"** → every agent reads `GAG demo/reference/demoplan.png` first.
+- **Workflow `gagos-7layer-polish` (run `wf_18b3419d-2ff`): 74 agents, 5.8M tokens, ~30 min.** Layers: Map(73 scene/posture catalog) → Accessibility · Palette · 7 Posture-fidelity audits → adversarial Verify (refute-by-default) → Synthesize → Dossier → WebGPU-spike. **102 findings → 93 confirmed** (1 critical, 4 high, 33 med, 55 low; 59 objective-safe, 20 needs-decision, 14 aesthetic-rtx). Script: `…/workflows/scripts/gagos-7layer-polish-wf_20b47ee5-baa.js`. Full findings JSON: `.aios/state/GAGOS_POLISH_FINDINGS.json`.
+- **LANDED (2 commits, build+209 green, lab-mirrored where needed):**
+  - `b2c5b8c` — CRITICAL: gate OrbitControls `autoRotate` behind `reducedMotionRef` (the voyage spin had NO reduced-motion guard — #1 vestibular trigger); WCAG AA contrast on `.gagos-subtitle` (0.42→0.62) + input placeholder (0.4→0.62); white halo on `.gagos-skip:focus` ring; hue-swapped 3 DEAD blue token residues in `tokens.css` (rgba(96,165,250)/(59,130,246)→cyan; escaped the earlier hex-only sweep because they were rgba()).
+  - `230abf0` — semantic a11y (non-visual): single `<main>` now wraps the chrome (`.gagos-chrome` role=main; canvas `<main>`→`<div>`); wordmark `<div>`→`<h1>` (class-styled, pixel-identical); chat thread `role=log`+label+`tabIndex=0`+sr-only author prefixes; status region `aria-atomic`; retry `aria-label`; send `aria-busy`/'Sending…'; Escape clears draft / stops listening; canvas `tabIndex=-1`. Verified live: 1 main / 1 h1 / role=log.
+- **DELIVERABLES for the operator (saved):** `.aios/state/GAGOS_RTX_DOSSIER.md` (16.5KB — per-poster-phase aesthetic tuning manual: exact `__POINTFIELD`/`__POSTURE`/constants dials, known deviations to judge, goldens checklist, posture-drive cheat-sheet); `.aios/state/GAGOS_WEBGPU_SPIKE.md` (22KB — "The Million-Mote Mind": flag-gated `?gpu=webgpu` + capability-gated WebGPU/TSL 200k–1M compute-particle substrate, reuses sampler/posture/buses/lifecycle 1:1, default WebGL path byte-identical; lab-first, awaits operator greenlight to scaffold).
+- **NEEDS OPERATOR DECISION (design-bible calls, NOT auto-fixed):** (1) mic "listening" hue is off-tetrad pink-red `rgba(255,90,120)`/`#ff9bb0` — pick canonical: reuse coral `#f87171` / adopt poster `#ff7e40` / sanction a distinct alert red; (2) canvas void `#010307` vs DOM void `#030108` — one canonical black?; (3) scene MODE_TINT/ambient indigo `#10164a`/`#241145` under the brain — neutralize or keep?; (4) scene light-rig blues `#8fa8ff/#bcd0ff/#795cff/#5e8dff` (HIGH, but VISUAL — staged for RTX, not auto-applied); (5) greenlight the WebGPU spike?
+- **MORE objective-safe a11y LANDED** (`65f0b5b`, operator chose "finish the objective-safe a11y"): boot loader now narrates 'The voyaging mind is ready' on the scene-ready handoff (was silent to AT); supervised pill gets a descriptive aria-label; decorative pill dots aria-hidden. NOTE: the lifecycle live-region narration (materialize/hold) is now effectively covered — those messages push into the chat thread which is a `role=log` (implicit polite live region, additions-only so no streaming spam).
+- **DEFERRED objective-safe (need a careful DEDICATED pass, NOT a blind remote batch — flagged, not dropped):** (a) REACTIVE reduced-motion hook for runtime OS toggle — invasive across ~21 components + several lab-mirrored files, each reading a once-captured `reducedMotionRef`; medium-sev edge case; (b) deeper streaming-REPLY screen-reader narration (the reply CONTENT, not just 'GAGOS replied') — risks flooding AT, needs careful final-text-only mirroring. Most posture-fidelity gaps are aesthetic-rtx (dossier dials) or geometry needing his RTX eye.
 
-## WHAT'S NEXT — the plan (decided 2026-06-13, from the full session)
-Integration LANDED on master (4226b4c). Three fronts, in priority order. Standing rule:
-restate the chosen item and WAIT for explicit OK before writing code; ~90% honest target.
+## SESSION 2026-06-21 (evening) — POSTER-PALETTE MATCH "everything" (LANDED + committed)
+- **Operator directive (remote):** "remember poster? i want same visual aesthetics and color palettes of everything" + "keep going i m going remote." Made the live frontend's color palette match the VARIANT-H poster's hero tetrad across EVERY rendering layer. Conservative (operator away): hue-only re-points, intensity/density left as his RTX FIDELITY dials.
+- **Poster tetrad (the single source of accent truth):** cyan `#7bf5fb` · purple `#b06eff` · green `#54f0a0` · orange `#ff7e40`. The poster has ZERO blue.
+- **3 commits (all product-safe + lab-mirrored, build + 209/209 green throughout, live-verified in a FRESH kimi tab to dodge the degraded-GPU-context artifact):**
+  1. `56a2c5e` **chrome blue→cyan** — the global accent ramp was still blue→indigo (`#3b82f6`/`#60a5fa`/`#6366f1`), live on every `:focus-visible` ring + `--accent-grad`/`-dim`/`-glow` + `--info`. Re-pointed the whole ramp in `tokens.css` to poster cyan with a cyan→purple hero gradient; `index.css` `@theme --color-accent` → cyan. (`tokens.css`/`index.css` are product-side globals, NOT lab-ported.)
+  2. `21df8c8` **being posture spectral → poster tetrad** — `bodyPosture.ts` BODY_POSTURES hues had drifted off the "STATUS FROM BODY" legend (stream was `#36d6ff` deep blue-cyan). Re-pointed: stream→`#7bf5fb`, think→`#b06eff`, rest→calm lavender `#9e78f5`, hold→`#ff7e40`, complete→`#54f0a0`, error unchanged (warm alarm). Per-posture INTENSITY (flow/tint/`POSTURE_DIAL`) UNTOUCHED = his RTX call. Tests re-pinned to the tetrad (18 + 209 green); lab-mirrored. Live: the materializing crown now blooms the brighter poster cyan (verified via `__materializeTab`).
+  3. `4049874` **tab neon edge → poster cyan** — `MaterializedTab.tsx` points-mode slab frame was hardcoded `#36d6ff` → `#7bf5fb`. Per-role tab content palettes left as-is (already a poster-harmonious cyan/warm/green family). Lab-mirrored.
+- **Sweep clean:** only remaining non-poster blue is `constants.ts:22 indigo:'#6366f1'` — verified DEAD (old organ/panel system deleted; zero active consumer). Left untouched (lab-sacred file, no visible gain).
+- **NEXT (operator's RTX, FIDELITY-gated):** final brightness/density/saturation of the being via `__POINTFIELD`/`__POSTURE` dials; drive a real cloud-Gemini code turn (set `AIOS_ROUTER_CLOUD_TASKS`) to tour think-purple→stream-cyan→hold-orange→complete-green live + capture goldens; the HELD approval slab (`reverse_string.py`) still awaits his APPROVE/REJECT (never self-approved).
 
-### A. FINISH THE EMBEDDED FORGE (the live, loved front — complete it before pivoting)
-A1. **Truthful content channel** ✅ DONE + FIXED (master 84f1976): the forge editor syncs to the
-    REAL `training_ground` workspace via `GET /api/v1/development/workspace` (read-only, confined to
-    training_ground, newest-first, capped) on mount + after each turn (debounced on bus events) —
-    **PATH-INDEPENDENT**, so earned-autonomy auto-writes AND approval writes AND edits all surface.
-    The demo's bug (operator-caught): with AUTONOMY ⚡1, a create AUTO-APPLIES via the earned path
-    (emits `earned_autonomy`, not `human_required`) so the approval-only A1 never fired — `hello.py`
-    wrote to disk but never showed. The approval-path preview (proposed content during a pause) stays.
-    ✅ VERIFIED (operator: "editor shows the files now", master b8e5661). THE REAL BLOCKER was a STALE
-    uvicorn on :8000 serving OLD code (the new endpoint 404'd → forge fell back to samples) — ALWAYS
-    start the backend with `--reload` so edits hot-load. Sync hardened with bounded re-read bursts
-    (350/1500/3500ms, beats the earned write-race) + a manual ⟳ + active-tab preservation. (Diagnosed
-    the demo by frame-extracting it via ffmpeg — no audio.)
-A2. ✅ DONE (master 78bcf87): editor port bumped to 500x412 (preview 410x330) for real multi-file
-    code. Final anchor/size + GPU feel = operator's browser eyeball (camera-projection-dependent).
-A3. ✅ DONE (master 78bcf87): a YELLOW write that PAUSES shows the proposed file in the editor + an
-    amber "PENDING · <file> — not applied" banner (cleared on resolve); ported `.approval-panel`
-    carries Approve/Reject + diff; on approve the workspace re-sync shows the applied file. RED hard-blocked.
-    (Note: with earned-autonomy ON, writes auto-apply — no pause — so the banner shows when autonomy is OFF.)
+## SESSION 2026-06-21 (afternoon) — SINGLE-FRONTEND COLLAPSE + renovation kickoff (LANDED, uncommitted)
+- **Operator decision (explicit, repeated):** the points-being GAGOS at the clean root `/` is THE one and only official frontend — "delete forcefully everything not related to this." SUPERSEDES the older "keep `?ui=classic` fallback" caveat (CEO 2026-06-16) and the Shell-as-official line.
+- **Done:** `main.jsx` renders only `SuperbrainApp` (no `?ui` routing); `beingMode` default flipped mesh→points (product `frontend/src/superbrain/lib/beingMode.ts` + test AND lab-mirrored `GAG demo/gag-orchestrator/src/lib/beingMode.ts`); `index.html` → GAGOS (title/meta/noscript). DELETED 27 paths — classic `App.jsx/.css` + classic `components/*` (kept `ErrorBoundary`), `SuperbrainShell.jsx`, `workbench/{CommandLine,ForgePorts,BrainstemIntake,shell.css,forge.css,manufacturing.css,organs/*,approval/*}` (kept `GagosChrome.jsx/.css`), classic `src/lib/*`. Kept `styles/tokens.css` (global token chain).
+- **Verified:** `vite build` 876ms (658 modules, no dangling imports) · `vitest run` 209/209 green · clean `/` boots the points-being live · backend `:8000` up · real turn proven (llama3.2:3b → "Namaste!", thinking→complete posture captured via kimi-webbridge).
+- **Honest trade-off:** OrgansDock governance/learning views (autonomy ledger, curriculum, memory search, models, skills, etc.) + classic shell are GONE from the UI — that backend depth is now unsurfaced. Per the poster it should return as MATERIALIZED TABS from the being, not a 2D dock (deferred, operator's call).
+- **Stale doc:** AGENTS.md §XI still references `?ui=classic` + lists `App.jsx` as product-safe — now removed; fix on operator go (§VIII rulebook).
+- **NEXT:** renovate the single frontend to world-class per `.aios/state/GAGOS_RENOVATION_NORTHSTAR.md` — front-door → elevate, sacred poster palette untouched, operator `:5173` eye gates every visual change.
 
-THE EMBEDDED FORGE IS COMPLETE (A1+A2+A3 done + verified). Branch merged to master.
+## SESSION 2026-06-21 — Orchestration "brain on top" crown fix (LANDED)
+- **The operator's complaint** ("brain is not on top and many more flaws") was root-caused live, not guessed: the orchestration FOCUS tab was too large (`scale 0.82`) and centered too high (`y −0.34`), so its top edge reached up into the brainstem — the brain looked *embedded* in the slab. A second flaw: a redundant curved umbilical was drawn from a vertebra arcing back into the focus tab (an errant "fat pipe" ending mid-air), even though the spine already plunges straight into it.
+- **Fix (sacred palette/textures untouched — geometry/scale/position only):**
+  - `livingWorkspaceLayout.ts` — lowered + shrank the points-orchestration focus pose (`y −0.34 → −0.62`, `scale 0.82 → 0.64`) so the brain + upper spine own the top of frame and the spine feeds DOWN into the focus.
+  - `MaterializedTab.tsx` — the FOCUS is now fed by the spine directly (no umbilical); only WAITING tabs get a vertebra-rooted nerve. Errant pipe gone.
+- **Verified LIVE on :5173 &being=points** at 3 and 4 tabs: brain crowns → spine descends → plunges into the focus hero (center) → waiting tabs nerve-tethered in the corners. 209/209 superbrain tests green; mirrored to gitignored `GAG demo/gag-orchestrator`.
+- **Also committed (poster-palette chrome alignment, was uncommitted in the worktree):** `superbrain.css` neon-tetrad set to the poster's "STATUS FROM BODY" legend (`--neon-cyan #7bf5fb`, `--neon-purple #b06eff`, `--neon-green #54f0a0`, `--neon-orange #ff7e40`), deeper purple-black void; `index.css` aura, `shell.css` cosmos/voyage-dot, `GagosChrome.css` wordmark, `SuperbrainHUD.tsx` "ONE BODY · MANY POSTURES · THE INTERFACE IS ALIVE" footer — all conforming the DOM chrome to the poster bible.
+- **Strategic decision (Unreal Engine question):** NO to Unreal — it's a native game engine, not a web library; the only web paths (Pixel Streaming / dead HTML5 export) cost a GPU per user, kill local-first, and mean a full rewrite. Stay browser-native; the real fidelity jump is **WebGPU + TSL + GPU compute particles** (already the `nextgen-3d-design-direction` plan). Offered to spike a flagged WebGPU point-field prototype for A/B — awaiting operator go.
+- **NEXT (operator's eye):** his :5173 fidelity verdict on the crown; optional tuning I flagged — shrink waiting-corner scale (`0.42 → ~0.34`) to sharpen hierarchy, and nudge the bottom-left corner off the chat box at 4 tabs.
 
-### B. CHEAP HIGH-SEVERITY HYGIENE (alongside A)
-B1. ✅ **DONE — relocated the Bedrock token to the backend** (2026-06-14). The `ABSK` token + `AWS_REGION`
-    were STRIPPED from `frontend/.env` (incl. pasted `$env:` lines — Vite never bundled them: no VITE_ prefix,
-    never committed) and now live ONLY in the project-root `.env` (gitignored). Added `AIOS_BEDROCK_REGION=us-east-1`
-    there so the backend actually ENABLES Bedrock — verified live: `config.BEDROCK_ENABLED=True`, a real backend
-    `BedrockClient` converse → "pong". Router privacy gate keeps it out of `auto` until opted in. Hermetic-test fix:
-    2 tests that assumed Bedrock-off now force `get_bedrock_client=None`. ⚠️ STILL OPERATOR-TODO: **rotate** the
-    `ABSK` key in the AWS console (generate new → update root `.env` → revoke old); exposure was ~nil (never in
-    git, never client-bundled) so this is hygiene, not incident response.
-B2. (opt) clean the 2 untracked `training_ground/test_auto_*.py` assert-True stubs + tracked cruft
-    (`success.txt`/`creator.txt`/`chat-ui.html`/`websocket_security_update.md`) (PLAN H2).
-B3. ✅ DONE (2026-06-14) Tier-1 doc-currency: README/AGENTS/START_HERE test baseline → **516, 1 skipped**;
-    README + AGENTS now document the multi-LLM router / Gemini / Bedrock / evidence-calibration / active-brain
-    badge + the new `AIOS_ROUTER_*` / `AIOS_GEMINI_*` flags. (KICKOFF reports the live count, no hardcode.)
-    NOT updated (intentionally — dated evidence, not stale): CEO_LOG / EVIDENCE_CURRICULUM / AUDIT / the
-    06-13 deep-analysis snapshots (SYSTEM_TRUE_PICTURE, BACKEND_TRUE_PICTURE, HIDDEN_KNOWLEDGE, PLAN).
+## Last Completed + Verified
+- Operator continued after the Phase 3 lab proof; treated as approval to run the product sync gate.
+- Coordination task `gag-phase3-product-sync` was routed to Codex and claimed as builder with dirty adoption.
+- Dry-run manifest verified before writing: 55 live source files, 22 test/support files, 5 assets, 1 generated CSS; `organismLifecycle.ts`/test and the `MaterializationLayer` lifecycle hook were included.
+- Ran `npm run port`: product `brain.glb` stripped in the product copy only; 83 files ported into `frontend/src/superbrain`.
+- Product gates passed: `frontend` `npm test` -> 39 files / 237 tests passed; `frontend` `npm run build` -> passed.
+- Product Vite route is live at `http://localhost:5173/?ui=superbrain`; sandboxed launch hit Windows `spawn EPERM`, elevated hidden launch succeeded and route returned HTTP 200.
+- Patched `GAG demo/gag-orchestrator/tools/probe-phase3-lifecycle.mjs` so product proof types through the real hidden `BrainstemIntake` input when present while preserving the lab `window.__materializeInput` fallback. `node --check tools\probe-phase3-lifecycle.mjs` passed.
+- Product browser proof passed: `node tools\probe-phase3-lifecycle.mjs "http://localhost:5173/?ui=superbrain"` -> one canvas, valid intake, approval hold, conducting, completion settle, reabsorbing, and error repair lifecycle states.
+- Product proof artifacts were written under `C:/tmp`: `gag-phase3-lifecycle-intake.png`, `approval.png`, `conducting.png`, `settle.png`, `reabsorbing.png`, `error.png`, and `gag-phase3-lifecycle-probe.json`.
+- Screenshot inspection: product states are nonblank and framed. Intake shows duplicate visible ownership because `BrainstemIntake` renders the real input surface while `MaterializationLayer` observes the same input tab; lifecycle proof is valid, but Phase 4 should collapse visible input ownership to one renderer path.
+- Updated `docs/superpowers/specs/2026-06-18-living-being-frontend-100-roadmap.md` with the Phase 3 product-port checkpoint and next Phase 4 action.
+- Appended `.aios/memory/experiences.jsonl` row `gag-phase3-product-sync`; JSONL parse of the new row passed with confidence `0.84`.
+- Closeout hygiene passed: `git diff --check` over RESUME, experiences, roadmap, product superbrain, and the lab lifecycle probe returned exit 0 with only normal Windows CRLF warnings; `node --check tools\probe-phase3-lifecycle.mjs` passed.
+- Coordination handoff was attempted once and succeeded before this final RESUME refresh; a final hash-pinned reviewer handoff should follow this file update so the tree snapshot includes current resume state.
 
-### C. THE FRONTIER — forge done, now here (per FUTURE_FRONTIER queue discipline)
-C0. **MULTI-LLM LIBRARY** — operator's chosen direction; PLAN in `.aios/state/MULTI_LLM_PLAN.md`.
-    The brain picks the best model per task across local (Ollama) + Bedrock + Google Gemini (gcloud ADC).
-    Decided: routing = **HYBRID** (local LLM picks among policy-allowed candidates, can't override the
-    deterministic privacy/cost gate; deterministic fallback; evidence-calibrated; cage verifies regardless).
-    Gemini access = gcloud / Vertex AI (ADC), no key on disk.
-    ✅ **DONE — the hybrid router core landed** (pure + tested, NOT yet wired into main.py):
-      `aios/core/router.py` — `Provider` (data, no client), `Policy` (operator-owned gate),
-      `policy_allows`/`candidates`/`route` + `route_model_id`. `route()` is a pure fn of
-      (task, providers, policy, metrics) + one injected `picker` (the local LLM). Default `LOCAL_FIRST`
-      policy = cloud OFF (empty `cloud_tasks`) → BEHAVIOUR-PRESERVING (local-only) until the operator
-      sets the privacy boundary. `tests/test_router.py` (18 tests) pins: privacy gate, "LLM can never
-      escape the policy", deterministic fallback, cost ceiling, evidence calibration. Full suite 476 pass / 1 skip.
-    ✅ **DONE — P1, the Gemini provider** (explicit-pick, behaviour-preserving off by default):
-      `aios/core/gemini.py` `GeminiClient` — same `chat(messages,*,tools,model)` contract as Ollama/Bedrock,
-      backed by **Vertex AI via gcloud ADC** (`genai.Client(vertexai=True, project, location)`, SDK lazy-
-      imported). `_to_gemini` bridges the agent's Ollama-shaped msgs ↔ Gemini `contents`/function-call parts
-      (paired by NAME); `_parse_output` maps back; `list_models` discovers + falls back to `CURATED_MODELS`.
-      Config: `AIOS_GEMINI_PROJECT` (the opt-in) / `_LOCATION` (us-central1) / `_MODEL` (gemini-2.5-flash) /
-      `_MAX_TOKENS`; `GEMINI_ENABLED = bool(project)`. main.py: `get_gemini_client()` dep (None unless enabled),
-      `/api/v1/models/gemini` endpoint, and a `gemini.<model>` branch in `_select_chat_client` (strips prefix,
-      503 if unconfigured — never a silent provider change). `tests/test_gemini.py` (17 tests). Full suite 493 pass.
-      OPERATOR one-time setup before first live turn: `pip install google-genai` + `gcloud auth application-default
-      login` + set `AIOS_GEMINI_PROJECT` (see requirements.txt note). NOT auto-routed yet (explicit-pick first, like Bedrock began).
-    ✅ **DONE — P2, router WIRED into `auto`** (behaviour-preserving; cloud OFF by default):
-      `_select_chat_client`'s `auto` branch now runs `router.route(task, providers, policy, require_tools=True)`.
-      Helpers in main.py: `_build_providers` (live Ollama+Bedrock+Gemini → `Provider` rows), `_router_policy`
-      (reads config each call), `_client_for` (provider name → client). Config: `AIOS_ROUTER_CLOUD_TASKS`
-      (the PRIVACY BOUNDARY, empty=cloud off), `AIOS_ROUTER_PREFER_LOCAL` (True), `AIOS_ROUTER_MAX_COST` (high).
-      **Behaviour change (intentional, privacy-first):** `auto` with no local model no longer silently falls back
-      to Bedrock — it drops to the local default; cloud egress now requires an explicit `ROUTER_CLOUD_TASKS` opt-in.
-      Also fixed via live test: `GeminiClient` disables 2.5 "thinking" by default (`AIOS_GEMINI_THINKING_BUDGET=0`)
-      so a turn always returns text within budget. `tests/test_route_wiring.py` (6) pins privacy-gate-on-fallback.
-      ✅ **Both cloud creds LIVE-VERIFIED (2026-06-13):** Vertex/ADC `gemini-2.5-flash` returned text (REST ping,
-      finish=STOP; note `gemini-2.0-flash` NOT enabled on project `ai-editor-498414`); Bedrock bearer token in
-      `frontend/.env` → `amazon.nova-lite-v1:0` returned "pong" (region us-east-1). Full suite 501 pass / 1 skip.
-    ✅ **DONE — the full HYBRID layer (local LLM picks)** + **e2e live-proven through the cage**:
-      e2e (2026-06-14): a `reasoning` `auto` turn through real `/api/generate` was served by `gemini-2.5-flash`
-      (HTTP 200, step·step·done, 3446-char answer; local `.chat` wired to RAISE so the answer could ONLY be Gemini).
-      Picker: `router.PICKER_SYSTEM`/`picker_prompt`/`parse_pick` (pure) + `main._maybe_llm_picker` — a fast LOCAL
-      model chooses among policy-allowed candidates, invoked ONLY when ≥2 candidates exist (zero latency on the
-      default single-candidate path) and a local model is available; its reply is validated by `route()` so it can
-      prefer but NEVER escape the gate; deterministic fallback on any non-answer. Config `AIOS_ROUTER_LLM_PICK`
-      (default True). `tests/test_router.py` (+4 pure) + `tests/test_route_wiring.py` (+4 hybrid). Full suite 509 pass / 1 skip.
-    ✅ **DONE — P3 evidence-calibration + route event (backend)**: the router now LEARNS which model performs.
-      `DevelopmentTracker.model_task_success_rates()` aggregates the already-recorded verified outcomes by
-      (provider, model, task) → the router's `metrics` map; the dev metadata now also tags `provider`
-      (`_provider_name`). `_route_metrics` reads it ONLY on an auto+cloud-opted-in+calibration-on turn (zero cost
-      on the default path); `_select_chat_client` passes `metrics`+`calibration_weight` to `router.candidates`.
-      Config `AIOS_ROUTER_CALIBRATION_WEIGHT` (default 0.4; cold-start keys fall back to heuristic). The turn now
-      emits an `event: route` SSE frame {provider, model, privacy, task, auto} = the "active brain" signal for the UI.
-      Tests: test_brain_growth (+2 aggregator), test_route_wiring (+2 calibration/provider), test_api (+1 route event).
-    P0 ✅ done (B1). **P3 backend ✅ done.** ✅ **FRONTEND active-brain BADGE DONE (2026-06-14, operator-signed-off):**
-      Phase 1 (classic, product-safe, App.jsx) consumes the `route` frame in the header badge. Phase 2A (superbrain
-      canon) adds a `BRAIN ● <model> · <privacy>` segment to the sovereignty row — authored in the LAB
-      (cognitionBus 'route' type, aiosAdapter publish, SuperbrainHUD segment + subscription, globals.css brain-dot
-      green=local/amber=cloud), byte-synced via `npm run port`. ADDITIVE/conditional like AUTONOMY → canon IDLE row
-      byte-unchanged (FIDELITY-safe). Before/after goldens in `.aios/state/badge-goldens/` (idle=no badge; cloud=amber
-      gemini; local=green qwen). Proposal: `.aios/state/ACTIVE_BRAIN_BADGE_PROPOSAL.md`. Cage verifies regardless of provider.
-    ✅ **Active-brain attribution TIGHTENED (2026-06-14):** the `route` SSE frame was emitted at the START of the
-      turn, before any `chat()` — so under failover it announced the ranked PRIMARY (e.g. `gemini-2.5-pro`, which
-      isn't invocable on the project and rides over to flash/bedrock), momentarily showing a brain that never served.
-      Fix (main.py): announce the route LAZILY from inside the stream — on the first `text`/`tool_call`/`code` event
-      (and again on a mid-loop failover, idempotent), with `done`/`human_required` as a backstop — so a
-      `FailoverChatClient` only reports a model AFTER its `chat()` returns. The badge now names the model that
-      ACTUALLY served, never the dead primary. Tests: test_api (+1: bedrock cascade head fails → route names the
-      served fallback, never the primary). Full suite 545 pass / 1 skip.
-    ✅ **FAILOVER layer DONE (2026-06-14, commit fd47482, live-proven):** `aios/core/failover.py`
-      `FailoverChatClient` wraps the router's RANKED candidates and rides the next on an `LLMError`
-      (forward-only + sticky; truthful `active_provider/model` attribution so calibration credits the model that
-      served). `auto` builds the cascade [picked, …rest by rank]; single candidate → raw client. `_active_route`/
-      `_route_meta` record the served model. 8 tests. Operator opted **coding** into cloud
-      (`AIOS_ROUTER_CLOUD_TASKS=reasoning,coding` in backend .env) so coding escalates to a frontier model with
-      [gemini→bedrock→local] failover. Live: Gemini-down → turn rode Bedrock, recorded as bedrock. **Suite 525 pass / 1 skip.**
-    ✅ **BREADTH DONE (2026-06-14):** `aios/core/catalog.py` — `_build_providers` now emits a candidate PER model
-      in each cloud provider's CATALOG (discovered once via `client.list_models()`, cached; account-accurate so a
-      frontier model is offered only where invocable), capability by a coarse id heuristic (`cloud_capability`,
-      +DEFAULT_BONUS for the configured default), calibration refines. So `auto` + the failover cascade + the
-      hybrid picker span MANY models (Claude/Nova/Llama/Gemini Pro+Flash…), not one per provider. `tests/test_catalog.py` (8) + wiring tests.
-    ✅ **Verify-gap RESOLVED (not a code bug):** traced — approved creates DO run `_auto_verify` via
-      `_pre_apply_grants`; the `unverified` outcomes were the LOCAL model writing a module with NO sibling test
-      (`[VERIFY SKIPPED]`) or a bad import (the conftest fixed collection). The verify path is correct-by-design;
-      routing coding to a capable cloud model (now opted in) makes the agent write complete, verifiable code.
-    ✅ **verified_success NOW LANDS — the two-fix `verified_failure` cure (2026-06-14, commits 925e0a1 + this turn,
-      live-proven 16→17):** coding turns booked `verified_failure` and never `verified_success`. Root cause: the
-      model's OWN `verify` tool call (advisory) often ran a mis-pathed `pytest training_ground/test_x.py` from the
-      sandbox cwd → `training_ground/training_ground/...` → 0 tests, exit 4 → a spurious `[VERIFY FAIL]`; the
-      done-logic's "any FAIL ⇒ verified_failure" then failed a turn whose written code actually PASSED the forced
-      post-write check. **Fix 1 (main.py, 925e0a1):** capture the FORCED auto-verify verdicts (`autoverify-*`)
-      separately in `auto_verdicts` and make them AUTHORITATIVE — the model's own verify is advisory, used only as
-      fallback when nothing was auto-verified. **Fix 2 (tool_agent.py, this turn):** `_normalise_sandbox_paths`
-      strips the redundant sandbox-root prefix from the model's verify command (verify runs FROM the sandbox cwd),
-      + the `verify` tool description now tells the model to pass sandbox-relative paths — so its own check actually
-      runs instead of emitting a confusing FAIL in the stream. Conservative/idempotent (no-op on `pytest -q` and on
-      the already-correct forced path). Tests: test_tool_agent (+2: 8-case normaliser param + e2e mispathed-runs-PASS).
-    OPERATOR LEVERS: `AIOS_ROUTER_CLOUD_TASKS` (which tasks may go cloud; now `reasoning,coding`),
-    `AIOS_ROUTER_CALIBRATION_WEIGHT` (0.4), `AIOS_ROUTER_LLM_PICK`. Tool: `tools/watch_calibration.py` (live evidence view).
-C1. **Brain ceiling** (PLAN S1: local quant + 14B) — addressed largely by C0 (frontier access now); + semantic-recall.
-C2. **Default-strong isolation** (PLAN S2: hardened Docker default where available).
-C3. The three genuine gaps: voice (G1), knowledge-graph traversal (G2), observability (G3); + the
-    near-term proof artifacts (Refusal Reel + Cage Conformance Spec, both [near]).
+## Single Next Action
+**(2026-06-22 — CURRENT, session closed):** The crisp WebGL being is HOME and looks great (commit `1e6c12b`: baseSize 3→2.0, uGlowMul 2.55→1.35 → crisp multicolor brain + visible in-brain NodeLattice). WebGPU spike fully removed (`bd33c9e`). 209/209 green, lab mirrored, default `:5173/` is the home. No blocking work in flight.
 
-RECOMMENDATION: do **A (finish the forge) + B1 (token)** first — the forge is live and loved, and the
-token is cheap+severe; pivot to C when ready for the bigger capability work. Full roadmap:
-`.aios/state/PLAN.md` (blueprint-vs-reality) + `FUTURE_FRONTIER.md` (north-star above PLAN).
-Run: `cd frontend && npm run dev` → `http://localhost:5173/?ui=shell` (Enter workbench).
+**NEXT FRONTS (operator's pick — all his RTX/design calls):**
+1. **Being/scene micro-polish** — fine-tune the crisp being live via `window.__POINTFIELD.uSize/uGlowMul` (e.g. if it reads too small/sparse, nudge uSize up); the in-brain NodeLattice could be made more vivid (it's wired to real skill-trails; facts-graph empty). Per-scene/posture WOW pass remains open.
+2. **Remaining objective-safe a11y (from the 7-layer audit, deferred — need a careful pass):** reactive reduced-motion hook (runtime OS toggle, ~21 components), deeper streaming-REPLY screen-reader narration. Full punch-list: `.aios/state/GAGOS_POLISH_FINDINGS.json`.
+3. **Design-bible decisions (his calls):** mic "listening" hue is off-tetrad pink-red (`#ff9bb0` → pick `#f87171`/`#ff7e40`/sanctioned alert); the off-tetrad blue scene light-rig (`#8fa8ff` etc.); canvas void `#010307` vs DOM `#030108`.
 
-(Background — already complete this session:)
-Earned-autonomy feature is now COMPLETE end-to-end + the brain SHOWS it:
-- AUTONOMY ⚡N topbar readout (lab dc8116c, additive, live-verified);
-- earned grants AUDIT-TAGGED as distinct 'earned-autonomy' hash-chain entries
-  with evidence (lab 0e6b253, 457 tests);
-- swarm/role-pass caste NARRATION in the terminal (lab 7a89ce1).
-Live backend ON :8000 (AIOS_EARNED_AUTONOMY=true, ledger persists earned:1).
-DEFERRED (deliberately, low ROI): full 3D swarm-worker viz + a transient SWARM
-topbar indicator — swarm turns are rare + 7B-limited; revisit with a 14B+ model.
-OPERATOR DECISIONS: (a) whether earned autonomy ships ON by default (config
-default is OFF); (b) push GAG demo/ backup to swap821/gag-demo (one-liner given).
-Codex reviews earned-autonomy-and-swarm-v1 (handoff msg 17/18) when back ~06-16.
+**PENDING IN THE BROWSER:** an approval slab may still be HELD (`create training_ground/reverse_string.py`) — operator APPROVE/REJECT (never self-approved; the gate is the thesis).
+**HONEST CAVEAT:** the local 3B model holds the GAGOS identity inconsistently (prompt strengthened; a larger local model = rock-solid).
+**REFERENCE (not in product):** `.aios/state/GAGOS_WEBGPU_SPIKE.md` + `GAGOS_WEBGPU_PORT_MAP.json` archive the WebGPU concept + the GLSL→TSL port map (incl. the troika-crashes-WebGPU blocker) if ever revived.
+**KEY LESSON (point-field):** dense ADDITIVE point-field white-out = accumulation; the lever is point SIZE (smaller = resolves to color/folds); bloom is the enemy of color — keep it a whisper, let AgX roll off.
+**Untracked (operator's call):** `.github/` (CI) + `SYSTEM_AUDIT_2026-06-21.md`.
 
-## Open approvals/blockers
-- Lease discipline: did all the above with `active_writer: null` (no worktree
-  lease held) — §III-A wants the builder to hold it. Operator-authorized, but
-  note the gap; reacquire/handoff going forward.
-- Codex inbox msg #8 (2026-06-10, correct-resume-stale-runway): unread; his
-  process note = "released without hash-pinned handoff, no formal verdict".
-- Earned autonomy is ON in the running backend (min=3). Default config is OFF.
-- Demo artifacts on disk: swarm_demo.py, earn_demo.py, training_ground/
-  wordcount.py + test_proof{1..5}.py (trivial earn-demo files).
+The Phase-4a posture work below is COMPLETE — historical context.
 
-## Runtime
-Brief: `.venv\Scripts\python agent_coord.py brief --agent claude`
-Backend: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
-  (live now with AIOS_EARNED_AUTONOMY=true, CORS incl :3000)
-Frontend (lab): `cd "GAG demo/gag-orchestrator"; npm run dev` (:3000)
-Tests: `.venv\Scripts\python -m pytest -q`  (baseline 544 passed, 1 skipped)
-Autonomy ledger: `GET /api/v1/development/autonomy`
-Swarm: POST /api/generate with `"swarm": true`
-True picture: `.aios/state/BACKEND_TRUE_PICTURE.md`
+**Phase 4a COMPLETE** (commits 62cf1de→2453d86): the spectral-v1 posture-color system is wired into the whole 3D body — bodyPosture contract (62cf1de), brain hue (d0e9af5), nerve hue + flow speed (4c75bc8), vertebra surfaces (1f03dfd), brainstem intake (2453d86). The body shifts COLOR + signal-SPEED by the REAL lifecycle phase (rest violet → think magenta → stream cyan → hold amber → complete green → error red), blended OVER the sacred regional palette (tint ≤0.8; ==0 byte-identical canon; brainMaterial cache key v8→v9). All gates green (tsc · 254 tests · build); v9 shader compiles; software-GL verified (canon at rest, hue shifts across phases, zero runtime errors); lab-mirrored (BrainstemIntake is product-only). Damped posture lives in SCENE_UNIFORMS (uPosture/uPostureTint/uFlow); live phase flows MaterializationLayer → organismPhaseBus → scene-root useFrame.
+
+**LIVE NOW (since Phase 4a):** (1) posture-strength DIAL — `window.__POSTURE` (commit 07220b3) lets the operator tune tint/flow live in his real browser (brainTint 0.55↔0.8, surfaceTint, flowScale) and report values to bake. (2) Phase-6 REPLY emanation amplified (commit 0c032fe): bigger glowing reply text + longer cortex speaking-glow. The reply DATA pipeline is confirmed healthy (POST /api/v1/chat streams text_chunk Hinglish via llama3.2:3b; sendVoiceTurn accumulates data.text).
+
+**OPERATOR-EYE QUEUE (only his real GPU can settle these — software-GL is approximate):**
+- TINT STRENGTH: slide `window.__POSTURE.brainTint`/`surfaceTint`/`flowScale` to taste, report numbers → I bake as defaults + capture canon goldens.
+- REPLY PROMINENCE/PLACEMENT: reply sits upper-right (clear of the brain); if weak, next tune = descend-through-the-stem placement (`REPLY_TEXT_LOCAL` in BrainstemIntake).
+
+**FULL-BODY POSTURE SWEEP DONE**: conductor overlay (3a24fca), cortical fireflies (3329f10), accretion core (5eafe43). EVERY visible region now reads the posture — brain, nerve (hue+flow), vertebra surfaces, brainstem intake, conductor overlay, cortical fireflies, accretion core — one body, many postures, all riding the shared POSTURE_DIAL. (AttentionConductionPulse's gold bead left as a deliberate POSTURE_GOLD accent.) The posture SYSTEM is complete; only the STRENGTH (operator's `window.__POSTURE` dial) + reply placement remain for his real-GPU eye.
+
+**WORK-STREAMING DONE** (9a3dfc7): content code now materializes LINE BY LINE (~90ms/line + active-line cursor; reduced-motion shows whole) — the demoplan "Showing Work" phase. The being visibly writes its output into the vertebra surface.
+
+**The demoplan 7-phase arc is now substantially realized**: arrival · rest · awakening/conversation (wake + reply) · materialization · orchestration (multi-tab) · working+showing-work (line-by-line stream) · reabsorption — with the full-body posture system (color/flow/speed by REAL state) overlaying all. Branch 97+ ahead of master.
+
+NEXT (operator's pick): (a) **his `:5173` dial verdict** → bake the tint + capture canon goldens (the real unlock); (b) reply placement tune; (c) true per-chunk backend code streaming (currently a visual reveal of received code); (d) further polish. Self-verify each; gates green + commit per slice.
+
+## Open Approvals / Blockers
+- Phase 3 product sync is implementation-verified; reviewer approval is still pending.
+- Visual follow-up for Phase 4: collapse duplicate product intake ownership into one visible renderer path while preserving the real hidden typing fallback.
+- Worktree was already dirty before this slice; do not revert unrelated existing changes.
+- Product Vite server is running hidden from `frontend` on port 5173 with logs in `.aios/audit/phase3-product-vite-*.log`.
+
+## Active Files
+- `frontend/src/superbrain/**`
+- `frontend/public/models/brain.glb`
+- `frontend/public/textures/brain/**`
+- `frontend/public/grain.svg`
+- `GAG demo/gag-orchestrator/tools/probe-phase3-lifecycle.mjs`
+- `docs/superpowers/specs/2026-06-18-living-being-frontend-100-roadmap.md`
+- `.aios/state/RESUME.md`
+- `.aios/memory/experiences.jsonl`
+
+## Notes Not Yet Promoted
+- Product/lab parity pattern held again: dry-run manifest first, then product sync, then same URL-overridable browser probe against the product route.

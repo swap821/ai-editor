@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { subscribeCognition } from '@/lib/cognitionBus';
-import type { BurstRef } from './SuperbrainScene';
+import type { BurstRef, CognitionUniforms } from './SuperbrainScene';
 
 const PARTICLE_COUNT = 820;
 const INNER_RADIUS = 1.55;
@@ -37,6 +37,7 @@ const DISK_VERTEX_SHADER = `
   uniform float uActivity;
   uniform float uBurst;
   uniform float uPulse;
+  uniform float uArrival;
 
   attribute float aAngle;
   attribute float aOffsetY;
@@ -90,6 +91,9 @@ const DISK_VERTEX_SHADER = `
 
     vAlpha = fadeIn * fadeOut * (0.08 + uActivity * 0.11) * (0.45 + ember * 0.82);
     vAlpha *= 1.0 + uBurst * 0.5;
+    // Coalescence: the motes read as STREAMING IN while the field condenses
+    // (uArrival 1 -> 0), settling to the exact canon inflow at rest (uArrival==0).
+    vAlpha *= 1.0 + uArrival * 0.8;
     vColor = accretionColor(aTint) * (0.5 + ember * 0.9 + uActivity * 0.18);
     vColor = mix(vColor, vec3(0.88, 0.98, 1.0), flash * 0.65);
     vColor *= 1.0 + uBurst * 0.45;
@@ -102,12 +106,17 @@ const DISK_VERTEX_SHADER = `
 const DISK_FRAGMENT_SHADER = `
   varying vec3 vColor;
   varying float vAlpha;
+  uniform vec3 uPostureColor;
+  uniform float uPostureTint;
 
   void main() {
     float radius = length(gl_PointCoord - vec2(0.5));
     if (radius > 0.5) discard;
     float core = 1.0 - smoothstep(0.06, 0.5, radius);
-    gl_FragColor = vec4(vColor * (0.7 + core * 0.55), vAlpha * core);
+    vec3 col = vColor * (0.7 + core * 0.55);
+    // Posture wash: the accretion core settles into the body's current hue.
+    col = mix(col, col * uPostureColor * 1.9, clamp(uPostureTint, 0.0, 0.8));
+    gl_FragColor = vec4(col, vAlpha * core);
   }
 `;
 
@@ -153,7 +162,19 @@ function createDiskData(): DiskGeometryData {
   return { positions, angles, offsets, speeds, phases, sizes, tints, jitters };
 }
 
-export default function AccretionCore({ activity, burst }: { activity: number; burst: BurstRef }) {
+export default function AccretionCore({
+  activity,
+  burst,
+  arrival,
+  sceneUniforms,
+}: {
+  activity: number;
+  burst: BurstRef;
+  /** Shared coalescence scalar: 1 = arriving (motes stream in), 0 = settled. */
+  arrival: MutableRefObject<number>;
+  /** Shared cognition uniforms — used for the posture hue leaves (optional). */
+  sceneUniforms?: CognitionUniforms;
+}) {
   const groupRef = useRef<THREE.Group>(null);
   const diskMaterialRef = useRef<THREE.ShaderMaterial>(null);
   const flowTimeRef = useRef(0);
@@ -180,8 +201,11 @@ export default function AccretionCore({ activity, burst }: { activity: number; b
       uActivity: { value: 0 },
       uBurst: { value: 0 },
       uPulse: { value: 1 },
+      uArrival: { value: 0 },
+      uPostureColor: sceneUniforms?.uPosture ?? { value: new THREE.Color(150 / 255, 120 / 255, 255 / 255) },
+      uPostureTint: sceneUniforms?.uPostureTint ?? { value: 0 },
     }),
-    [],
+    [sceneUniforms],
   );
 
   useFrame((state, delta) => {
@@ -204,6 +228,7 @@ export default function AccretionCore({ activity, burst }: { activity: number; b
       diskMaterialRef.current.uniforms.uActivity.value = smoothedActivity;
       diskMaterialRef.current.uniforms.uBurst.value = burstPow;
       diskMaterialRef.current.uniforms.uPulse.value = 1 + pulseRef.current * PULSE_GAIN;
+      diskMaterialRef.current.uniforms.uArrival.value = arrival.current;
     }
 
     if (groupRef.current) {

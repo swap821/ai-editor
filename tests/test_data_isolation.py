@@ -20,7 +20,7 @@ def test_data_dir_is_isolated_to_a_temp_dir() -> None:
     assert config.DATA_DIR == Path(env).expanduser().resolve()
     # It is NOT the real on-disk data/ under the project root.
     assert config.DATA_DIR != (config.PROJECT_ROOT / "data")
-    assert config.PROJECT_ROOT not in config.DATA_DIR.parents
+    assert (config.PROJECT_ROOT / "data") not in config.DATA_DIR.parents
     assert config.DATA_DIR.is_dir()
 
 

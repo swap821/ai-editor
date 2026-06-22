@@ -33,7 +33,10 @@ export type CognitionEventType =
   /** The active brain for a turn: which provider/model served it and whether it
    *  stayed local. `data` carries {provider, model, privacy, task, auto}. The
    *  sovereignty row shows it; additive, so the canon idle frame is untouched. */
-  | 'route';
+  | 'route'
+  /** Live voice phase in progress (listening / question-up / reply-down /
+   *  speak-back) — drives the conversational pulse through the 3D body. */
+  | 'voice-speaking';
 
 export interface CognitionEvent {
   type: CognitionEventType;

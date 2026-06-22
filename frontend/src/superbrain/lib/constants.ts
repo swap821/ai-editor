@@ -192,6 +192,12 @@ export const POST_FX = {
   // Intensity boosted and threshold set to 1.0 so ONLY the ultra-bright neon mesh and lobes glow.
   bloom: { intensity: 2.5, luminanceThreshold: 1.0, luminanceSmoothing: 0.9 },
 
+  // Point-field (?being=points) rides the SAME Bloom pass but gentler: the per-point
+  // radial sprite already carries the glow, so a low intensity keeps the halo hugging
+  // the body instead of bleeding a wide haze into the clean void. PostFX picks this
+  // block in points mode; mesh mode keeps `bloom` above byte-for-byte.
+  bloomPoints: { intensity: 0.72, luminanceThreshold: 1.08, luminanceSmoothing: 0.28 },
+
   chromaticAberration: { offset: [0.00055, 0.00055] as [number, number] },
 
   // FilmGrade custom effects (PostFX.tsx):
@@ -212,6 +218,8 @@ export const POST_FX = {
   // Darkness eased 0.7 -> 0.62: the grade now carries the cinema; the
   // heavier vignette was crushing corner text.
   vignette: { offset: 0.28, darkness: 0.62 },
+  // Points being frames the void a touch more strongly to read as a "home".
+  vignettePoints: { offset: 0.32, darkness: 0.76 },
 
   noise: { opacity: 0.025 },
 };

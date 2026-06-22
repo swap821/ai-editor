@@ -48,7 +48,12 @@ engine. Do not confuse them.
    completed+verified step, and the single next action.
 2. Read `warnings.md` + the last ~10 `experiences.jsonl` entries; surface any
    warning that bears on the next action.
-3. Present the next step and **wait for the operator's go**. Do not auto-run
+3. **RECALL, don't cold-start (operator's standing ritual).** Pull the §XII knowledge
+   that bears on the next action — the matching `.aios/state/` design spec (read it IN
+   FULL before building that feature), `.aios/memory/` lessons, and `aios/` code as ground
+   truth — and the §XIII toolkit (know which skills/MCP/plugins are available; invoke the
+   design/motion skills for any UI work). Start grounded, never from scratch.
+4. Present the next step and **wait for the operator's go**. Do not auto-run
    YELLOW/RED just because RESUME.md named it next.
 If RESUME.md is missing/stale, say so plainly; never fabricate continuity.
 
@@ -77,6 +82,11 @@ appears, and always before stopping. It must always answer: current goal · last
 completed+verified step · **the single next action** · open approvals/blockers ·
 active files · notes-not-yet-promoted. Append one Experience Object (§V) per
 finished unit of work; on failure, a mistake row. Reflect last (§VI).
+**Session-end currency (operator's standing ritual — nothing left stale):** before
+stopping, bring ALL of it up to date — RESUME + the Tier-1 docs + any `.aios/state/`
+spec you touched (the doc-currency convention, §XII), and the §XIII toolkit map if the
+available skills/MCP/plugins changed. The contract is: **start by recalling everything,
+end by leaving everything current.**
 
 ## V. EXPERIENCE OBJECT (append one JSON line to `experiences.jsonl`)
 ```json
@@ -119,9 +129,9 @@ resume yourself — say so if asked). Don't report a task done without evidence
 ---
 
 ## XI. PROJECT-SPECIFIC FACTS (this repo)
-- **Run backend:** `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000`
+- **Run backend:** `.venv\Scripts\python -m aios` (canonical; binds `AIOS_API_HOST`/`AIOS_API_PORT`, default `127.0.0.1:8000`, in lockstep with the token policy; add `--reload` for dev). Equivalent raw form: `.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000` (but raw `--host` can decouple the bind from the policy — prefer `python -m aios`).
 - **Run frontend:** `cd frontend; npm run dev`  (Vite, http://localhost:5173)
-- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — baseline **516 passed, 1 skipped** (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
+- **Tests (must stay green before any commit):** `.venv\Scripts\python -m pytest -q` — trust the LIVE count from the run, not a hardcoded number (**556 passed, 1 skipped** as of 2026-06-15; it grows as tests land) (Windows; `radon`+`coverage` must be installed). The 1 skip = Windows symlink-privilege case.
 - **Commits:** per-phase on `master` (not `main`); credit only actual contributors. Codex-only work uses `Co-Authored-By: OpenAI Codex <noreply@openai.com>`; use a Claude trailer only when Claude genuinely contributed. Commit only when the operator asks.
 - **Local LLM:** Ollama. Prefer the UI's `Auto` route. Live-compatible gallery:
   qwen2.5-coder 7B/3B, qwen2.5 7B, llama3.1 8B, llama3.2 3B, and Mistral 7B.
@@ -144,12 +154,63 @@ resume yourself — say so if asked). Don't report a task done without evidence
   (a YELLOW action class auto-applies after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES` consecutive
   verifier-backed successes, revoked on one failure — RED is never earnable) and
   `AIOS_SWARM_MAX_WORKERS` (ephemeral worker swarm: decompose → gated workers → synthesize).
-- **Frontend:** the **superbrain** 3D UI is the default mount; the classic IDE shell is at
-  `?ui=classic`. Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced
+- **Frontend:** since the 2026-06-21 single-frontend collapse, the ONLY UI is **GAGOS — the
+  points-being** at the clean root `/` (no `?ui=` params; the classic shell + all `?ui=` routes
+  were deleted). Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced
   into `frontend/src/superbrain/` via `npm run port` — never edit those product files directly
-  (they are overwritten); product-safe files are `main.jsx`/`SuperbrainApp.jsx`/`SuperbrainShell.jsx`/
-  `config.js`/`vite.config.js`/the classic `App.jsx` + new files. FIDELITY: no auto-degrade, his
-  assets untouched, before/after screenshots in his browser for any visual change.
+  (they are overwritten); product-safe files (NOT ported) are `main.jsx`/`SuperbrainApp.jsx`/
+  `config.js`/`vite.config.js`/`index.html`/`workbench/GagosChrome.{jsx,css}`/`styles/tokens.css` + new files. CANON (operator, 2026-06-19 —
+  supersedes the old broad FIDELITY freeze): the lab is an **UNRESTRICTED build space** — geometry,
+  anatomy, nerve positions, shaders, structure, and motion are ALL free to evolve toward a 100%-working
+  alive-brain. The ONLY sacred canon is his **palette + textures** ("that's what I imagined; everything
+  else doesn't matter"): `check_css_canon.py` guards the color palette, `check_canon_frozen.py` now
+  guards ONLY his texture/GLB assets (break-glass `--allow-canon`); no auto-degrade of palette/texture.
+  Product (`frontend/src/superbrain/`) is gated solely by the operator's `:5173` look at `npm run port`
+  time — never hand-edit product files (overwritten). (This relaxes ONLY the visual canon; the SECURITY
+  frozen core below is unchanged and stays RED.)
 - **Config is centralized** in `aios/config.py` (single source of truth). Subsystems are injected via FastAPI `Depends(...)` so tests override them with fakes — never add network/model/shell side-effects to a test path.
 - **Frozen core (§VIII controlled self-modification).** The security spine — `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py` — is FROZEN. Any change to it follows the full §VIII flow (Observe→Analyse→Propose→Test→Verify→Human Review→Approve→Deploy) and is treated as **RED**: the product agent literally cannot touch it (`SCOPE_ROOTS` = `training_ground/` only → an attempt classifies RED/refused), and the Self-Analysis module treats it as **Tier T4 = RED + frozen** (a fix may be *proposed* for human review, but *applying* one is RED/blocked). Never weaken a guardrail to make a test pass; keep these modules deterministic and fail-closed.
 - **Build vs blueprint:** the blueprint says "~35%"; the *code* is ~75–80% of MVP. Trust the code. See `.aios/state/RESUME.md`.
+
+## XII. DON'T REINVENT — READ THE EXISTING KNOWLEDGE BEFORE THINKING FROM SCRATCH
+The operator keeps this knowledge **current on purpose** so agents resume from prior work instead of
+hallucinating. When uncertain about state, a past decision, a prior lesson, or how a subsystem works:
+**READ it — do not guess.** Read the matching design doc BEFORE building a feature. There are TWO bases:
+
+**(1) `.aios/` — the builder notebook (continuity + lessons + plans):**
+- `state/RESUME.md` — where we are / the single next action (read FIRST, every session).
+- `state/` plans & specs — `SYSTEM_TRUE_PICTURE` · `BACKEND_TRUE_PICTURE` · `HIDDEN_KNOWLEDGE` (architecture);
+  `PLAN` · `FUTURE_FRONTIER` · `RENOVATION_PLAN` · `PREMIUM_FRONTEND_PLAN` (roadmaps); `SUPERBRAIN_NEXTGEN_DESIGN` ·
+  `NERVOUS_SYSTEM_REDESIGN` · `SHELL_REDESIGN` · `HUD_RENOVATION_SPEC` · `JARVIS_VOICE_PLAN` · `MULTI_LLM_PLAN` ·
+  `FRONTEND_HARMONY_MAP` (feature/design specs — read the matching one BEFORE building it).
+- `memory/` — **LESSONS, not optional:** `warnings.md` (patterns that harmed ≥2×, read at bootstrap),
+  `experiences.jsonl` (what worked), `mistakes.jsonl` (what failed + the fix), `trusted_workflows.md` (≥3× wins).
+  Check these before redoing a class of work so a prior mistake isn't repeated (see §III).
+- `coordination/README.md` — the Claude↔Codex handoff/lease protocol (see §III-A).
+
+**(2) `aios/` — the product backend: the CODE is the ground truth.** For how the system actually behaves,
+read the code, don't assume: `config.py` (single config truth), `api/main.py` (routes/SSE), `core/`,
+`memory/` (the product's own memory engine), `security/` (the frozen spine), `agents/`.
+
+Dated evidence (CEO_LOG, EVIDENCE_CURRICULUM, AUDIT, the dated snapshots) is HISTORY — never rewrite; add a
+superseded banner. Refresh Tier-1 docs + RESUME after a feature (the doc-currency convention).
+
+## XIII. SHARED TOOLKIT — skills / MCP / plugins (invoke them; keep them collaborator-shared)
+Design/frontend work MUST invoke the relevant skill (don't coast on memory of one):
+- **PROJECT-level** (shared via the repo — every collaborator has them; tracked in `skills-lock.json`):
+  `design-taste-frontend`, `ui-ux-pro-max`.
+  External-design helpers now project-installed in both `.claude/skills/` and `.agents/skills/`:
+  `figma-extract`, `token-map`, `canvas-automation`, `templated-automation`. These sharpen Figma/token
+  migration and Composio/Rube Canvas/Templated workflows, but they still require the matching external
+  connector/MCP to be available at runtime.
+  Note: `ComposioHQ/awesome-codex-skills` did not contain `figma-tokens-generator` or
+  `canva-template-generator` on 2026-06-18; use the installed equivalents above unless upstream restores
+  those exact paths.
+- **USER-level** (installed per-machine in `~/.claude/skills/`, **NOT auto-shared** — install before relying on them):
+  `design-motion-principles`, `impeccable`, `gstack-*` (design-review/qa/scrape/diagram). To make one truly
+  collaborator-shared, **project-install it** (into `.claude/skills/` + `skills-lock.json`) and commit.
+- **MCPs** (Figma, Canva, Motion, Slack, …) are claude.ai connectors = **session/account-tied** — available to a
+  connected Claude session, NOT to Codex or headless/cron runs. Use where they fit (Figma/Canva for 2D design;
+  not for live WebGL shaders); never assume a peer agent has them.
+- **Honest limit:** skills sharpen REASONING; they do NOT replace VISUAL verification (no headless WebGL) — the
+  final palette/texture aesthetic call is the operator's browser (the one sacred canon; see §XI).

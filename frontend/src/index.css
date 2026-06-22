@@ -24,7 +24,7 @@
   --color-ink2: #a7abbd;
   --color-ink3: #6b7088;
 
-  --color-accent:  #3b82f6;
+  --color-accent:  #7bf5fb;
   --color-success: #34d399;
   --color-warn:    #fbbf24;
   --color-danger:  #f87171;
@@ -181,13 +181,15 @@ button:not(:disabled):active { transform: scale(0.97); }
   inset: 0;
   z-index: 6;
   pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(34,211,238,0.22), inset 0 0 34px -10px rgba(34,211,238,0.30);
+  /* Poster cyan idle-aura */
+  box-shadow: inset 0 0 0 1px rgba(123,245,251,0.20), inset 0 0 34px -10px rgba(123,245,251,0.28);
   opacity: 0.30;
   transition: box-shadow 0.45s ease;
   animation: auraBreath 5.5s ease-in-out infinite;
 }
 .ai-aura.is-generating::before {
-  box-shadow: inset 0 0 0 1px rgba(139,92,246,0.40), inset 0 0 42px -8px rgba(139,92,246,0.45);
+  /* Poster purple generating-pulse */
+  box-shadow: inset 0 0 0 1px rgba(176,110,255,0.42), inset 0 0 42px -8px rgba(176,110,255,0.48);
   animation: auraPulse 1.5s ease-in-out infinite;
 }
 @keyframes auraBreath { 0%, 100% { opacity: 0.20; } 50% { opacity: 0.46; } }

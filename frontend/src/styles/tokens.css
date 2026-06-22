@@ -19,7 +19,8 @@
   /* ── Color · Hairlines & borders ────────────────────────────────────── */
   --border:        rgba(255, 255, 255, 0.06);
   --border-strong: rgba(255, 255, 255, 0.11);
-  --border-accent: rgba(96, 165, 250, 0.35);
+  --border-accent: rgba(123, 245, 251, 0.35); /* poster cyan (was dead blue rgba(96,165,250)) */
+  --hairline:      rgba(255, 255, 255, 0.08);  /* canon hairline (matches superbrain.css) */
 
   /* ── Color · Text ramp (tuned for >=4.5:1 on surface-1..3) ──────────── */
   --text-1: #f2f3f7;   /* primary   */
@@ -27,18 +28,21 @@
   --text-3: #6b7088;   /* tertiary / muted */
   --text-on-accent: #ffffff;
 
-  /* ── Color · Accent ramp (blue→indigo) ──────────────────────────────── */
-  --accent-50:  #eff5ff;
-  --accent-200: #bcd3ff;
-  --accent-400: #60a5fa;
-  --accent-500: #3b82f6;
-  --accent-600: #2f6ae6;
-  --accent-700: #2657c0;
+  /* ── Color · Accent ramp (poster cyan → purple) ─────────────────────────
+     VARIANT-H poster has zero blue. Anchor is the poster cyan #7bf5fb; the
+     hero gradient runs cyan→purple (#7bf5fb → #b06eff), the poster's two
+     dominant hues. Keep this ramp the single source of accent truth. */
+  --accent-50:  #e8fdff;
+  --accent-200: #b8f6fb;
+  --accent-400: #7bf5fb;
+  --accent-500: #3ad9e6;
+  --accent-600: #22b3c4;
+  --accent-700: #1a8c9c;
   --accent:        var(--accent-500);
   --accent-hover:  var(--accent-400);
-  --accent-dim:    rgba(59, 130, 246, 0.12);
-  --accent-glow:   rgba(59, 130, 246, 0.28);
-  --accent-grad:   linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  --accent-dim:    rgba(123, 245, 251, 0.12);
+  --accent-glow:   rgba(123, 245, 251, 0.28);
+  --accent-grad:   linear-gradient(135deg, #7bf5fb 0%, #b06eff 100%);
 
   /* ── Color · Semantic status (each has fg + dim bg) ─────────────────── */
   --success:     #34d399;
@@ -47,8 +51,8 @@
   --warn-dim:    rgba(251, 191, 36, 0.10);
   --danger:      #f87171;
   --danger-dim:  rgba(248, 113, 113, 0.10);
-  --info:        #60a5fa;
-  --info-dim:    rgba(96, 165, 250, 0.10);
+  --info:        #7bf5fb;
+  --info-dim:    rgba(123, 245, 251, 0.10);
 
   /* ── Glass (backdrop layers) ────────────────────────────────────────── */
   --glass-bg:     rgba(13, 14, 19, 0.72);
@@ -59,8 +63,8 @@
   --elevation-1: 0 1px 2px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03);
   --elevation-2: 0 4px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
   --elevation-3: 0 12px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
-  --elevation-4: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(59,130,246,0.06);
-  --glow-accent: 0 0 20px rgba(59,130,246,0.18);
+  --elevation-4: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(123,245,251,0.06);
+  --glow-accent: 0 0 20px rgba(123,245,251,0.18); /* poster cyan (was dead blue rgba(59,130,246)) */
   --glow-success:0 0 16px rgba(52,211,153,0.22);
 
   /* ── Radius ─────────────────────────────────────────────────────────── */

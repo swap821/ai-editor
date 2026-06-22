@@ -1,8 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { Float, useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { Float, useGLTF, PerspectiveCamera, OrbitControls } from '@react-three/drei';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import AccretionCore from './AccretionCore';
@@ -11,6 +11,8 @@ import CorticalSignals, { THOUGHT_WAVE_GLSL } from './CorticalSignals';
 import PostFX from './PostFX';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import { createSeededRandom } from '@/lib/seededRandom';
+import { subscribeLifecycle, LifecycleState, ArrivalMode } from '@/lib/lifecycleStateMachine';
+import { coalescenceEnvelope, ignitionPulse, awakenNotice, shouldReduceMotion } from '@/lib/openingMotion';
 import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
@@ -18,7 +20,21 @@ import KnowledgeHorizon from './KnowledgeHorizon';
 import MemoryGalaxy from './MemoryGalaxy';
 import OrganSurface from './OrganSurface';
 import RegionPins from './RegionPins';
+import NodeLattice from './NodeLattice';
+import MaterializationLayer from './MaterializationLayer';
+import { makeBrainMaterial } from '@/lib/brainMaterial';
+import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
+import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
+import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
+import { useTabStore } from '@/lib/tabStore';
+import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
+import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
+import { getOrganismPhase } from '@/lib/organismPhaseBus';
+import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
+import { readBeingMode } from '@/lib/beingMode';
+import { setBrainDockScale } from '@/lib/spineFusionBus';
+import BrainPointField from './BrainPointField';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
  *  "AN AGENTIC AI-OS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
@@ -31,9 +47,11 @@ import type { QualityTier } from '@/components/QualityTierProvider';
 export type SkyMode = 'voyage' | 'layered';
 
 /** Anatomical region pins (RESEARCH/MEMORY/TOOLS/SIGNALS callouts bound to
- *  the same live channels as the intake rows). Additive layer — the
- *  operator's call (VISION.md): flip to false to remove without a trace. */
-const SHOW_REGION_PINS = true;
+ *  the same live channels as the intake rows). RegionPins renders drei <Html>
+ *  (2D DOM floating chips) — under the operator's PURE-3D home law that is not
+ *  allowed in the experience, so the pins are off here. Flip to true only if
+ *  RegionPins is ever reworked into pure 3D (sprites/meshes, no <Html>). */
+const SHOW_REGION_PINS = false;
 
 /** THE ORGANISM NOTICES YOU: a damped 1-2 degree attentive lean toward the
  *  operator's pointer — presence, not control (the voyage motion always
@@ -41,11 +59,17 @@ const SHOW_REGION_PINS = true;
  *  remove without a trace. */
 const CURSOR_ATTENTION = true;
 
+// Restrained "voyaging" — a slow auto-orbit; operator tunes live (try 0.10–0.30).
+const VOYAGE_SPEED = 0.18;
+
 /** The memory galaxy: every REAL trail a persistent star orbiting the mind
  *  (strength = brightness, walks = size, quarantine = red pulse; recalls
  *  flash their star). Additive layer, honest dormancy — the operator's
  *  call (VISION.md): flip to false to remove without a trace. */
 const SHOW_MEMORY_GALAXY = true;
+
+/** Substrate: 'mesh' (default, the working being) or 'points' (?being=points). */
+const BEING_MODE = readBeingMode();
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -156,6 +180,20 @@ export interface CognitionUniforms {
   /** 0..1 — the approval hold. The supervised mind is waiting for its
    *  operator: breath freezes, the organism turns amber, wires dim. */
   uHold: { value: number };
+  /** Coalescence/awakening: 1 = arriving (field streaming in), 0 = settled. */
+  uArrival: { value: number };
+  /** Single-shot ignition pulse during coalescence, 0..1. */
+  uIgnite: { value: number };
+  /** First-speak attentive notice, 0..1 (drives cortex brighten + nerve light). */
+  uAwaken: { value: number };
+  /** Spectral-v1 posture HUE (damped) — the whole body's current state color. */
+  uPosture: { value: THREE.Color };
+  /** Posture blend strength 0..0.8 over the regional palette (0 = byte-identical canon). */
+  uPostureTint: { value: number };
+  /** Damped signal-flow rate (rest 0.16 → stream 1.0) — drives spine/nerve speed. */
+  uFlow: { value: number };
+  /** Posture blend MODE 0..1: 0 = multiply (preserve palette), 1 = commit to the hue (poster). */
+  uPostureCommit: { value: number };
 }
 
 const createCognitionUniforms = (): CognitionUniforms => ({
@@ -173,6 +211,16 @@ const createCognitionUniforms = (): CognitionUniforms => ({
   // Dormant slots sit far in the past; the GLSL clamps ages so this is safe.
   uWaveTimes: { value: [-10, -10, -10] },
   uHold: { value: 0 },
+  // Default to the SETTLED state: any path that never animates (reduced-motion,
+  // tests, SSR) reads as canon REST — the opening is purely additive.
+  uArrival: { value: 0 },
+  uIgnite: { value: 0 },
+  uAwaken: { value: 0 },
+  // Posture (spectral-v1): rest violet, tint 0 (canon), rest flow. Damped each frame.
+  uPosture: { value: new THREE.Color(150 / 255, 120 / 255, 255 / 255) },
+  uPostureTint: { value: 0 },
+  uFlow: { value: 0.16 },
+  uPostureCommit: { value: 0 },
 });
 
 /** YELLOW-zone amber — the approval hold's signature color. Accent only. */
@@ -182,6 +230,16 @@ const HOLD_TINT = new THREE.Color('#b96a14');
  *  exactly once), so frame-loop mutation is architecture, not a hook-rule
  *  violation. */
 const SCENE_UNIFORMS = createCognitionUniforms();
+
+/** Scratch color for per-frame posture damping (no per-frame allocation). */
+const POSTURE_SCRATCH = new THREE.Color();
+
+// Dev tint dial — tune the posture STRENGTH live in the operator's browser
+// (scales each posture's intrinsic spectral tint; 1.0 = exact demoplan strength):
+//   window.__POSTURE.brainScale = 1.3;  window.__POSTURE.surfaceScale = 0.8;  window.__POSTURE.flowScale = 1.4
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as unknown as { __POSTURE?: typeof POSTURE_DIAL }).__POSTURE = POSTURE_DIAL;
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Travel convention: the brain voyages toward -Z (into deep knowledge        */
@@ -415,11 +473,11 @@ function applyRegionVertexColors(root: THREE.Object3D) {
       // Sharpen region dominance: a linear blend of complementary hues makes
       // mud (red + cyan = washed pink). The exponent pushes each vertex toward
       // its strongest region while the fbm wobble keeps boundaries organic.
-      const pFrontal = Math.pow(wFrontal, 2.6);
-      const pParietal = Math.pow(wParietal, 2.6);
-      const pTemporal = Math.pow(wTemporal, 2.6);
-      const pOccipital = Math.pow(wOccipital, 2.6);
-      const pCerebellum = Math.pow(wCerebellum, 2.6);
+      const pFrontal = Math.pow(wFrontal, 1.85);
+      const pParietal = Math.pow(wParietal, 1.85);
+      const pTemporal = Math.pow(wTemporal, 1.85);
+      const pOccipital = Math.pow(wOccipital, 1.85);
+      const pCerebellum = Math.pow(wCerebellum, 1.85);
 
       const total = pFrontal + pParietal + pTemporal + pOccipital + pCerebellum;
       out.setRGB(
@@ -615,6 +673,7 @@ function BrainModel({
   uniforms,
   tier = 'high',
   surface = 'web',
+  arrival,
 }: {
   activity: number;
   mode: CognitiveMode;
@@ -622,185 +681,58 @@ function BrainModel({
   uniforms: CognitionUniforms;
   tier?: QualityTier;
   surface?: BrainSurface;
+  /** Shared coalescence scalar (1 = arriving, 0 = settled) for the aura shells. */
+  arrival: MutableRefObject<number>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const brainVisualRef = useRef<THREE.Group>(null);
+  const dockYRef = useRef(0); // SOUL P1: eased rise so the brain crowns the top while orchestrating
   /** Damped pointer-attention lean (CURSOR_ATTENTION). */
   const attendRef = useRef({ x: 0, y: 0 });
+  const postureRef = useRef({ yaw: 0, pitch: 0, roll: 0, offsetX: 0, offsetY: 0, scaleBoost: 0 });
+  const { tabs, focusId, attention } = useTabStore();
+  const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
+  const orchestration = useMemo(
+    () => deriveLivingOrchestration({ tabs, focusId, attention }),
+    [tabs, focusId, attention],
+  );
+  const workspaceCount = orchestration.workspaceCount;
+  const brainPresence = useMemo(
+    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight, points: BEING_MODE === 'points' }),
+    [workspaceCount, viewportWidth, viewportHeight],
+  );
   const { scene } = useGLTF('/models/brain.glb');
+
+  /** COMPUTER BRAIN (operator's truth: the being only WEARS a brain SHAPE — the
+   *  interior is a NETWORK OF NODES, not organic flesh).
+   *    NODE_BRAIN = true  → the cortex GLB becomes a quiet near-transparent
+   *                         GLASS CRANIUM (no Voronoi web, no procedural bump,
+   *                         no organic emission) and the luminous interior is
+   *                         the <NodeLattice> node-network. The brain SILHOUETTE,
+   *                         uArrival coalescence, uBreath pulse + uHold amber
+   *                         all stay wired.
+   *    NODE_BRAIN = false → restores the canon ORGAN-FLESH path BYTE-FOR-BYTE
+   *                         (the entire Voronoi/bump/emission shader below runs
+   *                         unchanged and the lattice does not mount). Fully
+   *                         recoverable — no orphaned code, just this const.
+   *  Final aesthetic call is the operator's browser. */
+  const NODE_BRAIN = BEING_MODE === 'points';
+  /** a11y: freeze packet travel + snap coalescence to assembled. Captured once
+   *  (same source as the scene's reduced-motion posture). */
+  const reduceMotion = useMemo(() => shouldReduceMotion(), []);
 
   const brainAsset = useMemo(() => {
     const clone = scene.clone(true);
     const materials: THREE.Material[] = [];
     
     applyRegionVertexColors(clone);
-    
-      const mat = new THREE.MeshPhysicalMaterial({
-        vertexColors: true,
-        color: 0x010308, // Dark base
-        roughness: 0.2,
-        metalness: 0.1,
-        emissive: 0x000000,
-        
-        // Deep glass polish (opaque but highly reflective)
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.05,
-      });
 
-      mat.onBeforeCompile = (shader) => {
-        // Link the shared sentience leaves into the brain shader
-        shader.uniforms.uTime = uniforms.uTime;
-        shader.uniforms.uHold = uniforms.uHold;
-
-        // Pass local position to fragment shader for stable high-frequency noise
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <common>',
-          `#include <common>
-           varying vec3 vLocalPos;
-          `
-        );
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <begin_vertex>',
-          `#include <begin_vertex>
-           vLocalPos = position * 2.0; // Stabilized local scale
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <common>',
-          `#include <common>
-           uniform float uTime;
-           uniform float uHold;
-           varying vec3 vLocalPos;
-           
-           vec3 hash33(vec3 p) {
-               p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
-                        dot(p, vec3(269.5, 183.3, 246.1)),
-                        dot(p, vec3(113.5, 271.9, 124.6)));
-               return fract(sin(p) * 43758.5453123);
-           }
-
-           // Animated 3D Voronoi for flowing, living neural synapses
-           float voronoi(vec3 x) {
-               vec3 p = floor(x);
-               vec3 f = fract(x);
-               float res = 100.0;
-               for(int k=-1; k<=1; k++) {
-                   for(int j=-1; j<=1; j++) {
-                       for(int i=-1; i<=1; i++) {
-                           vec3 b = vec3(float(i), float(j), float(k));
-                           vec3 h = hash33(p + b);
-                           // Animate the cell points smoothly over time
-                           // (frozen on the low tier: same web, zero per-frame churn)
-                           ${tier === 'low'
-                             ? 'vec3 anim = vec3(0.5);'
-                             : 'vec3 anim = 0.5 + 0.5 * sin(uTime * 1.2 + 6.2831 * h);'}
-                           vec3 r = vec3(b) - f + anim;
-                           float d = dot(r, r);
-                           if(d < res) res = d;
-                       }
-                   }
-               }
-               return sqrt(res);
-           }
-
-            // Continuous glowing neural web (edges of the Voronoi cells)
-           float microDetail(vec3 pos) {
-               float scale = 0.6; 
-               // Do not invert! We want distance to center. 
-               // Centers are 0.0 (dark), edges are ~0.8 (bright)
-               float v1 = voronoi(pos * scale);
-               ${tier === 'high'
-                 ? `float v2 = voronoi(pos * scale * 2.0 + vec3(v1));
-               // Combine into a multi-scale continuous web
-               float webbing = v1 * 0.7 + v2 * 0.3;`
-                 : `// Single-octave web below the high tier (half the loops)
-               float webbing = v1;`}
-               
-               // Isolate the highest values to create thin, sharp, glowing interconnected lines
-               return smoothstep(0.4, 0.8, webbing);
-           }
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <normal_fragment_begin>',
-          `#include <normal_fragment_begin>
-           // PROCEDURAL BUMP MAPPING (Normal Perturbation)
-           // Smooth, thick organic bump (lowered multiplier from 0.08 to 0.015 to prevent sandy artifacts)
-           // Evaluated ONCE per fragment and shared with the emission pass
-           // below (each microDetail call is two 27-cell animated Voronoi
-           // loops — the single heaviest cost on screen).
-           float gNeuralWeb = microDetail(vLocalPos);
-           float h = gNeuralWeb * 0.015;
-           vec3 vSigmaX = dFdx(vViewPosition);
-           vec3 vSigmaY = dFdy(vViewPosition);
-           vec3 vN = normal;
-           vec3 R1 = cross(vSigmaY, vN);
-           vec3 R2 = cross(vN, vSigmaX);
-           float fDet = dot(vSigmaX, R1);
-           float vGradX = dFdx(h);
-           float vGradY = dFdy(h);
-           vec3 vGrad = sign(fDet) * (vGradX * R1 + vGradY * R2);
-           normal = normalize(abs(fDet) * vN - vGrad);
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <color_fragment>',
-          `#include <color_fragment>
-           // Make the diffuse base extremely dark so the emissive glow pops.
-           // color_fragment already applies vColor to diffuseColor, but we want it
-           // to be driven purely by emission.
-           diffuseColor.rgb = vec3(0.01, 0.02, 0.04);
-          `
-        );
-
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <emissivemap_fragment>',
-          `#include <emissivemap_fragment>
-           
-           // The neural synapse pattern, computed once in the bump pass above.
-           float cDetail = gNeuralWeb;
-           
-           // Extract RGB safely regardless of whether vColor is vec3 or vec4
-           vec3 safeColor = vColor.rgb;
-           
-           // 1. Core Regional Glow: Drive the emission intensely using the baked regional colors,
-           // modulated by the Voronoi network so it looks incredibly detailed and organic!
-           // Reduced pow() to make the web slightly thicker and increased multiplier for intense bloom!
-           totalEmissiveRadiance += safeColor * pow(cDetail, 1.5) * 4.0;
-           
-           // 2. Vibrant Edge Rim Light: Smooth Fresnel that dynamically matches the region's color!
-           vec3 viewDir = normalize(vViewPosition);
-           vec3 geomNormal = normalize(vNormal); 
-           float fresnel = pow(1.0 - max(dot(viewDir, geomNormal), 0.0), 2.5);
-           
-           // Organic breathing pulse — held steady and bright during an
-           // approval hold (bated breath, not a flatline).
-           float pulse = sin(uTime * 2.0) * 0.5 + 0.5;
-           float pulseMix = mix(mix(0.7, 1.5, pulse), 1.25, uHold);
-
-           // Add the dynamic rim light, heavily multiplying the local region color
-           totalEmissiveRadiance += safeColor * fresnel * 2.0 * pulseMix;
-
-           // Approval hold: the whole cortex tints toward YELLOW-zone amber —
-           // structure preserved, hue deferring to the operator.
-           vec3 holdTone = vec3(1.0, 0.62, 0.22);
-           totalEmissiveRadiance = mix(
-             totalEmissiveRadiance,
-             totalEmissiveRadiance * holdTone + holdTone * 0.05,
-             uHold * 0.85
-           );
-          `
-        );
-      };
-      
-      // The GLSL varies by tier, so the compiled-program cache key MUST too —
-      // a constant key made THREE reuse the first-compiled (possibly
-      // degraded) program for the whole session, no matter what FIDELITY
-      // said. The operator's eyes caught what three rounds of instruments
-      // missed.
-      mat.customProgramCacheKey = () => `superbrain_v6_${tier}`;
+      // The brain's living-flesh material — Voronoi neural-web + region/palette
+      // vertex colours + luminance ladder + fresnel glow, pulsing on the shared
+      // uTime/uHold/uArrival/uIgnite. Extracted to a shared factory so the
+      // nervous system can wear the IDENTICAL material; cortex defaults
+      // reproduce the canon brain byte-for-byte (cache key superbrain_v8_*_organ_cortex_oN).
+      const mat = makeBrainMaterial({ tier, uniforms, nodeBrain: NODE_BRAIN });
 
       clone.traverse((object) => {
         if (object instanceof THREE.Mesh) {
@@ -844,80 +776,318 @@ function BrainModel({
 
     /* ── Brain group animation ── */
     if (groupRef.current) {
+      const postureTarget = deriveBrainAttentionPosture({
+        tabs,
+        focusId,
+        attention: orchestration.attention,
+        nowMs: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+      });
+      const postureMotionScale = reduceMotion ? 0.42 : 1;
+      const postureFollow = reduceMotion ? 7.5 : 4.2;
+      const posture = postureRef.current;
+      posture.yaw = THREE.MathUtils.damp(posture.yaw, postureTarget.yaw * postureMotionScale, postureFollow, delta);
+      posture.pitch = THREE.MathUtils.damp(
+        posture.pitch,
+        postureTarget.pitch * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+      posture.roll = THREE.MathUtils.damp(posture.roll, postureTarget.roll * postureMotionScale, postureFollow, delta);
+      posture.offsetX = THREE.MathUtils.damp(
+        posture.offsetX,
+        postureTarget.offsetX * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+      posture.offsetY = THREE.MathUtils.damp(
+        posture.offsetY,
+        postureTarget.offsetY * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+      posture.scaleBoost = THREE.MathUtils.damp(
+        posture.scaleBoost,
+        postureTarget.scaleBoost * postureMotionScale,
+        postureFollow,
+        delta,
+      );
+
       // Asymmetric systolic breath (shared uniform — the same rhythm every
-      // shader layer breathes with) + burst expansion kick.
-      const scale = BRAIN_SCALE * (1 + uniforms.uBreath.value * 0.006)
-        + activity * 0.05 + burstPow * 0.15;
+      // shader layer breathes with) + burst expansion kick. Coalescence pulls
+      // the cortex in from the scale floor (0.85, never 0) toward 1 as uArrival
+      // -> 0; a fresh awakening lifts it a touch while attentive. Additive:
+      // uArrival==0 && uAwaken==0 reproduces the exact canon scale.
+      const arrivalScale = THREE.MathUtils.lerp(1, /*floor*/ 0.85, uniforms.uArrival.value);
+      const scale = BRAIN_SCALE * (1 + uniforms.uBreath.value * 0.006) * arrivalScale * (1 + posture.scaleBoost)
+        + activity * 0.05 + burstPow * 0.15 + uniforms.uAwaken.value * 0.04;
       const damped = THREE.MathUtils.damp(groupRef.current.scale.x, scale, 2.4, delta);
       groupRef.current.scale.setScalar(damped);
 
-      // Hold a cinematic three-quarter silhouette instead of spinning into
-      // unreadable rear angles. Restores the classic, recognizable brain shape.
-      groupRef.current.rotation.y = -0.78
-        + Math.sin(time * 0.11) * 0.22
-        + Math.sin(time * 0.31) * 0.04
-        + burstPow * 0.025;
-      // Constant forward lean: the mind is pitched INTO the voyage (-Z).
-      groupRef.current.rotation.x = FORWARD_LEAN
-        + Math.sin(time * 0.21) * 0.065 + Math.cos(time * 0.13) * 0.025;
-      // Bank into the turn like a ship — roll follows the NEGATIVE direction
-      // of the lateral drift velocity, amplitude ~0.03 rad.
-      groupRef.current.rotation.z = Math.sin(time * 0.17) * 0.045 + Math.cos(time * 0.11) * 0.02
-        - brainDriftVelocityX(time) * BANK_GAIN;
+      if (BEING_MODE === 'points') {
+        // ONE BODY: in points mode the brain holds a STATIC pose so the spine —
+        // which shares the same Float — stays rigidly joined (no independent bob /
+        // drift / cursor-lean pulling the brain off the cord). The gentle shared
+        // drift comes from Float; life comes from the vertex-shader breathe.
+        groupRef.current.rotation.set(FORWARD_LEAN, -0.78, 0);
+        groupRef.current.position.set(0, 0.12, -1.2); // preserve the established depth
+      } else {
+        // Hold a cinematic three-quarter silhouette instead of spinning into
+        // unreadable rear angles. Restores the classic, recognizable brain shape.
+        groupRef.current.rotation.y = -0.78
+          + Math.sin(time * 0.11) * 0.22
+          + Math.sin(time * 0.31) * 0.04
+          + burstPow * 0.025
+          + posture.yaw;
+        // Constant forward lean: the mind is pitched INTO the voyage (-Z).
+        groupRef.current.rotation.x = FORWARD_LEAN
+          + Math.sin(time * 0.21) * 0.065 + Math.cos(time * 0.13) * 0.025
+          + posture.pitch;
+        // Bank into the turn like a ship — roll follows the NEGATIVE direction
+        // of the lateral drift velocity, amplitude ~0.03 rad.
+        groupRef.current.rotation.z = Math.sin(time * 0.17) * 0.045 + Math.cos(time * 0.11) * 0.02
+          - brainDriftVelocityX(time) * BANK_GAIN
+          + posture.roll;
 
-      // A slow exploratory drift keeps the intelligence moving through space.
-      groupRef.current.position.x = brainDriftX(time);
-      groupRef.current.position.y = 0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07;
+        // A slow exploratory drift keeps the intelligence moving through space.
+        groupRef.current.position.x = brainDriftX(time) + posture.offsetX;
+        // SOUL P1: ease the being UP while orchestrating so the (shrinking) brain
+        // crowns the top of frame with the spine descending beneath it.
+        dockYRef.current = THREE.MathUtils.damp(dockYRef.current, brainPresence.mainBrainOffsetY, 2.5, delta);
+        groupRef.current.position.y =
+          0.12 + Math.cos(time * 0.2) * 0.14 + Math.sin(time * 0.14) * 0.07 + posture.offsetY + dockYRef.current;
 
-      // THE ORGANISM NOTICES YOU: a damped attentive lean toward the
-      // pointer, ADDED after the voyage math so it can only ever tilt the
-      // gaze a degree or two — never steer the journey.
-      if (CURSOR_ATTENTION) {
-        const attend = attendRef.current;
-        attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
-        attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
-        groupRef.current.rotation.y += attend.x * 0.035;
-        groupRef.current.rotation.x += -attend.y * 0.022;
+        // THE ORGANISM NOTICES YOU: a damped attentive lean toward the
+        // pointer, ADDED after the voyage math so it can only ever tilt the
+        // gaze a degree or two — never steer the journey.
+        if (CURSOR_ATTENTION) {
+          const attend = attendRef.current;
+          attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
+          attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
+          // A fresh awakening leans a touch harder toward the operator, then
+          // eases back as the state-driven uAwaken decays — interruptible, never
+          // a fixed keyframe. awakenLean == 1 at rest (canon lean preserved).
+          const awakenLean = 1 + uniforms.uAwaken.value * 0.6;
+          groupRef.current.rotation.y += attend.x * 0.035 * awakenLean;
+          groupRef.current.rotation.x += -attend.y * 0.022 * awakenLean;
+        }
       }
+    }
+
+    if (brainVisualRef.current) {
+      const scale = THREE.MathUtils.damp(brainVisualRef.current.scale.x, brainPresence.mainBrainScale, 3.2, delta);
+      brainVisualRef.current.scale.setScalar(scale);
+      // SOUL P2: publish the eased dock scale so the work-tab nerves anchor on the
+      // *visible* (shrunken) vertebrae (they render as a sibling of this scaled group).
+      setBrainDockScale(scale);
     }
   });
 
   return (
     <group ref={groupRef} rotation={[0.04, -0.82, 0]} position={[0, -0.35, -1.2]}>
-      
-      {/* The base surface: canon emission shell, or the operator's painted
-          flesh — the energy skin below breathes over BOTH. While the flesh
-          textures stream in, the canon shell stands in (no blink). */}
-      {surface === 'organ' ? (
-        <Suspense fallback={<primitive object={brainAsset.object} />}>
-          <OrganSurface />
-        </Suspense>
-      ) : (
-        <primitive object={brainAsset.object} />
-      )}
-      <primitive object={neuralSkin.object} scale={1.004} />
-      
-      {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
-          Tier budget: low drops the aura shells entirely; medium keeps the
-          membrane but drops the interior nucleus glow. */}
-      {tier !== 'low' && (
-        <NeuralAura
-          activity={activity}
-          mode={mode}
-          source={brainAsset.object}
-          uniforms={uniforms}
-          shells={tier === 'high' ? 2 : 1}
-        />
-      )}
-      <CorticalSignals
-        activity={activity}
-        source={brainAsset.object}
-        uniforms={uniforms}
-        count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
-      />
+      <group ref={brainVisualRef}>
+        {/* The base surface: canon emission shell, or the operator's painted
+            flesh — the energy skin below breathes over BOTH. While the flesh
+            textures stream in, the canon shell stands in (no blink). */}
+        {BEING_MODE === 'mesh' && (surface === 'organ' ? (
+          <Suspense fallback={<primitive object={brainAsset.object} />}>
+            <OrganSurface />
+          </Suspense>
+        ) : (
+          <primitive object={brainAsset.object} />
+        ))}
+        {BEING_MODE === 'mesh' && <primitive object={neuralSkin.object} scale={1.004} />}
+        {BEING_MODE === 'points' && (
+          /* ONE CLOUD: brain + spine are a single point geometry. The spine is
+             FUSED in with its cord-top welded to the brain's real brainstem
+             vertices (spineScale = 1/BRAIN_SCALE maps scene→brain-local). It rides
+             the brain's exact transform → the join is perfect by construction and
+             orbit-proof forever; no offsets to tune. */
+          <BrainPointField
+            kind="brain"
+            source={brainAsset.object}
+            uniforms={uniforms}
+            count={tier === 'high' ? 200000 : tier === 'medium' ? 60000 : 40000}
+            spineScale={1 / BRAIN_SCALE}
+            spineCount={tier === 'high' ? 56000 : tier === 'medium' ? 18000 : 11000}
+          />
+        )}
+
+        {/* Physical 3D Shiny UI Nodes connected directly to Brain Surface with constellation lines.
+            Tier budget: low drops the aura shells entirely; medium keeps the
+            membrane but drops the interior nucleus glow. */}
+        {/* Mesh-era brain overlays — in points mode the point cloud IS the being,
+            so these are gated off (they were overlapping/competing with it). */}
+        {tier !== 'low' && BEING_MODE !== 'points' && (
+          <NeuralAura
+            activity={activity}
+            mode={mode}
+            source={brainAsset.object}
+            uniforms={uniforms}
+            shells={tier === 'high' ? 2 : 1}
+            arrival={arrival}
+          />
+        )}
+        {BEING_MODE !== 'points' && (
+          <CorticalSignals
+            activity={activity}
+            source={brainAsset.object}
+            uniforms={uniforms}
+            count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
+          />
+        )}
+        {/* COMPUTER BRAIN INTERIOR: the node-network lattice (nodes + edges +
+            backbone bus, 3 draw calls). Mounts ONLY under NODE_BRAIN; rides the
+            group's scale/rotation/drift for free (brain-group-local coords). It
+            consumes uArrival/uBreath/uHold/uBurst from the shared uniforms; flip
+            NODE_BRAIN off to remove it and restore the canon organ cortex. */}
+        {NODE_BRAIN && (
+          <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} />
+        )}
+      </group>
+      <MaterializationLayer reducedMotion={reduceMotion} />
       {/* Anatomical callouts ride INSIDE the group: pinned to the lobes,
           breathing and banking with the organism. */}
       {SHOW_REGION_PINS && <RegionPins />}
+    </group>
+  );
+}
+
+function PointerBrainClone({
+  uniforms,
+  tier,
+  reducedMotion,
+}: {
+  uniforms: CognitionUniforms;
+  tier: QualityTier;
+  reducedMotion: boolean;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const materialOpacityRef = useRef(0);
+  const postureRef = useRef({ pitch: 0, roll: 0, offsetX: 0, offsetY: 0, offsetZ: 0, scaleBoost: 0 });
+  const { tabs, focusId, attention } = useTabStore();
+  const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
+  const orchestration = useMemo(
+    () => deriveLivingOrchestration({ tabs, focusId, attention }),
+    [tabs, focusId, attention],
+  );
+  const workspaceCount = orchestration.workspaceCount;
+  const brainPresence = useMemo(
+    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight, points: BEING_MODE === 'points' }),
+    [workspaceCount, viewportWidth, viewportHeight],
+  );
+  const brainPresenceRef = useRef(brainPresence);
+  const { scene } = useGLTF('/models/brain.glb');
+
+  const brainClone = useMemo(() => {
+    const clone = scene.clone(true);
+    applyRegionVertexColors(clone);
+    const material = makeBrainMaterial({ tier, uniforms, nodeBrain: false });
+    material.transparent = true;
+    material.opacity = 0;
+    material.depthWrite = false;
+    clone.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.material = material;
+        object.renderOrder = 18;
+      }
+    });
+    return { object: clone, materials: [material] };
+  }, [scene, tier, uniforms]);
+
+  useEffect(() => {
+    return () => {
+      brainClone.materials.forEach((material) => material.dispose());
+    };
+  }, [brainClone]);
+
+  useEffect(() => {
+    brainPresenceRef.current = brainPresence;
+  }, [brainPresence]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return undefined;
+    const host = window as typeof window & {
+      __getBrainPresenceLayout?: () => ReturnType<typeof deriveBrainPresenceLayout>;
+    };
+    host.__getBrainPresenceLayout = () => brainPresenceRef.current;
+    return () => {
+      delete host.__getBrainPresenceLayout;
+    };
+  }, []);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+    const postureTarget = deriveBrainAttentionPosture({
+      tabs,
+      focusId,
+      attention: orchestration.attention,
+      nowMs: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+    });
+    const postureMotionScale = reducedMotion ? 0.38 : 1;
+    const postureFollow = reducedMotion ? 9.5 : 5.4;
+    const posture = postureRef.current;
+    posture.pitch = THREE.MathUtils.damp(
+      posture.pitch,
+      postureTarget.pitch * 0.75 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.roll = THREE.MathUtils.damp(
+      posture.roll,
+      postureTarget.roll * 1.45 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.offsetX = THREE.MathUtils.damp(
+      posture.offsetX,
+      postureTarget.offsetX * 1.8 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.offsetY = THREE.MathUtils.damp(
+      posture.offsetY,
+      postureTarget.offsetY * 1.35 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.offsetZ = THREE.MathUtils.damp(
+      posture.offsetZ,
+      postureTarget.intensity * 0.12 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    posture.scaleBoost = THREE.MathUtils.damp(
+      posture.scaleBoost,
+      postureTarget.scaleBoost * 1.5 * postureMotionScale,
+      postureFollow,
+      delta,
+    );
+    const [baseX, baseY, baseZ] = brainPresence.miniBrainPosition;
+    const pointerInfluence = brainPresence.pointerInfluence * (reducedMotion ? 0.35 : 1);
+    const dockPostureTravel = brainPresence.mode === 'docked' ? 0.24 : 1;
+    const targetX = baseX + state.pointer.x * 1.46 * pointerInfluence + posture.offsetX * dockPostureTravel;
+    const targetY = baseY + state.pointer.y * 0.8 * pointerInfluence + posture.offsetY * dockPostureTravel;
+    const targetZ = baseZ + posture.offsetZ * dockPostureTravel;
+    const follow = reducedMotion ? 9.5 : 4.8;
+    groupRef.current.position.x = THREE.MathUtils.damp(groupRef.current.position.x, targetX, follow, delta);
+    groupRef.current.position.y = THREE.MathUtils.damp(groupRef.current.position.y, targetY, follow, delta);
+    groupRef.current.position.z = THREE.MathUtils.damp(groupRef.current.position.z, targetZ, follow, delta);
+    groupRef.current.lookAt(state.camera.position);
+    groupRef.current.rotation.x += posture.pitch;
+    groupRef.current.rotation.z += state.pointer.x * 0.08 * pointerInfluence + posture.roll;
+    const scale = BRAIN_SCALE * brainPresence.miniBrainScale * (1.04 + uniforms.uBreath.value * 0.022 + posture.scaleBoost);
+    groupRef.current.scale.setScalar(scale);
+
+    const opacityTarget = reducedMotion ? Math.min(0.58, brainPresence.miniBrainOpacity) : brainPresence.miniBrainOpacity;
+    materialOpacityRef.current = THREE.MathUtils.damp(materialOpacityRef.current, opacityTarget, 3.6, delta);
+    brainClone.materials.forEach((material) => {
+      material.opacity = materialOpacityRef.current;
+    });
+  });
+
+  return (
+    <group ref={groupRef} position={brainPresence.miniBrainPosition} scale={BRAIN_SCALE * brainPresence.miniBrainScale}>
+      <primitive object={brainClone.object} />
     </group>
   );
 }
@@ -955,7 +1125,7 @@ function CameraDrift({
       + Math.sin(time * 0.12) * 0.12
       + focus * 0.22
       + Math.sin(orbitAngle) * orbitRadius;
-    const targetY = 0.2
+    const targetY = -0.6
       + state.pointer.y * 0.15
       + Math.cos(time * 0.1) * 0.06
       + Math.cos(orbitAngle) * orbitRadius * 0.3;
@@ -964,7 +1134,7 @@ function CameraDrift({
     // impulse (decayed by the scene root over ~2s) dollies in by up to 0.45 —
     // issuing a command feels like the engine surging.
     const dollyWave = Math.sin(time * Math.PI * 2 * 0.04) * 0.12;
-    const targetZ = 7.5 - focus * 0.55 - activity * 0.14 // hero framing: zoomed out to 7.5 for soothing size
+    const targetZ = 9.6 - focus * 0.55 - activity * 0.14 // tall-being hero framing: pulled back to fit the full vertical CNS (brain crown → cauda-equina spray)
       + dollyWave
       - push.current.value * 0.45;
 
@@ -973,7 +1143,7 @@ function CameraDrift({
     state.camera.position.z = THREE.MathUtils.damp(state.camera.position.z, targetZ, 1.8, delta);
     // The lookAt leads the brain's lateral drift slightly — pursuit framing,
     // the camera chasing a mind in motion rather than panning a tripod.
-    state.camera.lookAt(brainDriftX(time) * 0.35, 0.62, -1.2);
+    state.camera.lookAt(brainDriftX(time) * 0.35, -1.6, -1.2);
 
     // Idle attract-mode pitch: a ±2° sine composed AFTER the lookAt as a
     // pure local-X rotation, scaled by the idle blend — zero effect until
@@ -990,6 +1160,9 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
   const directivePendingRef = useRef(false);
+  const replyGlowRef = useRef(0);
+  const metabolismRef = useRef(getTurnMetabolismSnapshot());
+  const metabolismColorRef = useRef(new THREE.Color(metabolismRef.current.tint));
   const uniforms = SCENE_UNIFORMS;
   
   const idleRef = useRef<IdleControllerState>({
@@ -1014,6 +1187,34 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   // operator's decision (approval-resolved) or when the conversation moves on.
   const holdRef = useRef({ active: false, breathAtHold: 0.5 });
 
+  // The being's posture, mirrored into a ref so the frame loop reads it
+  // without re-rendering. Reduced-motion is captured once and honored in the
+  // SAME frame logic below (no second code path, no auto-degrade of the look).
+  const reducedMotionRef = useRef(shouldReduceMotion());
+  const arrivalScalarRef = useRef(0); // shared with AccretionCore/CosmicBackground/NeuralAura
+  const postureRef = useRef({
+    state: LifecycleState.BOOTING as LifecycleState,
+    mode: ArrivalMode.COALESCENCE as ArrivalMode,
+    enteredAt: 0,
+  });
+  useEffect(
+    () =>
+      subscribeLifecycle((snap) => {
+        postureRef.current.state = snap.state;
+        if (snap.arrivalMode) postureRef.current.mode = snap.arrivalMode;
+        postureRef.current.enteredAt = performance.now();
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      subscribeTurnMetabolism((snapshot) => {
+        metabolismRef.current = snapshot;
+      }),
+    [],
+  );
+
   // Nervous system: a directive from the command bar surges the engine — an
   // immediate cognition burst plus a camera push impulse CameraDrift decays.
   // Burst / knowledge events additionally queue a thought-wave on the cortex,
@@ -1021,6 +1222,9 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   useEffect(
     () =>
       subscribeCognition((event) => {
+        // Cinematic priority: during the opening, the scene ignores ambient
+        // cognition so the coalescence isn't broken by stray bursts/waves.
+        if (postureRef.current.state === LifecycleState.ARRIVING) return;
         if (event.type === 'approval-required') {
           const hold = holdRef.current;
           hold.active = true;
@@ -1035,6 +1239,17 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           event.type === 'synthesis'
         ) {
           holdRef.current.active = false;
+        }
+        if (event.type === 'voice-speaking') {
+          const phase = String(event.data?.phase ?? '');
+          if (event.source === 'reply' && (phase === 'reply-start' || phase === 'reply' || phase === 'reply-complete')) {
+            replyGlowRef.current = Math.max(
+              replyGlowRef.current,
+              THREE.MathUtils.clamp(event.intensity ?? 0.72, 0.28, 1),
+            );
+            burstRef.current.intensity = Math.max(burstRef.current.intensity, 0.28);
+          }
+          return;
         }
         if (event.type === 'approval-resolved' && event.label === 'approved') {
           // The operator's decision executes: a thought-wave fires from the
@@ -1106,7 +1321,10 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   // a full 30 s quiet period following mount — never during the e2e window.
   useEffect(() => {
     const idle = idleRef.current;
-    idle.lastInputMs = performance.now();
+    // Infinity = "cannot go idle yet"; the frame loop stamps real "now" the
+    // moment the being reaches REST, so the idle clock starts only after the
+    // opening cinematic settles (never during arrival).
+    idle.lastInputMs = Number.POSITIVE_INFINITY;
     idle.progress = 0;
     idle.blend = 0;
     idle.wasIdle = false;
@@ -1137,6 +1355,24 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const time = state.clock.elapsedTime;
     const current = burstRef.current;
     const hold = holdRef.current;
+    const metabolism = metabolismRef.current;
+    const metabolismMotionScale = reducedMotionRef.current ? 0.35 : 1;
+    const metabolismRate =
+      metabolism.phase === 'error'
+        ? 7.2
+        : metabolism.phase === 'working'
+          ? 4.4
+          : metabolism.phase === 'thinking'
+            ? 2.8
+            : metabolism.phase === 'approval'
+              ? 1.2
+              : 1.8;
+    const metabolismPulse = reducedMotionRef.current
+      ? 0.5
+      : 0.5 + 0.5 * Math.sin(time * metabolismRate + metabolism.changedAt * 0.001);
+    // Reply speaking-glow lingers a touch longer so the cortex visibly brightens
+    // for the whole reply, not just per-chunk flickers (Phase-6 "it talks back").
+    replyGlowRef.current = THREE.MathUtils.damp(replyGlowRef.current, 0, 1.8, delta);
 
     // The hold blend eases in/out; while engaged the organism neither bursts,
     // free-associates, nor drifts into the idle attract mode.
@@ -1165,17 +1401,65 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     /* ── shared sentience uniforms: one write per frame drives every layer ── */
     uniforms.uTime.value = time;
 
+    /* ── opening envelopes: coalescence/awaken drive shader-side reveals ── */
+    const posture = postureRef.current;
+    const sinceState = performance.now() - posture.enteredAt;
+    let arrivalTarget = 0;
+    let igniteTarget = 0;
+    let awakenTarget = 0;
+    if (posture.state === LifecycleState.ARRIVING) {
+      if (reducedMotionRef.current) {
+        // Reduced-motion: skip the streaming coalescence/funnel (a vestibular
+        // trigger) and show the settled REST state now — final state preserved.
+        arrivalTarget = 0;
+        igniteTarget = 0;
+      } else {
+        const env = coalescenceEnvelope(sinceState);
+        // The cortex reveal/dim is shared by both arrival modes (dark -> light).
+        // COALESCENCE (first load) ALSO streams the knowledge field inward —
+        // uArrival drives the accretion inflow + star funnel; AWAKENING (every
+        // return) keeps the field calm so it reads as a distinct "it woke from
+        // a seed" beat, not a re-summoning of the whole field.
+        arrivalTarget = env.arrival;
+        // Both modes ignite from a seed (the single-shot flash in the cortex).
+        igniteTarget = ignitionPulse(sinceState);
+      }
+    } else if (posture.state === LifecycleState.ATTENTIVE) {
+      awakenTarget = reducedMotionRef.current ? 1 : awakenNotice(sinceState);
+    }
+    awakenTarget = Math.max(awakenTarget, replyGlowRef.current);
+    uniforms.uArrival.value = arrivalTarget;
+    uniforms.uIgnite.value = igniteTarget;
+    // AWAKENING return: the cortex still reveals/ignites, but the field stays
+    // calm — only COALESCENCE feeds the streaming inflow/funnel scalar.
+    arrivalScalarRef.current =
+      posture.state === LifecycleState.ARRIVING && posture.mode === ArrivalMode.AWAKENING
+        ? 0
+        : arrivalTarget;
+    // State-driven, interruptible (design law for the reaction): uAwaken eases
+    // toward its target so a second directive / pointer move retargets it
+    // smoothly and it never blocks input — never a looped pulse.
+    uniforms.uAwaken.value = THREE.MathUtils.damp(uniforms.uAwaken.value, awakenTarget, 6, delta);
+
     // Asymmetric 0.1 Hz systole layered with slower swells at decreasing
     // amplitude — never a constant ~1 Hz pulse.
     const systole = Math.pow(0.5 + 0.5 * Math.sin(time * 0.628), 1.8);
     const swell = 0.5 + 0.5 * Math.sin(time * TAU * 0.043 + 1.7);
     const tide = 0.5 + 0.5 * Math.sin(time * TAU * 0.017 + 4.2);
     const breath = systole * 0.62 + swell * 0.26 + tide * 0.12;
+    const metabolicBreath = THREE.MathUtils.clamp(
+      breath + metabolism.breathGain * metabolismMotionScale * (0.55 + metabolismPulse * 0.45),
+      0,
+      1.35,
+    );
     // The approval hold freezes the breath exactly where it was caught.
-    uniforms.uBreath.value = THREE.MathUtils.lerp(breath, hold.breathAtHold, holding);
-    uniforms.uRimGain.value = 1.4 * (0.85 + 0.3 * breath);   // ±15%
-    uniforms.uSssScale.value = 0.9 * (0.8 + 0.4 * breath);   // ±20%
-    uniforms.uBurst.value = current.intensity;
+    uniforms.uBreath.value = THREE.MathUtils.lerp(metabolicBreath, hold.breathAtHold, holding);
+    uniforms.uRimGain.value = 1.4 * (0.85 + 0.3 * uniforms.uBreath.value);
+    uniforms.uSssScale.value = 0.9 * (0.8 + 0.4 * uniforms.uBreath.value);
+    uniforms.uBurst.value = Math.max(
+      current.intensity,
+      metabolism.rootExcitation * metabolismMotionScale * (0.35 + metabolismPulse * 0.65),
+    );
 
     // Virtual rose backlight BEHIND the brain (view space, ~opposite the
     // camera), slowly orbiting ±15° so the transmission cue wanders.
@@ -1189,20 +1473,66 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       MODE_EMISSIVE[mode] ?? MODE_EMISSIVE.observe,
       Math.min(1, delta * 2.5),
     );
+    if (metabolism.phase !== 'rest') {
+      metabolismColorRef.current.set(metabolism.tint);
+      uniforms.uModeTint.value.lerp(
+        metabolismColorRef.current,
+        Math.min(1, delta * 3.1) * Math.min(0.72, metabolism.intensity * metabolismMotionScale),
+      );
+    }
     if (holding > 0.01) {
       uniforms.uModeTint.value.lerp(HOLD_TINT, Math.min(1, delta * 2.5) * holding);
     }
 
+    // ── Posture (spectral-v1): the whole body reads its state off its hue.
+    //    Damp toward the live lifecycle phase's posture color/flow so state
+    //    changes GLIDE. Tint stays low at rest (canon look) and rises once alive.
+    // An active CHAT turn (GagosChrome) drives the conversation posture with
+    // PRIORITY so the being visibly comes alive — thinking purple → streaming
+    // cyan → complete green — then falls back to the idle organism phase.
+    const livePhase = conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase();
+    const bodyPosture = deriveBodyPosture({ phase: livePhase });
+    const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
+    POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);
+    uniforms.uPosture.value.lerp(POSTURE_SCRATCH, Math.min(1, delta * 3.0));
+    // Each posture carries its OWN spectral-v1 tint strength (rest≈0 clean →
+    // stream/error strong) so every posture's intensity matches the demoplan;
+    // POSTURE_DIAL.brainScale is the global multiplier the operator tunes.
+    const postureTintTarget = Math.min(0.8, bodyPosture.tint * POSTURE_DIAL.brainScale);
+    uniforms.uPostureTint.value = THREE.MathUtils.damp(
+      uniforms.uPostureTint.value,
+      postureTintTarget * (reducedMotionRef.current ? 0.8 : 1),
+      2.5,
+      delta,
+    );
+    uniforms.uFlow.value = THREE.MathUtils.damp(
+      uniforms.uFlow.value,
+      bodyPosture.flow * POSTURE_DIAL.flowScale,
+      2.0,
+      delta,
+    );
+    uniforms.uPostureCommit.value = THREE.MathUtils.damp(
+      uniforms.uPostureCommit.value,
+      THREE.MathUtils.clamp(POSTURE_DIAL.commit, 0, 1),
+      2.5,
+      delta,
+    );
+
     /* ── thought-wave scheduler: Poisson-ish idle waves + event waves ── */
     const waves = waveRef.current;
     if (waves.nextAuto < 0) waves.nextAuto = time + 2 + waves.random() * 3;
-    if (holding < 0.5 && time >= waves.nextAuto) {
+    if (holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
       waves.pending.push(randomWaveOrigin(waves.random));
       waves.nextAuto = time + 3 + waves.random() * 5;
     }
 
     /* ── idle attract-mode: autonomous cognition after 30 s of no input ── */
     const idle = idleRef.current;
+    // Start the idle clock only once the opening has settled to REST — the
+    // attract-mode must never engage mid-arrival.
+    if (postureRef.current.state === LifecycleState.REST && idle.lastInputMs === Number.POSITIVE_INFINITY) {
+      idle.lastInputMs = performance.now();
+    }
     const idleForS = (performance.now() - idle.lastInputMs) / 1000;
     const isIdle = idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
     idle.progress = isIdle
@@ -1253,7 +1583,30 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
 
   return (
     <>
-      <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
+      {BEING_MODE === 'points' ? (
+        /* Poster framing: low FOV (near-orthographic flatness), dollied back,
+           front-on; orbit-able. Replaces the drifting cinematic camera in
+           points mode so the organism reads like the flat 2D poster. */
+        <>
+          {/* Clean knowledgeable void — no horizon/atmosphere layer (operator:
+              remove the translucent layer from the space). Identity/status live
+              in the 2D GagosChrome layer. */}
+          <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]} />
+          <OrbitControls
+            makeDefault
+            enablePan={false}
+            target={[0, -0.5, 0]}
+            enableDamping
+            dampingFactor={0.08}
+            minDistance={6}
+            maxDistance={40}
+            autoRotate={!reducedMotionRef.current}
+            autoRotateSpeed={VOYAGE_SPEED}
+          />
+        </>
+      ) : (
+        <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
+      )}
 
       {/* Cinematic deep space background */}
       {/* The sky serves the VOYAGE: the operator's knowledge field flying
@@ -1261,22 +1614,22 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           photographic dome sits far behind it for depth — it may add to the
           voyage, never replace it. (Dome skipped on low tier: the
           full-screen fbm pass is the budget, and the brain is the show.) */}
-      {sky === 'layered' && tier !== 'low' && (
+      {sky === 'layered' && tier !== 'low' && BEING_MODE !== 'points' && (
         <KnowledgeHorizon activity={activeBoost} />
       )}
-      <CosmicBackground tier={tier} />
+      <CosmicBackground tier={tier} arrival={arrivalScalarRef} />
 
       {/* The recall stream: distant glints are REAL trails from the pheromone
           map (strength = core brightness, walks = cage size, freshness =
           spin, quarantine = red stain); each absorb fires a label-anchored
           cortical burst at the matching anatomical region. Dormant when no
           trails are known — nothing pretends to arrive. */}
-      {tier !== 'low' && <CognitiveGrasp activity={activeBoost} />}
+      {tier !== 'low' && BEING_MODE !== 'points' && <CognitiveGrasp activity={activeBoost} />}
 
       {/* The brain's life written in stars — real trails only, see the
           component header. Outside Float: the galaxy is the world the mind
           moves through, not a passenger on its bob. */}
-      {SHOW_MEMORY_GALAXY && <MemoryGalaxy />}
+      {SHOW_MEMORY_GALAXY && BEING_MODE !== 'points' && <MemoryGalaxy />}
 
       {/* Post-processing lives ONLY in <PostFX/> (mounted below). A second
           EffectComposer here used to render the entire scene twice per frame
@@ -1295,13 +1648,24 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
-        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} />
-        <AccretionCore activity={activeBoost} burst={burstRef} />
+        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
+        {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
+        {BEING_MODE !== 'points' && (
+          <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />
+        )}
       </Float>
+
+      {tier !== 'low' && BEING_MODE !== 'points' && (
+        <PointerBrainClone uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
+      )}
       
-      {/* Kept OUTSIDE Float so the bottom wires stay rigidly attached to the static UI. 
-          The top wires plug deep inside the brain, so they just slide 0.1 units inside the brain as it bobs. */}
-      <NervousSystem burst={burstRef} uniforms={uniforms} />
+      {/* Kept OUTSIDE Float so the bottom wires stay rigidly attached to the static UI.
+          The top wires plug deep inside the brain, so they just slide 0.1 units inside the brain as it bobs.
+          In points mode the spine/roots are part of the BrainPointField cloud, so the
+          mesh nerve tree is gated off (it was the hot-green source). */}
+      {BEING_MODE !== 'points' && (
+        <NervousSystem burst={burstRef} uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />
+      )}
 
       <PostFX />
     </>

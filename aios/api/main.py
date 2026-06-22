@@ -23,6 +23,7 @@ import json
 import re
 import secrets
 import sys
+import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
@@ -117,7 +118,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI OS - Jarvis",
+    title="GAGOS - AI OS",
     version=aios.__version__,
     summary="Local-first, memory-driven, security-gated, human-supervised AI OS.",
     lifespan=lifespan,
@@ -125,12 +126,40 @@ app = FastAPI(
 
 # Browser clients (the Vite front-end) run on a different origin, so the API
 # must opt them in explicitly. Origins come from config (env-overridable).
+#
+# P0 guard: with allow_credentials=True the CORS spec forbids a wildcard origin,
+# and a "*" or host-less/malformed entry in AIOS_CORS_ORIGINS would silently
+# widen credentialed cross-origin access. Validate at import/startup and FAIL
+# CLOSED (refuse to serve) rather than ship a dangerous config. Methods and
+# headers are also narrowed from "*" to the surface the front-end actually uses.
+def _validate_cors_origins(origins: tuple[str, ...]) -> list[str]:
+    """Reject wildcard/host-less origins so credentialed CORS can't widen silently."""
+    from urllib.parse import urlparse
+
+    validated: list[str] = []
+    for origin in origins:
+        if origin == "*":
+            raise RuntimeError(
+                "AIOS_CORS_ORIGINS may not contain '*' while credentials are "
+                "allowed (the CORS spec forbids it; it would widen credentialed "
+                "cross-origin access). List explicit scheme://host[:port] origins."
+            )
+        parsed = urlparse(origin)
+        if not parsed.scheme or not parsed.netloc:
+            raise RuntimeError(
+                f"AIOS_CORS_ORIGINS entry {origin!r} is not a valid origin "
+                "(expected scheme://host[:port])."
+            )
+        validated.append(origin)
+    return validated
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list(config.API_CORS_ORIGINS),
+    allow_origins=_validate_cors_origins(config.API_CORS_ORIGINS),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 @app.middleware("http")
@@ -480,7 +509,11 @@ class ChatRequest(BaseModel):
     not the agentic forge.
     """
 
-    transcript: str = Field(..., description="The operator's spoken/typed turn.")
+    transcript: str = Field(
+        ...,
+        max_length=8000,
+        description="The operator's spoken/typed turn (input-shielded: capped length).",
+    )
     session_id: str = Field("voice-session", alias="sessionId")
     model_id: Optional[str] = Field(None, alias="modelId")
 
@@ -735,6 +768,33 @@ def reconcile_fact(
     if not result.committed:
         raise HTTPException(status_code=422, detail=result.reason)
     return asdict(result)
+
+
+@app.get("/api/v1/memory/facts/graph")
+def memory_facts_graph(
+    start: str,
+    depth: int = 2,
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> dict[str, Any]:
+    """Multi-hop fact-graph traversal from *start* — the transitive reasoning
+    single-hop ``facts_for`` cannot do (G1). Read-only: returns the active-fact
+    edges reachable within *depth* hops, each with its hop ``depth`` and a
+    ``path``, so the planner (or the lattice's fact view) can reason over
+    transitive knowledge. ``depth`` is clamped to [1, 4] in ``traverse``."""
+    if not start.strip():
+        raise HTTPException(status_code=422, detail="start is required")
+    rows = facts.traverse(start, max_depth=depth)
+    edges = [
+        {
+            "subject": r["subject"],
+            "predicate": r["predicate"],
+            "object": r["object"],
+            "depth": r["depth"],
+            "path": r["path"],
+        }
+        for r in rows
+    ]
+    return {"start": start.strip(), "depth": max(1, min(int(depth), 4)), "edges": edges}
 
 
 @app.get("/api/v1/development/metrics")
@@ -1402,13 +1462,14 @@ _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
 _EPISODIC = EpisodicMemory()
 
 
-#: System prompt for the lean conversational endpoint (the "Jarvis" voice mind,
+#: System prompt for the lean conversational endpoint (the GAGOS voice mind,
 #: Slice 1). It is CONVERSATION, not the coding forge: no file edits, no tool
 #: loop — just a warm, technically deep Hinglish chat. The operator-facts context
 #: block (REAL approved facts only; absent when none) is appended at request time,
 #: and the honesty law is stated inline so the model never invents personal facts.
 CHAT_SYSTEM_PROMPT = (
-    "Tu operator ka personal AI-OS hai — uska apna 'Jarvis'. Tu ek saathi ki "
+    "Tu GAGOS hai — operator ka personal AI-OS, 'the voyaging mind'. Tera naam HAMESHA "
+    "GAGOS hai; tu KABHI khud ko 'Jarvis' ya kisi aur naam se nahi bulata. Tu ek saathi ki "
     "tarah baat karta hai: natural HINGLISH mein (English aur Hindi ka fluid mix), "
     "jaise operator khud likhta/bolta hai — uske tone aur mix ko match kar. "
     "Concise reh, warm reh, lekin technically deep — code, architecture, ya kuch "
@@ -1948,10 +2009,16 @@ def generate(
             # Reuse pheromone: trails that were recalled into this turn's
             # context share its verifier verdict — minus the trail the agent
             # re-walked directly, which record_attempt already credited.
+            # Exclude ONLY the trail the agent re-walked directly (already credited
+            # by record_attempt) so it isn't double-credited. When direct_id is
+            # None (no direct walk, or record_attempt failed) there is nothing to
+            # exclude, so every recalled trail correctly earns reuse credit. The
+            # explicit None check documents that intent (the old `!= direct_id` was
+            # an always-true int-vs-None compare — same behavior, but a smell).
             reused_ids = [
                 int(s["skill_id"])
                 for s in recalled_skills
-                if int(s["skill_id"]) != direct_id
+                if direct_id is None or int(s["skill_id"]) != direct_id
             ]
             if reused_ids:
                 try:
@@ -2135,6 +2202,47 @@ def generate(
     )
 
 
+# --- /api/v1/chat input-shield: per-session sliding-window flood throttle ----
+# The voice/chat path is the one endpoint that takes free-form operator text and
+# fans it straight at a (possibly cloud) provider with the operator's recalled
+# facts attached. The Pydantic ``max_length`` cap bounds a single turn; this
+# bounds the RATE so a stuck client (or a tab left auto-sending) cannot flood the
+# router. It is deliberately lightweight and in-process (best-effort, per-worker),
+# distinct from the durable security RateLimiter that governs RED actions.
+_CHAT_RATE_WINDOW_S = 60.0
+_CHAT_RATE_MAX = 30
+_CHAT_HITS: dict[str, list[float]] = {}
+
+
+def _enforce_chat_rate_limit(session_id: str) -> None:
+    """Raise HTTP 429 if a session exceeds ``_CHAT_RATE_MAX`` turns per window.
+
+    A simple monotonic sliding window keyed by session id. Best-effort and
+    in-process; the deterministic security cage (gateway, scope lock, audit) is
+    unaffected — this only protects the conversational fan-out from flooding.
+    """
+    now = time.monotonic()
+    cutoff = now - _CHAT_RATE_WINDOW_S
+    # BUG-F fix: evict fully-expired sessions so the map can't grow without bound
+    # as fresh session ids keep arriving (each browser session mints a new one).
+    # Previously every session left a key forever. This bounds the map to
+    # sessions active within the window.
+    for sid in [s for s, ts in _CHAT_HITS.items() if not any(t > cutoff for t in ts)]:
+        del _CHAT_HITS[sid]
+    hits = [t for t in _CHAT_HITS.get(session_id, ()) if t > cutoff]
+    if len(hits) >= _CHAT_RATE_MAX:
+        _CHAT_HITS[session_id] = hits
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Too many chat turns; slow down. "
+                f"Limit is {_CHAT_RATE_MAX} per {int(_CHAT_RATE_WINDOW_S)}s."
+            ),
+        )
+    hits.append(now)
+    _CHAT_HITS[session_id] = hits
+
+
 @app.post("/api/v1/chat")
 def chat(
     req: ChatRequest,
@@ -2161,6 +2269,7 @@ def chat(
     completed turn is embedded into L3 (self-reinforcing recall), exactly like
     ``/api/generate``. Best-effort persistence never breaks the chat.
     """
+    _enforce_chat_rate_limit(req.session_id)
     user_text = req.transcript.strip()
     # Route by purpose (general for chitchat, coding for code talk, etc.). The
     # privacy gate lives inside _select_chat_client via _router_policy(): with the

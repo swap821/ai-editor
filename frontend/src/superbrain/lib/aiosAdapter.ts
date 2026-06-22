@@ -17,6 +17,7 @@
 
 import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
+import { getSessionId } from './sessionId';
 
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://127.0.0.1:8000';
@@ -31,25 +32,11 @@ function authHeaders(): Record<string, string> {
   return AIOS_TOKEN ? { Authorization: `Bearer ${AIOS_TOKEN}` } : {};
 }
 
-// One session per operator, SHARED with the classic UI (same localStorage key)
-// so both faces of the AI-OS continue the SAME conversation. SSR-safe; falls
-// back to the original constant when storage is unavailable.
-const SESSION_ID: string = (() => {
-  if (typeof window === 'undefined') return 'gag-superbrain-hud';
-  try {
-    const KEY = 'aios_session_id';
-    const existing = window.localStorage.getItem(KEY);
-    if (existing) return existing;
-    const created =
-      typeof window.crypto?.randomUUID === 'function'
-        ? window.crypto.randomUUID()
-        : `sb-${Date.now().toString(36)}`;
-    window.localStorage.setItem(KEY, created);
-    return created;
-  } catch {
-    return 'gag-superbrain-hud';
-  }
-})();
+// One session per operator, SHARED with the classic UI and the workbench organs
+// (the same persisted `aios_session_id`) so every face of the AI-OS continues
+// the SAME conversation. Single-sourced in ./sessionId — read-or-create-persist,
+// SSR-safe — so the four faces can never drift apart.
+const SESSION_ID: string = getSessionId();
 
 // ---------------------------------------------------------------- directives
 
@@ -191,6 +178,31 @@ export function getPendingApproval(): PendingApproval | null {
   return pendingApproval;
 }
 
+type ApprovalListener = (pending: PendingApproval | null) => void;
+const approvalListeners = new Set<ApprovalListener>();
+
+/** Subscribe to the PERSISTED pending-approval truth — the single source of
+ *  truth the approval UI binds to. The listener is invoked IMMEDIATELY with the
+ *  current value (so a late subscriber, or one that missed the transient
+ *  'approval-required' bus event, still gets the real state) and again on every
+ *  change. Returns an unsubscribe. A supervised pause must never be left
+ *  un-actionable; binding the panel here, not to a fire-and-forget event,
+ *  guarantees that. */
+export function subscribePendingApproval(listener: ApprovalListener): () => void {
+  approvalListeners.add(listener);
+  listener(pendingApproval);
+  return () => {
+    approvalListeners.delete(listener);
+  };
+}
+
+/** The ONLY writer of `pendingApproval`: assigns then notifies subscribers, so
+ *  the persisted truth and every bound surface can never drift apart. */
+function setPendingApprovalState(next: PendingApproval | null): void {
+  pendingApproval = next;
+  for (const listener of approvalListeners) listener(next);
+}
+
 function captureApproval(text: string, data: Record<string, unknown>): void {
   const input = (data.input ?? {}) as Record<string, unknown>;
   const commands = Array.isArray(input.commands) ? input.commands : [];
@@ -209,7 +221,7 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
   };
   const kind: PendingApproval['kind'] =
     creations.length > 0 ? 'create' : edits.length > 0 ? 'edit' : commands.length > 0 ? 'command' : 'other';
-  pendingApproval = {
+  setPendingApprovalState({
     token: String(input.approvalToken ?? ''),
     prompt: text,
     summary: String(data.text ?? 'Approval required'),
@@ -219,7 +231,7 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
     kind,
     filepath: kind === 'create' ? firstPath(creations) : kind === 'edit' ? firstPath(edits) : '',
     content: kind === 'create' ? firstContent(creations) : '',
-  };
+  });
 }
 
 async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResult> {
@@ -259,10 +271,12 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
           });
           break;
         case 'code': {
-          // Generated code used to vanish into the default branch — at
-          // minimum the organism announces the artifact honestly.
+          // Generated code used to vanish into the default branch. Capture it so
+          // the forge can surface the brain's ACTUAL emitted code
+          // (getLastEmittedCode), then announce the artifact honestly on the bus.
           const code = String(frame.data.code ?? '');
           const language = String(frame.data.language ?? 'text');
+          lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
           publishCognition({
             type: 'knowledge-acquired',
             label: 'CODE EMITTED',
@@ -357,8 +371,74 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
 
 /** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
 export async function sendDirective(text: string): Promise<DirectiveResult> {
-  pendingApproval = null;
+  setPendingApprovalState(null);
   return streamTurn(text, []);
+}
+
+/** Stream one CONVERSATIONAL turn through the Jarvis voice mind (POST
+ *  /api/v1/chat) and narrate it on the bus. This is the spoken channel: it is a
+ *  DIRECTIVE/conversation, never consent — the endpoint runs NO tools and has NO
+ *  approval mechanism, so a spoken word can never redeem an approval token (a
+ *  spoken "yes" cannot authorize anything; the agentic forge stays on the typed
+ *  sendDirective path). Reuses the adapter's base/auth/shared-session + SSE
+ *  reader, and publishes ONLY existing cognition events (directive on send, the
+ *  real route, synthesis on done) so the brain reacts through its current
+ *  handlers and the conversation organs refresh — no new scene wiring. `onChunk`
+ *  reports the reply as it streams; resolves with the full reply or throws on a
+ *  transport/backend error (callers surface it honestly, never a fake reply). */
+export async function sendVoiceTurn(
+  transcript: string,
+  opts: { onChunk?: (reply: string) => void } = {},
+): Promise<string> {
+  const text = transcript.trim();
+  if (!text) return '';
+  publishCognition({ type: 'directive', label: text.slice(0, 80), intensity: 1, source: 'voice' });
+  let reply = '';
+  try {
+    const response = await fetch(`${AIOS_BASE}/api/v1/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ transcript: text, sessionId: SESSION_ID }),
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`voice backend responded ${response.status}`);
+    }
+    for await (const frame of readSse(response.body)) {
+      const data = frame.data as Record<string, unknown>;
+      if (frame.event === 'text_chunk') {
+        reply += String(data.text ?? '');
+        opts.onChunk?.(reply);
+      } else if (frame.event === 'route' && typeof data.model === 'string' && data.model) {
+        publishCognition({
+          type: 'route',
+          label: 'ACTIVE BRAIN',
+          detail: `${String(data.provider ?? '?')}:${String(data.model)} (${String(data.privacy ?? '?')})`,
+          intensity: 0.3,
+          source: 'aios',
+          data,
+        });
+      } else if (frame.event === 'error') {
+        throw new Error(String(data.text ?? 'The voice mind could not answer.'));
+      }
+    }
+    publishCognition({
+      type: 'synthesis',
+      label: 'SYNTHESIS COMPLETE',
+      detail: reply.slice(0, 140) || 'voice reply received',
+      intensity: 0.6,
+      source: 'aios',
+    });
+    return reply;
+  } catch (err) {
+    publishCognition({
+      type: 'synthesis',
+      label: 'LINK OFFLINE',
+      detail: 'Voice mind unreachable — the reply did not arrive.',
+      intensity: 0.3,
+      source: 'aios',
+    });
+    throw err;
+  }
 }
 
 /** The operator authorizes: redeem the capability by replaying the turn with
@@ -367,7 +447,7 @@ export async function sendDirective(text: string): Promise<DirectiveResult> {
 export async function approvePendingApproval(): Promise<DirectiveResult> {
   const pending = pendingApproval;
   if (!pending?.token) return { ok: false, paused: false, answer: '' };
-  pendingApproval = null;
+  setPendingApprovalState(null);
   publishCognition({
     type: 'approval-resolved',
     label: 'approved',
@@ -385,7 +465,7 @@ export async function approvePendingApproval(): Promise<DirectiveResult> {
 export async function rejectPendingApproval(): Promise<void> {
   const pending = pendingApproval;
   if (!pending?.token) return;
-  pendingApproval = null;
+  setPendingApprovalState(null);
   let confirmed = false;
   try {
     const response = await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
@@ -497,6 +577,14 @@ export function getKnownTrails(): readonly TrailRow[] {
   return knownTrails;
 }
 
+/** The brain's most-recent emitted code artifact (the `code` SSE frame), captured
+ *  so the forge can show what it actually wrote (was previously discarded). Null
+ *  until the first emission this session. */
+let lastEmittedCode: { code: string; language: string; filepath: string } | null = null;
+export function getLastEmittedCode(): { code: string; language: string; filepath: string } | null {
+  return lastEmittedCode;
+}
+
 /** The earned-autonomy ledger as of the last poll (null offline / older backend). */
 export function getAutonomy(): AutonomySnapshot | null {
   return lastAutonomy;
@@ -519,7 +607,7 @@ export function __resetAiosAdapterForTests(): void {
   seenTrailStatus.clear();
   linkUp = false;
   knownTrails = [];
-  pendingApproval = null;
+  setPendingApprovalState(null);
   lastTelemetry = null;
   pollCount = 0;
   chainValid = null;
@@ -718,6 +806,41 @@ export async function pollOnce(): Promise<void> {
         data: { link: false },
       });
     }
+  }
+}
+
+/* -------------------------------------------------------- facts graph */
+
+/** A single edge from the backend knowledge-graph. */
+export interface FactEdge {
+  subject: string;
+  predicate: string;
+  object: string;
+  depth: number;
+}
+
+interface FactGraphResponse {
+  edges?: FactEdge[];
+}
+
+/**
+ * Fetch the knowledge-graph neighbourhood around `start`.
+ * Returns the edge array, or [] on any error (never throws).
+ */
+export async function fetchFactGraph(
+  start = 'project',
+  depth = 2,
+): Promise<FactEdge[]> {
+  try {
+    const res = await fetch(
+      `${AIOS_BASE}/api/v1/memory/facts/graph?start=${encodeURIComponent(start)}&depth=${depth}`,
+      { headers: authHeaders() },
+    );
+    if (!res.ok) return [];
+    const body = (await res.json()) as FactGraphResponse;
+    return Array.isArray(body.edges) ? body.edges : [];
+  } catch {
+    return [];
   }
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
@@ -81,6 +81,7 @@ const SHELL_VERTEX_SHADER = /* glsl */ `
 const MEMBRANE_FRAGMENT_SHADER = /* glsl */ `
   uniform float uBreath;
   uniform float uBurst;
+  uniform float uArrival;
 
   varying vec3 vNormalV;
   varying vec3 vViewDirV;
@@ -96,6 +97,10 @@ const MEMBRANE_FRAGMENT_SHADER = /* glsl */ `
     float a = pow(max(0.6 - dot(N, V), 0.0), 4.0);
     a = min(a * (0.85 + 0.30 * uBreath + uBurst * 0.45), 0.25);
 
+    // Coalescence reveal: the membrane emerges (alpha 0) as the cortex
+    // condenses; full canon strength at rest (uArrival==0 -> *1.0).
+    a *= 1.0 - uArrival;
+
     // Region-tinted atmosphere: additive output peaks at 1.4 * 0.25 = 0.35.
     gl_FragColor = vec4(vColorV * 1.4, a);
   }
@@ -104,6 +109,7 @@ const MEMBRANE_FRAGMENT_SHADER = /* glsl */ `
 const CORE_FRAGMENT_SHADER = /* glsl */ `
   uniform float uBreath;
   uniform float uBurst;
+  uniform float uArrival;
 
   varying vec3 vNormalV;
   varying vec3 vViewDirV;
@@ -117,6 +123,10 @@ const CORE_FRAGMENT_SHADER = /* glsl */ `
     // ghosting through the dark cortex, the opposite falloff of a rim glow.
     float facing = pow(clamp(dot(N, V), 0.0, 1.0), 2.0);
     float a = min(facing * (0.70 + 0.45 * uBreath + uBurst * 0.50), 1.0);
+
+    // Coalescence reveal: the nucleus interior glow emerges as the cortex
+    // condenses; full canon strength at rest (uArrival==0 -> *1.0).
+    a *= 1.0 - uArrival;
 
     // The cortex SSS rose hue with a regional whisper, held at ~0.4 luminance
     // so the nucleus reads as interior light, never bloom.
@@ -230,6 +240,7 @@ export default function NeuralAura({
   source,
   uniforms,
   shells: shellBudget = 2,
+  arrival,
 }: {
   activity: number;
   mode: CognitiveMode;
@@ -238,9 +249,13 @@ export default function NeuralAura({
   uniforms: CognitionUniforms;
   /** Shell budget (quality tier): 2 = membrane + nucleus, 1 = membrane only. */
   shells?: 1 | 2;
+  /** Shared coalescence scalar: 1 = arriving (shells faded out), 0 = settled. */
+  arrival?: MutableRefObject<number>;
 }) {
   const sparkMaterialRef = useRef<THREE.ShaderMaterial>(null);
   const smoothedActivityRef = useRef(THREE.MathUtils.clamp(activity, 0, 1));
+  // One shared arrival leaf for both shell materials — written once per frame.
+  const arrivalUniformRef = useRef({ value: 0 });
 
   const sparkData = useMemo(() => createSparkData(), []);
 
@@ -261,7 +276,7 @@ export default function NeuralAura({
   // region map as the cortex for free. Only the materials are replaced.
   const shells = useMemo(() => {
     const membraneMaterial = new THREE.ShaderMaterial({
-      uniforms: { uBreath: uniforms.uBreath, uBurst: uniforms.uBurst },
+      uniforms: { uBreath: uniforms.uBreath, uBurst: uniforms.uBurst, uArrival: arrivalUniformRef.current },
       vertexShader: SHELL_VERTEX_SHADER,
       fragmentShader: MEMBRANE_FRAGMENT_SHADER,
       vertexColors: true,
@@ -272,7 +287,7 @@ export default function NeuralAura({
       toneMapped: false,
     });
     const coreMaterial = new THREE.ShaderMaterial({
-      uniforms: { uBreath: uniforms.uBreath, uBurst: uniforms.uBurst },
+      uniforms: { uBreath: uniforms.uBreath, uBurst: uniforms.uBurst, uArrival: arrivalUniformRef.current },
       vertexShader: SHELL_VERTEX_SHADER,
       fragmentShader: CORE_FRAGMENT_SHADER,
       vertexColors: true,
@@ -350,6 +365,10 @@ export default function NeuralAura({
     if (sparkMaterialRef.current) {
       sparkMaterialRef.current.uniforms.uActivity.value = smoothedActivityRef.current;
     }
+
+    // Coalescence reveal for the shells (membrane + nucleus). One write feeds
+    // both materials via the shared leaf; 0 at rest keeps canon strength.
+    arrivalUniformRef.current.value = arrival?.current ?? 0;
   });
 
   // Wrapper groups scale each shell about the measured brain CENTER (not the

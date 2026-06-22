@@ -69,9 +69,10 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173`. The default mount is the **superbrain** UI (a 3D
-"voyaging mind" whose nervous system controls the work surfaces); the classic IDE
-shell is at `?ui=classic`. Both talk to the same backend. The model picker defaults
+Open `http://localhost:5173`. Since the 2026-06-21 single-frontend collapse the only
+UI is **GAGOS — the points-being** at the clean root `/` (no URL params): a 3D
+"voyaging mind" point-field whose nervous system materializes the work surfaces.
+(The classic IDE shell and all `?ui=` routes were removed.) The model picker defaults
 to `Auto`, which runs the **cross-provider router**: it picks the best model for the
 task, staying on local Ollama unless the operator has opted a task class into the
 cloud. The privacy
@@ -92,8 +93,9 @@ npm test
 npm run build
 ```
 
-Current local verification target: Python suite `516 passed, 1 skipped`, plus
-frontend Vitest `24 passed`.
+Current local verification target: a green run — Python suite `556 passed, 1 skipped`
+and frontend Vitest `65 passed` (as of 2026-06-15; run `pytest -q` / `npm test` for the
+live counts, which grow as tests land — trust the run, not the number).
 
 ## Communication Alignment Loop
 
