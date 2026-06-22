@@ -5,6 +5,9 @@ export interface PointFieldUniformOverrides {
   uTime?: { value: number };
   uPostureColor?: { value: THREE.Color };
   uPostureTint?: { value: number };
+  /** Shared organism breath (asymmetric metabolic systole). Pass the scene's
+   *  uBreath so the points breathe on the SAME clock as the mesh/nerves/aura. */
+  uBreath?: { value: number };
 }
 
 const VERTEX = /* glsl */ `
@@ -13,6 +16,7 @@ const VERTEX = /* glsl */ `
   uniform float uSize;       // base point size in CSS px
   uniform float uAttenK;     // 0 = flat poster (constant size), ~0.3 = weak depth
   uniform float uTime;       // shared scene clock — drives breathe/flow
+  uniform float uBreath;     // shared organism breath (asymmetric systole) — phase-lock
   uniform float uGrow;       // 0 = no breath, 1 = full breath gain
   uniform float uFlowSpeed;  // body-axis flow-band sweep speed
   uniform float uArrival;    // 0 = scattered inrush origin, 1 = condensed in place
@@ -35,10 +39,13 @@ const VERTEX = /* glsl */ `
     vSeed = aPhase;
     vAxis = aBand;
     vec3 p = position;
-    // BREATHE: coherent whole-body inhale/exhale along the surface normal
-    // (shared phase), plus a tiny per-point shimmer so the surface lives.
-    float breath = 0.5 + 0.5 * sin(uTime * 2.5);
-    p += aNormal * (uGrow * 0.014 * length(position) * breath);
+    // BREATHE: coherent whole-body inhale/exhale along the surface normal, driven
+    // by the SHARED organism breath (uBreath — the same asymmetric metabolic
+    // systole the mesh/nerves/aura ride), so brain + spine breathe as ONE clock
+    // instead of a separate fast sine (the dual-rhythm the poster-gap audit
+    // flagged). A tiny per-point shimmer keeps each puncta individually alive on
+    // top of the coherent breath.
+    p += aNormal * (uGrow * 0.014 * length(position) * uBreath);
     p += aNormal * 0.002 * sin(uTime * 1.7 + aPhase);
     // FLOW BAND: a soft gaussian highlight sweeping the body axis (subtle on the
     // brain; reads strongly down the spine).
@@ -202,6 +209,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uHazeStrength: { value: 0.45 }, // subtle depth recession; raise on the RTX for a deeper poster slab. Dial: window.__POINTFIELD.uHazeStrength
       uRolloffKnee: { value: 1.6 },   // luminance below this is untouched (the crisp field holds). Dial: window.__POINTFIELD.uRolloffKnee
       uRolloff: { value: 0.5 },       // compress only the hottest cores so they stay colored. Dial: window.__POINTFIELD.uRolloff
+      uBreath: overrides.uBreath ?? { value: 0.5 }, // shared organism breath (0.5 = rest midpoint); pass scene uBreath to phase-lock
       uGrow: { value: 0 },
       uFlow: { value: 0.16 },
       uFlowSpeed: { value: 0.16 },
@@ -217,6 +225,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v18';
+  material.customProgramCacheKey = () => 'pointfield_v19';
   return material;
 }
