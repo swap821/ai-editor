@@ -85,6 +85,7 @@ const FRAGMENT = /* glsl */ `
   uniform float uAwaken;      // conversation: the cortex HEATS while the being notices/converses (cortex-weighted luminance)
   uniform float uStatePulse;  // orchestration: "nerves carry the state" — a luminance pulse travels the spine/roots while working
   uniform float uReabsorbGlow; // reabsorption: the brain INHALES — a soft glow as a tab's energy returns up into the cortex
+  uniform float uReplyRise;   // conversation: 0 idle .. 1 reply active — a luminance bead-band climbs the spine (vAxis 0->1) into the cortex as the being speaks back
   void main() {
     // Soft round sprite — rebuilt from the known-good base (1-d*2 stays in [0,1],
     // so pow() never goes NaN; the old smoothstep/fog path was producing NaN that
@@ -124,7 +125,15 @@ const FRAGMENT = /* glsl */ `
     // REABSORPTION (poster phase 7): the brain INHALES — a soft cortex-weighted
     // glow as a finished tab's energy returns up the spine into the being.
     float reabsorbGlow = clamp(uReabsorbGlow, 0.0, 1.0) * smoothstep(0.45, 1.0, vAxis) * 0.55;
-    gl_FragColor = vec4(c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow), intensity);
+    // REPLY RISE (poster phase 2/3): "response flows back UP the spine". While the
+    // being speaks, a gaussian bead-band climbs the body axis roots(0)->cortex(1),
+    // gated by uReplyRise so it fades in/out with the reply. Luminance only (hue
+    // preserved, sacred palette) — the climb hands off into the uAwaken cortex heat.
+    float riseActive = clamp(uReplyRise, 0.0, 1.0);
+    float riseCenter = fract(uTime * 0.6);
+    float riseBand = exp(-pow((vAxis - riseCenter) / 0.14, 2.0));
+    float replyRise = riseActive * riseBand * 0.9;
+    gl_FragColor = vec4(c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise), intensity);
   }
 `;
 
@@ -145,6 +154,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uAwaken: { value: 0 },       // conversation cortex-heat (cortex-weighted luminance, no hue change)
       uStatePulse: { value: 0 },   // orchestration spine state-pulse (spine-weighted luminance, no hue change)
       uReabsorbGlow: { value: 0 }, // reabsorption brain-inhale glow (cortex-weighted luminance, no hue change)
+      uReplyRise: { value: 0 },    // conversation reply rise-band (spine->cortex luminance, no hue change)
       uGrow: { value: 0 },
       uFlow: { value: 0.16 },
       uFlowSpeed: { value: 0.16 },
@@ -160,6 +170,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v14';
+  material.customProgramCacheKey = () => 'pointfield_v15';
   return material;
 }

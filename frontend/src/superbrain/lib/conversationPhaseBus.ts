@@ -83,3 +83,14 @@ export function __resetConversationPhaseForTests(): void {
   state = { phase: 'idle', since: 0 };
   listeners.clear();
 }
+
+// Dev-only live hook (mirrors window.__POINTFIELD / __NODELATTICE): preview any
+// conversation posture in the real browser without waiting on a backend turn —
+// e.g. window.__GAGCONV.set('streaming') to watch the reply rise-band climb the
+// spine + the cortex heat, then .set('idle') to release. Skipped in production.
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as unknown as { __GAGCONV?: unknown }).__GAGCONV = {
+    set: (phase: ConversationPhase) => setConversationPhase(phase),
+    get: () => getConversationPhase(),
+  };
+}

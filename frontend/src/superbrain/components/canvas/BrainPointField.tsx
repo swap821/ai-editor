@@ -199,14 +199,23 @@ export default function BrainPointField({
     // here we only damp a few scalar uniforms via ref (zero per-point CPU).
     // A live chat turn drives the gesture targets (faster flow while streaming),
     // with priority over the idle organism phase.
-    const phase = conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase();
+    const organismPhase = getOrganismPhase();
+    const convPhase = getConversationPhase();
+    const phase = conversationToOrganismPhase(convPhase) ?? organismPhase;
     const t = lifecycleTargets(phase);
-    // Orchestrating/working: the brain cloud fades to ~50% so the inner memory-
-    // node lattice shows through (operator's reveal-while-working idea).
-    const bodyTarget =
-      kind === 'brain' && (phase === 'working' || phase === 'conducting' || phase === 'materializing')
-        ? 0.28
-        : 1.0;
+    // A pure CHAT reply streams with conversation phase 'streaming' (work-intent
+    // turns deliberately set conversation to 'idle' so the lifecycle drives the
+    // body — see GagosChrome). So 'streaming' here means the being is SPEAKING
+    // BACK, not working a tab.
+    const replyStreaming = convPhase === 'streaming';
+    // Orchestrating/working: the brain cloud fades so the inner memory-node lattice
+    // shows through (operator's reveal-while-working idea). Gate this on the REAL
+    // lifecycle phase only — NEVER on a conversation reply. Previously a chat reply
+    // mapped 'streaming'->'working' and wrongly dimmed the being mid-speech, the
+    // opposite of the poster law (the cortex BRIGHTENS as it speaks, it never fades).
+    const realWork =
+      organismPhase === 'working' || organismPhase === 'conducting' || organismPhase === 'materializing';
+    const bodyTarget = kind === 'brain' && realWork && !replyStreaming ? 0.28 : 1.0;
     // ARRIVAL bridge (poster phase 1): the scene's cinematic uArrival is INVERTED
     // from the point material's (scene: 1=mid-arrival/scattered, 0=settled; point
     // material: 0=scattered inrush origin, 1=condensed). Bridge them so the cloud
@@ -236,10 +245,24 @@ export default function BrainPointField({
     // intake) so it never fights the working-phase memory-node reveal (which
     // dims the cloud). Luminance only — the fragment weights it to the cortex.
     if (u.uAwaken) {
-      const awakenTarget = phase === 'attentive' || phase === 'intake' ? 1 : 0;
+      // Cortex HEATS while the being notices (thinking = attentive/intake) AND
+      // while it SPEAKS BACK (reply streaming) — the poster's "cortex brightens as
+      // it speaks". Luminance only (the fragment weights it to the head/cortex).
+      const awakenTarget =
+        phase === 'attentive' || phase === 'intake' ? 1 : replyStreaming ? 0.9 : 0;
       u.uAwaken.value = reduce
         ? awakenTarget
         : THREE.MathUtils.damp(u.uAwaken.value, awakenTarget, 4, delta);
+    }
+    // REPLY RISE (poster phase 2/3): while the being speaks back, a luminance
+    // bead-band climbs the spine into the cortex ("response flows back UP the
+    // spine"). Reduced motion: no travelling band (the uAwaken cortex-heat above
+    // still conveys "speaking"), avoiding vestibular travel.
+    if (u.uReplyRise) {
+      const riseTarget = replyStreaming ? 1 : 0;
+      u.uReplyRise.value = reduce
+        ? 0
+        : THREE.MathUtils.damp(u.uReplyRise.value, riseTarget, 3, delta);
     }
     // ORCHESTRATION (poster phase 5): the spine/roots pulse with metabolic state
     // while the being works/conducts/materializes ("nerves carry the state").
