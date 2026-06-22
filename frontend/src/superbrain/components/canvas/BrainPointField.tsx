@@ -11,6 +11,7 @@ import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
+import { useReducedMotion } from '@/lib/reducedMotion';
 import type { CognitionUniforms } from './SuperbrainScene';
 
 /** Concatenate two point-field datasets into one (brain first, then spine). */
@@ -177,13 +178,9 @@ export default function BrainPointField({
 
   // Honor reduced-motion: freeze the breathe/flow gains (the lit field stays
   // fully visible — we never blank it; large translations are the trigger).
-  const reduce = useMemo(
-    () =>
-      typeof window !== 'undefined' &&
-      !!window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    [],
-  );
+  // REACTIVE: flips live when the operator toggles OS reduced-motion (the
+  // useFrame closure below re-reads `reduce` on the re-render).
+  const reduce = useReducedMotion();
 
   // Dev-only live tuning dials: e.g. window.__POINTFIELD.uSize = 4,
   // window.__POINTFIELD.uGlowMul = 1.4, window.__POINTFIELD.uAttenK = 0.1.
