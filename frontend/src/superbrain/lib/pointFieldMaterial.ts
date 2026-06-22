@@ -139,7 +139,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uSize: { value: 2.8 },       // finer puncta (poster's dense fine-dot read; pairs with the 200k+ count on the RTX 3050)
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
       uFogDensity: { value: 0.02 },// subtle recession only (thin depth slab)
-      uGlowMul: { value: 2.55 },   // >1 so PostFX Bloom catches it (modest lift; operator's RTX dial: window.__POINTFIELD.uGlowMul)
+      uGlowMul: { value: 1.35 },   // RTX-tuned crisp (was 2.55): lower emission so the dense cortex shows folds + the node lattice instead of a white-haze bloom. Still >1 so PostFX Bloom catches the brightest cores. Dial: window.__POINTFIELD.uGlowMul
       uBodyOpacity: { value: 1.0 },// damped to ~0.5 while orchestrating so inner memory-nodes show
       uIgnite: { value: 0 },       // single-shot arrival ignition flash (cortex-weighted luminance, no hue change)
       uAwaken: { value: 0 },       // conversation cortex-heat (cortex-weighted luminance, no hue change)

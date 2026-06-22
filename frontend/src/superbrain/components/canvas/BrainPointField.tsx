@@ -65,7 +65,7 @@ export default function BrainPointField({
   uniforms,
   count = 60000,
   kind = 'brain',
-  baseSize = 3,
+  baseSize = 2.0, // RTX-tuned crisp: smaller points resolve the dense cortex (folds + node lattice show; no white haze)
   spineScale = 1,
   spineCount = 0,
 }: {
