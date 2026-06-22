@@ -225,7 +225,10 @@ export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPrese
     // CROWN higher: the smaller the brain (more tabs), the HIGHER it rises so it
     // sits at the very top of frame; nerves reach DOWN from its vertebrae to the
     // tabs below. Only when points-orchestrating.
-    mainBrainOffsetY: round3(pointsOrchestrating ? clamp(1.72 + (workspaceCount - 2) * 0.16, 1.72, 2.4) : 0),
+    // Crown-raise scales UP as the brain shrinks (more tabs): at 2 tabs the head is
+    // still large, so it lifts least (stays fully in-frame, not clipped at top); each
+    // added tab shrinks the head and raises it further toward the very top.
+    mainBrainOffsetY: round3(pointsOrchestrating ? clamp(1.0 + (workspaceCount - 2) * 0.22, 1.0, 2.0) : 0),
     miniBrainScale: round3(clamp(0.205 - workspaceCount * 0.007 - compactness * 0.03, 0.108, 0.205)),
     miniBrainOpacity: round3(clamp(0.68 + load * 0.18 - compactness * 0.04, 0.58, 0.88)),
     miniBrainPosition: tuple(0, 0.26 + compactness * 0.14 - load * 0.04, 1.06 + compactness * 0.04 - load * 0.035),
