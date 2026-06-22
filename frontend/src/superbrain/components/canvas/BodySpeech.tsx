@@ -53,7 +53,9 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
 
   return (
     <Billboard>
-      <group ref={groupRef} position={[0, 0.55, 0.3]} visible={false}>
+      {/* Placement: a readable default above the cortex; the operator fine-tunes on
+          his RTX (this project defers final visual placement to his eye). */}
+      <group ref={groupRef} position={[0, 0.92, 0.35]} visible={false}>
         <Text
           ref={textRef as never}
           color={col}

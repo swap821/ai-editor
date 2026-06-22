@@ -291,9 +291,11 @@ export default function GagosChrome() {
     setDraft('');
 
     pushMessage('user', cleanText(text, 400));
-    // Chat replies stream into a 2D bubble; WORK grows a 3D slab from the being,
-    // so a chat bubble is only created for the conversational (non-work) path.
-    const gagosId = workIntent ? null : pushMessage('gagos', '');
+    // SP1 (voice-into-body, minimal hybrid): the GAGOS chat reply now lives in the
+    // BODY as in-scene luminous body-speech (BodySpeech + replyVoiceBus), NOT a DOM
+    // bubble. The thread keeps only the user's echo (+ work-materialization notes +
+    // errors). gagosId stays null; the error fallback below pushes its own message.
+    const gagosId = null;
 
     // wake the being — same events the posture machine + scene already react to,
     // plus the conversation posture so the body visibly shifts purple→cyan→green.
@@ -357,20 +359,21 @@ export default function GagosChrome() {
         }
         setConversationPhase('idle'); // the slab's working posture takes the body
       } else {
-        // CHAT: stream the reply into the 2D thread bubble.
-        const final = await sendVoiceTurn(text, {
+        // CHAT: the reply lives in the BODY (BodySpeech reads these voice-speaking
+        // events) — the DOM thread no longer duplicates the GAGOS reply. We still
+        // publish the reply chunks (BodySpeech's source) + drive the conversation
+        // posture; we just don't render a thread bubble for it.
+        await sendVoiceTurn(text, {
           onChunk: (partial) => {
             if (turnTokenRef.current !== token) return;
             const chunk = cleanText(partial);
             if (chunk) {
               setConversationPhase('streaming');
-              updateMessage(gagosId, chunk);
               publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.82, data: { phase: 'reply', reply: chunk } });
             }
           },
         });
         if (turnTokenRef.current !== token) return;
-        updateMessage(gagosId, cleanText(final) || '…');
         setConversationPhase('complete');
       }
       setOnline(true); // a completed turn is proof the backend is reachable
