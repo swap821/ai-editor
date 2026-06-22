@@ -273,6 +273,16 @@ export default function BrainPointField({
         ? stateTarget
         : THREE.MathUtils.damp(u.uStatePulse.value, stateTarget, 3, delta);
     }
+    // VERTEBRAE REVEAL (poster phase 5): while orchestrating, the cord shows its
+    // distinct vertebral segments (addressable seats). Same gate as the state-pulse;
+    // eases in/out so the spine "extends and reveals vertebrae" rather than snapping.
+    if (u.uVertebrae) {
+      const vertTarget =
+        phase === 'working' || phase === 'conducting' || phase === 'materializing' ? 1 : 0;
+      u.uVertebrae.value = reduce
+        ? vertTarget
+        : THREE.MathUtils.damp(u.uVertebrae.value, vertTarget, 2.5, delta);
+    }
     // REABSORPTION (poster phase 7): the brain inhales as a finished tab returns
     // its energy up the spine. The damp gives a smooth rise-then-fall around the
     // brief reabsorbing beat.
