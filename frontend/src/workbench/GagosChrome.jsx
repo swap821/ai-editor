@@ -34,17 +34,6 @@ import {
   subscribeConversationPhase,
 } from '../superbrain/lib/conversationPhaseBus';
 
-/** The poster reads STATUS OFF THE BODY (Thinking/Streaming/Complete/Error). The
- *  dot hues mirror the being's spectral-v1 posture colours so the chrome and the
- *  body never disagree (purple think / cyan stream / green complete / red error). */
-const PHASE_META = {
-  idle: { label: 'resting', color: '#9a7bff' },
-  awakening: { label: 'awakening', color: '#b69cff' },
-  thinking: { label: 'thinking', color: '#a855f7' },
-  streaming: { label: 'streaming', color: '#22d3ee' },
-  complete: { label: 'complete', color: '#34d399' },
-  error: { label: 'error', color: '#f87171' },
-};
 import {
   showContentSurface,
   getOccupiedVertebraSeats,
@@ -484,17 +473,9 @@ export default function GagosChrome() {
           <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} aria-hidden="true" />
           {online ? modelLine : 'offline'}
         </span>
-        <span className={`gagos-pill gagos-pill--state ${convPhase !== 'idle' ? 'is-active' : ''}`}>
-          <span
-            className="gagos-dot"
-            aria-hidden="true"
-            style={{
-              background: PHASE_META[convPhase].color,
-              boxShadow: `0 0 6px ${PHASE_META[convPhase].color}`,
-            }}
-          />
-          {PHASE_META[convPhase].label}
-        </span>
+        {/* SP2 (voice-into-body): the lifecycle STATE pill is retired — the being's
+            posture colour/pulse now carries the live phase (status read OFF THE BODY).
+            Only the non-body facts remain as a minimal cue: which model, + supervised. */}
         <span
           className="gagos-pill gagos-pill--supervised"
           aria-label="Supervised: a human approval gate guards risky actions"
