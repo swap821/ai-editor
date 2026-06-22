@@ -1,6 +1,12 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-22T14:40:00+05:30
+Last updated: 2026-06-22T19:30:00+05:30
+
+## SESSION 2026-06-22 (evening) — roadmap builds verified+merged + kimi-webbridge RECONNECTED (GUI-automation saga)
+- **All 7 poster-fidelity PRs now MERGED to master** (#14 node dial, #15 reply-speak, #16 crown-raise, #17 work-tab dashboard, #18 lush render, #19 staged reabsorption, #20 arrival ignition ramp). Integrated master CI green. #19/#20 were live-verified this session: arrival reads seed→converge→full (dark→light ignition); reabsorption dissolves the tab + reabsorbs cleanly.
+- **kimi-webbridge live-QA RESTORED after a long GUI-automation fight** (operator remote, gave full go to drive his desktop). Root causes + fixes (now in [[windows-gui-automation-playbook]]): (1) the Claude Code terminal was FULLSCREEN, covering Edge → minimized it (agent keeps running); (2) 25 + sticky Windows toast notifications overlapped the popup → cleared via WpnUserService DB-wipe + Explorer restart; (3) Windows focus-stealing blocked foregrounding Edge from the terminal → AttachThreadInput trick; (4) 125% DPI → SetProcessDPIAware so screenshots/clicks/UIA share physical px; (5) Kimi popup showed "Browser assistant is not ready" → daemon `restart` + ~1 min wait → extension_connected:true, bridge verified (navigate+screenshot work). Kimi extension lives ONLY in Edge.
+- **NEXT (the marquee remaining gap):** points-native CONDUCTOR / vertebrae-as-seats (the deferred P1.2 — orchestration showpiece; mesh overlay is gated off, needs a points-native rewrite). Then P2.3 60fps relief-valve (needs RTX profiling), P2.4 status-token single-source (needs operator's mic-hue/void-black DECISIONS), reactive reduced-motion (invasive ~21 components). Browser is connected now → all are live-verifiable.
+
 
 ## SESSION 2026-06-22 (afternoon) — POSTER-FIDELITY AUDIT + 4 BUILDS LANDED (operator: ultracode, "still 55-60% vs poster")
 - **Honest gap audit run** (ultracode workflow `wf_40fb8d29-5ec`: 34 agents, 3.6M tokens; per-aspect map→deep-web-research→adversarial-verify→synthesis; cross-checked vs live `:5173` frames). Verdict: **~57% perceived poster-fidelity but ~80% architecture** — the gap is mostly **authored-but-gated-off** behavior, not unbuilt. Full roadmap + landed-status banner: `.aios/state/GAGOS_POSTER_GAP_AUDIT.md`. Memory: [[gagos-poster-gap-audit]].
