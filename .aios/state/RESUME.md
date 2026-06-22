@@ -1,6 +1,11 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-23T00:10:00+05:30
+Last updated: 2026-06-23T00:35:00+05:30
+
+## SESSION 2026-06-23 (continued) — P2.3 60fps RELIEF VALVE LANDED → audit COMPLETE except P2.4
+- **P2.3 perf relief-valve LANDED** (#32 `f0df7be`): the poster's "must run at 60fps" guarantee is now REAL. New `lib/perfBudget.ts` (`dprForFactor(tier,factor)` pure map + `TIER_DPR` + `PERF_BOUNDS [50,58]`, 6 tests). `TierGovernor` now DRIVES `setDpr` via drei `PerformanceMonitor` — RESOLUTION flexes to hold the frame rate; geometry/particle-counts/hue/palette/textures are NEVER auto-touched (FIDELITY-sacred; structural tier still operator-click-only). Runtime-only (not persisted), self-restores when smooth. Arms at 4s; structural advisory waits 20s + only fires if FPS still low AFTER DPR bottoms out. `PerfProbe` + `window.__getPerf()` ({fps,factor,dpr,tier}) for the operator's profiling; budget/how-to in `.aios/state/PERF_BUDGET.md`. Live: __getPerf → fps 120 / dpr 1.5 / factor 1 / high on the RTX (valve idle, full quality; engages only <50fps). Operator to profile under load.
+- **STATUS: the 34-agent audit is COMPLETE except P2.4.** This session shipped **7 feature PRs** (#26–#32), tests 209→**243**, all live-verified + CI-green + merged. ALL P0 + ALL P1 + ALL P2 except the palette-gated P2.4 are done.
+- **SOLE REMAINING — needs operator (palette):** **P2.4 status-token single-source.** Evidence-confirmed the 3 hue sources DRIFT (bodyPosture rest #9e78f5 vs turnMetabolism PHASE_TINT rest #79ebff; error #ff5c48 vs #ff5f7a; the `.status-dot--*` CSS legend a 3rd mapping). Unifying to one source (postureHex) would SHIFT rendered colours → his sacred-palette sign-off required (not a blind refactor). PHASE_META already removed (SP2). The dead `.status-dot` CSS may still be referenced by SuperbrainHUD — verify before deleting. Everything else from the audit is shipped.
 
 ## SESSION 2026-06-23 (past midnight) — P1.3 cortex nerve + P2.6 reactive reduced-motion LANDED (audit P0/P1 + most P2 now done)
 - **P1.3 cortex-rooted nerve LANDED** (#30 `3fbb53e`): new `CorticalNerve.tsx` — a thin drei `<Line>` grows from the LIVE cortex (`getCortexAnchor()`×`getBrainDockScale()`, the #29 anchor) to each live work surface, re-aimed every frame so it tracks the voyaging head. **ADDITIVE** to the vertebra seating (tab still seats on its socket + keeps its umbilical — the "tabs slide from a vertebra" law holds). Points-mode only. Live-verified (materialized a tab → nerve grows head→slab beside the vertebra nerve).
