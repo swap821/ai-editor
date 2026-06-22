@@ -9,7 +9,7 @@ import { createPointFieldMaterial } from '@/lib/pointFieldMaterial';
 import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
-import { setSpineFusion } from '@/lib/spineFusionBus';
+import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import type { CognitionUniforms } from './SuperbrainScene';
 
@@ -50,6 +50,13 @@ function extremeCentroid(pos: Float32Array, n: number, lowest: boolean, frac: nu
   }
   c = c || 1;
   return [sx / c, sy / c, sz / c];
+}
+
+/** Mean of a point set's upper region — the brain-HEAD/cortex centre (cloud-local).
+ *  Biased to the top half so reabsorbing energy lands in the glowing head, not the
+ *  lower brainstem. */
+function headCentroid(pos: Float32Array, n: number): [number, number, number] {
+  return extremeCentroid(pos, n, false, 0.55);
 }
 
 /**
@@ -96,6 +103,9 @@ export default function BrainPointField({
         count,
         0x50494e54,
       );
+      // Publish the brain-head centroid (cloud-local) so reabsorbing motes land in
+      // the visible cortex (× the live brain dock scale), not a hardcoded point.
+      setCortexAnchor(headCentroid(brain.positions, brain.count));
       if (spineCount > 0) {
         // FUSE the spine into the brain cloud — the cord grows from the brain's
         // REAL brainstem vertices, so the join is exact and orbit-proof by design.
@@ -190,6 +200,13 @@ export default function BrainPointField({
         },
       },
     );
+    // Proof hook for the reabsorption money-shot: the published cortex anchor
+    // (cloud-local) × the live dock scale = the group-local point motes return to.
+    (window as unknown as { __getCortexAnchor?: () => unknown }).__getCortexAnchor = () => ({
+      anchor: getCortexAnchor(),
+      dock: getBrainDockScale(),
+      target: getCortexAnchor().map((v) => v * getBrainDockScale()),
+    });
   }, [material, kind]);
 
   useFrame((state, delta) => {

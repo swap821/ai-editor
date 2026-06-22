@@ -434,9 +434,9 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
             <ReabsorptionParticles
               key={`reabsorb-${tab.id}`}
               origin={tab.originLocal}
-              target={[0, 0.1, 0]}
               startedAt={tab.phaseStartedAt}
               durationMs={1700}
+              color={completion.tint}
               reducedMotion={reducedMotion}
             />
           ))}

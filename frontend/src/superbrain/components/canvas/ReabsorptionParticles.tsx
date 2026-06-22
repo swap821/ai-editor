@@ -10,6 +10,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
 
 const COUNT = 72;
 
@@ -24,7 +25,6 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 
 export default function ReabsorptionParticles({
   origin,
-  target,
   startedAt,
   durationMs = 1300,
   color = '#5ef0b0',
@@ -32,8 +32,6 @@ export default function ReabsorptionParticles({
 }: {
   /** where the slab feeds the spine (the tab's fused vertebra anchor). */
   origin: [number, number, number];
-  /** the brain the motes return into (groupRef-local). */
-  target: [number, number, number];
   startedAt: number;
   durationMs?: number;
   color?: string;
@@ -64,19 +62,20 @@ export default function ReabsorptionParticles({
   // they puff off the vertebra, converge to the spine centerline, then ride UP it
   // into the brain. A CatmullRom through 4 control points draws that curved route;
   // getPointAt(e) gives an arc-length-even position so the rise reads steady.
-  // Depend on the VALUES (not the array refs) so a new [..] literal per render
-  // doesn't rebuild the curve every frame.
+  // The 4 control points are RE-AIMED each frame so the route's HEAD tracks the
+  // LIVE cortex (the brain shrinks/voyages/crowns every frame) — the fix for the
+  // money-shot miss where the old hardcoded target left the motes flying into empty
+  // space. origin (the vertebra) is static; the upper 3 points follow the cortex.
   const [ox, oy, oz] = origin;
-  const [tx, ty, tz] = target;
   const curve = useMemo(
     () =>
       new THREE.CatmullRomCurve3([
-        new THREE.Vector3(ox, oy, oz), // the dissolving slab's vertebra
-        new THREE.Vector3(tx + (ox - tx) * 0.5, oy + (ty - oy) * 0.18, tz + (oz - tz) * 0.5), // pull toward the spine
-        new THREE.Vector3(tx, oy + (ty - oy) * 0.58, tz), // on the spine centerline, risen partway
-        new THREE.Vector3(tx, ty, tz), // home into the brain
+        new THREE.Vector3(ox, oy, oz),
+        new THREE.Vector3(ox, oy, oz),
+        new THREE.Vector3(ox, oy, oz),
+        new THREE.Vector3(ox, oy, oz),
       ]),
-    [ox, oy, oz, tx, ty, tz],
+    [ox, oy, oz],
   );
 
   const scratch = useMemo(() => new THREE.Vector3(), []);
@@ -85,6 +84,20 @@ export default function ReabsorptionParticles({
     const pts = pointsRef.current;
     if (!pts) return;
     const t = clamp01((performance.now() - startedAt) / durationMs);
+    // LIVE cortex target (brain-group-local): the published cloud-local head
+    // centroid × the eased brain dock scale — so the motes land in the *visible*
+    // brain even as it shrinks while orchestrating and voyages through the void.
+    const [ax, ay, az] = getCortexAnchor();
+    const ds = getBrainDockScale();
+    const tx = ax * ds;
+    const ty = ay * ds;
+    const tz = az * ds;
+    const cp = curve.points;
+    cp[0].set(ox, oy, oz); // the dissolving slab's vertebra (static)
+    cp[1].set(tx + (ox - tx) * 0.5, oy + (ty - oy) * 0.18, tz + (oz - tz) * 0.5); // pull toward the spine
+    cp[2].set(tx, oy + (ty - oy) * 0.58, tz); // on the spine centerline, risen partway
+    cp[3].set(tx, ty, tz); // home into the brain
+    curve.updateArcLengths(); // re-aimed → recompute the arc-length LUT for an even rise
     const pos = geometry.attributes.position.array as Float32Array;
     for (let i = 0; i < COUNT; i++) {
       const birth = seeds[i * 4 + 3];
