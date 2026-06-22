@@ -14,13 +14,18 @@ The dated analysis below is preserved verbatim. Progress against it:
 |---|---|---|
 | P0.1 cortex brightens (not dims) while speaking + dead reply path | ✅ LANDED | PR #15 → master `ac643f0` |
 | P0.2 reply rises up the spine (`uReplyRise`) | ✅ LANDED | PR #15 |
-| P1.1 crown-raise in points mode (brain on top) | ✅ LANDED | PR #16 → master `76d0352` |
+| **P0.3 reabsorption motes land in the real cortex + outcome tint** | ✅ LANDED | PR #29 → master `53d45d6` |
 | P0.4 live data-viz dashboard inside the focused work tab | ✅ LANDED | PR #17 → master `34b1a0b` |
+| P1.1 crown-raise in points mode (brain on top) | ✅ LANDED | PR #16 → master `76d0352` |
+| P1.2 conductor (vertebrae-as-seats), points-native | ✅ LANDED | PR #21/#22 (mesh overlay stays gated) |
+| **P1.4 motion cohesion: cursor lean-in + voyage drift + breath phase-lock** | ✅ LANDED | PR #26/#27/#28 |
+| P2.1 depth haze · P2.2 filmic rolloff | ✅ LANDED | PR #18 |
+| P2.5 staged reabsorption · P2.6 arrival ignition ramp | ✅ LANDED | PR #19/#20 |
 | NodeLattice live vividness dial (`__NODELATTICE`) | ✅ LANDED | PR #14 → master `546b062` |
-| P1.2 un-gate conductor overlay | ⏸️ DEFERRED | mesh-era geometry, gated off as misplaced; needs a points-native rewrite, not a one-line un-gate |
-| P2.1 depth haze · P2.2 filmic rolloff · P2.3 perf relief-valve · P2.4 status-token single-source · P2.5 staged reabsorption · P2.6 arrival ramp | ◻️ TODO | next |
+| P1.3 cortex-rooted materialization nerve · P1.5 plain-chat wakes the being | ◻️ TODO | next |
+| P2.3 perf relief-valve · P2.4 status-token single-source · reactive reduced-motion | ◻️ TODO | next |
 
-All landed work was verified live on `:5173` (kimi-webbridge) and is luminance/geometry/data only — sacred palette + textures untouched.
+**As of 2026-06-22 late night: ALL P0 + the P1 showpieces are LANDED** — both confirmed *backwards* behaviors (cortex-dims-while-speaking, reabsorption-misses-cortex) are fixed; the conductor + the motion-cohesion trio (the being voyages, breathes as one, notices you) are live. What remains is P2 polish + two P1 niceties (P1.3 cortex-rooted nerve, P1.5 chat-wake). All landed work was verified live on `:5173` (kimi-webbridge) and is luminance/geometry/data only — sacred palette + textures untouched.
 
 ---
 
