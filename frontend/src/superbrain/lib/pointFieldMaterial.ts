@@ -86,6 +86,7 @@ const FRAGMENT = /* glsl */ `
   uniform float uStatePulse;  // orchestration: "nerves carry the state" — a luminance pulse travels the spine/roots while working
   uniform float uReabsorbGlow; // reabsorption: the brain INHALES — a soft glow as a tab's energy returns up into the cortex
   uniform float uReplyRise;   // conversation: 0 idle .. 1 reply active — a luminance bead-band climbs the spine (vAxis 0->1) into the cortex as the being speaks back
+  uniform float uVertebrae;   // orchestration: 0 smooth cord .. 1 reveal distinct vertebral segments down the spine (poster phase 5 "spine reveals vertebrae")
   uniform float uArrival;      // 0 = scattered/arriving (dark), 1 = condensed (full) — the dark->light ignition ramp
   uniform float uArrivalDark;  // floor brightness at uArrival=0 (the "born from darkness" beat); dialable, never 0 by accident
   uniform float uFogStart;     // depth haze: view-Z where recession begins (poster depth slab)
@@ -139,7 +140,14 @@ const FRAGMENT = /* glsl */ `
     float riseCenter = fract(uTime * 0.6);
     float riseBand = exp(-pow((vAxis - riseCenter) / 0.14, 2.0));
     float replyRise = riseActive * riseBand * 0.9;
-    vec3 emissive = c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise);
+    // VERTEBRAE REVEAL (poster phase 5): while orchestrating, the cord shows distinct
+    // vertebral SEGMENTS — periodic bright bands down the spine (~12, matching the 12
+    // SEGMENT_ANCHORS the tabs seat on), so "the spine extends and reveals vertebrae /
+    // vertebrae are addressable seats" reads on the points being. Spine region only
+    // (spineMask), luminance-only (hue preserved, sacred palette); uVertebrae 0 at rest.
+    float vertSeg = 0.5 + 0.5 * sin(vAxis * 140.0);
+    float vertebrae = clamp(uVertebrae, 0.0, 1.0) * spineMask * smoothstep(0.62, 0.98, vertSeg) * 0.7;
+    vec3 emissive = c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise + vertebrae);
     // P2.6 ARRIVAL dark->light ignition (poster phase 1): the field LIGHTS UP from
     // darkness as it condenses (uArrival 0=scattered/dark -> 1=condensed/full), so the
     // being is "born from the data it travels through" rather than appearing fully lit.
@@ -188,6 +196,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uStatePulse: { value: 0 },   // orchestration spine state-pulse (spine-weighted luminance, no hue change)
       uReabsorbGlow: { value: 0 }, // reabsorption brain-inhale glow (cortex-weighted luminance, no hue change)
       uReplyRise: { value: 0 },    // conversation reply rise-band (spine->cortex luminance, no hue change)
+      uVertebrae: { value: 0 },    // orchestration: reveal vertebral segments down the spine (luminance, no hue change). Dial: window.__POINTFIELD.uVertebrae
       uArrivalDark: { value: 0.12 }, // arrival ignition floor (born-from-darkness); raise toward 1 to disable. Dial: window.__POINTFIELD.uArrivalDark
       uFogStart: { value: 15.0 },     // depth haze begins ~at the brain (camera ~uRefDist). Dial: window.__POINTFIELD.uFogStart
       uHazeStrength: { value: 0.45 }, // subtle depth recession; raise on the RTX for a deeper poster slab. Dial: window.__POINTFIELD.uHazeStrength
@@ -208,6 +217,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v17';
+  material.customProgramCacheKey = () => 'pointfield_v18';
   return material;
 }
