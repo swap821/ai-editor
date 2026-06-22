@@ -25,6 +25,7 @@ import MaterializationLayer from './MaterializationLayer';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
+import { deriveVoyageDrift } from '@/lib/voyageDrift';
 import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
@@ -693,6 +694,8 @@ function BrainModel({
   const attendRef = useRef({ x: 0, y: 0 });
   /** Live cursor-attention snapshot for the __getCursorAttention proof hook. */
   const cursorAttnRef = useRef({ leanYaw: 0, leanPitch: 0, brighten: 0, awaken: 0 });
+  /** Live voyage-drift snapshot for the __getVoyageDrift proof hook. */
+  const voyageRef = useRef({ offsetX: 0, offsetY: 0, roll: 0, gain: 1 });
   const postureRef = useRef({ yaw: 0, pitch: 0, roll: 0, offsetX: 0, offsetY: 0, scaleBoost: 0 });
   const { tabs, focusId, attention } = useTabStore();
   const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
@@ -788,6 +791,20 @@ function BrainModel({
     };
   }, []);
 
+  // Proof hook (dev only): window.__getVoyageDrift() → the live whole-body voyage
+  // drift + bank the being is applying this frame (plus the dock settle-gain).
+  // Sample twice over time → the values move → the being is voyaging, not pinned.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return undefined;
+    const host = window as typeof window & {
+      __getVoyageDrift?: () => typeof voyageRef.current;
+    };
+    host.__getVoyageDrift = () => voyageRef.current;
+    return () => {
+      delete host.__getVoyageDrift;
+    };
+  }, []);
+
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime;
     const burstPow = burst.current.intensity;
@@ -876,7 +893,21 @@ function BrainModel({
         // independent brain bob. Previously the brain only shrank in place (the
         // composition-breaker the poster-gap audit flagged).
         dockYRef.current = THREE.MathUtils.damp(dockYRef.current, brainPresence.mainBrainOffsetY, 2.5, delta);
-        groupRef.current.position.set(0, 0.12 + dockYRef.current, -1.2);
+        // THE BRAIN NEVER STOPS VOYAGING (north star): a perpetual gentle whole-body
+        // drift + bank carries the being through the deep-vast void. Because brain +
+        // spine are ONE group, the cord weld stays rigid (whole-body voyage, never an
+        // independent bob). It VOYAGES at rest and STEADIES as it docks to orchestrate
+        // (so the spine stays plumb in the focus tab) — voyageGain fades the travel in
+        // as dockY rises. Reduced-motion zeroes it inside the contract.
+        const voyage = deriveVoyageDrift({ time, reducedMotion: reduceMotion });
+        const voyageGain = 1 - THREE.MathUtils.clamp(dockYRef.current / 1.6, 0, 0.85);
+        groupRef.current.position.set(
+          voyage.offsetX * voyageGain,
+          0.12 + dockYRef.current + voyage.offsetY * voyageGain,
+          -1.2,
+        );
+        groupRef.current.rotation.z = voyage.roll * voyageGain;
+        voyageRef.current = { ...voyage, gain: Math.round(voyageGain * 10000) / 10000 };
       } else {
         // Hold a cinematic three-quarter silhouette instead of spinning into
         // unreadable rear angles. Restores the classic, recognizable brain shape.
