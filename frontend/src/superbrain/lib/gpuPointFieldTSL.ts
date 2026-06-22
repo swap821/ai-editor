@@ -75,13 +75,13 @@ export function buildGpuPointField(anchors: GpuAnchors): GpuPointField {
   const P = {
     uPostureColor: uniform(new THREE.Color(0.62, 0.47, 1.0)),
     uPostureTint: uniform(0),
-    // WITH-BLOOM defaults: GpuPostFX (TSL Bloom → AgX) rolls off the additive >1
-    // emission. The 250k-particle field accumulates hard where the cortex is dense,
-    // so emission stays LOW (~0.3) — the dense cortex still sums past the bloom
-    // threshold and glows, while the sparse roots stay crisp colored puncta.
-    // Live-tune both via window.__POINTFIELD_GPU (+ window.__GPUBLOOM for the pass).
-    uGlowMul: uniform(0.3),
-    uSize: uniform(1.5),
+    // RTX-TUNED defaults (operator: earlier was "too bright and glowing"). The dense
+    // cortex (~70% of the particles) over-accumulates under additive blending, so the
+    // lever that matters is SPRITE SIZE — small sprites overlap less per pixel, so the
+    // canopy resolves into cortical folds + the sacred region palette instead of a
+    // white blob. Low emission too. Live-tune via window.__POINTFIELD_GPU (+ __GPUBLOOM).
+    uGlowMul: uniform(0.1),
+    uSize: uniform(0.7),
     uIgnite: uniform(0),
     uAwaken: uniform(0),
     uStatePulse: uniform(0),

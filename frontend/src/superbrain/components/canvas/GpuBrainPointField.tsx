@@ -56,7 +56,7 @@ export default function GpuBrainPointField({
   count = 250000,
   spineScale = 1,
   spineCount = 0,
-  baseSize = 1.5, // with-bloom default (GpuPostFX rolls off >1; see gpuPointFieldTSL note)
+  baseSize = 0.7, // RTX-tuned: small sprites resolve the dense cortex (see gpuPointFieldTSL note)
 }: {
   source?: THREE.Object3D;
   uniforms: CognitionUniforms;

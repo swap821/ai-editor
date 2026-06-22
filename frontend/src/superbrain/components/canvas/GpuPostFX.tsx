@@ -25,8 +25,10 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { POST_FX } from '@/lib/constants';
 
 // GPU-additive-field bloom (NOT POST_FX.bloomPoints — the 250k additive field has a
-// far wider dynamic range; the WebGL knobs over-bloom it to a white sun).
-const GPU_BLOOM = { strength: 0.35, radius: 0.55, threshold: 1.6 };
+// far wider dynamic range; the WebGL knobs over-bloom it to a white sun). RTX-tuned
+// GENTLE: only the very brightest cores bloom (threshold 3.0), so the field reads as
+// crisp puncta, not a glow-out. Live-tune via window.__GPUBLOOM.
+const GPU_BLOOM = { strength: 0.1, radius: 0.5, threshold: 3.0 };
 
 export default function GpuPostFX() {
   const gl = useThree((s) => s.gl);
