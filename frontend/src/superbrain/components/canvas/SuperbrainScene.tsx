@@ -824,12 +824,20 @@ function BrainModel({
       groupRef.current.scale.setScalar(damped);
 
       if (BEING_MODE === 'points') {
-        // ONE BODY: in points mode the brain holds a STATIC pose so the spine —
-        // which shares the same Float — stays rigidly joined (no independent bob /
+        // ONE BODY: in points mode the brain holds a STATIC rotation so the spine —
+        // which shares the same group — stays rigidly joined (no independent bob /
         // drift / cursor-lean pulling the brain off the cord). The gentle shared
         // drift comes from Float; life comes from the vertex-shader breathe.
         groupRef.current.rotation.set(FORWARD_LEAN, -0.78, 0);
-        groupRef.current.position.set(0, 0.12, -1.2); // preserve the established depth
+        // SOUL P1 (points orchestration): ease the WHOLE being UP while orchestrating
+        // so the (shrinking) brain CROWNS the top with the spine descending into the
+        // focus tab beneath it. mainBrainOffsetY is 0 at rest (position byte-identical
+        // to before) and ~1.7-2.4 on 2+ tabs. This lifts the brain + FUSED spine
+        // together, so the rigid cord join is preserved — a whole-group lift, never an
+        // independent brain bob. Previously the brain only shrank in place (the
+        // composition-breaker the poster-gap audit flagged).
+        dockYRef.current = THREE.MathUtils.damp(dockYRef.current, brainPresence.mainBrainOffsetY, 2.5, delta);
+        groupRef.current.position.set(0, 0.12 + dockYRef.current, -1.2);
       } else {
         // Hold a cinematic three-quarter silhouette instead of spinning into
         // unreadable rear angles. Restores the classic, recognizable brain shape.
