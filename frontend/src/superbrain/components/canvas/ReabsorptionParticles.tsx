@@ -17,12 +17,18 @@ function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
 
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
 export default function ReabsorptionParticles({
   origin,
   target,
   startedAt,
   durationMs = 1300,
   color = '#5ef0b0',
+  reducedMotion = false,
 }: {
   /** where the slab feeds the spine (the tab's fused vertebra anchor). */
   origin: [number, number, number];
@@ -31,6 +37,8 @@ export default function ReabsorptionParticles({
   startedAt: number;
   durationMs?: number;
   color?: string;
+  /** a11y: skip the up-spine travel (fade dissolve in place — no vestibular sweep). */
+  reducedMotion?: boolean;
 }) {
   const pointsRef = useRef<THREE.Points>(null);
 
@@ -52,6 +60,27 @@ export default function ReabsorptionParticles({
     return g;
   }, []);
 
+  // SPINE-CURVE ROUTE (poster phase 7): the motes don't cut a straight diagonal —
+  // they puff off the vertebra, converge to the spine centerline, then ride UP it
+  // into the brain. A CatmullRom through 4 control points draws that curved route;
+  // getPointAt(e) gives an arc-length-even position so the rise reads steady.
+  // Depend on the VALUES (not the array refs) so a new [..] literal per render
+  // doesn't rebuild the curve every frame.
+  const [ox, oy, oz] = origin;
+  const [tx, ty, tz] = target;
+  const curve = useMemo(
+    () =>
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(ox, oy, oz), // the dissolving slab's vertebra
+        new THREE.Vector3(tx + (ox - tx) * 0.5, oy + (ty - oy) * 0.18, tz + (oz - tz) * 0.5), // pull toward the spine
+        new THREE.Vector3(tx, oy + (ty - oy) * 0.58, tz), // on the spine centerline, risen partway
+        new THREE.Vector3(tx, ty, tz), // home into the brain
+      ]),
+    [ox, oy, oz, tx, ty, tz],
+  );
+
+  const scratch = useMemo(() => new THREE.Vector3(), []);
+
   useFrame(() => {
     const pts = pointsRef.current;
     if (!pts) return;
@@ -60,17 +89,19 @@ export default function ReabsorptionParticles({
     for (let i = 0; i < COUNT; i++) {
       const birth = seeds[i * 4 + 3];
       const lt = clamp01((t - birth) / (1 - birth));
-      const e = 1 - Math.pow(1 - lt, 2); // ease-out rise
-      // start: scattered around the vertebra (the dissolving slab feeds here);
-      // a slight outward puff before being drawn up the spine into the brain.
-      const sx = origin[0] + seeds[i * 4] * 0.34;
-      const sy = origin[1] + seeds[i * 4 + 1] * 0.14;
-      const sz = origin[2] + seeds[i * 4 + 2] * 0.34;
-      // gentle sideways converge as they rise (curl toward the spine centerline)
-      const conv = 1 - e * 0.6;
-      pos[i * 3] = (sx + (target[0] - sx) * e) * (e < 0.001 ? 1 : conv) + target[0] * (1 - conv);
-      pos[i * 3 + 1] = sy + (target[1] - sy) * e;
-      pos[i * 3 + 2] = (sz + (target[2] - sz) * e) * (e < 0.001 ? 1 : conv) + target[2] * (1 - conv);
+      // STAGED BEATS: (1) DISSOLVE — the slab breaks apart, motes puff outward off
+      // the vertebra; (2) RISE — they stream up the spine curve into the brain. The
+      // beats overlap slightly so it reads as one continuous "energy returns" gesture.
+      const dissolve = smoothstep(0, 0.32, lt);
+      const rise = reducedMotion ? 0 : smoothstep(0.24, 1, lt);
+      const e = 1 - Math.pow(1 - rise, 2); // ease-out along the curve
+      curve.getPointAt(clamp01(e), scratch);
+      // Scatter puffs out during the dissolve, then shrinks to nothing as the motes
+      // converge onto the spine and rise — so the cloud gathers into the cord.
+      const scatter = (0.12 + 0.26 * dissolve) * (1 - rise * 0.88);
+      pos[i * 3] = scratch.x + seeds[i * 4] * scatter;
+      pos[i * 3 + 1] = scratch.y + seeds[i * 4 + 1] * scatter * 0.5;
+      pos[i * 3 + 2] = scratch.z + seeds[i * 4 + 2] * scatter;
     }
     geometry.attributes.position.needsUpdate = true;
     const mat = pts.material as THREE.PointsMaterial;

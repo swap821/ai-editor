@@ -436,7 +436,8 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
               origin={tab.originLocal}
               target={[0, 0.1, 0]}
               startedAt={tab.phaseStartedAt}
-              durationMs={1300}
+              durationMs={1700}
+              reducedMotion={reducedMotion}
             />
           ))}
     </>
