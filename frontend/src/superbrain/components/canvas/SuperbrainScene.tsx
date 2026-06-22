@@ -76,6 +76,11 @@ const BEING_MODE = readBeingMode();
 const GPU_MODE = readGpuMode();
 const GpuBrainPointField = lazy(() => import('./GpuBrainPointField'));
 const GpuPostFX = lazy(() => import('./GpuPostFX'));
+// In points mode the cortex is self-lit and the accretion core is gated off, so the
+// blue/violet scene light rig only lights the materialized-tab PBR slabs. Under WebGPU
+// that rig WASHES the slabs bright blue (the "flat washed tabs" bug); dim it hard so
+// the tabs read as the intended dark glass. WebGL default keeps the full rig (1.0).
+const WEBGPU_LIGHT_SCALE = GPU_MODE === 'webgpu' ? 0.15 : 1;
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -1660,12 +1665,12 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           exists for the OTHER scene objects (accretion core). */}
       <color attach="background" args={['#000000']} />
       <ambientLight intensity={0.14} color="#241145" />
-      <directionalLight position={[-6, 7, 1]} intensity={0.41} color="#8fa8ff" />
-      <directionalLight position={[7, -2, 0]} intensity={0.42} color="#bcd0ff" />
-      <directionalLight position={[0, -3, -8]} intensity={0.39} color="#795cff" />
-      <pointLight position={[-4.5, 2.8, -1]} intensity={1.0} distance={10} color="#5e8dff" />
-      <pointLight position={[3.5, 4.0, 3]} intensity={0.7} distance={12} color="#c8a8ff" />
-      <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
+      <directionalLight position={[-6, 7, 1]} intensity={0.41 * WEBGPU_LIGHT_SCALE} color="#8fa8ff" />
+      <directionalLight position={[7, -2, 0]} intensity={0.42 * WEBGPU_LIGHT_SCALE} color="#bcd0ff" />
+      <directionalLight position={[0, -3, -8]} intensity={0.39 * WEBGPU_LIGHT_SCALE} color="#795cff" />
+      <pointLight position={[-4.5, 2.8, -1]} intensity={1.0 * WEBGPU_LIGHT_SCALE} distance={10} color="#5e8dff" />
+      <pointLight position={[3.5, 4.0, 3]} intensity={0.7 * WEBGPU_LIGHT_SCALE} distance={12} color="#c8a8ff" />
+      <pointLight position={[4.2, -2.6, -5]} intensity={(0.6 + activeBoost * 0.6) * WEBGPU_LIGHT_SCALE} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
         <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
