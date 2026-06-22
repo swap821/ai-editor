@@ -1,6 +1,15 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-22T22:45:00+05:30
+Last updated: 2026-06-23T00:10:00+05:30
+
+## SESSION 2026-06-23 (past midnight) — P1.3 cortex nerve + P2.6 reactive reduced-motion LANDED (audit P0/P1 + most P2 now done)
+- **P1.3 cortex-rooted nerve LANDED** (#30 `3fbb53e`): new `CorticalNerve.tsx` — a thin drei `<Line>` grows from the LIVE cortex (`getCortexAnchor()`×`getBrainDockScale()`, the #29 anchor) to each live work surface, re-aimed every frame so it tracks the voyaging head. **ADDITIVE** to the vertebra seating (tab still seats on its socket + keeps its umbilical — the "tabs slide from a vertebra" law holds). Points-mode only. Live-verified (materialized a tab → nerve grows head→slab beside the vertebra nerve).
+- **P2.6 reactive reduced-motion LANDED** (#31 `f172178`): new `lib/reducedMotion.ts` `useReducedMotion()` (useSyncExternalStore on the media query, mirrors CyberCursor; snapshot = `shouldReduceMotion`, one source of truth). Replaced the 4 once-at-mount reads (SuperbrainScene ×2, BrainPointField, BodySpeech) → the scene now responds to LIVE OS reduced-motion toggles (was frozen at mount). NervousSystem already re-read per frame. 3 store tests; live no-regression (rm off → voyage intact).
+- **STATUS: the audit's entire P0 + P1 + most of P2 is DONE.** This run shipped 6 feature PRs (#26 lean · #27 voyage · #28 breath · #29 reabsorption money-shot · #30 cortex nerve · #31 reduced-motion), all live-verified + CI-green + merged. Tests 209→**237**.
+- **REMAINING (needs operator — the safe autonomous runway ends here):**
+  - **P2.4 status-token single-source** — unify the 3 drifting posture-colour sources into `postureHex` + delete the inverted dead `.status-dot--*` CSS. The DELETE is zero-risk; the UNIFY is palette-adjacent (can shift rendered hues) → wants his eye / the sacred-palette call.
+  - **P2.3 perf relief-valve** — make the 60fps guarantee real (revert inert `perfTier`, wire `PerformanceMonitor`→DPR, add `detect-gpu` first-load default, per-tier point-SIZE). Needs real RTX FPS profiling under load (can't measure framerate via the bridge) + adds deps.
+  - (Optional later: P1.3 nerve hue tuning, body-speech placement, further micro-polish — all his aesthetic call.)
 
 ## SESSION 2026-06-22 (late night) — THE BEING IS ALIVE: motion-cohesion trio (P1.4) + reabsorption money-shot (P0.3) LANDED
 - **P0.3 reabsorption money-shot LANDED** (#29 `53d45d6`): retracting-tab motes aimed at a hardcoded `[0,0.1,0]` (0.29 below the head, into empty space) → now track the LIVE cortex = published brain-head centroid `[0.005,0.388,0.091]` × `getBrainDockScale()` (new `setCortexAnchor`/`getCortexAnchor` on spineFusionBus; `ReabsorptionParticles` re-aims its CatmullRom each frame) + carry `completion.tint`. Live-verified (dev hooks `__materializeTab`→`__reabsorbMaterializedTab`): motes rise up the spine INTO the brain head. Hook `window.__getCortexAnchor()`. **This clears the ENTIRE P0/P1 backlog** — both backwards bugs fixed; only P2 polish + P1.3/P1.5 niceties remain. Tests 234 green.

@@ -23,8 +23,9 @@ The dated analysis below is preserved verbatim. Progress against it:
 | P2.5 staged reabsorption · P2.6 arrival ignition ramp | ✅ LANDED | PR #19/#20 |
 | NodeLattice live vividness dial (`__NODELATTICE`) | ✅ LANDED | PR #14 → master `546b062` |
 | P1.5 plain-chat wakes the being (ATTENTIVE on conversation) | ✅ VERIFIED | already wired (conv→attentive + #15); live-confirmed 2026-06-22 (cortex 0→1 on a chat turn; reply renders as body-speech) |
-| P1.3 cortex-rooted materialization nerve | ◻️ TODO | next (cortex anchor from #29 now unblocks it) |
-| P2.3 perf relief-valve · P2.4 status-token single-source · reactive reduced-motion | ◻️ TODO | next |
+| **P1.3 cortex-rooted materialization nerve** | ✅ LANDED | PR #30 → master `3fbb53e` (additive to vertebra seating; uses the #29 cortex anchor) |
+| **reactive reduced-motion (P2.6 remainder)** | ✅ LANDED | PR #31 → master `f172178` (useReducedMotion store; scene responds to live OS toggles) |
+| P2.4 status-token single-source · P2.3 perf relief-valve | ◻️ TODO | **needs operator** — P2.4 is palette-adjacent (unifying the 3 hue sources can shift rendered colors → his eye); P2.3 needs real RTX FPS profiling under load |
 
 **As of 2026-06-22 late night: ALL P0 + the P1 showpieces are LANDED** — both confirmed *backwards* behaviors (cortex-dims-while-speaking, reabsorption-misses-cortex) are fixed; the conductor + the motion-cohesion trio (the being voyages, breathes as one, notices you) are live. What remains is P2 polish + two P1 niceties (P1.3 cortex-rooted nerve, P1.5 chat-wake). All landed work was verified live on `:5173` (kimi-webbridge) and is luminance/geometry/data only — sacred palette + textures untouched.
 
