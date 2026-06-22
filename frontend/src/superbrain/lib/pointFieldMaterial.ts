@@ -86,6 +86,8 @@ const FRAGMENT = /* glsl */ `
   uniform float uStatePulse;  // orchestration: "nerves carry the state" — a luminance pulse travels the spine/roots while working
   uniform float uReabsorbGlow; // reabsorption: the brain INHALES — a soft glow as a tab's energy returns up into the cortex
   uniform float uReplyRise;   // conversation: 0 idle .. 1 reply active — a luminance bead-band climbs the spine (vAxis 0->1) into the cortex as the being speaks back
+  uniform float uArrival;      // 0 = scattered/arriving (dark), 1 = condensed (full) — the dark->light ignition ramp
+  uniform float uArrivalDark;  // floor brightness at uArrival=0 (the "born from darkness" beat); dialable, never 0 by accident
   uniform float uFogStart;     // depth haze: view-Z where recession begins (poster depth slab)
   uniform float uHazeStrength; // depth haze: how strongly distant points recede toward zero (additive-correct; 0 = prior look)
   uniform float uRolloffKnee;  // filmic highlight rolloff: luminance at/below this is byte-unchanged
@@ -138,6 +140,13 @@ const FRAGMENT = /* glsl */ `
     float riseBand = exp(-pow((vAxis - riseCenter) / 0.14, 2.0));
     float replyRise = riseActive * riseBand * 0.9;
     vec3 emissive = c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise);
+    // P2.6 ARRIVAL dark->light ignition (poster phase 1): the field LIGHTS UP from
+    // darkness as it condenses (uArrival 0=scattered/dark -> 1=condensed/full), so the
+    // being is "born from the data it travels through" rather than appearing fully lit.
+    // Floored at uArrivalDark + saturates by 0.82, so REST (uArrival=1) is byte-identical
+    // and a misjudged transient can never go fully black. Luminance only (hue preserved).
+    float arrivalLight = mix(uArrivalDark, 1.0, smoothstep(0.0, 0.82, uArrival));
+    emissive *= arrivalLight;
     // P2.1 DEPTH HAZE (poster depth-slab): distant points recede toward zero so the
     // being reads as a VOLUME in space, not a flat decal. Additive-correct (dim, not
     // alpha-blend). uFogStart/Density/Strength are live __POINTFIELD dials; strength 0
@@ -179,6 +188,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uStatePulse: { value: 0 },   // orchestration spine state-pulse (spine-weighted luminance, no hue change)
       uReabsorbGlow: { value: 0 }, // reabsorption brain-inhale glow (cortex-weighted luminance, no hue change)
       uReplyRise: { value: 0 },    // conversation reply rise-band (spine->cortex luminance, no hue change)
+      uArrivalDark: { value: 0.12 }, // arrival ignition floor (born-from-darkness); raise toward 1 to disable. Dial: window.__POINTFIELD.uArrivalDark
       uFogStart: { value: 15.0 },     // depth haze begins ~at the brain (camera ~uRefDist). Dial: window.__POINTFIELD.uFogStart
       uHazeStrength: { value: 0.45 }, // subtle depth recession; raise on the RTX for a deeper poster slab. Dial: window.__POINTFIELD.uHazeStrength
       uRolloffKnee: { value: 1.6 },   // luminance below this is untouched (the crisp field holds). Dial: window.__POINTFIELD.uRolloffKnee
@@ -198,6 +208,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v16';
+  material.customProgramCacheKey = () => 'pointfield_v17';
   return material;
 }
