@@ -1,6 +1,14 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-22T02:10:00+05:30
+Last updated: 2026-06-22T12:40:00+05:30
+
+## SESSION 2026-06-22 (midday) — PR #13 MERGED (conflict resolve: living-being wins) + CI ADDED & GREEN + repo cleanup
+- **PR #13 (`feat/living-being-p1` → master) was CONFLICTING and is now MERGED** (merge commit `2ceceda`). Root cause: PR #12 ("Frontend renovation + Jarvis voice Slice 1", `4757302`) landed on master the SAME morning and REBUILT the classic/workbench frontend (new `organs/` dock + `approval/` safety-net + big `SuperbrainHUD`/`superbrain.css` rework) — the exact layer this branch DELETED to make the points-being the single official frontend. A true architectural fork, not a trivial merge.
+- **Resolution (operator chose "Living-being wins"):** honored the branch deletions (points-being = sole frontend); DROPPED PR #12's `organs/` + `approval/` + classic-shell renovation; took the branch versions of shared frontend files (`main.jsx`, `SuperbrainApp.jsx`, `SuperbrainHUD.tsx`, `superbrain.css`). KEPT master's non-frontend work: `aios/api/main.py` (hand-merged — branch's hardened superset: input-shield `max_length` cap + per-session flood throttle + GAGOS naming, atop master's auto-merged additions), `tools/check_css_canon.py`, `tests/test_chat.py`, `.aios/` renovation docs. `check_canon_frozen.py` add/add → kept the branch's NEWER 2026-06-19 re-scope (texture/asset freeze + `--allow-canon`), not master's 2026-06-14 whole-scene freeze.
+- **Verified before merge:** frontend typecheck ✓ · `vite build` ✓ · `vitest run` 209/209 ✓; backend `pytest` 575 passed / 1 skipped ✓; canon-freeze guard ✓; zero conflict markers; clean-merges into master.
+- **CI LANDED + GREEN:** committed the previously-untracked `.github/workflows/ci.yml` (`170fd26`) — backend pytest (windows-latest) + frontend typecheck/test/build (ubuntu) on every push/PR. First run green; then bumped actions to Node-24 majors (`9aa45f4`: checkout@v5, setup-node@v5, setup-python@v6) → green with 0 annotations (deprecation warning cleared). Also committed `SYSTEM_AUDIT_2026-06-21.md`.
+- **Repo hygiene:** deleted 22 zero-byte junk files (shell-fragment names from an earlier botched paste); deleted the merged branch `feat/living-being-p1` (local + remote, `-d` safe-delete confirmed fully merged). Working tree clean.
+- **NEXT:** unchanged from the crisp-WebGL-being close below — operator's RTX/design calls. Master now carries BOTH the living-being frontend AND master's Jarvis backend + canon tools + tests.
 
 ## SESSION 2026-06-22 (night) — WebGPU SPIKE SCAFFOLDED + LIVE-VERIFIED RENDERING (operator: "scaffold the WebGPU spike")
 - **"The Million-Mote Mind" is BUILT, flag-gated, and RENDERS on the real GPU.** Commits `dd22225` (scaffold) + `9ecd484` (mount fix + exposure). 214/214 tests green (209 + 5 gpuMode), build green.
@@ -97,7 +105,7 @@ Convert the living-being frontend blueprint into a 100% working live organism. *
 **HONEST CAVEAT:** the local 3B model holds the GAGOS identity inconsistently (prompt strengthened; a larger local model = rock-solid).
 **REFERENCE (not in product):** `.aios/state/GAGOS_WEBGPU_SPIKE.md` + `GAGOS_WEBGPU_PORT_MAP.json` archive the WebGPU concept + the GLSL→TSL port map (incl. the troika-crashes-WebGPU blocker) if ever revived.
 **KEY LESSON (point-field):** dense ADDITIVE point-field white-out = accumulation; the lever is point SIZE (smaller = resolves to color/folds); bloom is the enemy of color — keep it a whisper, let AgX roll off.
-**Untracked (operator's call):** `.github/` (CI) + `SYSTEM_AUDIT_2026-06-21.md`.
+**CI (now committed + green):** `.github/workflows/ci.yml` enforces backend pytest + frontend typecheck/test/build on every push/PR (Node-24 action majors, 0 annotations). `SYSTEM_AUDIT_2026-06-21.md` also committed.
 
 The Phase-4a posture work below is COMPLETE — historical context.
 
