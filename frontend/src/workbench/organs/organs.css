@@ -1,0 +1,1233 @@
+/* ── ORGANS DOCK ──────────────────────────────────────────────────────────────
+   Two additive, read-only observability organs — the AUTONOMY LEDGER (the brain's
+   earned grown-up capabilities) and the CURRICULUM growth ladder. A fixed HUD-layer
+   glass console docked TOP-RIGHT, below the topbar, COLLAPSED BY DEFAULT, portaled
+   into document.body. It is NOT an in-scene <Html>: canon defines exactly two nerve
+   sockets, so a governance organ with no honest nerve docks as a HUD-layer glass
+   console (blueprint §3), never a faked third wire.
+
+   Design-System Law compliance:
+   - Canon tokens only (var(--token)); no re-typed equivalents.
+   - Glass via the canon `.glass-surface` class (recipe + ::before rim + grain).
+   - PAINT-TRAP LAW: .organs-panel and .organs-tab are backdrop-filtered, so they
+     NEVER transition box-shadow/border/background. Truth-states are static class
+     swaps; the only animation is transform/opacity (panel entrance, skeleton
+     shimmer) and the flare on the NON-blurred .organs-tab-pip child overlay.
+   - One accent per port: only the active switch tab carries --accent.
+   - Truth-state literals (#ff5c5c revoked, #ff8d7e fail, #9ff0ff held-out) are
+     intentional non-canon-token signals (not present in :root), double-encoded
+     with text so color is never the sole signal.
+   Styles scoped to .organs-* classes; product-only.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* The wrapper is pointer-transparent (like .hud-shell) so it never traps clicks
+   outside its own box; only the tab + panel take pointer events. */
+.organs-dock {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 55; /* BELOW canon command-bar/approval/dock (z 60); ABOVE scene (0-3). */
+  font-family: var(--mono);
+}
+
+/* ── Collapsed tab (default state) ──────────────────────────────────────────── */
+.organs-tab {
+  position: fixed;
+  top: 76px; /* 64px topbar + 12px gap */
+  right: 22px;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-panel);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  /* color/opacity only — NEVER background/border/box-shadow on this blurred pill. */
+  transition: color 200ms var(--ease-out-quart), opacity 200ms var(--ease-out-quart);
+}
+.organs-tab:hover {
+  color: var(--text-1);
+}
+.organs-dock[data-open='true'] .organs-tab {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.organs-tab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(88, 214, 141, 0.14);
+  color: var(--state-ok);
+  font-variant-numeric: tabular-nums;
+  font-size: 9.5px;
+}
+
+/* Flare pip — a NON-blurred child overlay. Its glow is the only thing the flare
+   animates (paint-trap law: never the blurred tab itself). */
+.organs-tab-pip {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: transparent;
+  pointer-events: none;
+  transition: background 0.5s var(--ease-out-quart), box-shadow 0.5s var(--ease-out-quart),
+    transform 0.5s var(--ease-out-quart);
+}
+.organs-tab-pip.is-flaring {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent), 0 0 22px rgba(92, 225, 230, 0.6);
+  transform: scale(1.6);
+}
+
+/* Unread-answer dot — a persistent NON-blurred child overlay marking a finished
+   turn the user hasn't read yet. Same paint-trap-safe pattern as .organs-tab-pip:
+   it lives ON the blurred tab but is itself NOT backdrop-filtered, so its paint
+   (background/box-shadow) is free to render without re-blurring the glass. Sits
+   top-LEFT so it never collides with the cyan flare pip top-right; uses the canon
+   --state-ok green ("new / positive") to read distinctly from the accent flare.
+   A gentle one-shot entrance (transform/opacity) draws the eye without nagging. */
+.organs-tab-unread {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--state-ok);
+  box-shadow: 0 0 8px var(--state-ok), 0 0 16px rgba(88, 214, 141, 0.55);
+  pointer-events: none;
+  animation: organs-unread-in 420ms var(--ease-out-quart);
+}
+@keyframes organs-unread-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Opened panel (glass console) ───────────────────────────────────────────── */
+.organs-panel {
+  position: fixed;
+  top: 76px;
+  right: 22px;
+  width: 360px;
+  max-height: calc(100vh - 76px - 120px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  /* .glass-surface (canon class) supplies background/blur/rim/radius/shadow. */
+  /* entrance: transform + opacity only (paint-safe). */
+  transform-origin: top right;
+  animation: organs-rise 600ms var(--ease-out-expo);
+}
+@keyframes organs-rise {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.organs-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+.organs-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.organs-eyebrow > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.organs-switch {
+  display: inline-flex;
+  margin-left: auto;
+  gap: 2px;
+}
+.organs-switch button {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 200ms var(--ease-out-quart);
+}
+.organs-switch button:hover {
+  color: var(--text-2);
+}
+/* The ONE accent per port: the active switch tab only. */
+.organs-switch button.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.organs-close {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 200ms var(--ease-out-quart);
+}
+.organs-close:hover {
+  color: var(--text-1);
+}
+
+.organs-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  scrollbar-width: thin;
+}
+
+/* ── Shared port primitives ─────────────────────────────────────────────────── */
+.organs-port-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  margin: 0 0 9px;
+}
+
+.organs-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 10px;
+}
+.organs-strip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.organs-strip-item b {
+  color: var(--text-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.organs-strip-spacer {
+  margin-left: auto;
+}
+
+.organs-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.organs-dot--ok {
+  background: var(--state-ok);
+}
+.organs-dot--busy {
+  background: var(--state-busy);
+}
+.organs-dot--bad {
+  background: #ff5c5c;
+}
+
+/* Master switch posture text (neutral when disabled — a posture, not a fault). */
+.organs-switch-state--on {
+  color: var(--state-ok);
+}
+.organs-switch-state--off {
+  color: var(--text-3);
+}
+
+/* Summary chips — truth-state colors, never accent. */
+.organs-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.organs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.organs-chip b {
+  font-variant-numeric: tabular-nums;
+}
+.organs-chip--ok b {
+  color: var(--state-ok);
+}
+.organs-chip--busy b {
+  color: var(--state-busy);
+}
+.organs-chip--bad b {
+  color: #ff5c5c;
+}
+
+/* ── Rows / rungs ───────────────────────────────────────────────────────────── */
+.organs-group + .organs-group {
+  margin-top: 4px;
+}
+/* Faded gradient divider between status groups (echoes .agent-heading::before). */
+.organs-divider {
+  height: 1px;
+  margin: 8px 2px;
+  border: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1) 30%,
+    rgba(255, 255, 255, 0.1) 70%,
+    transparent
+  );
+}
+
+.organs-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+  margin-bottom: 6px;
+}
+/* Left status rail — a static border-left whose color is set per-status. No
+   transition on it (and the row is NOT backdrop-filtered anyway). */
+.organs-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--text-3);
+}
+.organs-row--ok::before {
+  background: var(--state-ok);
+}
+.organs-row--busy::before {
+  background: var(--state-busy);
+}
+.organs-row--bad::before {
+  background: #ff5c5c;
+}
+
+.organs-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.organs-row-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.organs-row-name {
+  color: var(--text-1);
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 12.5px;
+  font-weight: 500;
+  word-break: break-word;
+}
+.organs-row-eyebrow {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.organs-row-stats {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.organs-stat-ok {
+  color: var(--state-ok);
+  font-variant-numeric: tabular-nums;
+}
+.organs-stat-fail {
+  color: #ff8d7e;
+  font-variant-numeric: tabular-nums;
+}
+.organs-stat-streak {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.organs-stat-streak--ok {
+  color: var(--state-ok);
+}
+
+/* ── Curriculum specifics ───────────────────────────────────────────────────── */
+.organs-skill {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.organs-skill-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--mono);
+  cursor: pointer;
+  text-align: left;
+  transition: color 200ms var(--ease-out-quart);
+}
+.organs-skill-head:hover {
+  color: var(--text-1);
+}
+.organs-chevron {
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--text-3);
+  width: 10px;
+  transition: transform 200ms var(--ease-out-quart);
+}
+.organs-skill[data-open='true'] .organs-chevron {
+  transform: rotate(90deg);
+}
+.organs-skill-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-1);
+}
+.organs-skill-summary {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.organs-rungs {
+  padding: 0 8px 8px;
+}
+.organs-rung {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 7px 6px;
+  border-top: 1px solid var(--hairline);
+}
+.organs-rung-main {
+  flex: 1;
+  min-width: 0;
+}
+.organs-rung-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.organs-rung-lv {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.organs-rung-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-rung-status--ok {
+  color: var(--state-ok);
+}
+.organs-rung-status--busy {
+  color: var(--state-busy);
+}
+.organs-rung-prompt {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 11.5px;
+  color: var(--text-2);
+  word-break: break-word;
+}
+.organs-rung-stats {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+/* Held-out pill — the loudest honest evidence (generalization, not memorization). */
+.organs-held {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(159, 240, 255, 0.4);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ff0ff;
+}
+.organs-held--proven {
+  border-color: #9ff0ff;
+}
+
+/* ── States: loading / empty / offline ──────────────────────────────────────── */
+.organs-note {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+  padding: 6px 2px;
+}
+.organs-note b {
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.organs-note--offline {
+  color: var(--state-busy);
+}
+.organs-stale {
+  margin-left: 6px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--state-busy);
+}
+
+/* Skeletons — transform-only shimmer on a NON-blurred child (paint-safe). */
+.organs-skel {
+  position: relative;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.organs-skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.05),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: organs-shimmer 1.4s var(--ease-loop) infinite;
+}
+@keyframes organs-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ── Responsive (mirror the canon law) ──────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .organs-tab {
+    right: 14px;
+  }
+  .organs-panel {
+    right: 14px;
+  }
+}
+@media (max-width: 620px) {
+  .organs-tab {
+    top: 60px;
+    right: 10px;
+  }
+  .organs-panel {
+    top: 60px;
+    right: 10px;
+    width: calc(100vw - 20px);
+    max-height: 60vh;
+  }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .organs-panel {
+    animation: none;
+  }
+  .organs-skel::after {
+    animation: none;
+  }
+  .organs-tab-pip,
+  .organs-chevron,
+  .organs-navtrigger-caret,
+  .organs-menu-item {
+    transition: none;
+  }
+  .organs-tab-unread,
+  .organs-menu {
+    animation: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-2 ADDITIONS (additive — Skills / Proposals / Memory ports + 5-tab switch).
+   All new surfaces are NON-backdrop-filtered, so the only transitions here are
+   color / border-color (paint-trap law holds — only .organs-panel/.organs-tab are
+   blurred and they are untouched above). Canon var(--token) only; the lone non-
+   token signals are the pre-existing intentional literals (#ff5c5c), double-encoded
+   with text. The single in-port accent is the search input focus ring.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 5-tab switch fit ───────────────────────────────────────────────────────── */
+/* With five tabs + the close button on a fixed 38px / 360px header, the tablist
+   can exceed the row; allow it to scroll horizontally with no visible scrollbar,
+   never wrap (the header height is fixed). The eyebrow drops to its icon only. */
+.organs-switch {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.organs-switch::-webkit-scrollbar {
+  display: none;
+}
+.organs-switch button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 4px 6px;
+}
+/* Icon-only eyebrow (the decorative ORGANS dot with no caption) so 5 tabs fit. */
+.organs-eyebrow--icon {
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* ── Quarantine / RED pill (shared: Skills QUARANTINED + Proposals RED) ──────── */
+/* Clones the .organs-held pill recipe recolored to the canon red fault literal
+   (#ff5c5c — the same intentional non-token signal used by .organs-row--bad). */
+.organs-quar {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 92, 92, 0.4);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ff5c5c;
+}
+
+/* ── Memory · primary score (Memory port right column) ───────────────────────── */
+.organs-score {
+  color: var(--text-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Memory · search row (the ONE in-port accent: the input focus ring) ──────── */
+.organs-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.organs-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 11px;
+  outline: none;
+  /* NOT a backdrop-filtered surface → a border-color transition is paint-safe. */
+  transition: border-color 200ms var(--ease-out-quart);
+}
+.organs-search input::placeholder {
+  color: var(--text-3);
+}
+.organs-search input:focus {
+  border-color: var(--accent);
+}
+.organs-search button {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  border-radius: 10px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 200ms var(--ease-out-quart),
+    border-color 200ms var(--ease-out-quart);
+}
+.organs-search button:hover:not(:disabled) {
+  color: var(--text-1);
+}
+.organs-search button:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-3 ADDITIONS — grouped nav (replaces the flat 8-tab row) + 3 read-only
+   ports (Zone Probe / Plan / Models). All new surfaces are NON-backdrop-filtered
+   (the nav menu sits INSIDE the already-blurred .organs-panel), so the only
+   transitions here are color / transform / opacity — the paint-trap law holds
+   (only .organs-panel/.organs-tab are blurred and they are untouched above).
+   Canon var(--token) only; the lone non-token signals are the pre-existing
+   intentional fault literals (#ff5c5c), double-encoded with text. The single
+   in-port accent is the active nav item / active organ name only.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Grouped nav: header trigger + slide-down menu ───────────────────────────── */
+.organs-navtrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto; /* close button pushed right */
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-family: var(--mono);
+  /* not blurred → a color transition is paint-safe. */
+  transition: color 200ms var(--ease-out-quart);
+}
+.organs-navtrigger:hover {
+  color: var(--text-1);
+}
+.organs-navtrigger-section {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-navtrigger-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent); /* the ONE accent: the active organ name */
+}
+.organs-navtrigger-caret {
+  font-size: 9px;
+  color: var(--text-3);
+  transition: transform 200ms var(--ease-out-quart);
+}
+.organs-navtrigger[aria-expanded='true'] .organs-navtrigger-caret {
+  transform: rotate(180deg);
+}
+
+.organs-menu {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--hairline);
+  padding: 8px 10px 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* transform/opacity only → paint-safe (and this surface is not blurred). */
+  animation: organs-menu-drop 220ms var(--ease-out-quart);
+}
+@keyframes organs-menu-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.organs-menu-group + .organs-menu-group {
+  margin-top: 8px;
+}
+.organs-menu-eyebrow {
+  margin: 0 0 4px;
+  padding: 0 2px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  /* not blurred → a color transition is paint-safe. */
+  transition: color 200ms var(--ease-out-quart);
+}
+.organs-menu-item:hover {
+  color: var(--text-1);
+}
+.organs-menu-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex-shrink: 0;
+}
+.organs-menu-item.is-active {
+  color: var(--accent); /* one accent */
+}
+.organs-menu-item.is-active .organs-menu-pip {
+  background: var(--accent);
+}
+
+/* ── Zone pill (Zone Probe verdict) ──────────────────────────────────────────── */
+/* Clones the .organs-held pill recipe, recolored per zone with the existing state
+   tokens / the pre-existing #ff5c5c fault literal. Text-labeled, so color is never
+   the sole signal. */
+.organs-zonepill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.organs-zonepill--ok {
+  border-color: var(--state-ok);
+  color: var(--state-ok);
+}
+.organs-zonepill--busy {
+  border-color: var(--state-busy);
+  color: var(--state-busy);
+}
+.organs-zonepill--bad {
+  border-color: #ff5c5c;
+  color: #ff5c5c;
+}
+
+/* ── Muted secondary prompt (Plan escalate reason / Auto routing reason) ─────── */
+.organs-rung-prompt--muted {
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-4 ADDITIONS — CONVERSATION port (episodic session dialogue: full user
+   prompts + FULL assistant answers with fenced code blocks). Every new surface
+   here is NON-backdrop-filtered (it lives INSIDE the already-blurred
+   .organs-panel), so the paint-trap law holds: the only blurred elements remain
+   .organs-panel / .organs-tab and they are untouched. Canon var(--token) only;
+   the lone non-token fills are the same translucent-white surface washes the
+   existing rows/rungs already use (no :root token is duplicated). No transitions
+   on any of these static surfaces.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.organs-convo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* One turn (user prompt or assistant answer). */
+.organs-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+}
+/* The operator's turn reads as the quieter, right-leaning side. */
+.organs-msg--user {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.organs-msg-role {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-msg--assistant .organs-msg-role {
+  color: var(--accent); /* the ONE accent: the AI-OS speaker label */
+}
+
+.organs-msg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* FULL answer text — verbatim, whitespace + newlines preserved (never clamped). */
+.organs-msg-text {
+  margin: 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.organs-msg--user .organs-msg-text {
+  color: var(--text-2);
+}
+
+/* ── Fenced code block (preserved intact from the assistant answer) ──────────── */
+.organs-code {
+  margin: 6px 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.025);
+}
+.organs-code-head {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+.organs-code-lang {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-code-pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text-1);
+  white-space: pre;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.organs-code-pre code {
+  font-family: inherit;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WAVE-5 ADDITIONS — INTENT port (the superbrain's per-turn UNDERSTANDING frame:
+   interpreted intent + confidence meter, the goal/desired-outcome, the
+   assumptions/unknowns/constraints/decisions lists, the next advisory action, and
+   the prominent clarifying-question truth-state). Every new surface here is
+   NON-backdrop-filtered (it lives INSIDE the already-blurred .organs-panel), so
+   the paint-trap law holds: the only blurred elements remain .organs-panel /
+   .organs-tab and they are untouched. The confidence meter animates TRANSFORM
+   only (scaleX) — never a paint prop. Canon var(--token) only; tinted washes use
+   the same alpha-rgba pattern (NOT duplicating any :root token value) the existing
+   rows/flares already use. Truth-state color is always double-encoded with a text
+   label, so color is never the sole signal.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Clarifying-question banner (the loudest truth-state: the brain is waiting) ── */
+.organs-intent-ask {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: rgba(92, 225, 230, 0.08);
+  margin-bottom: 12px;
+}
+.organs-intent-ask-label {
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.organs-intent-ask-q {
+  margin: 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-1);
+  word-break: break-word;
+}
+
+/* ── Interpreted intent header ──────────────────────────────────────────────── */
+.organs-intent-head {
+  margin-bottom: 12px;
+}
+.organs-intent-head-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.organs-intent-intent {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent); /* the ONE accent: the interpreted intent label */
+}
+/* Operator-corrected badge — clones the .organs-held pill recipe (state-ok tone),
+   text-labeled so color is never the sole signal. */
+.organs-intent-corrected {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--state-ok);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--state-ok);
+}
+.organs-intent-gloss {
+  margin: 4px 0 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* ── Confidence meter (transform-only fill — paint-safe) ─────────────────────── */
+.organs-intent-meter {
+  margin-bottom: 12px;
+}
+.organs-intent-meter-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.organs-intent-meter-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-intent-meter-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+.organs-intent-meter-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.organs-intent-meter-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  border-radius: 3px;
+  background: var(--accent);
+  /* transform-only animation (scaleX) — NEVER a paint prop. This surface is not
+     backdrop-filtered, so even the paint-trap law's strictest reading is honored. */
+  transition: transform 420ms var(--ease-out-quart);
+}
+
+/* ── Scalar fields (goal / desired outcome / next action) ────────────────────── */
+.organs-intent-field {
+  margin-bottom: 10px;
+}
+.organs-intent-field-label {
+  margin: 0 0 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.organs-intent-field-text {
+  margin: 0;
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-1);
+  word-break: break-word;
+}
+/* The next advisory action sits in a quiet bordered card to read as the brain's
+   stated next step (still data, never authority). */
+.organs-intent-next {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* ── Labeled lists (assumptions / unknowns / constraints / decisions) ─────────── */
+.organs-intent-list {
+  margin-bottom: 10px;
+}
+.organs-intent-list-label {
+  margin: 0 0 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+/* Tone variants — warn (assumptions/unknowns: unverified) + ok (decisions: made).
+   Text-labeled lists, so the tint is reinforcement, never the sole signal. */
+.organs-intent-list-label--warn {
+  color: var(--state-busy);
+}
+.organs-intent-list-label--ok {
+  color: var(--state-ok);
+}
+.organs-intent-list-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.organs-intent-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.organs-intent-item {
+  position: relative;
+  padding: 5px 10px 5px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+  font-family: var(--font-inter, system-ui, sans-serif);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  word-break: break-word;
+}
+.organs-intent-item::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 11px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-3);
+}

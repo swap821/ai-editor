@@ -3,15 +3,18 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-// THE SUPERBRAIN IS THE OFFICIAL FRONTEND (operator's decision, 2026-06-12):
-// the experience built in his visual lab is the face of the AI-OS. The
-// classic editor remains reachable behind ?ui=classic. Lazy on every side:
-// each UI's stack loads only when it is the one being mounted.
+// THE SUPERBRAIN INTEGRATION SHELL IS THE OFFICIAL FRONTEND (operator's
+// decision, 2026-06-14): the clean root URL (no flag) IS the whole system.
+// The shell is superbrain-as-lead — the persistent voyaging brain + the
+// renovated HUD, an in-app home <-> workbench toggle (no URL change), the
+// read-only governance/learning organs, and the approval safety-net — so
+// everything works at one URL. Lazy on every side: each UI's stack loads only
+// when it is the one being mounted.
 //
-// ?ui=shell mounts the Phase 2 integration shell (superbrain-as-lead with a
-// home form + a manufacturing form) WHILE it is in development — so the canon
-// default (no flag) and the classic IDE (?ui=classic) stay byte-untouched and
-// parity can be reviewed in the operator's browser before it becomes default.
+//   /              -> the official shell (default; ?ui=shell is a kept alias)
+//   ?ui=classic    -> the classic IDE (fallback, byte-untouched)
+//   ?ui=home       -> the bare canon superbrain home (SuperbrainApp), kept
+//                     reachable for parity review against the frozen brain+space
 const SuperbrainApp = lazy(() => import('./superbrain/SuperbrainApp.jsx'))
 const SuperbrainShell = lazy(() => import('./superbrain/SuperbrainShell.jsx'))
 const ui = new URLSearchParams(window.location.search).get('ui')
@@ -20,13 +23,13 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     {ui === 'classic' ? (
       <App />
-    ) : ui === 'shell' ? (
+    ) : ui === 'home' || ui === 'superbrain' ? (
       <Suspense fallback={null}>
-        <SuperbrainShell />
+        <SuperbrainApp />
       </Suspense>
     ) : (
       <Suspense fallback={null}>
-        <SuperbrainApp />
+        <SuperbrainShell />
       </Suspense>
     )}
   </StrictMode>,

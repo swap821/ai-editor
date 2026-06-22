@@ -542,3 +542,25 @@ docs + RESUME current · ✅ RESUME current. Today the library is whole; next se
   first paint is snappy on a stranger's machine; (2) seed a couple of real
   trails/skills so the pheromone map + memory galaxy are populated (an empty
   galaxy under-sells it). Neither blocks a demo today.
+
+---
+
+## 2026-06-14 — Advice (frontend renovation kickoff)
+
+**Where we are.** Backend is live-proven this session: multi-LLM router + failover + breadth + evidence-calibration, the active-brain badge, the verified_success recording fix (root-caused + fixed), and active-brain attribution truthful under failover (545 tests green, monitored live 6/6 PASS). The operator's verdict: the backend is what we want; the **frontend is still the pre-canon "mock-up" scaffold** other LLMs built and does NOT match the backend's real capabilities. New primary front: a full frontend RENOVATION to 100% backend harmony. Wave 1 (research → Renovation Blueprint) is running; Harmony Map committed; baseline tagged; on `feat/frontend-renovation`.
+
+**Highest-leverage next move.** Renovate within the law, not around it. The operator's CORE DESIGN (the voyaging-superbrain soul, canon scene/brain/GLB assets, sovereignty row, tokens) is FROZEN — every renovated surface conforms to it as an additive PORT, never a redesign. Sequence: blueprint → operator gut-check → lab-first implementation waves (build→test→self-critique→port→his-eyeball gate), observability-first, P0s first (harden the approval surface that hangs live runs; ANSWER port; AUTONOMY ledger). Stay in the loop between waves.
+
+**Risk to watch.** Two real ones. (1) **Canon damage** — agents "renovating" could edit his soul; mitigated by an explicit frozen-file boundary enforced in every brief + the branch/tag safety net. (2) **The eyeball gap** — an agent CANNOT prove visual parity in HIS browser or take before/after screenshots; "ultimate perfect" needs his eye at the gates. Don't promise a hands-off magic result that would violate his own FIDELITY laws; deliver iterated work in a branch + a fast review harness and let him be the final aesthetic authority.
+
+**Scoreboard.** End every wave with: build green + tests green + canon files byte-unchanged + a reviewable diff. Today: ✅ Harmony Map committed · ✅ baseline tagged + renovation branch · ⏳ Renovation Blueprint (Wave 1) running.
+
+## 2026-06-14 — CEO addendum (HUD GOAT renovation delivered + converged; official root URL)
+
+**Where we are.** The full 2D HUD renovation is DELIVERED and CONVERGED on `feat/frontend-renovation` (commits `84dbf53` → `74c3b68` → `2ee0ff3`). The convergence bar was met honestly: every hard gate green (build, canon-freeze with the 3D scene byte-frozen, css-canon, em-dash 0/0, no emoji/stamp, 65/65 tests) AND three independent review lenses (design-taste + ui-ux-pro-max + honesty) returned `clean`. The reviewers earned their cost: a first pass found 3 genuine in-scope blockers (amber state-hue drift on the loudest safety surfaces, `.secure-button` under the 44px touch target, the execute-arc spinning "working" during an offline-error where no turn began) — all three fixed lab-first and re-confirmed clean. Per the operator's call, the **official frontend is now the clean root `localhost:5173`** (the integration Shell: voyaging brain + renovated HUD + in-app home↔workbench toggle + governance organs + approval safety-net); `?ui=shell` alias, `?ui=classic` fallback. The 3D brain+space stayed byte-frozen throughout.
+
+**Highest-leverage next move.** Get his eyeball. The renovation honors his FIDELITY laws precisely BECAUSE an agent cannot prove visual parity in his browser — so the value now is his review at `:5173`, not more autonomous polish. Hold the branch unpushed/unmerged until he confirms; the one deliberately-deferred item (`.execute-button` 42px, which clears AA) is exactly the kind of discretionary visual change that waits for his eye. If he approves: push + (his call) merge. If he wants changes: iterate lab-first on the branch.
+
+**Risk to watch.** The reviewer-nitpick treadmill vs. the honesty bar. Independent lenses will ALWAYS surface *something* (judgment calls, documented exceptions) — converged≠silent. The discipline that worked: triage genuine in-scope defects from documented justified decisions (center-ports aria-hidden, hand-rolled icons, port-generated @import), fix the former, document the latter, and ship when gates+lenses are clean. Do not re-litigate the documented decisions every round, and do not let "the critic found one more thing" block a deliverable that meets the bar.
+
+**Scoreboard.** ✅ HUD renovation converged (gates + 3 lenses clean) · ✅ official root `:5173` · ✅ 3 final blockers fixed + reviewer-confirmed · ⏳ operator browser review (then push/merge on his call).

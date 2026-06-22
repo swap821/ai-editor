@@ -20,6 +20,7 @@ any network, model, or host side effects.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import sys
 from contextlib import asynccontextmanager
@@ -78,6 +79,7 @@ from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
+from aios.memory.facts import SemanticFacts
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -315,6 +317,17 @@ def get_skill_memory() -> SkillMemory:
     return SkillMemory()
 
 
+def get_semantic_facts() -> SemanticFacts:
+    """Provide the human-approved personalization facts store (REAL only).
+
+    Reads the ``semantic_facts`` table (human-gated writes); returns an empty
+    list when no facts exist, so the conversational endpoint stays honest —
+    personalization is dormant, never fabricated, when nothing is known. Cheap
+    and stateless (opens a fresh connection per call). Overridden in tests.
+    """
+    return SemanticFacts()
+
+
 def get_autonomy() -> AutonomyLedger:
     """Provide the earned-autonomy ledger (opt-in; off => never grants autonomy)."""
     return AutonomyLedger()
@@ -453,6 +466,23 @@ class GenerateRequest(BaseModel):
     #: (ant-colony stigmergy over the same supervised loop). Absent/false ->
     #: unchanged. Takes precedence over rolePass when both are set.
     swarm: bool = Field(False, alias="swarm")
+
+    model_config = {"populate_by_name": True}
+
+
+class ChatRequest(BaseModel):
+    """Body for ``/api/v1/chat`` — the lean Hinglish conversational endpoint.
+
+    Conversation only (the Jarvis voice mind, Slice 1): a single ``transcript``
+    line from the operator + an optional ``sessionId``. It reuses the multi-LLM
+    router (privacy gate intact), memory recall, and REAL personalization facts,
+    then streams one reply. NO file-write or coding tools run here — this is talk,
+    not the agentic forge.
+    """
+
+    transcript: str = Field(..., description="The operator's spoken/typed turn.")
+    session_id: str = Field("voice-session", alias="sessionId")
+    model_id: Optional[str] = Field(None, alias="modelId")
 
     model_config = {"populate_by_name": True}
 
@@ -1372,6 +1402,50 @@ _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
 _EPISODIC = EpisodicMemory()
 
 
+#: System prompt for the lean conversational endpoint (the "Jarvis" voice mind,
+#: Slice 1). It is CONVERSATION, not the coding forge: no file edits, no tool
+#: loop — just a warm, technically deep Hinglish chat. The operator-facts context
+#: block (REAL approved facts only; absent when none) is appended at request time,
+#: and the honesty law is stated inline so the model never invents personal facts.
+CHAT_SYSTEM_PROMPT = (
+    "Tu operator ka personal AI-OS hai — uska apna 'Jarvis'. Tu ek saathi ki "
+    "tarah baat karta hai: natural HINGLISH mein (English aur Hindi ka fluid mix), "
+    "jaise operator khud likhta/bolta hai — uske tone aur mix ko match kar. "
+    "Concise reh, warm reh, lekin technically deep — code, architecture, ya kuch "
+    "bhi discuss kar sakta hai gehrai se. "
+    "Yeh sirf baat-cheet hai, coding forge NAHI: tu koi file edit/create nahi karta, "
+    "koi tool ya terminal nahi chalata, sirf jawaab deta hai. Agar operator ko "
+    "actual code likhwana/chalwana ho, use politely batao ki woh main forge "
+    "(generate) flow se kare. "
+    "Personalization: neeche diye gaye operator ke REAL facts hi use kar; agar koi "
+    "fact nahi diya gaya to koi personal baat invent mat kar — honest reh, "
+    "generic reh."
+)
+
+
+def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Optional[str]:
+    """Build a REAL-facts-only personalization block, or ``None`` when dormant.
+
+    Reads human-approved active facts for *subject* (newest-first) and renders
+    them as ``subject predicate object`` triples. Honesty law: when there are no
+    facts the block is ``None`` (personalization stays dormant — never fabricated).
+    Best-effort: any store error degrades to ``None`` rather than breaking chat.
+    """
+    try:
+        rows = facts.facts_for(subject)
+    except Exception:  # noqa: BLE001 - personalization is an enhancement, never fatal
+        return None
+    if not rows:
+        return None
+    triples = "\n".join(
+        f"- {row['subject']} {row['predicate']} {row['object']}" for row in rows
+    )
+    return (
+        "KNOWN FACTS ABOUT THE OPERATOR (human-approved; use to personalize, "
+        "never invent beyond these):\n" + triples
+    )
+
+
 def _latest_user(chat_messages: list[dict[str, Any]]) -> str:
     """Return the most recent user message text (already flattened to a string)."""
     for msg in reversed(chat_messages):
@@ -2053,6 +2127,101 @@ def generate(
                         record_outcome("verified_success")
                 approvals.clear_session(session_id)
                 yield _sse("done", {})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/v1/chat")
+def chat(
+    req: ChatRequest,
+    client: OllamaClient = Depends(get_ollama_client),
+    bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
+    gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+    indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> StreamingResponse:
+    """Stream a lean Hinglish conversational reply (the Jarvis voice mind, Slice 1).
+
+    This is CONVERSATION, not the agentic forge: it reuses the cross-provider
+    router (so the operator's local-first privacy gate is fully intact), recalls
+    relevant memory, and injects REAL personalization facts, then calls the chat
+    client ONCE for a single reply — NO ``ToolAgent`` loop, NO file-write/coding
+    tools. The reply is fake-streamed word-by-word (mirroring ``ToolAgent._finish``)
+    so cloud and local providers share one wire shape. Frames, in order:
+
+      * ``route``       — the provider/model that served + a privacy indicator.
+      * ``text_chunk``  — the reply, as a sequence of ``{"text": ...}`` frames.
+      * ``done``        — terminal frame (``{}``), or ``error`` on transport failure.
+
+    The user + assistant turns are persisted to L2 episodic memory and the
+    completed turn is embedded into L3 (self-reinforcing recall), exactly like
+    ``/api/generate``. Best-effort persistence never breaks the chat.
+    """
+    user_text = req.transcript.strip()
+    # Route by purpose (general for chitchat, coding for code talk, etc.). The
+    # privacy gate lives inside _select_chat_client via _router_policy(): with the
+    # default empty ROUTER_CLOUD_TASKS, `auto` stays local-only. Never force cloud.
+    task = infer_task(user_text)
+    chat_client, model = _select_chat_client(
+        req.model_id, client, bedrock, gemini=gemini, task=task,
+    )
+    provider, model = _active_route(chat_client, bedrock, gemini, model)
+
+    def event_stream() -> Iterator[str]:
+        if not user_text:
+            yield _sse("error", {"text": "No transcript provided."})
+            return
+
+        # Build the conversational system prompt: the Hinglish persona + REAL
+        # operator facts (dormant when none) + relevant prior memory.
+        system_parts: list[str] = [CHAT_SYSTEM_PROMPT]
+        persona = _operator_facts_block(facts)
+        if persona:
+            system_parts.append(persona)
+        recall = _recall_memory(user_text)
+        if recall:
+            system_parts.append(recall)
+        messages = [
+            {"role": "system", "content": "\n\n".join(system_parts)},
+            {"role": "user", "content": user_text},
+        ]
+
+        _record_episode(req.session_id, "user", user_text)
+
+        # The ACTIVE BRAIN for this turn (the UI 'voyaging mind' badge): provider/
+        # model that served + privacy indicator. Local-first respected — the
+        # provider is whatever the router chose, never hardcoded cloud.
+        yield _sse(
+            "route",
+            {
+                "provider": provider,
+                "model": model,
+                "privacy": "local" if provider == router.PROVIDER_OLLAMA else "cloud",
+                "task": task,
+                "auto": req.model_id in _AUTO_IDS,
+            },
+        )
+
+        # ONE chat call, tools=None => pure text, no tool loop, no file writes.
+        try:
+            reply = chat_client.chat(messages, tools=None, model=model)
+        except LLMError as exc:
+            yield _sse("error", {"text": str(exc)})
+            return
+        text = str((reply or {}).get("content", "")).strip() or "(no answer)"
+
+        # Fake-stream word-by-word, mirroring ToolAgent._finish, so the UI's
+        # existing text_chunk reader works identically for local + cloud.
+        for word in re.findall(r"\S+\s*", text):
+            yield _sse("text_chunk", {"text": word})
+
+        _record_episode(req.session_id, "assistant", text)
+        _index_turn(indexer, user_text, text)
+        yield _sse("done", {})
 
     return StreamingResponse(
         event_stream(),
