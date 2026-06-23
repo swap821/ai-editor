@@ -1039,6 +1039,15 @@ function BrainModel({
         )}
       </group>
       <MaterializationLayer reducedMotion={reduceMotion} />
+      {/* Status FROM the body (poster #6): a calm green pulse at the brainstem —
+          the "supervised / overseen mind" mark. Rides the voyage/orbit; reduced-
+          motion holds it steady. Sacred green (#54f0a0 = supervised). */}
+      {BEING_MODE === 'points' && <SupervisedMark reducedMotion={reduceMotion} />}
+      {/* Error returns as a restrained magenta SCAR on a vertebra (poster #6), not a
+          red panel — shown only while the being is in an error beat. */}
+      {BEING_MODE === 'points' && <ErrorScarMark reducedMotion={reduceMotion} />}
+      {/* Auto signal: a gold mote orbiting an upper vertebra while the being works. */}
+      {BEING_MODE === 'points' && <AutoOrbitMark reducedMotion={reduceMotion} />}
       {/* Anatomical callouts ride INSIDE the group: pinned to the lobes,
           breathing and banking with the organism. */}
       {SHOW_REGION_PINS && <RegionPins />}
@@ -1305,6 +1314,116 @@ function OrganismFraming({
     };
   });
   return null;
+}
+
+/** Status FROM the body (poster #6): a calm green pulse at the brainstem marking the
+ *  SUPERVISED / overseen mind — a human approval gate guards risky actions. Subtle +
+ *  slow so it reads as ambient assurance, not noise; reduced-motion holds it steady.
+ *  Additive green (#54f0a0 = the bible's supervised hue). Rides the brain group. */
+function SupervisedMark({ reducedMotion }: { reducedMotion: boolean }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame((state) => {
+    const m = meshRef.current;
+    const mat = matRef.current;
+    if (!m || !mat) return;
+    const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.1);
+    mat.opacity = 0.16 + pulse * 0.2; // subtle 0.16–0.36
+    m.scale.setScalar(0.05 + pulse * 0.014);
+  });
+  return (
+    <mesh ref={meshRef} position={[0, -0.35, 0]} renderOrder={6}>
+      <sphereGeometry args={[1, 14, 14]} />
+      <meshBasicMaterial
+        ref={matRef}
+        color="#54f0a0"
+        transparent
+        opacity={0.28}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
+/** Status FROM the body (poster #6): a restrained magenta SCAR on a vertebra when the
+ *  being hits an error — "error returns as scar/hold for correction," NOT a full red
+ *  panel. Ramps in on error (conversation phase 'error', which self-clears) with an
+ *  agitated pulse, then fades. Sacred magenta-red (#ff5f7a = the scar tint). */
+function ErrorScarMark({ reducedMotion }: { reducedMotion: boolean }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const intensity = useRef(0);
+  useFrame((state, delta) => {
+    const m = meshRef.current;
+    const mat = matRef.current;
+    if (!m || !mat) return;
+    const target = getConversationPhase() === 'error' ? 1 : 0;
+    intensity.current = reducedMotion
+      ? target
+      : THREE.MathUtils.damp(intensity.current, target, 4, delta);
+    const pulse = reducedMotion ? 0.6 : 0.55 + 0.45 * Math.sin(state.clock.elapsedTime * 3.4); // agitated
+    mat.opacity = intensity.current * (0.18 + pulse * 0.26); // restrained — never a full panel
+    m.scale.setScalar(intensity.current * (0.05 + pulse * 0.022) + 1e-4);
+    m.visible = intensity.current > 0.01;
+  });
+  return (
+    <mesh ref={meshRef} position={[0.05, -0.78, 0.04]} renderOrder={6} visible={false}>
+      <sphereGeometry args={[1, 12, 12]} />
+      <meshBasicMaterial
+        ref={matRef}
+        color="#ff5f7a"
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
+/** Status FROM the body (poster #6): an "auto" signal — a small gold mote ORBITING an
+ *  upper vertebra while the being autonomously works (orchestrating phases). Ramps in
+ *  with the work, then settles. Sacred gold (POSTURE_GOLD signal accent). */
+function AutoOrbitMark({ reducedMotion }: { reducedMotion: boolean }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const intensity = useRef(0);
+  useFrame((state, delta) => {
+    const m = meshRef.current;
+    const mat = matRef.current;
+    if (!m || !mat) return;
+    const phase = getOrganismPhase();
+    const orchestrating = phase === 'working' || phase === 'conducting' || phase === 'materializing';
+    intensity.current = reducedMotion
+      ? orchestrating
+        ? 1
+        : 0
+      : THREE.MathUtils.damp(intensity.current, orchestrating ? 1 : 0, 3.5, delta);
+    // orbit a small ring around an upper vertebra (the active seat region)
+    const a = reducedMotion ? 0.6 : state.clock.elapsedTime * 1.6;
+    const r = 0.09;
+    m.position.set(Math.cos(a) * r, -0.55 + Math.sin(a) * r * 0.5, Math.sin(a) * r * 0.4 + 0.03);
+    mat.opacity = intensity.current * 0.6;
+    m.scale.setScalar(0.022);
+    m.visible = intensity.current > 0.01;
+  });
+  return (
+    <mesh ref={meshRef} renderOrder={6} visible={false}>
+      <sphereGeometry args={[1, 10, 10]} />
+      <meshBasicMaterial
+        ref={matRef}
+        color="#ffd27a"
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
 }
 
 export default function SuperbrainScene({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web' }: SuperbrainSceneProps) {
