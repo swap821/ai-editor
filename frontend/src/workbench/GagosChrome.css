@@ -260,27 +260,56 @@
 }
 @keyframes gagos-caret-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
 
-/* the input bar */
+/* NeuralCommandDock — not a chatbot bar: a control ORGAN grown from the being's
+   root-field. Organic asymmetric membrane contour (no symmetric input rect), dark
+   brain-family tissue, faint point-field puncta, a soft membrane rim that GLOWS
+   with engagement (driven by --dock-intensity from deriveCommandDockState), not a
+   crisp glass border. Usable input ergonomics are unchanged inside. */
 .gagos-bar {
+  --dock-intensity: 0.4;
   pointer-events: auto;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 9px 9px 9px 20px;
-  border-radius: 18px;
-  background: rgba(8, 5, 20, 0.58);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  backdrop-filter: blur(22px) saturate(1.30);
-  -webkit-backdrop-filter: blur(22px) saturate(1.30);
-  box-shadow: 0 10px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  padding: 11px 11px 11px 22px;
+  /* organic membrane contour — asymmetric radii, reads as tissue not a UI rect */
+  border-radius: 26px 21px 30px 20px / 22px 27px 20px 28px;
+  /* dark brain-family tissue + two faint spectral tints (cyan crown / purple root) */
+  background:
+    radial-gradient(130% 150% at 28% -10%, rgba(123, 245, 251, 0.06), transparent 60%),
+    radial-gradient(120% 140% at 82% 120%, rgba(176, 110, 255, 0.05), transparent 58%),
+    rgba(6, 4, 15, calc(0.5 + var(--dock-intensity) * 0.2));
+  /* membrane rim — soft, brightens with engagement (no crisp 1px border) */
+  border: 1px solid rgba(123, 245, 251, calc(0.05 + var(--dock-intensity) * 0.16));
+  box-shadow:
+    0 10px 44px rgba(0, 0, 0, 0.5),
+    0 0 calc(16px + var(--dock-intensity) * 30px) rgba(123, 245, 251, calc(var(--dock-intensity) * 0.16)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  transition: border-color 0.4s ease, box-shadow 0.4s ease, opacity 0.45s ease, transform 0.45s ease;
 }
-.gagos-bar:focus-within {
-  /* Poster cyan focus ring instead of purple */
-  border-color: rgba(123, 245, 251, 0.38);
-  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(123, 245, 251, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+/* faint point-field puncta over the membrane (clipped to its organic contour) */
+.gagos-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(rgba(123, 245, 251, 0.06) 0.6px, transparent 0.7px);
+  background-size: 7px 7px;
+  opacity: calc(0.4 + var(--dock-intensity) * 0.5);
+  pointer-events: none;
+}
+/* engaged: the membrane warms + the rim glows toward the stem */
+.gagos-bar.is-active {
+  border-color: rgba(123, 245, 251, calc(0.16 + var(--dock-intensity) * 0.18));
+}
+/* the being is working: the dock yields — recedes + dims, never competes */
+.gagos-bar.is-minimized {
+  opacity: 0.5;
+  transform: scale(0.93);
 }
 .gagos-input {
   flex: 1;
