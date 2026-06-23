@@ -28,6 +28,9 @@ export interface BrainPresenceInput {
   viewportHeight?: number;
   /** points-being: dock the being clearly smaller on 2+ tabs so the center-forward focus tab owns the middle. */
   points?: boolean;
+  /** points-being: a supervised APPROVAL is held — crown the brain UP + shrink (a light
+   *  dock) so the centre-stage decision surface owns the frame while the operator decides. */
+  approvalHeld?: boolean;
 }
 
 export interface BrainPresenceLayout {
@@ -93,6 +96,19 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
     return {
       targetLocal: input.targetLocal,
       scale: 1,
+      opacity: 1,
+      tubeOpacity: 1,
+    };
+  }
+
+  // APPROVAL GATE (the supervised-mind thesis): the decision must COMMAND the frame —
+  // a LARGE surface dead-centre (slightly low so the brain still crowns above), pulled
+  // forward toward the viewer, NOT a side-seat the operator can miss. MaterializedTab
+  // anchors it as a camera-facing HUD element so the diff reads flat from any orbit.
+  if (input.kind === 'approval' && input.points) {
+    return {
+      targetLocal: tuple(0, -0.58, 1.5),
+      scale: round3(clamp(1.2 - compactness * 0.3, 0.82, 1.2)),
       opacity: 1,
       tubeOpacity: 1,
     };
@@ -192,7 +208,10 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
 
 export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPresenceLayout {
   const workspaceCount = Math.max(0, input.workspaceCount);
-  const mode: BrainPresenceLayout['mode'] = workspaceCount > 0 ? 'docked' : 'rest';
+  // The APPROVAL gate crowns the brain UP (a light dock) even with no work tabs, so the
+  // centre-stage decision surface owns the frame and the brain never sits over the diff.
+  const approvalDock = !!input.points && !!input.approvalHeld && workspaceCount < 2;
+  const mode: BrainPresenceLayout['mode'] = workspaceCount > 0 || approvalDock ? 'docked' : 'rest';
   const load = clamp((workspaceCount - 1) / 5, 0, 1);
   const compactness = viewportCompactness(input.viewportWidth, input.viewportHeight);
 
@@ -225,7 +244,9 @@ export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPrese
             // screen-size factor too (prototype: "flexes with tab count + screen size").
             // N=2→0.70, 3→0.54, 4→0.44, 5→0.37, 6+→floor 0.34.
             clamp((1 / (1 + 0.42 * (workspaceCount - 1))) * (1 - compactness * 0.12), 0.34, 0.82)
-          : clamp(1 - load * 0.16 - compactness * 0.05, 0.9, 1) // 1 tab: ~full
+          : approvalDock
+            ? clamp(0.72 - compactness * 0.05, 0.6, 0.72) // the gate: crown up + shrink to clear the decision
+            : clamp(1 - load * 0.16 - compactness * 0.05, 0.9, 1) // 1 tab: ~full
         : clamp(1 - load * 0.16 - compactness * 0.07, 0.76, 1),
     ),
     // CROWN higher: the smaller the brain (more tabs), the HIGHER it rises so it
@@ -234,7 +255,9 @@ export function deriveBrainPresenceLayout(input: BrainPresenceInput): BrainPrese
     // Crown-raise scales UP as the brain shrinks (more tabs): at 2 tabs the head is
     // still large, so it lifts least (stays fully in-frame, not clipped at top); each
     // added tab shrinks the head and raises it further toward the very top.
-    mainBrainOffsetY: round3(pointsOrchestrating ? clamp(1.0 + (workspaceCount - 2) * 0.22, 1.0, 2.0) : 0),
+    mainBrainOffsetY: round3(
+      pointsOrchestrating ? clamp(1.0 + (workspaceCount - 2) * 0.22, 1.0, 2.0) : approvalDock ? 1.0 : 0,
+    ),
     miniBrainScale: round3(clamp(0.205 - workspaceCount * 0.007 - compactness * 0.03, 0.108, 0.205)),
     miniBrainOpacity: round3(clamp(0.68 + load * 0.18 - compactness * 0.04, 0.58, 0.88)),
     miniBrainPosition: tuple(0, 0.26 + compactness * 0.14 - load * 0.04, 1.06 + compactness * 0.04 - load * 0.035),

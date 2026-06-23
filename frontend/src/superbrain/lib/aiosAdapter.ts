@@ -203,6 +203,30 @@ function setPendingApprovalState(next: PendingApproval | null): void {
   for (const listener of approvalListeners) listener(next);
 }
 
+// Dev aid (remote): inject a realistic pending approval to exercise the FULL approval
+// render path (the being's approval surface) without a live LLM turn — so the elevated
+// approval gate can be SEEN and tuned. window.__injectApproval(over?) / __clearApproval().
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  const host = window as unknown as {
+    __injectApproval?: (over?: Partial<PendingApproval>) => void;
+    __clearApproval?: () => void;
+  };
+  host.__injectApproval = (over) =>
+    setPendingApprovalState({
+      token: 'dev-token',
+      prompt: 'create a hello file',
+      summary: 'Approval required to create hello_gate.py',
+      explanation: 'The agent wants to create a new file. Review the contents and approve to write it.',
+      diff: '--- /dev/null\n+++ b/hello_gate.py\n@@ -0,0 +1,3 @@\n+def main():\n+    print("hello from the gate")\n+    return 0',
+      command: '',
+      kind: 'create',
+      filepath: 'hello_gate.py',
+      content: 'def main():\n    print("hello from the gate")\n    return 0\n',
+      ...over,
+    });
+  host.__clearApproval = () => setPendingApprovalState(null);
+}
+
 function captureApproval(text: string, data: Record<string, unknown>): void {
   const input = (data.input ?? {}) as Record<string, unknown>;
   const commands = Array.isArray(input.commands) ? input.commands : [];

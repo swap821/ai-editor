@@ -720,9 +720,17 @@ function BrainModel({
     [tabs, focusId, attention],
   );
   const workspaceCount = orchestration.workspaceCount;
+  const approvalHeld = tabs.some((t) => t.kind === 'approval' && t.lifecycle !== 'retracting');
   const brainPresence = useMemo(
-    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight, points: BEING_MODE === 'points' }),
-    [workspaceCount, viewportWidth, viewportHeight],
+    () =>
+      deriveBrainPresenceLayout({
+        workspaceCount,
+        viewportWidth,
+        viewportHeight,
+        points: BEING_MODE === 'points',
+        approvalHeld,
+      }),
+    [workspaceCount, viewportWidth, viewportHeight, approvalHeld],
   );
   const { scene } = useGLTF('/models/brain.glb');
 
@@ -1112,9 +1120,17 @@ function PointerBrainClone({
     [tabs, focusId, attention],
   );
   const workspaceCount = orchestration.workspaceCount;
+  const approvalHeld = tabs.some((t) => t.kind === 'approval' && t.lifecycle !== 'retracting');
   const brainPresence = useMemo(
-    () => deriveBrainPresenceLayout({ workspaceCount, viewportWidth, viewportHeight, points: BEING_MODE === 'points' }),
-    [workspaceCount, viewportWidth, viewportHeight],
+    () =>
+      deriveBrainPresenceLayout({
+        workspaceCount,
+        viewportWidth,
+        viewportHeight,
+        points: BEING_MODE === 'points',
+        approvalHeld,
+      }),
+    [workspaceCount, viewportWidth, viewportHeight, approvalHeld],
   );
   const brainPresenceRef = useRef(brainPresence);
   const { scene } = useGLTF('/models/brain.glb');

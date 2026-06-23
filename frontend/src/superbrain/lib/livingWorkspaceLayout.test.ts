@@ -27,6 +27,21 @@ describe('livingWorkspaceLayout', () => {
     expect(focused.scale).toBeGreaterThan(waiting.scale * 1.7);
   });
 
+  it('the APPROVAL gate commands the centre — large + camera-forward even when not focused', () => {
+    // a supervised decision seated at an off-side vertebra must be re-staged dead-centre
+    // + pulled forward so the operator can never miss it (the project's core thesis).
+    const pose = deriveLivingWorkspacePose({
+      kind: 'approval',
+      points: true,
+      focused: false,
+      targetLocal: [1.32, 0.62, 0.25], // an off-side vertebra seat — must be overridden
+    });
+    expect(pose.targetLocal[0]).toBe(0); // dead-centre x
+    expect(pose.targetLocal[2]).toBeGreaterThan(1); // pulled forward toward the viewer
+    expect(pose.scale).toBeGreaterThanOrEqual(0.82); // large — it must dominate the frame
+    expect(pose.opacity).toBe(1);
+  });
+
   it('pulls the focused workspace to the centered forward working field', () => {
     const pose = deriveLivingWorkspacePose({
       kind: 'content',
@@ -89,6 +104,20 @@ describe('livingWorkspaceLayout', () => {
     expect(docked.pointerInfluence).toBeLessThan(0.14);
     expect(docked.miniBrainOpacity).toBeGreaterThan(rest.miniBrainOpacity);
     expect(docked.mainBrainScale).toBeLessThanOrEqual(1);
+  });
+
+  it('the APPROVAL gate crowns the brain UP + shrinks it so the decision owns the frame', () => {
+    const rest = deriveBrainPresenceLayout({ workspaceCount: 0, viewportWidth: 1440, viewportHeight: 900, points: true });
+    const gate = deriveBrainPresenceLayout({
+      workspaceCount: 0,
+      viewportWidth: 1440,
+      viewportHeight: 900,
+      points: true,
+      approvalHeld: true,
+    });
+    expect(gate.mode).toBe('docked');
+    expect(gate.mainBrainOffsetY).toBeGreaterThan(0); // lifts up to crown the top
+    expect(gate.mainBrainScale).toBeLessThan(rest.mainBrainScale); // shrinks to clear the box
   });
 
   it('compresses the conductor pair under high workspace load and compact viewports', () => {

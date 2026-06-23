@@ -304,35 +304,35 @@ function ApprovalActionButton({
       }}
     >
       <mesh renderOrder={11}>
-        <sphereGeometry args={[0.052, 20, 14]} />
+        <sphereGeometry args={[0.082, 22, 16]} />
         <meshStandardMaterial
           color={fill}
           emissive={fill}
-          emissiveIntensity={disabled ? 0.05 : hovered ? 0.7 : 0.32}
+          emissiveIntensity={disabled ? 0.05 : hovered ? 0.85 : 0.46}
           roughness={0.24}
           metalness={0.06}
           transparent
-          opacity={disabled ? 0.24 : hovered ? 0.95 : 0.78}
+          opacity={disabled ? 0.24 : hovered ? 0.98 : 0.86}
         />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={12}>
-        <torusGeometry args={[0.078, 0.004, 8, 36]} />
+        <torusGeometry args={[0.122, 0.006, 10, 40]} />
         <meshBasicMaterial
           color={outline}
           transparent
-          opacity={disabled ? 0.12 : hovered ? 0.52 : 0.28}
+          opacity={disabled ? 0.14 : hovered ? 0.7 : 0.42}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </mesh>
       <Text
-        position={[0, 0, 0.064]}
+        position={[0, 0, 0.1]}
         color="#f9fbff"
-        fontSize={0.017}
-        maxWidth={0.11}
+        fontSize={0.028}
+        maxWidth={0.2}
         anchorX="center"
         anchorY="middle"
-        outlineWidth={0.002}
+        outlineWidth={0.003}
         outlineColor="#04070c"
         renderOrder={13}
       >
@@ -1095,7 +1095,11 @@ export default function MaterializedTab({
   // Points: the FOCUSED/attended tab faces the camera so the code you're reading
   // stays legible from any orbit angle. In ORCHESTRATION (2+ tabs) EVERY work tab is
   // a camera-anchored HUD element (center focus / corners), all facing the camera.
-  const isHudTab = POINTS && tab.kind !== 'input' && (workspaceCount ?? 1) >= 2;
+  // The APPROVAL gate is ALWAYS a camera-anchored HUD element (centre-front, facing the
+  // operator) — the supervised decision must command the frame regardless of how many
+  // work tabs are up. Work tabs become HUD elements only in orchestration (2+).
+  const isHudTab =
+    POINTS && (tab.kind === 'approval' || (tab.kind !== 'input' && (workspaceCount ?? 1) >= 2));
   const facesCamera = tab.kind === 'input' || (POINTS && focused) || isHudTab;
   const isFocused = tab.kind === 'input' || focused;
   const pose = useMemo(
@@ -1604,9 +1608,11 @@ export default function MaterializedTab({
           organMaterial.tissue.emissiveGain *
           (1 + surfaceExcitation * 0.14 + outcomeSurfaceExcitation * 0.12);
       }
-      // Points being: read as DARK near-black GLASS (not a heavy teal fill).
+      // Points being: read as DARK near-black GLASS (not a heavy teal fill). The
+      // APPROVAL gate gets a MORE SOLID backing — it's the decision surface, the diff
+      // must read crisply without the willow/cauda bleeding through it.
       if (POINTS) {
-        mat.opacity *= 0.42;
+        mat.opacity *= tab.kind === 'approval' ? 0.9 : 0.42;
         mat.emissiveIntensity *= 0.22;
         mat.roughness = 0.12;
         mat.metalness = 0.3;
