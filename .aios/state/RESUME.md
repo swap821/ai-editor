@@ -1,6 +1,14 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-23T09:45:00+05:30
+Last updated: 2026-06-23T12:20:00+05:30
+
+## SESSION 2026-06-23 (operator at laptop, cont.) — TABS = OPAQUE BLACK-TV SCREENS + nerve cleanup (#48–#53)
+- **Operator pivoted:** dark glass → "i want like a display, no transparency, like TV — brain holding a black tv screen." Iterated live on his RTX (panels-only; brain/void/layout untouched). Final on master `eee5498`:
+- **The TV screen** (MaterializedTab.tsx ~1966): `meshStandard` with `color`==`emissive`==`#1a1e27` @ `emissiveIntensity 1`, matte (`roughness 1`/`metalness 0`), opaque → a FLAT, self-lit (backlit-uniform), matte black screen. **KEY LESSON:** a near-black opaque panel on the pure-black void is INVISIBLE (reads as a hologram) — what made it read as a TV was PRESENCE: lifted screen color #1a1e27 + lighter content well #23272f + a **defined bright cyan bezel edge** (rim → `theme.reach` @0.92 in points). Opacity was the wrong lever. **`meshBasic` on `slabBodyGeometry` renders INVISIBLE — do NOT use it; keep meshStandard self-emissive.**
+- **Dotted skin retired** (#50): the always-on `OrganPointFieldSkin` speckled the screen → gated behind `surfaceDial.pointSkin` (default off) = clean screen.
+- **THE THREE NERVES (I confused them 3× — map before removing, see [[map-before-removing-visual-elements]]):** (1) `CorticalNerve` cortex→panel (MaterializationLayer) — **REMOVED #53** (the one he meant); (2) vertebra umbilical spine→panel = `tubeRef` tube+beads (MaterializedTab) — **KEPT** (wrongly removed #52, restored #53); (3) chat `CommandDockTether` dock→brainstem (GagosChrome) — **KEPT** ("it's important"; wrongly removed #51, restored #52).
+- **Known remaining (operator aware, declined):** the panel's left edge overlaps the brain → brain points draw over that edge (depth, NOT transparency — the panel is opaque, occludes the void). Fix = pull panel forward in depth (caused size/eclipse churn when tried) or a placement nudge; he says placement is ok. Leave unless asked.
+- **Session closed by operator** ("take rest, closing this session"). PRs #43–#53 merged today. ~277 tests green.
 
 ## SESSION 2026-06-23 (operator at laptop) — VERDICT: dark glass WINS + PURE-BLACK VOID shipped (#45)
 - **Two decisive operator calls closed the collaboration loop:**
