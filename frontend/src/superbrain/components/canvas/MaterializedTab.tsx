@@ -16,6 +16,7 @@ import { fuseSpinePoint, getBrainDockScale } from '@/lib/spineFusionBus';
 import { useMetric, useMetricHistory, type MetricKey } from '@/lib/metricsStore';
 import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
 import { deriveMaterializedSurfaceSkin, type MaterializedSurfaceSkin } from '@/lib/materializedSurfaceSkin';
+import { useSurfaceDial } from '@/lib/surfaceDialBus';
 import { deriveOrganMaterialState, type OrganMaterialState } from '@/lib/organMaterialState';
 import { formatMaterializedTextPreview } from '@/lib/materializedTextPreview';
 import { REST_OUTCOME_IMPRINT, type OutcomeImprintSnapshot } from '@/lib/outcomeImprint';
@@ -399,6 +400,9 @@ function LivingMembraneSkin({
   skin,
   surfaceGeometry,
   theme,
+  membraneScale = 1,
+  veinScale = 1,
+  nodeScale = 1,
 }: {
   dimensions: SurfaceDimensions;
   kind: MaterializedTabKind;
@@ -409,6 +413,10 @@ function LivingMembraneSkin({
   skin: MaterializedSurfaceSkin;
   surfaceGeometry: THREE.ShapeGeometry;
   theme: SurfaceTheme;
+  /** Operator dial multipliers (window.__SURFACE) — default 1 = unchanged. */
+  membraneScale?: number;
+  veinScale?: number;
+  nodeScale?: number;
 }) {
   const metabolismColor = useMemo(() => new THREE.Color(metabolism.tint), [metabolism.tint]);
   const outcomeColor = useMemo(() => new THREE.Color(outcome.tint), [outcome.tint]);
@@ -455,7 +463,7 @@ function LivingMembraneSkin({
         <meshBasicMaterial
           color={membraneColor}
           transparent
-          opacity={skin.membraneOpacity * material.tissue.membraneOpacityScale}
+          opacity={skin.membraneOpacity * material.tissue.membraneOpacityScale * membraneScale}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -463,7 +471,7 @@ function LivingMembraneSkin({
       <SurfaceThicknessGradientSkin dimensions={dimensions} material={material} shapeGrammar={shapeGrammar} theme={theme} />
       <RootGripDeformationSkin dimensions={dimensions} material={material} shapeGrammar={shapeGrammar} skin={skin} theme={theme} />
       <lineSegments geometry={veinGeometry} position={[0, 0, dimensions.thickness + 0.022]} renderOrder={10}>
-        <lineBasicMaterial color={veinColor} transparent opacity={skin.veinOpacity * material.tissue.signalOpacityScale} />
+        <lineBasicMaterial color={veinColor} transparent opacity={skin.veinOpacity * material.tissue.signalOpacityScale * veinScale} />
       </lineSegments>
       {nodePositions.map((position, index) => (
         <mesh key={`membrane-node-${kind}-${index}`} position={position} renderOrder={10}>
@@ -471,7 +479,7 @@ function LivingMembraneSkin({
           <meshBasicMaterial
             color={veinColor}
             transparent
-            opacity={skin.nodeOpacity * material.tissue.signalOpacityScale}
+            opacity={skin.nodeOpacity * material.tissue.signalOpacityScale * nodeScale}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
@@ -1038,6 +1046,9 @@ export default function MaterializedTab({
   const camera = useThree((state) => state.camera);
   const viewportWidth = useThree((state) => state.size.width);
   const viewportHeight = useThree((state) => state.size.height);
+  // Operator's live surface-anatomy dial (window.__SURFACE). Default-off → the
+  // points being keeps its clean-dark-glass look until he turns a knob on :5173.
+  const surfaceDial = useSurfaceDial();
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [revealedCount, setRevealedCount] = useState(0);
   const revealedCountRef = useRef(0);
@@ -1967,33 +1978,39 @@ export default function MaterializedTab({
               position={[0, 0, dimensions.thickness + 0.001]}
               renderOrder={9}
             >
-              <lineBasicMaterial color={theme.frame.clone()} transparent opacity={0.38} />
+              <lineBasicMaterial color={theme.frame.clone()} transparent opacity={surfaceDial.rimOpacity} />
             </lineSegments>
-            {/* Points being: drop the membrane veins/dots + surface point-field
-                dots so the slab reads as clean dark glass (poster look). */}
-            {!POINTS && (
-              <>
-                <LivingMembraneSkin
-                  dimensions={dimensions}
-                  kind={tab.kind}
-                  material={organMaterial}
-                  metabolism={metabolism}
-                  outcome={outcome}
-                  shapeGrammar={shapeGrammar}
-                  skin={skin}
-                  surfaceGeometry={slabShapeGeometry}
-                  theme={theme}
-                />
-                <OrganPointFieldSkin
-                  dimensions={dimensions}
-                  focused={isFocused}
-                  kind={tab.kind}
-                  material={organMaterial}
-                  reducedMotion={reducedMotion}
-                  shapeGrammar={shapeGrammar}
-                  skin={skin}
-                />
-              </>
+            {/* Points being: the membrane veins/dots + surface point-field dots
+                are dropped by default so the slab reads as clean dark glass
+                (poster look). The operator's window.__SURFACE dial un-gates them
+                in the points being for live tissue tuning (default-off = no
+                change); in mesh mode they always render. */}
+            {(!POINTS || surfaceDial.membrane) && (
+              <LivingMembraneSkin
+                dimensions={dimensions}
+                kind={tab.kind}
+                material={organMaterial}
+                metabolism={metabolism}
+                outcome={outcome}
+                shapeGrammar={shapeGrammar}
+                skin={skin}
+                surfaceGeometry={slabShapeGeometry}
+                theme={theme}
+                membraneScale={surfaceDial.membraneOpacity}
+                veinScale={surfaceDial.veinOpacity}
+                nodeScale={surfaceDial.nodeOpacity}
+              />
+            )}
+            {(!POINTS || surfaceDial.pointSkin) && (
+              <OrganPointFieldSkin
+                dimensions={dimensions}
+                focused={isFocused}
+                kind={tab.kind}
+                material={organMaterial}
+                reducedMotion={reducedMotion}
+                shapeGrammar={shapeGrammar}
+                skin={skin}
+              />
             )}
             {/* Points being (poster phase 4): the tab is BUILT FROM POINTS — render
                 the point-field skin (dotted-particle border on all 4 edges + sparse
@@ -2080,7 +2097,7 @@ export default function MaterializedTab({
                   <meshBasicMaterial
                     color={theme.frame}
                     transparent
-                    opacity={skin.headerBandOpacity * organMaterial.tissue.headerOpacityScale}
+                    opacity={skin.headerBandOpacity * organMaterial.tissue.headerOpacityScale * surfaceDial.titleOpacity}
                   />
                 </mesh>
                 <Text
