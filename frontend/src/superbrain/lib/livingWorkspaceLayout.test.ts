@@ -13,6 +13,20 @@ describe('livingWorkspaceLayout', () => {
     expect(pose.opacity).toBe(1);
   });
 
+  it('1C hierarchy: in points orchestration the attended tab clearly dominates the waiting ones', () => {
+    const common = { kind: 'content' as const, points: true, workCount: 3, targetLocal: [0, 0, 0] as [number, number, number] };
+    const focused = deriveLivingWorkspacePose({ ...common, focused: true });
+    const waiting = deriveLivingWorkspacePose({ ...common, focused: false, waitingIndex: 0 });
+    // attended: large + full opacity + forward (z+) relative to waiting
+    expect(focused.scale).toBeGreaterThanOrEqual(0.68);
+    expect(focused.opacity).toBe(1);
+    expect(focused.targetLocal[2]).toBeGreaterThan(waiting.targetLocal[2]);
+    // waiting: smaller, dimmer, receded — and the focus must clearly out-scale it
+    expect(waiting.scale).toBeLessThanOrEqual(0.4);
+    expect(waiting.opacity).toBeLessThanOrEqual(0.32);
+    expect(focused.scale).toBeGreaterThan(waiting.scale * 1.7);
+  });
+
   it('pulls the focused workspace to the centered forward working field', () => {
     const pose = deriveLivingWorkspacePose({
       kind: 'content',
