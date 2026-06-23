@@ -21,6 +21,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { sendDirective, sendVoiceTurn, getLastEmittedCode } from '../superbrain/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
+import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
+import { useReducedMotion } from '../superbrain/lib/reducedMotion';
 import { API_BASE } from '../config';
 import {
   formatActiveBrainLine,
@@ -141,12 +143,14 @@ export default function GagosChrome() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [focused, setFocused] = useState(false); // NeuralCommandDock: input focus → dock engages
   const [voiceSupported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
   );
   const [modelLine, setModelLine] = useState(() => formatActiveBrainLine(getActiveBrain()));
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [online, setOnline] = useState(true); // honest backend reachability (polled)
+  const reducedMotion = useReducedMotion();
 
   const busyRef = useRef(false);
   const turnTokenRef = useRef(0);
@@ -407,6 +411,18 @@ export default function GagosChrome() {
             ? 'GAGOS could not complete that turn'
             : '';
 
+  // NeuralCommandDock: the input is a control organ — calm at rest, the membrane
+  // warms when engaged (focus/typing/voice/sending). (working-dim wires in once a
+  // workspace-count signal reaches the chrome.)
+  const dock = deriveCommandDockState({
+    hasText: draft.trim().length > 0,
+    focused,
+    listening,
+    sending: busy,
+    working: false,
+    reducedMotion,
+  });
+
   return (
     <div className="gagos-chrome" role="main" aria-label="GAGOS conversation">
       <button type="button" className="gagos-skip" onClick={() => inputRef.current?.focus()}>
@@ -470,13 +486,18 @@ export default function GagosChrome() {
           })}
         </div>
 
-        <div className="gagos-bar">
+        <div
+          className={`gagos-bar${dock.active ? ' is-active' : ''}${dock.minimized ? ' is-minimized' : ''}`}
+          style={{ '--dock-intensity': dock.intensity }}
+        >
           <input
             ref={inputRef}
             className="gagos-input"
             type="text"
             value={draft}
             placeholder={listening ? 'listening…' : 'talk to GAGOS…'}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') { e.preventDefault(); void submit(draft); }
