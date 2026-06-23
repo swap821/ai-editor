@@ -2021,11 +2021,12 @@ export default function MaterializedTab({
                 skin={skin}
               />
             )}
-            {/* Points being (poster phase 4): the tab is BUILT FROM POINTS — render
-                the point-field skin (dotted-particle border on all 4 edges + sparse
-                interior grain) so the slab reads as one organism with the brain.
-                Body stays dark glass so the puncta dominate. */}
-            {POINTS && tab.kind !== 'input' && (
+            {/* Points being: the OLD "tab is BUILT FROM POINTS" dotted-particle skin
+                (border + interior grain) is RETIRED (operator call 2026-06-23) — it
+                speckled the screen with dots. The tab is now a clean opaque TV
+                screen, so no point-field skin. (Recoverable via the window.__SURFACE
+                pointSkin dial below if ever wanted.) */}
+            {POINTS && surfaceDial.pointSkin && tab.kind !== 'input' && (
               <OrganPointFieldSkin
                 dimensions={dimensions}
                 focused={isFocused}
