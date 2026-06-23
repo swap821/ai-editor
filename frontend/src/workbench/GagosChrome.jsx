@@ -478,15 +478,25 @@ export default function GagosChrome() {
                 thin input below; the being's body carries everything else. */}
           </div>
         ) : null}
+        {/* Memory trail (not a chat thread): each turn is a luminous node on a
+            vertical filament rising from the dock. The newest memory glows brightest
+            near the intake; older ones recede UP the spine-side and dissolve into the
+            void (--depth drives opacity/scale/blur). No bubbles, no left/right split. */}
         <div className="gagos-thread" ref={threadRef} role="log" aria-label="Conversation with GAGOS" tabIndex={0}>
           {messages.map((m, i) => {
+            const depth = messages.length - 1 - i; // 0 = newest (brightest, by the dock)
             const streaming = m.role === 'gagos' && i === messages.length - 1 && busy && !!m.text;
             return (
-              <div key={m.id} className={`gagos-msg gagos-msg--${m.role}`}>
+              <div
+                key={m.id}
+                className={`gagos-msg gagos-msg--${m.role}${depth === 0 ? ' is-latest' : ''}`}
+                style={{ '--depth': depth }}
+              >
                 <span className="gagos-sr-only">{m.role === 'gagos' ? 'GAGOS: ' : 'You: '}</span>
+                <span className="gagos-msg__node" aria-hidden="true" />
                 {m.role === 'gagos' && !m.text
                   ? <span className="gagos-typing"><i /><i /><i /></span>
-                  : <>
+                  : <span className="gagos-msg__text">
                       {m.text}
                       {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
                       {m.retry ? (
@@ -494,7 +504,7 @@ export default function GagosChrome() {
                           Retry
                         </button>
                       ) : null}
-                    </>}
+                    </span>}
               </div>
             );
           })}

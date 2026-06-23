@@ -1321,29 +1321,52 @@ function OrganismFraming({
  *  slow so it reads as ambient assurance, not noise; reduced-motion holds it steady.
  *  Additive green (#54f0a0 = the bible's supervised hue). Rides the brain group. */
 function SupervisedMark({ reducedMotion }: { reducedMotion: boolean }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const coreMat = useRef<THREE.MeshBasicMaterial>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
+  const haloMat = useRef<THREE.MeshBasicMaterial>(null);
   useFrame((state) => {
-    const m = meshRef.current;
-    const mat = matRef.current;
-    if (!m || !mat) return;
     const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.1);
-    mat.opacity = 0.16 + pulse * 0.2; // subtle 0.16–0.36
-    m.scale.setScalar(0.05 + pulse * 0.014);
+    if (coreRef.current && coreMat.current) {
+      // A touch more present (#8: status reads FROM the body) — still ambient
+      // assurance, not noise: 0.2–0.42 with a slow breath.
+      coreMat.current.opacity = 0.2 + pulse * 0.22;
+      coreRef.current.scale.setScalar(0.05 + pulse * 0.014);
+    }
+    if (haloRef.current && haloMat.current) {
+      // Faint outer seal ring so the brainstem mark reads as an intentional
+      // "supervised seal," not a stray dot.
+      haloMat.current.opacity = 0.05 + pulse * 0.06;
+      haloRef.current.scale.setScalar(0.1 + pulse * 0.03);
+    }
   });
   return (
-    <mesh ref={meshRef} position={[0, -0.35, 0]} renderOrder={6}>
-      <sphereGeometry args={[1, 14, 14]} />
-      <meshBasicMaterial
-        ref={matRef}
-        color="#54f0a0"
-        transparent
-        opacity={0.28}
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </mesh>
+    <group position={[0, -0.35, 0]}>
+      <mesh ref={haloRef} renderOrder={5}>
+        <sphereGeometry args={[1, 16, 16]} />
+        <meshBasicMaterial
+          ref={haloMat}
+          color="#54f0a0"
+          transparent
+          opacity={0.08}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh ref={coreRef} renderOrder={6}>
+        <sphereGeometry args={[1, 14, 14]} />
+        <meshBasicMaterial
+          ref={coreMat}
+          color="#54f0a0"
+          transparent
+          opacity={0.28}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
   );
 }
 

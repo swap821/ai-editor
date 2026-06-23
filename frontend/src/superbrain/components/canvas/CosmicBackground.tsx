@@ -88,7 +88,11 @@ function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObje
       positions[i * 3 + 1] = (random() - 0.5) * 140;
       positions[i * 3 + 2] = (random() - 0.5) * 140 - 35;
 
-      const shade = random() * 0.4 + 0.6; // White/Grey
+      // Calmer field (polish #7): base glyph brightness pulled down ~30% (was
+      // 0.6-1.0) so the cosmic point-field reads as a quiet backdrop, not a
+      // competing layer. Near-organism density is preserved; the far field is
+      // dimmed further by the depth-fog falloff in the vertex shader below.
+      const shade = random() * 0.34 + 0.38; // 0.38-0.72 grey
       colors[i * 3 + 0] = shade;
       colors[i * 3 + 1] = shade;
       colors[i * 3 + 2] = shade;
@@ -203,6 +207,11 @@ function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObje
              // Smooth fade out as they fly past the camera lens (if they weren't grasped)
              float cameraDistance = abs(transformed.z - 4.5);
              vAlpha = smoothstep(0.0, 10.0, cameraDistance);
+
+             // Depth-fog falloff (polish #7): the FAR field recedes — glyphs deep
+             // behind the organism dim to ~40%, so the noisy scattered backdrop
+             // stops competing with the surfaces while the near field stays bright.
+             vAlpha *= 1.0 - smoothstep(34.0, 96.0, cameraDistance) * 0.6;
             `
           );
           

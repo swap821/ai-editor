@@ -21,6 +21,8 @@ const VERTEX = /* glsl */ `
   uniform float uFlowSpeed;  // body-axis flow-band sweep speed
   uniform float uArrival;    // 0 = scattered inrush origin, 1 = condensed in place
   uniform float uReabsorb;   // 0 = present, 1 = dissolved up/away
+  uniform float uSprayHide;  // 0 = cauda tail shown, 1 = tail retracted (while orchestrating)
+  uniform float uSprayBand;  // body-axis cutoff: points with aBand below this are the "tail"
   attribute float aSize;
   attribute vec3 aColor;
   attribute vec3 aNormal;    // surface normal — breathe displaces along it
@@ -68,7 +70,13 @@ const VERTEX = /* glsl */ `
     // stay a near-constant pixel size (the flat-poster read); never the runaway
     // drawingBufferHeight/z factor that balloons every point to the 64px clamp.
     float atten = mix(1.0, uRefDist / -mv.z, clamp(uAttenK, 0.0, 1.0));
-    gl_PointSize = min(uSize * aSize * uPixelRatio * atten * (1.0 + band * 0.2) * vAlpha, 64.0);
+    // SPRAY HIDE: while orchestrating, the cauda-equina TAIL (lowest body-axis
+    // points — the willow spray + intake rings) retracts so the bottom clears for
+    // the active work surface. Points above the cutoff are untouched; the tail
+    // shrinks to nothing as uSprayHide -> 1. (Operator call 2026-06-23.)
+    float tailMask = smoothstep(uSprayBand * 0.25, uSprayBand, aBand);
+    float sprayFactor = mix(1.0, tailMask, clamp(uSprayHide, 0.0, 1.0));
+    gl_PointSize = min(uSize * aSize * uPixelRatio * atten * (1.0 + band * 0.2) * vAlpha * sprayFactor, 64.0);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -204,6 +212,8 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uReabsorbGlow: { value: 0 }, // reabsorption brain-inhale glow (cortex-weighted luminance, no hue change)
       uReplyRise: { value: 0 },    // conversation reply rise-band (spine->cortex luminance, no hue change)
       uVertebrae: { value: 0 },    // orchestration: reveal vertebral segments down the spine (luminance, no hue change). Dial: window.__POINTFIELD.uVertebrae
+      uSprayHide: { value: 0 },    // orchestration: retract the cauda-equina tail (low aBand) so the bottom clears for the active surface
+      uSprayBand: { value: 0.17 }, // body-axis cutoff below which a point is "tail". Dial: window.__POINTFIELD.uSprayBand
       uArrivalDark: { value: 0.12 }, // arrival ignition floor (born-from-darkness); raise toward 1 to disable. Dial: window.__POINTFIELD.uArrivalDark
       uFogStart: { value: 15.0 },     // depth haze begins ~at the brain (camera ~uRefDist). Dial: window.__POINTFIELD.uFogStart
       uHazeStrength: { value: 0.45 }, // subtle depth recession; raise on the RTX for a deeper poster slab. Dial: window.__POINTFIELD.uHazeStrength

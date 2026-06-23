@@ -51,7 +51,7 @@ const UMBILICAL_RADIAL_SEGMENTS = 10;
 const HUD_DIST = 6.0; // distance in front of the camera
 const HUD_SPREAD_X = 1.15;
 const HUD_SPREAD_Y = 1.0;
-const HUD_BOW = 0.12; // a gentle upward bow on the HUD nerve
+const HUD_BOW = -0.16; // a gentle downward SAG so the nerve HANGS like a root/cable (catenary) from its vertebra to the waiting tab, rather than arcing UP toward the brain like a wire (#6 root curvature)
 const HUD_REBUILD_EPS = 0.015; // rebuild the nerve geometry only when the tab moved this much (slow orbit -> rare)
 // SOUL P2: which vertebra a tab's nerve roots at — the UPPER vertebra feeds the focus
 // + the top corners, the LOWER vertebra feeds the bottom corners (prototype: nerves
@@ -1066,6 +1066,7 @@ export default function MaterializedTab({
   const frameRef = useRef<THREE.LineSegments>(null);
   const labelRef = useRef<THREE.Object3D>(null);
   const beadRefs = useRef<THREE.Mesh[]>([]);
+  const socketRef = useRef<THREE.Mesh>(null); // vertebra seat glow (focus-driven)
   // HUD nerve: the active curve (origin -> camera-anchored tab) + last rebuild position,
   // so the umbilical + its beads follow the tab as the view orbits (rebuilt sparsely).
   const curveRef = useRef<THREE.CatmullRomCurve3 | null>(null);
@@ -1587,11 +1588,35 @@ export default function MaterializedTab({
         organMaterial.tissue.frameOpacityScale *
         pose.opacity *
         (1 + surfaceExcitation * 0.42 + outcomeSurfaceExcitation * 0.46);
-      // Points being: a THIN glowing neon edge (poster cyan #7bf5fb).
+      // Points being: a softened membrane RIM that carries state (polish #2/#4 +
+      // #6). Not a uniform neon frame — the focused/active surface holds a brighter
+      // rim than the waiting ones (hierarchy: the dominant work surface reads), and
+      // the rim warms from cyan toward the live work/outcome tint so the EDGE
+      // conducts state too, not just the beads.
       if (POINTS) {
-        mat.color.set('#7bf5fb');
-        mat.opacity = Math.min(0.95, mat.opacity * 3.2 + 0.4);
+        mat.color.set('#7bf5fb')
+          .lerp(metabolismColor, surfaceExcitation * 0.34)
+          .lerp(outcomeColor, outcomeSurfaceExcitation * 0.4);
+        const rimCeil = isFocused ? 0.7 : 0.44;
+        mat.opacity = Math.min(rimCeil, mat.opacity * 2.1 + 0.2);
       }
+    }
+
+    // Vertebra seating (#5): the seat that holds the ACTIVE tab glows brighter,
+    // breathes, and swells — "the active vertebra pulls its surface forward" —
+    // while waiting vertebrae stay dim, so the trace spine -> vertebra -> surface
+    // reads. The seat carries the tab's live metabolism/outcome colour.
+    if (socketRef.current) {
+      const mat = socketRef.current.material as THREE.MeshBasicMaterial;
+      mat.color.copy(metabolismColor).lerp(outcomeColor, outcomeSurfaceExcitation * 0.5);
+      const breathe = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 2.1);
+      const base = isFocused ? 0.95 : 0.4;
+      mat.opacity = Math.min(
+        1,
+        base * pose.opacity * (0.7 + slabProgress * 0.3) * (1 + surfaceExcitation * 0.3) *
+          (isFocused ? 0.86 + 0.14 * breathe : 1),
+      );
+      socketRef.current.scale.setScalar((isFocused ? 1.15 + breathe * 0.12 : 0.68) * (0.9 + slabProgress * 0.2));
     }
 
     if (labelRef.current) {
@@ -1608,7 +1633,9 @@ export default function MaterializedTab({
       const t = clamp01((beadTravel + index * 0.19) % 1);
       const pathT = clamp01(0.08 + t * 0.84 * Math.max(reachProgress, 0.24));
       bead.position.copy((curveRef.current ?? curve).getPointAt(pathT));
-      bead.scale.setScalar(tab.kind === 'input' ? 0.38 + liveProgress * 0.5 : 0.28 + liveProgress * 0.34);
+      // Beads read as a visible pulse train conducting work down the nerve (#6) —
+      // larger so the state they carry (colour + speed) is legible, not decorative.
+      bead.scale.setScalar(tab.kind === 'input' ? 0.42 + liveProgress * 0.54 : 0.4 + liveProgress * 0.46);
       const mat = bead.material as THREE.MeshBasicMaterial;
       mat.color.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.45);
       mat.color.lerp(outcomeColor, outcomeSurfaceExcitation * 0.42);
@@ -1805,7 +1832,7 @@ export default function MaterializedTab({
           on the visible cord via the same fused originLocal the umbilical starts from;
           additive, depthWrite off, so it adds light to the spine. */}
       {POINTS && (
-        <mesh position={tab.originLocal} renderOrder={7} frustumCulled={false}>
+        <mesh ref={socketRef} position={tab.originLocal} renderOrder={7} frustumCulled={false}>
           <sphereGeometry args={[0.05, 16, 12]} />
           <meshBasicMaterial
             color={metabolismColor}
@@ -1986,10 +2013,16 @@ export default function MaterializedTab({
               position={[0, 0, dimensions.thickness + 0.001]}
               renderOrder={9}
             >
-              {/* Points: a DEFINED bright bezel edge that frames the black screen
-                  (a black panel on a black void is invisible without an edge — the
-                  bezel is what reads it as a TV/monitor). */}
-              <lineBasicMaterial color={POINTS ? theme.reach.clone() : theme.frame.clone()} transparent opacity={POINTS ? 0.92 : surfaceDial.rimOpacity} />
+              {/* Points: a softened membrane RIM, not a neon frame (polish #2/#4:
+                  "reduce generic cyan rectangle outline"). Still defined enough to
+                  read the black screen on the black void, but the focused/active
+                  surface keeps a brighter rim than waiting ones so hierarchy reads —
+                  the dominant work surface, not a row of equal cards. */}
+              <lineBasicMaterial
+                color={POINTS ? theme.reach.clone() : theme.frame.clone()}
+                transparent
+                opacity={POINTS ? (isFocused ? 0.66 : 0.42) : surfaceDial.rimOpacity}
+              />
             </lineSegments>
             {/* Points being: the membrane veins/dots + surface point-field dots
                 are dropped by default so the slab reads as clean dark glass
@@ -2104,6 +2137,17 @@ export default function MaterializedTab({
                       dark-glass body alone let the starfield bleed through). */}
                   <meshBasicMaterial color={POINTS ? '#23272f' : theme.plate} transparent={!POINTS} opacity={POINTS ? 1 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
                 </mesh>
+                {/* Points (#9 title readability): a solid dark title bar behind the
+                    filename — the title sits just above the content well, right where
+                    the spine plunges into the active panel, so without a backing it
+                    collides with the roots. This reads it as a proper "titled screen"
+                    (title bar + content well) = more intentionally art-directed. */}
+                {POINTS && (
+                  <mesh position={[0, dimensions.height * 0.38, dimensions.thickness + 0.007]} renderOrder={9}>
+                    <planeGeometry args={[dimensions.width * 0.64, dimensions.height * 0.12]} />
+                    <meshBasicMaterial color="#23272f" />
+                  </mesh>
+                )}
                 <mesh position={[0, dimensions.height * 0.31, dimensions.thickness + 0.008]} renderOrder={9}>
                   <planeGeometry args={[dimensions.width * 0.78, dimensions.height * 0.1]} />
                   <meshBasicMaterial

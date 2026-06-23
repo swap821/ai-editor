@@ -10,6 +10,7 @@ import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
+import { getTabStoreSnapshot } from '@/lib/tabStore';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { useReducedMotion } from '@/lib/reducedMotion';
 import type { CognitionUniforms } from './SuperbrainScene';
@@ -309,6 +310,20 @@ export default function BrainPointField({
       u.uVertebrae.value = reduce
         ? vertTarget
         : THREE.MathUtils.damp(u.uVertebrae.value, vertTarget, 2.5, delta);
+    }
+    // SPRAY HIDE (operator 2026-06-23): the cauda-equina "tail" (the willow spray +
+    // intake rings at the very bottom) RETRACTS while the being is orchestrating —
+    // any work surface present — so it stops cluttering the bottom behind the active
+    // surface; it unfurls back at rest. Gated on real panel presence (not phase) so
+    // it stays hidden even when a materialized tab sits idle.
+    if (u.uSprayHide) {
+      const orchestrating = getTabStoreSnapshot().tabs.some(
+        (tb) => tb.kind !== 'input' && tb.lifecycle !== 'retracting',
+      );
+      const sprayTarget = orchestrating ? 1 : 0;
+      u.uSprayHide.value = reduce
+        ? sprayTarget
+        : THREE.MathUtils.damp(u.uSprayHide.value, sprayTarget, 2.6, delta);
     }
     // REABSORPTION (poster phase 7): the brain inhales as a finished tab returns
     // its energy up the spine. The damp gives a smooth rise-then-fall around the
