@@ -115,7 +115,10 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
         // MaterializedTab places it camera-relative.
         return {
           targetLocal: tuple(0, -0.62 + compactness * 0.06, 1.2),
-          scale: round3(clamp(0.64 - compactness * 0.14, 0.5, 0.64)),
+          // 1C hierarchy: the attended tab is notably LARGER + readable (was capped
+          // at 0.64 — the "work surfaces too small" tell); it must clearly dominate
+          // the receding waiting tabs.
+          scale: round3(clamp(0.9 - compactness * 0.18, 0.68, 0.9)),
           opacity: 1,
           tubeOpacity: 1,
         };
@@ -164,10 +167,13 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
     const ring = Math.floor(index / 4);
     const [cx, cy, cz] = CORNERS[index % 4];
     return {
-      targetLocal: tuple(cx * (1 + ring * 0.1), cy - ring * 0.22, cz - ring * 0.12),
-      scale: round3(clamp(0.42 - ring * 0.05, 0.26, 0.42)),
-      opacity: round3(clamp(0.4 - ring * 0.08, 0.2, 0.4)),
-      tubeOpacity: round3(clamp(0.4 - ring * 0.06, 0.2, 0.4)),
+      // 1C hierarchy: waiting tabs recede MORE — smaller, dimmer, and pushed a touch
+      // further back in depth — so they read as "at rest, idling" and never compete
+      // with the dominant attended tab. Still nerve-tethered + visible.
+      targetLocal: tuple(cx * (1 + ring * 0.1), cy - ring * 0.22, cz - 0.18 - ring * 0.12),
+      scale: round3(clamp(0.36 - ring * 0.05, 0.22, 0.36)),
+      opacity: round3(clamp(0.3 - ring * 0.08, 0.16, 0.3)),
+      tubeOpacity: round3(clamp(0.32 - ring * 0.06, 0.16, 0.32)),
     };
   }
 
