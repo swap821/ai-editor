@@ -1966,8 +1966,8 @@ export default function MaterializedTab({
                   (roughness 1 / no metal) kills the glassy sheen. depthWrite stays
                   on so it occludes. Mesh mode keeps the original translucent glass. */}
               <meshStandardMaterial
-                color={POINTS ? '#0e1119' : theme.body}
-                emissive={POINTS ? '#0e1119' : theme.outline}
+                color={POINTS ? '#1a1e27' : theme.body}
+                emissive={POINTS ? '#1a1e27' : theme.outline}
                 emissiveIntensity={POINTS ? 1 : 0.13}
                 roughness={POINTS ? 1 : organMaterial.tissue.roughness}
                 metalness={POINTS ? 0 : organMaterial.tissue.metalness}
@@ -1984,7 +1984,10 @@ export default function MaterializedTab({
               position={[0, 0, dimensions.thickness + 0.001]}
               renderOrder={9}
             >
-              <lineBasicMaterial color={theme.frame.clone()} transparent opacity={surfaceDial.rimOpacity} />
+              {/* Points: a DEFINED bright bezel edge that frames the black screen
+                  (a black panel on a black void is invisible without an edge — the
+                  bezel is what reads it as a TV/monitor). */}
+              <lineBasicMaterial color={POINTS ? theme.reach.clone() : theme.frame.clone()} transparent opacity={POINTS ? 0.92 : surfaceDial.rimOpacity} />
             </lineSegments>
             {/* Points being: the membrane veins/dots + surface point-field dots
                 are dropped by default so the slab reads as clean dark glass
@@ -2046,7 +2049,7 @@ export default function MaterializedTab({
               <>
                 <mesh position={[0, 0, dimensions.thickness + 0.006]} scale={[0.84, 0.56, 1]} renderOrder={9}>
                   <primitive object={slabShapeGeometry} attach="geometry" />
-                  <meshBasicMaterial color={POINTS ? '#161b24' : theme.plate} transparent={!POINTS} opacity={POINTS ? 1 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
+                  <meshBasicMaterial color={POINTS ? '#23272f' : theme.plate} transparent={!POINTS} opacity={POINTS ? 1 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
                 </mesh>
                 <Text
                   ref={labelRef}
@@ -2096,7 +2099,7 @@ export default function MaterializedTab({
                   <primitive object={slabShapeGeometry} attach="geometry" />
                   {/* Points: a solid dark backing so the luminous code READS (the
                       dark-glass body alone let the starfield bleed through). */}
-                  <meshBasicMaterial color={POINTS ? '#161b24' : theme.plate} transparent={!POINTS} opacity={POINTS ? 1 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
+                  <meshBasicMaterial color={POINTS ? '#23272f' : theme.plate} transparent={!POINTS} opacity={POINTS ? 1 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
                 </mesh>
                 <mesh position={[0, dimensions.height * 0.31, dimensions.thickness + 0.008]} renderOrder={9}>
                   <planeGeometry args={[dimensions.width * 0.78, dimensions.height * 0.1]} />
@@ -2190,7 +2193,7 @@ export default function MaterializedTab({
               <>
                 <mesh position={[0, 0, dimensions.thickness + 0.006]} scale={[0.86, 0.62, 1]} renderOrder={9}>
                   <primitive object={slabShapeGeometry} attach="geometry" />
-                  <meshBasicMaterial color={POINTS ? '#161b24' : theme.plate} transparent={!POINTS} opacity={POINTS ? 1 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
+                  <meshBasicMaterial color={POINTS ? '#23272f' : theme.plate} transparent={!POINTS} opacity={POINTS ? 1 : skin.plateOpacity * organMaterial.tissue.plateOpacityScale} />
                 </mesh>
                 <Text
                   ref={labelRef}
