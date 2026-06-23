@@ -1046,6 +1046,8 @@ function BrainModel({
       {/* Error returns as a restrained magenta SCAR on a vertebra (poster #6), not a
           red panel — shown only while the being is in an error beat. */}
       {BEING_MODE === 'points' && <ErrorScarMark reducedMotion={reduceMotion} />}
+      {/* Auto signal: a gold mote orbiting an upper vertebra while the being works. */}
+      {BEING_MODE === 'points' && <AutoOrbitMark reducedMotion={reduceMotion} />}
       {/* Anatomical callouts ride INSIDE the group: pinned to the lobes,
           breathing and banking with the organism. */}
       {SHOW_REGION_PINS && <RegionPins />}
@@ -1372,6 +1374,48 @@ function ErrorScarMark({ reducedMotion }: { reducedMotion: boolean }) {
       <meshBasicMaterial
         ref={matRef}
         color="#ff5f7a"
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
+/** Status FROM the body (poster #6): an "auto" signal — a small gold mote ORBITING an
+ *  upper vertebra while the being autonomously works (orchestrating phases). Ramps in
+ *  with the work, then settles. Sacred gold (POSTURE_GOLD signal accent). */
+function AutoOrbitMark({ reducedMotion }: { reducedMotion: boolean }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const intensity = useRef(0);
+  useFrame((state, delta) => {
+    const m = meshRef.current;
+    const mat = matRef.current;
+    if (!m || !mat) return;
+    const phase = getOrganismPhase();
+    const orchestrating = phase === 'working' || phase === 'conducting' || phase === 'materializing';
+    intensity.current = reducedMotion
+      ? orchestrating
+        ? 1
+        : 0
+      : THREE.MathUtils.damp(intensity.current, orchestrating ? 1 : 0, 3.5, delta);
+    // orbit a small ring around an upper vertebra (the active seat region)
+    const a = reducedMotion ? 0.6 : state.clock.elapsedTime * 1.6;
+    const r = 0.09;
+    m.position.set(Math.cos(a) * r, -0.55 + Math.sin(a) * r * 0.5, Math.sin(a) * r * 0.4 + 0.03);
+    mat.opacity = intensity.current * 0.6;
+    m.scale.setScalar(0.022);
+    m.visible = intensity.current > 0.01;
+  });
+  return (
+    <mesh ref={meshRef} renderOrder={6} visible={false}>
+      <sphereGeometry args={[1, 10, 10]} />
+      <meshBasicMaterial
+        ref={matRef}
+        color="#ffd27a"
         transparent
         opacity={0}
         blending={THREE.AdditiveBlending}
