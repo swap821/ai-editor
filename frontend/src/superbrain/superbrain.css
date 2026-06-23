@@ -122,7 +122,7 @@ button {
   inset: 0;
   isolation: isolate;
   overflow: hidden;
-  background: #030108; /* poster void — deeper purple-black */
+  background: #000000; /* operator call (2026-06-23): pure-black void (was poster purple-black #030108) */
 }
 
 .scene-layer,
@@ -140,24 +140,17 @@ button {
 .atmosphere-layer {
   z-index: 1;
   pointer-events: none;
-  background:
-    /* Purple nebula bloom behind the brain — matches poster's deep violet core */
-    radial-gradient(ellipse 62% 54% at 50% 46%, rgba(80, 18, 140, 0.13) 0%, transparent 70%),
-    /* Faint cyan aurora at upper-right (poster luminance source) */
-    radial-gradient(ellipse 38% 32% at 72% 22%, rgba(60, 200, 220, 0.06) 0%, transparent 65%),
-    radial-gradient(ellipse at 50% 48%, transparent 14%, rgba(34, 10, 72, 0.10) 46%, rgba(3, 1, 8, 0.85) 100%),
-    linear-gradient(90deg, rgba(3, 1, 8, 0.76), transparent 22%, transparent 78%, rgba(3, 1, 8, 0.76));
+  /* operator call (2026-06-23): pure-black void — the poster's violet nebula +
+     cyan aurora + purple vignette are removed so the empty screen is true black.
+     The brain's glow comes from its own additive WebGL bloom, not this layer. */
+  background: none;
 }
 
 .grid-layer {
   z-index: 2;
   pointer-events: none;
-  opacity: 0.065;
-  background-image:
-    linear-gradient(rgba(95, 188, 220, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(95, 188, 220, 0.025) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: radial-gradient(circle at center, transparent 10%, black 82%);
+  /* operator call (2026-06-23): cyan depth-grid removed for the pure-black void. */
+  display: none;
 }
 
 .hud-shell {

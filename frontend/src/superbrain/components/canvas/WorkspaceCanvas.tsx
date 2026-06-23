@@ -230,8 +230,11 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
               toneMappingExposure: POST_FX.toneMappingExposure,
             }}
           >
-            <color attach="background" args={['#010307']} />
-            <fog attach="fog" args={['#010307', 50, 150]} />
+            {/* operator call (2026-06-23): pure-black void — was the blue-black
+                #010307; the brain's own bloom/aura is additive WebGL light and
+                is unaffected, only the empty space goes true black. */}
+            <color attach="background" args={['#000000']} />
+            <fog attach="fog" args={['#000000', 50, 150]} />
             <TierGovernor />
             <Suspense fallback={null}>
               <SuperbrainScene mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
