@@ -6,7 +6,7 @@
 // Pure-DOM SVG, rAF-driven (no per-frame React re-render). Sacred palette (cyan).
 
 import { useEffect, useRef } from 'react';
-import { getStemAnchor } from '../superbrain/lib/stemAnchorBus';
+import { getFunnelAnchor } from '../superbrain/lib/funnelAnchorBus';
 
 const BEADS = 4;
 
@@ -24,20 +24,32 @@ export default function CommandDockTether({ active, intensity, particleFlow, red
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const p = propsRef.current;
-      const stem = getStemAnchor();
+      const funnel = getFunnelAnchor();
       const path = pathRef.current;
       const bar = document.querySelector('.gagos-bar');
-      if (path && bar && stem.visible) {
-        const r = bar.getBoundingClientRect();
-        const x0 = r.left + r.width * 0.5; // dock top-centre
-        const y0 = r.top;
-        const x1 = stem.x;
-        const y1 = stem.y;
-        // a gently bowed nerve rising from the dock toward the stem
-        const mx = (x0 + x1) / 2;
-        const my = (y0 + y1) / 2 - Math.abs(x1 - x0) * 0.14 - 40;
+      const sendBtn = document.querySelector('.gagos-send');
+      if (path && bar && funnel.visible) {
+        // ONE END anchors to the SEND (->) BUTTON itself — the synapse where the
+        // operator's words FIRE into the nerve (operator call). Falls back to the bar.
+        const r = (sendBtn || bar).getBoundingClientRect();
+        const x0 = r.left + r.width * 0.5; // the -> button's centre
+        const y0 = r.top + r.height * 0.5;
+        const x1 = funnel.x;
+        // nudge the tip UP into the spine so the nerve TOUCHES / merges with the
+        // convergence (no gap) — the chat's nerve plugging INTO the cord, since the
+        // command dock is its own small organ of the being (operator call).
+        const y1 = funnel.y - 12;
+        // a gentle nerve reaching ACROSS into the being's intake-funnel mouth — the
+        // funnel sits low (near the dock), so a soft dip, not a high arc to the stem.
+        // approach the convergence (conus) VERTICALLY from below — control point
+        // directly under it — so the nerve sweeps from the -> button through the rings
+        // CENTRE and rises straight up into the neck, matching the operator's sketch.
+        const mx = x1;
+        const my = y1 + 64;
         path.setAttribute('d', `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`);
-        path.setAttribute('opacity', (p.active ? 0.22 + p.intensity * 0.34 : 0.05).toFixed(3));
+        // a PRESENT nerve (not near-invisible) — the operator's command channel: calm
+        // at rest, brighter when engaged.
+        path.setAttribute('opacity', (p.active ? 0.5 + p.intensity * 0.3 : 0.28).toFixed(3));
         // beads travel dock → stem while there is command flow
         const flow = p.reducedMotion ? 0 : p.particleFlow;
         if (flow > 0) {
@@ -67,14 +79,22 @@ export default function CommandDockTether({ active, intensity, particleFlow, red
 
   return (
     <svg className="gagos-tether" aria-hidden="true">
+      <defs>
+        {/* the SEND (->) BUTTON's exact purple gradient (#b06eff -> #6a1eff), so the
+            intake nerve reads as the operator's own command channel (operator call). */}
+        <linearGradient id="gagos-nerve-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#b06eff" />
+          <stop offset="100%" stopColor="#6a1eff" />
+        </linearGradient>
+      </defs>
       <path
         ref={pathRef}
         fill="none"
-        stroke="#7bf5fb"
-        strokeWidth="1.4"
+        stroke="url(#gagos-nerve-grad)"
+        strokeWidth="2.2"
         strokeLinecap="round"
         opacity="0"
-        style={{ filter: 'drop-shadow(0 0 4px rgba(123, 245, 251, 0.6))' }}
+        style={{ filter: 'drop-shadow(0 0 6px rgba(176, 110, 255, 0.7))' }}
       />
       {Array.from({ length: BEADS }).map((_, i) => (
         <circle
@@ -82,10 +102,10 @@ export default function CommandDockTether({ active, intensity, particleFlow, red
           ref={(el) => {
             beadRefs.current[i] = el;
           }}
-          r="2.3"
-          fill="#aef6ff"
+          r="2.6"
+          fill="#dcc6ff"
           opacity="0"
-          style={{ filter: 'drop-shadow(0 0 5px rgba(123, 245, 251, 0.85))' }}
+          style={{ filter: 'drop-shadow(0 0 6px rgba(176, 110, 255, 0.9))' }}
         />
       ))}
     </svg>

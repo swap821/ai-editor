@@ -99,7 +99,10 @@ const FRAGMENT = /* glsl */ `
   uniform float uIgnite;      // single-shot arrival "ignition of awareness" flash (cortex-weighted luminance)
   uniform float uAwaken;      // conversation: the cortex HEATS while the being notices/converses (cortex-weighted luminance)
   uniform float uStatePulse;  // orchestration: "nerves carry the state" — a luminance pulse travels the spine/roots while working
-  uniform float uReabsorbGlow; // reabsorption: the brain INHALES — a soft glow as a tab's energy returns up into the cortex
+  uniform float uReabsorbGlow; // reabsorption: the cortex INHALE bell (0..1, overshoot→settle) as a tab's energy lands in the head
+  uniform float uReabsorbRise; // reabsorption: 0..1 climb of the TRAVELLING energy band up the spine (vAxis), decelerating into the cortex
+  uniform float uWakeWave;     // summon/wake: 0..1 climb of a luminance pulse that RUSHES up the body when the being notices you (hands into the cortex heat)
+  uniform float uFlinch;       // dismiss/settle beats: transient whole-body luminance throb — error WINCE (agitated) / approval-RELEASE burst (luminance only; hue rides the posture tint)
   uniform float uReplyRise;   // conversation: 0 idle .. 1 reply active — a luminance bead-band climbs the spine (vAxis 0->1) into the cortex as the being speaks back
   uniform float uVertebrae;   // orchestration: 0 smooth cord .. 1 reveal distinct vertebral segments down the spine (poster phase 5 "spine reveals vertebrae")
   uniform float uArrival;      // 0 = scattered/arriving (dark), 1 = condensed (full) — the dark->light ignition ramp
@@ -144,9 +147,25 @@ const FRAGMENT = /* glsl */ `
     // sharper bead-like crests, reading as the being DRIVING the focused tab.
     float spineWave = 0.5 + 0.5 * sin(uTime * 3.0 + vAxis * 14.0);
     float statePulse = clamp(uStatePulse, 0.0, 1.0) * spineMask * (0.4 + 0.6 * pow(spineWave, 2.2));
-    // REABSORPTION (poster phase 7): the brain INHALES — a soft cortex-weighted
-    // glow as a finished tab's energy returns up the spine into the being.
-    float reabsorbGlow = clamp(uReabsorbGlow, 0.0, 1.0) * smoothstep(0.45, 1.0, vAxis) * 0.55;
+    // REABSORPTION (poster phase 7, #wow signature 3): the finished work's energy
+    // returns UP the spine as a TRAVELLING band (roots→cortex, decelerating), then the
+    // cortex INHALES as it lands — a staged inward gesture, not a static glow lobe.
+    // uReabsorbRise = the climbing band centre; uReabsorbGlow = the inhale bell. The band
+    // appears just after launch and DISSOLVES into the head (handing off to the inhale).
+    float rCenter = clamp(uReabsorbRise, 0.0, 1.0);
+    float rBand = exp(-pow((vAxis - rCenter) / 0.16, 2.0))
+                * smoothstep(0.015, 0.10, rCenter)
+                * (1.0 - smoothstep(0.82, 1.0, rCenter));
+    float reabsorbInhale = clamp(uReabsorbGlow, 0.0, 1.0) * smoothstep(0.45, 1.0, vAxis);
+    float reabsorbGlow = rBand * 1.25 + reabsorbInhale * 0.6;
+    // SUMMON / WAKE (#wow signature 2): the instant the being NOTICES you, a luminance
+    // pulse RUSHES up the body (roots→cortex) and dissolves into the head — "the being
+    // comes alive", handing off into the uAwaken cortex heat. Same travelling-band
+    // mechanic; brighter + faster than reabsorption. Luminance only (hue preserved).
+    float wCenter = clamp(uWakeWave, 0.0, 1.0);
+    float wakeWave = exp(-pow((vAxis - wCenter) / 0.18, 2.0))
+                   * smoothstep(0.01, 0.08, wCenter)
+                   * (1.0 - smoothstep(0.85, 1.0, wCenter)) * 1.15;
     // REPLY RISE (poster phase 2/3): "response flows back UP the spine". While the
     // being speaks, a gaussian bead-band climbs the body axis roots(0)->cortex(1),
     // gated by uReplyRise so it fades in/out with the reply. Luminance only (hue
@@ -162,13 +181,17 @@ const FRAGMENT = /* glsl */ `
     // (spineMask), luminance-only (hue preserved, sacred palette); uVertebrae 0 at rest.
     float vertSeg = 0.5 + 0.5 * sin(vAxis * 140.0);
     float vertebrae = clamp(uVertebrae, 0.0, 1.0) * spineMask * smoothstep(0.62, 0.98, vertSeg) * 0.7;
-    vec3 emissive = c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise + vertebrae);
+    vec3 emissive = c * intensity * uBodyOpacity * (1.0 + ignite * 2.5 + awaken + statePulse * 0.8 + reabsorbGlow + replyRise + vertebrae + wakeWave + clamp(uFlinch, 0.0, 1.0));
     // P2.6 ARRIVAL dark->light ignition (poster phase 1): the field LIGHTS UP from
     // darkness as it condenses (uArrival 0=scattered/dark -> 1=condensed/full), so the
     // being is "born from the data it travels through" rather than appearing fully lit.
-    // Floored at uArrivalDark + saturates by 0.82, so REST (uArrival=1) is byte-identical
-    // and a misjudged transient can never go fully black. Luminance only (hue preserved).
-    float arrivalLight = mix(uArrivalDark, 1.0, smoothstep(0.0, 0.82, uArrival));
+    // #wow signature 2 (summon/wake): STAGED as a wave UP the body — the smoothstep START
+    // is offset by vAxis, so the roots/spine light FIRST and the cortex lights LAST (a
+    // 3-beat cascade, not a flat simultaneous fade-in). The end stays 0.82 so REST
+    // (uArrival=1 >= 0.82) is byte-identical for EVERY point and roots are unchanged.
+    // The cortex settle-bloom rides the existing uIgnite pulse (cortex-weighted). Floored
+    // at uArrivalDark; luminance only (hue preserved, sacred palette).
+    float arrivalLight = mix(uArrivalDark, 1.0, smoothstep(vAxis * 0.45, 0.82, uArrival));
     emissive *= arrivalLight;
     // P2.1 DEPTH HAZE (poster depth-slab): distant points recede toward zero so the
     // being reads as a VOLUME in space, not a flat decal. Additive-correct (dim, not
@@ -209,7 +232,10 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uIgnite: { value: 0 },       // single-shot arrival ignition flash (cortex-weighted luminance, no hue change)
       uAwaken: { value: 0 },       // conversation cortex-heat (cortex-weighted luminance, no hue change)
       uStatePulse: { value: 0 },   // orchestration spine state-pulse (spine-weighted luminance, no hue change)
-      uReabsorbGlow: { value: 0 }, // reabsorption brain-inhale glow (cortex-weighted luminance, no hue change)
+      uReabsorbGlow: { value: 0 }, // reabsorption cortex-inhale bell (cortex-weighted luminance, no hue change)
+      uReabsorbRise: { value: 0 }, // reabsorption travelling-band climb (roots→cortex)
+      uWakeWave: { value: 1 }, // summon/wake luminance pulse climb (1 = dissolved/idle, so no wave at rest)
+      uFlinch: { value: 0 }, // error-wince / approval-release transient luminance throb (0 = idle)
       uReplyRise: { value: 0 },    // conversation reply rise-band (spine->cortex luminance, no hue change)
       uVertebrae: { value: 0 },    // orchestration: reveal vertebral segments down the spine (luminance, no hue change). Dial: window.__POINTFIELD.uVertebrae
       uSprayHide: { value: 0 },    // orchestration: retract the cauda-equina tail (low aBand) so the bottom clears for the active surface

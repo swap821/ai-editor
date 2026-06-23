@@ -24,7 +24,6 @@ import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
 import { useTabStore } from '../superbrain/lib/tabStore';
-import CommandDockTether from './CommandDockTether';
 import { API_BASE } from '../config';
 import {
   formatActiveBrainLine,
@@ -431,14 +430,9 @@ export default function GagosChrome() {
 
   return (
     <div className="gagos-chrome" role="main" aria-label="GAGOS conversation">
-      {/* The chat CommandDock nerve (dock -> brainstem) — operator: "it's important",
-          kept. (The brain -> panel umbilical is what was removed, in MaterializedTab.) */}
-      <CommandDockTether
-        active={dock.active}
-        intensity={dock.intensity}
-        particleFlow={dock.particleFlow}
-        reducedMotion={reducedMotion}
-      />
+      {/* The chat command nerve is now a REAL 3D tube rendered in the scene
+          (CommandNerve3D), not this flat DOM SVG — operator: "nerve should be 3D,
+          like a live". The 2D CommandDockTether is retired. */}
       <button type="button" className="gagos-skip" onClick={() => inputRef.current?.focus()}>
         Skip to the chat
       </button>

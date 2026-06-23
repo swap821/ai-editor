@@ -11,6 +11,7 @@ import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
 import { getTabStoreSnapshot } from '@/lib/tabStore';
+import { easeOutBack, easeOutExpo, easeOutQuint, flashBell, clamp01 } from '@/lib/motionEasing';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { useReducedMotion } from '@/lib/reducedMotion';
 import type { CognitionUniforms } from './SuperbrainScene';
@@ -92,6 +93,16 @@ export default function BrainPointField({
   spineCount?: number;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const noticeOnsetRef = useRef(-1); // clock (s) when the being last BEGAN noticing (wake catch)
+  const noticeWasOffRef = useRef(true); // rising-edge detector for the notice onset
+  const workOnsetRef = useRef(-1); // clock (s) when work last began (orchestration-onset cascade)
+  const workWasOffRef = useRef(true);
+  const reabsorbOnsetRef = useRef(-1); // clock (s) when reabsorbing last BEGAN (one-shot inhale gesture)
+  const reabsorbWasOffRef = useRef(true); // rising-edge detector for the reabsorb onset
+  const errorOnsetRef = useRef(-1); // clock (s) of the last error onset (one-shot wince throbs)
+  const errorWasOnRef = useRef(false); // rising-edge detector for error
+  const approvalReleaseRef = useRef(-1); // clock (s) the operator last RELEASED an approval hold (burst)
+  const approvalWasHeldRef = useRef(false); // falling-edge detector for approval_hold
   const gl = useThree((s) => s.gl);
 
   const geometry = useMemo(() => {
@@ -232,7 +243,16 @@ export default function BrainPointField({
     // opposite of the poster law (the cortex BRIGHTENS as it speaks, it never fades).
     const realWork =
       organismPhase === 'working' || organismPhase === 'conducting' || organismPhase === 'materializing';
-    const bodyTarget = kind === 'brain' && realWork && !replyStreaming ? 0.28 : 1.0;
+    // WORK-ONSET CASCADE (#wow): entering work is a SEQUENCE, not a simultaneous
+    // cross-dissolve — the spine articulates its vertebrae FIRST (fast), the nerves
+    // begin carrying state ~150ms behind, and the body dims LAST (~250ms behind, slow)
+    // to reveal the lattice as a deliberate fade. Track the work onset so each uniform
+    // is gated/delayed off one clock.
+    if (realWork && workWasOffRef.current) workOnsetRef.current = state.clock.elapsedTime;
+    workWasOffRef.current = !realWork;
+    const sinceWork = workOnsetRef.current >= 0 ? state.clock.elapsedTime - workOnsetRef.current : 999;
+    const bodyDimReady = reduce || sinceWork > 0.25;
+    const bodyTarget = kind === 'brain' && realWork && !replyStreaming && bodyDimReady ? 0.28 : 1.0;
     // ARRIVAL bridge (poster phase 1): the scene's cinematic uArrival is INVERTED
     // from the point material's (scene: 1=mid-arrival/scattered, 0=settled; point
     // material: 0=scattered inrush origin, 1=condensed). Bridge them so the cloud
@@ -252,7 +272,14 @@ export default function BrainPointField({
       u.uArrival.value = THREE.MathUtils.damp(u.uArrival.value, arrivalTarget, 1.6, delta);
       u.uReabsorb.value = THREE.MathUtils.damp(u.uReabsorb.value, t.reabsorb, 1.6, delta);
       u.uFlowSpeed.value = THREE.MathUtils.damp(u.uFlowSpeed.value, 0.05 + t.flow * 0.2, 3, delta);
-      u.uBodyOpacity.value = THREE.MathUtils.damp(u.uBodyOpacity.value, bodyTarget, 3, delta);
+      u.uBodyOpacity.value = THREE.MathUtils.damp(u.uBodyOpacity.value, bodyTarget, 2, delta); // slower = a deliberate reveal, not a flicker
+    }
+    // dev preview/tuning (remote): window.__ARRIVAL_PREVIEW = <0..1> holds the point
+    // material's arrival so the staged wake cascade (roots→cortex) can be previewed/tuned
+    // without catching the brief on-load coalescence. (0 = dark/scattered, 1 = full.)
+    if (kind === 'brain' && typeof window !== 'undefined') {
+      const ap = (window as { __ARRIVAL_PREVIEW?: number }).__ARRIVAL_PREVIEW;
+      if (typeof ap === 'number') u.uArrival.value = ap;
     }
     // ARRIVAL ignition flash — direct passthrough of the scene's single-shot
     // ignition pulse (no damp, so the flash's timing/shape is preserved).
@@ -278,10 +305,39 @@ export default function BrainPointField({
         reducedMotion: reduce,
       });
       const awakenTarget = Math.max(phaseAwaken, attn.brighten);
-      u.uAwaken.value = reduce
-        ? awakenTarget
-        : THREE.MathUtils.damp(u.uAwaken.value, awakenTarget, 4, delta);
+      // WAKE CATCH (#wow signature 2): the instant the being NOTICES (phaseAwaken
+      // rises 0->1), drive uAwaken through an authored overshoot-catch — easeOutBack
+      // ramps it 0 -> ~1.15x -> the held target over the ~340ms notice window, a
+      // "pop to awareness" instead of a characterless damp swell — then it holds /
+      // damps at the target. The pointer floor (attn.brighten) always shows through.
+      const noticing = phaseAwaken > 0.5;
+      if (noticing && noticeWasOffRef.current) noticeOnsetRef.current = state.clock.elapsedTime;
+      noticeWasOffRef.current = !noticing;
+      const sinceNotice = state.clock.elapsedTime - noticeOnsetRef.current;
+      if (!reduce && noticing && noticeOnsetRef.current >= 0 && sinceNotice < 0.34) {
+        u.uAwaken.value = Math.max(attn.brighten, awakenTarget * easeOutBack(clamp01(sinceNotice / 0.34), 2.2));
+      } else {
+        u.uAwaken.value = reduce
+          ? awakenTarget
+          : THREE.MathUtils.damp(u.uAwaken.value, awakenTarget, 4, delta);
+      }
+      // WAKE WAVE (#wow signature 2): on the SAME notice rising edge, a luminance pulse
+      // RUSHES up the body (roots→cortex) and dissolves into the head — "the being comes
+      // alive", handing into the cortex heat above. easeOutExpo = a fast rush that
+      // decelerates. Idle/after = 1 (band dissolved → invisible). Reduced motion: no
+      // travelling pulse (the cortex heat already conveys the wake).
+      if (u.uWakeWave) {
+        const WAKE_DUR = 0.5;
+        const inWave = !reduce && noticing && noticeOnsetRef.current >= 0 && sinceNotice < WAKE_DUR;
+        let wake = reduce ? 1 : inWave ? easeOutExpo(clamp01(sinceNotice / WAKE_DUR)) : 1;
+        if (kind === 'brain' && typeof window !== 'undefined') {
+          const wp = (window as { __WAKE_PREVIEW?: number }).__WAKE_PREVIEW;
+          if (typeof wp === 'number') wake = wp;
+        }
+        u.uWakeWave.value = wake;
+      }
     }
+
     // REPLY RISE (poster phase 2/3): while the being speaks back, a luminance
     // bead-band climbs the spine into the cortex ("response flows back UP the
     // spine"). Reduced motion: no travelling band (the uAwaken cortex-heat above
@@ -295,8 +351,13 @@ export default function BrainPointField({
     // ORCHESTRATION (poster phase 5): the spine/roots pulse with metabolic state
     // while the being works/conducts/materializes ("nerves carry the state").
     if (u.uStatePulse) {
+      // CASCADE: ~150ms BEHIND the vertebrae articulation — the nerves carry state
+      // down the now-revealed vertebrae, not at the same instant as the spine reveal.
       const stateTarget =
-        phase === 'working' || phase === 'conducting' || phase === 'materializing' ? 1 : 0;
+        (phase === 'working' || phase === 'conducting' || phase === 'materializing') &&
+        (reduce || sinceWork > 0.15)
+          ? 1
+          : 0;
       u.uStatePulse.value = reduce
         ? stateTarget
         : THREE.MathUtils.damp(u.uStatePulse.value, stateTarget, 3, delta);
@@ -307,9 +368,11 @@ export default function BrainPointField({
     if (u.uVertebrae) {
       const vertTarget =
         phase === 'working' || phase === 'conducting' || phase === 'materializing' ? 1 : 0;
+      // CASCADE: the spine ARTICULATES FIRST — fast damp (5) so the vertebrae snap
+      // into definition ahead of the state-pulse + body-dim that follow behind it.
       u.uVertebrae.value = reduce
         ? vertTarget
-        : THREE.MathUtils.damp(u.uVertebrae.value, vertTarget, 2.5, delta);
+        : THREE.MathUtils.damp(u.uVertebrae.value, vertTarget, 5, delta);
     }
     // SPRAY HIDE (operator 2026-06-23): the cauda-equina "tail" (the willow spray +
     // intake rings at the very bottom) RETRACTS while the being is orchestrating —
@@ -325,14 +388,68 @@ export default function BrainPointField({
         ? sprayTarget
         : THREE.MathUtils.damp(u.uSprayHide.value, sprayTarget, 2.6, delta);
     }
-    // REABSORPTION (poster phase 7): the brain inhales as a finished tab returns
-    // its energy up the spine. The damp gives a smooth rise-then-fall around the
-    // brief reabsorbing beat.
-    if (u.uReabsorbGlow) {
-      const reabsorbTarget = phase === 'reabsorbing' ? 1 : 0;
-      u.uReabsorbGlow.value = reduce
-        ? reabsorbTarget
-        : THREE.MathUtils.damp(u.uReabsorbGlow.value, reabsorbTarget, 2.5, delta);
+    // REABSORPTION (#wow signature 3): a finished tab's energy returns UP the spine as
+    // a TRAVELLING band that decelerates into the cortex (easeOutQuint), then the cortex
+    // INHALES (a rise-then-settle bell) as it lands — one staged inward gesture, not a
+    // static glow lobe. Latched one-shot on the rising edge of 'reabsorbing' so the
+    // gesture plays out fully even if the brief beat flips back. Reduced motion: cortex
+    // luminance crossfade only — no travelling band (vestibular-safe).
+    if (u.uReabsorbGlow && u.uReabsorbRise) {
+      const reabsorbing = phase === 'reabsorbing';
+      if (reabsorbing && reabsorbWasOffRef.current) reabsorbOnsetRef.current = state.clock.elapsedTime;
+      reabsorbWasOffRef.current = !reabsorbing;
+      let sinceReabsorb =
+        reabsorbOnsetRef.current >= 0 ? state.clock.elapsedTime - reabsorbOnsetRef.current : 999;
+      // dev preview/tuning (remote): window.__REABSORB_PREVIEW = <seconds> scrubs the
+      // gesture clock so the inhale can be previewed/tuned without a real reabsorb beat.
+      if (kind === 'brain' && typeof window !== 'undefined') {
+        const pv = (window as { __REABSORB_PREVIEW?: number }).__REABSORB_PREVIEW;
+        if (typeof pv === 'number') sinceReabsorb = pv;
+      }
+      if (reduce) {
+        u.uReabsorbRise.value = 0;
+        u.uReabsorbGlow.value = THREE.MathUtils.damp(u.uReabsorbGlow.value, reabsorbing ? 1 : 0, 3, delta);
+      } else {
+        const RISE_DUR = 0.82; // the band's climb up the spine (visible transit, then dissolves into the head)
+        // climb roots→cortex, decelerating, then hold at 1 (the band has dissolved into
+        // the head by then, so holding is invisible — no snap when the next gesture resets).
+        u.uReabsorbRise.value = easeOutQuint(clamp01(sinceReabsorb / RISE_DUR));
+        // the INHALE: rises as the band lands (~0.7s), settles back to rest by ~1.3s.
+        u.uReabsorbGlow.value = flashBell(clamp01(sinceReabsorb / 1.3), 0.55);
+      }
+    }
+    // ERROR FLINCH + APPROVAL RELEASE (#wow signature 5 beats): transient whole-body
+    // luminance perturbations. ERROR onset → 2-3 decaying THROBS (the cloud winces,
+    // agitated). The operator APPROVING (leaving approval_hold) → a single bright BURST
+    // of release + a brief flow surge. Luminance only — the red(error)/green(approved)
+    // hue rides the posture tint. Reduced motion: one soft crossfade pulse, no throbbing.
+    if (u.uFlinch) {
+      const tnow = state.clock.elapsedTime;
+      const isError = phase === 'error_repair';
+      const isApproval = phase === 'approval_hold';
+      if (isError && !errorWasOnRef.current) errorOnsetRef.current = tnow;
+      errorWasOnRef.current = isError;
+      if (!isApproval && approvalWasHeldRef.current) approvalReleaseRef.current = tnow;
+      approvalWasHeldRef.current = isApproval;
+      const sinceError = errorOnsetRef.current >= 0 ? tnow - errorOnsetRef.current : 999;
+      const sinceApproval = approvalReleaseRef.current >= 0 ? tnow - approvalReleaseRef.current : 999;
+      let flinch = 0;
+      let flowSurge = 0;
+      if (reduce) {
+        if (sinceError < 0.6) flinch = Math.max(flinch, (1 - sinceError / 0.6) * 0.4);
+        if (sinceApproval < 0.6) flinch = Math.max(flinch, (1 - sinceApproval / 0.6) * 0.4);
+      } else {
+        if (sinceError < 0.7) {
+          flinch = Math.max(flinch, Math.exp(-sinceError * 4.5) * Math.abs(Math.sin(sinceError * 22)) * 0.55);
+        }
+        if (sinceApproval < 0.5) {
+          const a = easeOutExpo(clamp01(1 - sinceApproval / 0.5));
+          flinch = Math.max(flinch, a * 0.5);
+          flowSurge = a;
+        }
+      }
+      u.uFlinch.value = flinch;
+      if (flowSurge > 0 && u.uFlowSpeed) u.uFlowSpeed.value += flowSurge * 0.4; // brief flow overshoot on release
     }
   });
 

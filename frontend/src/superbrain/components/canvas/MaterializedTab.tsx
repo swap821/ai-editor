@@ -19,6 +19,7 @@ import { deriveMaterializedSurfaceSkin, type MaterializedSurfaceSkin } from '@/l
 import { useSurfaceDial } from '@/lib/surfaceDialBus';
 import { deriveOrganMaterialState, type OrganMaterialState } from '@/lib/organMaterialState';
 import { formatMaterializedTextPreview } from '@/lib/materializedTextPreview';
+import { easeOutExpo, easeOutBack, easeInCubic, layerProgress, flashBell } from '@/lib/motionEasing';
 import { REST_OUTCOME_IMPRINT, type OutcomeImprintSnapshot } from '@/lib/outcomeImprint';
 import {
   deriveSurfaceShapeGrammar,
@@ -41,6 +42,9 @@ import {
 
 const REACH_DURATION_MS = 900;
 const UNFURL_DURATION_MS = 520;
+// MULTI-FILE CASCADE (#wow): per-seat bloom delay so several panels materialize 1→2→3
+// (focus leads) instead of popping together. Capped at 6 seats → cascade ≤ ~660ms.
+const CASCADE_STAGGER_MS = 110;
 const RETRACT_DURATION_MS = 380;
 const BASE_TUBE_RADIUS = 0.012;
 const UMBILICAL_SEGMENTS = 32;
@@ -142,9 +146,6 @@ function clamp01(value: number): number {
   return THREE.MathUtils.clamp(value, 0, 1);
 }
 
-function easing(value: number): number {
-  return value * value * (3 - 2 * value);
-}
 
 function marksForEdge(grammar: SurfaceShapeGrammar, edge: SurfaceShapeEdge, descending = false): SurfaceGripMark[] {
   const marks = grammar.gripMarks.filter((mark) => mark.edge === edge);
@@ -1324,8 +1325,15 @@ export default function MaterializedTab({
 
     if (!reducedMotion) {
       const elapsed = now - tab.phaseStartedAt;
+      // MULTI-FILE CASCADE (#wow): stagger the REACH by seat order so panels bloom
+      // 1→2→3 — the FOCUS leads (order 0), waiting tabs follow ~110ms apart. Sequencing
+      // the reach is enough: each panel then unfurls normally as its reach lands, so the
+      // blooms ripple in order without dragging the unfurl. Single panels (order 0) are
+      // unchanged.
+      const cascadeOrder = isFocused ? 0 : Math.min((waitingIndex ?? 0) + 1, 6);
+      const reachElapsed = Math.max(0, elapsed - cascadeOrder * CASCADE_STAGGER_MS);
       if (tab.lifecycle === 'reaching') {
-        reachProgress = clamp01(elapsed / REACH_DURATION_MS);
+        reachProgress = clamp01(reachElapsed / REACH_DURATION_MS);
         slabProgress = 0;
         liveProgress = 0;
         if (reachProgress >= 1) {
@@ -1355,7 +1363,11 @@ export default function MaterializedTab({
     if (tubeRef.current) {
       const geometry = tubeRef.current.geometry;
       const drawCount = geometry.getIndex()?.count ?? geometry.getAttribute('position').count;
-      geometry.setDrawRange(0, Math.max(2, Math.floor(drawCount * Math.max(reachProgress, 0.03))));
+      // BLOOM (#wow): the nerve LUNGES from the vertebra and DECELERATES into the
+      // anchor (ease-out), instead of extending at a constant linear rate — so the
+      // fiber reaches, lands, and the panel blooms FROM that contact.
+      const reachDraw = Math.max(easeOutExpo(reachProgress), 0.03);
+      geometry.setDrawRange(0, Math.max(2, Math.floor(drawCount * reachDraw)));
       const mat = tubeRef.current.material as THREE.MeshStandardMaterial;
       mat.color.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.28);
       mat.emissive.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.44);
@@ -1529,12 +1541,34 @@ export default function MaterializedTab({
     }
 
     if (slabRef.current) {
-      const eased = easing(slabProgress);
-      slabRef.current.scale.set(
-        (0.74 + eased * 0.26) * pose.scale * POINTS_SLAB_SCALE,
-        Math.max(0.01, eased) * pose.scale * POINTS_SLAB_SCALE,
-        (0.7 + eased * 0.3) * pose.scale * POINTS_SLAB_SCALE,
-      );
+      const s = pose.scale * POINTS_SLAB_SCALE;
+      if (tab.lifecycle === 'retracting') {
+        // DISMISS / SETTLE (#wow signature 5): the being DRINKS the panel back — a quick
+        // anticipation PUFF, then Y folds shut FIRST on an accelerating ease-IN (the
+        // membrane closing), x/z trailing a beat behind, so the slab collapses to a
+        // horizontal sliver that's sucked up the cord (handing into the reabsorption
+        // inhale). Asymmetric ease-IN, not the old symmetric smoothstep. (slabProgress 1→0.)
+        const rp = clamp01(1 - slabProgress); // retract progress 0→1
+        const puff = 1 + 0.05 * flashBell(clamp01(rp / 0.14), 0.5); // brief inhale before the pull
+        const yShut = 1 - easeInCubic(clamp01(rp / 0.74)); // Y collapses first (gone by ~0.74)
+        const xzShut = 1 - easeInCubic(clamp01((rp - 0.16) / 0.84)); // x/z trail a beat behind
+        slabRef.current.scale.set(
+          (0.74 + xzShut * 0.26) * s * puff,
+          Math.max(0.01, yShut) * s * puff,
+          (0.7 + xzShut * 0.3) * s * puff,
+        );
+      } else {
+        // BLOOM (#wow): the screen POWERS ON — Y unfurls FIRST with an easeOutBack
+        // overshoot-catch (a membrane opening that settles to 1.0), x/z trail a beat
+        // behind on an ease-out. Replaces the symmetric smoothstep cross-dissolve.
+        const yBloom = easeOutBack(slabProgress, 1.1); // ~1.04 catch, settles to exactly 1
+        const xzBloom = layerProgress(slabProgress, 0.12);
+        slabRef.current.scale.set(
+          (0.74 + xzBloom * 0.26) * s,
+          Math.max(0.06, yBloom) * s, // born from a thin sliver, not a point
+          (0.7 + xzBloom * 0.3) * s,
+        );
+      }
     }
 
     if (bodyRef.current) {
@@ -1599,6 +1633,12 @@ export default function MaterializedTab({
           .lerp(outcomeColor, outcomeSurfaceExcitation * 0.4);
         const rimCeil = isFocused ? 0.7 : 0.44;
         mat.opacity = Math.min(rimCeil, mat.opacity * 2.1 + 0.2);
+        // DISMISS flick (#wow 5): the rim FLARES as the being starts to drink the panel
+        // back (first ~20% of the retract), then fades with the collapse.
+        if (tab.lifecycle === 'retracting') {
+          const rp = clamp01(1 - slabProgress);
+          mat.opacity = Math.min(0.95, mat.opacity + flashBell(clamp01(rp / 0.2), 0.4) * 0.5);
+        }
       }
     }
 
@@ -1611,12 +1651,22 @@ export default function MaterializedTab({
       mat.color.copy(metabolismColor).lerp(outcomeColor, outcomeSurfaceExcitation * 0.5);
       const breathe = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 2.1);
       const base = isFocused ? 0.95 : 0.4;
+      // BLOOM (#wow): a one-shot socket FLASH on the reach->unfurl handoff — the
+      // vertebra REACTS to the nerve's contact and the panel blooms from it (a
+      // 0->1->0 bell over ~180ms at the instant unfurling begins).
+      const socketFlash =
+        reducedMotion || tab.lifecycle !== 'unfurling'
+          ? 0
+          : flashBell(clamp01((now - tab.phaseStartedAt) / 180), 0.32);
       mat.opacity = Math.min(
         1,
         base * pose.opacity * (0.7 + slabProgress * 0.3) * (1 + surfaceExcitation * 0.3) *
-          (isFocused ? 0.86 + 0.14 * breathe : 1),
+          (isFocused ? 0.86 + 0.14 * breathe : 1) *
+          (1 + socketFlash * 0.9),
       );
-      socketRef.current.scale.setScalar((isFocused ? 1.15 + breathe * 0.12 : 0.68) * (0.9 + slabProgress * 0.2));
+      socketRef.current.scale.setScalar(
+        (isFocused ? 1.15 + breathe * 0.12 : 0.68) * (0.9 + slabProgress * 0.2) * (1 + socketFlash * 0.32),
+      );
     }
 
     if (labelRef.current) {
@@ -1630,7 +1680,11 @@ export default function MaterializedTab({
     const beadTravel = (state.clock.elapsedTime * beadFlowSpeed) % 1;
     beadRefs.current.forEach((bead, index) => {
       if (!bead) return;
-      const t = clamp01((beadTravel + index * 0.19) % 1);
+      const tRaw = (beadTravel + index * 0.19) % 1;
+      // REABSORPTION coherence (#wow signature 3): while RETRACTING, the umbilical beads
+      // flow back UP toward the spine (slab→spine) so the cord's visible energy AGREES
+      // with the brain's inhale band climbing the spine, instead of contradicting it.
+      const t = clamp01(tab.lifecycle === 'retracting' ? 1 - tRaw : tRaw);
       const pathT = clamp01(0.08 + t * 0.84 * Math.max(reachProgress, 0.24));
       bead.position.copy((curveRef.current ?? curve).getPointAt(pathT));
       // Beads read as a visible pulse train conducting work down the nerve (#6) —

@@ -17,6 +17,7 @@ import { useReducedMotion } from '@/lib/reducedMotion';
 import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
+import CommandNerve3D from './CommandNerve3D';
 import KnowledgeHorizon from './KnowledgeHorizon';
 import MemoryGalaxy from './MemoryGalaxy';
 import OrganSurface from './OrganSurface';
@@ -29,12 +30,14 @@ import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { deriveVoyageDrift } from '@/lib/voyageDrift';
 import { deriveOrganismCameraFrame } from '@/lib/organismCameraFrame';
 import { setStemAnchor } from '@/lib/stemAnchorBus';
+import { setFunnelAnchor } from '@/lib/funnelAnchorBus';
 import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
 import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
+import { intakeNerveDrive } from '@/lib/intakeNerveDrive';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
@@ -269,6 +272,14 @@ const BANK_GAIN = 0.633;
 const FORWARD_LEAN = 0.05;
 /** Reused scratch for projecting the brainstem to screen px (NeuralCommandDock tether). */
 const STEM_SCRATCH = new THREE.Vector3();
+/** Reused scratch for projecting the TAIL INTAKE FUNNEL (the dock's new mouth, operator idea). */
+const FUNNEL_SCRATCH = new THREE.Vector3();
+/** Group-local Y of the intake-funnel mouth — the CONUS NECK: the narrow bottom end
+ *  of the cord where the willow nerve-roots converge/branch out (placed by live dial
+ *  sweep — the socket tracks the cord rigidly, so this lands exactly at the splay apex).
+ *  The command nerve plugs in HERE so it reads as another root coming out of the
+ *  brainstem's bottom end (operator). Tunable live via window.__FUNNEL_Y. */
+const FUNNEL_LOCAL_Y = -0.85;
 
 /* ---------- mode-reactive core tint targets (lerped into uModeTint) ---------- */
 const MODE_EMISSIVE: Record<CognitiveMode, THREE.Color> = {
@@ -924,6 +935,33 @@ function BrainModel({
           y: (1 - (STEM_SCRATCH.y * 0.5 + 0.5)) * state.size.height,
           visible: STEM_SCRATCH.z < 1,
         });
+        // INTAKE FUNNEL bridge (operator idea): project the tail intake mouth (low on
+        // the spine, where the "you speak here" rings live) so the dock grows its nerve
+        // DOWN into the being's intake instead of up to the brainstem. Tunable Y while
+        // we dial the mouth in.
+        {
+          const funnelDial =
+            typeof window !== 'undefined' ? (window as { __FUNNEL_Y?: number }).__FUNNEL_Y : undefined;
+          const funnelY = typeof funnelDial === 'number' ? funnelDial : FUNNEL_LOCAL_Y;
+          FUNNEL_SCRATCH.set(0, funnelY, 0);
+          groupRef.current.localToWorld(FUNNEL_SCRATCH);
+          const fwx = FUNNEL_SCRATCH.x;
+          const fwy = FUNNEL_SCRATCH.y;
+          const fwz = FUNNEL_SCRATCH.z;
+          FUNNEL_SCRATCH.project(state.camera);
+          // PHASE-AWARE channel: the intake nerve blazes while the being receives you
+          // and recedes as it tucks its tail to work (mirrors uSprayHide). reduced
+          // motion zeroes the bead flow (the only travelling motion in the nerve).
+          const nerveDrive = intakeNerveDrive(getOrganismPhase());
+          setFunnelAnchor({
+            x: (FUNNEL_SCRATCH.x * 0.5 + 0.5) * state.size.width,
+            y: (1 - (FUNNEL_SCRATCH.y * 0.5 + 0.5)) * state.size.height,
+            visible: FUNNEL_SCRATCH.z < 1,
+            world: [fwx, fwy, fwz],
+            intake: nerveDrive.drive,
+            flow: reduceMotion ? 0 : nerveDrive.flow,
+          });
+        }
       } else {
         // Hold a cinematic three-quarter silhouette instead of spinning into
         // unreadable rear angles. Restores the classic, recognizable brain shape.
@@ -1321,50 +1359,35 @@ function OrganismFraming({
  *  slow so it reads as ambient assurance, not noise; reduced-motion holds it steady.
  *  Additive green (#54f0a0 = the bible's supervised hue). Rides the brain group. */
 function SupervisedMark({ reducedMotion }: { reducedMotion: boolean }) {
-  const coreRef = useRef<THREE.Mesh>(null);
+  const ringMat = useRef<THREE.MeshBasicMaterial>(null);
   const coreMat = useRef<THREE.MeshBasicMaterial>(null);
-  const haloRef = useRef<THREE.Mesh>(null);
   const haloMat = useRef<THREE.MeshBasicMaterial>(null);
   useFrame((state) => {
     const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.1);
-    if (coreRef.current && coreMat.current) {
-      // A touch more present (#8: status reads FROM the body) — still ambient
-      // assurance, not noise: 0.2–0.42 with a slow breath.
-      coreMat.current.opacity = 0.2 + pulse * 0.22;
-      coreRef.current.scale.setScalar(0.05 + pulse * 0.014);
-    }
-    if (haloRef.current && haloMat.current) {
-      // Faint outer seal ring so the brainstem mark reads as an intentional
-      // "supervised seal," not a stray dot.
-      haloMat.current.opacity = 0.05 + pulse * 0.06;
-      haloRef.current.scale.setScalar(0.1 + pulse * 0.03);
-    }
+    // BEAUTIFIED (operator: "beautification polish") — an IRIS-RING seal instead of a
+    // solid green blob: a crisp green ring + a soft inner glow (the pupil) + a faint
+    // outer bloom, breathing slowly. Reads as a deliberate "supervised" aperture on
+    // the brainstem, not a stray dot. Still sacred green.
+    if (ringMat.current) ringMat.current.opacity = 0.34 + pulse * 0.26;
+    if (coreMat.current) coreMat.current.opacity = 0.1 + pulse * 0.1;
+    if (haloMat.current) haloMat.current.opacity = 0.04 + pulse * 0.05;
   });
   return (
     <group position={[0, -0.35, 0]}>
-      <mesh ref={haloRef} renderOrder={5}>
-        <sphereGeometry args={[1, 16, 16]} />
-        <meshBasicMaterial
-          ref={haloMat}
-          color="#54f0a0"
-          transparent
-          opacity={0.08}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          toneMapped={false}
-        />
+      {/* faint outer bloom */}
+      <mesh renderOrder={5}>
+        <sphereGeometry args={[0.12, 16, 16]} />
+        <meshBasicMaterial ref={haloMat} color="#54f0a0" transparent opacity={0.06} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
-      <mesh ref={coreRef} renderOrder={6}>
-        <sphereGeometry args={[1, 14, 14]} />
-        <meshBasicMaterial
-          ref={coreMat}
-          color="#54f0a0"
-          transparent
-          opacity={0.28}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          toneMapped={false}
-        />
+      {/* soft inner glow — the pupil */}
+      <mesh renderOrder={6}>
+        <sphereGeometry args={[0.04, 14, 14]} />
+        <meshBasicMaterial ref={coreMat} color="#9bffce" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </mesh>
+      {/* the crisp iris RING — the elegant seal */}
+      <mesh renderOrder={7}>
+        <torusGeometry args={[0.062, 0.007, 12, 48]} />
+        <meshBasicMaterial ref={ringMat} color="#54f0a0" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
     </group>
   );
@@ -1457,6 +1480,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   const replyGlowRef = useRef(0);
   const metabolismRef = useRef(getTurnMetabolismSnapshot());
   const metabolismColorRef = useRef(new THREE.Color(metabolismRef.current.tint));
+  const restLandedAtRef = useRef(-1); // clock (s) the being last LANDED back to rest (one-shot exhale)
+  const wasRestRef = useRef(false); // rising-edge detector for the rest landing
   const uniforms = SCENE_UNIFORMS;
   
   const idleRef = useRef<IdleControllerState>({
@@ -1751,8 +1776,22 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       0,
       1.35,
     );
+    // REST EXHALE (#wow signature 5): on LANDING back to rest (from completion /
+    // reabsorbing), the being lets out one slow breath — a brief exhale DIP then settle,
+    // instead of snapping straight into idle breathing. Reduced motion: no dip.
+    const atRest = getOrganismPhase() === 'rest';
+    if (atRest && !wasRestRef.current) restLandedAtRef.current = time;
+    wasRestRef.current = atRest;
+    const sinceRest = restLandedAtRef.current >= 0 ? time - restLandedAtRef.current : 999;
+    const restExhale =
+      !reducedMotionRef.current && sinceRest < 0.9
+        ? -Math.sin(THREE.MathUtils.clamp(sinceRest / 0.9, 0, 1) * Math.PI) * 0.16
+        : 0;
     // The approval hold freezes the breath exactly where it was caught.
-    uniforms.uBreath.value = THREE.MathUtils.lerp(metabolicBreath, hold.breathAtHold, holding);
+    uniforms.uBreath.value = Math.max(
+      0,
+      THREE.MathUtils.lerp(metabolicBreath, hold.breathAtHold, holding) + restExhale,
+    );
     uniforms.uRimGain.value = 1.4 * (0.85 + 0.3 * uniforms.uBreath.value);
     uniforms.uSssScale.value = 0.9 * (0.8 + 0.4 * uniforms.uBreath.value);
     uniforms.uBurst.value = Math.max(
@@ -1919,7 +1958,10 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       {sky === 'layered' && tier !== 'low' && BEING_MODE !== 'points' && (
         <KnowledgeHorizon activity={activeBoost} />
       )}
-      <CosmicBackground tier={tier} arrival={arrivalScalarRef} />
+      <CosmicBackground tier={tier} arrival={arrivalScalarRef} reducedMotion={reducedMotion} />
+      {/* the command nerve as a real 3D tube (operator: "nerve should be 3D, like a
+          live") — bridges the DOM -> button to the cauda convergence in the scene. */}
+      {BEING_MODE === 'points' && <CommandNerve3D reducedMotion={reducedMotion} />}
 
       {/* The recall stream: distant glints are REAL trails from the pheromone
           map (strength = core brightness, walks = cage size, freshness =

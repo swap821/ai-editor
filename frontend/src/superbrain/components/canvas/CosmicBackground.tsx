@@ -71,7 +71,15 @@ const STAR_COUNTS: Record<QualityTier, number> = {
   low: 900,
 };
 
-function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObject<number> }) {
+function Starfield({
+  count,
+  arrival,
+  reducedMotion = false,
+}: {
+  count: number;
+  arrival?: MutableRefObject<number>;
+  reducedMotion?: boolean;
+}) {
   const pointsRef = useRef<THREE.Points>(null);
 
   const stars = useMemo(() => {
@@ -140,7 +148,11 @@ function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObje
   useFrame((_, delta) => {
     const hold = holdRef.current;
     hold.blend = THREE.MathUtils.damp(hold.blend, hold.target, 2.5, delta);
-    STARFIELD_TIME_UNIFORM.value += delta * (1 - 0.7 * hold.blend);
+    // A11y (motion audit, true defect): the stars stream TOWARD the camera, an
+    // expanding optical flow that is a classic vestibular / migraine trigger — and
+    // it was never gated. Under OS reduced-motion, drop the stream to a near-frozen
+    // parallax drift (~4%): the cosmic field stays present, but nothing looms.
+    STARFIELD_TIME_UNIFORM.value += delta * (1 - 0.7 * hold.blend) * (reducedMotion ? 0.04 : 1);
     uniforms.uArrival.value = arrival?.current ?? 0;
   });
 
@@ -282,14 +294,17 @@ function Starfield({ count, arrival }: { count: number; arrival?: MutableRefObje
 export default function CosmicBackground({
   tier = 'high',
   arrival,
+  reducedMotion = false,
 }: {
   tier?: QualityTier;
   /** Shared coalescence scalar: 1 = arriving (funnel inward), 0 = settled. */
   arrival?: MutableRefObject<number>;
+  /** OS reduced-motion: freezes the looming star-stream (vestibular safety). */
+  reducedMotion?: boolean;
 }) {
   return (
     <group>
-      <Starfield count={STAR_COUNTS[tier]} arrival={arrival} />
+      <Starfield count={STAR_COUNTS[tier]} arrival={arrival} reducedMotion={reducedMotion} />
     </group>
   );
 }
