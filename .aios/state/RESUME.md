@@ -1,6 +1,12 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-23T09:11:00+05:30
+Last updated: 2026-06-23T09:45:00+05:30
+
+## SESSION 2026-06-23 (operator at laptop) — VERDICT: dark glass WINS + PURE-BLACK VOID shipped (#45)
+- **Two decisive operator calls closed the collaboration loop:**
+  - **SURFACES — "a full dark glass is right."** Drove a baseline→A→B→C membrane gradient on his RTX via the #43 `window.__SURFACE` dial. Honest finding (banked): at the slab's real on-screen size the membrane veins/nodes are sub-pixel — the only visible effect is rim-softening + warm fill. He chose to KEEP the clean dark glass → **membrane dial stays OFF (default)**. Piece 1 closed as a DELIBERATE choice. The dial stays in the tree (default-off, zero-cost) for any future revisit. **Do not re-propose membrane surfaces.**
+  - **VOID — "a pure black screen."** Closed the long-flagged "void black mismatch." **PR #45 (`50be493`)** took 4 sources to `#000000`: WorkspaceCanvas scene `<color>`+`<fog>` (`#010307`→`#000`); superbrain.css base (`#030108`→`#000`), `.atmosphere-layer` (purple-nebula + cyan-aurora + purple-vignette radials → `background:none`), `.grid-layer` (cyan depth-grid → `display:none`). The being's OWN additive WebGL bloom is untouched — only empty space goes true black. Sacred accent tetrad untouched; the void is not the tetrad + not in CI's canon gate. Live-verified on RTX, 277 tests green, tsc+build clean.
+- **REMAINING — still the operator's (the only open his-eye piece):** portrait framing feel — he dials `window.__CAMFRAME = { fov, targetY }` on his REAL PHONE (current portrait anchor fov:22/targetY:-0.4 in `lib/organismCameraFrame.ts`), sends 2 numbers, I bake. (Optional, if he ever wants it: tighten the being's own bloom halo for an even starker void — he'd ask.)
 
 ## SESSION 2026-06-23 (operator back at laptop) — SURFACE DIAL SHIPPED (window.__SURFACE), collab loop open
 - **Operator returned: "let's fix two remaining pieces"** (the two his-eye handoffs from the visual-elevation arc: anatomical surfaces + portrait feel). Started with Piece 1's TOOL — shipped, not a blind look-change.
