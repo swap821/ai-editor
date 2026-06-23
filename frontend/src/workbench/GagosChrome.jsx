@@ -23,6 +23,7 @@ import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitio
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
+import { useTabStore } from '../superbrain/lib/tabStore';
 import CommandDockTether from './CommandDockTether';
 import { API_BASE } from '../config';
 import {
@@ -152,6 +153,10 @@ export default function GagosChrome() {
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [online, setOnline] = useState(true); // honest backend reachability (polled)
   const reducedMotion = useReducedMotion();
+  // NeuralCommandDock working-dim: the dock yields while the being orchestrates work
+  // (content surfaces present) — unless the operator is actively engaging it.
+  const { tabs: liveTabs } = useTabStore();
+  const beingWorking = liveTabs.some((t) => t.kind !== 'input' && t.lifecycle !== 'retracting');
 
   const busyRef = useRef(false);
   const turnTokenRef = useRef(0);
@@ -413,14 +418,14 @@ export default function GagosChrome() {
             : '';
 
   // NeuralCommandDock: the input is a control organ — calm at rest, the membrane
-  // warms when engaged (focus/typing/voice/sending). (working-dim wires in once a
-  // workspace-count signal reaches the chrome.)
+  // warms when engaged (focus/typing/voice/sending), and YIELDS (recedes/dims) while
+  // the being orchestrates work, unless the operator is actively engaging it.
   const dock = deriveCommandDockState({
     hasText: draft.trim().length > 0,
     focused,
     listening,
     sending: busy,
-    working: false,
+    working: beingWorking,
     reducedMotion,
   });
 
