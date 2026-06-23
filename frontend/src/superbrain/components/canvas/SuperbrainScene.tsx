@@ -28,6 +28,7 @@ import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { deriveVoyageDrift } from '@/lib/voyageDrift';
 import { deriveOrganismCameraFrame } from '@/lib/organismCameraFrame';
+import { setStemAnchor } from '@/lib/stemAnchorBus';
 import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
@@ -266,6 +267,8 @@ function brainDriftVelocityX(time: number): number {
 const BANK_GAIN = 0.633;
 /** Constant forward lean — nose pitched into the voyage. */
 const FORWARD_LEAN = 0.05;
+/** Reused scratch for projecting the brainstem to screen px (NeuralCommandDock tether). */
+const STEM_SCRATCH = new THREE.Vector3();
 
 /* ---------- mode-reactive core tint targets (lerped into uModeTint) ---------- */
 const MODE_EMISSIVE: Record<CognitiveMode, THREE.Color> = {
@@ -910,6 +913,17 @@ function BrainModel({
         );
         groupRef.current.rotation.z = voyage.roll * voyageGain;
         voyageRef.current = { ...voyage, gain: Math.round(voyageGain * 10000) / 10000 };
+        // NeuralCommandDock bridge: project the brainstem (group-local (0,-0.35,0) —
+        // where the cord meets the head) to screen px so the DOM dock can grow a
+        // nerve up into the living stem. Rides the voyage/orbit/crown for free.
+        STEM_SCRATCH.set(0, -0.35, 0);
+        groupRef.current.localToWorld(STEM_SCRATCH);
+        STEM_SCRATCH.project(state.camera);
+        setStemAnchor({
+          x: (STEM_SCRATCH.x * 0.5 + 0.5) * state.size.width,
+          y: (1 - (STEM_SCRATCH.y * 0.5 + 0.5)) * state.size.height,
+          visible: STEM_SCRATCH.z < 1,
+        });
       } else {
         // Hold a cinematic three-quarter silhouette instead of spinning into
         // unreadable rear angles. Restores the classic, recognizable brain shape.

@@ -260,6 +260,19 @@
 }
 @keyframes gagos-caret-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
 
+/* NeuralCommandDock tether — the nerve from the dock up into the being's brainstem
+   (SVG overlay, rAF-driven). Sits above the canvas, below the interactive chrome;
+   never captures pointer. */
+.gagos-tether {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
 /* NeuralCommandDock — not a chatbot bar: a control ORGAN grown from the being's
    root-field. Organic asymmetric membrane contour (no symmetric input rect), dark
    brain-family tissue, faint point-field puncta, a soft membrane rim that GLOWS

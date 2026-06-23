@@ -23,6 +23,7 @@ import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitio
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
+import CommandDockTether from './CommandDockTether';
 import { API_BASE } from '../config';
 import {
   formatActiveBrainLine,
@@ -425,6 +426,12 @@ export default function GagosChrome() {
 
   return (
     <div className="gagos-chrome" role="main" aria-label="GAGOS conversation">
+      <CommandDockTether
+        active={dock.active}
+        intensity={dock.intensity}
+        particleFlow={dock.particleFlow}
+        reducedMotion={reducedMotion}
+      />
       <button type="button" className="gagos-skip" onClick={() => inputRef.current?.focus()}>
         Skip to the chat
       </button>
