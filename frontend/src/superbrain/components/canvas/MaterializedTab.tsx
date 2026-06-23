@@ -1784,17 +1784,23 @@ export default function MaterializedTab({
         focusMaterializedTab(tab.id);
       }}
     >
-      <mesh ref={tubeRef} geometry={tubeGeometry} renderOrder={6} frustumCulled={false}>
-        <meshStandardMaterial
-          color={theme.reach.clone()}
-          emissive={theme.reach.clone()}
-          emissiveIntensity={1.02}
-          roughness={0.18}
-          metalness={0.22}
-          transparent
-          opacity={0.92}
-        />
-      </mesh>
+      {/* Points being (operator call 2026-06-23): the umbilical nerve from the
+          brain/spine to the panel is REMOVED — it read as a weird cord across the
+          view. The panel still seats at its umbilical endpoint (curve drives the
+          position); only the visible cord is gone. Mesh mode keeps the nerve. */}
+      {!POINTS && (
+        <mesh ref={tubeRef} geometry={tubeGeometry} renderOrder={6} frustumCulled={false}>
+          <meshStandardMaterial
+            color={theme.reach.clone()}
+            emissive={theme.reach.clone()}
+            emissiveIntensity={1.02}
+            roughness={0.18}
+            metalness={0.22}
+            transparent
+            opacity={0.92}
+          />
+        </mesh>
+      )}
 
       {/* Points being (poster phase 5): a state-tinted SOCKET glow at the vertebra
           this tab's umbilical roots on — "each vertebra seats a tab; nerves carry the
@@ -1941,7 +1947,9 @@ export default function MaterializedTab({
       </>
       )}
 
-      {Array.from({ length: BEAD_COUNT }, (_, index) => (
+      {/* Points being: umbilical beads removed with the cord (operator call) — they
+          travelled the brain->panel nerve which is gone. Mesh mode keeps them. */}
+      {!POINTS && Array.from({ length: BEAD_COUNT }, (_, index) => (
         <mesh
           key={`materialized-bead-${tab.id}-${index}`}
           ref={(mesh) => {
