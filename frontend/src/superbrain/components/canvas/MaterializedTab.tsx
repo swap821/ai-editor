@@ -1959,14 +1959,18 @@ export default function MaterializedTab({
           <group rotation={dimensions.tilt}>
             <mesh ref={bodyRef} renderOrder={8}>
               <primitive object={slabBodyGeometry} attach="geometry" />
+              {/* Points being (operator call 2026-06-23): the tab is a SOLID BLACK
+                  SCREEN so content reads — an opaque body fully occludes the void
+                  + brain behind it (the old 0.88 glass let ~12% bleed through and
+                  washed the code). Mesh mode keeps the translucent glass. */}
               <meshStandardMaterial
                 color={theme.body}
                 emissive={theme.outline}
                 emissiveIntensity={0.13}
                 roughness={organMaterial.tissue.roughness}
                 metalness={organMaterial.tissue.metalness}
-                transparent
-                opacity={0.88}
+                transparent={!POINTS}
+                opacity={POINTS ? 1 : 0.88}
               />
             </mesh>
             {/* Step 3: soften the hard cyan border into a membrane RIM (was a crisp
