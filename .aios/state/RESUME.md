@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-24T19:28:48Z
+Last updated: 2026-06-24T19:32:39Z
 
 ## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
 
@@ -84,7 +84,10 @@ dock / coach feel like they read the operator's mind.
 - [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
 
 ## Single Next Action
-**Commit, push, and confirm GitHub CI green.**
+**Wait for the operator's next direction.**
+- GitHub CI is green on `f7da31b` for both backend and frontend.
+- `:5173` is running bound to `127.0.0.1` and the backend is running in the background for immediate live verification.
+- Ready candidates: P1-3 session-id unification, P1-2 Jarvis voice Slice 2, or continue the micro-detail polish stream.
 - GitHub CI is now green on `70c543a` for both backend and frontend.
 - The operator's go is required for the next YELLOW/RED step.
 - Ready candidates: tune the spine-flash size/timing from the live screenshots; wire
