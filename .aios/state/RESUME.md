@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T00:05:00+00:00
+Last updated: 2026-06-24T19:28:48Z
 
 ## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
 
@@ -60,6 +60,16 @@ dock / coach feel like they read the operator's mind.
 - Lab: `369 passed`; `npx tsc --noEmit` green.
 - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
 
+## Continuation — P0-3 approval single-source-of-truth
+- Verified the `SuperbrainHUD` already binds its actionable `<ApprovalPanel>` to the adapter's persisted pending-approval truth via `subscribePendingApproval()` (`SuperbrainHUD.tsx:574-590`), with an immediate-on-subscribe emission that covers a late mount or a missed transient `approval-required` bus event. `approvalHold` and the AUTHORIZE/REJECT panel are now driven by the same state.
+- Added `frontend/src/superbrain/lib/aiosAdapter.approval.test.ts` (5 tests) covering immediate subscribe emission, multi-subscriber notification, unsubscribe isolation, and clear-reset.
+- Updated Tier-1 docs: `FRONTEND_HARMONY_MAP.md` (defect marked resolved with historical note) and `RENOVATION_PLAN.md` (P0-3 marked ✅ done).
+- Full gates re-run and green:
+  - Backend: `587 passed, 1 skipped`.
+  - Frontend product: `314 passed`; `vite build` green; `tsc --noEmit` green.
+  - Lab: `369 passed`; `npx tsc --noEmit` green.
+  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
+
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
 - [x] Frontend adapter helpers for the new endpoints
@@ -69,11 +79,12 @@ dock / coach feel like they read the operator's mind.
 - [x] Product tests for intent, onboarding, and reactive effects
 - [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
 - [x] Aurora state/decay bug fixed and re-tested
-- [x] All gates green (pytest, vitest product 309, vitest lab, tsc, vite build, canon guards)
+- [x] All gates green (pytest, vitest product, vitest lab, tsc, vite build, canon guards)
 - [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
+- [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
 
 ## Single Next Action
-**Wait for the operator's next direction.**
+**Commit, push, and confirm GitHub CI green.**
 - GitHub CI is now green on `70c543a` for both backend and frontend.
 - The operator's go is required for the next YELLOW/RED step.
 - Ready candidates: tune the spine-flash size/timing from the live screenshots; wire
@@ -99,4 +110,7 @@ dock / coach feel like they read the operator's mind.
 - `frontend/src/workbench/GagosChrome.intent.test.tsx`
 - `frontend/src/workbench/GagosChrome.onboarding.test.tsx`
 - `frontend/src/workbench/SuperbrainReactiveEffects.test.tsx`
+- `frontend/src/superbrain/lib/aiosAdapter.approval.test.ts`
 - `.aios/state/RESUME.md`
+- `.aios/state/FRONTEND_HARMONY_MAP.md`
+- `.aios/state/RENOVATION_PLAN.md`

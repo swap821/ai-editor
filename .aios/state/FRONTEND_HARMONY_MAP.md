@@ -23,9 +23,12 @@ Status reflects the **product (superbrain) default face** first; classic-only co
 
 ---
 
-## ⚠ Known robustness defect (P0, 2026-06-14) — approval surface desync
+## ✅ Resolved: approval surface single-source-of-truth (P0-3, 2026-06-24)
 
-A live run that pauses on a YELLOW write can leave the operator **stuck**: the hold *text* ("Awaiting operator approval") is set by the parent `WorkspaceCanvas.tsx:184` from `result.paused`, while the actionable `<ApprovalPanel>` (`SuperbrainHUD.tsx:1039`) is gated on the HUD's *local* `pendingApproval`, populated **only** by the transient `approval-required` bus event (`:768`) + a null mount-seed (`:578`). The adapter's `pendingApproval` (and the server token) persist and stay valid (`aiosAdapter.ts:250`), but if the bus event doesn't reconcile into HUD state, the panel never renders → no AUTHORIZE/REJECT → the run hangs. **Fix:** drive the panel from the persisted adapter truth reconciled by the same `result.paused` signal that sets the text (single source of truth). Renovation P0.
+> Original defect description retained below for history. The actionable `<ApprovalPanel>` now binds to the adapter's persisted pending-approval truth via `subscribePendingApproval()` (`SuperbrainHUD.tsx:574-590`), which fires immediately on subscribe and on every change. `approvalHold` and the AUTHORIZE/REJECT panel are therefore driven by the same state; a missed transient `approval-required` bus event can no longer strand a pause. Covered by `frontend/src/superbrain/lib/aiosAdapter.approval.test.ts`.
+
+**Original (2026-06-14) defect — superseded:**
+> A live run that pauses on a YELLOW write can leave the operator **stuck**: the hold *text* ("Awaiting operator approval") is set by the parent `WorkspaceCanvas.tsx:184` from `result.paused`, while the actionable `<ApprovalPanel>` (`SuperbrainHUD.tsx:1039`) is gated on the HUD's *local* `pendingApproval`, populated **only** by the transient `approval-required` bus event (`:768`) + a null mount-seed (`:578`). The adapter's `pendingApproval` (and the server token) persist and stay valid (`aiosAdapter.ts:250`), but if the bus event doesn't reconcile into HUD state, the panel never renders → no AUTHORIZE/REJECT → the run hangs. **Fix:** drive the panel from the persisted adapter truth reconciled by the same `result.paused` signal that sets the text (single source of truth). Renovation P0.
 
 ---
 
