@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-24T19:32:39Z
+Last updated: 2026-06-24T19:53:49Z
 
 ## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
 
@@ -83,19 +83,35 @@ dock / coach feel like they read the operator's mind.
 - [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
 - [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
 
+## Continuation — P1-3 session-id unification
+- Verified that the shared `getSessionId()` resolver in `frontend/src/superbrain/lib/sessionId.ts` is already imported by both the product and lab `aiosAdapter.ts`, and that every stateful backend call (`/api/generate`, `/api/v1/chat`, `/api/v1/approval/req`) passes the same `SESSION_ID`.
+- Added `frontend/src/superbrain/lib/sessionId.test.ts` (4 tests) covering existing-id read, mint+persist, repeated-call stability, and storage-blocked fallback.
+- Updated `RENOVATION_PLAN.md` to mark P1-3 ✅ done.
+- Full gates re-run and green:
+  - Backend: `587 passed, 1 skipped`.
+  - Frontend product: `318 passed`; `vite build` green; `tsc --noEmit` green.
+  - Lab: `369 passed`; `npx tsc --noEmit` green.
+  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
+
+## Completed
+- [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
+- [x] Frontend adapter helpers for the new endpoints
+- [x] Product-only 3D reactive effects (cloud lightning, verify aurora, worker motes)
+- [x] Backend-driven intent preview in the command dock
+- [x] Milestone-driven onboarding coach
+- [x] Product tests for intent, onboarding, reactive effects, approval reconciliation, and session-id resolver
+- [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
+- [x] Aurora state/decay bug fixed and re-tested
+- [x] All gates green (pytest, vitest product, vitest lab, tsc, vite build, canon guards)
+- [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
+- [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
+- [x] P1-3 session-id unification verified, regression-tested, and documented
+
 ## Single Next Action
-**Wait for the operator's next direction.**
-- GitHub CI is green on `f7da31b` for both backend and frontend.
-- `:5173` is running bound to `127.0.0.1` and the backend is running in the background for immediate live verification.
-- Ready candidates: P1-3 session-id unification, P1-2 Jarvis voice Slice 2, or continue the micro-detail polish stream.
-- GitHub CI is now green on `70c543a` for both backend and frontend.
-- The operator's go is required for the next YELLOW/RED step.
-- Ready candidates: tune the spine-flash size/timing from the live screenshots; wire
-  the next RENOVATION_PLAN item (e.g., approval single-source-of-truth P0-3, session-id
-  unification P1-3, or Jarvis voice Slice 2 P1-2); or continue the micro-detail polish
-  stream.
-- `:5173` is running bound to `127.0.0.1` and the backend is running in the background
-  for immediate live verification.
+**Begin P1-2 — Jarvis voice Slice 2 (browser-native MVP).**
+- P0-3 and P1-3 prerequisites are closed and CI-green.
+- Wire the orphaned Web Speech STT loop to `POST /api/v1/chat`, add TTS speak-back, publish `voice-speaking` cognition events, and add a push-to-talk HUD control.
+- `:5173` and the backend are running for immediate live verification.
 
 ## Open Approvals / Blockers
 - None. Operator gave full go; frozen core (`aios/security/*`) untouched.
@@ -114,6 +130,7 @@ dock / coach feel like they read the operator's mind.
 - `frontend/src/workbench/GagosChrome.onboarding.test.tsx`
 - `frontend/src/workbench/SuperbrainReactiveEffects.test.tsx`
 - `frontend/src/superbrain/lib/aiosAdapter.approval.test.ts`
+- `frontend/src/superbrain/lib/sessionId.test.ts`
 - `.aios/state/RESUME.md`
 - `.aios/state/FRONTEND_HARMONY_MAP.md`
 - `.aios/state/RENOVATION_PLAN.md`
