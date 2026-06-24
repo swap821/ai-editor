@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-24T23:55:00+00:00
+Last updated: 2026-06-25T00:05:00+00:00
 
 ## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
 
@@ -46,10 +46,17 @@ dock / coach feel like they read the operator's mind.
   3.11 environment raised `ModuleNotFoundError`. Pinned both deps to the versions
   already in `.venv`, pushed (`0054a89`), and verified both backend and frontend
   CI jobs are green.
+- **First-cloud-route spine flash:** added `frontend/src/workbench/spineFlashBridge.ts`
+  and wired `GagosChrome.jsx` to fire a one-shot travelling pulse down the visible
+  spine the first time a swarm subtask routes to the cloud factory. The product-only
+  `SuperbrainReactiveEffects.jsx` renders a bright cyan bead + trail along the fused
+  `SEGMENT_ANCHORS`, respecting the brain dock scale. Live verified via kimi-webbridge:
+  rest screenshot clean, triggered flash shows a bright bead moving brainstem→conus,
+  post-flash rest clean again. Pushed as `70c543a`; CI green.
 
 **Test counts as of this run (trust live count):**
 - Backend: `587 passed, 1 skipped` (Windows symlink privilege).
-- Frontend product: `307 passed`; `vite build` green.
+- Frontend product: `309 passed`; `vite build` green.
 - Lab: `369 passed`; `npx tsc --noEmit` green.
 - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
 
@@ -62,15 +69,17 @@ dock / coach feel like they read the operator's mind.
 - [x] Product tests for intent, onboarding, and reactive effects
 - [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
 - [x] Aurora state/decay bug fixed and re-tested
-- [x] All gates green (pytest, vitest product 307, vitest lab, tsc, vite build, canon guards)
+- [x] All gates green (pytest, vitest product 309, vitest lab, tsc, vite build, canon guards)
+- [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
 
 ## Single Next Action
 **Wait for the operator's next direction.**
-- GitHub CI is now green on `0054a89` for both backend and frontend.
+- GitHub CI is now green on `70c543a` for both backend and frontend.
 - The operator's go is required for the next YELLOW/RED step.
-- Ready candidates: add a first-run spine-flash hint when `firstCloudRoute` is reached;
-  tune reactive-effect timing based on the live screenshot; or pick the next item from
-  `.aios/state/RENOVATION_PLAN.md` / `.aios/state/FUTURE_FRONTIER.md`.
+- Ready candidates: tune the spine-flash size/timing from the live screenshots; wire
+  the next RENOVATION_PLAN item (e.g., approval single-source-of-truth P0-3, session-id
+  unification P1-3, or Jarvis voice Slice 2 P1-2); or continue the micro-detail polish
+  stream.
 - `:5173` is running bound to `127.0.0.1` and the backend is running in the background
   for immediate live verification.
 
