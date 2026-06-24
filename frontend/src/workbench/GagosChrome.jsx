@@ -20,6 +20,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, previewIntent, fetchOnboardingState } from '../superbrain/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
+import { triggerSpineFlash } from './spineFlashBridge';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
@@ -277,6 +279,27 @@ export default function GagosChrome() {
     };
     void load();
     return () => { alive = false; };
+  }, []);
+
+  // First-cloud-route hint: when a subtask is first routed to the cloud factory,
+  // fire a one-shot travelling flash down the spine. Guarded by a per-session ref
+  // and localStorage so it only celebrates the operator's first cloud route.
+  const hasCloudFlashedRef = useRef(false);
+  useEffect(() => {
+    const unsub = subscribeSwarmHUD((swarm) => {
+      if (swarm.cloudIndices.length === 0 || hasCloudFlashedRef.current) return;
+      hasCloudFlashedRef.current = true;
+      try {
+        if (!window.localStorage.getItem('gagos-cloudroute-flash-shown')) {
+          triggerSpineFlash();
+          window.localStorage.setItem('gagos-cloudroute-flash-shown', '1');
+        }
+      } catch {
+        // storage may be blocked; still visually cue if we can
+        triggerSpineFlash();
+      }
+    });
+    return unsub;
   }, []);
 
   // Backend-driven intent preview: tint the command dock toward the predicted mode.

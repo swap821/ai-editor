@@ -12,6 +12,11 @@ import {
   getAuroraIntensity,
   __resetAuroraBridgeForTests,
 } from './verifyAuroraBridge';
+import {
+  getSpineFlashState,
+  triggerSpineFlash,
+  __resetSpineFlashBridgeForTests,
+} from './spineFlashBridge';
 
 vi.mock('@react-three/fiber', () => ({
   useFrame: () => undefined,
@@ -19,8 +24,8 @@ vi.mock('@react-three/fiber', () => ({
 }));
 
 vi.mock('@react-three/drei', () => ({
-  Line: ({ points }: { points: unknown[] }) => (
-    <div data-testid="lightning" data-points={points.length} />
+  Line: ({ points, 'data-testid': testId }: { points: unknown[]; 'data-testid'?: string }) => (
+    <div data-testid={testId ?? 'line'} data-points={points.length} />
   ),
 }));
 
@@ -28,6 +33,7 @@ describe('SuperbrainReactiveEffects', () => {
   beforeEach(() => {
     __resetSpineFusionForTests();
     __resetAuroraBridgeForTests();
+    __resetSpineFlashBridgeForTests();
     resetSwarmHUD();
     // Give the fusion bus a deterministic transform so seat math is safe.
     setSpineFusion(1, [0, 0, 0]);
@@ -70,8 +76,25 @@ describe('SuperbrainReactiveEffects', () => {
 
     // The component renders lightning asynchronously via state; flush effects.
     await vi.waitFor(() => {
-      const lightning = container.querySelector('[data-testid="lightning"]');
+      const lightning = container.querySelector('[data-testid="line"]');
       expect(lightning).toBeTruthy();
+    });
+  });
+
+  it('renders a spine-flash bead when the bridge is triggered', async () => {
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const { container } = render(<SuperbrainReactiveEffects />);
+
+    expect(getSpineFlashState().intensity).toBe(0);
+
+    act(() => {
+      triggerSpineFlash();
+    });
+
+    expect(getSpineFlashState().intensity).toBe(1);
+    await vi.waitFor(() => {
+      const flash = container.querySelector('[data-testid="spine-flash"]');
+      expect(flash).toBeTruthy();
     });
   });
 });

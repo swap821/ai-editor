@@ -27,6 +27,11 @@ import {
   setAuroraIntensity,
   subscribeAurora,
 } from './verifyAuroraBridge';
+import {
+  advanceSpineFlash,
+  getSpineFlashState,
+  subscribeSpineFlash,
+} from './spineFlashBridge';
 
 const CLOUD_COLORS = {
   bedrock: new THREE.Color('#f5c542'),
@@ -56,11 +61,43 @@ function seatForIndex(index) {
   return index % SEGMENT_ANCHORS.length;
 }
 
+const BEAD_HALF_ANCHORS = 2;
+
+function anchorWorldPosition(i) {
+  const clamped = Math.min(SEGMENT_ANCHORS.length - 1, Math.max(0, i));
+  const raw = SEGMENT_ANCHORS[clamped];
+  const fused = new THREE.Vector3(...fuseSpinePoint([raw.x, raw.y, raw.z]));
+  return fused.multiplyScalar(getBrainDockScale());
+}
+
+function sampleWorldPosition(t) {
+  const i0 = Math.floor(t);
+  const frac = t - i0;
+  const a = anchorWorldPosition(i0);
+  const b = anchorWorldPosition(i0 + 1);
+  return a.clone().lerp(b, frac);
+}
+
+function beadPointsForProgress(progress) {
+  const n = SEGMENT_ANCHORS.length;
+  const center = progress * (n - 1);
+  const start = Math.max(0, center - BEAD_HALF_ANCHORS);
+  const end = Math.min(n - 1, center + BEAD_HALF_ANCHORS);
+  const steps = Math.max(2, Math.ceil(end - start) * 2 + 1);
+  const points = [];
+  for (let s = 0; s < steps; s += 1) {
+    const t = start + (end - start) * (s / (steps - 1));
+    points.push(sampleWorldPosition(t));
+  }
+  return points;
+}
+
 export default function SuperbrainReactiveEffects() {
   const [lightnings, setLightnings] = useState([]);
   const [motes, setMotes] = useState({});
   const motesRef = useRef({});
   const [aurora, setAurora] = useState(getAuroraIntensity);
+  const [spineFlash, setSpineFlash] = useState(getSpineFlashState);
   const lastCloudIndices = useRef(new Set());
   const lastCastes = useRef(new Set());
 
@@ -68,6 +105,12 @@ export default function SuperbrainReactiveEffects() {
     // Sync local React state with the product-only aurora bridge so the
     // sphere mounts/unmounts and animates correctly.
     const unsub = subscribeAurora(setAurora);
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    // Sync local React state with the product-only spine-flash bridge.
+    const unsub = subscribeSpineFlash(setSpineFlash);
     return unsub;
   }, []);
 
@@ -153,6 +196,9 @@ export default function SuperbrainReactiveEffects() {
       }
     }
 
+    // Advance the first-cloud-route spine flash; the subscriber updates React state.
+    advanceSpineFlash(delta);
+
     // Age-out lightnings only when there are any to avoid per-frame re-renders.
     const now = performance.now();
     setLightnings((prev) => {
@@ -195,6 +241,38 @@ export default function SuperbrainReactiveEffects() {
           opacity={0.9}
         />
       ))}
+
+      {/* First-cloud-route spine flash: a bright bead travelling down the spine. */}
+      {spineFlash.intensity > 0.01 && (
+        <group name="spine-flash">
+          <Line
+            data-testid="spine-flash"
+            points={beadPointsForProgress(spineFlash.progress)}
+            color="#e0ffff"
+            lineWidth={5}
+            transparent
+            opacity={spineFlash.intensity * 0.85}
+          />
+          <mesh
+            data-testid="spine-flash-bead"
+            position={sampleWorldPosition(spineFlash.progress * (SEGMENT_ANCHORS.length - 1))}
+            scale={[
+              0.07 + spineFlash.intensity * 0.05,
+              0.07 + spineFlash.intensity * 0.05,
+              0.07 + spineFlash.intensity * 0.05,
+            ]}
+          >
+            <sphereGeometry args={[1, 16, 16]} />
+            <meshBasicMaterial
+              color="#e0ffff"
+              transparent
+              opacity={spineFlash.intensity * 0.45}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        </group>
+      )}
 
       {/* Verify-pass aurora: a soft, transient green bloom around the cortex. */}
       {aurora > 0.01 && (
