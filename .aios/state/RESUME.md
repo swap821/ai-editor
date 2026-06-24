@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-24T23:45:00+00:00
+Last updated: 2026-06-24T23:55:00+00:00
 
 ## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
 
@@ -40,6 +40,12 @@ dock / coach feel like they read the operator's mind.
   instead of caching it at mount. Removed per-frame re-renders from empty motes and
   lightnings. Added a render test asserting the aurora mesh appears after a pass
   event and is absent at rest.
+- **Post-push CI fix:** the initial push (`04c4279`) failed in the backend CI job
+  because `requests` and `beautifulsoup4` were missing from `requirements.txt`.
+  The `browse` tool lazy-imports them, so local tests passed while the clean CI
+  3.11 environment raised `ModuleNotFoundError`. Pinned both deps to the versions
+  already in `.venv`, pushed (`0054a89`), and verified both backend and frontend
+  CI jobs are green.
 
 **Test counts as of this run (trust live count):**
 - Backend: `587 passed, 1 skipped` (Windows symlink privilege).
@@ -59,7 +65,8 @@ dock / coach feel like they read the operator's mind.
 - [x] All gates green (pytest, vitest product 307, vitest lab, tsc, vite build, canon guards)
 
 ## Single Next Action
-**Continue the next front-door polish or move to a new feature.**
+**Wait for the operator's next direction.**
+- GitHub CI is now green on `0054a89` for both backend and frontend.
 - The operator's go is required for the next YELLOW/RED step.
 - Ready candidates: add a first-run spine-flash hint when `firstCloudRoute` is reached;
   tune reactive-effect timing based on the live screenshot; or pick the next item from
