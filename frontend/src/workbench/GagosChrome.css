@@ -31,7 +31,7 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   color: #06121a;
-  background: #7bf5fb;
+  background: var(--neon-cyan);
   border: none;
   cursor: pointer;
   opacity: 0;
@@ -130,12 +130,12 @@
 }
 /* Poster "Model: GPT-4" dot — purple (Streaming/Model channel color) */
 .gagos-dot--model {
-  background: #b06eff;
+  background: var(--neon-purple);
   box-shadow: 0 0 9px rgba(176, 110, 255, 0.88), 0 0 18px rgba(176, 110, 255, 0.30);
 }
 /* Poster "Mode: Supervised" dot — green (Complete/Supervised state) */
 .gagos-dot--supervised {
-  background: #54f0a0;
+  background: var(--neon-green);
   box-shadow: 0 0 9px rgba(84, 240, 160, 0.85), 0 0 18px rgba(84, 240, 160, 0.28);
 }
 /* Honest offline state — the connection dot tells the truth, never a faked status. */
@@ -143,6 +143,12 @@
   background: #f87171;
   box-shadow: 0 0 9px rgba(248, 113, 113, 0.85), 0 0 18px rgba(248, 113, 113, 0.28);
 }
+/* SwarmHUD sits below the top-right status cluster so they don't overlap. */
+.swarm-hud {
+  top: 86px;
+  right: 30px;
+}
+
 /* Retry on a failed turn — a graceful way back, never a silent dead-end. */
 .gagos-retry {
   display: inline-block;
@@ -158,7 +164,7 @@
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease;
 }
-.gagos-retry:hover { background: rgba(123, 245, 251, 0.18); border-color: rgba(123, 245, 251, 0.5); }
+.gagos-retry:hover { background: var(--phase-accent-dim); border-color: rgba(123, 245, 251, 0.5); }
 .gagos-retry:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
 .gagos-pill--supervised {
   color: rgba(200, 250, 228, 0.5);
@@ -257,7 +263,7 @@
   font-weight: 340;
 }
 .gagos-msg--user .gagos-msg__node {
-  background: #b06eff;
+  background: var(--neon-purple);
   box-shadow: 0 0 7px rgba(176, 110, 255, 0.55);
 }
 .gagos-msg--gagos {
@@ -266,7 +272,7 @@
   text-shadow: 0 0 13px rgba(123, 245, 251, 0.14), 0 1px 10px rgba(0, 0, 0, 0.55);
 }
 .gagos-msg--gagos .gagos-msg__node {
-  background: #7bf5fb;
+  background: var(--neon-cyan);
   box-shadow: 0 0 8px rgba(123, 245, 251, 0.6);
 }
 /* the freshest memory — sharpest, brightest, a live node by the intake */
@@ -320,7 +326,7 @@
   height: 1.05em;
   margin-left: 2px;
   vertical-align: text-bottom;
-  background: #7bf5fb;
+  background: var(--neon-cyan);
   border-radius: 1px;
   box-shadow: 0 0 8px rgba(123, 245, 251, 0.7);
   animation: gagos-caret-blink 1s steps(2, start) infinite;
@@ -367,9 +373,10 @@
     0 10px 44px rgba(0, 0, 0, 0.5),
     0 0 calc(16px + var(--dock-intensity) * 30px) rgba(123, 245, 251, calc(var(--dock-intensity) * 0.16)),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  transition: border-color 0.4s ease, box-shadow 0.4s ease, opacity 0.45s ease, transform 0.45s ease;
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  /* Paint-safe: only transform/opacity are transitioned on a backdrop-filter element. */
+  transition: opacity 0.45s ease, transform 0.45s ease;
 }
 /* faint point-field puncta over the membrane (clipped to its organic contour) */
 .gagos-bar::before {
@@ -408,6 +415,18 @@
   color: rgba(190, 202, 226, 0.62);
 }
 
+.gagos-intent {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(123, 245, 251, 0.72);
+  user-select: none;
+}
+
 .gagos-btn {
   flex: none;
   display: inline-flex;
@@ -431,9 +450,18 @@
   background: rgba(255, 255, 255, 0.1);
 }
 .gagos-mic.is-listening {
+  position: relative;
   background: rgba(255, 90, 120, 0.18);
   color: #ff9bb0;
   box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.35), 0 0 18px rgba(255, 90, 120, 0.35);
+}
+.gagos-mic.is-listening::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.5), 0 0 24px rgba(255, 90, 120, 0.55);
+  opacity: 0.6;
   animation: gagos-pulse 1.4s ease-in-out infinite;
 }
 .gagos-send {
@@ -441,7 +469,7 @@
   height: 44px;
   border-radius: 12px;
   /* Poster: send is the deepest purple element — the spine / orchestration channel */
-  background: linear-gradient(150deg, #b06eff, #6a1eff);
+  background: linear-gradient(150deg, var(--neon-purple), #6a1eff);
   color: #fff;
   box-shadow: 0 4px 20px rgba(176, 110, 255, 0.56), 0 0 12px rgba(176, 110, 255, 0.28);
 }
@@ -454,15 +482,14 @@
   box-shadow: none;
 }
 .gagos-send.is-busy {
-  pointer-events: none;
-}
-.gagos-send.is-busy svg {
-  animation: gagos-spin 0.9s linear infinite;
+  /* The button becomes a stop control: keep it clickable and visually distinct. */
+  background: linear-gradient(150deg, var(--neon-orange), #c2410c);
+  box-shadow: 0 4px 20px rgba(255, 126, 64, 0.56), 0 0 12px rgba(255, 126, 64, 0.28);
 }
 
 @keyframes gagos-pulse {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.35), 0 0 14px rgba(255, 90, 120, 0.3); }
-  50% { box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.5), 0 0 24px rgba(255, 90, 120, 0.55); }
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
 }
 @keyframes gagos-spin {
   to { transform: rotate(360deg); }
@@ -522,9 +549,10 @@
   font-size: 13.5px;
   font-weight: 360;
   cursor: pointer;
-  backdrop-filter: blur(12px) saturate(1.1);
-  -webkit-backdrop-filter: blur(12px) saturate(1.1);
-  transition: background 0.22s ease, border-color 0.22s ease, transform 0.16s ease, box-shadow 0.22s ease;
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  /* Paint-safe: only transform is transitioned on a backdrop-filter element. */
+  transition: transform 0.16s ease;
 }
 .gagos-starter:hover {
   background: rgba(123, 245, 251, 0.07);
@@ -543,7 +571,7 @@
   width: 26px; height: 26px;
   align-items: center; justify-content: center;
   border-radius: 8px;
-  color: #7bf5fb;
+  color: var(--neon-cyan);
   background: rgba(123, 245, 251, 0.08);
 }
 .gagos-starter__label { flex: 1; min-width: 0; line-height: 1.35; }
@@ -606,4 +634,189 @@
   .gagos-thread { max-height: 42vh; }
   .gagos-welcome__greeting { font-size: 15px; max-width: none; }
   .gagos-starter { font-size: 13px; min-height: 46px; }
+}
+
+/* ── Intent preview — the dock membrane tints toward the predicted mode ─────
+   Cosmetic only; authority still comes from the operator. The tint blends with
+   the existing cyan membrane via --dock-intensity so rest-state stays subtle. */
+.gagos-bar.intent-code {
+  border-color: rgba(123, 245, 251, calc(0.14 + var(--dock-intensity) * 0.28));
+  box-shadow:
+    0 10px 44px rgba(0, 0, 0, 0.5),
+    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(123, 245, 251, calc(var(--dock-intensity) * 0.22)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.gagos-bar.intent-browse {
+  border-color: rgba(96, 165, 250, calc(0.18 + var(--dock-intensity) * 0.32));
+  box-shadow:
+    0 10px 44px rgba(0, 0, 0, 0.5),
+    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(96, 165, 250, calc(var(--dock-intensity) * 0.22)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.gagos-bar.intent-swarm {
+  border-color: rgba(176, 110, 255, calc(0.18 + var(--dock-intensity) * 0.32));
+  box-shadow:
+    0 10px 44px rgba(0, 0, 0, 0.5),
+    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(176, 110, 255, calc(var(--dock-intensity) * 0.22)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.gagos-bar.intent-command {
+  border-color: rgba(250, 204, 21, calc(0.18 + var(--dock-intensity) * 0.32));
+  box-shadow:
+    0 10px 44px rgba(0, 0, 0, 0.5),
+    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(250, 204, 21, calc(var(--dock-intensity) * 0.22)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.gagos-bar.intent-chat {
+  border-color: rgba(123, 245, 251, calc(0.05 + var(--dock-intensity) * 0.16));
+}
+
+/* ── First-run coach — 3-step translucent cue above the intake ─────────────── */
+.gagos-coach {
+  pointer-events: auto;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(6, 4, 15, 0.62);
+  border: 1px solid rgba(123, 245, 251, 0.14);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: gagos-coach-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.5s backwards;
+}
+.gagos-coach__track {
+  display: flex;
+  width: 300%;
+  transform: translateX(calc(var(--coach-step, 0) * -33.333%));
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.gagos-coach__card {
+  width: 33.333%;
+  flex: none;
+  padding-right: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(232, 240, 252, 0.92);
+}
+.gagos-coach__card p { margin: 0; }
+.gagos-coach__step {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(123, 245, 251, 0.72);
+}
+.gagos-coach__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+}
+.gagos-coach__primary,
+.gagos-coach__secondary {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.18s ease;
+}
+.gagos-coach__primary {
+  color: #06121a;
+  background: var(--neon-cyan);
+  border: none;
+}
+.gagos-coach__primary:hover { filter: brightness(1.12); }
+.gagos-coach__secondary {
+  color: rgba(220, 230, 248, 0.85);
+  background: var(--hairline);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.gagos-coach__secondary:hover { background: rgba(255, 255, 255, 0.13); }
+.gagos-coach__primary:active,
+.gagos-coach__secondary:active { transform: scale(0.96); }
+.gagos-coach__primary:focus-visible,
+.gagos-coach__secondary:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
+
+@keyframes gagos-coach-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gagos-bar.intent-code,
+  .gagos-bar.intent-browse,
+  .gagos-bar.intent-swarm,
+  .gagos-bar.intent-chat { transition: none; }
+  .gagos-coach { animation: none; }
+  .gagos-coach__track { transition: none; }
+}
+
+/* ── Verify celebration / failure toast ────────────────────────────────────
+   A transient status pill that appears near the top-right cluster when a
+   verification frame arrives. Green pulse for PASS; red shimmer for FAIL. */
+.gagos-verify-toast {
+  position: absolute;
+  top: 64px;
+  right: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  z-index: 25;
+  animation: gagos-verify-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.gagos-verify-toast--pass {
+  color: rgba(200, 250, 228, 0.9);
+  background: rgba(84, 240, 160, 0.12);
+  border: 1px solid rgba(84, 240, 160, 0.35);
+  box-shadow: 0 0 16px rgba(84, 240, 160, 0.18);
+}
+.gagos-verify-toast--fail {
+  color: rgba(255, 210, 210, 0.95);
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  box-shadow: 0 0 16px rgba(248, 113, 113, 0.18);
+}
+.gagos-verify-toast__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.gagos-verify-toast--pass .gagos-verify-toast__dot {
+  background: var(--neon-green);
+  box-shadow: 0 0 8px rgba(84, 240, 160, 0.85);
+  animation: gagos-verify-dot-pulse 1.2s ease-in-out infinite;
+}
+.gagos-verify-toast--fail .gagos-verify-toast__dot {
+  background: #f87171;
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.85);
+  animation: gagos-verify-dot-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes gagos-verify-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gagos-verify-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.4); opacity: 1; }
+}
+@keyframes gagos-verify-dot-shimmer {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gagos-verify-toast { animation: none; }
+  .gagos-verify-toast--pass .gagos-verify-toast__dot,
+  .gagos-verify-toast--fail .gagos-verify-toast__dot { animation: none; }
 }

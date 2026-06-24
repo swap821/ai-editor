@@ -72,7 +72,10 @@ import difflib
 import json
 import os
 import re
+import ipaddress
+import socket
 import tempfile
+import urllib.parse
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
@@ -307,6 +310,27 @@ TOOL_SPECS: list[dict[str, Any]] = [
                     }
                 },
                 "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "browse",
+            "description": (
+                "Fetch a public web page and return its main text content. This "
+                "tool leaves the local machine, so each URL requires human approval "
+                "(caution-level). Use it to learn from public internet sources."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Public http(s) URL to fetch.",
+                    }
+                },
+                "required": ["url"],
             },
         },
     },
@@ -786,6 +810,8 @@ class ToolAgent:
                                 "filepath": str(args.get("filepath", "")),
                                 "content": str(args.get("content", "")),
                             }
+                        elif name == "browse":
+                            event["command"] = f"browse {args.get('url', '')}"
                         yield event
                         return
                 if status == "blocked":
@@ -1091,6 +1117,8 @@ class ToolAgent:
             )
         if name == "verify":
             return self._verify(str(args.get("command", "")))
+        if name == "browse":
+            return self._browse(str(args.get("url", "")))
         if name == "plan":
             return self._plan(str(args.get("goal", "")))
         if name == "self_analyze":
@@ -1411,6 +1439,67 @@ class ToolAgent:
         # only for execute_terminal, so `failed` here is informational (it cannot
         # re-trigger reflection) — carried for the loop's tool-result shape.
         return (output, "ok", not result.passed)
+
+    def _browse(self, url: str) -> tuple[str, str, bool]:
+        """Fetch a public URL and return extracted main text.
+
+        This is a YELLOW tool: it leaves the local machine, so each URL requires
+        explicit human approval (tracked via ``self.approved_commands``). The
+        approval key is ``"browse <url>"`` so the UI can show a clear command.
+        Only ``http`` and ``https`` schemes are allowed; private/local addresses
+        and non-public hostnames are refused.
+        """
+        approval_key = f"browse {url}"
+        if approval_key not in self.approved_commands:
+            return (
+                f"Browsing {url} requires human approval because it accesses the "
+                "public internet.",
+                "approval",
+                False,
+            )
+
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return (f"[BLOCKED] URL scheme '{parsed.scheme}' is not allowed.", "blocked", False)
+        if not parsed.hostname:
+            return ("[BLOCKED] URL has no hostname.", "blocked", False)
+        hostname = parsed.hostname.lower()
+        # Block common non-public / local targets.
+        if hostname in ("localhost", "127.0.0.1", "::1") or hostname.endswith(".local"):
+            return (f"[BLOCKED] {hostname} is a local target.", "blocked", False)
+        try:
+            addr_info = socket.getaddrinfo(hostname, None)
+            for _, _, _, _, sockaddr in addr_info:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if ip.is_private or ip.is_loopback or ip.is_reserved:
+                    return (f"[BLOCKED] {hostname} resolves to a non-public address.", "blocked", False)
+        except Exception as exc:  # noqa: BLE001 - DNS failure is not a mistake
+            return (f"[ERROR] could not resolve {hostname}: {exc}", "ok", True)
+
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+
+            resp = requests.get(
+                url,
+                timeout=15,
+                headers={"User-Agent": "AI-OS browse tool"},
+            )
+            resp.raise_for_status()
+            content_type = resp.headers.get("Content-Type", "")
+            if "text/html" in content_type:
+                soup = BeautifulSoup(resp.text, "html.parser")
+                for tag in soup(["script", "style", "nav", "footer", "header"]):
+                    tag.decompose()
+                text = soup.get_text(separator="\n", strip=True)
+            else:
+                text = resp.text
+            limit = 8000
+            if len(text) > limit:
+                text = text[:limit] + "\n[truncated]"
+            return (text, "ok", False)
+        except Exception as exc:  # noqa: BLE001 - network fetch failure is not a mistake
+            return (f"[ERROR] browse failed: {exc}", "ok", True)
 
     def _plan(self, goal: str) -> tuple[str, str, bool]:
         """Decompose *goal* into a confidence-gated plan (blueprint Q4); ADVISORY.

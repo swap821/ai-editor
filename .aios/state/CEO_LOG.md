@@ -8,6 +8,41 @@
 
 ---
 
+## 2026-06-24 — CEO note (Kimi: cloud-burst + real supervised YELLOW→verify PASS)
+
+- **Shipped:** proved the autonomous local+cloud agentic loop end-to-end.
+  - `tests/e2e/e2e_yellow_verify.py`: real `qwen2.5-coder:7b` edit_file call → YELLOW approval token → replay → forced auto-verify emits `[VERIFY PASS] 1 passed, 0 failed (exit 0)`.
+  - `tests/e2e/e2e_cloud_burst.py`: scripted local/chat + patched `BedrockClient` swarm path emits a `cloud_route` SSE frame with `provider: bedrock` and `subtask_index: 0`.
+  - Backend: added `test_swarm_cloud_burst_emits_cloud_route_with_provider_metadata` to lock the `cloud_route` frame contract.
+  - Lab UI: added adapter test proving `cloud_route` marks the cloud subtask in `swarmHUDStore`; ported to product.
+- **Evidence:** backend **585 passed / 1 skipped**; product frontend **299 passed** + `vite build` green; lab **369 passed** + `tsc --noEmit` green; canon guards green.
+- **Honest note:** the cloud-burst demo uses a patched Bedrock client, not live AWS credentials; the real provider factory exists and will instantiate the configured Bedrock/Gemini client when env vars are set. The YELLOW demo uses a deterministic temp sandbox to avoid interfering with `training_ground/` fixtures.
+- **Highest-leverage next move:** complete fuse integration of frontend+backend and push the "WOW" first-viewer surface in the 3D being (spine lightning for cloud routes, verify-pass aurora, intent-driven dock).
+- **Risk to watch:** demo success is not product maturity — container isolation, TLS, and multi-host coordination remain architecture gaps.
+
+## 2026-06-24 — CEO note (Kimi: fuse + WOW first-viewer UI/UX slice)
+
+- **Shipped:** closed the fuse-integration slice promised in the prior note.
+  - Backend: `POST /api/v1/intent/preview` and `GET /api/v1/onboarding/state` give the
+    UI real, deterministic signals without LLM latency.
+  - Product-only 3D effects component (`SuperbrainReactiveEffects.jsx`) injected via
+    `<WorkspaceCanvas>` adds spine lightning for `cloud_route`, a green verify-pass
+    aurora, and orbiting worker motes for active castes — none of it is overwritten by
+    `npm run port`.
+  - Command dock now shows a backend-driven intent icon (`</>`, `🌐`, `◫`, `$`) and the
+    onboarding coach is milestone-driven rather than a static 3-step carousel.
+- **Evidence:** backend **587 passed / 1 skipped**; product frontend **306 passed** +
+  `vite build` green; lab **369 passed** + `tsc --noEmit` green; canon guards green.
+- **Honest note:** the 3D effects are intentionally simple first-pass geometry; the
+  final aesthetic call (duration, intensity, color saturation) still belongs to the
+  operator's eye at `:5173`. The intent classifier is rule-based — good enough for a
+  dock hint, but should be upgraded if it ever gates real behavior.
+- **Highest-leverage next move:** live visual pass at `npm run dev` to tune motion
+  timing, then harden the being's reaction to `caste_end` (completion flare) and add a
+  first-run cue when the operator triggers their first cloud-route spine flash.
+- **Risk to watch:** product-only R3F children share the scene's render budget; keep
+  effect geometry transient/low-poly so the 60 fps budget on mid-tier GPUs stays safe.
+
 ## 2026-06-03 — Advice #1
 
 **Where we are.** The core is real, not aspirational: **116 tests green**, and the

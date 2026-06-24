@@ -1,4 +1,4 @@
-"""Disk-based coordination CLI for Claude, Codex, and future coding agents.
+"""Disk-based coordination CLI for Claude, Codex, Kimi, and future coding agents.
 
 The control plane is deliberately local and explicit. It cannot wake an agent
 or replace human approval. It prevents simultaneous writers, balances builder
@@ -19,7 +19,7 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DB = ROOT / ".aios" / "state" / "coordination.db"
-AGENTS = ("codex", "claude")
+AGENTS = ("codex", "claude", "kimi")
 ROLES = ("builder", "reviewer")
 CATEGORIES = (
     "implementation",
@@ -157,8 +157,21 @@ def tree_snapshot(*, root: Path = ROOT) -> str:
     return digest.hexdigest()
 
 
+def _reviewer_for(conn: sqlite3.Connection, builder: str) -> str:
+    """Pick the least-loaded reviewer among the other agents."""
+    candidates = [agent for agent in AGENTS if agent != builder]
+    counts = {agent: 0 for agent in candidates}
+    for row in conn.execute(
+        "SELECT assigned_reviewer, COUNT(*) AS count FROM tasks GROUP BY assigned_reviewer"
+    ):
+        agent = str(row["assigned_reviewer"])
+        if agent in counts:
+            counts[agent] = int(row["count"])
+    return min(candidates, key=lambda agent: (counts[agent], AGENTS.index(agent)))
+
+
 def route(conn: sqlite3.Connection, category: str) -> tuple[str, str]:
-    """Balance automatic builder assignments 50/50 across supported agents."""
+    """Balance automatic builder assignments equally across supported agents."""
     if category not in CATEGORIES:
         raise CoordinationError(f"unsupported category: {category}")
     counts = {agent: 0 for agent in AGENTS}
@@ -169,7 +182,7 @@ def route(conn: sqlite3.Connection, category: str) -> tuple[str, str]:
         if agent in counts:
             counts[agent] = int(row["count"])
     builder = min(AGENTS, key=lambda agent: (counts[agent], AGENTS.index(agent)))
-    reviewer = "claude" if builder == "codex" else "codex"
+    reviewer = _reviewer_for(conn, builder)
     return builder, reviewer
 
 
@@ -198,7 +211,7 @@ def create_task(
             if builder_override not in AGENTS:
                 raise CoordinationError(f"unsupported builder override: {builder_override}")
             builder = builder_override
-            reviewer = "claude" if builder == "codex" else "codex"
+            reviewer = _reviewer_for(conn, builder)
         now = _iso()
         conn.execute(
             "INSERT INTO tasks (task_id, title, category, preferred_builder, "

@@ -1,8 +1,5 @@
 /**
- * The superbrain experience, extracted byte-faithful from the operator's lab
- * (GAG demo/gag-orchestrator) — same components, same shaders, same CSS, the
- * same real-data bindings (the adapter talks to this very backend). Mounted
- * only behind the ?ui=superbrain flag so the classic frontend is untouched.
+ * The superbrain experience — the single official frontend at the clean root /.
  *
  * CHROME (2026-06-20): the home was PURE 3D, but raw in-world 3D text read as
  * floating debug labels (operator: "not professional"). The being stays the
@@ -13,13 +10,18 @@
  */
 import WorkspaceCanvas from '@/components/canvas/WorkspaceCanvas';
 import GagosChrome from '../workbench/GagosChrome';
+import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
 import './superbrain.css';
 
 export default function SuperbrainApp() {
   return (
     <div className="font-sans antialiased">
-      <WorkspaceCanvas />
-      <GagosChrome />
+      <WorkspaceCanvas>
+        <SuperbrainReactiveEffects />
+      </WorkspaceCanvas>
+      <main aria-label="GAGOS">
+        <GagosChrome />
+      </main>
     </div>
   );
 }

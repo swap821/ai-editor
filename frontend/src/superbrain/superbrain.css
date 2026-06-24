@@ -17,24 +17,15 @@
  * sparklines at reduced opacity). Everything else is neutral: the brain
  * supplies the color in this composition; the HUD is the instrument. */
 :root {
-  /* ── POSTER PALETTE (canonical design bible: VARIANT H: POINT-FIELD ORGANISM) ── */
-  --bg: #030108;                          /* deeper purple-black to match poster void */
-  --bg-panel: rgba(8, 6, 18, 0.52);
-  --text-1: rgba(232, 238, 250, 0.93);
-  --text-2: rgba(160, 170, 196, 0.62);
-  --text-3: rgba(120, 130, 155, 0.40);
-  --hairline: rgba(255, 255, 255, 0.09);
-
-  /* Neon tetrad — poster "STATUS FROM BODY" legend exact values */
-  --neon-cyan:   #7bf5fb;   /* Thinking / primary accent */
-  --neon-purple: #b06eff;   /* Streaming / alt accent     */
-  --neon-green:  #54f0a0;   /* Complete / state-ok        */
-  --neon-orange: #ff7e40;   /* Error / state-busy         */
-
-  --accent:    var(--neon-cyan);          /* primary accent = poster cyan */
-  --state-ok:  var(--neon-green);         /* #54f0a0  */
-  --state-busy: var(--neon-orange);       /* #ff7e40  */
-
+  --bg: #010307;
+  --bg-panel: rgba(11, 14, 20, 0.5);
+  --text-1: rgba(232, 238, 250, 0.92);
+  --text-2: rgba(160, 170, 190, 0.6);
+  --text-3: rgba(120, 130, 150, 0.38);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --accent: #5ce1e6;
+  --state-ok: #58d68d;
+  --state-busy: #e0a84f;
   --mono: var(--font-jetbrains-mono), monospace;
   --display: var(--font-outfit), sans-serif;
 
@@ -49,16 +40,10 @@
 
   /* Edge-lit rim: top stop brightness. Focus states TOGGLE this variable —
    * never animate paint properties on a backdrop-filtered element. */
-  --rim-top: 0.18;
+  --rim-top: 0.16;
 
   /* Static feTurbulence grain tile, shared by panel grain and frame grain. */
   --grain-noise: url("/grain.svg");
-
-  /* Per-phase accent hook — JS sets this on .superbrain-experience via dataset;
-   * CSS reads it so every glass rim, mode dot, and status light can tint
-   * together with zero JS juggling. Defaults to the primary cyan. */
-  --phase-accent: var(--neon-cyan);
-  --phase-accent-dim: rgba(123, 245, 251, 0.18);
 }
 
 * {
@@ -122,7 +107,7 @@ button {
   inset: 0;
   isolation: isolate;
   overflow: hidden;
-  background: #000000; /* operator call (2026-06-23): pure-black void (was poster purple-black #030108) */
+  background: #010307;
 }
 
 .scene-layer,
@@ -140,17 +125,20 @@ button {
 .atmosphere-layer {
   z-index: 1;
   pointer-events: none;
-  /* operator call (2026-06-23): pure-black void — the poster's violet nebula +
-     cyan aurora + purple vignette are removed so the empty screen is true black.
-     The brain's glow comes from its own additive WebGL bloom, not this layer. */
-  background: none;
+  background:
+    radial-gradient(ellipse at 50% 48%, transparent 16%, rgba(34, 10, 68, 0.07) 48%, rgba(1, 3, 7, 0.8) 100%),
+    linear-gradient(90deg, rgba(1, 3, 7, 0.72), transparent 25%, transparent 75%, rgba(1, 3, 7, 0.72));
 }
 
 .grid-layer {
   z-index: 2;
   pointer-events: none;
-  /* operator call (2026-06-23): cyan depth-grid removed for the pure-black void. */
-  display: none;
+  opacity: 0.065;
+  background-image:
+    linear-gradient(rgba(95, 188, 220, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(95, 188, 220, 0.025) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, transparent 10%, black 82%);
 }
 
 .hud-shell {
@@ -298,9 +286,7 @@ button {
   font-family: var(--display);
   font-size: 15px;
   font-weight: 700;
-  /* Poster wide-tracking on the wordmark */
-  letter-spacing: 0.22em;
-  text-shadow: 0 0 20px rgba(123, 245, 251, 0.18);
+  letter-spacing: 0.14em;
 }
 
 .brand-wordmark span {
@@ -360,24 +346,23 @@ button {
   transition: background-color 200ms var(--ease-out-quart), box-shadow 200ms var(--ease-out-quart);
 }
 
-/* P2.4: the per-phase `.status-dot--*` legend was DELETED — it was dead code (its
-   only consumer, SuperbrainHUD, is unmounted; the live chrome uses `.gagos-dot--*`)
-   AND its mapping was INVERTED vs the sacred palette (it had thinking=cyan /
-   streaming=purple; the bible bodyPosture has think=PURPLE / stream=CYAN), so
-   reviving it would have shipped wrong hues. Status colour now has ONE source of
-   truth: bodyPosture.postureHex(). */
+.status-dot--live {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(92, 225, 230, 0.7);
+  animation: breathe 2.2s var(--ease-loop) infinite;
+}
 
 /* The active-brain dot encodes data privacy at a glance: green = the turn stayed
    local; amber = a policy-permitted cloud escalation left the machine. Inherits
    the 6px size/shape from .status-dot; only the colour/glow differ. */
 .brain-dot--local {
-  background: var(--neon-green);
-  box-shadow: 0 0 9px rgba(84, 240, 160, 0.78), 0 0 18px rgba(84, 240, 160, 0.28);
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
   animation: breathe 2.2s var(--ease-loop) infinite;
 }
 .brain-dot--cloud {
-  background: var(--neon-orange);
-  box-shadow: 0 0 9px rgba(255, 126, 64, 0.78), 0 0 18px rgba(255, 126, 64, 0.28);
+  background: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.7);
   animation: breathe 2.2s var(--ease-loop) infinite;
 }
 
@@ -427,10 +412,8 @@ button {
   font-weight: 600;
   letter-spacing: 0.07em;
   color: var(--text-1);
-  /* Poster: dual glow — cyan bloom + faint purple halo = the two dominant nerve colors */
-  text-shadow:
-    0 0 28px rgba(123, 245, 251, 0.16),
-    0 0 52px rgba(176, 110, 255, 0.08);
+  text-shadow: 0 0 24px rgba(150, 200, 255, 0.12);
+  /* Keep the hero from re-centering when the mode number changes width. */
   font-variant-numeric: tabular-nums;
 }
 
@@ -442,8 +425,7 @@ button {
 .core-sub {
   margin: 8px 0 0;
   font-size: 11px;
-  /* Wider tracking matches poster's subtitle style */
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-2);
 }
@@ -458,13 +440,11 @@ button {
   pointer-events: auto;
 }
 
-/* Poster-accurate 4-hue cycle: cyan → purple → green → orange (the full tetrad) */
 @keyframes powerSurge {
-  0%   { box-shadow: 0 18px 32px -6px rgba(123, 245, 251, 0.72); border-bottom-color: rgba(123, 245, 251, 1.0); }
-  25%  { box-shadow: 0 18px 36px -6px rgba(176, 110, 255, 0.80); border-bottom-color: rgba(176, 110, 255, 1.0); }
-  50%  { box-shadow: 0 18px 38px -6px rgba(84, 240, 160, 0.84);  border-bottom-color: rgba(84, 240, 160, 1.0);  }
-  75%  { box-shadow: 0 18px 36px -6px rgba(255, 126, 64, 0.80);  border-bottom-color: rgba(255, 126, 64, 1.0);  }
-  100% { box-shadow: 0 18px 32px -6px rgba(123, 245, 251, 0.72); border-bottom-color: rgba(123, 245, 251, 1.0); }
+  0% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
+  33% { box-shadow: 0 15px 30px -5px rgba(25, 212, 240, 0.7); border-bottom-color: rgba(25, 212, 240, 1.0); }
+  66% { box-shadow: 0 15px 35px -5px rgba(168, 230, 43, 0.8); border-bottom-color: rgba(168, 230, 43, 1.0); }
+  100% { box-shadow: 0 15px 25px -5px rgba(255, 59, 40, 0.6); border-bottom-color: rgba(255, 59, 40, 1.0); }
 }
 
 /* CANON CONTRACT: the old `animation: powerSurge !important` on these asides
@@ -608,33 +588,26 @@ aside.right-console {
   box-shadow: 0 0 14px rgba(255, 92, 92, 0.25);
 }
 
-/* Poster neon tetrad surge — translates with scaleX to avoid blur re-raster */
 @keyframes wireGlowSurge {
-  0%   { opacity: 0.28; transform: translateY(0)    scaleX(0.82); }
-  50%  { opacity: 0.92; transform: translateY(-6px) scaleX(1.12); }
-  100% { opacity: 0.28; transform: translateY(0)    scaleX(0.82); }
+  0% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
+  50% { opacity: 0.6; transform: translateY(-5px) scaleX(1.1); }
+  100% { opacity: 0.2; transform: translateY(0) scaleX(0.8); }
 }
 
-/* Multi-colored light surging UP into the bottom of the panels from the wires.
- * Using poster-exact neon tetrad colors at higher opacity for vivid effect. */
+/* Multi-colored light surging UP into the bottom of the panels from the wires */
+/* Wire-glow lives on a real .console-glow child (consoles use ::after for the
+ * scanline), so .glass-surface::before is free for the edge-lit rim again. */
 .left-console .console-glow,
 .right-console .console-glow {
   position: absolute;
-  bottom: -5px;
-  left: 6%;
-  right: 6%;
-  height: 72px;
-  /* Poster tetrad: cyan → purple → green → orange */
-  background: linear-gradient(
-    90deg,
-    rgba(123, 245, 251, 0.92),
-    rgba(176, 110, 255, 0.90),
-    rgba(84,  240, 160, 0.88),
-    rgba(255, 126, 64,  0.90)
-  );
-  filter: blur(28px);
+  bottom: -5px; /* Stay inside bounds so it isn't clipped by overflow: hidden */
+  left: 10%;
+  right: 10%;
+  height: 60px;
+  background: linear-gradient(90deg, rgba(255,59,40,0.8), rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
+  filter: blur(30px);
   z-index: -1;
-  animation: wireGlowSurge 3.2s var(--ease-loop) infinite;
+  animation: wireGlowSurge 3s var(--ease-loop) infinite;
   pointer-events: none;
 }
 
@@ -692,9 +665,7 @@ aside.right-console {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 510;
-  /* Poster wide-tracked caps — signature look of the phase headers */
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .eyebrow > span {
@@ -786,8 +757,7 @@ aside.right-console {
   color: var(--text-2);
   font-size: 11px;
   font-weight: 510;
-  /* Poster mode labels use wide tracking */
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   transition: color 200ms var(--ease-out-quart);
 }
 
@@ -795,7 +765,6 @@ aside.right-console {
   margin-top: 3px;
   color: var(--text-3);
   font-size: 10px;
-  letter-spacing: 0.06em;
 }
 
 .mode-dot {
@@ -832,15 +801,11 @@ aside.right-console {
 
 .mode-button.is-active .mode-copy strong {
   color: var(--text-1);
-  /* Active mode label gets a faint cyan glow — poster live-phase highlight */
-  text-shadow: 0 0 16px rgba(123, 245, 251, 0.28);
 }
 
 .mode-button.is-active .mode-dot {
-  background: var(--phase-accent, var(--neon-cyan));
-  box-shadow:
-    0 0 10px rgba(123, 245, 251, 0.85),
-    0 0 22px rgba(123, 245, 251, 0.30);
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(92, 225, 230, 0.8);
 }
 
 /* ---------- Objective card ---------- */
@@ -994,9 +959,9 @@ aside.right-console {
 
 @keyframes orb-flash {
   0% {
-    background: var(--neon-cyan);
-    box-shadow: 0 0 14px rgba(123, 245, 251, 0.90), 0 0 28px rgba(123, 245, 251, 0.35);
-    transform: scale(1.55);
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(92, 225, 230, 0.8);
+    transform: scale(1.45);
   }
   100% {
     background: var(--text-2);
@@ -1282,26 +1247,20 @@ aside.right-console {
   pointer-events: auto;
 }
 
-/* Multi-colored light surging DOWN into the top of the command bar — poster spine colors */
-/* Wire-glow lives on ::after so ::before is free for the edge-lit rim above. */
+/* Multi-colored light surging DOWN into the top of the command bar from the wires */
+/* Wire-glow lives on ::after so ::before is free for the edge-lit rim above
+ * (both were ::before; the later one silently killed the rim + focus toggle). */
 .command-bar::after {
   content: '';
   position: absolute;
-  top: -5px;
-  left: 8%;   /* wider spread than consoles — the command bar is the spine mouth */
-  right: 8%;
-  height: 72px;
-  /* Tetrad reversed to run purple→cyan→green so the bar reads differently from panels */
-  background: linear-gradient(
-    90deg,
-    rgba(176, 110, 255, 0.88),
-    rgba(123, 245, 251, 0.92),
-    rgba(84,  240, 160, 0.86),
-    rgba(255, 126, 64,  0.84)
-  );
-  filter: blur(28px);
+  top: -5px; /* Stay inside bounds */
+  left: 20%;
+  right: 20%;
+  height: 60px;
+  background: linear-gradient(90deg, rgba(25,212,240,0.8), rgba(155,59,255,0.8), rgba(54,240,122,0.8));
+  filter: blur(30px);
   z-index: -1;
-  animation: wireGlowSurge 3.2s var(--ease-loop) infinite reverse;
+  animation: wireGlowSurge 3s var(--ease-loop) infinite reverse;
   pointer-events: none;
 }
 
@@ -1377,17 +1336,15 @@ aside.right-console {
   gap: 8px;
   border: 0;
   border-radius: 10px;
-  /* Poster: the Execute button is the deepest neon-cyan element on screen */
-  background: linear-gradient(135deg, var(--neon-cyan), color-mix(in srgb, var(--neon-cyan) 72%, #0a2830));
-  color: #031215;
+  background: var(--accent);
+  color: #04181a;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   cursor: pointer;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.40),
-    0 6px 24px rgba(123, 245, 251, 0.34),
-    0 2px 8px rgba(123, 245, 251, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 6px 22px rgba(92, 225, 230, 0.22);
   transition: box-shadow 200ms var(--ease-out-quart);
 }
 
@@ -1410,9 +1367,9 @@ aside.right-console {
 
 .command-bar .execute-button:hover {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.40),
-    0 0 28px rgba(123, 245, 251, 0.55),
-    0 6px 30px rgba(123, 245, 251, 0.38);
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 24px rgba(92, 225, 230, 0.38),
+    0 6px 26px rgba(92, 225, 230, 0.28);
 }
 
 /* Dim return-key affordance inside Execute. */
@@ -1432,12 +1389,9 @@ aside.right-console {
   color: var(--text-3);
   font-family: var(--mono);
   font-size: 10px;
-  /* Poster footer: "ONE BODY. MANY POSTURES. THE INTERFACE IS ALIVE." in wide-tracked mono */
-  letter-spacing: 0.28em;
+  letter-spacing: 0.12em;
   white-space: nowrap;
   pointer-events: none;
-  /* Faint cyan glow on the footer tagline — matches poster's bottom annotation */
-  text-shadow: 0 0 18px rgba(123, 245, 251, 0.14);
 }
 
 /* ---------- Shared animation ---------- */
@@ -1736,15 +1690,12 @@ aside.right-console {
 }
 
 .fidelity-button strong {
-  /* Poster neon cyan for the fidelity tier readout */
-  color: var(--neon-cyan);
+  color: #9ff0ff;
   transition: color 200ms var(--ease-out-quart);
-  text-shadow: 0 0 12px rgba(123, 245, 251, 0.40);
 }
 
 .fidelity-button:hover strong {
   color: #ffffff;
-  text-shadow: 0 0 16px rgba(123, 245, 251, 0.55);
 }
 
 /* Keyboard focus: a restrained white-alpha ring (per this file's hover law —
@@ -1838,6 +1789,39 @@ aside.right-console {
 .approval-diff .diff-file { color: rgba(232, 238, 250, 0.55); }
 .approval-command { color: #ffd9a0; }
 
+.approval-browse {
+  margin: 0 14px 8px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(255, 180, 84, 0.4);
+  border-radius: 6px;
+  background: rgba(255, 180, 84, 0.06);
+}
+
+.approval-browse-domain {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--text-1);
+}
+
+.approval-browse-url {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-2);
+  word-break: break-all;
+}
+
+.approval-browse-note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.approval-browse-shield {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: rgba(232, 238, 250, 0.45);
+}
+
 .approval-actions {
   display: flex;
   gap: 10px;
@@ -1887,48 +1871,112 @@ aside.right-console {
   transform: translateY(1px);
 }
 
-/* ── Per-phase HUD accent hooks ────────────────────────────────────────────
- * JavaScript sets data-phase on .superbrain-experience and the matching
- * [data-phase] block overrides --phase-accent for that cycle state. Every
- * glass rim, mode dot, and status light that reads --phase-accent changes
- * without any additional JS. Defaults to cyan (arrival / rest). */
-[data-phase='arrival']        { --phase-accent: var(--neon-cyan);   --phase-accent-dim: rgba(123,245,251,0.18); }
-[data-phase='rest']           { --phase-accent: rgba(176,110,255,0.7); --phase-accent-dim: rgba(176,110,255,0.10); }
-[data-phase='awakening']      { --phase-accent: var(--neon-cyan);   --phase-accent-dim: rgba(123,245,251,0.16); }
-[data-phase='materialization']{ --phase-accent: var(--neon-green);  --phase-accent-dim: rgba(84,240,160,0.14); }
-[data-phase='orchestration']  { --phase-accent: var(--neon-purple); --phase-accent-dim: rgba(176,110,255,0.16); }
-[data-phase='working']        { --phase-accent: var(--neon-orange); --phase-accent-dim: rgba(255,126,64,0.14); }
-[data-phase='reabsorption']   { --phase-accent: rgba(160,170,190,0.45); --phase-accent-dim: rgba(160,170,190,0.08); }
+/* -------------------------------------------------------------------------- */
+/* SwarmHUD — ant-colony plan + caste status overlay                          */
+/* -------------------------------------------------------------------------- */
+.swarm-hud {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(11, 14, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px) saturate(130%);
+  color: var(--text-1);
+  pointer-events: none;
+  z-index: 5;
+}
 
-/* ── Poster-style phase-label annotation chips ─────────────────────────────
- * Utility classes for floating callout chips on the brain (style reference:
- * poster panels like "1. ARRIVAL", "4. MATERIALIZATION" etc.). */
-.phase-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  border: 1px solid rgba(123, 245, 251, 0.22);
-  border-radius: 6px;
-  background: rgba(3, 1, 12, 0.68);
-  backdrop-filter: blur(10px) saturate(130%);
-  -webkit-backdrop-filter: blur(10px) saturate(130%);
+.swarm-hud__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.swarm-hud__title {
   font-family: var(--mono);
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: rgba(232, 238, 250, 0.82);
+  letter-spacing: 0.2em;
+  color: #ffb454;
+}
+
+.swarm-hud__counts {
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+.swarm-hud__plan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.swarm-hud__pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: opacity 200ms var(--ease-out-quart), border-color 200ms var(--ease-out-quart);
+}
+
+.swarm-hud__pill.is-active {
+  border-color: rgba(255, 180, 84, 0.55);
+  background: rgba(255, 180, 84, 0.08);
+}
+
+.swarm-hud__pill.is-done {
+  opacity: 0.55;
+}
+
+.swarm-hud__pill.is-cloud {
+  border-right: 2px solid rgba(160, 170, 190, 0.5);
+}
+
+.swarm-hud__index {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 180, 84, 0.15);
+  color: #ffcf8a;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.swarm-hud__label {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--text-1);
   white-space: nowrap;
-  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.phase-label-num {
-  color: var(--neon-cyan);
-  text-shadow: 0 0 10px rgba(123, 245, 251, 0.55);
+
+.swarm-hud__cloud {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(160, 170, 190, 0.8);
 }
-.phase-label-line {
-  display: block;
-  width: 24px;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(123, 245, 251, 0.55), transparent);
+
+.swarm-hud__caste {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #ffcf8a;
+  text-align: right;
 }

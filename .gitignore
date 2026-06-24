@@ -64,3 +64,4 @@ GAG demo/
 # Reserved audit scratch + escalated dev-server logs (local only).
 .aios/audit/
 .aios/state/vite-escalated-*.log
+.gstack/

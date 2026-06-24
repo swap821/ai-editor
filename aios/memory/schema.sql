@@ -169,6 +169,24 @@ CREATE TABLE IF NOT EXISTS development_events (
     metadata_json       TEXT NOT NULL DEFAULT '{}'
 );
 
+-- == Swarm decomposition patterns =============================================
+-- Cached subtask plans keyed by goal-pattern. A plan is promoted to 'verified'
+-- after repeated successful swarm outcomes; the scout caste may recall it to
+-- skip the decomposer on familiar task shapes.
+CREATE TABLE IF NOT EXISTS swarm_patterns (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    goal_pattern    TEXT NOT NULL,
+    subtasks_json   TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'candidate'
+                    CHECK (status IN ('candidate','verified','superseded')),
+    success_count   INTEGER NOT NULL DEFAULT 0,
+    failure_count   INTEGER NOT NULL DEFAULT 0,
+    use_count       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_swarm_patterns_goal ON swarm_patterns(goal_pattern);
+
 -- == Procedural skill memory =================================================
 -- Workflows become verified only after repeated verification-backed success.
 CREATE TABLE IF NOT EXISTS procedural_skills (

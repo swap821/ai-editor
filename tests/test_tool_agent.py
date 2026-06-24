@@ -1554,3 +1554,63 @@ def test_agent_no_auto_verify_for_non_python_write(sandbox, monkeypatch) -> None
 
     assert (sandbox / "notes.txt").read_text(encoding="utf-8") == "hello there\n"
     assert not any(e.get("tool") == "verify" for e in events), "text edits aren't auto-verified"
+
+
+# --------------------------------------------------------------------------- #
+# browse — public-internet fetch tool (Slice 6)
+# --------------------------------------------------------------------------- #
+
+class FakeResponse:
+    def __init__(self, text, headers=None, status_code=200):
+        self.text = text
+        self.headers = headers or {"Content-Type": "text/html"}
+        self.status_code = status_code
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise Exception(f"HTTP {self.status_code}")
+
+
+def test_browse_pauses_for_approval_without_pre_approval() -> None:
+    chat = ScriptedChat([
+        _tool_call("browse", {"url": "https://example.com"}),
+        {"role": "assistant", "content": "I can fetch after approval."},
+    ])
+    events = list(ToolAgent(chat, _executor(), max_iters=3).run(
+        [{"role": "user", "content": "read example.com"}]
+    ))
+    hr = [e for e in events if e["type"] == "human_required"]
+    assert len(hr) == 1
+    assert hr[0]["command"] == "browse https://example.com"
+    # No tool_result for browse because it paused before fetching.
+    assert not any(e.get("tool") == "browse" and e["type"] == "tool_result" for e in events)
+
+
+def test_browse_blocks_local_and_private_urls() -> None:
+    chat = ScriptedChat([
+        _tool_call("browse", {"url": "http://localhost:8000"}),
+        {"role": "assistant", "content": "blocked"},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3, approved_commands=["browse http://localhost:8000"]
+    ).run([{"role": "user", "content": "read localhost"}]))
+    blocked = [e for e in events if e["type"] == "tool_blocked"]
+    assert blocked and "local target" in blocked[0]["reason"].lower()
+
+
+def test_browse_fetches_and_extracts_text(monkeypatch) -> None:
+    def fake_get(url, *, timeout, headers):
+        return FakeResponse("<html><body><p>Hello world</p></body></html>")
+
+    monkeypatch.setattr("requests.get", fake_get)
+    monkeypatch.setattr("socket.getaddrinfo", lambda host, port: [(None, None, None, None, ("93.184.216.34", 0))])
+
+    chat = ScriptedChat([
+        _tool_call("browse", {"url": "https://example.com"}),
+        {"role": "assistant", "content": "Fetched."},
+    ])
+    events = list(ToolAgent(
+        chat, _executor(), max_iters=3, approved_commands=["browse https://example.com"]
+    ).run([{"role": "user", "content": "read example.com"}]))
+    result = [e for e in events if e.get("tool") == "browse" and e["type"] == "tool_result"]
+    assert result and "Hello world" in result[0]["output"]

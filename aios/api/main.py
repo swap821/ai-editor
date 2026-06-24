@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import sqlite3
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -40,6 +41,7 @@ from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.role_pass import run_role_pass
 from aios.agents.swarm import run_swarm
+from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
 from aios.core.executor import (
@@ -346,6 +348,11 @@ def get_skill_memory() -> SkillMemory:
     return SkillMemory()
 
 
+def get_swarm_pattern_memory() -> SwarmPatternMemory:
+    """Provide the ant-colony swarm's decomposition-pattern memory."""
+    return SwarmPatternMemory()
+
+
 def get_semantic_facts() -> SemanticFacts:
     """Provide the human-approved personalization facts store (REAL only).
 
@@ -581,6 +588,32 @@ class AlignmentFeedbackRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class IntentPreviewRequest(BaseModel):
+    """Body for ``/api/v1/intent/preview`` — a lightweight rule-based prediction
+    of what the operator is about to ask, so the UI can hint the dock before the
+    turn is even sent. No LLM call; deterministic and cheap."""
+
+    text: str = Field(..., max_length=2000, description="Operator's current draft.")
+
+
+class IntentPreviewResponse(BaseModel):
+    """Predicted intent class for the command dock."""
+
+    intent: str = Field(..., description="chat | code | browse | swarm | command")
+    confidence: float = Field(..., ge=0, le=1)
+    tool: Optional[str] = Field(None, description="Primary tool if intent is actionable.")
+
+
+class OnboardingStateResponse(BaseModel):
+    """Read-only view of which product milestones the operator has reached."""
+
+    firstDirective: bool
+    firstApproval: bool
+    firstVerify: bool
+    firstCloudRoute: bool
+    firstAutonomy: bool
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -588,6 +621,79 @@ class AlignmentFeedbackRequest(BaseModel):
 def health() -> dict[str, Any]:
     """Liveness probe."""
     return {"status": "ok", "version": aios.__version__}
+
+
+def _classify_intent(text: str) -> IntentPreviewResponse:
+    """Rule-based intent preview for the command dock."""
+    t = text.lower().strip()
+    if not t:
+        return IntentPreviewResponse(intent="chat", confidence=1.0, tool=None)
+    if re.search(r"https?://|^(browse|search|look\s+up)\b", t):
+        return IntentPreviewResponse(intent="browse", confidence=0.92, tool="browse")
+    if re.search(r"\b(swarm|workers|plan\s+(out|it)|decompose|multi-agent)\b", t):
+        return IntentPreviewResponse(intent="swarm", confidence=0.9, tool="swarm")
+    if re.match(r"^(run|execute|install|pip|npm|git|python|bash|sh)\b", t):
+        return IntentPreviewResponse(intent="command", confidence=0.85, tool="execute")
+    if re.match(r"^(write|build|create|make|code|implement|fix|add|generate)\b", t):
+        return IntentPreviewResponse(intent="code", confidence=0.9, tool="edit_file")
+    return IntentPreviewResponse(intent="chat", confidence=0.8, tool=None)
+
+
+@app.post("/api/v1/intent/preview")
+def intent_preview(req: IntentPreviewRequest) -> IntentPreviewResponse:
+    """Return a cheap, deterministic intent preview for the current draft."""
+    return _classify_intent(req.text)
+
+
+def _has_any_approval_grant(store: ApprovalStore) -> bool:
+    """True if any approval has ever been redeemed (cross-session)."""
+    if store.db_path is not None:
+        with store._connect() as conn:
+            row = conn.execute("SELECT COUNT(*) AS n FROM approval_grants").fetchone()
+            return int(row["n"]) > 0
+    with store._lock:
+        return any(store._grants.values())
+
+
+def _has_verified_success() -> bool:
+    """True if any development event has outcome verified_success."""
+    with get_connection(config.MEMORY_DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM development_events WHERE outcome = ?",
+            ("verified_success",),
+        ).fetchone()
+        return int(row["n"]) > 0
+
+
+def _has_cloud_route() -> bool:
+    """True if a cloud-route audit entry has been recorded."""
+    init_audit_db(config.AUDIT_DB_PATH)
+    conn = sqlite3.connect(str(config.AUDIT_DB_PATH), timeout=30.0)
+    try:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM tamper_audit_trail WHERE actor = ?",
+            ("cloud-route",),
+        ).fetchone()
+        return int(row["n"]) > 0
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/onboarding/state")
+def onboarding_state(
+    approvals: ApprovalStore = Depends(get_approval_store),
+    autonomy: AutonomyLedger = Depends(get_autonomy),
+) -> OnboardingStateResponse:
+    """Return which first-run milestones have been reached."""
+    ledger = autonomy.ledger_map()
+    return OnboardingStateResponse(
+        firstDirective=_EPISODIC.count(None) > 0,
+        firstApproval=_has_any_approval_grant(approvals),
+        firstVerify=_has_verified_success(),
+        firstCloudRoute=_has_cloud_route(),
+        firstAutonomy=ledger["summary"]["earned"] > 0,
+    )
 
 
 @app.post("/api/v1/memory/search")
@@ -1702,6 +1808,7 @@ def generate(
     approvals: ApprovalStore = Depends(get_approval_store),
     development: DevelopmentTracker = Depends(get_development_tracker),
     skills: SkillMemory = Depends(get_skill_memory),
+    swarm_patterns: SwarmPatternMemory = Depends(get_swarm_pattern_memory),
     autonomy: AutonomyLedger = Depends(get_autonomy),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
@@ -1948,6 +2055,44 @@ def generate(
                 autonomy=autonomy,
                 **overrides,
             )
+
+        # Cloud-burst factory: when the ant-colony's CLOUD_BROKER labels a subtask
+        # as cloud-eligible, it runs through a dedicated cloud chat client. The
+        # provider is surfaced in `cloud_route` SSE frames so the UI can mark the
+        # leg as having left the local machine.
+        cloud_client: Optional[Any] = None
+        cloud_provider: Optional[str] = None
+        cloud_model: Optional[str] = None
+        if req.swarm and config.SWARM_CLOUD_BURST_ENABLED:
+            if config.BEDROCK_ENABLED:
+                cloud_client = BedrockClient()
+                cloud_provider = "bedrock"
+                cloud_model = config.BEDROCK_MODEL
+            elif config.GEMINI_ENABLED:
+                cloud_client = GeminiClient()
+                cloud_provider = "gemini"
+                cloud_model = config.GEMINI_MODEL
+
+        def make_cloud_agent(**overrides: Any) -> ToolAgent:
+            if cloud_client is None:
+                raise RuntimeError("Cloud burst requested but no cloud provider is configured")
+            return ToolAgent(
+                cloud_client,
+                executor,
+                model=cloud_model,
+                session_id=session_id,
+                memory_context=memory_context,
+                on_failure=_make_failure_hook(reflector, session_id),
+                confirm_lesson=_make_confirm_hook(reflector, consolidator),
+                approved_commands=approved_commands,
+                approved_edits=approved_edits,
+                approved_creations=approved_creations,
+                snapshot=snapshot,
+                planner_llm=planner_llm,
+                self_analysis_llm=planner_llm,
+                autonomy=autonomy,
+                **overrides,
+            )
         answer_parts: list[str] = []
         workflow_steps: list[str] = []
         blocked_actions = 0
@@ -2025,17 +2170,31 @@ def generate(
                     skills.record_reuse(reused_ids, success=passed)
                 except Exception:  # noqa: BLE001 - reuse credit is best-effort
                     pass
+            if swarm_plan:
+                try:
+                    swarm_patterns.record_attempt(
+                        user_text, swarm_plan, success=passed
+                    )
+                except Exception:  # noqa: BLE001 - pattern learning is best-effort
+                    pass
             try:
                 curriculum.record_matching(user_text, passed=passed, evidence=evidence)
             except Exception:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 pass
 
         if req.swarm:
-            event_source = run_swarm(make_agent, chat_messages)
+            event_source = run_swarm(
+                make_agent,
+                chat_messages,
+                pattern_memory=swarm_patterns,
+                make_cloud_agent=make_cloud_agent if cloud_client is not None else None,
+                cloud_provider=cloud_provider,
+            )
         elif req.role_pass:
             event_source = run_role_pass(make_agent, chat_messages)
         else:
             event_source = make_agent().run(chat_messages)
+        swarm_plan: Optional[list[str]] = None
         for ev in event_source:
             kind = ev["type"]
             if kind in ("tool_call", "text", "code", "done", "human_required"):
@@ -2077,6 +2236,12 @@ def generate(
                         # written code actually passes the forced check.
                         if str(ev.get("id", "")).startswith("autoverify"):
                             auto_verdicts[key] = verdict
+                        # Surface a typed verification frame so the UI can celebrate or
+                        # reflect without parsing the raw tool output.
+                        yield _sse(
+                            "verify_result",
+                            {"verdict": verdict.lower(), "target": key, "output": output[:320]},
+                        )
                 yield _sse("step", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])
@@ -2091,6 +2256,23 @@ def generate(
                 # Surface it so the brain can show itself acting on its own
                 # earned trust (still gated, audited, and revocable).
                 yield _sse("earned_autonomy", ev)
+            elif kind == "swarm_plan":
+                # Plan event from the ant-colony; used internally for pattern
+                # recording and also surfaced to the UI so the HUD can render it.
+                swarm_plan = ev.get("plan")
+                yield _sse(kind, ev)
+            elif kind in ("caste_start", "caste_end", "cloud_route"):
+                # Observational swarm lifecycle frames for the 3D HUD.
+                if kind == "cloud_route" and cloud_provider:
+                    try:
+                        log_action(
+                            "cloud-route",
+                            json.dumps({"provider": cloud_provider, "model": cloud_model}),
+                            Zone.GREEN,
+                        )
+                    except Exception:  # noqa: BLE001 - audit must never break the stream
+                        pass
+                yield _sse(kind, ev)
             elif kind == "human_required":
                 # The agent paused on a YELLOW command. Ask the UI for approval;
                 # the turn ends here (no answer recorded) and is replayed once the

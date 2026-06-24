@@ -1,4 +1,4 @@
-"""Tests for the shared Claude/Codex coordination control plane."""
+"""Tests for the shared Claude/Codex/Kimi coordination control plane."""
 from __future__ import annotations
 
 import json
@@ -50,14 +50,14 @@ def test_routes_work_with_equal_50_50_priority(conn) -> None:
     assert coding["reviewer"] == "claude"
     assert policy["builder"] == "claude"
     assert policy["reviewer"] == "codex"
-    assert security["builder"] == "codex"
-    assert security["reviewer"] == "claude"
-    assert testing["builder"] == "claude"
-    assert testing["reviewer"] == "codex"
+    assert security["builder"] == "kimi"
+    assert security["reviewer"] == "codex"
+    assert testing["builder"] == "codex"
+    assert testing["reviewer"] == "kimi"
     assert override["builder"] == "claude"
-    assert override["reviewer"] == "codex"
+    assert override["reviewer"] == "kimi"
     inferred = agent_coord.create_task(conn, "inferred-1", "Threat model API auth", None)
-    assert inferred["builder"] == "codex"
+    assert inferred["builder"] == "kimi"
     assert inferred["reviewer"] == "claude"
 
 

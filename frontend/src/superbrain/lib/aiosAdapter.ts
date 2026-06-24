@@ -18,6 +18,13 @@
 import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
 import { getSessionId } from './sessionId';
+import {
+  endSwarmCaste,
+  markSwarmCloudSubtask,
+  resetSwarmHUD,
+  startSwarmCaste,
+  startSwarmPlan,
+} from './swarmHUDStore';
 
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://127.0.0.1:8000';
@@ -161,9 +168,11 @@ export interface PendingApproval {
   diff: string;
   /** The exact command, when the ask is a command. */
   command: string;
+  /** Public URL when the ask is a browse fetch. */
+  url: string;
   /** What kind of action is being authorized. */
-  kind: 'create' | 'edit' | 'command' | 'other';
-  /** Target file for write approvals (empty for commands). */
+  kind: 'create' | 'edit' | 'command' | 'browse' | 'other';
+  /** Target file for write approvals (empty for commands / browse). */
   filepath: string;
   /** The full proposed file content for a CREATE (empty for edits/commands —
    *  edits carry only the unified `diff`). Lets a consumer (e.g. the forge
@@ -219,6 +228,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
       explanation: 'The agent wants to create a new file. Review the contents and approve to write it.',
       diff: '--- /dev/null\n+++ b/hello_gate.py\n@@ -0,0 +1,3 @@\n+def main():\n+    print("hello from the gate")\n+    return 0',
       command: '',
+      url: '',
       kind: 'create',
       filepath: 'hello_gate.py',
       content: 'def main():\n    print("hello from the gate")\n    return 0\n',
@@ -243,27 +253,35 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
     const head = (rows[0] ?? {}) as Record<string, unknown>;
     return String(head.content ?? '');
   };
+  const rawCommand = commands.length > 0 ? String(commands[0]) : '';
+  const isBrowse = rawCommand.startsWith('browse ');
   const kind: PendingApproval['kind'] =
-    creations.length > 0 ? 'create' : edits.length > 0 ? 'edit' : commands.length > 0 ? 'command' : 'other';
+    creations.length > 0 ? 'create' : edits.length > 0 ? 'edit' : isBrowse ? 'browse' : commands.length > 0 ? 'command' : 'other';
   setPendingApprovalState({
     token: String(input.approvalToken ?? ''),
     prompt: text,
     summary: String(data.text ?? 'Approval required'),
     explanation: String(input.explanation ?? ''),
     diff: String(input.diff ?? ''),
-    command: commands.length > 0 ? String(commands[0]) : '',
+    command: isBrowse ? '' : rawCommand,
+    url: isBrowse ? rawCommand.slice(7).trim() : '',
     kind,
     filepath: kind === 'create' ? firstPath(creations) : kind === 'edit' ? firstPath(edits) : '',
     content: kind === 'create' ? firstContent(creations) : '',
   });
 }
 
-async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResult> {
+async function streamTurn(
+  text: string,
+  tokens: string[],
+  signal?: AbortSignal,
+): Promise<DirectiveResult> {
   let answer = '';
   let paused = false;
   try {
     const response = await fetch(`${AIOS_BASE}/api/generate`, {
       method: 'POST',
+      signal,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         messages: [{ role: 'user', content: [{ text }] }],
@@ -376,12 +394,43 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
           });
           break;
         }
+        case 'swarm_plan': {
+          const plan = Array.isArray(frame.data.plan) ? (frame.data.plan as string[]) : [];
+          startSwarmPlan(plan);
+          break;
+        }
+        case 'caste_start':
+          startSwarmCaste(String(frame.data.caste ?? ''));
+          break;
+        case 'caste_end':
+          endSwarmCaste(String(frame.data.caste ?? ''));
+          break;
+        case 'cloud_route': {
+          const idx = Number(frame.data.subtask_index ?? -1);
+          if (idx >= 0) markSwarmCloudSubtask(idx);
+          break;
+        }
+        case 'verify_result': {
+          const verdict = String(frame.data.verdict ?? '').toLowerCase();
+          publishCognition({
+            type: 'verify',
+            label: verdict === 'pass' ? 'VERIFY PASS' : 'VERIFY FAIL',
+            detail: String(frame.data.target ?? ''),
+            intensity: verdict === 'pass' ? 0.75 : 0.95,
+            source: 'aios',
+            data: frame.data,
+          });
+          break;
+        }
         default:
           break; // alignment and future frames are advisory to the scene
       }
     }
     return { ok: true, paused, answer };
-  } catch {
+  } catch (err) {
+    if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
+      throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
+    }
     publishCognition({
       type: 'synthesis',
       label: 'LINK OFFLINE',
@@ -394,9 +443,10 @@ async function streamTurn(text: string, tokens: string[]): Promise<DirectiveResu
 }
 
 /** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
-export async function sendDirective(text: string): Promise<DirectiveResult> {
+export async function sendDirective(text: string, signal?: AbortSignal): Promise<DirectiveResult> {
   setPendingApprovalState(null);
-  return streamTurn(text, []);
+  resetSwarmHUD();
+  return streamTurn(text, [], signal);
 }
 
 /** Stream one CONVERSATIONAL turn through the Jarvis voice mind (POST
@@ -412,15 +462,17 @@ export async function sendDirective(text: string): Promise<DirectiveResult> {
  *  transport/backend error (callers surface it honestly, never a fake reply). */
 export async function sendVoiceTurn(
   transcript: string,
-  opts: { onChunk?: (reply: string) => void } = {},
+  opts: { onChunk?: (reply: string) => void; signal?: AbortSignal } = {},
 ): Promise<string> {
   const text = transcript.trim();
   if (!text) return '';
   publishCognition({ type: 'directive', label: text.slice(0, 80), intensity: 1, source: 'voice' });
   let reply = '';
+  const { signal } = opts;
   try {
     const response = await fetch(`${AIOS_BASE}/api/v1/chat`, {
       method: 'POST',
+      signal,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ transcript: text, sessionId: SESSION_ID }),
     });
@@ -454,6 +506,9 @@ export async function sendVoiceTurn(
     });
     return reply;
   } catch (err) {
+    if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
+      throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
+    }
     publishCognition({
       type: 'synthesis',
       label: 'LINK OFFLINE',
@@ -511,6 +566,22 @@ export async function rejectPendingApproval(): Promise<void> {
   publishCognition({
     type: 'approval-resolved',
     label: confirmed ? 'rejected' : 'rejected (unconfirmed — token will expire)',
+    detail: pending.summary.slice(0, 140),
+    intensity: 0.5,
+    source: 'operator',
+  });
+}
+
+/** The operator cancelled the turn while an approval slab was showing.
+ *  The surface retracts immediately; the server token is left to expire
+ *  (a rejected call would race the operator's intent and is unnecessary). */
+export function cancelPendingApproval(): void {
+  const pending = pendingApproval;
+  if (!pending) return;
+  setPendingApprovalState(null);
+  publishCognition({
+    type: 'approval-resolved',
+    label: 'cancelled',
     detail: pending.summary.slice(0, 140),
     intensity: 0.5,
     source: 'operator',
@@ -638,6 +709,69 @@ export function __resetAiosAdapterForTests(): void {
   chainEntries = 0;
   lastAutonomy = null;
   seenAutonomyStatus.clear();
+}
+
+export interface IntentPreview {
+  intent: string;
+  confidence: number;
+  tool: string | null;
+}
+
+/** Lightweight rule-based intent preview for the command dock.
+ *  Falls back to 'chat' if the backend is unreachable. */
+export async function previewIntent(text: string): Promise<IntentPreview> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/intent/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) return { intent: 'chat', confidence: 0.5, tool: null };
+    const data = (await res.json()) as Record<string, unknown>;
+    return {
+      intent: typeof data.intent === 'string' ? data.intent : 'chat',
+      confidence: typeof data.confidence === 'number' ? data.confidence : 0.5,
+      tool: typeof data.tool === 'string' ? data.tool : null,
+    };
+  } catch {
+    return { intent: 'chat', confidence: 0.5, tool: null };
+  }
+}
+
+export interface OnboardingState {
+  firstDirective: boolean;
+  firstApproval: boolean;
+  firstVerify: boolean;
+  firstCloudRoute: boolean;
+  firstAutonomy: boolean;
+}
+
+/** Read which first-run milestones the operator has reached.
+ *  Returns all-false if the backend is unreachable. */
+export async function fetchOnboardingState(): Promise<OnboardingState> {
+  const empty: OnboardingState = {
+    firstDirective: false,
+    firstApproval: false,
+    firstVerify: false,
+    firstCloudRoute: false,
+    firstAutonomy: false,
+  };
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/onboarding/state`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) return empty;
+    const data = (await res.json()) as Record<string, unknown>;
+    return {
+      firstDirective: Boolean(data.firstDirective),
+      firstApproval: Boolean(data.firstApproval),
+      firstVerify: Boolean(data.firstVerify),
+      firstCloudRoute: Boolean(data.firstCloudRoute),
+      firstAutonomy: Boolean(data.firstAutonomy),
+    };
+  } catch {
+    return empty;
+  }
 }
 
 /** Audit hash-chain probe — sampled every few polls (it walks the ledger). */

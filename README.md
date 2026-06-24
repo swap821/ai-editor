@@ -56,13 +56,15 @@ FastAPI backend (`aios.api.main`)
 | `aios/core/bedrock.py` / `aios/core/gemini.py` | Cloud chat clients (Bedrock Converse / Gemini via Vertex AI, gcloud ADC) |
 | `aios/core/self_apply.py` | Human-approved self-analysis proposal apply/verify/rollback |
 | `aios/memory/` | Episodic, semantic, lessons, facts, development, skills, curriculum |
-| `frontend/src/App.jsx` | Main IDE/chat shell |
+| `frontend/src/superbrain/SuperbrainApp.jsx` | GAGOS root app (3D brain canvas + chat chrome) |
+| `frontend/src/workbench/GagosChrome.{jsx,css}` | Product-safe 2D chat chrome (not byte-synced from lab) |
+| `frontend/src/superbrain/components/canvas/WorkspaceCanvas.tsx` | WebGL-only alive-brain scene |
 
 ## Run
 
 ```powershell
-# Backend
-.venv\Scripts\python -m uvicorn aios.api.main:app --port 8000
+# Backend (canonical — binds host/port in lockstep with token policy)
+.venv\Scripts\python -m aios
 
 # Frontend
 cd frontend

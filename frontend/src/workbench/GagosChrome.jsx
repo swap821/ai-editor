@@ -18,7 +18,7 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sendDirective, sendVoiceTurn, getLastEmittedCode } from '../superbrain/lib/aiosAdapter';
+import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, previewIntent, fetchOnboardingState } from '../superbrain/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
@@ -48,6 +48,7 @@ import {
   getContentSurfacePlacement,
   selectNextAvailableVertebraSeat,
 } from '../superbrain/lib/materializedSurfaceAnchors';
+import SwarmHUD from '../superbrain/components/ui/SwarmHUD';
 import './GagosChrome.css';
 
 const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
@@ -83,6 +84,16 @@ function extractWork(answer) {
 }
 
 /** A friendly slab filename from the request, e.g. "reverse-a-string.py". */
+function deriveCoachCards(state) {
+  if (!state) return [];
+  if (!state.firstDirective) return ['Type a goal and press Enter.'];
+  if (!state.firstApproval) return ['I pause for your approval on writes, commands, and fetches.'];
+  if (!state.firstVerify) return ['Watch for the green verify badge when a tool passes.'];
+  if (!state.firstCloudRoute) return ['Some subtasks burst to the cloud factory — see the spine flash.'];
+  if (!state.firstAutonomy) return ['Earned autonomy lets trusted actions run automatically.'];
+  return ["You're fully underway. Keep building."];
+}
+
 function workFilepath(text, language) {
   const slug = String(text)
     .replace(/^(write|build|create|make|code|implement|fix|add|generate)\b/i, '')
@@ -120,15 +131,15 @@ function MicIcon() {
   );
 }
 
-function SendIcon({ busy }) {
-  if (busy) {
-    return (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-        <path d="M21 12a9 9 0 1 1-6.2-8.6" />
-      </svg>
-    );
-  }
+function StopIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  );
+}
+
+function SendIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -151,6 +162,11 @@ export default function GagosChrome() {
   const [modelLine, setModelLine] = useState(() => formatActiveBrainLine(getActiveBrain()));
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [online, setOnline] = useState(true); // honest backend reachability (polled)
+  const [onboarded, setOnboarded] = useState(true); // first-run coach dismissed?
+  const [coachStep, setCoachStep] = useState(0);
+  const [milestones, setMilestones] = useState(null);
+  const [intentHint, setIntentHint] = useState('neutral');
+  const [verifyToast, setVerifyToast] = useState(null); // { verdict, detail }
   const reducedMotion = useReducedMotion();
   // NeuralCommandDock working-dim: the dock yields while the being orchestrates work
   // (content surfaces present) — unless the operator is actively engaging it.
@@ -159,6 +175,7 @@ export default function GagosChrome() {
 
   const busyRef = useRef(false);
   const turnTokenRef = useRef(0);
+  const abortRef = useRef(null);
   const msgSeqRef = useRef(0);
   const recognitionRef = useRef(null);
   const threadRef = useRef(null);
@@ -187,6 +204,20 @@ export default function GagosChrome() {
             model: event.data.model,
             privacy: event.data.privacy,
           });
+        }
+      }),
+    [],
+  );
+
+  // Verify celebration / failure: a transient badge that celebrates a PASS or
+  // surfaces a FAIL without parsing tool chatter.
+  useEffect(
+    () =>
+      subscribeCognition((event) => {
+        if (event.type === 'verify' && event.data?.verdict) {
+          setVerifyToast({ verdict: event.data.verdict, detail: event.detail || '' });
+          const id = window.setTimeout(() => setVerifyToast(null), 2600);
+          return () => window.clearTimeout(id);
         }
       }),
     [],
@@ -228,6 +259,43 @@ export default function GagosChrome() {
     return () => { alive = false; window.clearInterval(id); };
   }, []);
 
+  // First-run coach: only prompt once; localStorage failure silently opts out.
+  useEffect(() => {
+    try {
+      setOnboarded(!!window.localStorage.getItem('gagos-onboarded'));
+    } catch {
+      setOnboarded(true);
+    }
+  }, []);
+
+  // Live onboarding milestones from the backend.
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const state = await fetchOnboardingState();
+      if (alive) setMilestones(state);
+    };
+    void load();
+    return () => { alive = false; };
+  }, []);
+
+  // Backend-driven intent preview: tint the command dock toward the predicted mode.
+  useEffect(() => {
+    if (!draft.trim()) {
+      setIntentHint('neutral');
+      return undefined;
+    }
+    let alive = true;
+    const t = window.setTimeout(async () => {
+      const result = await previewIntent(draft);
+      if (alive) setIntentHint(result.intent);
+    }, 250);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [draft]);
+
   const pushMessage = useCallback((role, text, extra) => {
     const id = (msgSeqRef.current += 1);
     setMessages((prev) => [...prev, { id, role, text, ...(extra || {}) }].slice(-MAX_MESSAGES));
@@ -248,6 +316,8 @@ export default function GagosChrome() {
     busyRef.current = true;
     setBusy(true);
     setDraft('');
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
 
     pushMessage('user', cleanText(text, 400));
     // SP1 (voice-into-body, minimal hybrid): the GAGOS chat reply now lives in the
@@ -274,7 +344,7 @@ export default function GagosChrome() {
         // auto-fire (MaterializationLayer) doesn't ALSO spawn a duplicate tab.
         claimWorkMaterialization();
         const beforeCode = getLastEmittedCode();
-        const result = await sendDirective(text);
+        const result = await sendDirective(text, abortRef.current?.signal);
         if (turnTokenRef.current !== token) {
           releaseWorkMaterialization();
           return;
@@ -323,6 +393,7 @@ export default function GagosChrome() {
         // publish the reply chunks (BodySpeech's source) + drive the conversation
         // posture; we just don't render a thread bubble for it.
         await sendVoiceTurn(text, {
+          signal: abortRef.current?.signal,
           onChunk: (partial) => {
             if (turnTokenRef.current !== token) return;
             const chunk = cleanText(partial);
@@ -339,6 +410,11 @@ export default function GagosChrome() {
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.6, data: { phase: 'reply-complete' } });
     } catch (error) {
       if (turnTokenRef.current !== token) return;
+      const isAbort = error instanceof Error && error.name === 'AbortError';
+      if (isAbort) {
+        // Operator cancelled — no error message; stopTurn already narrated it.
+        return;
+      }
       const detail = error instanceof Error ? error.message : 'link unavailable';
       const offline = error instanceof TypeError || /failed to fetch|networkerror|load failed|abort/i.test(detail);
       if (offline) setOnline(false);
@@ -353,9 +429,14 @@ export default function GagosChrome() {
       setConversationPhase('error');
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
     } finally {
+      // Refresh milestone state so the coach advances as the operator uses GAGOS.
+      void fetchOnboardingState().then(setMilestones);
       if (turnTokenRef.current === token) {
         busyRef.current = false;
         setBusy(false);
+        // Return focus to the intake so the next turn is one keystroke away,
+        // whether the turn succeeded or failed.
+        inputRef.current?.focus();
       }
     }
   }, [pushMessage, updateMessage]);
@@ -402,6 +483,30 @@ export default function GagosChrome() {
 
   const canSend = draft.trim().length > 0 && !busy;
 
+  // Client-side stop: the operator can cut off a long reply/work stream.
+  // This only cancels the UI update loop; the backend may still finish its turn,
+  // but its output is ignored. If an approval slab was showing, it retracts.
+  // Focus returns to the intake immediately.
+  const stopTurn = useCallback(() => {
+    turnTokenRef.current += 1;
+    busyRef.current = false;
+    setBusy(false);
+    setListening(false);
+    try { recognitionRef.current?.abort(); } catch { /* already closed */ }
+    try { abortRef.current?.abort(); } catch { /* already closed */ }
+    releaseWorkMaterialization();
+    cancelPendingApproval();
+    setConversationPhase('idle');
+    publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0, data: { phase: 'stopped' } });
+    pushMessage('gagos', 'Stopped.');
+    inputRef.current?.focus();
+  }, [pushMessage]);
+
+  const finishOnboarding = useCallback(() => {
+    try { window.localStorage.setItem('gagos-onboarded', '1'); } catch { /* storage may be blocked */ }
+    setOnboarded(true);
+  }, []);
+
   // Screen-reader narration of the being's live state (the visualization is
   // aria-hidden, so the meaning must survive without sight).
   const statusAnnouncement = !online
@@ -429,7 +534,7 @@ export default function GagosChrome() {
   });
 
   return (
-    <div className="gagos-chrome" role="main" aria-label="GAGOS conversation">
+    <div className="gagos-chrome" aria-label="GAGOS conversation">
       {/* The chat command nerve is now a REAL 3D tube rendered in the scene
           (CommandNerve3D), not this flat DOM SVG — operator: "nerve should be 3D,
           like a live". The 2D CommandDockTether is retired. */}
@@ -442,7 +547,7 @@ export default function GagosChrome() {
           the identity (product law), and it introduces itself in the first-run greeting
           below ("I'm GAGOS…"). No detached branding chrome. */}
 
-      <div className="gagos-status">
+      <header className="gagos-status" aria-label="GAGOS status">
         <span className="gagos-pill">
           <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} aria-hidden="true" />
           {online ? modelLine : 'offline'}
@@ -457,9 +562,22 @@ export default function GagosChrome() {
           <span className="gagos-dot gagos-dot--supervised" aria-hidden="true" />
           supervised
         </span>
-      </div>
+      </header>
 
-      <div className="gagos-chat">
+      {verifyToast ? (
+        <div
+          className={`gagos-verify-toast gagos-verify-toast--${verifyToast.verdict}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="gagos-verify-toast__dot" aria-hidden="true" />
+          {verifyToast.verdict === 'pass' ? 'Verified' : 'Verify failed'}
+        </div>
+      ) : null}
+
+      <SwarmHUD />
+
+      <section className="gagos-chat" aria-label="Conversation">
         {messages.length === 0 && !busy ? (
           <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
             <p className="gagos-welcome__eyebrow">the voyaging mind · listening</p>
@@ -505,9 +623,15 @@ export default function GagosChrome() {
         </div>
 
         <div
-          className={`gagos-bar${dock.active ? ' is-active' : ''}${dock.minimized ? ' is-minimized' : ''}`}
+          className={`gagos-bar intent-${intentHint}${dock.active ? ' is-active' : ''}${dock.minimized ? ' is-minimized' : ''}`}
           style={{ '--dock-intensity': dock.intensity }}
         >
+          <span className="gagos-intent" aria-hidden="true">
+            {intentHint === 'code' && '</>'}
+            {intentHint === 'browse' && '🌐'}
+            {intentHint === 'swarm' && '◫'}
+            {intentHint === 'command' && '$'}
+          </span>
           <input
             ref={inputRef}
             className="gagos-input"
@@ -522,6 +646,7 @@ export default function GagosChrome() {
               else if (e.key === 'Escape') {
                 if (listening) { recognitionRef.current?.stop(); }
                 else if (draft) { setDraft(''); }
+                else { inputRef.current?.blur(); }
               }
             }}
             aria-label="Talk to GAGOS"
@@ -540,15 +665,31 @@ export default function GagosChrome() {
           <button
             type="button"
             className={`gagos-btn gagos-send ${busy ? 'is-busy' : ''}`}
-            onClick={() => void submit(draft)}
+            onClick={() => { if (busy) stopTurn(); else void submit(draft); }}
             disabled={!canSend && !busy}
             aria-busy={busy}
-            aria-label={busy ? 'Sending…' : 'Send'}
+            aria-label={busy ? 'Stop' : 'Send'}
           >
-            <SendIcon busy={busy} />
+            {busy ? <StopIcon /> : <SendIcon />}
           </button>
         </div>
-      </div>
+
+        {!onboarded && messages.length === 0 && !busy ? (
+          <div className="gagos-coach" role="dialog" aria-label="Getting started">
+            {deriveCoachCards(milestones).map((text, i) => (
+              <div key={i} className="gagos-coach__card">
+                <p>{text}</p>
+              </div>
+            ))}
+            <div className="gagos-coach__actions">
+              <span />
+              <button type="button" className="gagos-coach__primary" onClick={finishOnboarding}>
+                Got it
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

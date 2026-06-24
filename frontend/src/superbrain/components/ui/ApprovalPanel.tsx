@@ -41,6 +41,26 @@ function DiffView({ diff }: { diff: string }) {
   );
 }
 
+function BrowseView({ url, explanation }: { url: string; explanation: string }) {
+  let domain = url;
+  try {
+    domain = new URL(url).hostname;
+  } catch {
+    // leave raw url
+  }
+  return (
+    <div className="approval-browse" aria-label="Public web page request">
+      <div className="approval-browse-domain">{domain}</div>
+      <div className="approval-browse-url">{url}</div>
+      {explanation ? <p className="approval-browse-note">{explanation}</p> : null}
+      <p className="approval-browse-shield">
+        This sends the page content to the model. No local files or credentials
+        are exposed.
+      </p>
+    </div>
+  );
+}
+
 export default function ApprovalPanel({
   pending,
   onSettled,
@@ -85,7 +105,9 @@ export default function ApprovalPanel({
         <p className="approval-explanation">{pending.explanation}</p>
       ) : null}
 
-      {pending.diff ? (
+      {pending.kind === 'browse' && pending.url ? (
+        <BrowseView url={pending.url} explanation={pending.explanation} />
+      ) : pending.diff ? (
         <DiffView diff={pending.diff} />
       ) : pending.command ? (
         <pre className="approval-diff approval-command">{pending.command}</pre>

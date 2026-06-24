@@ -1,0 +1,5 @@
+[e2e] attempt 1: session=e2e-0c469056
+[e2e] YELLOW approval token issued: yD7FXG8m3HJTTM4L...
+[e2e] Request text: Approval required to apply an edit to .aios/tmp/e2e_scope/demo_scope/demo_module.py
+[e2e] PASS: verify_result={'verdict': 'pass', 'target': 'test_demo_module.py', 'output': '[VERIFY PASS] 1 passed, 0 failed (exit 0)\n.                                                                        [100%]\r\n1 passed in 0.10s'}
+[e2e] File was updated as expected.

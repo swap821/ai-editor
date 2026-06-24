@@ -1,27 +1,27 @@
-# Claude/Codex Coordination Protocol
+# AI Council Coordination Protocol (Claude / Codex / Kimi)
 
-This is a disk-based communication and work-division protocol. It does **not**
-let either agent directly message, wake, or launch the other. External
-automation or the operator still starts each agent.
+This is a disk-based communication and work-division protocol for the three
+primary builder agents. It does **not** let any agent directly message, wake,
+or launch another. External automation or the operator still starts each agent.
 
 ## Equal work division
 
-Claude and Codex are treated as equally capable and equally prioritized.
+Claude, Codex, and Kimi are treated as equally capable and equally prioritized.
 Automatic builder assignments select the currently less-used agent and
-deterministically alternate on ties, so allocation converges to 50/50.
+deterministically alternate on ties, so allocation converges to 33/33/33.
 Categories describe the task; they do not rank agent capability.
 
 The operator or a task packet may override an assignment. Later automatic
-assignments rebalance toward 50/50.
+assignments rebalance toward 33/33/33.
 Use `route --builder <agent>` when assigning the task, or the explicit
 `claim --override-routing` escape hatch when correcting an existing assignment.
 
 ## Safety invariants
 
 1. Exactly one builder may hold the `worktree` writer lease.
-2. Either agent may review the other agent's work at any time. Reviewers are
+2. Any agent may review another agent's work at any time. Reviewers are
    read-only and send findings instead of editing. Final approval must come
-   from the non-builder against a hash-pinned handoff.
+   from a non-builder against a hash-pinned handoff.
 3. Claiming an already-dirty unleased worktree requires explicit
    `--adopt-dirty`.
 4. A handoff releases the writer lease and records a hash of HEAD, tracked

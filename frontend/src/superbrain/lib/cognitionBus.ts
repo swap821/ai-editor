@@ -36,7 +36,10 @@ export type CognitionEventType =
   | 'route'
   /** Live voice phase in progress (listening / question-up / reply-down /
    *  speak-back) — drives the conversational pulse through the 3D body. */
-  | 'voice-speaking';
+  | 'voice-speaking'
+  /** A verification tool returned a PASS or FAIL verdict — surface it as a
+   *  transient celebration or reflection cue. */
+  | 'verify';
 
 export interface CognitionEvent {
   type: CognitionEventType;

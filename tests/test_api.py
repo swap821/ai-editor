@@ -37,7 +37,10 @@ from aios.core.executor import Executor
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import FactWriteResult
-from aios.security.gateway import RateLimiter
+from aios.security.gateway import RateLimiter, Zone
+from aios.security.audit_logger import log_action
+from aios.memory.development import DevelopmentTracker
+from aios.api.main import _EPISODIC, _APPROVALS
 
 
 class FakeLLM:
@@ -179,6 +182,52 @@ def test_health(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_intent_preview_classifies_draft_intents(client: TestClient) -> None:
+    cases = [
+        ("write a login page", "code"),
+        ("browse https://example.com", "browse"),
+        ("swarm plan this feature", "swarm"),
+        ("run the test suite", "command"),
+        ("hello there", "chat"),
+    ]
+    for text, expected in cases:
+        response = client.post("/api/v1/intent/preview", json={"text": text})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["intent"] == expected
+        assert 0 < data["confidence"] <= 1.0
+
+
+def test_onboarding_state_reflects_milestones(client: TestClient) -> None:
+    state = client.get("/api/v1/onboarding/state").json()
+    assert not any(state.values())
+
+    # First directive: any recorded episode.
+    _EPISODIC.record("ob-test", "user", "hi")
+    state = client.get("/api/v1/onboarding/state").json()
+    assert state["firstDirective"] is True
+    assert state["firstApproval"] is False
+
+    # First approval: a redeemed grant.
+    token = _APPROVALS.issue("command", {"command": "echo hi"}, "ob-test")
+    _APPROVALS.redeem(token, "ob-test")
+    state = client.get("/api/v1/onboarding/state").json()
+    assert state["firstApproval"] is True
+    assert state["firstVerify"] is False
+
+    # First verify: a verified_success development event.
+    DevelopmentTracker().record("ob task", "verified_success", tool_calls=1)
+    state = client.get("/api/v1/onboarding/state").json()
+    assert state["firstVerify"] is True
+    assert state["firstCloudRoute"] is False
+
+    # First cloud route: a cloud-route audit entry.
+    log_action("cloud-route", '{"provider":"bedrock","model":"amazon.titan"}', Zone.GREEN)
+    state = client.get("/api/v1/onboarding/state").json()
+    assert state["firstCloudRoute"] is True
+    assert state["firstAutonomy"] is False
 
 
 def test_workspace_lists_training_ground_text_files(

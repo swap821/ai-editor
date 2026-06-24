@@ -185,6 +185,17 @@ EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_S
 # (shared conversation + sandbox + development trails); authority is unchanged.
 #: Hard ceiling on workers a single swarm may spawn (bounds fan-out + RAM).
 SWARM_MAX_WORKERS: Final[int] = _env_int("AIOS_SWARM_MAX_WORKERS", 4)
+#: How many worker legs may run concurrently. Default 1 keeps the existing
+#: sequential stigmergy (each worker sees the previous worker's deposit); raise
+#: to 2+ for true parallel fan-out on stronger hardware or cloud-burst workers.
+SWARM_WORKER_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_WORKER_CONCURRENCY", 1)
+#: Redundancy per subtask. 1 = one worker per subtask. >1 dispatches that many
+#: independent replicas and runs a QUORUM caste to pick or reconcile the result.
+SWARM_REDUNDANCY: Final[int] = _env_int("AIOS_SWARM_REDUNDANCY", 1)
+#: Allow cloud-burst workers. When enabled AND a cloud agent factory is supplied,
+#: a CLOUD_BROKER caste labels subtasks as local or cloud; cloud-eligible subtasks
+#: run against a remote provider while remaining behind the same executor gate.
+SWARM_CLOUD_BURST_ENABLED: Final[bool] = _env_bool("AIOS_SWARM_CLOUD_BURST", False)
 
 # --------------------------------------------------------------------------- #
 # Security & human-in-the-loop gating
@@ -417,6 +428,9 @@ __all__ = [
     "EARNED_AUTONOMY_ENABLED",
     "EARNED_AUTONOMY_MIN_SUCCESSES",
     "SWARM_MAX_WORKERS",
+    "SWARM_WORKER_CONCURRENCY",
+    "SWARM_REDUNDANCY",
+    "SWARM_CLOUD_BURST_ENABLED",
     "CONFIDENCE_THRESHOLD",
     "MAX_RED_ACTIONS_PER_SESSION",
     "YELLOW_APPROVAL_TIMEOUT_MS",

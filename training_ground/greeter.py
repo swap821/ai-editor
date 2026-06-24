@@ -7,4 +7,4 @@ approve — have it written + snapshotted, then verified.
 
 
 def greet(name):
-    return f"Hello, {name}!"
+    return f"Hello, {name}! Welcome to AI-OS!"
