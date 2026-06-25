@@ -700,11 +700,14 @@ export default function GagosChrome() {
             <button
               type="button"
               className={`gagos-btn gagos-mic ${listening ? 'is-listening' : ''}`}
+              disabled={busy}
+              aria-disabled={busy}
+              aria-pressed={listening}
               onPointerDown={(e) => { e.preventDefault(); startMic(); }}
               onPointerUp={(e) => { e.preventDefault(); stopMic(); }}
               onPointerLeave={(e) => { e.preventDefault(); stopMic(); }}
               onKeyDown={(e) => {
-                if (e.repeat) return;
+                if (e.repeat || busy) return;
                 if (e.key === ' ' || e.key === 'Enter') {
                   e.preventDefault();
                   startMic();
@@ -727,6 +730,7 @@ export default function GagosChrome() {
               type="button"
               className={`gagos-btn gagos-speaker ${voice.muted ? 'is-muted' : ''} ${voice.speaking ? 'is-speaking' : ''}`}
               onClick={() => setVoiceSpeakMuted(!voice.muted)}
+              aria-pressed={voice.muted}
               aria-label={voice.muted ? 'Unmute Jarvis voice' : 'Mute Jarvis voice'}
               title={voice.muted ? 'Unmute voice' : 'Mute voice'}
             >
@@ -738,6 +742,7 @@ export default function GagosChrome() {
             className={`gagos-btn gagos-send ${busy ? 'is-busy' : ''}`}
             onClick={() => { if (busy) stopTurn(); else void submit(draft); }}
             disabled={!canSend && !busy}
+            aria-disabled={!canSend && !busy}
             aria-busy={busy}
             aria-label={busy ? 'Stop' : 'Send'}
           >

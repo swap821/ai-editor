@@ -37,10 +37,18 @@ Last updated: 2026-06-25T11:25:00Z
 - Trimmed lab `constants.ts` to only `CAMERA` and `POST_FX`; dead `COLORS`, `LAYOUT_CONFIGS`, `SPRING_CONFIGS`, `AIState`, `TIMING`, `LIGHTS`, `PARALLAX`, `DRAG`, and `LayoutContext` removed.
 - Re-ported lab to product; `npm run port` had dropped `previewIntent` and `fetchOnboardingState` from `frontend/src/superbrain/lib/aiosAdapter.ts`, so they were re-added in the lab source and re-ported.
 - Verified: backend `654 passed, 1 skipped`; product `npm run typecheck && npm test -- --run && npm run build` → 54 files, 326 passed, build exit 0; lab tests unchanged at 370 passed.
-- **Committed and pushed** as `COMMIT_SHA` (P3-1 dead-code cleanup + adapter re-add after port).
+- **Committed and pushed** as `48e27af` (P3-1 dead-code cleanup + adapter re-add after port).
+
+### P1-7 workbench layer polish
+- The original `ForgePorts.jsx` / `CommandLine.jsx` / `BuildFeed.jsx` / `Workbench.jsx` workbench layer was already collapsed into `GagosChrome` during the 2026-06-20 product pivot; no separate files remain.
+- The command-bar state machine is already extracted as `deriveCommandDockState` (`frontend/src/superbrain/lib/commandDockState.ts`) and used by `GagosChrome`.
+- Added shared `:focus-visible` + `:disabled` styles for all glyph buttons (mic / speaker / send) in `GagosChrome.css`.
+- Hardened mic button keyboard/pointer semantics: `disabled={busy}`, `aria-disabled={busy}`, `aria-pressed={listening}`, and keyboard handler ignores activation while busy.
+- Added `aria-pressed` to the speaker mute toggle and explicit `aria-disabled` to the send/stop toggle.
+- Verified: product typecheck + 326 tests + build green; no lab impact (GagosChrome is product-only).
 
 ## Single Next Action
-**Start P1-7 workbench layer polish** — read `RENOVATION_PLAN.md` P1-7 spec, `frontend/src/workbench/GagosChrome.{jsx,css}`, and related ForgePorts/CommandLine/BuildFeed components; implement the polish items; run typecheck + tests + build before committing.
+**Start P1-8 classic IDE approval/control accessibility** — read `RENOVATION_PLAN.md` P1-8 spec, `frontend/src/App.jsx` approval/control inline styles, and `frontend/src/App.css`; extract the inline-style shell into a real stylesheet with canon tokens, then add `:focus-visible`, reduced-motion gating, and one-accent treatment to the approval Run/Reject controls and other JS-only hover/press controls.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests

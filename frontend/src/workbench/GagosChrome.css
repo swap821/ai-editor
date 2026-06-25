@@ -439,6 +439,15 @@
 .gagos-btn:active {
   transform: scale(0.92);
 }
+.gagos-btn:focus-visible {
+  outline: 2px solid rgba(123, 245, 251, 0.7);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(123, 245, 251, 0.18);
+}
+.gagos-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .gagos-mic {
   width: 44px;
   height: 44px;
