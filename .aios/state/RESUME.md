@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T01:04:25Z
+Last updated: 2026-06-25T03:53:07Z
 
 ## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
 
@@ -135,18 +135,49 @@ dock / coach feel like they read the operator's mind.
 - [x] P1-3 session-id unification verified, regression-tested, and documented
 - [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, documented, and CI-green
 
+## Continuation — P0-7 prompt input-shield for `/api/v1/chat` and `/api/generate`
+- Lowered `ChatRequest.transcript.max_length` from 8000 to 2000 in `aios/api/main.py`.
+- Added `_check_prompt_injection()` in `aios/api/main.py` using the public `classify()` API filtered to injection reasons; called early in both `/api/v1/chat` and `/api/generate`, raising HTTP 400 on detection.
+- Added latest-user-message length check in `/api/generate` (HTTP 422 if >2000 characters).
+- Renamed the chat-only sliding-window throttle to `_CONVERSATION_RATE_*` / `_enforce_conversation_rate_limit()` and applied it to both endpoints (30 turns / 60 s / session, HTTP 429). Intentionally did not reuse the durable `RateLimiter`: that class counts RED-action re-authorisation per session, while flood protection needs a time window.
+- Updated `tests/test_chat_input_shield.py` for the new cap, injection cases, vector-shield wiring, and renamed symbols.
+- Added `tests/test_generate_input_shield.py` covering size, injection, vector-shield wiring, throttle, per-session isolation, window expiry, and map eviction for `/api/generate`.
+- Updated `RENOVATION_PLAN.md` to mark P0-7 done with implementation notes.
+- Full gates re-run and green:
+  - Backend: `599 passed, 1 skipped`.
+  - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
+  - Lab: `370 passed`; `npx tsc --noEmit` green.
+  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
+
+## Completed
+- [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
+- [x] Frontend adapter helpers for the new endpoints
+- [x] Product-only 3D reactive effects (cloud lightning, verify aurora, worker motes)
+- [x] Backend-driven intent preview in the command dock
+- [x] Milestone-driven onboarding coach
+- [x] Product tests for intent, onboarding, reactive effects, approval reconciliation, session-id resolver, and Jarvis voice loop
+- [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
+- [x] Aurora state/decay bug fixed and re-tested
+- [x] All gates green (pytest, vitest product, vitest lab, tsc, vite build, canon guards)
+- [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
+- [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
+- [x] P1-3 session-id unification verified, regression-tested, and documented
+- [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, documented, and CI-green
+- [x] P0-7 prompt input-shield implemented, regression-tested, and documented
+
 ## Single Next Action
 **Wait for the operator's next direction.**
-- P0-3, P1-3, and P1-2 are closed; GitHub CI is green on `4497a5a`.
+- P0-3, P1-3, P1-2, and P0-7 are closed; backend tests are green on the uncommitted tree atop `c910561`.
 - `:5173` and the backend are running for immediate live verification.
-- Ready candidates: P1-4 structured logging, P0-7 prompt input-shield for the voice/chat path, P3-2 micro-detail polish, or Slice 3 personalization deepening.
+- Ready candidates: P1-4 structured logging, P3-2 micro-detail polish, or Slice 3 personalization deepening.
 
 ## Open Approvals / Blockers
 - None. Operator gave full go; frozen core (`aios/security/*`) untouched.
 
 ## Active Files
 - `aios/api/main.py`
-- `tests/test_api.py`
+- `tests/test_chat_input_shield.py`
+- `tests/test_generate_input_shield.py`
 - `frontend/src/superbrain/lib/aiosAdapter.ts`
 - `frontend/src/superbrain/SuperbrainApp.jsx`
 - `frontend/src/superbrain/components/canvas/WorkspaceCanvas.tsx`
@@ -164,6 +195,4 @@ dock / coach feel like they read the operator's mind.
 - `frontend/src/superbrain/lib/replyVoiceBus.ts`
 - `GAG demo/gag-orchestrator/src/lib/replyVoiceBus.ts`
 - `.aios/state/RESUME.md`
-- `.aios/state/FRONTEND_HARMONY_MAP.md`
 - `.aios/state/RENOVATION_PLAN.md`
-- `.aios/state/JARVIS_VOICE_PLAN.md`

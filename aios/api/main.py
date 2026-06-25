@@ -518,7 +518,7 @@ class ChatRequest(BaseModel):
 
     transcript: str = Field(
         ...,
-        max_length=8000,
+        max_length=2000,
         description="The operator's spoken/typed turn (input-shielded: capped length).",
     )
     session_id: str = Field("voice-session", alias="sessionId")
@@ -1832,6 +1832,13 @@ def generate(
     """
     chat_messages = _to_chat_messages(req.messages)
     user_text = _latest_user(chat_messages)
+    _enforce_conversation_rate_limit(req.session_id)
+    if len(user_text) > 2000:
+        raise HTTPException(
+            status_code=422, detail="Input exceeds 2000 characters."
+        )
+    if (injection_reason := _check_prompt_injection(user_text)):
+        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
     # The agent routes by PURPOSE: infer the task from the user's message so 'auto'
     # picks a coder for code, a reasoner for analysis, etc. (require_tools still
     # keeps the loop on a tool-capable model regardless of the inferred task).
@@ -2391,38 +2398,59 @@ def generate(
 # bounds the RATE so a stuck client (or a tab left auto-sending) cannot flood the
 # router. It is deliberately lightweight and in-process (best-effort, per-worker),
 # distinct from the durable security RateLimiter that governs RED actions.
-_CHAT_RATE_WINDOW_S = 60.0
-_CHAT_RATE_MAX = 30
-_CHAT_HITS: dict[str, list[float]] = {}
+_CONVERSATION_RATE_WINDOW_S = 60.0
+_CONVERSATION_RATE_MAX = 30
+_CONVERSATION_HITS: dict[str, list[float]] = {}
 
 
-def _enforce_chat_rate_limit(session_id: str) -> None:
-    """Raise HTTP 429 if a session exceeds ``_CHAT_RATE_MAX`` turns per window.
+def _enforce_conversation_rate_limit(session_id: str) -> None:
+    """Raise HTTP 429 if a session exceeds ``_CONVERSATION_RATE_MAX`` turns per window.
 
     A simple monotonic sliding window keyed by session id. Best-effort and
     in-process; the deterministic security cage (gateway, scope lock, audit) is
     unaffected — this only protects the conversational fan-out from flooding.
     """
     now = time.monotonic()
-    cutoff = now - _CHAT_RATE_WINDOW_S
+    cutoff = now - _CONVERSATION_RATE_WINDOW_S
     # BUG-F fix: evict fully-expired sessions so the map can't grow without bound
     # as fresh session ids keep arriving (each browser session mints a new one).
     # Previously every session left a key forever. This bounds the map to
     # sessions active within the window.
-    for sid in [s for s, ts in _CHAT_HITS.items() if not any(t > cutoff for t in ts)]:
-        del _CHAT_HITS[sid]
-    hits = [t for t in _CHAT_HITS.get(session_id, ()) if t > cutoff]
-    if len(hits) >= _CHAT_RATE_MAX:
-        _CHAT_HITS[session_id] = hits
+    for sid in [
+        s for s, ts in _CONVERSATION_HITS.items() if not any(t > cutoff for t in ts)
+    ]:
+        del _CONVERSATION_HITS[sid]
+    hits = [t for t in _CONVERSATION_HITS.get(session_id, ()) if t > cutoff]
+    if len(hits) >= _CONVERSATION_RATE_MAX:
+        _CONVERSATION_HITS[session_id] = hits
         raise HTTPException(
             status_code=429,
             detail=(
-                "Too many chat turns; slow down. "
-                f"Limit is {_CHAT_RATE_MAX} per {int(_CHAT_RATE_WINDOW_S)}s."
+                "Too many conversation turns; slow down. "
+                f"Limit is {_CONVERSATION_RATE_MAX} per {int(_CONVERSATION_RATE_WINDOW_S)}s."
             ),
         )
     hits.append(now)
-    _CHAT_HITS[session_id] = hits
+    _CONVERSATION_HITS[session_id] = hits
+
+
+def _check_prompt_injection(text: str) -> Optional[str]:
+    """Return the gateway reason if *text* is a prompt injection, else None.
+
+    Uses the public ``classify()`` API so the regex list and optional vector
+    shield are reused without editing frozen-core gateway code. Non-injection
+    RED results (e.g. ``unknown command``) are ignored — normal conversation
+    must not be blocked.
+    """
+    if not text or not isinstance(text, str):
+        return None
+    result = classify(text)
+    if result.zone is Zone.RED and (
+        "prompt-injection" in result.reason.lower()
+        or "semantic prompt-injection" in result.reason.lower()
+    ):
+        return result.reason
+    return None
 
 
 @app.post("/api/v1/chat")
@@ -2451,8 +2479,10 @@ def chat(
     completed turn is embedded into L3 (self-reinforcing recall), exactly like
     ``/api/generate``. Best-effort persistence never breaks the chat.
     """
-    _enforce_chat_rate_limit(req.session_id)
+    _enforce_conversation_rate_limit(req.session_id)
     user_text = req.transcript.strip()
+    if (injection_reason := _check_prompt_injection(user_text)):
+        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
     # Route by purpose (general for chitchat, coding for code talk, etc.). The
     # privacy gate lives inside _select_chat_client via _router_policy(): with the
     # default empty ROUTER_CLOUD_TASKS, `auto` stays local-only. Never force cloud.
