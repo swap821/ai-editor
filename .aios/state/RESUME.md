@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T18:50:47Z
+Last updated: 2026-06-25T18:51:45Z
 
 ## Current Session — RENOVATION_PLAN.md burn-down (P0–P2 complete except pending verdicts; remaining open work: P3-5, P3-2)
 
@@ -178,7 +178,7 @@ Last updated: 2026-06-25T18:50:47Z
 - Verified: `tests/test_tool_agent.py` **74 passed**; backend full suite **666 passed, 1 skipped**.
 
 ## Single Next Action
-**Push the doc-currency sync commit and hand it to Codex.** After that, wait for the P2-3 verdict; on approval, the next burn-down item is **P3-5 secret-scanner coverage** (add Bedrock bearer / common provider token patterns, entropy length floor, redaction tests, and env-overridable driver `BASE`). Frozen security core (`aios/security/*`) stays untouched.
+**Wait for Codex verdicts on the P2-3 memory-compaction fix and the doc-currency sync commit.** Once both are approved, the next burn-down item is **P3-5 secret-scanner coverage** (add Bedrock bearer / common provider token patterns, entropy length floor, redaction tests, and env-overridable driver `BASE`). Frozen security core (`aios/security/*`) stays untouched.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.
