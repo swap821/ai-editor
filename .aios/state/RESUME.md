@@ -57,10 +57,10 @@ Last updated: 2026-06-25T12:15:00Z
 - [x] P0-5 legacy quarantine completed (`legacy/` banner + `--yes` guard on `vector_memory_setup.py` + regression tests)
 - [x] P0-2 `reset_audit_chain.py` misleading no-op neutralised (quarantined/disabled + regression tests)
 - [x] P1-6 knowledge-graph traversal + recall into forge prompt implemented, regression-tested, committed, and pushed (`111e0f3`)
-- [x] P1-9 cross-suite CI + coverage/typecheck gate implemented and verified (pending commit/push)
+- [x] P1-9 cross-suite CI + coverage/typecheck gate implemented, regression-tested, committed, and pushed (`47e49c1`)
 
 ## Single Next Action
-**Commit and push P1-9 changes to `master`.**
+**TBD — operator to pick next task from RENOVATION_PLAN.md.**
 
 ## Open Approvals / Blockers
 - None. Frozen core (`aios/security/*`) untouched.
