@@ -189,8 +189,13 @@ Last updated: 2026-06-25T20:03:04Z
 - **Operator Section VIII approval granted** by the operator in-session (2026-06-25): the additive scanner-pattern/entropy expansion is approved as a frozen-core exception.
 - Scope note: the landed P3-5 slice covers scanner patterns/entropy/tests only; the RENOVATION_PLAN row's driver `BASE` env-overridable + shared allowlist cleanup is still not landed.
 
+### P3-2 micro-detail renovation — Sound Lens design spec
+- The recovered Fable audit's `sound` lens is already implemented in `GAG demo/gag-orchestrator/src/lib/soundEngine.ts`; the remaining work is to verify and lock it with unit tests.
+- Wrote `docs/superpowers/specs/2026-06-25-p3-2-sound-lens-design.md` defining the lens scope, test architecture (mock AudioContext + test-only helpers), behavior matrix, and definition of done.
+- Lens workflow: spec → lab test implementation → lab tests green + goldens unchanged → lab commit → `npm run port` → product tests green → operator browser sign-off.
+
 ## Single Next Action
-**Re-handoff P3-5 to Codex for final verdict** now that operator Section VIII approval is recorded. Once Codex approves, the remaining RENOVATION_PLAN work is the **P3-2 132-finding micro-detail renovation** (canon-tagged, goldens-protected, lab-first).
+**Re-handoff P3-5 to Codex for final verdict** now that operator Section VIII approval is recorded. In parallel, begin the **P3-2 Sound Lens** implementation plan (unit tests for `soundEngine.ts` in the lab).
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**; Codex final verdict pending.
