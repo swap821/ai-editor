@@ -49,7 +49,7 @@ memory loop (brain-growth already evidenced). So the real build is the layers ON
   both review lenses clean. Curl-testable now. (Non-blocking future polish noted by review:
   `_select_chat_client` hardcodes `require_tools=True` on the `auto` branch — fail-soft, irrelevant to
   this no-tools endpoint, optional later.)
-- **Slice 2 — Voice I/O frontend (the goosebumps loop). DONE (2026-06-24, commit `TBD`).**
+- **Slice 2 — Voice I/O frontend (the goosebumps loop). DONE (2026-06-25, product commit `4497a5a`, lab commit `54af438`).**
   Mic capture → STT (`rec.lang = 'en-IN'`) → Slice-1 endpoint → stream → `SpeechSynthesis` TTS
   speak-back → the brain pulses while speaking (`voice-speaking` bus events with `speaking` /
   `speaking-complete` phases, mapped by `replyVoiceBus`). Push-to-talk mic + speaker mute toggle

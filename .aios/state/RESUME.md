@@ -118,6 +118,7 @@ dock / coach feel like they read the operator's mind.
   - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
   - Lab: `370 passed`; `npx tsc --noEmit` green.
   - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
+  - GitHub Actions `master CI` green on `4497a5a`; lab `replyVoiceBus` change pushed as `54af438`.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
@@ -132,11 +133,11 @@ dock / coach feel like they read the operator's mind.
 - [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
 - [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
 - [x] P1-3 session-id unification verified, regression-tested, and documented
-- [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, and documented
+- [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, documented, and CI-green
 
 ## Single Next Action
 **Wait for the operator's next direction.**
-- P0-3, P1-3, and P1-2 are closed; GitHub CI is green.
+- P0-3, P1-3, and P1-2 are closed; GitHub CI is green on `4497a5a`.
 - `:5173` and the backend are running for immediate live verification.
 - Ready candidates: P1-4 structured logging, P0-7 prompt input-shield for the voice/chat path, P3-2 micro-detail polish, or Slice 3 personalization deepening.
 
