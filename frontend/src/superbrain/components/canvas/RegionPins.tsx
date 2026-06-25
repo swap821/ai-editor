@@ -78,7 +78,7 @@ function labelPointFor(pin: PinDef): THREE.Vector3 {
   return pin.anchor.clone().addScaledVector(outward, pin.reach).add(pin.nudge);
 }
 
-function PinChip({ pin, label }: { pin: PinDef; label: THREE.Vector3 }) {
+export function PinChip({ pin, label }: { pin: PinDef; label: THREE.Vector3 }) {
   const value = useMetric(pin.key);
   /* Drill-in: a click unfolds the channel's REAL per-poll history. */
   const history = useMetricHistory(pin.key);

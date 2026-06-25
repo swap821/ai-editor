@@ -267,3 +267,27 @@ export function stopSound(): void {
     closing = null;
   });
 }
+
+/** Test-only reset hook. Not part of the public API. */
+export function __resetSoundEngineForTests(): void {
+  unsubscribe?.();
+  unsubscribe = null;
+  ctx = null;
+  master = null;
+  ambGain = null;
+  ambientStop = null;
+  closing = null;
+  tickN = 0;
+  lastTickAt = 0;
+}
+
+/** Test-only context injection hook. Not part of the public API. */
+export function __setAudioContextForTests(
+  nextCtx: AudioContext | null,
+  nextMaster: GainNode | null = null,
+  nextAmb: GainNode | null = null,
+): void {
+  ctx = nextCtx;
+  master = nextMaster;
+  ambGain = nextAmb;
+}

@@ -377,7 +377,7 @@ button {
   font-size: 11px;
   cursor: pointer;
   transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart),
-    box-shadow 200ms var(--ease-out-quart);
+    box-shadow 200ms var(--ease-out-quart), transform 200ms var(--ease-out-quart);
 }
 
 .secure-button:hover {
@@ -492,6 +492,14 @@ aside.right-console {
   opacity: 0;
 }
 
+.superbrain-experience.is-booted .console-surge {
+  animation: powerSurge 6s infinite linear, fade-enter 650ms var(--ease-out-expo) 120ms both;
+}
+
+.superbrain-experience.is-booted .console-surge--reverse {
+  animation: powerSurge 6s infinite linear reverse, fade-enter 650ms var(--ease-out-expo) 260ms both;
+}
+
 /* ---------- Region pins (anatomical callouts) ----------
  * Bound to the same metricsStore channels as the intake rows — one number,
  * every surface. NO backdrop-filter here: these chips ride the breathing
@@ -515,6 +523,8 @@ aside.right-console {
   pointer-events: auto;
   cursor: pointer;
   transition: border-color 200ms var(--ease-out-quart);
+  /* Shared light-from-above specular (matches .mode-num / .agent-avatar). */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .region-pin--open {
@@ -530,6 +540,11 @@ aside.right-console {
   border-color: rgba(159, 240, 255, 0.55);
 }
 
+.ghost-plus:active,
+.secure-button:active {
+  transform: translateY(1px);
+}
+
 /* The bound metric digits read tight like every other stat value. */
 .region-pin strong {
   letter-spacing: normal;
@@ -537,6 +552,7 @@ aside.right-console {
 
 .region-pin-graph {
   flex-basis: 100%;
+  animation: fade-enter 200ms var(--ease-out-quart);
 }
 
 .region-pin-graph svg {
@@ -903,7 +919,8 @@ aside.right-console {
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart);
+  transition: border-color 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart),
+    transform 200ms var(--ease-out-quart);
 }
 
 .ghost-plus:hover {
@@ -1402,6 +1419,12 @@ aside.right-console {
   }
 }
 
+@keyframes fade-enter {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Panel border idle-breathe was removed deliberately: animating border-color
  * on a backdrop-filtered element forces a full re-blur repaint every frame
  * (~9 FPS on the probe machine) for a barely perceptible effect. */
@@ -1420,7 +1443,8 @@ aside.right-console {
 .superbrain-experience.is-booting .right-console,
 .superbrain-experience.is-booting .command-bar,
 .superbrain-experience.is-booting .terminal-log,
-.superbrain-experience.is-booting .hud-footer {
+.superbrain-experience.is-booting .hud-footer,
+.superbrain-experience.is-booting .region-pin {
   opacity: 0;
 }
 
@@ -1464,6 +1488,10 @@ aside.right-console {
 
 .superbrain-experience.is-booted .terminal-log {
   animation: hud-enter 650ms var(--ease-out-expo) 560ms both;
+}
+
+.superbrain-experience.is-booted .region-pin {
+  animation: fade-enter 650ms var(--ease-out-expo) 560ms both;
 }
 
 /* One-time diagonal light sweep across the title once the OS is booted.
@@ -1623,6 +1651,10 @@ aside.right-console {
    * at their natural styles (no staggered delays). */
   .left-console,
   .right-console,
+  .console-surge,
+  .console-surge--reverse,
+  .region-pin,
+  .approval-panel,
   .superbrain-experience.is-booted .topbar,
   .superbrain-experience.is-booted .core-readout,
   .superbrain-experience.is-booted .left-console,
@@ -1630,6 +1662,7 @@ aside.right-console {
   .superbrain-experience.is-booted .command-bar,
   .superbrain-experience.is-booted .terminal-log,
   .superbrain-experience.is-booted .hud-footer,
+  .superbrain-experience.is-booted .region-pin,
   .superbrain-experience.is-booted .core-readout h2 {
     animation: none;
   }
@@ -1739,6 +1772,7 @@ aside.right-console {
   backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
   overflow: hidden;
+  animation: hud-enter 450ms var(--ease-out-expo) both;
 }
 
 .approval-head {
