@@ -167,7 +167,7 @@ dock / coach feel like they read the operator's mind.
 
 ## Single Next Action
 **Wait for the operator's next direction.**
-- P0-3, P1-3, P1-2, and P0-7 are closed; backend tests are green on the uncommitted tree atop `c910561`.
+- P0-3, P1-3, P1-2, and P0-7 are closed; GitHub CI is green on `ef3cda1`.
 - `:5173` and the backend are running for immediate live verification.
 - Ready candidates: P1-4 structured logging, P3-2 micro-detail polish, or Slice 3 personalization deepening.
 
