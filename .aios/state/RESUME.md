@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T18:28:14Z
+Last updated: 2026-06-25T18:39:56Z
 
 ## Current Session — RENOVATION_PLAN.md burn-down (P1-1, P3-1, P1-7, P1-8, P2-1/P2-2, P2-4, P2-8 done)
 
@@ -154,12 +154,15 @@ Last updated: 2026-06-25T18:28:14Z
 
 ### P2-3 memory forgetting / compaction (audited "sleep")
 - Added env-controlled compaction tunables in `aios/config.py`: unverified chat TTL, episodic TTL, per-type semantic cap, and working-memory idle TTL.
-- Added `VectorIndex.remove()` and `VectorIndex.rebuild_without()` in `aios/memory/embeddings.py` so compaction can clean FAISS vectors for deleted semantic rows.
+- Added `VectorIndex.rebuild_without()` in `aios/memory/embeddings.py` so compaction can clean FAISS vectors for deleted semantic rows.
 - Created `aios/memory/compaction.py` with `MemoryCompactor.preview()` and `MemoryCompactor.compact(dry_run=True)`. Sweeps working (idle sessions), episodic (old rows), and semantic (old unverified chat + per-type caps), leaving verified/superseded rows untouched.
 - Wired `POST /api/v1/memory/compact` in `aios/api/main.py`, defaulting to `dry_run=True` and requiring explicit `dry_run=false` to mutate. Added `compactor.touch_working_session()` calls in `/api/generate` and `/api/v1/chat` so idle TTL is accurate.
+- **Codex review blockers fixed:**
+  - Made `get_compactor()` return a process-wide `MemoryCompactor` singleton (with double-checked locking) so working-session `last_seen` timestamps from `/api/generate` and `/api/v1/chat` survive into later compaction requests.
+  - Replaced the unsupported `IndexIDMap.remove_ids` call with a real rebuild-from-surviving-rows strategy in `VectorIndex.remove()`: reconstruct every kept vector from the underlying HNSWFlat index and add it to a fresh IDMap+HNSW index.
+- Added regression tests: `test_get_compactor_returns_singleton_and_shared_last_seen` and `test_vector_index_rebuild_without_removes_ids`.
 - Each real compaction writes one audit entry under actor `sleep-consolidation` (YELLOW zone).
-- Added `tests/test_memory_compaction.py` with 11 tests covering preview safety, dry-run, working/episodic/semantic deletion, verified-row preservation, vector cleanup, and audit trail behavior.
-- Verified: backend full suite **666 passed, 1 skipped**.
+- Verified: backend full suite **668 passed, 1 skipped** (up 2 from regression tests).
 
 ### P2-7 Phase 2 — ToolAgent event-shaping/grant/verify helpers
 - Created `aios/agents/tool_loop_helpers.py` with focused, stateless helpers: `finish_stream`, `format_human_required_event`, `format_earned_autonomy_event`, `grant_earned`, `reflect`, `confirm`, and `format_verifier_result`.
@@ -178,7 +181,7 @@ Last updated: 2026-06-25T18:28:14Z
 - Verified: `tests/test_tool_agent.py` **74 passed**; backend full suite **666 passed, 1 skipped**.
 
 ## Single Next Action
-**Address Codex P2-3 review blockers:** (1) make `MemoryCompactor`/`last_seen` state shared across requests (singleton or move working-session touch into `WorkingMemory`) so compaction sees live sessions, and (2) replace `IndexIDMap.remove_ids` with a real FAISS rebuild-from-surviving-rows strategy because `remove_ids` is unsupported here. Frozen security core (`aios/security/*`) stays untouched.
+**Hand off the P2-3 blocker fix to Codex for post-hoc review/approval:** send an `agent_coord.py` handoff with the commit hash, green test evidence, and a short note on the singleton + FAISS rebuild changes. After Codex approval, continue with the next RENOVATION_PLAN burn-down item. Frozen security core (`aios/security/*`) stays untouched.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.

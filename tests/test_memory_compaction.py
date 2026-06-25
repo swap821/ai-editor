@@ -288,3 +288,19 @@ def test_compact_no_audit_entry_on_dry_run(db_path: Path, audit_db: Path, tmp_pa
     status = audit_logger.verify_chain(db_path=audit_db)
     assert status.valid is True
     assert status.total_entries == 0  # nothing written
+
+
+
+def test_get_compactor_returns_singleton_and_shared_last_seen() -> None:
+    """The API dependency must return one process-wide MemoryCompactor.
+
+    Without this, working-session touches from /api/generate and /api/v1/chat
+    land in separate ``_working_last_seen`` dicts and compaction sees every
+    live session as idle.
+    """
+    from aios.api.main import get_compactor
+
+    first = get_compactor()
+    second = get_compactor()
+    assert first is second
+    assert first._working_last_seen is second._working_last_seen

@@ -630,3 +630,27 @@ def test_traverse_empty_or_unknown_start_returns_nothing(db_path: Path) -> None:
     facts.add_fact("project", "uses", "FastAPI")
     assert facts.traverse("   ", max_depth=2) == []
     assert facts.traverse("nonexistent", max_depth=2) == []
+
+
+
+def test_vector_index_rebuild_without_removes_ids(tmp_path: Path) -> None:
+    """Compaction must actually drop deleted semantic rows from the FAISS index.
+
+    The FAISS build used here does not implement ``IndexIDMap.remove_ids``, so
+    VectorIndex.rebuild_without must rebuild the index from surviving rows.
+    """
+    index = VectorIndex(path=tmp_path / "rebuild.faiss", dim=2)
+    # Add three orthogonal unit vectors with explicit ids.
+    index.add(1, np.asarray([1.0, 0.0], dtype="float32"))
+    index.add(2, np.asarray([0.0, 1.0], dtype="float32"))
+    index.add(3, np.asarray([-1.0, 0.0], dtype="float32"))
+    assert index.size == 3
+
+    index.rebuild_without([2])
+    assert index.size == 2
+
+    # Searching with the removed vector's direction should not return id 2.
+    hits = index.search(np.asarray([0.0, 1.0], dtype="float32"), k=2)
+    returned_ids = {h[0] for h in hits}
+    assert 2 not in returned_ids
+    assert returned_ids <= {1, 3}

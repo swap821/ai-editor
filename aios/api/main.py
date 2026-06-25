@@ -483,13 +483,23 @@ def get_memory_consolidator() -> MemoryConsolidator:
 
 
 def get_compactor() -> MemoryCompactor:
-    """Provide the audited memory-forgetting service backed by live stores."""
-    return MemoryCompactor(
-        working=_WORKING,
-        semantic=_SEMANTIC,
-        episodic=_EPISODIC,
-        index=_VECTOR_INDEX,
-    )
+    """Provide the audited memory-forgetting service backed by live stores.
+
+    Returns a process-wide singleton so that working-session touch timestamps
+    from ``/api/generate`` and ``/api/v1/chat`` survive into later compaction
+    requests.
+    """
+    global _COMPACTOR
+    if _COMPACTOR is None:
+        with _COMPACTOR_LOCK:
+            if _COMPACTOR is None:
+                _COMPACTOR = MemoryCompactor(
+                    working=_WORKING,
+                    semantic=_SEMANTIC,
+                    episodic=_EPISODIC,
+                    index=_VECTOR_INDEX,
+                )
+    return _COMPACTOR
 
 
 def get_conversation_state_store() -> ConversationStateStore:
@@ -1486,6 +1496,11 @@ _SEMANTIC = SemanticMemory()
 
 #: FAISS vector index shared with semantic memory.
 _VECTOR_INDEX = _SEMANTIC.index
+
+#: Process-wide audited memory compactor so working-session touch timestamps are
+#: preserved across independent FastAPI dependency injections.
+_COMPACTOR: Optional[MemoryCompactor] = None
+_COMPACTOR_LOCK = threading.Lock()
 
 
 #: System prompt for the lean conversational endpoint (the GAGOS voice mind,

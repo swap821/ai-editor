@@ -112,17 +112,50 @@ class VectorIndex:
         with self._lock:
             self._index.add_with_ids(row, ids)
 
+    def _new_empty_index(self) -> "faiss.Index":
+        """Build a fresh empty IDMap+HNSW index with the same parameters."""
+        base = faiss.IndexHNSWFlat(self.dim, _HNSW_M, faiss.METRIC_INNER_PRODUCT)
+        base.hnsw.efConstruction = _HNSW_EF_CONSTRUCTION
+        base.hnsw.efSearch = _HNSW_EF_SEARCH
+        return faiss.IndexIDMap(base)
+
     def remove(self, vector_ids: Sequence[int]) -> None:
         """Remove the vectors with the given integer ids from the index.
 
-        Silently ignores ids that do not exist. No-op if the index is empty or
-        *vector_ids* is empty.
+        Rebuilds the index from the surviving rows because the FAISS build used
+        here does not implement ``IndexIDMap.remove_ids``. Silently ignores ids
+        that do not exist. No-op if the index is empty or *vector_ids* is empty.
         """
         if not vector_ids or self.size == 0:
             return
-        ids = np.asarray(list({int(v) for v in vector_ids}), dtype="int64")
+        remove_set = {int(v) for v in vector_ids}
         with self._lock:
-            self._index.remove_ids(ids)
+            old_id_map = faiss.vector_to_array(self._index.id_map)
+            keep = [
+                (int(vid), ordinal)
+                for ordinal, vid in enumerate(old_id_map)
+                if int(vid) not in remove_set
+            ]
+            if len(keep) == len(old_id_map):
+                return
+            new_index = self._new_empty_index()
+            if keep:
+                base = self._index.index
+                vectors: list[np.ndarray] = []
+                ids: list[int] = []
+                for vid, ordinal in keep:
+                    try:
+                        vectors.append(base.reconstruct(ordinal))
+                        ids.append(vid)
+                    except Exception:  # noqa: BLE001 - skip unrecoverable rows
+                        continue
+                if vectors:
+                    new_index.add_with_ids(
+                        np.asarray(vectors, dtype="float32"),
+                        np.asarray(ids, dtype="int64"),
+                    )
+            self._index = new_index
+            self._loaded_mtime_ns = self._mtime_ns()
 
     def rebuild_without(self, vector_ids: Sequence[int]) -> None:
         """Persist a fresh index that omits the given ids.
