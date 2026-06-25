@@ -60,24 +60,23 @@ export default defineConfig(({ mode }) => {
               // ORDER MATTERS: first matching group wins. three.js core must be
               // matched before drei/r3f so the ~600 KB monolith lands here.
               { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/]/ },
-              { name: 'vendor-drei', test: /[\\/]node_modules[\\/]@react-three[\\/]drei[\\/]/ },
-              { name: 'vendor-postprocessing', test: /[\\/]node_modules[\\/]postprocessing[\\/]/ },
+              { name: 'vendor-drei-postprocessing', test: /[\\/]node_modules[\\/](@react-three[\\/]drei|postprocessing|@react-three[\\/]postprocessing)[\\/]/ },
               { name: 'vendor-r3f', test: /[\\/]node_modules[\\/]@react-three[\\/]/ },
-              { name: 'vendor-monaco', test: /[\\/]node_modules[\\/]@monaco-editor[\\/]/ },
+              { name: 'vendor-monaco', test: /[\\/]node_modules[\\/](@monaco-editor|monaco-editor)[\\/]/ },
               { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+              { name: 'vendor-motion', test: /[\\/]node_modules[\\/]motion[\\/]/ },
             ],
           },
         },
       },
       // HONEST FLOOR: three.js core ships as ONE monolithic ES module (~730 KB
-      // minified, ~186 KB gzip) that no chunking strategy can split — it is a
-      // single file, and lazy-loading would only move the same bytes into an
-      // async chunk that warns identically. EVERY OTHER chunk is now well under
-      // 500 KB (next largest is vendor-drei at ~430 KB). The limit is set just
-      // above the irreducible three.js floor so the build is clean, while still
-      // flagging any NEW chunk that grows past three.js core. The original single
+      // minified, ~186 KB gzip) that no chunking strategy can split. Self-hosting
+      // Monaco adds a ~4.2 MB vendor-monaco chunk and ~1–6.9 MB language worker
+      // chunks; those are the new irreducible size floor. The limit is set just
+      // above the largest worker so the build stays clean, while still flagging
+      // any NEW chunk that grows past the Monaco worker floor. The original single
       // ~1.3 MB app chunk (over the 500 KB default) is eliminated.
-      chunkSizeWarningLimit: 750,
+      chunkSizeWarningLimit: 7200,
     },
     test: {
       environment: 'jsdom',
