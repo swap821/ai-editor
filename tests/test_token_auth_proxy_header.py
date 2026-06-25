@@ -52,6 +52,14 @@ def proxy_app_no_token(monkeypatch):
     return app
 
 
+@pytest.fixture
+def proxy_token_app(monkeypatch):
+    """App config with a strong API token and proxy headers trusted."""
+    monkeypatch.setattr(config, "API_TOKEN", _API_TOKEN)
+    monkeypatch.setattr(config, "TRUST_PROXY_HEADERS", True)
+    return app
+
+
 def test_loopback_allowed_without_token(no_token_app):
     """Direct loopback connections may use the API without a token."""
     with _client(no_token_app, client_addr=_LOOPBACK_CLIENT) as client:
@@ -94,13 +102,15 @@ def test_proxy_headers_trusted_requires_token_at_startup(monkeypatch):
             pass  # pragma: no cover
 
 
-def test_proxy_headers_trusted_loopback_must_present_token(token_app):
+def test_proxy_headers_trusted_loopback_must_present_token(proxy_token_app):
     """With a trusted proxy, even loopback clients must present the token."""
-    with _client(token_app, client_addr=_LOOPBACK_CLIENT) as client:
+    with _client(proxy_token_app, client_addr=_LOOPBACK_CLIENT) as client:
         denied = client.get("/api/v1/audit/verify")
     assert denied.status_code == 401
 
-    with _client(token_app, client_addr=_LOOPBACK_CLIENT, headers=_AUTH_HEADER) as client:
+    with _client(
+        proxy_token_app, client_addr=_LOOPBACK_CLIENT, headers=_AUTH_HEADER
+    ) as client:
         allowed = client.get("/api/v1/audit/verify")
     assert allowed.status_code == 200
 

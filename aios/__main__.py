@@ -43,10 +43,12 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
-    if args.proxy_headers:
-        # Runtime override so the lifespan policy and middleware see the same flag
-        # regardless of whether the env var was set before config was imported.
-        config.TRUST_PROXY_HEADERS = True
+    # The trust flag may come from the env var (AIOS_TRUST_PROXY_HEADERS) or the
+    # CLI flag. Both the AI-OS policy (lifespan/middleware) and uvicorn must see
+    # the SAME value, otherwise we could enforce proxy semantics while uvicorn
+    # still reports the direct peer, or vice versa.
+    trust_proxy_headers = bool(args.proxy_headers or config.TRUST_PROXY_HEADERS)
+    config.TRUST_PROXY_HEADERS = trust_proxy_headers
     # Bind the POLICY host/port (config), never a CLI-supplied host, so the real
     # bind stays in lockstep with the lifespan token policy. The import string +
     # reload combo is required by uvicorn for the reloader to work.
@@ -55,7 +57,7 @@ def main() -> None:
         host=config.API_HOST,
         port=config.API_PORT,
         reload=args.reload,
-        proxy_headers=args.proxy_headers,
+        proxy_headers=trust_proxy_headers,
     )
 
 
