@@ -1,8 +1,8 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T19:49:00Z
+Last updated: 2026-06-25T20:03:04Z
 
-## Current Session — RENOVATION_PLAN.md burn-down (P2-3 approved; P3-5 frozen-core decision pending; remaining open work: P3-2)
+## Current Session — RENOVATION_PLAN.md burn-down (P2-3 approved; P3-5 operator-approved, Codex verdict pending; remaining open work: P3-2)
 
 **Goal:** Close all open Codex inbox findings and finish doc-currency cleanly.
 
@@ -186,16 +186,17 @@ Last updated: 2026-06-25T19:49:00Z
 - **Committed and pushed** as `64a288a`; Codex review pending.
 - Codex review at current `7be17d7`: `tests/test_security.py -q`, full backend `pytest -q`, and `git diff --check` all exit 0.
 - Codex blocked formal approval on process: this commit modifies frozen security core (`aios/security/secret_scanner.py`) and needs explicit Section VIII operator approval evidence before P3-5 can be approved.
+- **Operator Section VIII approval granted** by the operator in-session (2026-06-25): the additive scanner-pattern/entropy expansion is approved as a frozen-core exception.
 - Scope note: the landed P3-5 slice covers scanner patterns/entropy/tests only; the RENOVATION_PLAN row's driver `BASE` env-overridable + shared allowlist cleanup is still not landed.
 
 ## Single Next Action
-**Get the operator's explicit Section VIII decision for the P3-5 frozen-core exception** (`64a288a` changed `aios/security/secret_scanner.py`): approve the change as human-reviewed, or ask the builder to revert/re-propose. After that, re-handoff and record the final verdict; then continue the remaining RENOVATION_PLAN work (`P3-2`, plus the unlanded P3-5 driver `BASE`/allowlist cleanup if still desired).
+**Re-handoff P3-5 to Codex for final verdict** now that operator Section VIII approval is recorded. Once Codex approves, the remaining RENOVATION_PLAN work is the **P3-2 132-finding micro-detail renovation** (canon-tagged, goldens-protected, lab-first).
 
 ## Open Approvals / Blockers
-- Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; explicit Section VIII operator approval is pending.
+- Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**; Codex final verdict pending.
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
-- Doc-currency sync: Codex requested this correction because the previous RESUME said frozen core was untouched.
-- P3-5 secret-scanner coverage: code/tests reviewed green, but formal approval is blocked on frozen-core process evidence.
+- Doc-currency sync: Codex requested this correction because the previous RESUME said frozen core was untouched; corrected and re-handed off.
+- P3-5 secret-scanner coverage: code/tests reviewed green; formal approval pending Codex sign-off after operator approval record.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
 - No remaining builder-blockers. Master is green.
