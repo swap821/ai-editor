@@ -1,35 +1,40 @@
 """
-reset_audit_chain.py  —  OPT-IN audit ledger reset (run manually).
+reset_audit_chain.py  —  QUARANTINED / DISABLED
 
-The live tamper_audit_trail may contain legacy rows from early development
-(e.g. duplicate genesis entries) that make verify_chain() report 'broken'
-even with no real tampering. For a clean demo baseline you may want a fresh
-chain. This script is NON-DESTRUCTIVE: it copies every existing row into
-tamper_audit_trail_archive before clearing the live table.
+This script was an early-development helper that reset the tamper_audit_trail
+ table. It has been quarantined because it operated on the orphaned root
+ database `orchestrator_memory.sqlite`, while the live AI-OS audit ledger lives
+ in `data/aios_audit.db` and is managed by `aios/security/audit_logger.py`.
 
-Run it yourself, deliberately:   python reset_audit_chain.py --yes
+Running it changed nothing the product actually verifies, while printing
+"Live ledger reset..." — a misleading no-op that could create false confidence
+in the tamper-evidence guarantee.
+
+The live, hash-chained, security-critical ledger is intentionally NOT resettable
+by a casual script. If a deliberate, audited reset is ever required, build it
+against `aios.config.AUDIT_DB_PATH` with full operator review.
+
+This file is retained in `legacy/` for history only.
 """
-import sqlite3
 import sys
 
-DB = 'orchestrator_memory.sqlite'
 
-def main():
-    if '--yes' not in sys.argv:
-        print("Refusing to reset without explicit confirmation.")
-        print("Re-run with:  python reset_audit_chain.py --yes")
-        return
-    conn = sqlite3.connect(DB)
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS tamper_audit_trail_archive AS SELECT * FROM tamper_audit_trail WHERE 0")
-    cur.execute("INSERT INTO tamper_audit_trail_archive SELECT * FROM tamper_audit_trail")
-    n = cur.execute("SELECT COUNT(*) FROM tamper_audit_trail_archive").fetchone()[0]
-    cur.execute("DELETE FROM tamper_audit_trail")
-    cur.execute("DELETE FROM sqlite_sequence WHERE name='tamper_audit_trail'")
-    conn.commit()
-    conn.close()
-    print(f"Archived {n} legacy rows -> tamper_audit_trail_archive.")
-    print("Live ledger reset to a clean genesis chain. verify_chain() will now return valid:true.")
+def main() -> int:
+    print("=" * 72)
+    print("QUARANTINED SCRIPT")
+    print("=" * 72)
+    print()
+    print("reset_audit_chain.py is disabled.")
+    print()
+    print("It previously operated on the orphaned 'orchestrator_memory.sqlite'")
+    print("database, NOT the live audit ledger at data/aios_audit.db.")
+    print("It has been quarantined as part of renovation P0-2.")
+    print()
+    print("The live tamper-evident ledger is managed by aios/security/audit_logger.py")
+    print("and is intentionally not resettable by a casual script.")
+    print()
+    return 0
+
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
