@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T05:05:00Z
+Last updated: 2026-06-25T04:54:00Z
 
 ## Current Session — P1-5 observability surface (`/metrics` + Docker)
 
@@ -20,12 +20,14 @@ Last updated: 2026-06-25T05:05:00Z
 - Added `Dockerfile` and `docker-compose.yml` for a minimal API container; documented the token requirement for non-loopback binds.
 - Added `tests/test_metrics.py` covering endpoint format, development-summary gauges, approval/autonomy counts, and the audit-failure counter + chain-validity gauge.
 - Updated Tier-1 doc `.aios/state/RENOVATION_PLAN.md` to mark P1-5 ✅ done.
+- Codex cleaned the remaining backend pytest warning by making the route-failover test explicitly bedrock-only (`get_gemini_client -> None`), avoiding real Gemini SDK discovery in a hermetic test.
 
 **Test counts as of this run (trust live count):**
-- Backend: `608 passed, 1 skipped` (Windows symlink privilege; one Google genai Pydantic `.copy()` deprecation warning).
+- Backend: `608 passed, 1 skipped` (Windows symlink privilege; no pytest warning summary).
 - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
 - Lab: `370 passed`; `npx tsc --noEmit` green (no lab changes).
 - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
+- GitHub Actions `master CI` green on `64f4aad` (run `28147702535`).
 
 ## Previous Session — P1-4 structured logging + diagnostics
 - Added `structlog` JSON/dev logging, FastAPI correlation middleware (`x-request-id`, `session_id`), converted swallowed turn-path exceptions to warnings, and added a CRITICAL audit-tamper log.
@@ -65,6 +67,7 @@ Last updated: 2026-06-25T05:05:00Z
 - `aios/core/approvals.py`
 - `aios/core/autonomy.py`
 - `tests/test_metrics.py`
+- `tests/test_api.py`
 - `requirements.txt`
 - `Dockerfile`
 - `docker-compose.yml`
