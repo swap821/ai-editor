@@ -25,6 +25,7 @@ import secrets
 import sqlite3
 import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
@@ -37,6 +38,7 @@ from pydantic import BaseModel, Field
 
 import aios
 from aios import config
+from aios.logging_config import configure_logging, get_logger
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.role_pass import run_role_pass
@@ -93,10 +95,13 @@ from aios.security.secret_scanner import scan_and_redact
 _APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
 
+logger = get_logger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ensure both databases exist before the app serves traffic."""
+    configure_logging()
     if config.API_HOST not in {"127.0.0.1", "localhost", "::1"}:
         if not config.API_TOKEN:
             raise RuntimeError("AIOS_API_TOKEN is required when AIOS_API_HOST is non-loopback")
@@ -114,8 +119,11 @@ async def lifespan(app: FastAPI):
             from aios.security.gateway import set_injection_shield
 
             set_injection_shield(VectorInjectionShield())
-        except Exception:  # noqa: BLE001 - enhancement; never block startup
-            pass
+        except Exception as exc:  # noqa: BLE001 - enhancement; never block startup
+            logger.warning(
+                "Vector injection shield failed to load; regex layer remains active",
+                exc_info=exc,
+            )
     yield
 
 
@@ -163,6 +171,35 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+
+@app.middleware("http")
+async def bind_request_context(request: Request, call_next):
+    """Stamp every request with a correlation id and bind session_id for logs."""
+    from structlog.contextvars import bind_contextvars, clear_contextvars
+
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    clear_contextvars()
+    bind_contextvars(request_id=request_id, method=request.method, path=request.url.path)
+    try:
+        if request.method in ("POST", "PUT", "PATCH"):
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    body = await request.body()
+                    payload = json.loads(body.decode("utf-8")) if body else None
+                except Exception:
+                    payload = None
+                if isinstance(payload, dict):
+                    session_id = payload.get("sessionId") or payload.get("session_id")
+                    if session_id:
+                        bind_contextvars(session_id=session_id)
+        response = await call_next(request)
+        response.headers["x-request-id"] = request_id
+        return response
+    finally:
+        clear_contextvars()
+
 
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
@@ -773,8 +810,8 @@ def correct_conversation_alignment(
             sorted(merged),
             observation_id=int(observation_id) if observation_id else None,
         )
-    except Exception:  # noqa: BLE001 - diagnostic evidence must never break correction
-        pass
+    except Exception as exc:  # noqa: BLE001 - diagnostic evidence must never break correction
+        logger.warning("Failed to mark alignment observation as corrected", exc_info=exc)
     return {
         "alignment": persisted,
         "activeCorrection": {
@@ -1033,6 +1070,13 @@ def security_classify(req: ClassifyRequest) -> dict[str, Any]:
 def audit_verify(from_entry: int = 1, to_entry: Optional[int] = None) -> dict[str, Any]:
     """Verify the tamper-evident audit hash chain over an optional id range."""
     status = verify_chain(from_id=from_entry, to_id=to_entry)
+    if not status.valid:
+        logger.critical(
+            "Audit hash-chain verification failed",
+            broken_at=status.broken_at,
+            reason=status.reason,
+            total_entries=status.total_entries,
+        )
     return asdict(status)
 
 
@@ -1315,7 +1359,8 @@ def _build_providers(
     """
     try:
         local_models = (ollama.list_models() or {}).get("models") or []
-    except Exception:  # noqa: BLE001 - discovery must never break a turn
+    except Exception as exc:  # noqa: BLE001 - discovery must never break a turn
+        logger.warning("Local model discovery failed", exc_info=exc)
         local_models = []
     providers = [
         router.Provider(
@@ -1398,7 +1443,8 @@ def _maybe_llm_picker(
                 model=meta_model,
             )
             return router.parse_pick((resp or {}).get("content", ""), candidates)
-        except Exception:  # noqa: BLE001 - a flaky local pick must never break routing
+        except Exception as exc:  # noqa: BLE001 - a flaky local pick must never break routing
+            logger.warning("Local LLM route picker failed; falling back to deterministic", exc_info=exc)
             return None
 
     return picker
@@ -1442,7 +1488,8 @@ def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
         return {}
     try:
         return development.model_task_success_rates()
-    except Exception:  # noqa: BLE001 - calibration metrics must never break a turn
+    except Exception as exc:  # noqa: BLE001 - calibration metrics must never break a turn
+        logger.warning("Route calibration metrics unavailable", exc_info=exc)
         return {}
 
 
@@ -1600,7 +1647,8 @@ def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Op
     """
     try:
         rows = facts.facts_for(subject)
-    except Exception:  # noqa: BLE001 - personalization is an enhancement, never fatal
+    except Exception as exc:  # noqa: BLE001 - personalization is an enhancement, never fatal
+        logger.warning("Failed to load operator facts block", exc_info=exc)
         return None
     if not rows:
         return None
@@ -1631,7 +1679,8 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     """
     try:
         hits = hybrid_search(query, top_k=top_k)
-    except Exception:  # noqa: BLE001 - recall is an enhancement, never fatal
+    except Exception as exc:  # noqa: BLE001 - recall is an enhancement, never fatal
+        logger.warning("Memory recall failed; continuing without context", exc_info=exc)
         return None
     if not hits:
         return None
@@ -1660,8 +1709,8 @@ def _record_episode(session_id: str, role: str, content: str) -> None:
         return
     try:
         _EPISODIC.record(session_id, role, scan_and_redact(content).scrubbed)
-    except Exception:  # noqa: BLE001 - persistence must not break the chat
-        pass
+    except Exception as exc:  # noqa: BLE001 - persistence must not break the chat
+        logger.warning("Failed to record episodic memory", exc_info=exc)
 
 
 def _recall_lessons(
@@ -1679,7 +1728,8 @@ def _recall_lessons(
         if callable(recall_relevant):
             return recall_relevant(query, session_id, limit)
         return reflector.recall_pending(session_id, limit)
-    except Exception:  # noqa: BLE001 - lesson recall is an enhancement, never fatal
+    except Exception as exc:  # noqa: BLE001 - lesson recall is an enhancement, never fatal
+        logger.warning("Failed to recall lessons", exc_info=exc)
         return []
 
 
@@ -1687,7 +1737,8 @@ def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict
     """Best-effort recall of reusable workflows backed by repeated verification."""
     try:
         return skills.relevant_verified(query, limit)
-    except Exception:  # noqa: BLE001 - skill recall is an enhancement, never fatal
+    except Exception as exc:  # noqa: BLE001 - skill recall is an enhancement, never fatal
+        logger.warning("Failed to recall verified skills", exc_info=exc)
         return []
 
 
@@ -1740,8 +1791,8 @@ def _index_turn(
             indexer.add(clean, memory_type="chat", verification_status="unverified")
         except TypeError:
             indexer.add(clean)
-    except Exception:  # noqa: BLE001 - indexing must not break the chat
-        pass
+    except Exception as exc:  # noqa: BLE001 - indexing must not break the chat
+        logger.warning("Failed to index completed turn into semantic memory", exc_info=exc)
 
 
 def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str) -> Optional[Any]:
@@ -1759,7 +1810,8 @@ def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str) ->
             reflection = reflector.reflect(command, error_output, task_id=session_id)
         except ReflectionError:
             return None
-        except Exception:  # noqa: BLE001 - reflection must never break the chat
+        except Exception as exc:  # noqa: BLE001 - reflection must never break the chat
+            logger.warning("Reflection agent failed to record lesson", exc_info=exc)
             return None
         return {
             "error_type": reflection.error_type,
@@ -1788,8 +1840,8 @@ def _make_confirm_hook(
             reflector.confirm_lesson(mistake_id)
             if consolidator is not None:
                 consolidator.consolidate_lesson(mistake_id)
-        except Exception:  # noqa: BLE001 - confirmation must never break the chat
-            pass
+        except Exception as exc:  # noqa: BLE001 - confirmation must never break the chat
+            logger.warning("Failed to confirm/consolidate lesson", exc_info=exc)
 
     return confirm
 
@@ -1935,10 +1987,10 @@ def generate(
                         active_correction["corrections"],
                         revision=int(active_correction["revision"]),
                     )
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as exc:
                     # Corrupt optional continuity state must never break chat or
                     # silently gain authority.
-                    pass
+                    logger.warning("Failed to apply active user correction", exc_info=exc)
             context_parts.append(alignment.to_prompt_block())
             alignment_payload = alignment.as_dict()
             base_alignment_payload = base_alignment.as_dict()
@@ -1954,8 +2006,8 @@ def generate(
                         "automatic_policy_updates": False,
                     }
                     base_alignment_payload["evaluation"] = alignment_payload["evaluation"]
-            except Exception:  # noqa: BLE001 - evaluation must never break the chat
-                pass
+            except Exception as exc:  # noqa: BLE001 - evaluation must never break the chat
+                logger.warning("Failed to record alignment evaluation", exc_info=exc)
             try:
                 if active_correction is not None and alignment.correction.active:
                     conversation_state.refresh_active_correction(
@@ -1965,8 +2017,8 @@ def generate(
                     )
                 else:
                     conversation_state.save(session_id, alignment_payload)
-            except Exception:  # noqa: BLE001 - continuity must never break the chat
-                pass
+            except Exception as exc:  # noqa: BLE001 - continuity must never break the chat
+                logger.warning("Failed to persist alignment frame", exc_info=exc)
             yield _sse("alignment", alignment_payload)
             if alignment.communication.ambiguity_action == "ask":
                 question = alignment.communication.clarifying_question
@@ -2127,8 +2179,8 @@ def generate(
                     blocked_actions=blocked_actions,
                     metadata=_route_meta(),
                 )
-            except Exception:  # noqa: BLE001 - metrics must never break chat
-                pass
+            except Exception as exc:  # noqa: BLE001 - metrics must never break chat
+                logger.warning("Development metrics recording failed", exc_info=exc)
             if outcome not in {"verified_success", "verified_failure"}:
                 return
             passed = outcome == "verified_success"
@@ -2156,8 +2208,8 @@ def generate(
                     direct_id = skills.record_attempt(
                         user_text, workflow_steps, success=passed
                     )
-                except Exception:  # noqa: BLE001 - skill learning is best-effort
-                    pass
+                except Exception as exc:  # noqa: BLE001 - skill learning is best-effort
+                    logger.warning("Failed to record skill attempt", exc_info=exc)
             # Reuse pheromone: trails that were recalled into this turn's
             # context share its verifier verdict — minus the trail the agent
             # re-walked directly, which record_attempt already credited.
@@ -2175,19 +2227,19 @@ def generate(
             if reused_ids:
                 try:
                     skills.record_reuse(reused_ids, success=passed)
-                except Exception:  # noqa: BLE001 - reuse credit is best-effort
-                    pass
+                except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
+                    logger.warning("Failed to record skill reuse credit", exc_info=exc)
             if swarm_plan:
                 try:
                     swarm_patterns.record_attempt(
                         user_text, swarm_plan, success=passed
                     )
-                except Exception:  # noqa: BLE001 - pattern learning is best-effort
-                    pass
+                except Exception as exc:  # noqa: BLE001 - pattern learning is best-effort
+                    logger.warning("Failed to record swarm pattern attempt", exc_info=exc)
             try:
                 curriculum.record_matching(user_text, passed=passed, evidence=evidence)
-            except Exception:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
-                pass
+            except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
+                logger.warning("Failed to record curriculum match", exc_info=exc)
 
         if req.swarm:
             event_source = run_swarm(
@@ -2277,8 +2329,8 @@ def generate(
                             json.dumps({"provider": cloud_provider, "model": cloud_model}),
                             Zone.GREEN,
                         )
-                    except Exception:  # noqa: BLE001 - audit must never break the stream
-                        pass
+                    except Exception as exc:  # noqa: BLE001 - audit must never break the stream
+                        logger.warning("Failed to record cloud-route audit entry", exc_info=exc)
                 yield _sse(kind, ev)
             elif kind == "human_required":
                 # The agent paused on a YELLOW command. Ask the UI for approval;
@@ -2355,8 +2407,8 @@ def generate(
                         blocked_actions=blocked_actions,
                         metadata=_route_meta(),
                     )
-                except Exception:  # noqa: BLE001 - metrics must never break approval
-                    pass
+                except Exception as exc:  # noqa: BLE001 - metrics must never break approval
+                    logger.warning("Development metrics recording failed for paused turn", exc_info=exc)
                 yield _sse("human_required", payload)
             elif kind == "done":
                 # 4. Persist the answer (L2) and consolidate the turn into L3.

@@ -1,153 +1,27 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T03:53:07Z
+Last updated: 2026-06-24T12:05:00Z
 
-## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
+## Current Session — P1-4 structured logging + diagnostics
 
-**Goal:** complete the fuse integration of the AI-OS frontend and backend, and push the
-first-viewer UI/UX so the 3D being visibly reacts to the agent loop and the command
-dock / coach feel like they read the operator's mind.
+**Goal:** Ship structured logging, request/session correlation, and durable audit-tamper alarming.
 
 **Verdict: SLICE COMPLETE.**
 
 **What happened this session:**
-- **Backend:** added `POST /api/v1/intent/preview` and `GET /api/v1/onboarding/state`
-  to `aios/api/main.py`; added cloud-route audit logging when a swarm leg leaves the
-  local machine. Added unit tests in `tests/test_api.py`.
-- **Frontend adapter:** added `previewIntent()` and `fetchOnboardingState()` to
-  `frontend/src/superbrain/lib/aiosAdapter.ts` with graceful offline fallbacks.
-- **Reactive 3D effects:** created a product-only R3F component
-  `frontend/src/workbench/SuperbrainReactiveEffects.jsx` (injected into
-  `<WorkspaceCanvas>` from `SuperbrainApp.jsx`) that adds:
-  - jagged spine lightning on `cloud_route`, tinted by provider;
-  - a green verify-pass aurora bloom around the cortex via
-    `frontend/src/workbench/verifyAuroraBridge.ts`;
-  - orbiting worker motes for active swarm castes.
-- **Command dock:** `GagosChrome.jsx` now shows a backend-driven intent icon/label
-  (`</>`, `🌐`, `◫`, `$`) and tints the membrane toward the predicted mode.
-- **Onboarding coach:** replaced static 3-card carousel with milestone-driven cards
-  from `/api/v1/onboarding/state` so the first-time experience matches what the
-  operator has actually done.
-- **Tests:** added `GagosChrome.intent.test.tsx`, `GagosChrome.onboarding.test.tsx`,
-  and `SuperbrainReactiveEffects.test.tsx`.
-- **Live visual pass (kimi-webbridge):** verified `:5173` renders correctly in the
-  operator's Edge. The intent icon (`</>`) and cyan membrane tint appear for code
-  intent; the milestone coach renders; the being is not visually polluted by the
-  reactive effects at rest. The green brainstem seal is the existing supervised iris
-  ring, not a regression.
-- **Aurora fix:** rewrote the verify-pass aurora to be state-driven via
-  `subscribeAurora`, decay correctly, and recompute the cortex anchor each frame
-  instead of caching it at mount. Removed per-frame re-renders from empty motes and
-  lightnings. Added a render test asserting the aurora mesh appears after a pass
-  event and is absent at rest.
-- **Post-push CI fix:** the initial push (`04c4279`) failed in the backend CI job
-  because `requests` and `beautifulsoup4` were missing from `requirements.txt`.
-  The `browse` tool lazy-imports them, so local tests passed while the clean CI
-  3.11 environment raised `ModuleNotFoundError`. Pinned both deps to the versions
-  already in `.venv`, pushed (`0054a89`), and verified both backend and frontend
-  CI jobs are green.
-- **First-cloud-route spine flash:** added `frontend/src/workbench/spineFlashBridge.ts`
-  and wired `GagosChrome.jsx` to fire a one-shot travelling pulse down the visible
-  spine the first time a swarm subtask routes to the cloud factory. The product-only
-  `SuperbrainReactiveEffects.jsx` renders a bright cyan bead + trail along the fused
-  `SEGMENT_ANCHORS`, respecting the brain dock scale. Live verified via kimi-webbridge:
-  rest screenshot clean, triggered flash shows a bright bead moving brainstem→conus,
-  post-flash rest clean again. Pushed as `70c543a`; CI green.
+- Added `structlog==26.1.0` to `requirements.txt` and created `aios/logging_config.py`.
+- Wired `configure_logging()` into the FastAPI lifespan so every process boots with a stdlib-bound structlog sink.
+- Added `bind_request_context` middleware in `aios/api/main.py`: stamps/echoes `x-request-id`, binds `method`/`path`, and binds `session_id` from JSON request bodies into structlog contextvars.
+- Converted every best-effort `except Exception: pass` block on the turn path into `logger.warning(..., exc_info=exc)` (local model discovery, LLM picker, route metrics, operator facts, episodic memory, recall, indexing, reflection, alignment, development metrics, skill/swarm/curriculum learning, cloud-route audit logging, paused-turn metrics).
+- Added a CRITICAL log in `audit_verify()` when the tamper-evident hash chain fails.
+- Added `tests/test_logging.py` covering request-id middleware (generated + provided), audit-verify CRITICAL tamper alarm, and logging-config idempotency.
+- Updated Tier-1 doc `.aios/state/RENOVATION_PLAN.md` to mark P1-4 ✅ done.
 
 **Test counts as of this run (trust live count):**
-- Backend: `587 passed, 1 skipped` (Windows symlink privilege).
-- Frontend product: `309 passed`; `vite build` green.
-- Lab: `369 passed`; `npx tsc --noEmit` green.
+- Backend: `603 passed, 1 skipped` (Windows symlink privilege).
+- Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
+- Lab: `370 passed`; `npx tsc --noEmit` green (no lab changes).
 - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
-
-## Continuation — P0-3 approval single-source-of-truth
-- Verified the `SuperbrainHUD` already binds its actionable `<ApprovalPanel>` to the adapter's persisted pending-approval truth via `subscribePendingApproval()` (`SuperbrainHUD.tsx:574-590`), with an immediate-on-subscribe emission that covers a late mount or a missed transient `approval-required` bus event. `approvalHold` and the AUTHORIZE/REJECT panel are now driven by the same state.
-- Added `frontend/src/superbrain/lib/aiosAdapter.approval.test.ts` (5 tests) covering immediate subscribe emission, multi-subscriber notification, unsubscribe isolation, and clear-reset.
-- Updated Tier-1 docs: `FRONTEND_HARMONY_MAP.md` (defect marked resolved with historical note) and `RENOVATION_PLAN.md` (P0-3 marked ✅ done).
-- Full gates re-run and green:
-  - Backend: `587 passed, 1 skipped`.
-  - Frontend product: `314 passed`; `vite build` green; `tsc --noEmit` green.
-  - Lab: `369 passed`; `npx tsc --noEmit` green.
-  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
-
-## Completed
-- [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
-- [x] Frontend adapter helpers for the new endpoints
-- [x] Product-only 3D reactive effects (cloud lightning, verify aurora, worker motes)
-- [x] Backend-driven intent preview in the command dock
-- [x] Milestone-driven onboarding coach
-- [x] Product tests for intent, onboarding, and reactive effects
-- [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
-- [x] Aurora state/decay bug fixed and re-tested
-- [x] All gates green (pytest, vitest product, vitest lab, tsc, vite build, canon guards)
-- [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
-- [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
-
-## Continuation — P1-3 session-id unification
-- Verified that the shared `getSessionId()` resolver in `frontend/src/superbrain/lib/sessionId.ts` is already imported by both the product and lab `aiosAdapter.ts`, and that every stateful backend call (`/api/generate`, `/api/v1/chat`, `/api/v1/approval/req`) passes the same `SESSION_ID`.
-- Added `frontend/src/superbrain/lib/sessionId.test.ts` (4 tests) covering existing-id read, mint+persist, repeated-call stability, and storage-blocked fallback.
-- Updated `RENOVATION_PLAN.md` to mark P1-3 ✅ done.
-- Full gates re-run and green:
-  - Backend: `587 passed, 1 skipped`.
-  - Frontend product: `318 passed`; `vite build` green; `tsc --noEmit` green.
-  - Lab: `369 passed`; `npx tsc --noEmit` green.
-  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
-
-## Completed
-- [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
-- [x] Frontend adapter helpers for the new endpoints
-- [x] Product-only 3D reactive effects (cloud lightning, verify aurora, worker motes)
-- [x] Backend-driven intent preview in the command dock
-- [x] Milestone-driven onboarding coach
-- [x] Product tests for intent, onboarding, reactive effects, approval reconciliation, and session-id resolver
-- [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
-- [x] Aurora state/decay bug fixed and re-tested
-- [x] All gates green (pytest, vitest product, vitest lab, tsc, vite build, canon guards)
-- [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
-- [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
-- [x] P1-3 session-id unification verified, regression-tested, and documented
-
-## Continuation — P1-2 Jarvis voice Slice 2 (browser-native MVP)
-- Added browser-native TTS speak-back in `frontend/src/workbench/voiceSpeak.ts`: subscribes to `voice-speaking` cognition events, speaks the final reply on `reply-complete`, cancels on `question`/`stopped`/`error`, prefers `hi-IN`/`en-IN` voices, persists a mute flag, and publishes `speaking`/`speaking-complete` events so the brain keeps glowing while Jarvis talks.
-- Extended `replyVoiceBus.ts` in product and lab to map `speaking` → `streaming` and `speaking-complete` → `complete`; updated both test files.
-- Wired `useVoiceSpeak()` into `GagosChrome.jsx`, added a speaker/mute button, and converted the mic button to push-to-talk (`onPointerDown`/`onPointerUp`/`onPointerLeave` + keyboard fallback); set STT locale to `en-IN`.
-- Added `frontend/src/workbench/voiceSpeak.test.ts` (7 tests) covering unsupported environments, reply-complete speak, cancellation, mute, self-event filtering, speaking-state transitions, and voice preference.
-- Updated Tier-1 docs: `JARVIS_VOICE_PLAN.md` (Slice 2 marked done) and `RENOVATION_PLAN.md` (P1-2 marked ✅ done).
-- Full gates re-run and green:
-  - Backend: `587 passed, 1 skipped`.
-  - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
-  - Lab: `370 passed`; `npx tsc --noEmit` green.
-  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
-  - GitHub Actions `master CI` green on `4497a5a`; lab `replyVoiceBus` change pushed as `54af438`.
-
-## Completed
-- [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
-- [x] Frontend adapter helpers for the new endpoints
-- [x] Product-only 3D reactive effects (cloud lightning, verify aurora, worker motes)
-- [x] Backend-driven intent preview in the command dock
-- [x] Milestone-driven onboarding coach
-- [x] Product tests for intent, onboarding, reactive effects, approval reconciliation, session-id resolver, and Jarvis voice loop
-- [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
-- [x] Aurora state/decay bug fixed and re-tested
-- [x] All gates green (pytest, vitest product, vitest lab, tsc, vite build, canon guards)
-- [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
-- [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
-- [x] P1-3 session-id unification verified, regression-tested, and documented
-- [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, documented, and CI-green
-
-## Continuation — P0-7 prompt input-shield for `/api/v1/chat` and `/api/generate`
-- Lowered `ChatRequest.transcript.max_length` from 8000 to 2000 in `aios/api/main.py`.
-- Added `_check_prompt_injection()` in `aios/api/main.py` using the public `classify()` API filtered to injection reasons; called early in both `/api/v1/chat` and `/api/generate`, raising HTTP 400 on detection.
-- Added latest-user-message length check in `/api/generate` (HTTP 422 if >2000 characters).
-- Renamed the chat-only sliding-window throttle to `_CONVERSATION_RATE_*` / `_enforce_conversation_rate_limit()` and applied it to both endpoints (30 turns / 60 s / session, HTTP 429). Intentionally did not reuse the durable `RateLimiter`: that class counts RED-action re-authorisation per session, while flood protection needs a time window.
-- Updated `tests/test_chat_input_shield.py` for the new cap, injection cases, vector-shield wiring, and renamed symbols.
-- Added `tests/test_generate_input_shield.py` covering size, injection, vector-shield wiring, throttle, per-session isolation, window expiry, and map eviction for `/api/generate`.
-- Updated `RENOVATION_PLAN.md` to mark P0-7 done with implementation notes.
-- Full gates re-run and green:
-  - Backend: `599 passed, 1 skipped`.
-  - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
-  - Lab: `370 passed`; `npx tsc --noEmit` green.
-  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
@@ -164,35 +38,21 @@ dock / coach feel like they read the operator's mind.
 - [x] P1-3 session-id unification verified, regression-tested, and documented
 - [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, documented, and CI-green
 - [x] P0-7 prompt input-shield implemented, regression-tested, and documented
+- [x] P1-4 structured logging + diagnostics implemented, regression-tested, and documented
 
 ## Single Next Action
 **Wait for the operator's next direction.**
-- P0-3, P1-3, P1-2, and P0-7 are closed; GitHub CI is green on `ef3cda1`.
-- `:5173` and the backend are running for immediate live verification.
-- Ready candidates: P1-4 structured logging, P3-2 micro-detail polish, or Slice 3 personalization deepening.
+- P0-3, P1-3, P1-2, P0-7, and P1-4 are closed; GitHub CI will be verified after push.
+- `:5173` and the backend are available for immediate live verification.
+- Ready candidates: P1-5 observability surface (`/metrics` + compose), P1-6 knowledge-graph traversal, P3-2 micro-detail polish, or P0-1 CORS guard.
 
 ## Open Approvals / Blockers
 - None. Operator gave full go; frozen core (`aios/security/*`) untouched.
 
 ## Active Files
+- `aios/logging_config.py`
 - `aios/api/main.py`
-- `tests/test_chat_input_shield.py`
-- `tests/test_generate_input_shield.py`
-- `frontend/src/superbrain/lib/aiosAdapter.ts`
-- `frontend/src/superbrain/SuperbrainApp.jsx`
-- `frontend/src/superbrain/components/canvas/WorkspaceCanvas.tsx`
-- `frontend/src/workbench/GagosChrome.jsx`
-- `frontend/src/workbench/GagosChrome.css`
-- `frontend/src/workbench/SuperbrainReactiveEffects.jsx`
-- `frontend/src/workbench/verifyAuroraBridge.ts`
-- `frontend/src/workbench/GagosChrome.intent.test.tsx`
-- `frontend/src/workbench/GagosChrome.onboarding.test.tsx`
-- `frontend/src/workbench/SuperbrainReactiveEffects.test.tsx`
-- `frontend/src/superbrain/lib/aiosAdapter.approval.test.ts`
-- `frontend/src/superbrain/lib/sessionId.test.ts`
-- `frontend/src/workbench/voiceSpeak.ts`
-- `frontend/src/workbench/voiceSpeak.test.ts`
-- `frontend/src/superbrain/lib/replyVoiceBus.ts`
-- `GAG demo/gag-orchestrator/src/lib/replyVoiceBus.ts`
+- `tests/test_logging.py`
+- `requirements.txt`
 - `.aios/state/RESUME.md`
 - `.aios/state/RENOVATION_PLAN.md`
