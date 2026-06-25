@@ -11,6 +11,7 @@ per the AI OS Jarvis Blueprint v4.0.
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Final
@@ -27,6 +28,22 @@ PROJECT_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 # ``load_dotenv`` is a no-op when the file is absent, so this is always safe.
 load_dotenv(PROJECT_ROOT / ".env")
 
+#: Config-module logger. Imported early, so it emits to the default stderr sink
+#: until ``aios.logging_config.configure_logging()`` attaches the real formatter.
+_LOGGER: Final[logging.Logger] = logging.getLogger(__name__)
+
+#: Recognised boolean strings. Anything else present-but-unparseable is warned.
+_BOOL_TRUE: Final[frozenset[str]] = frozenset({"1", "true", "yes", "on"})
+_BOOL_FALSE: Final[frozenset[str]] = frozenset({"0", "false", "no", "off"})
+
+
+def _warn_unparseable(name: str, raw: str, default: object) -> None:
+    """Emit a WARNING when an env var is present but cannot be parsed."""
+    _LOGGER.warning(
+        "Unparseable AIOS env var; using default",
+        extra={"var": name, "value": raw, "default": default},
+    )
+
 
 # --------------------------------------------------------------------------- #
 # Typed environment-variable accessors
@@ -39,17 +56,25 @@ def _env_str(name: str, default: str) -> str:
 
 def _env_int(name: str, default: int) -> int:
     """Return *name* parsed as ``int``; fall back to *default* on absence/error."""
+    raw = os.getenv(name)
+    if raw in (None, ""):
+        return default
     try:
-        return int(_env_str(name, str(default)))
+        return int(raw)
     except ValueError:
+        _warn_unparseable(name, raw, default)
         return default
 
 
 def _env_float(name: str, default: float) -> float:
     """Return *name* parsed as ``float``; fall back to *default* on absence/error."""
+    raw = os.getenv(name)
+    if raw in (None, ""):
+        return default
     try:
-        return float(_env_str(name, str(default)))
+        return float(raw)
     except ValueError:
+        _warn_unparseable(name, raw, default)
         return default
 
 
@@ -58,7 +83,13 @@ def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw in (None, ""):
         return default
-    return raw.strip().lower() in ("1", "true", "yes", "on")
+    norm = raw.strip().lower()
+    if norm in _BOOL_TRUE:
+        return True
+    if norm in _BOOL_FALSE:
+        return False
+    _warn_unparseable(name, raw, default)
+    return default
 
 
 def _env_path(name: str, default: Path) -> Path:
@@ -403,6 +434,27 @@ API_CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
 )
 
 
+# --------------------------------------------------------------------------- #
+# Startup banner
+# --------------------------------------------------------------------------- #
+def startup_banner() -> dict[str, object]:
+    """Return the resolved security-load-bearing config as a structured dict.
+
+    The banner is intentionally one event with flat, serialisable fields so a
+    SIEM or operator can see the active posture at a glance. It deliberately
+    does **not** include the raw token value — only whether one is configured.
+    """
+    return {
+        "host": API_HOST,
+        "port": API_PORT,
+        "token_set": bool(API_TOKEN),
+        "token_length": len(API_TOKEN),
+        "router_cloud_tasks": list(ROUTER_CLOUD_TASKS),
+        "earned_autonomy": EARNED_AUTONOMY_ENABLED,
+        "scope_roots": [str(p) for p in SCOPE_ROOTS],
+    }
+
+
 __all__ = [
     "PROJECT_ROOT",
     "DATA_DIR",
@@ -475,4 +527,5 @@ __all__ = [
     "API_PORT",
     "API_TOKEN",
     "API_CORS_ORIGINS",
+    "startup_banner",
 ]

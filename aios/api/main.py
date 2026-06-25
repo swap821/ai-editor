@@ -104,6 +104,7 @@ _METRICS = get_collector()
 async def lifespan(app: FastAPI):
     """Ensure both databases exist before the app serves traffic."""
     configure_logging()
+    logger.info("aios_startup_banner", **config.startup_banner())
     if config.API_HOST not in {"127.0.0.1", "localhost", "::1"}:
         if not config.API_TOKEN:
             raise RuntimeError("AIOS_API_TOKEN is required when AIOS_API_HOST is non-loopback")
