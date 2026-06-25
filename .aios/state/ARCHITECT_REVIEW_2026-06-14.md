@@ -1,3 +1,9 @@
+> **SUPERSEDED SNAPSHOT (dated 2026-06-14) — body unchanged, kept as a record.**
+> Test baselines and some architectural specifics below are stale. The security
+> perimeter hazards flagged here have since been addressed (see `RESUME.md` and
+> `RENOVATION_PLAN.md`). Read this for historical context, then verify against
+> current code and `RESUME.md`.
+
 # ARCHITECT REVIEW — whole `ai-editor` tree (2026-06-14)
 
 > Peer-level engineering review of the AI-OS, commissioned as "treat me as a

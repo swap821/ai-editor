@@ -95,9 +95,9 @@ npm test
 npm run build
 ```
 
-Current local verification target: a green run — Python suite `556 passed, 1 skipped`
-and frontend Vitest `65 passed` (as of 2026-06-15; run `pytest -q` / `npm test` for the
-live counts, which grow as tests land — trust the run, not the number).
+Current local verification target: a green run — run the commands above and trust
+the live pass/skip/fail counts (the counts grow as tests land; never trust a
+hardcoded number).
 
 ## Communication Alignment Loop
 

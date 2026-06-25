@@ -1,21 +1,26 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T09:55:00Z
+Last updated: 2026-06-25T10:15:00Z
 
-## Current Session — P0-4 Token-auth proxy-header policy ✅ COMPLETE
+## Current Session — P1-10 Doc-currency sweep ✅ COMPLETE
 
-**Goal:** Close the last remaining RENOVATION_PLAN P0 hazard: require `AIOS_API_TOKEN` when a reverse proxy is trusted, remove `testclient` from the production loopback allowlist, and document `--proxy-headers`.
+**Goal:** Pin ONE test baseline policy and reconcile the contradictions/stale numbers across Tier-1 docs.
 
 **What happened this session:**
 - Read `RESUME.md`, `warnings.md`, last ~10 `experiences.jsonl` entries, and `agent_coord.py status` (clean tree, no active writer).
-- Claimed worktree lease for `p0-4-token-auth-proxy-header` as builder.
-- Added `TRUST_PROXY_HEADERS` config (`AIOS_TRUST_PROXY_HEADERS`) in `aios/config.py`, included it in `startup_banner()` and `__all__`.
-- Updated `aios/__main__.py` to accept `--proxy-headers` and pass it to uvicorn; runtime override of `config.TRUST_PROXY_HEADERS` so policy and bind stay consistent.
-- Hardened `aios/api/main.py`:
-  - `lifespan` now requires a >=32-char token when `TRUST_PROXY_HEADERS` is enabled, even on loopback binds.
-  - `require_api_token` middleware removed `testclient` from the production loopback set; added an explicit `_LOOPBACK_HOSTS` constant; returns 403 for unauthenticated requests when proxy headers are trusted.
-- Wrote TDD-first regression tests in `tests/test_token_auth_proxy_header.py` (7 tests).
-- Updated existing `TestClient(app)` usages across 7 test files to use explicit loopback client `("127.0.0.1", 12345)` so the suite no longer depends on the `testclient` production backdoor.
+- Claimed worktree lease for `p1-10-doc-currency-sweep` as builder.
+- Adopted the "report live counts" pattern in living docs:
+  - `README.md` — removed hardcoded `556/65` counts; now instructs readers to trust the live run.
+  - `START_HERE.md` — removed hardcoded `556` from the pytest command comment.
+  - `AGENTS.md` — removed hardcoded `556` from the test baseline note.
+- Reconciled contradictions:
+  - `PLAN.md` top banner now points to live counts + notes current `654/326` as of 2026-06-25.
+  - `PLAN.md` H1 row updated to reflect the adopted live-counts pattern and corrected bearer-token claim.
+  - `PLAN.md` S3 row corrected: `aiosAdapter.ts` now sends `Authorization: Bearer` when `VITE_AIOS_API_TOKEN` is set.
+- Added superseded banners to dated snapshots (body unchanged, kept as records):
+  - `HIDDEN_KNOWLEDGE.md`, `BACKEND_TRUE_PICTURE.md`, `CEO_LOG.md`, `FRONTEND_RENOVATION_BLUEPRINT.md`, `ARCHITECT_REVIEW_2026-06-14.md`.
+  - `SYSTEM_TRUE_PICTURE.md` got an "evolving document" note instead (it remains the canonical whole-system map).
+- Confirmed `frontend/README.md` is already project-specific (GAGOS, the points-being), not stock Vite boilerplate.
 - Verified all gates locally:
   - Backend full suite: `654 passed, 1 skipped`; coverage `89.49%` (floor `85%`).
   - Frontend: `npm run typecheck` green; `npm test` `326 passed`; `npm run build` green.
@@ -52,26 +57,27 @@ Last updated: 2026-06-25T09:55:00Z
 - [x] P1-9 cross-suite CI + coverage/typecheck gate implemented, regression-tested, committed, and pushed
 - [x] P0-5 hotfix: `tests/test_legacy_quarantine.py` now runs `vector_memory_setup.py --yes` from `tmp_path`
 - [x] P0-4 token-auth proxy-header policy implemented, regression-tested, and documented (`TRUST_PROXY_HEADERS`, `--proxy-headers`, `testclient` removed from production allowlist), committed, and pushed (`2c781c5`)
+- [x] P1-10 doc-currency sweep: adopted "report live counts" pattern, reconciled PLAN.md bearer-token contradiction, added superseded banners to dated snapshots, confirmed `frontend/README.md` is project-specific
 
 ## Single Next Action
 **TBD — operator to pick next task from RENOVATION_PLAN.md.**
 
 ## Open Approvals / Blockers
 - None blocking. Frozen core (`aios/security/*`) untouched.
-- Agent-coord verdicts for P0-5, P1-6, P1-9, and now P0-4 are pending formal review/approval (work is implemented; tasks were released as builder).
+- Agent-coord verdicts for P0-5, P1-6, P1-9, P0-4, and now P1-10 are pending formal review/approval (work is implemented; tasks were released as builder).
 
 ## Active Files
-- `aios/config.py`
-- `aios/__main__.py`
-- `aios/api/main.py`
-- `tests/test_token_auth_proxy_header.py`
-- `tests/test_api.py`
-- `tests/test_chat.py`
-- `tests/test_chat_input_shield.py`
-- `tests/test_generate_input_shield.py`
-- `tests/test_logging.py`
-- `tests/test_metrics.py`
-- `tests/e2e/e2e_cloud_burst.py`
-- `tests/e2e/e2e_yellow_verify.py`
-- `.aios/state/RESUME.md`
+- `README.md`
+- `START_HERE.md`
+- `AGENTS.md`
+- `.aios/state/PLAN.md`
 - `.aios/state/RENOVATION_PLAN.md`
+- `.aios/state/HIDDEN_KNOWLEDGE.md`
+- `.aios/state/BACKEND_TRUE_PICTURE.md`
+- `.aios/state/CEO_LOG.md`
+- `.aios/state/FRONTEND_RENOVATION_BLUEPRINT.md`
+- `.aios/state/ARCHITECT_REVIEW_2026-06-14.md`
+- `.aios/state/SYSTEM_TRUE_PICTURE.md`
+- `.aios/state/JARVIS_VOICE_PLAN.md`
+- `frontend/README.md`
+- `.aios/state/RESUME.md`

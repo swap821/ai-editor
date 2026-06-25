@@ -1,3 +1,11 @@
+> **SUPERSEDED SNAPSHOT (dated 2026-06-14) — body unchanged, kept as a record.**
+> The P0 hazards flagged here (CORS, audit-reset no-op, legacy quarantine, input-shield,
+> proxy-header auth, token-auth bearer wiring) have since been resolved. Test baselines
+> have moved (trust the live run; see `RESUME.md` for the current state). The canon/UI
+> freeze was relaxed on 2026-06-19 (palette + textures remain sacred; everything else
+> may evolve). Read this for historical context, then verify against current code and
+> `RESUME.md`.
+
 # HIDDEN KNOWLEDGE — the "you'd never know unless you read it" bible
 
 **Date:** 2026-06-14

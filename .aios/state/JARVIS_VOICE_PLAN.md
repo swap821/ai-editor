@@ -45,8 +45,9 @@ memory loop (brain-growth already evidenced). So the real build is the layers ON
   (Hinglish persona, conversation-not-forge), `_operator_facts_block()` (real `SemanticFacts` only,
   dormant when none), routes via `_select_chat_client` (local-first gate intact, cloud never forced),
   one chat-client call `tools=None` (no ToolAgent loop), streams SSE `route -> text_chunk -> done`,
-  persists the turn. `tests/test_chat.py` (6 tests). Gate: import OK, **pytest 551 passed / 1 skipped**,
-  both review lenses clean. Curl-testable now. (Non-blocking future polish noted by review:
+  persists the turn. `tests/test_chat.py` (6 tests). Gate: import OK, **green pytest run**
+  (trust the live pass/skip/fail counts; baselines move as tests land), both review lenses clean.
+  Curl-testable now. (Non-blocking future polish noted by review:
   `_select_chat_client` hardcodes `require_tools=True` on the `auto` branch — fail-soft, irrelevant to
   this no-tools endpoint, optional later.)
 - **Slice 2 — Voice I/O frontend (the goosebumps loop). DONE (2026-06-25, product commit `4497a5a`, lab commit `54af438`).**

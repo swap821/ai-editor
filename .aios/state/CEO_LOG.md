@@ -1,3 +1,7 @@
+> **NOTE ON HISTORICAL BASELINES.** Entries before 2026-06-25 quote test counts
+> (e.g., 516, 551, 556) that have since moved. This log is append-only history;
+> the current green bar is always in `RESUME.md` and the live test run.
+
 # CEO_LOG — daily advisory to the AI-OS
 
 > Claude Code, acting as CEO of this project, leaves one dated entry per working

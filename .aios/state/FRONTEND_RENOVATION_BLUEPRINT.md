@@ -1,3 +1,9 @@
+> **SUPERSEDED SNAPSHOT (dated 2026-06-14) — body unchanged, kept as a record.**
+> The UI canon was relaxed on 2026-06-19: geometry, anatomy, shaders, structure, and
+> motion are free to evolve; only palette + textures remain sacred. Test baselines
+> and asset inventories below are stale (trust the live run and `RESUME.md`). Read
+> this for historical intent, then verify against current code.
+
 # FRONTEND RENOVATION BLUEPRINT
 
 > ## SOUL ANCHOR (canonical, operator's exact words — 2026-06-14)

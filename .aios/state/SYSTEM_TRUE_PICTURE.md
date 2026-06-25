@@ -7,6 +7,11 @@
 > importantly — **how it all composes end to end**: a request from the UI → SSE →
 > backend cognition/memory/security → earned-autonomy/swarm → audit chain → back to UI events.
 >
+> **Evolving document.** Authored 2026-06-14. The UI canon was relaxed on 2026-06-19
+> (palette + textures sacred; everything else may evolve). Test counts and some
+> surface inventories are stale; trust the live run and `RESUME.md` for current
+> baselines. The architectural composition described here remains accurate.
+>
 > **Division of authority.** For the backend core (security spine, cognition loop, agent
 > layer, memory, learning), `BACKEND_TRUE_PICTURE.md` remains the source of truth and is
 > not repeated here in full. For the frontend, tooling, tests, config, and the
