@@ -1,23 +1,23 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T08:25:00Z
+Last updated: 2026-06-25T08:40:00Z
 
-## Current Session — P0-2 + P0-5 legacy quarantine ✅ COMPLETE
+## Current Session — P1-6 knowledge-graph recall into forge ✅ COMPLETE
 
-**Goal:** Close the two remaining P0 renovation hazards: quarantine the dead/orphaned legacy tier under `legacy/` and neutralise the misleading `reset_audit_chain.py` no-op on the live audit ledger.
+**Goal:** Close the knowledge-graph gap: make the semantic-fact store traversable and recall relevant approved facts (+ single-hop neighbors) into the agentic forge prompt.
 
 **What happened this session:**
 - Operator authorized autonomous continuation while away.
-- Routed/claimed `p0-5-legacy-quarantine` as builder (Kimi).
-- Discovered P0-5 move to `legacy/` was already performed by an earlier pass; completed the remaining work:
-  - Added `--yes` confirmation guard to `legacy/vector_memory_setup.py` and a warning that it operates on the legacy orphan DB.
-  - Quarantined `legacy/reset_audit_chain.py`: it now prints a clear warning and exits without touching any database, eliminating the misleading "Live ledger reset" no-op on `orchestrator_memory.sqlite`.
-  - Updated `legacy/README.md` to document the quarantined state of both scripts.
-  - Added `tests/test_legacy_quarantine.py` with 4 regression tests verifying the scripts refuse/die safely and do not touch the live audit ledger (`data/aios_audit.db`).
-- Marked P0-2 and P0-5 ✅ done in `.aios/state/RENOVATION_PLAN.md`.
+- Routed/claimed `p1-6-knowledge-graph` as builder (Kimi).
+- Found `traverse()` already existed in `aios/memory/facts.py`; added the missing pieces:
+  - `neighbors(subject)` — active facts adjacent to a node (incoming + outgoing).
+  - `search(query)` — token-based case-insensitive match over subject/object for prompt-time recall.
+- Added `_recall_facts()` in `aios/api/main.py` and wired it into `/api/generate` so the forge memory_context now includes relevant approved facts.
+- Added `tests/test_facts.py` (12 tests) and `tests/test_generate_facts_recall.py` (5 tests).
+- Marked P1-6 ✅ done in `.aios/state/RENOVATION_PLAN.md`.
 
 **Test counts as of this run (trust live count):**
-- Backend: `629 passed, 1 skipped` (Windows symlink privilege; no pytest warning summary).
+- Backend: `646 passed, 1 skipped` (Windows symlink privilege; no pytest warning summary).
 - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
 - Lab: `370 passed`; `npx tsc --noEmit` green.
 - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
@@ -44,18 +44,19 @@ Last updated: 2026-06-25T08:25:00Z
 - [x] P2-5 config robustness (unparseable env-var warnings + startup security banner) implemented, regression-tested, committed, and pushed (`829bdf6`)
 - [x] P0-5 legacy quarantine completed (`legacy/` banner + `--yes` guard on `vector_memory_setup.py` + regression tests)
 - [x] P0-2 `reset_audit_chain.py` misleading no-op neutralised (quarantined/disabled + regression tests)
+- [x] P1-6 knowledge-graph traversal + recall into forge prompt implemented, regression-tested, and documented
 
 ## Single Next Action
-**Commit and push P0-2/P0-5 changes to `master`.**
+**Commit and push P1-6 changes to `master`.**
 
 ## Open Approvals / Blockers
-- `p0-5-legacy-quarantine` task held by Kimi; ready to hand off/release after commit.
+- `p1-6-knowledge-graph` task held by Kimi; ready to release after commit.
 - Frozen core (`aios/security/*`) untouched.
 
 ## Active Files
-- `legacy/reset_audit_chain.py`
-- `legacy/vector_memory_setup.py`
-- `legacy/README.md`
-- `tests/test_legacy_quarantine.py`
+- `aios/memory/facts.py`
+- `aios/api/main.py`
+- `tests/test_facts.py`
+- `tests/test_generate_facts_recall.py`
 - `.aios/state/RESUME.md`
 - `.aios/state/RENOVATION_PLAN.md`

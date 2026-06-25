@@ -1684,6 +1684,54 @@ def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Op
     )
 
 
+
+
+def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
+    """Recall relevant semantic facts (+ single-hop neighbors) for the forge.
+
+    The agentic loop reasons about code and architecture, so it needs the
+    structured, approved facts from the knowledge graph — not just raw chat
+    memory. This block searches active facts whose subject/object appears in
+    the user message, includes one hop of neighbors for context, and renders
+    the result as prompt-ready triples. Empty or failing recall degrades to
+    ``None`` so the turn is never blocked by the fact store.
+    """
+    user_text = (user_text or "").strip()
+    if not user_text:
+        return None
+    try:
+        matched = facts.search(user_text)
+    except Exception as exc:  # noqa: BLE001 - recall is advisory
+        logger.warning("Failed to search semantic facts", exc_info=exc)
+        return None
+    if not matched:
+        return None
+
+    # Collect subjects/objects to expand with single-hop neighbors.
+    nodes: set[str] = set()
+    for row in matched:
+        nodes.add(str(row["subject"]))
+        nodes.add(str(row["object"]))
+
+    expanded: set[tuple[str, str, str]] = set()
+    for row in matched:
+        expanded.add((str(row["subject"]), str(row["predicate"]), str(row["object"])))
+    for node in nodes:
+        try:
+            for row in facts.neighbors(node):
+                expanded.add((str(row["subject"]), str(row["predicate"]), str(row["object"])))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to load neighbors for %s", node, exc_info=exc)
+
+    if not expanded:
+        return None
+    triples = "\n".join(
+        f"- {s} {p} {o}" for s, p, o in sorted(expanded)
+    )
+    return (
+        "RELEVANT APPROVED FACTS (use these; do not invent beyond this graph):\n"
+        + triples
+    )
 def _latest_user(chat_messages: list[dict[str, Any]]) -> str:
     """Return the most recent user message text (already flattened to a string)."""
     for msg in reversed(chat_messages):
@@ -1890,6 +1938,7 @@ def generate(
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
     alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
     alignment_interpreter: Optional[AlignmentInterpreter] = Depends(get_alignment_interpreter),
+    facts: SemanticFacts = Depends(get_semantic_facts),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -2098,6 +2147,19 @@ def generate(
                     "tool": "query_skills",
                     "output": f"Recalled {len(recalled_skills)} verified workflow(s).",
                     "id": "skill-recall",
+                },
+            )
+
+        facts_block = _recall_facts(facts, user_text)
+        if facts_block:
+            context_parts.append(facts_block)
+            yield _sse(
+                "step",
+                {
+                    "type": "tool_result",
+                    "tool": "query_facts",
+                    "output": facts_block[:400],
+                    "id": "fact-recall",
                 },
             )
 

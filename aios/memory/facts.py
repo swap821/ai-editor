@@ -153,6 +153,31 @@ class SemanticFacts:
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
 
+    def neighbors(self, subject: str) -> list[sqlite3.Row]:
+        """Return ACTIVE facts adjacent to *subject* — both outgoing edges
+        (where *subject* is the subject) and incoming edges (where *subject* is
+        the object). This is the single-hop neighborhood used to enrich a recalled
+        fact with its immediate context.
+
+        Example: with facts ``alice --likes--> tea`` and ``bob --knows--> alice``,
+        ``neighbors('alice')`` returns both rows.
+        """
+        subject = (subject or "").strip()
+        if not subject:
+            return []
+        sql = """
+        SELECT subject, predicate, object, 'out' AS direction
+        FROM semantic_facts
+        WHERE subject = ? AND status = 'active'
+        UNION ALL
+        SELECT subject, predicate, object, 'in' AS direction
+        FROM semantic_facts
+        WHERE object = ? AND status = 'active'
+        ORDER BY direction, subject, predicate
+        """
+        with get_connection(self.db_path) as conn:
+            return conn.execute(sql, (subject, subject)).fetchall()
+
     def traverse(self, start: str, max_depth: int = 2) -> list[sqlite3.Row]:
         """Walk the ACTIVE fact graph outward from *start*, following
         ``object -> subject`` links up to *max_depth* hops — the multi-hop
@@ -197,3 +222,33 @@ class SemanticFacts:
         """
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, {"start": start, "max_depth": depth}).fetchall()
+
+    def search(self, query: str) -> list[sqlite3.Row]:
+        """Return ACTIVE facts whose subject or object contains a token from *query*.
+
+        This is a simple, deterministic token match (case-insensitive)
+        intended for prompt-time recall. It is NOT semantic search; the semantic
+        memory layer covers that. Tokens shorter than 3 characters are ignored
+        to avoid noise. Returns deduplicated rows ordered by id DESC.
+        """
+        query = (query or "").strip().lower()
+        tokens = [t for t in set(query.split()) if len(t) >= 3]
+        if not tokens:
+            return []
+        # Build a dynamic OR clause matching any token against subject/object.
+        conditions = " OR ".join(
+            "(lower(subject) LIKE '%' || ? || '%' OR lower(object) LIKE '%' || ? || '%')"
+            for _ in tokens
+        )
+        params = []
+        for token in tokens:
+            params.extend([token, token])
+        sql = f"""
+        SELECT DISTINCT subject, predicate, object
+        FROM semantic_facts
+        WHERE status = 'active'
+          AND ({conditions})
+        ORDER BY id DESC
+        """
+        with get_connection(self.db_path) as conn:
+            return conn.execute(sql, params).fetchall()
