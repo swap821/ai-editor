@@ -149,11 +149,20 @@ Last updated: 2026-06-25T11:25:00Z
 - Moved: `_resolve_local_model`, `_AUTO_IDS`, `_router_policy`, `_build_providers`, `_client_for`, `_maybe_llm_picker`, `_provider_name`, `_active_route`, `_route_metrics`, `_select_chat_client`.
 - Re-exported the same names from `aios/api/main.py` so endpoints and tests keep working without changes.
 - Removed now-unused `catalog_models` and `FailoverChatClient` imports from `aios/api/main.py`.
-- Verified: backend full suite **655 passed, 1 skipped** (up 1 from a new router_wiring import smoke test implicit in the suite); `from aios.api import main` imports cleanly.
-- Committed and pushed as `321a765`.
+- Verified: backend full suite **655 passed, 1 skipped**; `from aios.api import main` imports cleanly.
+- Committed and pushed as `5190874`.
+
+### P2-3 memory forgetting / compaction (audited "sleep")
+- Added env-controlled compaction tunables in `aios/config.py`: unverified chat TTL, episodic TTL, per-type semantic cap, and working-memory idle TTL.
+- Added `VectorIndex.remove()` and `VectorIndex.rebuild_without()` in `aios/memory/embeddings.py` so compaction can clean FAISS vectors for deleted semantic rows.
+- Created `aios/memory/compaction.py` with `MemoryCompactor.preview()` and `MemoryCompactor.compact(dry_run=True)`. Sweeps working (idle sessions), episodic (old rows), and semantic (old unverified chat + per-type caps), leaving verified/superseded rows untouched.
+- Wired `POST /api/v1/memory/compact` in `aios/api/main.py`, defaulting to `dry_run=True` and requiring explicit `dry_run=false` to mutate. Added `compactor.touch_working_session()` calls in `/api/generate` and `/api/v1/chat` so idle TTL is accurate.
+- Each real compaction writes one audit entry under actor `sleep-consolidation` (YELLOW zone).
+- Added `tests/test_memory_compaction.py` with 11 tests covering preview safety, dry-run, working/episodic/semantic deletion, verified-row preservation, vector cleanup, and audit trail behavior.
+- Verified: backend full suite **666 passed, 1 skipped**.
 
 ## Single Next Action
-**P2-7 Phase 2 or P2-3 memory forgetting/compaction:** Phase 2 extracts autonomy/verify/event helpers from `aios/agents/tool_agent.py`, but they are tightly coupled to `ToolAgent` state and likely need a design spec first. P2-3 is a larger design item; I recommend drafting the P2-3 design spec next, then returning to P2-7 Phase 2 once its surface is clear. P3-5 still requires explicit operator go-ahead (frozen security core).
+**P2-7 Phase 2 — backend god-file split (ToolAgent helpers):** extract autonomy-grant, verifier, and event-shaping helpers from `aios/agents/tool_agent.py` into focused modules. Tighter coupling than Phase 1, so read `tool_agent.py` carefully and keep `run()` as the orchestrator. P3-5 still requires explicit operator go-ahead (frozen security core).
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.

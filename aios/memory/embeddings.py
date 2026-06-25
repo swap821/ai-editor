@@ -112,6 +112,27 @@ class VectorIndex:
         with self._lock:
             self._index.add_with_ids(row, ids)
 
+    def remove(self, vector_ids: Sequence[int]) -> None:
+        """Remove the vectors with the given integer ids from the index.
+
+        Silently ignores ids that do not exist. No-op if the index is empty or
+        *vector_ids* is empty.
+        """
+        if not vector_ids or self.size == 0:
+            return
+        ids = np.asarray(list({int(v) for v in vector_ids}), dtype="int64")
+        with self._lock:
+            self._index.remove_ids(ids)
+
+    def rebuild_without(self, vector_ids: Sequence[int]) -> None:
+        """Persist a fresh index that omits the given ids.
+
+        This is a convenience wrapper for compaction callers: it removes the ids
+        and flushes the index atomically.
+        """
+        self.remove(vector_ids)
+        self.persist()
+
     def reload(self) -> None:
         """Reload the latest durable index while the caller holds its write lock."""
         with self._lock:

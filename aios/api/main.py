@@ -91,15 +91,18 @@ from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
+from aios.memory.compaction import MemoryCompactor
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
+from aios.memory.embeddings import VectorIndex
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
+from aios.memory.working import WorkingMemory
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import RateLimiter, Zone, classify
 from aios.security.secret_scanner import scan_and_redact
@@ -479,6 +482,16 @@ def get_memory_consolidator() -> MemoryConsolidator:
     return MemoryConsolidator()
 
 
+def get_compactor() -> MemoryCompactor:
+    """Provide the audited memory-forgetting service backed by live stores."""
+    return MemoryCompactor(
+        working=_WORKING,
+        semantic=_SEMANTIC,
+        episodic=_EPISODIC,
+        index=_VECTOR_INDEX,
+    )
+
+
 def get_conversation_state_store() -> ConversationStateStore:
     """Provide durable, unverified shared-understanding state."""
     return ConversationStateStore()
@@ -509,6 +522,15 @@ class MemorySearchRequest(BaseModel):
 
     query: str = Field(..., description="Natural-language search query.")
     top_k: int = Field(3, ge=1, le=50, description="Number of results to return.")
+
+
+class MemoryCompactRequest(BaseModel):
+    """Body for ``/memory/compact``."""
+
+    dry_run: bool = Field(
+        True,
+        description="When True, preview what would be removed. False performs the sweep.",
+    )
 
 
 class ClassifyRequest(BaseModel):
@@ -828,6 +850,23 @@ def memory_consolidate(
 ) -> dict[str, Any]:
     """Idempotently index current verified lessons and active approved facts."""
     return consolidator.run()
+
+
+@app.post("/api/v1/memory/compact")
+def memory_compact(
+    req: MemoryCompactRequest,
+    compactor: MemoryCompactor = Depends(get_compactor),
+) -> JSONResponse:
+    """Operator-triggered memory compaction (audited "sleep" sweep).
+
+    Defaults to ``dry_run=True`` so the caller MUST explicitly set
+    ``dry_run=false`` to mutate stores. Returns a preview of what would be
+    removed when dry-run is enabled; when disabled, performs the sweep and
+    writes one audit entry under actor ``sleep-consolidation``.
+    """
+    result = compactor.compact(dry_run=req.dry_run)
+    status_code = 200 if req.dry_run else 202
+    return JSONResponse(content=result, status_code=status_code)
 
 
 @app.post("/api/v1/conversation/session")
@@ -1439,6 +1478,15 @@ _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
 #: Episodic (L2) memory facade — the durable, chronological record of every turn.
 _EPISODIC = EpisodicMemory()
 
+#: Working (L1) memory facade — session-scoped RAM-only state.
+_WORKING = WorkingMemory()
+
+#: Semantic (L3) memory facade — durable knowledge chunks + vectors.
+_SEMANTIC = SemanticMemory()
+
+#: FAISS vector index shared with semantic memory.
+_VECTOR_INDEX = _SEMANTIC.index
+
 
 #: System prompt for the lean conversational endpoint (the GAGOS voice mind,
 #: Slice 1). It is CONVERSATION, not the coding forge: no file edits, no tool
@@ -1741,6 +1789,7 @@ def generate(
     alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
     alignment_interpreter: Optional[AlignmentInterpreter] = Depends(get_alignment_interpreter),
     facts: SemanticFacts = Depends(get_semantic_facts),
+    compactor: MemoryCompactor = Depends(get_compactor),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -1784,6 +1833,7 @@ def generate(
         return {"provider": p, "model": m, "task": task}
 
     session_id = req.session_id
+    compactor.touch_working_session(session_id)
     if req.approved_commands or req.approved_edits or req.approved_creations:
         raise HTTPException(
             status_code=400,
@@ -2400,6 +2450,7 @@ def chat(
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     facts: SemanticFacts = Depends(get_semantic_facts),
+    compactor: MemoryCompactor = Depends(get_compactor),
 ) -> StreamingResponse:
     """Stream a lean Hinglish conversational reply (the Jarvis voice mind, Slice 1).
 
@@ -2418,6 +2469,7 @@ def chat(
     completed turn is embedded into L3 (self-reinforcing recall), exactly like
     ``/api/generate``. Best-effort persistence never breaks the chat.
     """
+    compactor.touch_working_session(req.session_id)
     _enforce_conversation_rate_limit(req.session_id)
     user_text = req.transcript.strip()
     if (injection_reason := _check_prompt_injection(user_text)):

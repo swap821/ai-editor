@@ -161,6 +161,28 @@ RETRIEVAL_GAMMA_RECENCY: Final[float] = _env_float("AIOS_GAMMA_RECENCY", 0.30)
 RETRIEVAL_LAMBDA_DECAY_PER_HOUR: Final[float] = _env_float("AIOS_LAMBDA_DECAY", 0.05)
 
 # --------------------------------------------------------------------------- #
+# Memory compaction (audited "sleep") — operator-controlled forgetting.
+# --------------------------------------------------------------------------- #
+#: Unverified semantic chat rows older than this many days are eligible for
+#: removal during compaction. Verified/superseded rows are never touched.
+MEMORY_COMPACT_UNVERIFIED_CHAT_DAYS: Final[float] = _env_float(
+    "AIOS_MEMORY_COMPACT_UNVERIFIED_CHAT_DAYS", 7.0
+)
+#: Episodic rows older than this many days are eligible for removal.
+MEMORY_COMPACT_EPISODIC_DAYS: Final[float] = _env_float(
+    "AIOS_MEMORY_COMPACT_EPISODIC_DAYS", 30.0
+)
+#: Per-type cap for active (non-superseded) semantic rows. Each memory_type is
+#: capped independently, keeping the newest rows by last_seen_at/timestamp.
+MEMORY_COMPACT_SEMANTIC_MAX_PER_TYPE: Final[int] = _env_int(
+    "AIOS_MEMORY_COMPACT_SEMANTIC_MAX_PER_TYPE", 5_000
+)
+#: Working-memory sessions idle longer than this many minutes are dropped.
+MEMORY_COMPACT_WORKING_IDLE_MINUTES: Final[int] = _env_int(
+    "AIOS_MEMORY_COMPACT_WORKING_IDLE_MINUTES", 60
+)
+
+# --------------------------------------------------------------------------- #
 # Procedural-skill "pheromone" dynamics  ->  reinforced trails persist, unused
 # ones evaporate. Mirrors the retrieval recency term but decays far slower: a
 # verified workflow is meant to outlive a single chat memory, so the default
@@ -478,6 +500,10 @@ __all__ = [
     "RETRIEVAL_BETA_FAISS",
     "RETRIEVAL_GAMMA_RECENCY",
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",
+    "MEMORY_COMPACT_UNVERIFIED_CHAT_DAYS",
+    "MEMORY_COMPACT_EPISODIC_DAYS",
+    "MEMORY_COMPACT_SEMANTIC_MAX_PER_TYPE",
+    "MEMORY_COMPACT_WORKING_IDLE_MINUTES",
     "SKILL_LAMBDA_DECAY_PER_HOUR",
     "SKILL_CONFIDENCE_BONUS_MAX",
     "SKILL_REUSE_BOOST_MAX",
