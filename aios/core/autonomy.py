@@ -252,3 +252,11 @@ class AutonomyLedger:
                 "revoked": sum(1 for e in entries if e["status"] == "revoked"),
             },
         }
+
+    def earned_count(self) -> int:
+        """Number of signatures currently in the earned state."""
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM earned_autonomy WHERE status = ?", ("earned",)
+            ).fetchone()
+        return int(row["n"])

@@ -1,0 +1,21 @@
+# Minimal Docker Compose wrapper for the AI-OS API.
+#
+# The container binds to 0.0.0.0 inside the network, so the lifespan policy
+# requires a non-empty AIOS_API_TOKEN of at least 32 characters. Set it in a
+# .env file or in the environment before running:
+#
+#   AIOS_API_TOKEN=<32-char-token> docker compose up --build
+#
+services:
+  aios:
+    build: .
+    ports:
+      - "${AIOS_API_PORT:-8000}:${AIOS_API_PORT:-8000}"
+    environment:
+      - AIOS_API_HOST=0.0.0.0
+      - AIOS_API_PORT=${AIOS_API_PORT:-8000}
+      - AIOS_API_TOKEN=${AIOS_API_TOKEN:-}
+      - AIOS_DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro

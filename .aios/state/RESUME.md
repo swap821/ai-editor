@@ -1,28 +1,36 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-24T12:05:00Z
+Last updated: 2026-06-25T05:05:00Z
 
-## Current Session — P1-4 structured logging + diagnostics
+## Current Session — P1-5 observability surface (`/metrics` + Docker)
 
-**Goal:** Ship structured logging, request/session correlation, and durable audit-tamper alarming.
+**Goal:** Expose AI-OS operational metrics in Prometheus format and ship a minimal container wrapper.
 
 **Verdict: SLICE COMPLETE.**
 
 **What happened this session:**
-- Added `structlog==26.1.0` to `requirements.txt` and created `aios/logging_config.py`.
-- Wired `configure_logging()` into the FastAPI lifespan so every process boots with a stdlib-bound structlog sink.
-- Added `bind_request_context` middleware in `aios/api/main.py`: stamps/echoes `x-request-id`, binds `method`/`path`, and binds `session_id` from JSON request bodies into structlog contextvars.
-- Converted every best-effort `except Exception: pass` block on the turn path into `logger.warning(..., exc_info=exc)` (local model discovery, LLM picker, route metrics, operator facts, episodic memory, recall, indexing, reflection, alignment, development metrics, skill/swarm/curriculum learning, cloud-route audit logging, paused-turn metrics).
-- Added a CRITICAL log in `audit_verify()` when the tamper-evident hash chain fails.
-- Added `tests/test_logging.py` covering request-id middleware (generated + provided), audit-verify CRITICAL tamper alarm, and logging-config idempotency.
-- Updated Tier-1 doc `.aios/state/RENOVATION_PLAN.md` to mark P1-4 ✅ done.
+- Added `prometheus-client==0.21.0` to `requirements.txt`.
+- Created `aios/core/metrics.py` with a dedicated `CollectorRegistry` and gauges/counters for:
+  - `DevelopmentTracker.summary()` (`tasks`, `verified_success_rate`, `verification_coverage`, `human_intervention_rate`, `average_tool_calls`, `blocked_actions`, `lessons`, `repeated_mistakes`)
+  - `aios_approvals_total` and `aios_earned_autonomy_grants_total`
+  - `aios_audit_chain_valid` and `aios_audit_verify_failures_total`
+- Added `/metrics` GET endpoint in `aios/api/main.py` (mounted outside `/api/` so the API-token middleware does not block Prometheus scrapes).
+- Hooked `audit_verify()` to increment the audit-verify-failure counter when tampering is detected.
+- Added `ApprovalStore.grant_count()` and `AutonomyLedger.earned_count()` helpers for cheap metric reads.
+- Added `Dockerfile` and `docker-compose.yml` for a minimal API container; documented the token requirement for non-loopback binds.
+- Added `tests/test_metrics.py` covering endpoint format, development-summary gauges, approval/autonomy counts, and the audit-failure counter + chain-validity gauge.
+- Updated Tier-1 doc `.aios/state/RENOVATION_PLAN.md` to mark P1-5 ✅ done.
 
 **Test counts as of this run (trust live count):**
-- Backend: `603 passed, 1 skipped` (Windows symlink privilege).
+- Backend: `608 passed, 1 skipped` (Windows symlink privilege; one Google genai Pydantic `.copy()` deprecation warning).
 - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
 - Lab: `370 passed`; `npx tsc --noEmit` green (no lab changes).
 - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
-- GitHub Actions `master CI` green on `d046d6e` (run `28146778152`).
+
+## Previous Session — P1-4 structured logging + diagnostics
+- Added `structlog` JSON/dev logging, FastAPI correlation middleware (`x-request-id`, `session_id`), converted swallowed turn-path exceptions to warnings, and added a CRITICAL audit-tamper log.
+- Tests in `tests/test_logging.py`; full backend green at `604 passed, 1 skipped`.
+- GitHub Actions `master CI` green on `ea9e239`.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
@@ -40,20 +48,25 @@ Last updated: 2026-06-24T12:05:00Z
 - [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, documented, and CI-green
 - [x] P0-7 prompt input-shield implemented, regression-tested, and documented
 - [x] P1-4 structured logging + diagnostics implemented, regression-tested, and documented
+- [x] P1-5 observability surface (`/metrics` + Docker) implemented, regression-tested, and documented
 
 ## Single Next Action
 **Wait for the operator's next direction.**
-- P0-3, P1-3, P1-2, P0-7, and P1-4 are closed; GitHub CI will be verified after push.
+- P0-3, P1-3, P1-2, P0-7, P1-4, and P1-5 are closed; GitHub CI will be verified after push.
 - `:5173` and the backend are available for immediate live verification.
-- Ready candidates: P1-5 observability surface (`/metrics` + compose), P1-6 knowledge-graph traversal, P3-2 micro-detail polish, or P0-1 CORS guard.
+- Ready candidates: P1-6 knowledge-graph traversal, P0-1 CORS guard, P3-2 micro-detail polish, or P2-5 config robustness.
 
 ## Open Approvals / Blockers
 - None. Operator gave full go; frozen core (`aios/security/*`) untouched.
 
 ## Active Files
-- `aios/logging_config.py`
+- `aios/core/metrics.py`
 - `aios/api/main.py`
-- `tests/test_logging.py`
+- `aios/core/approvals.py`
+- `aios/core/autonomy.py`
+- `tests/test_metrics.py`
 - `requirements.txt`
+- `Dockerfile`
+- `docker-compose.yml`
 - `.aios/state/RESUME.md`
 - `.aios/state/RENOVATION_PLAN.md`

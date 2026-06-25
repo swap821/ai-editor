@@ -30,7 +30,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -38,7 +38,8 @@ from pydantic import BaseModel, Field
 
 import aios
 from aios import config
-from aios.logging_config import configure_logging, get_logger
+from aios.logging_config import configure_logging, get_logger, session_log_key
+from aios.core.metrics import CONTENT_TYPE_LATEST, MetricsCollector, generate_latest, get_collector
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.role_pass import run_role_pass
@@ -96,6 +97,7 @@ _APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
 
 logger = get_logger(__name__)
+_METRICS = get_collector()
 
 
 @asynccontextmanager
@@ -175,7 +177,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def bind_request_context(request: Request, call_next):
-    """Stamp every request with a correlation id and bind session_id for logs."""
+    """Stamp every request with a correlation id and bind a hashed session id."""
     from structlog.contextvars import bind_contextvars, clear_contextvars
 
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
@@ -193,7 +195,7 @@ async def bind_request_context(request: Request, call_next):
                 if isinstance(payload, dict):
                     session_id = payload.get("sessionId") or payload.get("session_id")
                     if session_id:
-                        bind_contextvars(session_id=session_id)
+                        bind_contextvars(session_id_hash=session_log_key(str(session_id)))
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
         return response
@@ -660,6 +662,25 @@ def health() -> dict[str, Any]:
     return {"status": "ok", "version": aios.__version__}
 
 
+@app.get("/metrics")
+def metrics(
+    tracker: DevelopmentTracker = Depends(get_development_tracker),
+    approvals: ApprovalStore = Depends(get_approval_store),
+    autonomy: AutonomyLedger = Depends(get_autonomy),
+) -> Response:
+    """Prometheus scrapable operational metrics."""
+    _METRICS.update(
+        tracker.summary(),
+        approvals.grant_count(),
+        autonomy.earned_count(),
+        audit_db_path=config.AUDIT_DB_PATH,
+    )
+    return Response(
+        content=generate_latest(_METRICS.registry),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+
+
 def _classify_intent(text: str) -> IntentPreviewResponse:
     """Rule-based intent preview for the command dock."""
     t = text.lower().strip()
@@ -1077,6 +1098,7 @@ def audit_verify(from_entry: int = 1, to_entry: Optional[int] = None) -> dict[st
             reason=status.reason,
             total_entries=status.total_entries,
         )
+        _METRICS.record_audit_verify_failure()
     return asdict(status)
 
 

@@ -7,6 +7,7 @@ optional JSON output.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import sys
@@ -77,3 +78,8 @@ def configure_logging(*, json_format: bool | None = None, level: str | None = No
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """Return a structlog logger bound to the standard-library sink."""
     return structlog.get_logger(name)
+
+
+def session_log_key(session_id: str) -> str:
+    """Return a non-reversible key for caller-supplied session ids in logs."""
+    return hashlib.sha256(session_id.encode("utf-8")).hexdigest()

@@ -510,7 +510,7 @@ def test_route_event_names_the_model_that_served_after_failover(client, monkeypa
     # FailoverChatClient only knows the serving model AFTER its first chat() returns,
     # so the badge is announced lazily from inside the stream, not before the turn.
     from aios.core.llm import LLMError
-    from aios.api.main import get_bedrock_client
+    from aios.api.main import get_bedrock_client, get_gemini_client
     from aios.core.catalog import clear_catalog_cache
 
     class FakeBedrockFailover:
@@ -536,6 +536,8 @@ def test_route_event_names_the_model_that_served_after_failover(client, monkeypa
     monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning", "coding"))  # cloud allowed
     monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)  # deterministic cascade (no picker chat)
     app.dependency_overrides[get_bedrock_client] = lambda: fake
+    # Keep this failover test bedrock-only; real Gemini discovery is irrelevant here.
+    app.dependency_overrides[get_gemini_client] = lambda: None
     clear_catalog_cache()  # the cloud catalog is process-cached; isolate this turn
     try:
         response = client.post(

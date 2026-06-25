@@ -250,6 +250,17 @@ class ApprovalStore:
         with self._lock:
             self._grants.pop(session_id, None)
 
+    def grant_count(self) -> int:
+        """Total number of redeemed approval grants currently on record."""
+        if self.db_path is not None:
+            with self._connect() as conn:
+                self._prune_db(conn)
+                row = conn.execute("SELECT COUNT(*) AS n FROM approval_grants").fetchone()
+            return int(row["n"])
+        with self._lock:
+            self._prune_locked()
+            return sum(len(rows) for rows in self._grants.values())
+
     def _prune_locked(self) -> None:
         now = self._clock()
         expired = [token for token, row in self._pending.items() if row.expires_at < now]

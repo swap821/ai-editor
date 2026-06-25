@@ -58,6 +58,7 @@ setuptools==81.0.0
 shellingham==1.5.4
 six==1.17.0
 structlog==26.1.0
+prometheus-client==0.21.0
 smmap==5.0.3
 starlette==1.2.1
 sympy==1.14.0

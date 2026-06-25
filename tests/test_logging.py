@@ -3,7 +3,7 @@
 Covers the Phase 1-4 logging upgrades:
 
 * Every request receives an ``x-request-id`` correlation header.
-* The middleware binds ``session_id`` from JSON bodies into structlog context.
+* The middleware binds a hashed ``session_id`` from JSON bodies into structlog context.
 * Audit-chain verification emits a CRITICAL log when tampering is detected.
 * Previously swallowed best-effort exceptions on the turn path now warn.
 """
@@ -19,6 +19,7 @@ import structlog
 from fastapi.testclient import TestClient
 
 from aios import logging_config
+from aios.api import main as api_main
 from aios.api.main import app, audit_verify
 from aios.security import audit_logger as audit_mod
 from aios.security.audit_logger import init_audit_db, log_action
@@ -76,6 +77,33 @@ def test_middleware_persists_provided_request_id(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.headers.get("x-request-id") == provided
+
+
+def test_middleware_hashes_session_id_before_logging(
+    caplog,
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    raw_session = "private-session-for-logs"
+    expected_hash = logging_config.session_log_key(raw_session)
+    probe_logger = logging_config.get_logger("tests.logging")
+
+    def _classify_with_log(text: str) -> api_main.IntentPreviewResponse:
+        probe_logger.warning("session context probe")
+        return api_main.IntentPreviewResponse(intent="chat", confidence=1.0, tool=None)
+
+    caplog.set_level(logging.WARNING)
+    monkeypatch.setattr(api_main, "_classify_intent", _classify_with_log)
+
+    response = client.post(
+        "/api/v1/intent/preview",
+        json={"text": "hello", "sessionId": raw_session},
+    )
+
+    assert response.status_code == 200
+    rendered = "\n".join(record.message for record in caplog.records)
+    assert expected_hash in rendered
+    assert raw_session not in rendered
 
 
 def test_audit_verify_logs_critical_when_chain_tampered(
