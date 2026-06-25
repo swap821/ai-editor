@@ -65,7 +65,8 @@ Last updated: 2026-06-25T12:15:00Z
 **TBD — operator to pick next task from RENOVATION_PLAN.md.**
 
 ## Open Approvals / Blockers
-- None. Frozen core (`aios/security/*`) untouched.
+- None blocking. Frozen core (`aios/security/*`) untouched.
+- Agent-coord verdicts for P0-5, P1-6, P1-9 are still pending formal review/approval (work is implemented and pushed; tasks were released as builder).
 
 ## Active Files
 - `.github/workflows/ci.yml`
