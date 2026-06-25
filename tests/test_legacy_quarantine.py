@@ -17,37 +17,52 @@ LIVE_AUDIT_DB = PROJECT_ROOT / "data" / "aios_audit.db"
 
 
 @pytest.mark.parametrize(
-    "script_name,args,expected_code,expected_substring",
+    "script_name,args,expected_code,expected_substring,use_tmp_cwd",
     [
         (
             "reset_audit_chain.py",
             ["--yes"],
             0,
             "QUARANTINED",
+            False,
         ),
         (
             "vector_memory_setup.py",
             [],
             1,
             "Refusing to initialize",
+            False,
         ),
         (
             "vector_memory_setup.py",
             ["--yes"],
             0,
             "Vector Memory Environment",
+            True,
         ),
     ],
 )
-def test_legacy_script_quarantine(script_name, args, expected_code, expected_substring):
+def test_legacy_script_quarantine(script_name, args, expected_code, expected_substring, use_tmp_cwd, tmp_path):
     script = LEGACY_DIR / script_name
     assert script.exists(), f"{script_name} should be quarantined under legacy/"
 
     before_mtime = LIVE_AUDIT_DB.stat().st_mtime if LIVE_AUDIT_DB.exists() else None
 
+    if use_tmp_cwd:
+        # vector_memory_setup.py --yes writes relative files; keep it out of the
+        # project root by copying the script into a temp directory and running it
+        # from there.
+        cwd = tmp_path
+        script_in_tmp = cwd / script.name
+        script_in_tmp.write_text(script.read_text(encoding="utf-8"), encoding="utf-8")
+        executable = str(script_in_tmp)
+    else:
+        cwd = PROJECT_ROOT
+        executable = str(script)
+
     result = subprocess.run(
-        [sys.executable, str(script), *args],
-        cwd=str(PROJECT_ROOT),
+        [sys.executable, executable, *args],
+        cwd=str(cwd),
         capture_output=True,
         text=True,
         timeout=30,
