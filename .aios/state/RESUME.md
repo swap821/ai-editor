@@ -206,8 +206,16 @@ Last updated: 2026-06-25T20:03:04Z
 - Lint on `src/lib/soundEngine.ts` + `src/lib/soundEngine.test.ts` is clean; full-lab lint remains broken on pre-existing issues.
 - **Product port deferred:** the lab tree has extensive uncommitted WIP across the live set; running `npm run port` would sweep all of it into the product. The sound lens itself is test-only and safe to port, but the operator should verify the lab snapshot before the next port.
 
+### P3-2 micro-detail renovation — Interaction Lens implementation (lab)
+- The lab tree already contained most RECOVERED interaction fixes (`:focus-visible`, `aria-pressed` on SOUND/mode rail, `role="status"` on link readout, approval-action token transition, `aria-hidden` ghost-plus affordances, and the removal of `aria-live` from `.source-list`).
+- Added the remaining `:active` press transforms: `.ghost-plus:active` and `.secure-button:active` now translate down 1px, and their transitions include `transform`.
+- Exported `PinChip` from `RegionPins.tsx` and added `src/components/canvas/RegionPins.test.tsx` covering Enter/Space toggle, `aria-expanded`, and history-graph visibility.
+- Lab test suite: **387 passed** (up from 386), zero golden changes.
+- Lint on the touched TS/CSS files is clean; full-lab lint remains broken on pre-existing issues.
+- **Committed in lab** as `1dfc38e`.
+
 ## Single Next Action
-**Re-handoff P3-5 to Codex for final verdict** (the main-repo HEAD will move when this RESUME + the P3-2 plan are committed). After that, decide with the operator whether to **port the sound lens now** (accepting the lab WIP sweep) or **wait for lab stabilization** before porting, then start the next P3-2 lens (interaction/glass/motion) with a fresh spec cycle.
+**Check Codex inbox for P3-5 final verdict.** If it arrives approved, close out P3-5; otherwise re-handoff from current clean HEAD. Then decide with the operator whether to **port the sound+interaction lenses now** (accepting the lab WIP sweep) or **wait for lab stabilization** before porting, then start the next P3-2 lens (glass/motion) with a fresh spec cycle.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**; Codex final verdict pending.
