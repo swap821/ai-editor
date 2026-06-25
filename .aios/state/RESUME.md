@@ -144,8 +144,16 @@ Last updated: 2026-06-25T11:25:00Z
 - Raised `chunkSizeWarningLimit` to 7200 KB to accommodate irreducible Monaco worker chunks without build warnings.
 - Verified: `npm run typecheck` clean; `npm test -- --run` → **56 test files, 337 passed**; `npm run build` exit 0 with no chunk warnings; canon guards clean.
 
+### P2-7 Phase 1 — backend god-file split (router wiring)
+- Extracted the cohesive router-wiring helpers from `aios/api/main.py` into a new focused module `aios/core/router_wiring.py`.
+- Moved: `_resolve_local_model`, `_AUTO_IDS`, `_router_policy`, `_build_providers`, `_client_for`, `_maybe_llm_picker`, `_provider_name`, `_active_route`, `_route_metrics`, `_select_chat_client`.
+- Re-exported the same names from `aios/api/main.py` so endpoints and tests keep working without changes.
+- Removed now-unused `catalog_models` and `FailoverChatClient` imports from `aios/api/main.py`.
+- Verified: backend full suite **655 passed, 1 skipped** (up 1 from a new router_wiring import smoke test implicit in the suite); `from aios.api import main` imports cleanly.
+- Committed and pushed as `321a765`.
+
 ## Single Next Action
-**Pick the next RENOVATION_PLAN.md backlog item:** P2-3 memory forgetting/compaction (needs design), P2-7 backend god-file splits, or P3-2 superbrain micro-detail renovation. P3-5 touches the frozen security core and requires explicit operator go-ahead. I recommend P2-7 as the next concrete structural-debt win.
+**P2-7 Phase 2 or P2-3 memory forgetting/compaction:** Phase 2 extracts autonomy/verify/event helpers from `aios/agents/tool_agent.py`, but they are tightly coupled to `ToolAgent` state and likely need a design spec first. P2-3 is a larger design item; I recommend drafting the P2-3 design spec next, then returning to P2-7 Phase 2 once its surface is clear. P3-5 still requires explicit operator go-ahead (frozen security core).
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.
