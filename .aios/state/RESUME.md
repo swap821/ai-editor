@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-25T11:25:00Z
 
-## Current Session — RENOVATION_PLAN.md burn-down (P1-1 done; proceeding autonomously)
+## Current Session — RENOVATION_PLAN.md burn-down (P1-1, P3-1 done; P1-7 in progress)
 
 **Goal:** Close all open Codex inbox findings and finish doc-currency cleanly.
 
@@ -30,6 +30,17 @@ Last updated: 2026-06-25T11:25:00Z
 **Verified all gates locally:**
 - Backend full suite: `654 passed, 1 skipped`.
 - `git diff --check`: clean (only CRLF conversion warnings).
+
+### P3-1 dead-code cleanup
+- Deleted root cruft: `websocket_security_update.md`, `chat-ui.html`, `creator.txt`, `success.txt`, `.eslintrc.json`.
+- Removed unused `websockets==16.0` pin from `requirements.txt` (no backend code imports it).
+- Trimmed lab `constants.ts` to only `CAMERA` and `POST_FX`; dead `COLORS`, `LAYOUT_CONFIGS`, `SPRING_CONFIGS`, `AIState`, `TIMING`, `LIGHTS`, `PARALLAX`, `DRAG`, and `LayoutContext` removed.
+- Re-ported lab to product; `npm run port` had dropped `previewIntent` and `fetchOnboardingState` from `frontend/src/superbrain/lib/aiosAdapter.ts`, so they were re-added in the lab source and re-ported.
+- Verified: backend `654 passed, 1 skipped`; product `npm run typecheck && npm test -- --run && npm run build` → 54 files, 326 passed, build exit 0; lab tests unchanged at 370 passed.
+- **Committed and pushed** as `COMMIT_SHA` (P3-1 dead-code cleanup + adapter re-add after port).
+
+## Single Next Action
+**Start P1-7 workbench layer polish** — read `RENOVATION_PLAN.md` P1-7 spec, `frontend/src/workbench/GagosChrome.{jsx,css}`, and related ForgePorts/CommandLine/BuildFeed components; implement the polish items; run typecheck + tests + build before committing.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests

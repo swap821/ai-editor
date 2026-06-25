@@ -695,22 +695,6 @@ export function getLastTelemetry(): AiosTelemetry | null {
   return lastTelemetry;
 }
 
-/** Test seam: clear the module's poll memory between test cases. */
-export function __resetAiosAdapterForTests(): void {
-  seenTrailTotals.clear();
-  seenTrailFailures.clear();
-  seenTrailStatus.clear();
-  linkUp = false;
-  knownTrails = [];
-  setPendingApprovalState(null);
-  lastTelemetry = null;
-  pollCount = 0;
-  chainValid = null;
-  chainEntries = 0;
-  lastAutonomy = null;
-  seenAutonomyStatus.clear();
-}
-
 export interface IntentPreview {
   intent: string;
   confidence: number;
@@ -772,6 +756,22 @@ export async function fetchOnboardingState(): Promise<OnboardingState> {
   } catch {
     return empty;
   }
+}
+
+/** Test seam: clear the module's poll memory between test cases. */
+export function __resetAiosAdapterForTests(): void {
+  seenTrailTotals.clear();
+  seenTrailFailures.clear();
+  seenTrailStatus.clear();
+  linkUp = false;
+  knownTrails = [];
+  setPendingApprovalState(null);
+  lastTelemetry = null;
+  pollCount = 0;
+  chainValid = null;
+  chainEntries = 0;
+  lastAutonomy = null;
+  seenAutonomyStatus.clear();
 }
 
 /** Audit hash-chain probe — sampled every few polls (it walks the ledger). */
