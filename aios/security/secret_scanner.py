@@ -31,7 +31,13 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
         "AWS_ACCESS_KEY",
         re.compile(r"(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}"),
     ),
+    # Bedrock API keys (the newer ABSK… shape) often appear raw in logs/adapters.
+    ("AWS_BEDROCK_KEY", re.compile(r"ABSK[A-Za-z0-9]{32,}")),
     ("GITHUB_TOKEN", re.compile(r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}")),
+    # Google API keys (AIza…). Typical length is 39 chars; allow a little slack.
+    ("GOOGLE_API_KEY", re.compile(r"AIza[0-9A-Za-z_-]{30,}")),
+    # Anthropic API keys (sk-ant-api03-…, sk-ant-api04-…, etc.).
+    ("ANTHROPIC_API_KEY", re.compile(r"sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{32,}")),
     ("BEARER_TOKEN", re.compile(r"Bearer\s+[A-Za-z0-9\-._~+/]+=*")),
     (
         "ASSIGNED_SECRET",
@@ -44,7 +50,9 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
 ]
 
 #: Token shape eligible for the entropy pass (base64/hex/url-safe alphabets).
-_ENTROPY_TOKEN = re.compile(r"[A-Za-z0-9+/=_\-]{%d,}" % _ENTROPY_MIN_LEN)
+# ``=`` is intentionally excluded; it is valid base64 padding but including it
+# lets the regex swallow assignment prefixes like ``value=SECRET``.
+_ENTROPY_TOKEN = re.compile(r"[A-Za-z0-9+/\-_]{%d,}" % _ENTROPY_MIN_LEN)
 
 
 @dataclass(frozen=True)
@@ -72,6 +80,20 @@ def shannon_entropy(token: str) -> float:
     )
 
 
+def _credential_like_min_len(token: str) -> int:
+    """Return a minimum length floor tuned to the token's alphabet.
+
+    Smaller alphabets (hex, base32-ish) need more characters to reach the same
+    entropy density, so we require a longer run before treating them as
+    credential-like. Mixed base64/url-safe alphabets get the default floor.
+    """
+    if set(token).issubset(set("0123456789abcdefABCDEF")):
+        return 32
+    if set(token).issubset(set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")):
+        return 26
+    return _ENTROPY_MIN_LEN
+
+
 def scan_and_redact(payload: str) -> ScanResult:
     """Detect and redact secrets in *payload*.
 
@@ -96,7 +118,7 @@ def scan_and_redact(payload: str) -> ScanResult:
     # Pass 2 — high-entropy tokens the named patterns did not already redact.
     def _entropy_replace(match: "re.Match[str]") -> str:
         token = match.group(0)
-        if shannon_entropy(token) >= _ENTROPY_THRESHOLD:
+        if len(token) >= _credential_like_min_len(token) and shannon_entropy(token) >= _ENTROPY_THRESHOLD:
             findings.append("HIGH_ENTROPY")
             return f"<REDACTED:HIGH_ENTROPY:{_fingerprint(token)}>"
         return token

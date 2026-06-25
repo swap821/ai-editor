@@ -229,6 +229,34 @@ def test_plain_english_is_not_flagged_as_secret() -> None:
     assert scan_and_redact("the quick brown fox jumps over the lazy dog").detected is False
 
 
+@pytest.mark.parametrize(
+    "name,token",
+    [
+        ("AWS_BEDROCK_KEY", "ABSK" + "a" * 40),
+        ("GOOGLE_API_KEY", "AIza" + "A" * 35),
+        ("ANTHROPIC_API_KEY", "sk-ant-api03-" + "x" * 40),
+        # Raw bearer without the literal "Bearer " prefix should still be caught.
+        ("OPENAI_API_KEY", "sk-" + "a" * 48),
+        ("GITHUB_TOKEN", "ghp_" + "a" * 36),
+    ],
+)
+def test_secret_scanner_detects_provider_token_formats(name: str, token: str) -> None:
+    result = scan_and_redact(f"leaked {token} in log")
+    assert result.detected is True
+    assert name in result.findings
+    assert token not in result.scrubbed
+    assert f"<REDACTED:{name}:" in result.scrubbed
+
+
+def test_high_entropy_hex_requires_longer_run() -> None:
+    # A short 20-char hex string is too weak to treat as credential-like.
+    short_hex = "0123456789abcdef0123"
+    assert scan_and_redact(f"value={short_hex}").detected is False
+    # A 32-char random hex string clears the alphabet-tuned length floor.
+    long_hex = "0123456789abcdef0123456789abcdef"
+    assert scan_and_redact(f"value={long_hex}").detected is True
+
+
 # --------------------------------------------------------------------------- #
 # Fail-closed guarantee
 # --------------------------------------------------------------------------- #
