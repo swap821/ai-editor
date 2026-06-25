@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-25T11:25:00Z
 
-## Current Session — RENOVATION_PLAN.md burn-down (P1-1, P3-1 done; P1-7 in progress)
+## Current Session — RENOVATION_PLAN.md burn-down (P1-1, P3-1, P1-7, P1-8, P2-1/P2-2, P2-4, P2-8 done)
 
 **Goal:** Close all open Codex inbox findings and finish doc-currency cleanly.
 
@@ -76,7 +76,16 @@ Last updated: 2026-06-25T11:25:00Z
 - Verified: product tests now **334 passed** (up 1), typecheck + build green.
 
 ## Single Next Action
-**Start P2-8 reconcile frontend backend-origin defaults** — read `frontend/src/config.js`, `frontend/src/superbrain/lib/aiosAdapter.ts`, and `frontend/vite.config.js`; unify the default origin to one value and add a test that asserts the unification so the credentialed-CORS invariant is no longer held by an invisible build shim alone.
+**Operator to choose the next major slice.** The small/low-risk RENOVATION items reachable in this autonomous pass are now closed. Remaining backlog:
+- **P2-3** memory forgetting/compaction (backend feature — needs a design/proposal because it touches the memory engine and the verified-never-evicted invariant).
+- **P2-6** perf/assets + manualChunks + self-host Monaco (manualChunks already shipped; specgloss.png removal is blocked by texture-canon guard; Monaco is no longer used in the single-frontend product).
+- **P2-7** split backend god-files (`main.py`/`tool_agent.py` helper extraction).
+- **P3-2** superbrain micro-detail renovation (lab → product, canon-tag + goldens).
+- **P3-3** first-run onboarding cue (GagosChrome coach already exists; scope needs operator call).
+- **P3-4** honest cognition-fault state + ForgePorts debounce (ForgePorts removed; cognition-fault state still relevant).
+- **P3-5** secret-scanner coverage for real token formats — **RED/frozen-core** (`aios/security/secret_scanner.py`) and requires explicit operator review per AGENTS.md §VIII.
+
+I recommend tackling **P3-4** next (small, product-only, no canon risk) or pausing for operator direction before the larger items.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
