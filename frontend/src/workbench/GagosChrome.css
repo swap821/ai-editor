@@ -464,6 +464,25 @@
   opacity: 0.6;
   animation: gagos-pulse 1.4s ease-in-out infinite;
 }
+.gagos-speaker {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 230, 248, 0.8);
+}
+.gagos-speaker:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.gagos-speaker.is-muted {
+  color: rgba(220, 230, 248, 0.35);
+}
+.gagos-speaker.is-speaking {
+  position: relative;
+  background: rgba(123, 245, 251, 0.12);
+  color: #7bf5fb;
+  box-shadow: 0 0 0 1px rgba(123, 245, 251, 0.35), 0 0 18px rgba(123, 245, 251, 0.25);
+}
 .gagos-send {
   width: 44px;
   height: 44px;

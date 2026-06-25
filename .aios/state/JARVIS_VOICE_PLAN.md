@@ -49,9 +49,12 @@ memory loop (brain-growth already evidenced). So the real build is the layers ON
   both review lenses clean. Curl-testable now. (Non-blocking future polish noted by review:
   `_select_chat_client` hardcodes `require_tools=True` on the `auto` branch — fail-soft, irrelevant to
   this no-tools endpoint, optional later.)
-- **Slice 2 — Voice I/O frontend (the goosebumps loop).** Mic capture → STT → Slice-1 endpoint →
-  stream → TTS speak-back → the brain pulses while speaking (a `voice-speaking` bus event). A
-  push-to-talk control in the HUD.
+- **Slice 2 — Voice I/O frontend (the goosebumps loop). DONE (2026-06-24, commit `TBD`).**
+  Mic capture → STT (`rec.lang = 'en-IN'`) → Slice-1 endpoint → stream → `SpeechSynthesis` TTS
+  speak-back → the brain pulses while speaking (`voice-speaking` bus events with `speaking` /
+  `speaking-complete` phases, mapped by `replyVoiceBus`). Push-to-talk mic + speaker mute toggle
+  in `GagosChrome`; mute preference persisted in `localStorage`. Full error-path and unsupported-
+  browser graceful degradation.
 - **Slice 3 — Personalization deepening.** Auto-distill durable facts about the operator from
   conversations (with approval) → richer "model of you" each turn.
 - **Slice 4 — Prompt-writer skill + RAG grounding.** Meta-prompting module + doc retrieval.

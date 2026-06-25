@@ -21,6 +21,9 @@ function ingest(event: { type: string; source?: string; data?: { phase?: string;
   if (p === 'question') { set({ phase: 'idle', text: '', since: nowMs() }); return; }
   if (p === 'reply') { set({ phase: 'streaming', text: String(event.data?.reply ?? ''), since: nowMs() }); return; }
   if (p === 'reply-complete') { set({ phase: 'complete', text: state.text, since: nowMs() }); return; }
+  // Slice 2 TTS loop: the being keeps glowing while the reply is spoken aloud.
+  if (p === 'speaking') { set({ phase: 'streaming', text: String(event.data?.reply ?? state.text), since: nowMs() }); return; }
+  if (p === 'speaking-complete') { set({ phase: 'complete', text: state.text, since: nowMs() }); return; }
   if (p === 'error') { set({ phase: 'error', text: state.text, since: nowMs() }); }
 }
 

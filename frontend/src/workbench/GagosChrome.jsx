@@ -22,6 +22,7 @@ import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
 import { triggerSpineFlash } from './spineFlashBridge';
+import { useVoiceSpeak, setVoiceSpeakMuted } from './voiceSpeak';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
@@ -151,6 +152,23 @@ function SendIcon() {
   );
 }
 
+function SpeakerIcon({ muted }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      {muted ? (
+        <>
+          <line x1="22" y1="9" x2="16" y2="15" />
+          <line x1="16" y1="9" x2="22" y2="15" />
+        </>
+      ) : (
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      )}
+    </svg>
+  );
+}
+
 
 export default function GagosChrome() {
   const [messages, setMessages] = useState([]); // { id, role:'user'|'gagos', text }
@@ -169,6 +187,7 @@ export default function GagosChrome() {
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
   const [verifyToast, setVerifyToast] = useState(null); // { verdict, detail }
+  const voice = useVoiceSpeak();
   const reducedMotion = useReducedMotion();
   // NeuralCommandDock working-dim: the dock yields while the being orchestrates work
   // (content surfaces present) — unless the operator is actively engaging it.
@@ -183,6 +202,7 @@ export default function GagosChrome() {
   const threadRef = useRef(null);
   const inputRef = useRef(null);
   const workTabIdsRef = useRef([]); // accumulated work tabs (orchestration); newest = center focus
+  const isHoldingMicRef = useRef(false);
 
   // Live active-LLM line from the router's `route` cognition events.
   useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
@@ -471,6 +491,7 @@ export default function GagosChrome() {
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
+    rec.lang = 'en-IN';
     rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
@@ -492,17 +513,18 @@ export default function GagosChrome() {
     };
   }, [submit]);
 
-  const toggleMic = useCallback(() => {
-    if (busyRef.current) return;
-    const rec = recognitionRef.current;
-    if (!rec) return;
-    if (listening) {
-      try { rec.stop(); } catch { /* redundant stop */ }
-      return;
-    }
+  const startMic = useCallback(() => {
+    if (busyRef.current || isHoldingMicRef.current) return;
+    isHoldingMicRef.current = true;
     setDraft('');
-    try { rec.start(); } catch { /* already started */ }
-  }, [listening]);
+    try { recognitionRef.current?.start(); } catch { /* already started */ }
+  }, []);
+
+  const stopMic = useCallback(() => {
+    if (!isHoldingMicRef.current) return;
+    isHoldingMicRef.current = false;
+    try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+  }, []);
 
   const canSend = draft.trim().length > 0 && !busy;
 
@@ -678,11 +700,37 @@ export default function GagosChrome() {
             <button
               type="button"
               className={`gagos-btn gagos-mic ${listening ? 'is-listening' : ''}`}
-              onClick={toggleMic}
-              aria-label={listening ? 'Stop listening' : 'Speak to GAGOS'}
-              title="Voice"
+              onPointerDown={(e) => { e.preventDefault(); startMic(); }}
+              onPointerUp={(e) => { e.preventDefault(); stopMic(); }}
+              onPointerLeave={(e) => { e.preventDefault(); stopMic(); }}
+              onKeyDown={(e) => {
+                if (e.repeat) return;
+                if (e.key === ' ' || e.key === 'Enter') {
+                  e.preventDefault();
+                  startMic();
+                }
+              }}
+              onKeyUp={(e) => {
+                if (e.key === ' ' || e.key === 'Enter') {
+                  e.preventDefault();
+                  stopMic();
+                }
+              }}
+              aria-label="Hold to speak to GAGOS"
+              title="Hold to speak"
             >
               <MicIcon />
+            </button>
+          ) : null}
+          {voice.supported ? (
+            <button
+              type="button"
+              className={`gagos-btn gagos-speaker ${voice.muted ? 'is-muted' : ''} ${voice.speaking ? 'is-speaking' : ''}`}
+              onClick={() => setVoiceSpeakMuted(!voice.muted)}
+              aria-label={voice.muted ? 'Unmute Jarvis voice' : 'Mute Jarvis voice'}
+              title={voice.muted ? 'Unmute voice' : 'Mute voice'}
+            >
+              <SpeakerIcon muted={voice.muted} />
             </button>
           ) : null}
           <button

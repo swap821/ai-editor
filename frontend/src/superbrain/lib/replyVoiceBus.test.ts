@@ -22,4 +22,14 @@ describe('replyVoiceBus', () => {
     __ingestVoiceForTests({ type: 'directive', source: 'hud' });
     expect(getReplyVoice().phase).toBe('idle');
   });
+  it('maps TTS speaking phase to streaming and speaking-complete to complete', () => {
+    __ingestVoiceForTests({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Hello' } });
+    __ingestVoiceForTests({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(getReplyVoice().phase).toBe('complete');
+    __ingestVoiceForTests({ type: 'voice-speaking', source: 'gagos', data: { phase: 'speaking', reply: 'Hello' } });
+    expect(getReplyVoice().phase).toBe('streaming');
+    expect(getReplyVoice().text).toBe('Hello');
+    __ingestVoiceForTests({ type: 'voice-speaking', source: 'gagos', data: { phase: 'speaking-complete' } });
+    expect(getReplyVoice().phase).toBe('complete');
+  });
 });

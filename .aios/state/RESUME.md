@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-24T19:53:49Z
+Last updated: 2026-06-25T01:04:25Z
 
 ## SESSION 2026-06-24 — FUSE FRONTEND+BACKEND + FIRST-VIEWER "WOW"
 
@@ -107,11 +107,38 @@ dock / coach feel like they read the operator's mind.
 - [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
 - [x] P1-3 session-id unification verified, regression-tested, and documented
 
+## Continuation — P1-2 Jarvis voice Slice 2 (browser-native MVP)
+- Added browser-native TTS speak-back in `frontend/src/workbench/voiceSpeak.ts`: subscribes to `voice-speaking` cognition events, speaks the final reply on `reply-complete`, cancels on `question`/`stopped`/`error`, prefers `hi-IN`/`en-IN` voices, persists a mute flag, and publishes `speaking`/`speaking-complete` events so the brain keeps glowing while Jarvis talks.
+- Extended `replyVoiceBus.ts` in product and lab to map `speaking` → `streaming` and `speaking-complete` → `complete`; updated both test files.
+- Wired `useVoiceSpeak()` into `GagosChrome.jsx`, added a speaker/mute button, and converted the mic button to push-to-talk (`onPointerDown`/`onPointerUp`/`onPointerLeave` + keyboard fallback); set STT locale to `en-IN`.
+- Added `frontend/src/workbench/voiceSpeak.test.ts` (7 tests) covering unsupported environments, reply-complete speak, cancellation, mute, self-event filtering, speaking-state transitions, and voice preference.
+- Updated Tier-1 docs: `JARVIS_VOICE_PLAN.md` (Slice 2 marked done) and `RENOVATION_PLAN.md` (P1-2 marked ✅ done).
+- Full gates re-run and green:
+  - Backend: `587 passed, 1 skipped`.
+  - Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
+  - Lab: `370 passed`; `npx tsc --noEmit` green.
+  - Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
+
+## Completed
+- [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
+- [x] Frontend adapter helpers for the new endpoints
+- [x] Product-only 3D reactive effects (cloud lightning, verify aurora, worker motes)
+- [x] Backend-driven intent preview in the command dock
+- [x] Milestone-driven onboarding coach
+- [x] Product tests for intent, onboarding, reactive effects, approval reconciliation, session-id resolver, and Jarvis voice loop
+- [x] Live visual pass via kimi-webbridge confirms the dock + coach render correctly
+- [x] Aurora state/decay bug fixed and re-tested
+- [x] All gates green (pytest, vitest product, vitest lab, tsc, vite build, canon guards)
+- [x] First-cloud-route spine-flash hint implemented, tested, live verified, and pushed
+- [x] P0-3 approval single-source-of-truth verified, regression-tested, and documented
+- [x] P1-3 session-id unification verified, regression-tested, and documented
+- [x] P1-2 Jarvis voice Slice 2 (STT + TTS + push-to-talk + mute) implemented, regression-tested, and documented
+
 ## Single Next Action
-**Begin P1-2 — Jarvis voice Slice 2 (browser-native MVP).**
-- P0-3 and P1-3 prerequisites are closed and CI-green.
-- Wire the orphaned Web Speech STT loop to `POST /api/v1/chat`, add TTS speak-back, publish `voice-speaking` cognition events, and add a push-to-talk HUD control.
+**Wait for the operator's next direction.**
+- P0-3, P1-3, and P1-2 are closed; GitHub CI is green.
 - `:5173` and the backend are running for immediate live verification.
+- Ready candidates: P1-4 structured logging, P0-7 prompt input-shield for the voice/chat path, P3-2 micro-detail polish, or Slice 3 personalization deepening.
 
 ## Open Approvals / Blockers
 - None. Operator gave full go; frozen core (`aios/security/*`) untouched.
@@ -131,6 +158,11 @@ dock / coach feel like they read the operator's mind.
 - `frontend/src/workbench/SuperbrainReactiveEffects.test.tsx`
 - `frontend/src/superbrain/lib/aiosAdapter.approval.test.ts`
 - `frontend/src/superbrain/lib/sessionId.test.ts`
+- `frontend/src/workbench/voiceSpeak.ts`
+- `frontend/src/workbench/voiceSpeak.test.ts`
+- `frontend/src/superbrain/lib/replyVoiceBus.ts`
+- `GAG demo/gag-orchestrator/src/lib/replyVoiceBus.ts`
 - `.aios/state/RESUME.md`
 - `.aios/state/FRONTEND_HARMONY_MAP.md`
 - `.aios/state/RENOVATION_PLAN.md`
+- `.aios/state/JARVIS_VOICE_PLAN.md`
