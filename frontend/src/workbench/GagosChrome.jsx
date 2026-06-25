@@ -55,6 +55,8 @@ import SwarmHUD from '../superbrain/components/ui/SwarmHUD';
 import './GagosChrome.css';
 
 const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
+const EXAMPLE_DIRECTIVE = "Try: 'scaffold a FastAPI /health endpoint'";
+const HINT_DISMISSED_KEY = 'gagos-onboarding-hint-dismissed';
 
 const LANG_EXT = {
   python: 'py', py: 'py', javascript: 'js', js: 'js', jsx: 'jsx', typescript: 'ts',
@@ -183,6 +185,7 @@ export default function GagosChrome() {
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [online, setOnline] = useState(true); // honest backend reachability (polled)
   const [onboarded, setOnboarded] = useState(true); // first-run coach dismissed?
+  const [hintDismissed, setHintDismissed] = useState(true); // first-run hint dismissed?
   const [coachStep, setCoachStep] = useState(0);
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
@@ -287,6 +290,15 @@ export default function GagosChrome() {
       setOnboarded(!!window.localStorage.getItem('gagos-onboarded'));
     } catch {
       setOnboarded(true);
+    }
+  }, []);
+
+  // First-run hint: only prompt once; localStorage failure silently opts out.
+  useEffect(() => {
+    try {
+      setHintDismissed(!!window.localStorage.getItem(HINT_DISMISSED_KEY));
+    } catch {
+      setHintDismissed(true);
     }
   }, []);
 
@@ -425,17 +437,31 @@ export default function GagosChrome() {
           } else {
             // No code -> the being is CONVERSING (e.g. asking to clarify). Show its
             // words as a normal reply; never grow an empty/garbage "code" tab.
-            pushMessage('gagos', cleanText(stripAlignmentPreamble(result?.answer)) || '…');
+            const replyText = cleanText(stripAlignmentPreamble(result?.answer));
+            if (replyText) {
+              pushMessage('gagos', replyText);
+            } else {
+              // The work stream completed with neither code nor prose — a partial or
+              // malformed SSE turn. Surface a calm fault instead of pretending silence
+              // is a meaningful answer.
+              pushMessage('gagos', 'COGNITION FAULT: the stream ended before any code or reply arrived.');
+              setConversationPhase('error');
+              publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
+            }
           }
           releaseWorkMaterialization();
         }
-        setConversationPhase('idle'); // the slab's working posture takes the body
+        // If the turn faulted above, the error posture is already set; otherwise
+        // the slab's working posture takes the body back to idle.
+        if (getConversationPhase() !== 'error') {
+          setConversationPhase('idle');
+        }
       } else {
         // CHAT: the reply lives in the BODY (BodySpeech reads these voice-speaking
         // events) — the DOM thread no longer duplicates the GAGOS reply. We still
         // publish the reply chunks (BodySpeech's source) + drive the conversation
         // posture; we just don't render a thread bubble for it.
-        await sendVoiceTurn(text, {
+        const reply = await sendVoiceTurn(text, {
           signal: abortRef.current?.signal,
           onChunk: (partial) => {
             if (turnTokenRef.current !== token) return;
@@ -447,6 +473,15 @@ export default function GagosChrome() {
           },
         });
         if (turnTokenRef.current !== token) return;
+        if (!reply.trim()) {
+          // The stream ended without emitting any text — a partial/malformed SSE
+          // turn. Surface it honestly so the operator knows the mind went quiet
+          // for a reason, distinct from an offline-submit guard.
+          pushMessage('gagos', 'COGNITION FAULT: the stream ended before any reply arrived.');
+          setConversationPhase('error');
+          publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
+          return;
+        }
         setConversationPhase('complete');
       }
       setOnline(true); // a completed turn is proof the backend is reachable
@@ -552,6 +587,11 @@ export default function GagosChrome() {
     setOnboarded(true);
   }, []);
 
+  const dismissHint = useCallback(() => {
+    try { window.localStorage.setItem(HINT_DISMISSED_KEY, '1'); } catch { /* storage may be blocked */ }
+    setHintDismissed(true);
+  }, []);
+
   // Screen-reader narration of the being's live state (the visualization is
   // aria-hidden, so the meaning must survive without sight).
   const statusAnnouncement = !online
@@ -577,6 +617,10 @@ export default function GagosChrome() {
     working: beingWorking,
     reducedMotion,
   });
+
+  // Single first-run hint: appears after the multi-step coach is dismissed so the
+  // two onboarding surfaces never stack on a brand-new operator.
+  const showHint = !hintDismissed && onboarded && messages.length === 0 && !busy;
 
   return (
     <div className="gagos-chrome" aria-label="GAGOS conversation">
@@ -682,7 +726,7 @@ export default function GagosChrome() {
             className="gagos-input"
             type="text"
             value={draft}
-            placeholder={listening ? 'listening…' : 'talk to GAGOS…'}
+            placeholder={listening ? 'listening…' : showHint ? EXAMPLE_DIRECTIVE : 'talk to GAGOS…'}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onChange={(e) => setDraft(e.target.value)}
@@ -750,20 +794,38 @@ export default function GagosChrome() {
           </button>
         </div>
 
-        {!onboarded && messages.length === 0 && !busy ? (
-          <div className="gagos-coach" role="dialog" aria-label="Getting started">
-            {deriveCoachCards(milestones).map((text, i) => (
-              <div key={i} className="gagos-coach__card">
-                <p>{text}</p>
+        {messages.length === 0 && !busy ? (
+          <>
+            {!onboarded ? (
+              <div className="gagos-coach" role="dialog" aria-label="Getting started">
+                {deriveCoachCards(milestones).map((text, i) => (
+                  <div key={i} className="gagos-coach__card">
+                    <p>{text}</p>
+                  </div>
+                ))}
+                <div className="gagos-coach__actions">
+                  <span />
+                  <button type="button" className="gagos-coach__primary" onClick={finishOnboarding}>
+                    Got it
+                  </button>
+                </div>
               </div>
-            ))}
-            <div className="gagos-coach__actions">
-              <span />
-              <button type="button" className="gagos-coach__primary" onClick={finishOnboarding}>
-                Got it
-              </button>
-            </div>
-          </div>
+            ) : null}
+            {showHint ? (
+              <div className="gagos-hint" role="note" aria-label="Onboarding hint">
+                <span className="gagos-hint__text">▣ ORGANS · forge (Ctrl+`)</span>
+                <button
+                  type="button"
+                  className="gagos-hint__dismiss"
+                  onClick={dismissHint}
+                  aria-label="Dismiss onboarding hint"
+                  title="Dismiss onboarding hint"
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </section>
     </div>

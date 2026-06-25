@@ -38,6 +38,7 @@ describe('GagosChrome onboarding coach', () => {
     });
     // Ensure the coach is not already dismissed.
     window.localStorage.removeItem('gagos-onboarded');
+    window.localStorage.removeItem('gagos-onboarding-hint-dismissed');
   });
 
   it('shows the first directive card when no milestones are reached', async () => {
@@ -72,5 +73,73 @@ describe('GagosChrome onboarding coach', () => {
     await waitFor(() => {
       expect(screen.getByText(/pause for your approval/i)).toBeInTheDocument();
     });
+  });
+
+  it('shows the example placeholder and organs hint after the coach is dismissed', async () => {
+    // Coach already dismissed -> hint should appear.
+    window.localStorage.setItem('gagos-onboarded', '1');
+    fetchOnboardingState.mockResolvedValue({
+      firstDirective: false,
+      firstApproval: false,
+      firstVerify: false,
+      firstCloudRoute: false,
+      firstAutonomy: false,
+    });
+
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Try: 'scaffold a FastAPI \/health endpoint'/i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole('note', { name: /Onboarding hint/i })).toBeInTheDocument();
+    expect(screen.getByText(/▣ ORGANS · forge/i)).toBeInTheDocument();
+  });
+
+  it('hides the hint and writes the dismissal flag when the X is clicked', async () => {
+    window.localStorage.setItem('gagos-onboarded', '1');
+    fetchOnboardingState.mockResolvedValue({
+      firstDirective: false,
+      firstApproval: false,
+      firstVerify: false,
+      firstCloudRoute: false,
+      firstAutonomy: false,
+    });
+
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('note', { name: /Onboarding hint/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      screen.getByRole('button', { name: /Dismiss onboarding hint/i }).click();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('note', { name: /Onboarding hint/i })).not.toBeInTheDocument();
+    });
+    expect(window.localStorage.getItem('gagos-onboarding-hint-dismissed')).toBe('1');
+  });
+
+  it('does not show the hint if it was already dismissed', async () => {
+    window.localStorage.setItem('gagos-onboarded', '1');
+    window.localStorage.setItem('gagos-onboarding-hint-dismissed', '1');
+    fetchOnboardingState.mockResolvedValue({
+      firstDirective: false,
+      firstApproval: false,
+      firstVerify: false,
+      firstCloudRoute: false,
+      firstAutonomy: false,
+    });
+
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('note', { name: /Onboarding hint/i })).not.toBeInTheDocument();
+    });
+    expect(screen.getByPlaceholderText(/talk to GAGOS/i)).toBeInTheDocument();
   });
 });

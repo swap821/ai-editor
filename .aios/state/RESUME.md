@@ -75,17 +75,22 @@ Last updated: 2026-06-25T11:25:00Z
 - Added `frontend/src/config.test.ts` asserting `AIOS_BASE === API_BASE` so the credentialed-CORS origin stays unified without relying on an invisible build shim.
 - Verified: product tests now **334 passed** (up 1), typecheck + build green.
 
-## Single Next Action
-**Operator to choose the next major slice.** The small/low-risk RENOVATION items reachable in this autonomous pass are now closed. Remaining backlog:
-- **P2-3** memory forgetting/compaction (backend feature — needs a design/proposal because it touches the memory engine and the verified-never-evicted invariant).
-- **P2-6** perf/assets + manualChunks + self-host Monaco (manualChunks already shipped; specgloss.png removal is blocked by texture-canon guard; Monaco is no longer used in the single-frontend product).
-- **P2-7** split backend god-files (`main.py`/`tool_agent.py` helper extraction).
-- **P3-2** superbrain micro-detail renovation (lab → product, canon-tag + goldens).
-- **P3-3** first-run onboarding cue (GagosChrome coach already exists; scope needs operator call).
-- **P3-4** honest cognition-fault state + ForgePorts debounce (ForgePorts removed; cognition-fault state still relevant).
-- **P3-5** secret-scanner coverage for real token formats — **RED/frozen-core** (`aios/security/secret_scanner.py`) and requires explicit operator review per AGENTS.md §VIII.
+### P3-4 honest cognition-fault state
+- Wired both conversational and work-intent paths in `GagosChrome.jsx` to detect an empty turn completion.
+- Chat path (`sendVoiceTurn`): when the final reply string is empty, push `COGNITION FAULT: the stream ended before any reply arrived.` and drive `conversationPhase` to `'error'` so the body takes its existing fault posture.
+- Work-intent path (`sendDirective`): when the result has neither code nor prose, push `COGNITION FAULT: the stream ended before any code or reply arrived.` and set the error phase; otherwise return to idle.
+- Verified: `npm run typecheck` clean; `npm test -- --run` → **56 test files, 334 passed**; `npm run build` exit 0.
 
-I recommend tackling **P3-4** next (small, product-only, no canon risk) or pausing for operator direction before the larger items.
+### P3-3 first-run onboarding cue
+- Added a single, dismissible, canon-styled hint to `GagosChrome` (product-only).
+- The command input shows a ghost example directive placeholder (`Try: 'scaffold a FastAPI /health endpoint'`) while the conversation is empty and the multi-step coach has been dismissed.
+- A chip below the input points to `▣ ORGANS · forge (Ctrl+\`)`; clicking the `×` writes `gagos-onboarding-hint-dismissed` to `localStorage` and removes the chip.
+- The hint is suppressed automatically after the existing `gagos-onboarded` coach so the two surfaces never stack on a brand-new operator.
+- Styles use canon glass recipe (`backdrop-filter: blur(14px) saturate(140%) brightness(1.08)`) and reduced-motion gating.
+- Verified: `npm run typecheck` clean; `npm test -- --run` → **56 test files, 337 passed** (up 3); `npm run build` exit 0; `tools/check_css_canon.py` clean.
+
+## Single Next Action
+**Implement P2-6 perf/assets + manualChunks + self-host Monaco** — drop the unused `specgloss.png` from the port assets (using `--allow-canon` since it is texture canon but sampled by nothing), add Vite `manualChunks` for react / drei+postprocessing / motion so `BootSequence` paints first, lazy-mount the heavy Canvas subtree, and self-host Monaco by installing `monaco-editor` + configuring the loader so the code editor works offline. Verify typecheck/tests/build/canon before committing.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests

@@ -784,6 +784,72 @@
   .gagos-coach__track { transition: none; }
 }
 
+/* ── First-run hint chip ─────────────────────────────────────────────────
+   Appears after the multi-step coach is dismissed; points the operator at
+   ▣ ORGANS and the forge shortcut without touching the 3D being. */
+.gagos-hint {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 8px 10px 8px 14px;
+  border-radius: 12px;
+  background: rgba(6, 4, 15, 0.55);
+  border: 1px solid rgba(123, 245, 251, 0.12);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  animation: gagos-hint-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.2s backwards;
+}
+.gagos-hint__text {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: rgba(190, 202, 226, 0.78);
+}
+.gagos-hint__dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  color: rgba(190, 202, 226, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.16s ease;
+}
+.gagos-hint__dismiss:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(244, 248, 255, 0.95);
+}
+.gagos-hint__dismiss:active { transform: scale(0.94); }
+.gagos-hint__dismiss:focus-visible {
+  outline: 2px solid rgba(123, 245, 251, 0.6);
+  outline-offset: 2px;
+}
+
+@keyframes gagos-hint-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gagos-hint { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .gagos-hint { margin-top: 10px; padding: 7px 9px 7px 12px; }
+  .gagos-hint__text { font-size: 11.5px; }
+}
+
 /* ── Verify celebration / failure toast ────────────────────────────────────
    A transient status pill that appears near the top-right cluster when a
    verification frame arrives. Green pulse for PASS; red shimmer for FAIL. */
