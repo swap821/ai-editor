@@ -1,8 +1,8 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T11:15:00Z
+Last updated: 2026-06-25T11:25:00Z
 
-## Current Session — P0-4 hotfix + P1-9 cleanup + P1-10 doc-accuracy hotfix ✅ COMPLETE
+## Current Session — RENOVATION_PLAN.md burn-down (P1-1 done; proceeding autonomously)
 
 **Goal:** Close all open Codex inbox findings and finish doc-currency cleanly.
 
@@ -61,6 +61,7 @@ Last updated: 2026-06-25T11:15:00Z
 - [x] P0-4 hotfix: `aios/__main__.py` now reconciles env `AIOS_TRUST_PROXY_HEADERS` and `--proxy-headers` CLI flag into a single `trust_proxy_headers` value passed to both AI-OS policy and uvicorn; added entrypoint regression tests and corrected proxy-token fixture in `tests/test_token_auth_proxy_header.py`
 - [x] P1-10 doc-currency sweep: adopted "report live counts" pattern, reconciled PLAN.md bearer-token contradiction, added superseded banners to dated snapshots, confirmed `frontend/README.md` is project-specific, committed, and pushed (`53b9f08`)
 - [x] P1-10 doc-accuracy hotfix: corrected RENOVATION_PLAN.md P1-9 coverage wording, marked PLAN.md S3/S5 as done, and removed stale hardcoded count from BACKEND_TRUE_PICTURE.md superseded banner
+- [x] P1-1 branch hygiene: fast-forwarded `feat/jarvis-voice`, `feat/frontend-renovation`, and `feat/renovation-p0` to current `master` (`8b9f7d6`) and pushed to origin
 
 ## Single Next Action
 **Operator to choose one of:**
