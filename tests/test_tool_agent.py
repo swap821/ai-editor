@@ -842,7 +842,7 @@ def test_agent_edit_atomic_publish_failure_preserves_original(sandbox, monkeypat
     def fail_replace(*args, **kwargs):
         raise OSError("disk publication failed")
 
-    monkeypatch.setattr("aios.agents.tool_agent.os.replace", fail_replace)
+    monkeypatch.setattr("aios.agents.tool_handlers.os.replace", fail_replace)
     chat = ScriptedChat([
         _tool_call("edit_file", {"filepath": "greeting.txt",
                                  "old_string": "world", "new_string": "there"}),
@@ -1157,7 +1157,7 @@ def test_agent_create_atomic_publish_failure_leaves_target_absent(sandbox, monke
     def fail_link(*args, **kwargs):
         raise OSError("disk publication failed")
 
-    monkeypatch.setattr("aios.agents.tool_agent.os.link", fail_link)
+    monkeypatch.setattr("aios.agents.tool_handlers.os.link", fail_link)
     chat = ScriptedChat([
         _tool_call("create_file", {"filepath": "sub/new.py", "content": "x = 1\n"}),
         {"role": "assistant", "content": "x"},

@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T14:11:45Z
+Last updated: 2026-06-25T18:28:14Z
 
 ## Current Session — RENOVATION_PLAN.md burn-down (P1-1, P3-1, P1-7, P1-8, P2-1/P2-2, P2-4, P2-8 done)
 
@@ -168,8 +168,17 @@ Last updated: 2026-06-25T14:11:45Z
 - Code-quality review follow-up: typed the reflection/confirmation hooks as `FailureHook`/`ConfirmHook` in the helper module (instead of `Optional[Any]`) and removed the unused autonomy-evidence parameter from `format_earned_autonomy_event`.
 - Verified: `tests/test_tool_agent.py` **74 passed**; backend full suite **666 passed, 1 skipped**.
 
+### P2-7 Phase 3 — ToolAgent dispatch handlers
+- Created `aios/agents/tool_handlers.py` and moved all tool-action handlers out of `ToolAgent`:
+  `read_file`, `read_directory`, `edit_file`, `create_file`, `execute_terminal`, `verify_command`, `browse_url`, `plan_task`, `self_analyze`, `propose_fixes`.
+- Moved handler-only private helpers `_resolve_within`, `_atomic_write_text`, `_normalise_sandbox_paths`, and `_format_exec_result` into `tool_handlers.py`.
+- Left `ToolAgent.run()`, `_dispatch`, `_auto_verify`, and `_pre_apply_grants` as the orchestration layer; all handlers are now thin wrappers that pass `self` attributes into the stateless handler functions.
+- Cleaned up imports in `tool_agent.py`; removed now-unused `os`, `ipaddress`, `socket`, `urllib.parse`, `PlannerError`, `SelfAnalysisAgent`, and `scan_and_redact`.
+- Preserved the existing test contract; updated two monkeypatch paths in `tests/test_tool_agent.py` to point at `aios.agents.tool_handlers.os.replace` / `os.link` after `_atomic_write_text` moved.
+- Verified: `tests/test_tool_agent.py` **74 passed**; backend full suite **666 passed, 1 skipped**.
+
 ## Single Next Action
-**P2-7 Phase 3 — backend god-file split (ToolAgent dispatch handlers):** extract the remaining large tool handlers (`_read_file`, `_read_directory`, `_edit_file`, `_create_file`, `_execute`, `_browse`, `_plan`, `_self_analyze`, `_propose_fixes`, `_auto_verify`) into focused handler module(s), leaving `ToolAgent.run()` as the pure orchestrator. Frozen security core (`aios/security/*`) stays untouched.
+**Address Codex P2-3 review blockers:** (1) make `MemoryCompactor`/`last_seen` state shared across requests (singleton or move working-session touch into `WorkingMemory`) so compaction sees live sessions, and (2) replace `IndexIDMap.remove_ids` with a real FAISS rebuild-from-surviving-rows strategy because `remove_ids` is unsupported here. Frozen security core (`aios/security/*`) stays untouched.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.
