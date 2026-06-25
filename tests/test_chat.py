@@ -81,7 +81,7 @@ def chat_setup() -> Iterator[tuple[TestClient, CapturingChatOllama]]:
     app.dependency_overrides[get_gemini_client] = lambda: None
     app.dependency_overrides[get_semantic_indexer] = lambda: indexer
     app.dependency_overrides[get_semantic_facts] = lambda: FakeFacts()
-    with TestClient(app) as test_client:
+    with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client, ollama
     app.dependency_overrides.clear()
 
@@ -145,7 +145,7 @@ def test_chat_injects_operator_facts_when_present() -> None:
     app.dependency_overrides[get_semantic_indexer] = lambda: None
     app.dependency_overrides[get_semantic_facts] = lambda: facts
     try:
-        with TestClient(app) as client:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
             response = client.post("/api/v1/chat", json={"transcript": "yaad hai mujhe?"})
         assert response.status_code == 200
         system_content = ollama.calls[0][0]["content"]

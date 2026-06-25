@@ -137,7 +137,7 @@ def main() -> int:
     clean()
     seed()
     try:
-        with TestClient(app) as client:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
             for attempt in range(1, 4):
                 session_id = f"e2e-{uuid.uuid4().hex[:8]}"
                 print(f"[e2e] attempt {attempt}: session={session_id}")

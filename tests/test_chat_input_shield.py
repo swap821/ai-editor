@@ -71,7 +71,7 @@ def shield_client() -> Iterator[TestClient]:
     app.dependency_overrides[get_gemini_client] = lambda: None
     app.dependency_overrides[get_semantic_indexer] = lambda: None
     app.dependency_overrides[get_semantic_facts] = lambda: _FakeFacts()
-    with TestClient(app) as client:
+    with TestClient(app, client=("127.0.0.1", 12345)) as client:
         yield client
     app.dependency_overrides.clear()
     _CONVERSATION_HITS.clear()

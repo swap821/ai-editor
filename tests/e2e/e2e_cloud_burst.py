@@ -123,7 +123,7 @@ def main() -> int:
         "swarm": True,
     }
 
-    with TestClient(app) as client:
+    with TestClient(app, client=("127.0.0.1", 12345)) as client:
         with client.stream("POST", "/api/generate", json=body) as resp:
             resp.raise_for_status()
             events = parse_sse(resp)

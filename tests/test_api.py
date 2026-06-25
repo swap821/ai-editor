@@ -172,7 +172,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
     get_approval_store().clear()
-    with TestClient(app) as test_client:
+    with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         test_client.fake_indexer = fake_indexer  # exposed for indexing assertions
         yield test_client
     app.dependency_overrides.clear()

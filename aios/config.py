@@ -415,8 +415,16 @@ ROUTER_CALIBRATION_WEIGHT: Final[float] = max(
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 #: Optional bearer token protecting every /api/* route. Required by startup
-#: policy whenever API_HOST is configured beyond loopback.
+#: policy whenever API_HOST is configured beyond loopback, OR whenever the
+#: operator opts into trusting reverse-proxy headers (a proxy in front makes
+#: the loopback exemption unsafe).
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
+#: When True, the server is configured to run behind a trusted reverse proxy
+#: and will honour X-Forwarded-For / X-Forwarded-Proto headers. This disables
+#: the unauthenticated loopback exemption: every request must present
+#: AIOS_API_TOKEN. Set via ``AIOS_TRUST_PROXY_HEADERS=true`` or ``python -m aios
+#: --proxy-headers``.
+TRUST_PROXY_HEADERS: Final[bool] = _env_bool("AIOS_TRUST_PROXY_HEADERS", False)
 #: Browser origins permitted to call the API. Defaults cover the loopback dev
 #: surfaces only: the Vite dev server (:5173), the production-preview/``npm run
 #: showcase`` server (:4173), and the GAG superbrain lab (:3000) used for the
@@ -449,6 +457,7 @@ def startup_banner() -> dict[str, object]:
         "port": API_PORT,
         "token_set": bool(API_TOKEN),
         "token_length": len(API_TOKEN),
+        "trust_proxy_headers": TRUST_PROXY_HEADERS,
         "router_cloud_tasks": list(ROUTER_CLOUD_TASKS),
         "earned_autonomy": EARNED_AUTONOMY_ENABLED,
         "scope_roots": [str(p) for p in SCOPE_ROOTS],
@@ -526,6 +535,7 @@ __all__ = [
     "API_HOST",
     "API_PORT",
     "API_TOKEN",
+    "TRUST_PROXY_HEADERS",
     "API_CORS_ORIGINS",
     "startup_banner",
 ]

@@ -46,7 +46,7 @@ def client(tmp_path: Path, monkeypatch) -> TestClient:
         db_path=tmp_path / "memory.db"
     )
     monkeypatch.setattr("aios.config.AUDIT_DB_PATH", tmp_path / "audit.db")
-    with TestClient(app) as test_client:
+    with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client
     app.dependency_overrides.clear()
 

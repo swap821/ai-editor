@@ -96,7 +96,7 @@ def shield_client() -> Iterator[TestClient]:
     app.dependency_overrides[get_bedrock_client] = lambda: None
     app.dependency_overrides[get_gemini_client] = lambda: None
     app.dependency_overrides[get_alignment_interpreter] = lambda: None
-    with TestClient(app) as client:
+    with TestClient(app, client=("127.0.0.1", 12345)) as client:
         yield client
     app.dependency_overrides.clear()
     _CONVERSATION_HITS.clear()

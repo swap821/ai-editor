@@ -11,6 +11,11 @@ This entrypoint binds EXACTLY ``config.API_HOST`` / ``config.API_PORT`` — the 
 host the lifespan policy checks (``main.py``: a non-loopback host requires a
 >=32-char ``AIOS_API_TOKEN``) — so the bind and the policy can never disagree.
 Launch with ``python -m aios`` (optionally ``--reload`` for dev via the flag below).
+
+P0-4 addition: ``--proxy-headers`` tells uvicorn to trust ``X-Forwarded-For`` /
+``X-Forwarded-Proto`` from a reverse proxy, and disables the unauthenticated
+loopback exemption because the direct peer is now a proxy. Use only when a
+trusted proxy sits in front of AI-OS and always pair it with ``AIOS_API_TOKEN``.
 """
 from __future__ import annotations
 
@@ -28,7 +33,20 @@ def main() -> None:
         action="store_true",
         help="Enable auto-reload (development only).",
     )
+    parser.add_argument(
+        "--proxy-headers",
+        action="store_true",
+        dest="proxy_headers",
+        help=(
+            "Trust X-Forwarded-For / X-Forwarded-Proto headers from a reverse proxy. "
+            "This disables the unauthenticated loopback exemption; AIOS_API_TOKEN is required."
+        ),
+    )
     args = parser.parse_args()
+    if args.proxy_headers:
+        # Runtime override so the lifespan policy and middleware see the same flag
+        # regardless of whether the env var was set before config was imported.
+        config.TRUST_PROXY_HEADERS = True
     # Bind the POLICY host/port (config), never a CLI-supplied host, so the real
     # bind stays in lockstep with the lifespan token policy. The import string +
     # reload combo is required by uvicorn for the reloader to work.
@@ -37,6 +55,7 @@ def main() -> None:
         host=config.API_HOST,
         port=config.API_PORT,
         reload=args.reload,
+        proxy_headers=args.proxy_headers,
     )
 
 

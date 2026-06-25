@@ -105,9 +105,13 @@ async def lifespan(app: FastAPI):
     """Ensure both databases exist before the app serves traffic."""
     configure_logging()
     logger.info("aios_startup_banner", **config.startup_banner())
-    if config.API_HOST not in {"127.0.0.1", "localhost", "::1"}:
+    host_is_loopback = config.API_HOST in {"127.0.0.1", "localhost", "::1"}
+    if not host_is_loopback or config.TRUST_PROXY_HEADERS:
         if not config.API_TOKEN:
-            raise RuntimeError("AIOS_API_TOKEN is required when AIOS_API_HOST is non-loopback")
+            raise RuntimeError(
+                "AIOS_API_TOKEN is required when AIOS_API_HOST is non-loopback "
+                "or when AIOS_TRUST_PROXY_HEADERS is enabled"
+            )
         if len(config.API_TOKEN) < 32:
             raise RuntimeError("AIOS_API_TOKEN must be at least 32 characters for non-loopback use")
     validate_approved_execution_backend()
@@ -204,9 +208,21 @@ async def bind_request_context(request: Request, call_next):
         clear_contextvars()
 
 
+#: Hosts that are allowed to call the API without a token. Starlette's
+#: "testclient" is deliberately NOT included — it must never be a production
+#: backdoor. Tests that need unauthenticated access should use an explicit
+#: loopback client address.
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
-    """Protect API and schema surfaces; keep unauthenticated use loopback-only."""
+    """Protect API and schema surfaces; keep unauthenticated use loopback-only.
+
+    When the operator has configured a trusted reverse proxy, the loopback
+    exemption is disabled entirely: the direct peer may be the proxy, so only
+    a bearer token can authenticate the real client.
+    """
     protected = request.url.path.startswith("/api/") or request.url.path in {
         "/docs",
         "/redoc",
@@ -218,13 +234,18 @@ async def require_api_token(request: Request, call_next):
             expected = f"Bearer {config.API_TOKEN}"
             if not secrets.compare_digest(auth, expected):
                 return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
-        else:
+        elif not config.TRUST_PROXY_HEADERS:
             client_host = request.client.host if request.client else ""
-            if client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+            if client_host not in _LOOPBACK_HOSTS:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "unauthenticated API access is loopback-only"},
                 )
+        else:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "unauthenticated API access is loopback-only"},
+            )
     return await call_next(request)
 
 

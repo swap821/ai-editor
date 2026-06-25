@@ -38,7 +38,7 @@ def _reset_structlog_context():
 def client():
     """A lightweight TestClient with no external subsystem dependencies."""
     app.dependency_overrides.clear()
-    with TestClient(app) as test_client:
+    with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
