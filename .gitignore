@@ -65,3 +65,4 @@ GAG demo/
 .aios/audit/
 .aios/state/vite-escalated-*.log
 .gstack/
+coverage.xml

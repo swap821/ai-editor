@@ -20,6 +20,8 @@ from aios.core.gemini import (
 )
 from aios.core.llm import LLMError
 
+pytestmark = [pytest.mark.cloud]
+
 
 # --- Fakes that mimic the google-genai response/object shape ----------------
 class _FnCall:

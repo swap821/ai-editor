@@ -11,6 +11,8 @@ import pytest
 from aios.core.bedrock import BedrockClient, _parse_output, _to_converse, _to_tool_config
 from aios.core.llm import LLMError
 
+pytestmark = [pytest.mark.cloud]
+
 
 class FakeBedrock:
     """Stub bedrock-runtime: records the converse kwargs, returns a canned reply."""
