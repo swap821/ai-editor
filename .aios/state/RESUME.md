@@ -51,7 +51,7 @@ Last updated: 2026-06-25T09:55:00Z
 - [x] P1-6 knowledge-graph traversal + recall into forge prompt implemented, regression-tested, committed, and pushed
 - [x] P1-9 cross-suite CI + coverage/typecheck gate implemented, regression-tested, committed, and pushed
 - [x] P0-5 hotfix: `tests/test_legacy_quarantine.py` now runs `vector_memory_setup.py --yes` from `tmp_path`
-- [x] P0-4 token-auth proxy-header policy implemented, regression-tested, and documented (`TRUST_PROXY_HEADERS`, `--proxy-headers`, `testclient` removed from production allowlist)
+- [x] P0-4 token-auth proxy-header policy implemented, regression-tested, and documented (`TRUST_PROXY_HEADERS`, `--proxy-headers`, `testclient` removed from production allowlist), committed, and pushed (`2c781c5`)
 
 ## Single Next Action
 **TBD — operator to pick next task from RENOVATION_PLAN.md.**
