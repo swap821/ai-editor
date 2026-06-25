@@ -27,7 +27,7 @@ import {
 } from './swarmHUDStore';
 
 export const AIOS_BASE =
-  process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://127.0.0.1:8000';
+  process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
 
 // Bearer token (optional). Read from the Next-style env in the lab; the product
 // (Vite) build injects the same name via vite.config `define` from

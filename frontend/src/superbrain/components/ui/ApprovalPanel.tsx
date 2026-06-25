@@ -88,17 +88,8 @@ export default function ApprovalPanel({
     });
   }, [onSettled]);
 
-  const describedBy = ['approval-summary', pending.explanation ? 'approval-explanation' : '']
-    .filter(Boolean)
-    .join(' ');
-
   return (
-    <section
-      className="approval-panel"
-      role="alertdialog"
-      aria-label="Operator approval required"
-      aria-describedby={describedBy}
-    >
+    <section className="approval-panel" role="alertdialog" aria-label="Operator approval required">
       <header className="approval-head">
         <span className="approval-title">
           OPERATOR APPROVAL REQUIRED
@@ -107,11 +98,11 @@ export default function ApprovalPanel({
           {pending.kind !== 'other' ? ` · ${pending.kind.toUpperCase()}` : ''}
           {pending.filepath ? ` · ${pending.filepath}` : ''}
         </span>
-        <span id="approval-summary" className="approval-summary">{pending.summary}</span>
+        <span className="approval-summary">{pending.summary}</span>
       </header>
 
       {pending.explanation ? (
-        <p id="approval-explanation" className="approval-explanation">{pending.explanation}</p>
+        <p className="approval-explanation">{pending.explanation}</p>
       ) : null}
 
       {pending.kind === 'browse' && pending.url ? (

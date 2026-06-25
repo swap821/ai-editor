@@ -67,6 +67,13 @@ Last updated: 2026-06-25T11:25:00Z
 - Added a 5-minute TTL to the cloud model catalog cache in `aios/core/catalog.py`; stale entries are dropped and re-discovered so model additions/removals are reflected without a restart.
 - Fixed `FailoverChatClient.on_failover` hook: it now reports the *successful* fallback candidate as the destination, fired only after a later candidate serves the turn (previously it reported the immediately-following candidate, which could itself fail).
 - Verified: backend `654 passed, 1 skipped`; frontend typecheck + 333 tests + build green.
+- **Committed and pushed** as `014e703`.
+
+### P2-8 reconcile frontend backend-origin defaults
+- The lab `aiosAdapter.ts` defaulted to `http://127.0.0.1:8000` while `config.js` defaulted to `http://localhost:8000`; the divergence was only papered over by the Vite `define` shim.
+- Changed the lab default to `http://localhost:8000`, exported `SseFrame`/`readSse` in the lab (to keep parity with the product SSE tests), and re-ported with `npm run port`.
+- Added `frontend/src/config.test.ts` asserting `AIOS_BASE === API_BASE` so the credentialed-CORS origin stays unified without relying on an invisible build shim.
+- Verified: product tests now **334 passed** (up 1), typecheck + build green.
 
 ## Single Next Action
 **Start P2-8 reconcile frontend backend-origin defaults** — read `frontend/src/config.js`, `frontend/src/superbrain/lib/aiosAdapter.ts`, and `frontend/vite.config.js`; unify the default origin to one value and add a test that asserts the unification so the credentialed-CORS invariant is no longer held by an invisible build shim alone.
