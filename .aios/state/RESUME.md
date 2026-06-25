@@ -1,8 +1,8 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T18:39:56Z
+Last updated: 2026-06-25T18:50:47Z
 
-## Current Session — RENOVATION_PLAN.md burn-down (P1-1, P3-1, P1-7, P1-8, P2-1/P2-2, P2-4, P2-8 done)
+## Current Session — RENOVATION_PLAN.md burn-down (P0–P2 complete except pending verdicts; remaining open work: P3-5, P3-2)
 
 **Goal:** Close all open Codex inbox findings and finish doc-currency cleanly.
 
@@ -89,9 +89,6 @@ Last updated: 2026-06-25T18:39:56Z
 - The hint is suppressed automatically after the existing `gagos-onboarded` coach so the two surfaces never stack on a brand-new operator.
 - Styles use canon glass recipe (`backdrop-filter: blur(14px) saturate(140%) brightness(1.08)`) and reduced-motion gating.
 - Verified: `npm run typecheck` clean; `npm test -- --run` → **56 test files, 337 passed** (up 3); `npm run build` exit 0; `tools/check_css_canon.py` clean.
-
-## Single Next Action
-**Implement P2-6 perf/assets + manualChunks + self-host Monaco** — drop the unused `specgloss.png` from the port assets (using `--allow-canon` since it is texture canon but sampled by nothing), add Vite `manualChunks` for react / drei+postprocessing / motion so `BootSequence` paints first, lazy-mount the heavy Canvas subtree, and self-host Monaco by installing `monaco-editor` + configuring the loader so the code editor works offline. Verify typecheck/tests/build/canon before committing.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
@@ -181,11 +178,13 @@ Last updated: 2026-06-25T18:39:56Z
 - Verified: `tests/test_tool_agent.py` **74 passed**; backend full suite **666 passed, 1 skipped**.
 
 ## Single Next Action
-**Hand off the P2-3 blocker fix to Codex for post-hoc review/approval:** send an `agent_coord.py` handoff with the commit hash, green test evidence, and a short note on the singleton + FAISS rebuild changes. After Codex approval, continue with the next RENOVATION_PLAN burn-down item. Frozen security core (`aios/security/*`) stays untouched.
+**Push the doc-currency sync commit and hand it to Codex.** After that, wait for the P2-3 verdict; on approval, the next burn-down item is **P3-5 secret-scanner coverage** (add Bedrock bearer / common provider token patterns, entropy length floor, redaction tests, and env-overridable driver `BASE`). Frozen security core (`aios/security/*`) stays untouched.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.
-- Agent-coord verdicts for P0-5, P1-6, P1-9, P0-4, and P1-10 are pending formal review/approval (work is implemented/handoff; tasks are in `review` or released).
+- P2-3 memory-compaction blocker fix: committed, handoff sent, Codex post-hoc verdict pending.
+- P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
+- P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
 - No remaining builder-blockers. Master is green.
 
 ## Active Files
