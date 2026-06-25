@@ -27,6 +27,7 @@ Last updated: 2026-06-25T12:15:00Z
   - Backend fast subset (`-m "not slow and not cloud"`): green.
   - Backend cloud subset (`-m cloud`): `29 passed`.
   - Frontend: `npm run typecheck` green; `npm test` `326 passed`; `npm run build` green.
+- GitHub Actions CI green on `89b848e`: backend `3m16s`, frontend `1m28s`.
 
 **Test counts as of this run (trust live count):**
 - Backend: `647 passed, 1 skipped` (Windows symlink privilege; coverage `89.50%`).
