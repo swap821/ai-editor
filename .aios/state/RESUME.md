@@ -46,9 +46,16 @@ Last updated: 2026-06-25T11:25:00Z
 - Hardened mic button keyboard/pointer semantics: `disabled={busy}`, `aria-disabled={busy}`, `aria-pressed={listening}`, and keyboard handler ignores activation while busy.
 - Added `aria-pressed` to the speaker mute toggle and explicit `aria-disabled` to the send/stop toggle.
 - Verified: product typecheck + 326 tests + build green; no lab impact (GagosChrome is product-only).
+- **Committed and pushed** as `a9016ea`.
+
+### P1-8 classic IDE approval/control accessibility
+- The classic IDE (`App.jsx` / `App.css`) no longer exists in the product; the single-frontend collapse left only the GAGOS face (`GagosChrome`).
+- The remaining approval surface is `ApprovalPanel.tsx`, which already lives in `superbrain.css` with hover/active/focus-visible styles and inherits the global reduced-motion block.
+- Added an `aria-describedby` link from the `alertdialog` to the `approval-summary` (and `approval-explanation` when present) so screen readers announce the decision context immediately.
+- Verified: product typecheck + 326 tests + build green.
 
 ## Single Next Action
-**Start P1-8 classic IDE approval/control accessibility** — read `RENOVATION_PLAN.md` P1-8 spec, `frontend/src/App.jsx` approval/control inline styles, and `frontend/src/App.css`; extract the inline-style shell into a real stylesheet with canon tokens, then add `:focus-visible`, reduced-motion gating, and one-accent treatment to the approval Run/Reject controls and other JS-only hover/press controls.
+**Start P2-1 test the highest-leverage untested logic** — read `aiosAdapter.ts` `processEvent` / pending-approval reconciliation, identify the SSE parser state machine, write focused unit tests for the parser and reconciliation, and run the frontend test suite before committing.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
