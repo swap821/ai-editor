@@ -60,9 +60,16 @@ Last updated: 2026-06-25T11:25:00Z
 - The SSE parser (`readSse`) was internal and untested. Exported `SseFrame` + `readSse` from `aiosAdapter.ts` and added `frontend/src/superbrain/lib/aiosAdapter.sse.test.ts` with 7 tests covering single frame, multi-frame, split chunks, multi-line data, CRLF stripping, malformed JSON resilience, and unknown-field tolerance.
 - Pending-approval reconciliation is already covered by `aiosAdapter.approval.test.ts` (5 tests).
 - Verified: product tests now **333 passed** (up 7), typecheck + build green.
+- **Committed and pushed** as `8b8ccdd`.
+
+### P2-4 router operational edges
+- Cached cloud chat clients lazily in module singletons (`_bedrock_client`, `_gemini_client`) with locks, so boto3/gcloud credential discovery runs once per process instead of per `Depends` call. Enablement is recomputed per request from raw config values (region/model/project) rather than relying solely on import-time constants.
+- Added a 5-minute TTL to the cloud model catalog cache in `aios/core/catalog.py`; stale entries are dropped and re-discovered so model additions/removals are reflected without a restart.
+- Fixed `FailoverChatClient.on_failover` hook: it now reports the *successful* fallback candidate as the destination, fired only after a later candidate serves the turn (previously it reported the immediately-following candidate, which could itself fail).
+- Verified: backend `654 passed, 1 skipped`; frontend typecheck + 333 tests + build green.
 
 ## Single Next Action
-**Start P2-1 test the highest-leverage untested logic** — read `aiosAdapter.ts` `processEvent` / pending-approval reconciliation, identify the SSE parser state machine, write focused unit tests for the parser and reconciliation, and run the frontend test suite before committing.
+**Start P2-8 reconcile frontend backend-origin defaults** — read `frontend/src/config.js`, `frontend/src/superbrain/lib/aiosAdapter.ts`, and `frontend/vite.config.js`; unify the default origin to one value and add a test that asserts the unification so the credentialed-CORS invariant is no longer held by an invisible build shim alone.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests

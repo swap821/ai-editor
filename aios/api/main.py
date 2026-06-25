@@ -24,6 +24,7 @@ import re
 import secrets
 import sqlite3
 import sys
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -95,6 +96,14 @@ from aios.security.secret_scanner import scan_and_redact
 
 _APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
+
+#: Cloud chat-client singletons. Built lazily and reused across requests so we do
+#: not re-run boto3/gcloud credential discovery on every turn. Enablement is still
+#: checked per request so setting changes take effect without editing this module.
+_bedrock_client: Optional[BedrockClient] = None
+_gemini_client: Optional[GeminiClient] = None
+_bedrock_lock = threading.Lock()
+_gemini_lock = threading.Lock()
 
 logger = get_logger(__name__)
 _METRICS = get_collector()
@@ -267,32 +276,52 @@ def get_ollama_client() -> OllamaClient:
 def get_bedrock_client() -> Optional[BedrockClient]:
     """Provide the AWS Bedrock cloud chat client, or ``None`` when unconfigured.
 
-    Returns ``None`` unless :data:`aios.config.BEDROCK_ENABLED` (region + model
-    set) *and* boto3 is importable — so the agent transparently stays on local
-    inference when the cloud isn't set up. Overridden in tests with a fake.
+    Returns ``None`` unless Bedrock is opted in (region + model set) *and* boto3
+    is importable — so the agent transparently stays on local inference when the
+    cloud isn't set up. Overridden in tests with a fake.
+
+    The client is built lazily and reused across requests; enablement is checked
+    fresh each call (mirrors :func:`_router_policy`).
     """
-    if not config.BEDROCK_ENABLED:
+    global _bedrock_client
+    if not (config.BEDROCK_REGION and config.BEDROCK_MODEL):
         return None
-    try:
-        return BedrockClient()
-    except LLMError:
-        return None
+    if _bedrock_client is not None:
+        return _bedrock_client
+    with _bedrock_lock:
+        if _bedrock_client is not None:
+            return _bedrock_client
+        try:
+            _bedrock_client = BedrockClient()
+        except LLMError:
+            return None
+    return _bedrock_client
 
 
 def get_gemini_client() -> Optional[GeminiClient]:
     """Provide the Google Gemini (Vertex AI) chat client, or ``None`` when unset.
 
-    Returns ``None`` unless :data:`aios.config.GEMINI_ENABLED` (a GCP project is
-    set) *and* the ``google-genai`` SDK is importable — so the agent transparently
-    stays on local/Bedrock inference when Gemini isn't configured. Auth is the
-    laptop's ``gcloud`` ADC; this never touches a key on disk. Overridden in tests.
+    Returns ``None`` unless Gemini is opted in (a GCP project is set) *and* the
+    ``google-genai`` SDK is importable — so the agent transparently stays on
+    local/Bedrock inference when Gemini isn't configured. Auth is the laptop's
+    ``gcloud`` ADC; this never touches a key on disk. Overridden in tests.
+
+    The client is built lazily and reused across requests; enablement is checked
+    fresh each call (mirrors :func:`_router_policy`).
     """
-    if not config.GEMINI_ENABLED:
+    global _gemini_client
+    if not (config.GEMINI_PROJECT and config.GEMINI_MODEL):
         return None
-    try:
-        return GeminiClient()
-    except LLMError:
-        return None
+    if _gemini_client is not None:
+        return _gemini_client
+    with _gemini_lock:
+        if _gemini_client is not None:
+            return _gemini_client
+        try:
+            _gemini_client = GeminiClient()
+        except LLMError:
+            return None
+    return _gemini_client
 
 
 def get_executor() -> Executor:

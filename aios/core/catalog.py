@@ -27,8 +27,11 @@ _LIGHT = ("haiku", "lite", "-mini", "nano", "small", "8b", "1b", "3b")
 #: Capability bump for the operator's configured default — a known-good model the
 #: account can definitely invoke, so cold-start prefers it before evidence exists.
 DEFAULT_BONUS = 20
+#: Re-discover the cloud catalog every 5 minutes so newly enabled models appear and
+#: recently removed models disappear without a process restart.
+CATALOG_TTL_SECONDS = 300
 
-_CACHE: dict[str, list[str]] = {}
+_CACHE: dict[str, tuple[list[str], float]] = {}
 
 
 def cloud_capability(model_id: str) -> int:
@@ -49,11 +52,18 @@ def catalog_models(client: Any, provider_name: str, default_model: str) -> list[
     Always includes *default_model* (first). Falls back to ``[default_model]`` on any
     discovery error/empty — so a turn is never broken by discovery, and a working
     multi-model discovery is cached while a bare fallback is not (a later real
-    discovery can still replace it).
+    discovery can still replace it). The cache expires after ``CATALOG_TTL_SECONDS``
+    so model additions/removals are reflected without a restart.
     """
+    import time
+
+    now = time.time()
     cached = _CACHE.get(provider_name)
     if cached is not None:
-        return cached
+        ids, cached_at = cached
+        if now - cached_at < CATALOG_TTL_SECONDS:
+            return ids
+        _CACHE.pop(provider_name, None)
     ids: list[str] = []
     try:
         for m in client.list_models() or []:
@@ -67,7 +77,7 @@ def catalog_models(client: Any, provider_name: str, default_model: str) -> list[
     if not ids:
         ids = [default_model] if default_model else []
     if len(ids) > 1:  # only cache a real multi-model discovery
-        _CACHE[provider_name] = ids
+        _CACHE[provider_name] = (ids, now)
     return ids
 
 

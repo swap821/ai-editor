@@ -64,23 +64,33 @@ class FailoverChatClient:
         Tries from the current primary forward; the first to succeed becomes (and
         stays) primary. Raises :class:`LLMError` only when **every** remaining
         candidate fails — so the turn rides any single model's outage transparently.
+
+        The optional ``on_failover`` hook is fired only after a later candidate
+        *successfully* serves the turn, and it reports that successful candidate as
+        the destination (never a candidate that itself immediately failed).
         """
         errors: list[tuple[str, str, Exception]] = []
-        for i in range(self._idx, len(self._candidates)):
+        started = self._idx
+        for i in range(started, len(self._candidates)):
             client, m, provider = self._candidates[i]
             try:
                 result = client.chat(messages, tools=tools, model=m)
                 self._idx = i  # stick with the one that worked
+                if self._on_failover and i > started:
+                    # Report every failed hop against the candidate that finally won.
+                    success_provider = self._candidates[i][2]
+                    success_model = self._candidates[i][1]
+                    for failed_provider, failed_model, exc in errors:
+                        try:
+                            self._on_failover(
+                                failed_provider, failed_model, success_provider, success_model, exc
+                            )
+                        except Exception:  # noqa: BLE001 - a hook must never break failover
+                            pass
                 return result
             except LLMError as exc:  # provider outage/throttle/bad-id -> next model
                 errors.append((provider, m, exc))
                 self._idx = min(i + 1, len(self._candidates) - 1)  # forward-only
-                if self._on_failover and i + 1 < len(self._candidates):
-                    nxt = self._candidates[i + 1]
-                    try:
-                        self._on_failover(provider, m, nxt[2], nxt[1], exc)
-                    except Exception:  # noqa: BLE001 - a hook must never break failover
-                        pass
         detail = "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
         raise LLMError(f"all {len(self._candidates)} model candidate(s) failed: {detail}")
 
