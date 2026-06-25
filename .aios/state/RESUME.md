@@ -58,6 +58,7 @@ Last updated: 2026-06-25T12:15:00Z
 - [x] P0-2 `reset_audit_chain.py` misleading no-op neutralised (quarantined/disabled + regression tests)
 - [x] P1-6 knowledge-graph traversal + recall into forge prompt implemented, regression-tested, committed, and pushed (`111e0f3`)
 - [x] P1-9 cross-suite CI + coverage/typecheck gate implemented, regression-tested, committed, and pushed (`47e49c1`)
+- [x] P0-5 hotfix: `tests/test_legacy_quarantine.py` now runs `vector_memory_setup.py --yes` from `tmp_path` so it no longer mutates root `orchestrator_memory.sqlite` / `vector_index.faiss` (`46a92cd`)
 
 ## Single Next Action
 **TBD — operator to pick next task from RENOVATION_PLAN.md.**
