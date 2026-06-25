@@ -222,13 +222,13 @@ Last updated: 2026-06-25T20:03:04Z
 - **Committed in lab** as `27dfb0d`.
 
 ## Single Next Action
-**Re-handoff P3-5 to Codex from the new HEAD** (the lab commit changed main-repo RESUME and will shift HEAD), then check Codex inbox for the final verdict. Once P3-5 closes, ask the operator whether to **port the sound+interaction+glass lenses now** (accepting the lab WIP sweep) or **wait for lab stabilization**, then start the next P3-2 lens (motion) with a fresh spec cycle.
+**Wait for Codex final verdict on P3-5** (fresh handoff 119 / snapshot `ddb85e56` sent from current HEAD 4aac461). Once it lands, ask the operator whether to **port the sound+interaction+glass lenses now** (accepting the lab WIP sweep) or **wait for lab stabilization**, then start the next P3-2 lens (motion) with a fresh spec cycle.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**; Codex final verdict pending.
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
 - Doc-currency sync: Codex requested this correction because the previous RESUME said frozen core was untouched; corrected and re-handed off.
-- P3-5 secret-scanner coverage: operator Section VIII approval granted; lab glass commit shifted main-repo HEAD, so a fresh Codex re-handoff is needed before final sign-off.
+- P3-5 secret-scanner coverage: operator Section VIII approval granted; fresh Codex handoff 119 sent from current HEAD; final verdict pending.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
 - No remaining builder-blockers. Master is green.
