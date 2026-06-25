@@ -221,16 +221,23 @@ Last updated: 2026-06-25T20:03:04Z
 - Lab test suite remains **387 passed**, zero golden changes; lint on the touched CSS file is clean.
 - **Committed in lab** as `27dfb0d`.
 
+### P3-2 micro-detail renovation — Motion Lens implementation (lab)
+- Recovered Fable audit's `motion` lens had remaining mount/boot/reveal gaps after the WIP fixes.
+- Added a shared `fade-enter` keyframe and applied it to `.region-pin-graph` (200ms quart) and `.region-pin` boot entrance (650ms expo, 560ms stagger).
+- Added `.console-surge` boot fade entrance mirroring the left/right console stagger.
+- Added `hud-enter` mount animation to `.approval-panel` (450ms expo).
+- Collapsed all new animations under the existing `@media (prefers-reduced-motion: reduce)` block.
+- Wrote design spec `docs/specs/2026-06-25-p3-2-motion-lens-design.md` and implementation plan `docs/plans/2026-06-25-p3-2-motion-lens.md`.
+- Lab test suite remains **387 passed**, zero golden changes; lint on the touched CSS file is clean.
+- **Committed in lab** as `f83dcc5`.
+
 ## Single Next Action
-**Start the P3-2 Motion Lens** in the GAG lab with a fresh spec → plan → test cycle. The sound/interaction/glass lenses will **stay in the lab for now** because the lab tree still has extensive uncommitted WIP; porting them would sweep all of that into the product.
+**Start the P3-2 Typography Lens** in the GAG lab with a fresh spec → plan → test cycle. The sound/interaction/glass/motion lenses will **stay in the lab for now** because the lab tree still has extensive uncommitted WIP; porting them would sweep all of that into the product.
 
 ## Open Approvals / Blockers
 - **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`.
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**.
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
-- P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
-- P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
-- No remaining builder-blockers. Master is green.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
 - No remaining builder-blockers. Master is green.
