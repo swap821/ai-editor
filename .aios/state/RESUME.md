@@ -1,49 +1,30 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T10:55:00Z
+Last updated: 2026-06-25T11:05:00Z
 
-## Current Session — P0-4 proxy-header hotfix ✅ COMPLETE (pending Codex re-review)
+## Current Session — P0-4 hotfix + P1-9 coverage gate cleanup ✅ COMPLETE (both pending Codex re-review)
 
-**Goal:** Fix the env/CLI inconsistency Codex flagged in the P0-4 token-auth proxy-header policy.
+**Goal:** Close the two open Codex inbox findings before starting new RENOVATION work.
 
-**What happened this session:**
-- Read `RESUME.md`, `warnings.md`, and unread Codex inbox for P0-4.
+### P0-4 proxy-header env/CLI inconsistency
 - Claimed worktree lease for `p0-4-token-auth-proxy-header` as builder.
-- Updated `aios/__main__.py` so the proxy-header trust flag is computed once as `bool(args.proxy_headers or config.TRUST_PROXY_HEADERS)`, stored back into `config.TRUST_PROXY_HEADERS`, and passed identically to `uvicorn.run(..., proxy_headers=...)`.
-- Added entrypoint regression tests in `tests/test_entrypoint.py`:
-  - default (no env, no flag) → `proxy_headers=False`;
-  - `--proxy-headers` flag → `proxy_headers=True` and `config.TRUST_PROXY_HEADERS=True`;
-  - `AIOS_TRUST_PROXY_HEADERS=true` with no CLI flag → `proxy_headers=True` and `config.TRUST_PROXY_HEADERS=True`.
-- Fixed the secondary test gap in `tests/test_token_auth_proxy_header.py`: `test_proxy_headers_trusted_loopback_must_present_token` now uses a dedicated `proxy_token_app` fixture with `TRUST_PROXY_HEADERS=True` instead of the non-proxy `token_app` fixture.
-- Verified all gates locally:
-  - Backend full suite: `654 passed, 1 skipped`; coverage `89.50%` (floor `85%`).
-  - Frontend: `npm run typecheck` green; `npm test -- --run` `326 passed`; `npm run build` green.
+- Updated `aios/__main__.py` to compute one canonical `trust_proxy_headers = bool(args.proxy_headers or config.TRUST_PROXY_HEADERS)`, store it in `config.TRUST_PROXY_HEADERS`, and pass the same value to `uvicorn.run(..., proxy_headers=...)`.
+- Added entrypoint regression tests in `tests/test_entrypoint.py` for default, flag-only, and env-only paths.
+- Fixed `tests/test_token_auth_proxy_header.py` to use a `proxy_token_app` fixture with `TRUST_PROXY_HEADERS=True` for the loopback-must-present-token case.
 
-**What happened this session:**
-- Read `RESUME.md`, `warnings.md`, last ~10 `experiences.jsonl` entries, and `agent_coord.py status` (clean tree, no active writer).
-- Claimed worktree lease for `p1-10-doc-currency-sweep` as builder.
-- Adopted the "report live counts" pattern in living docs:
-  - `README.md` — removed hardcoded `556/65` counts; now instructs readers to trust the live run.
-  - `START_HERE.md` — removed hardcoded `556` from the pytest command comment.
-  - `AGENTS.md` — removed hardcoded `556` from the test baseline note.
-- Reconciled contradictions:
-  - `PLAN.md` top banner now points to live counts + notes current `654/326` as of 2026-06-25.
-  - `PLAN.md` H1 row updated to reflect the adopted live-counts pattern and corrected bearer-token claim.
-  - `PLAN.md` S3 row corrected: `aiosAdapter.ts` now sends `Authorization: Bearer` when `VITE_AIOS_API_TOKEN` is set.
-- Added superseded banners to dated snapshots (body unchanged, kept as records):
-  - `HIDDEN_KNOWLEDGE.md`, `BACKEND_TRUE_PICTURE.md`, `CEO_LOG.md`, `FRONTEND_RENOVATION_BLUEPRINT.md`, `ARCHITECT_REVIEW_2026-06-14.md`.
-  - `SYSTEM_TRUE_PICTURE.md` got an "evolving document" note instead (it remains the canonical whole-system map).
-- Confirmed `frontend/README.md` is already project-specific (GAGOS, the points-being), not stock Vite boilerplate.
-- Verified all gates locally:
-  - Backend full suite: `654 passed, 1 skipped`; coverage `89.49%` (floor `85%`).
-  - Frontend: `npm run typecheck` green; `npm test` `326 passed`; `npm run build` green.
-- Committed the post-sweep RESUME hash update as `7b64b92` and pushed to `master`.
+### P1-9 focused-test coverage gate
+- Claimed worktree lease for `p1-9-ci-typecheck` as builder.
+- Removed `--cov=aios`, coverage report, and `--cov-fail-under=85` from `pytest.ini` `addopts` so focused subsets run cleanly without extra flags.
+- Moved the full-suite coverage gate into `.github/workflows/ci.yml` (the only place it needs to be enforced).
+- Updated `AGENTS.md` to document the local full-suite coverage command and the focused-subset command.
 
-**Test counts as of this run (trust live count):**
-- Backend: `654 passed, 1 skipped` (Windows symlink privilege; coverage `89.49%`).
-- Frontend product: `326 passed`; `vite build` green; `tsc --noEmit` green.
-- Lab: not re-run this session (no lab changes).
-- Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): not re-run this session (no visual changes).
+**Verified all gates locally:**
+- Backend focused subset (`tests/test_entrypoint.py tests/test_token_auth_proxy_header.py -q`): `10 passed` with no `--no-cov` flag.
+- Backend full suite with coverage: `654 passed, 1 skipped`; coverage `89.50%` (floor `85%`).
+- Backend full suite without coverage: `654 passed, 1 skipped`.
+- Frontend product: `npm run typecheck` green; `npm test -- --run` `326 passed`; `npm run build` green.
+- Lab (`GAG demo/gag-orchestrator`): `370 passed`.
+- Canon guards (`check_css_canon.py`, `check_canon_frozen.py`): green.
 
 ## Completed
 - [x] Backend intent-preview endpoint + onboarding-state endpoint + tests
@@ -69,6 +50,7 @@ Last updated: 2026-06-25T10:55:00Z
 - [x] P0-2 `reset_audit_chain.py` misleading no-op neutralised (quarantined/disabled + regression tests)
 - [x] P1-6 knowledge-graph traversal + recall into forge prompt implemented, regression-tested, committed, and pushed
 - [x] P1-9 cross-suite CI + coverage/typecheck gate implemented, regression-tested, committed, and pushed
+- [x] P1-9 cleanup: moved `--cov-fail-under=85` out of `pytest.ini` global addopts and into the CI command so focused test runs succeed without `--no-cov`; updated `AGENTS.md` with the local coverage command
 - [x] P0-5 hotfix: `tests/test_legacy_quarantine.py` now runs `vector_memory_setup.py --yes` from `tmp_path`
 - [x] P0-4 token-auth proxy-header policy implemented, regression-tested, and documented (`TRUST_PROXY_HEADERS`, `--proxy-headers`, `testclient` removed from production allowlist), committed, and pushed (`2c781c5`)
 - [x] P0-4 hotfix: `aios/__main__.py` now reconciles env `AIOS_TRUST_PROXY_HEADERS` and `--proxy-headers` CLI flag into a single `trust_proxy_headers` value passed to both AI-OS policy and uvicorn; added entrypoint regression tests and corrected proxy-token fixture in `tests/test_token_auth_proxy_header.py`
@@ -76,18 +58,16 @@ Last updated: 2026-06-25T10:55:00Z
 
 ## Single Next Action
 **Operator to choose one of:**
-1. Fix P1-9 focused-test coverage gate (Codex post-push finding).
-2. Pick the next RENOVATION_PLAN.md item (P1-7 workbench, P1-8 classic IDE a11y, P2-x, P3-x).
-3. Review/approve the recently landed slices (P0-4, P1-9, P1-10).
+1. Pick the next RENOVATION_PLAN.md item (P1-7 workbench, P1-8 classic IDE a11y, P2-x, P3-x).
+2. Review/approve the recently landed slices (P0-4, P1-9, P1-10).
+3. Continue autonomous backlog burn-down.
 
-I recommend **(1)** because it resolves the remaining open Codex finding before starting new features.
+I recommend **(1)** because the open Codex findings are now addressed and the backlog is ready to advance.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.
-- Agent-coord verdicts for P0-5, P1-6, P1-9, P0-4, and P1-10 are pending formal review/approval (work is implemented; tasks were released as builder).
-- **Remaining open finding:**
-  - **P1-9 cross-suite CI + coverage/typecheck gate:** Codex post-push finding. Global `pytest.ini` coverage `--cov-fail-under=85` causes focused test commands to exit 1 even when targeted tests pass (coverage total is too low). Need to either document "focused tests always use `--no-cov`" or move the coverage gate out of global `addopts` into the full-suite/CI command.
-- This does not block master (CI is green), but should be addressed before P1-9 is considered closed.
+- Agent-coord verdicts for P0-5, P1-6, P1-9, P0-4, and P1-10 are pending formal review/approval (work is implemented/handoff; tasks are in `review` or released).
+- No remaining builder-blockers. Master is green.
 
 ## Active Files
 - `README.md`

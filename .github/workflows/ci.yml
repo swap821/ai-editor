@@ -2,8 +2,8 @@ name: CI
 
 # Cross-suite CI gate: backend pytest with coverage floor + marker discipline,
 # frontend typecheck + unit tests + production build. Mirrors AGENTS.md.
-# pytest.ini enforces --cov=aios --cov-fail-under=85 and strict markers
-# (fast / slow / cloud); this workflow runs the full suite on every push/PR.
+# pytest.ini enforces strict markers (fast / slow / cloud); this workflow runs
+# the full suite on every push/PR and applies the --cov-fail-under=85 gate.
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
           pip install radon
 
       - name: Run test suite with coverage gate
-        run: python -m pytest -q
+        run: python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85
 
   frontend:
     runs-on: ubuntu-latest
