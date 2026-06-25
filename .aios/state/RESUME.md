@@ -194,8 +194,20 @@ Last updated: 2026-06-25T20:03:04Z
 - Wrote `docs/superpowers/specs/2026-06-25-p3-2-sound-lens-design.md` defining the lens scope, test architecture (mock AudioContext + test-only helpers), behavior matrix, and definition of done.
 - Lens workflow: spec → lab test implementation → lab tests green + goldens unchanged → lab commit → `npm run port` → product tests green → operator browser sign-off.
 
+### P3-2 micro-detail renovation — Sound Lens implementation (lab)
+- Added test-only hooks `__resetSoundEngineForTests()` and `__setAudioContextForTests()` to `GAG demo/gag-orchestrator/src/lib/soundEngine.ts`.
+- Added `GAG demo/gag-orchestrator/src/lib/soundEngine.test.ts` with a mock `AudioContext` factory and 16 tests covering:
+  - `startSound` graph construction (master gain, compressor, ambient oscillators, LFO).
+  - Cognition event mapping: `VERIFICATION RED`, `SKILL MASTERED`, `TRAIL WEAKENED`, `AI-OS LINK LOST/ESTABLISHED`, `AUDIT CHAIN BROKEN`, approval sus chord, rejected thud + ambient duck.
+  - Same-frame tick staggering.
+  - `stopSound` fade/release discipline.
+  - State guards: suspended-context drop, idempotent `startSound`, safe pre-start `stopSound`.
+- Lab test suite: **386 passed** (up from 370), zero golden changes.
+- Lint on `src/lib/soundEngine.ts` + `src/lib/soundEngine.test.ts` is clean; full-lab lint remains broken on pre-existing issues.
+- **Product port deferred:** the lab tree has extensive uncommitted WIP across the live set; running `npm run port` would sweep all of it into the product. The sound lens itself is test-only and safe to port, but the operator should verify the lab snapshot before the next port.
+
 ## Single Next Action
-**Re-handoff P3-5 to Codex for final verdict** now that operator Section VIII approval is recorded. In parallel, begin the **P3-2 Sound Lens** implementation plan (unit tests for `soundEngine.ts` in the lab).
+**Re-handoff P3-5 to Codex for final verdict** (the main-repo HEAD will move when this RESUME + the P3-2 plan are committed). After that, decide with the operator whether to **port the sound lens now** (accepting the lab WIP sweep) or **wait for lab stabilization** before porting, then start the next P3-2 lens (interaction/glass/motion) with a fresh spec cycle.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**; Codex final verdict pending.
