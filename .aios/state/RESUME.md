@@ -214,14 +214,21 @@ Last updated: 2026-06-25T20:03:04Z
 - Lint on the touched TS/CSS files is clean; full-lab lint remains broken on pre-existing issues.
 - **Committed in lab** as `1dfc38e`.
 
+### P3-2 micro-detail renovation — Glass Lens implementation (lab)
+- Recovered Fable audit's `glass` lens had one remaining gap: `.region-pin` lacked the shared top specular highlight that `.mode-num` and `.agent-avatar` use for light-from-above consistency.
+- Added `box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08)` to `.region-pin` in `GAG demo/gag-orchestrator/src/app/globals.css`.
+- Wrote design spec `docs/specs/2026-06-25-p3-2-glass-lens-design.md` and implementation plan `docs/plans/2026-06-25-p3-2-glass-lens.md`.
+- Lab test suite remains **387 passed**, zero golden changes; lint on the touched CSS file is clean.
+- **Committed in lab** as `27dfb0d`.
+
 ## Single Next Action
-**Check Codex inbox for P3-5 final verdict.** If it arrives approved, close out P3-5; otherwise re-handoff from current clean HEAD. Then decide with the operator whether to **port the sound+interaction lenses now** (accepting the lab WIP sweep) or **wait for lab stabilization** before porting, then start the next P3-2 lens (glass/motion) with a fresh spec cycle.
+**Re-handoff P3-5 to Codex from the new HEAD** (the lab commit changed main-repo RESUME and will shift HEAD), then check Codex inbox for the final verdict. Once P3-5 closes, ask the operator whether to **port the sound+interaction+glass lenses now** (accepting the lab WIP sweep) or **wait for lab stabilization**, then start the next P3-2 lens (motion) with a fresh spec cycle.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**; Codex final verdict pending.
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
 - Doc-currency sync: Codex requested this correction because the previous RESUME said frozen core was untouched; corrected and re-handed off.
-- P3-5 secret-scanner coverage: code/tests reviewed green; formal approval pending Codex sign-off after operator approval record.
+- P3-5 secret-scanner coverage: operator Section VIII approval granted; lab glass commit shifted main-repo HEAD, so a fresh Codex re-handoff is needed before final sign-off.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
 - No remaining builder-blockers. Master is green.
