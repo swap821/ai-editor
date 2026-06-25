@@ -56,12 +56,12 @@ export interface DirectiveResult {
   answer: string;
 }
 
-interface SseFrame {
+export interface SseFrame {
   event: string;
   data: Record<string, unknown>;
 }
 
-async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<SseFrame> {
+export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<SseFrame> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';

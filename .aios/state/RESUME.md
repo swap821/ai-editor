@@ -53,6 +53,13 @@ Last updated: 2026-06-25T11:25:00Z
 - The remaining approval surface is `ApprovalPanel.tsx`, which already lives in `superbrain.css` with hover/active/focus-visible styles and inherits the global reduced-motion block.
 - Added an `aria-describedby` link from the `alertdialog` to the `approval-summary` (and `approval-explanation` when present) so screen readers announce the decision context immediately.
 - Verified: product typecheck + 326 tests + build green.
+- **Committed and pushed** as `78d7c67`.
+
+### P2-1 / P2-2 — untested adapter logic + organ-fetch dedup
+- The ten `*Port.jsx` organ workbench components no longer exist in the tree (single-frontend collapse), so the `useOrganFetch` extraction is **not applicable**.
+- The SSE parser (`readSse`) was internal and untested. Exported `SseFrame` + `readSse` from `aiosAdapter.ts` and added `frontend/src/superbrain/lib/aiosAdapter.sse.test.ts` with 7 tests covering single frame, multi-frame, split chunks, multi-line data, CRLF stripping, malformed JSON resilience, and unknown-field tolerance.
+- Pending-approval reconciliation is already covered by `aiosAdapter.approval.test.ts` (5 tests).
+- Verified: product tests now **333 passed** (up 7), typecheck + build green.
 
 ## Single Next Action
 **Start P2-1 test the highest-leverage untested logic** — read `aiosAdapter.ts` `processEvent` / pending-approval reconciliation, identify the SSE parser state machine, write focused unit tests for the parser and reconciliation, and run the frontend test suite before committing.
