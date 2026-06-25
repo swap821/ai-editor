@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T11:25:00Z
+Last updated: 2026-06-25T14:11:45Z
 
 ## Current Session — RENOVATION_PLAN.md burn-down (P1-1, P3-1, P1-7, P1-8, P2-1/P2-2, P2-4, P2-8 done)
 
@@ -161,8 +161,15 @@ Last updated: 2026-06-25T11:25:00Z
 - Added `tests/test_memory_compaction.py` with 11 tests covering preview safety, dry-run, working/episodic/semantic deletion, verified-row preservation, vector cleanup, and audit trail behavior.
 - Verified: backend full suite **666 passed, 1 skipped**.
 
+### P2-7 Phase 2 — ToolAgent event-shaping/grant/verify helpers
+- Created `aios/agents/tool_loop_helpers.py` with focused, stateless helpers: `finish_stream`, `format_human_required_event`, `format_earned_autonomy_event`, `grant_earned`, `reflect`, `confirm`, and `format_verifier_result`.
+- Refactored `aios/agents/tool_agent.py` so `ToolAgent._finish`, `_grant_earned`, `_reflect`, `_confirm`, and `_verify` are thin wrappers delegating to the helpers; inline `human_required`/`earned_autonomy` event construction in `run()` now calls the helpers.
+- Preserved the exact public event stream and security/scope logic; no changes to tests.
+- Code-quality review follow-up: typed the reflection/confirmation hooks as `FailureHook`/`ConfirmHook` in the helper module (instead of `Optional[Any]`) and removed the unused autonomy-evidence parameter from `format_earned_autonomy_event`.
+- Verified: `tests/test_tool_agent.py` **74 passed**; backend full suite **666 passed, 1 skipped**.
+
 ## Single Next Action
-**P2-7 Phase 2 — backend god-file split (ToolAgent helpers):** extract autonomy-grant, verifier, and event-shaping helpers from `aios/agents/tool_agent.py` into focused modules. Tighter coupling than Phase 1, so read `tool_agent.py` carefully and keep `run()` as the orchestrator. P3-5 still requires explicit operator go-ahead (frozen security core).
+**P2-7 Phase 3 — backend god-file split (ToolAgent dispatch handlers):** extract the remaining large tool handlers (`_read_file`, `_read_directory`, `_edit_file`, `_create_file`, `_execute`, `_browse`, `_plan`, `_self_analyze`, `_propose_fixes`, `_auto_verify`) into focused handler module(s), leaving `ToolAgent.run()` as the pure orchestrator. Frozen security core (`aios/security/*`) stays untouched.
 
 ## Open Approvals / Blockers
 - Frozen core (`aios/security/*`) untouched.

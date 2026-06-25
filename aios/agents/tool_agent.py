@@ -80,6 +80,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
 from aios import config
+from aios.agents import tool_loop_helpers
 from aios.core.autonomy import AutonomyLedger
 from aios.core.executor import Executor
 from aios.core.llm import LLMClient, LLMError
@@ -765,14 +766,9 @@ class ToolAgent:
                             Zone.YELLOW,
                         )
                         self._grant_earned(name, args)
-                        yield {
-                            "type": "earned_autonomy",
-                            "tool": name,
-                            "command": f"{name.split('_', 1)[0]} {_target}",
-                            "filepath": str(args.get("filepath", "")),
-                            "reason": "earned by verified-success evidence",
-                            "id": call_id,
-                        }
+                        yield tool_loop_helpers.format_earned_autonomy_event(
+                            name, args, call_id
+                        )
                         output, status, failed = self._dispatch(name, args)
                     else:
                         # A caution action the human hasn't authorised yet: pause the
@@ -780,39 +776,9 @@ class ToolAgent:
                         # re-calls /api/generate with the command/edit whitelisted, so
                         # we return here without applying it, recording no assistant
                         # answer (the paused turn is replayed, not continued mid-stream).
-                        event: dict[str, Any] = {
-                            "type": "human_required",
-                            "tool": name,
-                            "command": args.get("command", ""),
-                            "reason": output,
-                            "id": call_id,
-                        }
-                        if name == "edit_file":
-                            # Surface the edit + its unified diff for the approval UI,
-                            # and the full triple so the frontend can re-send it as an
-                            # approved edit (the edit analog of approved_commands).
-                            event["command"] = f"edit {args.get('filepath', '')}"
-                            event["filepath"] = str(args.get("filepath", ""))
-                            event["diff"] = output
-                            event["edit"] = {
-                                "filepath": str(args.get("filepath", "")),
-                                "old_string": str(args.get("old_string", "")),
-                                "new_string": str(args.get("new_string", "")),
-                            }
-                        elif name == "create_file":
-                            # Surface the new file + its all-additions diff for the UI,
-                            # and the {filepath, content} pair so the frontend can re-send
-                            # it as an approved creation (the create analog of an edit).
-                            event["command"] = f"create {args.get('filepath', '')}"
-                            event["filepath"] = str(args.get("filepath", ""))
-                            event["diff"] = output
-                            event["creation"] = {
-                                "filepath": str(args.get("filepath", "")),
-                                "content": str(args.get("content", "")),
-                            }
-                        elif name == "browse":
-                            event["command"] = f"browse {args.get('url', '')}"
-                        yield event
+                        yield tool_loop_helpers.format_human_required_event(
+                            name, args, output, call_id
+                        )
                         return
                 if status == "blocked":
                     yield {
@@ -871,15 +837,9 @@ class ToolAgent:
         forced-verify sequence in ``_create_file``/``_edit_file`` unchanged. Only
         writes are earnable in v1.
         """
-        if name == "create_file":
-            self.approved_creations[str(args.get("filepath", ""))] = str(
-                args.get("content", "")
-            )
-        elif name == "edit_file":
-            self.approved_edits[str(args.get("filepath", ""))] = (
-                str(args.get("old_string", "")),
-                str(args.get("new_string", "")),
-            )
+        tool_loop_helpers.grant_earned(
+            name, args, self.approved_edits, self.approved_creations
+        )
 
     def _pre_apply_grants(self, convo: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
         """Apply granted-but-unlanded writes through the same gated paths.
@@ -946,46 +906,26 @@ class ToolAgent:
         pending_lessons: list[tuple[int, str]],
     ) -> Iterator[dict[str, Any]]:
         """Run the failure hook, track the lesson id, and surface it as a step."""
-        try:
-            lesson = self.on_failure(command, error_output)  # type: ignore[misc]
-        except Exception:  # noqa: BLE001 - reflection must never break the loop
-            lesson = None
-        if not lesson:
-            return
-        mistake_id = lesson.get("mistake_id")
-        if isinstance(mistake_id, int):
-            pending_lessons.append((mistake_id, command))
-        summary = f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
-        if lesson.get("recurrence"):
-            summary = f"(recurring) {summary}"
-        yield {
-            "type": "tool_result",
-            "tool": "reflect",
-            "output": summary[:_PREVIEW_LIMIT],
-            "id": f"reflect-{index}",
-        }
+        yield from tool_loop_helpers.reflect(
+            command,
+            error_output,
+            index,
+            pending_lessons,
+            self.on_failure,
+            preview_limit=_PREVIEW_LIMIT,
+        )
 
     def _confirm(
         self, pending_lessons: list[tuple[int, str]], command: str, index: int
     ) -> Iterator[dict[str, Any]]:
         """Promote lessons only after their exact failed command succeeds."""
-        promoted = [mistake_id for mistake_id, failed in pending_lessons if failed == command]
-        pending_lessons[:] = [
-            item for item in pending_lessons if item[1] != command
-        ]
-        if self.confirm_lesson is None or not promoted:
-            return
-        for mistake_id in promoted:
-            try:
-                self.confirm_lesson(mistake_id)
-            except Exception:  # noqa: BLE001 - confirmation must never break the loop
-                pass
-        yield {
-            "type": "tool_result",
-            "tool": "reflect",
-            "output": f"Verified {len(promoted)} earlier lesson(s) — the fix worked.",
-            "id": f"verify-{index}",
-        }
+        yield from tool_loop_helpers.confirm(
+            pending_lessons,
+            command,
+            index,
+            self.confirm_lesson,
+            preview_limit=_PREVIEW_LIMIT,
+        )
 
     def _auto_verify(
         self, filepath: str, index: int, convo: list[dict[str, Any]],
@@ -1069,15 +1009,11 @@ class ToolAgent:
     # ----------------------------------------------------------------- finish
     def _finish(self, content: str) -> Iterator[dict[str, Any]]:
         """Stream a final answer word-by-word, then surface any code block."""
-        text = content.strip() or "(no answer)"
-        for word in re.findall(r"\S+\s*", text):
-            yield {"type": "text", "text": word}
-        match = _CODE_FENCE.search(text)
-        if match:
-            code = match.group(2).rstrip("\n")
-            if code.strip():
-                yield {"type": "code", "code": code, "language": match.group(1) or "text"}
-        yield {"type": "done"}
+        yield from tool_loop_helpers.finish_stream(
+            content,
+            code_fence=_CODE_FENCE,
+            preview_limit=_PREVIEW_LIMIT,
+        )
 
     # --------------------------------------------------------------- dispatch
     def _dispatch(self, name: str, args: dict[str, Any]) -> tuple[str, str, bool]:
@@ -1427,18 +1363,10 @@ class ToolAgent:
                 False,
             )
 
-        verdict = "PASS" if result.passed else "FAIL"
-        exit_str = "?" if result.exit_code is None else str(result.exit_code)
-        header = (
-            f"[VERIFY {verdict}] {result.passed_count} passed, "
-            f"{result.failed_count} failed (exit {exit_str})"
-        )
-        body = result.summary.strip()
-        output = f"{header}\n{body}" if body else header
         # The Verifier already fired on_failure on a genuine failure; run() reflects
         # only for execute_terminal, so `failed` here is informational (it cannot
         # re-trigger reflection) — carried for the loop's tool-result shape.
-        return (output, "ok", not result.passed)
+        return tool_loop_helpers.format_verifier_result(result)
 
     def _browse(self, url: str) -> tuple[str, str, bool]:
         """Fetch a public URL and return extracted main text.
