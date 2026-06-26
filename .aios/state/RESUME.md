@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-25T20:03:04Z
+Last updated: 2026-06-26T04:25:00Z
 
 ## Current Session — RENOVATION_PLAN.md burn-down (P2-3 approved; P3-5 operator-approved, Codex verdict pending; remaining open work: P3-2)
 
@@ -241,13 +241,15 @@ Last updated: 2026-06-25T20:03:04Z
   - Unified secure-button case: visible label `'Supervised' → 'SUPERVISED'` and added `letter-spacing: 0.08em`.
   - Unified section-label weights: `.objective-head`, `.agent-heading span`, `.terminal-log span` now `font-weight: 510`.
 - Verified: lab tests **387 passed**, goldens unchanged, JSX lint clean (3 pre-existing warnings).
-- **Committed in lab** as `6425aff`, `3dda141`, `336506e`, `5ff0c16`, `deebe9e`.
-- Handed off to Claude as builder→reviewer (message_id 122 / snapshot `2c95b1f7`).
+- **Committed in lab** as `6425aff`, `3dda141`, `336506e`, `11274ce`, `530ad05`, `e18bda5`, `deebe9e`.
+  - Note: original `5ff0c16` accidentally included unrelated `SuperbrainHUD.tsx` WIP; reverted via `11274ce` and re-applied the secure-button changes cleanly as `530ad05` (CSS `letter-spacing: 0.08em`) and `e18bda5` (visible label `'Supervised' → 'SUPERVISED'`).
+  - The unrelated `SuperbrainHUD.tsx` WIP has been restored as uncommitted lab changes.
+- Handoff 122 to Claude has been **retracted**; fresh handoff **123** sent to Claude from clean lab HEAD `e18bda5` / snapshot `29b1129a`.
 - Root documentation/spec/RESUME/experience commits: `8a7e042`, `3d484a2`, `a79fe4c`, `1bc0ce8`, `6919d13`.
-- Product port deferred until the lab WIP snapshot is verified.
+- Product port deferred until the lab WIP snapshot is verified and the lens receives a clean review verdict.
 
 ## Single Next Action
-**Await Claude's review verdict** on the P3-2 Typography Lens, then decide whether to port the accumulated lab lenses (sound/interaction/glass/motion/typography) to product in one coordinated sweep or continue with the next RENOVATION_PLAN item.
+**Await Claude's review verdict** on the P3-2 Typography Lens (handoff 123 / snapshot `29b1129a`); do not port the lab lenses until approved. After approval, decide whether to port the accumulated lab lenses (sound/interaction/glass/motion/typography) to product in one coordinated sweep or continue with the next RENOVATION_PLAN item.
 
 ## Open Approvals / Blockers
 - **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`.
@@ -255,6 +257,7 @@ Last updated: 2026-06-25T20:03:04Z
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
+- **P3-2 Typography Lens:** original handoff 122 retracted after a contaminated commit (`5ff0c16`) was reverted and replaced with clean commits `530ad05` + `e18bda5`; fresh handoff **123** to Claude is now in review (snapshot `29b1129a`).
 - No remaining builder-blockers. Master is green.
 
 ## Active Files
