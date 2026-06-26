@@ -462,6 +462,10 @@ API_CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
     ).split(",")
     if o.strip()
 )
+#: Base URL for operator-authorized probe / curriculum-evidence drivers.
+#: Defaults to the loopback dev server; override via ``AIOS_PROBE_BASE`` for
+#: non-default hosts or reverse-proxy setups.
+PROBE_BASE: Final[str] = _env_str("AIOS_PROBE_BASE", "http://127.0.0.1:8000")
 
 
 # --------------------------------------------------------------------------- #
@@ -480,6 +484,7 @@ def startup_banner() -> dict[str, object]:
         "token_set": bool(API_TOKEN),
         "token_length": len(API_TOKEN),
         "trust_proxy_headers": TRUST_PROXY_HEADERS,
+        "probe_base": PROBE_BASE,
         "router_cloud_tasks": list(ROUTER_CLOUD_TASKS),
         "earned_autonomy": EARNED_AUTONOMY_ENABLED,
         "scope_roots": [str(p) for p in SCOPE_ROOTS],
@@ -563,5 +568,6 @@ __all__ = [
     "API_TOKEN",
     "TRUST_PROXY_HEADERS",
     "API_CORS_ORIGINS",
+    "PROBE_BASE",
     "startup_banner",
 ]

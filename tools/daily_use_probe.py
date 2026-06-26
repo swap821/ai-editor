@@ -7,13 +7,16 @@ validates the agentic loop that the frontend relies on.
 from __future__ import annotations
 
 import json
-import re
 import sys
 import time
 import urllib.request
 from pathlib import Path
 
-BASE = "http://127.0.0.1:8000"
+# Allow importing ``aios.*`` when this script is executed directly from
+# ``tools/`` or from the project root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from aios.probe_common import BASE
 SESSION_ID = "daily-use-probe-2026-06-24"
 TARGET = Path("training_ground/daily_use_probe_result.py")
 

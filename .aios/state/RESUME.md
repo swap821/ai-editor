@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-26T05:45:00Z
+Last updated: 2026-06-26T06:10:00Z
 
 ## Current Session — RENOVATION_PLAN.md burn-down (P2-3 approved; P3-5 operator-approved, Codex verdict pending; remaining open work: P3-2)
 
@@ -251,13 +251,28 @@ Last updated: 2026-06-26T05:45:00Z
 - Ported accumulated lab lenses (interaction/glass/motion/typography) to product via `npm run port`, preserving existing product WIP in `SuperbrainHUD.tsx` while applying only the secure-button string change; CSS lens changes applied via `superbrain.css`.
 - Verified product gates: `npm run typecheck` clean, `npm test -- --run` → **58 files, 354 passed**, `npm run build` exit 0, `tools/check_css_canon.py` OK, `tools/check_canon_frozen.py` OK.
 - **Committed product port** as `834a7a2`.
+
+### P3-5 secret-scanner remaining work (env-overridable BASE + shared allowlist)
+- Added `AIOS_PROBE_BASE` to `aios/config.py` (default `http://127.0.0.1:8000`) and exposed it in `startup_banner()`.
+- Created `aios/probe_common.py` as the single source of truth for probe `BASE` and the fail-closed sandbox allowlist regexes (`ALLOWED_FILE_RE`, `ALLOWED_CMD_RE`).
+- Updated `curriculum_evidence_driver.py` and `tools/daily_use_probe.py` to import `BASE` and the allowlist from `aios.probe_common`.
+- Added `sys.path` bootstrap to `tools/daily_use_probe.py` so it can import `aios.*` when run directly.
+- Added `tests/test_probe_common.py` covering env override, default BASE, and allowlist accept/reject cases.
+- Verified backend full suite **699 passed, 1 skipped**; frontend typecheck/tests green.
+
+### P3-4 remaining work (ForgePorts debounce/diff)
+- Cognition-fault path was implemented earlier.
+- `ForgePorts` was removed in P3-1 dead-code cleanup, so the debounce/diff sub-task is no longer applicable; P3-4 is fully closed.
+
+### RENOVATION_PLAN close-out
+- All P0, P1, P2, and P3 items in `RENOVATION_PLAN.md` are now ✅ complete.
 - Root documentation/spec/RESUME/experience commits: `8a7e042`, `3d484a2`, `a79fe4c`, `1bc0ce8`, `6919d13`, `4627876`.
 
 ## Single Next Action
-**Continue with the next RENOVATION_PLAN item** now that the lab lenses are ported and product gates are green. Review RENOVATION_PLAN.md for the highest-priority remaining open item and pick it up.
+**No remaining RENOVATION_PLAN items.** Await operator direction on the next priority (likely `PLAN.md` Tier 2/3 or `FUTURE_FRONTIER` themes).
 
 ## Open Approvals / Blockers
-- **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`.
+- **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`; remaining env-overridable `BASE` + shared allowlist work completed.
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**.
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.

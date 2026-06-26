@@ -103,6 +103,8 @@ class TestStartupBanner:
         monkeypatch.setattr("aios.config.API_HOST", "127.0.0.1")
         monkeypatch.setattr("aios.config.API_PORT", 8000)
         monkeypatch.setattr("aios.config.API_TOKEN", "")
+        monkeypatch.setattr("aios.config.TRUST_PROXY_HEADERS", False)
+        monkeypatch.setattr("aios.config.PROBE_BASE", "http://127.0.0.1:8000")
         monkeypatch.setattr("aios.config.ROUTER_CLOUD_TASKS", ("coding",))
         monkeypatch.setattr("aios.config.EARNED_AUTONOMY_ENABLED", False)
         monkeypatch.setattr(
@@ -115,6 +117,8 @@ class TestStartupBanner:
         assert banner["port"] == 8000
         assert banner["token_set"] is False
         assert banner["token_length"] == 0
+        assert banner["trust_proxy_headers"] is False
+        assert banner["probe_base"] == "http://127.0.0.1:8000"
         assert banner["router_cloud_tasks"] == ["coding"]
         assert banner["earned_autonomy"] is False
         assert banner["scope_roots"] == ["aios/config.py", "training_ground"]

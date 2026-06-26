@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,21 +27,13 @@ from typing import Any, Iterator
 
 import requests
 
+from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
+
 ROOT = Path(__file__).resolve().parent
-BASE = "http://127.0.0.1:8000"
 SEED_PATH = ROOT / "curriculum_seed.json"
 AUDIT_DIR = ROOT / ".aios" / "audit"
 LOG_PATH = AUDIT_DIR / "curriculum-evidence-run.jsonl"
 
-#: Only bare .py files directly inside training_ground/ may be written.
-ALLOWED_FILE_RE = re.compile(r"^training_ground[/\\][A-Za-z0-9_\-]+\.py$")
-#: Only pytest on a single training_ground .py file may run as an approved
-#: command — either spelling (`python -m pytest` / bare `pytest`), optional
-#: quotes, `-q` allowed anywhere. Nothing else (no pip, no shell, no paths
-#: outside the sandbox).
-ALLOWED_CMD_RE = re.compile(
-    r"^(?:python -m )?pytest(?: -q)?(?: \"?training_ground[/\\][A-Za-z0-9_\-]+\.py\"?)?(?: -q)?$"
-)
 MAX_REPLAYS = 10
 TURN_TIMEOUT_S = 900
 
