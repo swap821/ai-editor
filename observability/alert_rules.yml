@@ -1,0 +1,29 @@
+groups:
+  - name: aios
+    rules:
+      - alert: AiOSAuditChainBroken
+        expr: aios_audit_chain_valid == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AI-OS audit chain is invalid"
+          description: "The tamper-evident audit hash chain is broken. Investigate immediately."
+
+      - alert: AiOSHighInterventionRate
+        expr: aios_human_intervention_rate > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI-OS intervention rate is high"
+          description: "More than 50% of recent tasks required human intervention."
+
+      - alert: AiOSHighErrorRate
+        expr: rate(aios_http_request_errors_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI-OS HTTP error rate is high"
+          description: "HTTP 5xx error rate is elevated."

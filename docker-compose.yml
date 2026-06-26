@@ -1,4 +1,4 @@
-# Minimal Docker Compose wrapper for the AI-OS API.
+# Local-first observability stack for the AI-OS API.
 #
 # The container binds to 0.0.0.0 inside the network, so the lifespan policy
 # requires a non-empty AIOS_API_TOKEN of at least 32 characters. Set it in a
@@ -6,6 +6,8 @@
 #
 #   AIOS_API_TOKEN=<32-char-token> docker compose up --build
 #
+name: aios
+
 services:
   aios:
     build: .
@@ -19,3 +21,69 @@ services:
     volumes:
       - ./data:/app/data
       - ./.env:/app/.env:ro
+    networks:
+      - aios-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    ports:
+      - "${AIOS_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - aios-net
+    depends_on:
+      aios:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    ports:
+      - "${AIOS_GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${AIOS_GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - ./observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./observability/grafana/dashboards/dashboard-provider.yml:/etc/grafana/provisioning/dashboards/dashboard-provider.yml:ro
+      - ./observability/grafana/dashboards/aios-dashboard.json:/etc/grafana/provisioning/dashboards/aios-dashboard.json:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - aios-net
+    depends_on:
+      - prometheus
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    ports:
+      - "${AIOS_ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - aios-net
+    depends_on:
+      - prometheus
+
+networks:
+  aios-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field
 import aios
 from aios import config
 from aios.logging_config import configure_logging, get_logger, session_log_key
-from aios.core.metrics import CONTENT_TYPE_LATEST, MetricsCollector, generate_latest, get_collector
+from aios.core.metrics import CONTENT_TYPE_LATEST, MetricsCollector, MetricsMiddleware, generate_latest, get_collector
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.role_pass import run_role_pass
@@ -200,6 +200,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(MetricsMiddleware)
 
 
 @app.middleware("http")

@@ -5,10 +5,14 @@ and no other library can accidentally pollute the scrape output.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any, Optional
 
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram, generate_latest
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 
 from aios.security.audit_logger import verify_chain
 
@@ -74,6 +78,25 @@ class MetricsCollector:
             "Times the audit hash-chain verification endpoint detected tampering",
             registry=self.registry,
         )
+        self._http_requests = Counter(
+            "aios_http_requests_total",
+            "HTTP requests by method, route, and status code",
+            ["method", "route", "status_code"],
+            registry=self.registry,
+        )
+        self._http_request_duration = Histogram(
+            "aios_http_request_duration_seconds",
+            "HTTP request duration distribution",
+            ["method", "route"],
+            registry=self.registry,
+            buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+        )
+        self._http_request_errors = Counter(
+            "aios_http_request_errors_total",
+            "HTTP 5xx/unhandled errors by method and route",
+            ["method", "route"],
+            registry=self.registry,
+        )
 
     def update(
         self,
@@ -106,6 +129,19 @@ class MetricsCollector:
         """Increment the audit-verify-failure counter."""
         self._audit_verify_failures.inc()
 
+    def observe_http_request(
+        self, method: str, route: str, status_code: int, duration: float
+    ) -> None:
+        """Record a completed HTTP request."""
+        self._http_requests.labels(method=method, route=route, status_code=status_code).inc()
+        self._http_request_duration.labels(method=method, route=route).observe(duration)
+        if status_code >= 500:
+            self._http_request_errors.labels(method=method, route=route).inc()
+
+    def record_http_error(self, method: str) -> None:
+        """Record an unhandled exception path (status code unknown yet)."""
+        self._http_request_errors.labels(method=method, route="/unknown").inc()
+
     def clear(self) -> None:
         """Recreate the registry and metrics so tests start from a clean slate."""
         self._build_metrics()
@@ -117,3 +153,33 @@ def get_collector() -> MetricsCollector:
 
 
 _COLLECTOR = MetricsCollector()
+
+
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """Record RED-method request metrics without ever raising."""
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        # Do not self-amplify Prometheus scrapes.
+        if request.url.path == "/metrics":
+            return await call_next(request)
+
+        start = time.time()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        except Exception:  # noqa: BLE001 - metrics must never break the app
+            status_code = 500
+            get_collector().record_http_error(request.method)
+            raise
+        finally:
+            duration = time.time() - start
+            get_collector().observe_http_request(
+                method=request.method,
+                route=request.url.path,
+                status_code=status_code,
+                duration=duration,
+            )

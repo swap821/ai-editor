@@ -8,6 +8,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import aios
 import pytest
 from fastapi.testclient import TestClient
 
@@ -124,3 +125,29 @@ def test_audit_verify_increments_failure_counter_and_sets_gauge(
     body = metrics_resp.text
     assert "aios_audit_verify_failures_total 1.0" in body
     assert "aios_audit_chain_valid 0.0" in body
+
+
+def test_health_endpoint_returns_ok(client: TestClient) -> None:
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["version"] == aios.__version__
+
+
+def test_middleware_records_http_request_metrics(client: TestClient) -> None:
+    response = client.get("/health")
+    assert response.status_code == 200
+
+    metrics_response = client.get("/metrics")
+    body = metrics_response.text
+    assert 'aios_http_requests_total{method="GET",route="/health",status_code="200"} 1.0' in body
+    assert 'aios_http_request_duration_seconds_count{method="GET",route="/health"} 1.0' in body
+
+
+def test_metrics_endpoint_is_not_self_counted(client: TestClient) -> None:
+    client.get("/metrics")
+    response = client.get("/metrics")
+    body = response.text
+    # The scrape itself should not add a /metrics sample line.
+    assert 'route="/metrics"' not in body

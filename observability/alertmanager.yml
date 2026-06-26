@@ -1,0 +1,30 @@
+# Alertmanager configuration for AI-OS.
+#
+# By default this routes alerts to a dummy sink so the stack starts cleanly on a
+# single-operator laptop. Alerts are still visible at http://localhost:9093.
+# To route alerts to a real webhook, copy this file, set the webhook URL, and
+# point docker-compose.yml to your copy, or edit the route receiver below.
+
+global:
+  smtp_smarthost: "localhost:25"
+  smtp_from: "alertmanager@aios.local"
+
+route:
+  group_by: ["alertname", "severity"]
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: "default"
+  routes:
+    - match:
+        severity: critical
+      receiver: "default"
+
+receivers:
+  - name: "default"
+    # Dummy sink: Alertmanager will attempt to POST here and log the failure.
+    # Replace with a real URL (e.g., a local ntfy.sh topic or Slack webhook)
+    # for actual notifications.
+    webhook_configs:
+      - url: "http://127.0.0.1:1/dummy"
+        send_resolved: false
