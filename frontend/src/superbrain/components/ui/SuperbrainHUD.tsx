@@ -1477,7 +1477,7 @@ export default function SuperbrainHUD({
                 ? 'TAMPER'
                 : approvalHold
                   ? 'HOLD'
-                  : 'Supervised'}
+                  : 'SUPERVISED'}
             </button>
             {/* Dedicated live region for the shield's autonomous state changes:
                 a non-interactive sr-only span that mirrors the current security
