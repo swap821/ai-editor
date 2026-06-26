@@ -16,14 +16,21 @@ Design notes:
     ids; ``role: "tool"`` results). Converse is Anthropic-shaped (``toolUse`` /
     ``toolResult`` paired by ``toolUseId``). :func:`_to_converse` bridges the two,
     synthesising ids and pairing each tool result with its preceding call.
+  * **Privacy**: every message list is passed through :class:`PrivacyFilter`
+    before transmission so conversation history, tool results, and secrets never
+    leave the local machine unredacted.
 """
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Optional
 
 from aios import config
 from aios.core.llm import LLMError
+from aios.core.privacy_filter import PrivacyFilter, scrub_exception
+
+logger = logging.getLogger(__name__)
 
 
 def _to_converse(
@@ -147,6 +154,8 @@ class BedrockClient:
         #: Control-plane client (``bedrock``) for model discovery — created lazily
         #: in :meth:`list_models` so it's only needed if discovery is used.
         self._ctrl_client = ctrl_client
+        #: Privacy filter — applied to every message list before cloud transmission.
+        self._privacy_filter = PrivacyFilter()
         if client is not None:
             self._client = client  # injected fake (tests)
         else:
@@ -168,8 +177,19 @@ class BedrockClient:
         Returns the assistant message in the agent's shape
         (``role``/``content`` [+ ``tool_calls``]). Raises :class:`LLMError` on any
         Bedrock/credential failure so the agent surfaces a clean error event.
+
+        Privacy: *messages* are filtered through :class:`PrivacyFilter` before
+        transmission so sensitive content never leaves the local machine.
         """
-        system, converse_messages = _to_converse(messages)
+        # --- Privacy: sanitize before any cloud transmission. ---
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info(
+                "Bedrock privacy filter applied",
+                extra=audit,
+            )
+
+        system, converse_messages = _to_converse(safe_messages)
         kwargs: dict[str, Any] = {
             "modelId": model or self.model,
             "messages": converse_messages,
@@ -184,12 +204,26 @@ class BedrockClient:
         try:
             response = self._client.converse(**kwargs)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
-            raise LLMError(f"Bedrock Converse failed for '{model or self.model}': {exc}") from exc
+            # --- Privacy: scrub credentials from the exception before logging. ---
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Bedrock Converse failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,  # never dump raw traceback (may contain secrets)
+            )
+            raise LLMError(
+                f"Bedrock Converse failed for '{model or self.model}': {scrubbed}"
+            ) from exc
 
         message = (response.get("output") or {}).get("message") or {}
         if not isinstance(message, dict):
             return {"role": "assistant", "content": ""}
-        return _parse_output(message)
+
+        result = _parse_output(message)
+        # --- Validate response structure before returning to the agent. ---
+        self._privacy_filter.validate_response(result)
+        return result
 
     def list_models(self) -> list[dict[str, str]]:
         """List on-demand, text Bedrock models for this region (best-effort).
@@ -205,11 +239,13 @@ class BedrockClient:
             try:
                 import boto3  # lazy
                 ctrl = boto3.client("bedrock", region_name=self.region or None)
-            except Exception:  # noqa: BLE001 - discovery is best-effort
+            except Exception as exc:  # noqa: BLE001 - discovery is best-effort
+                logger.debug("Bedrock control-plane client creation failed: %s", scrub_exception(exc))
                 return []
         try:
             resp = ctrl.list_foundation_models(byOutputModality="TEXT", byInferenceType="ON_DEMAND")
-        except Exception:  # noqa: BLE001 - no control-plane access -> fall back
+        except Exception as exc:  # noqa: BLE001 - no control-plane access -> fall back
+            logger.debug("Bedrock list_foundation_models failed: %s", scrub_exception(exc))
             return []
 
         seen: set[str] = set()
