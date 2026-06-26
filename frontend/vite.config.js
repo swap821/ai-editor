@@ -13,7 +13,6 @@ export default defineConfig(({ mode }) => {
   // so we bridge VITE_* -> NEXT_PUBLIC_* here instead of editing the ported file.
   const env = loadEnv(mode, process.cwd(), '')
   const AIOS_BASE = env.VITE_API_BASE || 'http://localhost:8000'
-  const AIOS_TOKEN = env.VITE_AIOS_API_TOKEN || ''
   return {
     plugins: [
       react(),
@@ -32,10 +31,12 @@ export default defineConfig(({ mode }) => {
       // the 127.0.0.1-vs-localhost split (and the credentialed-CORS footgun it
       // caused). Honours VITE_API_BASE so an operator override applies to BOTH UIs.
       'process.env.NEXT_PUBLIC_AIOS_URL': JSON.stringify(AIOS_BASE),
-      // Pre-wire the Bearer token under the same Next-style name so the
-      // superbrain adapter can adopt auth via a lab edit + re-port (Phase 1b)
-      // with no further product change. Harmless/dead until the adapter reads it.
-      'process.env.NEXT_PUBLIC_AIOS_TOKEN': JSON.stringify(AIOS_TOKEN),
+      // SECURITY: API token is NO LONGER baked into the bundle at build time.
+      // The adapter loads auth at runtime from a secure /auth/token endpoint
+      // (httpOnly cookie) or an in-memory token fetched after login.
+      // 'process.env.NEXT_PUBLIC_AIOS_TOKEN' is intentionally REMOVED —
+      // embedding secrets in the frontend bundle exposes them to anyone who
+      // views the source.  See aiosAdapter.ts:runtimeAuth() for the replacement.
     },
     // ── W5-2 CODE-SPLIT ───────────────────────────────────────────────────────
     // The prod build used to emit one ~1.3 MB chunk (over Vite's 500 KB warning).
@@ -76,6 +77,7 @@ export default defineConfig(({ mode }) => {
       // above the largest worker so the build stays clean, while still flagging
       // any NEW chunk that grows past the Monaco worker floor. The original single
       // ~1.3 MB app chunk (over the 500 KB default) is eliminated.
+      sourcemap: mode === 'production' ? false : true,
       chunkSizeWarningLimit: 7200,
     },
     test: {
