@@ -268,8 +268,19 @@ Last updated: 2026-06-26T05:43:10Z
 - All P0, P1, P2, and P3 items in `RENOVATION_PLAN.md` are now ✅ complete.
 - Root documentation/spec/RESUME/experience commits: `8a7e042`, `3d484a2`, `a79fe4c`, `1bc0ce8`, `6919d13`, `4627876`.
 
+### Full observability stack (Prometheus + Grafana + Alertmanager)
+- Added RED-method HTTP middleware metrics in `aios/core/metrics.py`: `aios_http_requests_total`, `aios_http_request_duration_seconds`, `aios_http_request_errors_total`.
+- Registered `MetricsMiddleware` in `aios/api/main.py`; `/metrics` scrapes are excluded from self-counting.
+- Verified `/health` endpoint returns status + version.
+- Added tests in `tests/test_metrics.py` for `/health`, RED metrics, and `/metrics` self-count avoidance.
+- Extended `docker-compose.yml` with `prometheus`, `grafana`, and `alertmanager` services on `aios-net`.
+- Created `observability/prometheus.yml` scrape config, `observability/alert_rules.yml` with three trust/service alerts, `observability/alertmanager.yml` with dummy default sink, and Grafana provisioning files + `AI-OS Trust & Cognition` dashboard.
+- Updated `AGENTS.md` with observability stack usage notes.
+- Verified backend full suite **699 passed, 1 skipped**; `docker compose config` validates.
+- Merged to `master` and pushed as `89dcfe3`.
+
 ## Single Next Action
-**No remaining RENOVATION_PLAN items.** Await operator direction on the next priority (likely `PLAN.md` Tier 2/3 or `FUTURE_FRONTIER` themes).
+**Operator must choose the next slice:** full voice I/O (Whisper/Piper), full knowledge graph (Neo4j/advanced traversal), FUTURE_FRONTIER near-term (Refusal Reel/Cage Conformance Spec), operator-decision-gated design questions in state docs, or stale coordination task cleanup.
 
 ## Open Approvals / Blockers
 - **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`; remaining env-overridable `BASE` + shared allowlist work completed; local coordination task state corrected to `approved`.
@@ -277,23 +288,21 @@ Last updated: 2026-06-26T05:43:10Z
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
-- **P3-2 Typography Lens: APPROVED by Codex** at handoff 123 / snapshot `29b1129a`; product port completed as `834a7a2` with all product gates green; local coordination task state corrected to `approved`.
+- **P3-2 Typography Lens: APPROVED by Codex** at handoff 123 / snapshot `29b112a`; product port completed as `834a7a2` with all product gates green; local coordination task state corrected to `approved`.
+- **Full observability stack:** merged and pushed as `89dcfe3`; no formal review required (devex/local-only, no frozen core touched).
 - No remaining builder-blockers. Master is green.
 
 ## Active Files
-- `README.md`
-- `START_HERE.md`
 - `AGENTS.md`
-- `.aios/state/PLAN.md`
-- `.aios/state/RENOVATION_PLAN.md`
-- `.aios/state/HIDDEN_KNOWLEDGE.md`
-- `.aios/state/BACKEND_TRUE_PICTURE.md`
-- `.aios/state/CEO_LOG.md`
-- `.aios/state/FRONTEND_RENOVATION_BLUEPRINT.md`
-- `.aios/state/ARCHITECT_REVIEW_2026-06-14.md`
-- `.aios/state/SYSTEM_TRUE_PICTURE.md`
-- `.aios/state/JARVIS_VOICE_PLAN.md`
-- `frontend/README.md`
+- `aios/core/metrics.py`
+- `aios/api/main.py`
+- `tests/test_metrics.py`
+- `docker-compose.yml`
+- `observability/prometheus.yml`
+- `observability/alert_rules.yml`
+- `observability/alertmanager.yml`
+- `observability/grafana/datasources.yml`
+- `observability/grafana/dashboards/dashboard-provider.yml`
+- `observability/grafana/dashboards/aios-dashboard.json`
 - `.aios/state/RESUME.md`
-- `.aios/state/coordination.db`
 - `.aios/memory/experiences.jsonl`
