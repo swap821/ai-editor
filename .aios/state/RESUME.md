@@ -231,8 +231,13 @@ Last updated: 2026-06-25T20:03:04Z
 - Lab test suite remains **387 passed**, zero golden changes; lint on the touched CSS file is clean.
 - **Committed in lab** as `f83dcc5`.
 
+### P3-2 Typography Lens — spec phase
+- Recovered Fable audit's `typography` lens had 19 findings; several were already fixed in parallel lab work (panel-heading tabular-nums, topbar baseline alignment, region-pin tracking, hero title tabular-nums, agent baseline).
+- Wrote `docs/superpowers/specs/2026-06-26-p3-2-typography-lens-design.md` covering the remaining findings: global `case` feature scoping, `--text-3` legibility lift, approval-panel type-scale normalization, secure-button case discipline, and section-label weight unification.
+- **Committed** as `8a7e042`.
+
 ## Single Next Action
-**Start the P3-2 Typography Lens** in the GAG lab with a fresh spec → plan → test cycle. The sound/interaction/glass/motion lenses will **stay in the lab for now** because the lab tree still has extensive uncommitted WIP; porting them would sweep all of that into the product.
+**Invoke `writing-plans`** to produce the step-by-step implementation plan for the P3-2 Typography Lens, then implement it in the GAG lab (CSS + one JSX string change), keep the lens in the lab because of the existing uncommitted WIP, and verify lab tests/goldens/lint.
 
 ## Open Approvals / Blockers
 - **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`.
