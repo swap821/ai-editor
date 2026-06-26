@@ -1,10 +1,10 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-26T06:10:00Z
+Last updated: 2026-06-26T05:43:10Z
 
-## Current Session — RENOVATION_PLAN.md burn-down (P2-3 approved; P3-5 operator-approved, Codex verdict pending; remaining open work: P3-2)
+## Current Session — RENOVATION_PLAN.md closed; coordination state reconciled
 
-**Goal:** Close all open Codex inbox findings and finish doc-currency cleanly.
+**Goal:** Keep the closed RENOVATION_PLAN handoff consistent across docs and the local coordination control plane.
 
 ### P0-4 proxy-header env/CLI inconsistency
 - Claimed worktree lease for `p0-4-token-auth-proxy-header` as builder.
@@ -272,12 +272,12 @@ Last updated: 2026-06-26T06:10:00Z
 **No remaining RENOVATION_PLAN items.** Await operator direction on the next priority (likely `PLAN.md` Tier 2/3 or `FUTURE_FRONTIER` themes).
 
 ## Open Approvals / Blockers
-- **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`; remaining env-overridable `BASE` + shared allowlist work completed.
+- **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`; remaining env-overridable `BASE` + shared allowlist work completed; local coordination task state corrected to `approved`.
 - Frozen core (`aios/security/*`) was touched by P3-5 in `aios/security/secret_scanner.py`; operator Section VIII approval **granted**.
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
-- **P3-2 Typography Lens: APPROVED by Codex** at handoff 123 / snapshot `29b1129a`; product port completed as `834a7a2` with all product gates green.
+- **P3-2 Typography Lens: APPROVED by Codex** at handoff 123 / snapshot `29b1129a`; product port completed as `834a7a2` with all product gates green; local coordination task state corrected to `approved`.
 - No remaining builder-blockers. Master is green.
 
 ## Active Files
@@ -295,3 +295,5 @@ Last updated: 2026-06-26T06:10:00Z
 - `.aios/state/JARVIS_VOICE_PLAN.md`
 - `frontend/README.md`
 - `.aios/state/RESUME.md`
+- `.aios/state/coordination.db`
+- `.aios/memory/experiences.jsonl`
