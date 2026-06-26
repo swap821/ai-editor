@@ -28,6 +28,7 @@ import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
 import { useTabStore } from '../superbrain/lib/tabStore';
 import { API_BASE } from '../config';
+import { sanitizeToText } from '../utils/sanitizeHtml';
 import {
   formatActiveBrainLine,
   getActiveBrain,
@@ -374,7 +375,10 @@ export default function GagosChrome() {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
 
-    pushMessage('user', cleanText(text, 400));
+    // C17 FIX: sanitize user input before rendering in the DOM thread.
+    // While user input is less dangerous than LLM output (it's their own text),
+    // sanitizing prevents self-XSS if the user pastes malicious content.
+    pushMessage('user', sanitizeToText(cleanText(text, 400)));
     // SP1 (voice-into-body, minimal hybrid): the GAGOS chat reply now lives in the
     // BODY as in-scene luminous body-speech (BodySpeech + replyVoiceBus), NOT a DOM
     // bubble. The thread keeps only the user's echo (+ work-materialization notes +
@@ -698,7 +702,12 @@ export default function GagosChrome() {
                 {m.role === 'gagos' && !m.text
                   ? <span className="gagos-typing"><i /><i /><i /></span>
                   : <span className="gagos-msg__text">
-                      {m.text}
+                      {/* C17 FIX: LLM output is sanitized before DOM insertion.
+                          Prompt injection can cause the LLM to emit malicious HTML/JS
+                          (e.g. <script>alert(document.cookie)</script>). sanitizeToText
+                          escapes all HTML entities and strips dangerous content.
+                          Apply to ALL LLM output before rendering. */}
+                      {sanitizeToText(m.text)}
                       {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
                       {m.retry ? (
                         <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
