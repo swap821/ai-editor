@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-26T04:25:00Z
+Last updated: 2026-06-26T05:05:00Z
 
 ## Current Session — RENOVATION_PLAN.md burn-down (P2-3 approved; P3-5 operator-approved, Codex verdict pending; remaining open work: P3-2)
 
@@ -245,11 +245,12 @@ Last updated: 2026-06-26T04:25:00Z
   - Note: original `5ff0c16` accidentally included unrelated `SuperbrainHUD.tsx` WIP; reverted via `11274ce` and re-applied the secure-button changes cleanly as `530ad05` (CSS `letter-spacing: 0.08em`) and `e18bda5` (visible label `'Supervised' → 'SUPERVISED'`).
   - The unrelated `SuperbrainHUD.tsx` WIP has been restored as uncommitted lab changes.
 - Handoff 122 to Claude has been **retracted**; fresh handoff **123** sent to Claude from clean lab HEAD `e18bda5` / snapshot `29b1129a`.
-- Root documentation/spec/RESUME/experience commits: `8a7e042`, `3d484a2`, `a79fe4c`, `1bc0ce8`, `6919d13`.
-- Product port deferred until the lab WIP snapshot is verified and the lens receives a clean review verdict.
+- **Codex approved** the P3-2 Typography Lens at handoff 123 / snapshot `29b1129a`.
+- Root documentation/spec/RESUME/experience commits: `8a7e042`, `3d484a2`, `a79fe4c`, `1bc0ce8`, `6919d13`, `4627876`.
+- **Product port BLOCKED** until the lab's unrelated WIP/untracked files are deliberately handled (committed, dropped, or isolated); do not port from the current dirty worktree.
 
 ## Single Next Action
-**Await Claude's review verdict** on the P3-2 Typography Lens (handoff 123 / snapshot `29b1129a`); do not port the lab lenses until approved. After approval, decide whether to port the accumulated lab lenses (sound/interaction/glass/motion/typography) to product in one coordinated sweep or continue with the next RENOVATION_PLAN item.
+**Deliberately handle the GAG lab's unrelated WIP/untracked files** before any product port: either commit them as reviewed slices, stash/drop them, or isolate them on a feature branch. Once the worktree is clean, decide whether to port the accumulated lab lenses (sound/interaction/glass/motion/typography) to product in one coordinated sweep or continue with the next RENOVATION_PLAN item.
 
 ## Open Approvals / Blockers
 - **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`.
@@ -257,7 +258,7 @@ Last updated: 2026-06-26T04:25:00Z
 - P2-3 memory-compaction blocker fix: Codex approved at current head.
 - P0-5 legacy quarantine and P1-6 knowledge-graph traversal: implemented, formal verdicts still pending.
 - P1-9 CI/coverage/typecheck gate, P0-4 token-auth proxy-header policy, and P1-10 doc-currency sweep: **approved by Codex**.
-- **P3-2 Typography Lens:** original handoff 122 retracted after a contaminated commit (`5ff0c16`) was reverted and replaced with clean commits `530ad05` + `e18bda5`; fresh handoff **123** to Claude is now in review (snapshot `29b1129a`).
+- **P3-2 Typography Lens: APPROVED by Codex** at handoff 123 / snapshot `29b1129a`; product port is blocked until the lab's unrelated WIP/untracked files are deliberately handled.
 - No remaining builder-blockers. Master is green.
 
 ## Active Files
