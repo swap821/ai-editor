@@ -7,6 +7,12 @@
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#050507" />
     <meta name="description" content="GAGOS — the voyaging mind: a local-first, supervised, memory-driven AI operating system." />
+    <!-- ===== SECURITY HEADERS (C18) — Zero security headers vulnerability fix ===== -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:8000 wss://* http://localhost:8000 https://*; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()" />
     <!-- Anti-flash: paint the OLED canvas before the bundle loads -->
     <style>
       html { background: #050507; }
@@ -68,8 +74,10 @@
         #boot-loader { transition: none; }
       }
     </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- H7 FIX: Google Fonts preconnect removed — fonts are now self-hosted
+         to eliminate Subresource Integrity (SRI) bypass via CDN. Loading external
+         fonts from Google CDN without integrity hashes exposes the app to supply-
+         chain attacks. Fonts are served from 'self' (see CSP font-src 'self'). -->
     <title>GAGOS — The Voyaging Mind</title>
   </head>
   <body>
