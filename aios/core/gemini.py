@@ -22,14 +22,21 @@ Design notes (mirrors ``bedrock.py`` so the three providers stay symmetric):
   * Message structures are built as **plain dicts** matching the google-genai
     ``Content`` schema, which the SDK coerces — so the conversion is fully unit
     testable with a fake client and no SDK types.
+  * **Privacy**: every message list is passed through :class:`PrivacyFilter`
+    before transmission so conversation history, tool results, and secrets never
+    leave the local machine unredacted.
 """
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Optional
 
 from aios import config
 from aios.core.llm import LLMError
+from aios.core.privacy_filter import PrivacyFilter, scrub_exception
+
+logger = logging.getLogger(__name__)
 
 #: Well-known Gemini chat models, used as the picker fallback when live discovery
 #: returns nothing (Vertex discovery is best-effort / permission-dependent). These
@@ -181,6 +188,8 @@ class GeminiClient:
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.thinking_budget = thinking_budget
+        #: Privacy filter — applied to every message list before cloud transmission.
+        self._privacy_filter = PrivacyFilter()
         if client is not None:
             self._client = client  # injected fake (tests)
         else:
@@ -208,8 +217,19 @@ class GeminiClient:
         Returns the assistant message in the agent's shape
         (``role``/``content`` [+ ``tool_calls``]). Raises :class:`LLMError` on any
         Gemini/credential failure so the agent surfaces a clean error event.
+
+        Privacy: *messages* are filtered through :class:`PrivacyFilter` before
+        transmission so sensitive content never leaves the local machine.
         """
-        system_text, contents = _to_gemini(messages)
+        # --- Privacy: sanitize before any cloud transmission. ---
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info(
+                "Gemini privacy filter applied",
+                extra=audit,
+            )
+
+        system_text, contents = _to_gemini(safe_messages)
         gen_config: dict[str, Any] = {
             "temperature": self.temperature,
             "max_output_tokens": self.max_tokens,
@@ -231,11 +251,22 @@ class GeminiClient:
                 config=gen_config,
             )
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
+            # --- Privacy: scrub credentials from the exception before logging. ---
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Gemini generate_content failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,  # never dump raw traceback (may contain secrets)
+            )
             raise LLMError(
-                f"Gemini generate_content failed for '{model or self.model}': {exc}"
+                f"Gemini generate_content failed for '{model or self.model}': {scrubbed}"
             ) from exc
 
-        return _parse_output(response)
+        result = _parse_output(response)
+        # --- Validate response structure before returning to the agent. ---
+        self._privacy_filter.validate_response(result)
+        return result
 
     def list_models(self) -> list[dict[str, str]]:
         """List invocable Gemini chat models for the picker (best-effort).
@@ -251,7 +282,8 @@ class GeminiClient:
     def _discover_models(self) -> list[dict[str, str]]:
         try:
             raw = self._client.models.list()
-        except Exception:  # noqa: BLE001 - discovery is best-effort
+        except Exception as exc:  # noqa: BLE001 - discovery is best-effort
+            logger.debug("Gemini model discovery failed: %s", scrub_exception(exc))
             return []
         seen: set[str] = set()
         out: list[dict[str, str]] = []
