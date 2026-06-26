@@ -242,10 +242,12 @@ Last updated: 2026-06-25T20:03:04Z
   - Unified section-label weights: `.objective-head`, `.agent-heading span`, `.terminal-log span` now `font-weight: 510`.
 - Verified: lab tests **387 passed**, goldens unchanged, JSX lint clean (3 pre-existing warnings).
 - **Committed in lab** as `6425aff`, `3dda141`, `336506e`, `5ff0c16`, `deebe9e`.
+- Handed off to Claude as builder→reviewer (message_id 122 / snapshot `2c95b1f7`).
+- Root documentation/spec/RESUME/experience commits: `8a7e042`, `3d484a2`, `a79fe4c`, `1bc0ce8`, `6919d13`.
 - Product port deferred until the lab WIP snapshot is verified.
 
 ## Single Next Action
-**Hand off the P3-2 Typography Lens to Claude for review** and decide whether to port the accumulated lab lenses (sound/interaction/glass/motion/typography) to product in one coordinated sweep or continue with the next RENOVATION_PLAN item.
+**Await Claude's review verdict** on the P3-2 Typography Lens, then decide whether to port the accumulated lab lenses (sound/interaction/glass/motion/typography) to product in one coordinated sweep or continue with the next RENOVATION_PLAN item.
 
 ## Open Approvals / Blockers
 - **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`.
