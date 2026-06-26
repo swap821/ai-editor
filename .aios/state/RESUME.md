@@ -231,14 +231,21 @@ Last updated: 2026-06-25T20:03:04Z
 - Lab test suite remains **387 passed**, zero golden changes; lint on the touched CSS file is clean.
 - **Committed in lab** as `f83dcc5`.
 
-### P3-2 Typography Lens — spec phase
+### P3-2 Typography Lens
 - Recovered Fable audit's `typography` lens had 19 findings; several were already fixed in parallel lab work (panel-heading tabular-nums, topbar baseline alignment, region-pin tracking, hero title tabular-nums, agent baseline).
-- Wrote `docs/superpowers/specs/2026-06-26-p3-2-typography-lens-design.md` covering the remaining findings: global `case` feature scoping, `--text-3` legibility lift, approval-panel type-scale normalization, secure-button case discipline, and section-label weight unification.
-- Wrote `docs/superpowers/plans/2026-06-26-p3-2-typography-lens.md` with bite-sized CSS/JSX tasks and verification gates.
-- **Committed** spec+plan as `3d484a2`.
+- Wrote `docs/superpowers/specs/2026-06-26-p3-2-typography-lens-design.md` and `docs/superpowers/plans/2026-06-26-p3-2-typography-lens.md`.
+- Implemented in the GAG lab:
+  - Scoped `case` OpenType feature to caps roles only (`html` keeps `cv05`).
+  - Raised `--text-3` alpha `0.38 → 0.48` and `.region-pin-graph em` opacity `0.6 → 0.8`.
+  - Normalized approval-panel type scale: title tracking `0.22em → 0.12em`, summary `12.5px → 13px`, action buttons `10.5px/0.18em → 11px/0.12em`.
+  - Unified secure-button case: visible label `'Supervised' → 'SUPERVISED'` and added `letter-spacing: 0.08em`.
+  - Unified section-label weights: `.objective-head`, `.agent-heading span`, `.terminal-log span` now `font-weight: 510`.
+- Verified: lab tests **387 passed**, goldens unchanged, JSX lint clean (3 pre-existing warnings).
+- **Committed in lab** as `6425aff`, `3dda141`, `336506e`, `5ff0c16`, `deebe9e`.
+- Product port deferred until the lab WIP snapshot is verified.
 
 ## Single Next Action
-**Implement the P3-2 Typography Lens** in the GAG lab inline (CSS + one JSX string change), keep the lens in the lab because of the existing uncommitted WIP, and verify lab tests/goldens/lint.
+**Hand off the P3-2 Typography Lens to Claude for review** and decide whether to port the accumulated lab lenses (sound/interaction/glass/motion/typography) to product in one coordinated sweep or continue with the next RENOVATION_PLAN item.
 
 ## Open Approvals / Blockers
 - **P3-5 secret-scanner coverage: APPROVED by Codex** at handoff 120 / snapshot `39aca007`.
