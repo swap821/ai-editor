@@ -1,1 +1,1 @@
-# Adversarial test suite
+"""Adversarial test suite"""
