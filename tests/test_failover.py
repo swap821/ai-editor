@@ -63,6 +63,28 @@ def test_falls_over_to_next_on_llmerror() -> None:
     assert bad.calls == 1 and good.calls == 1
 
 
+def test_same_cloud_provider_can_try_ranked_model_fallback_before_local() -> None:
+    bad, good, local = Boom(), OK("served-by-same-provider"), OK("local")
+    fc = FailoverChatClient(
+        [(bad, "claude", "bedrock"), (good, "nova", "bedrock"), (local, "qwen", "ollama")]
+    )
+    out = fc.chat(MSG)
+    assert out["content"] == "served-by-same-provider"
+    assert fc.active_provider == "bedrock" and fc.active_model == "nova"
+    assert bad.calls == 1 and good.calls == 1 and local.calls == 0
+
+
+def test_different_cloud_provider_is_skipped_when_local_fallback_exists() -> None:
+    bad, other_cloud, local = Boom(), OK("other-cloud"), OK("local")
+    fc = FailoverChatClient(
+        [(bad, "gemini-pro", "gemini"), (other_cloud, "sonnet", "bedrock"), (local, "qwen", "ollama")]
+    )
+    out = fc.chat(MSG)
+    assert out["content"] == "local"
+    assert fc.active_provider == "ollama" and fc.active_model == "qwen"
+    assert bad.calls == 1 and other_cloud.calls == 0 and local.calls == 1
+
+
 def test_all_candidates_failing_raises_llmerror() -> None:
     fc = FailoverChatClient([(Boom(), "a", "gemini"), (Boom(), "b", "bedrock")])
     with pytest.raises(LLMError):

@@ -249,9 +249,17 @@ class PrivacyFilter:
         role = msg.get("role")
         content = msg.get("content") or ""
         if role == "system":
-            audit["redacted_system"] = 1
-            if content and str(content).strip():
-                return {"role": "system", "content": _GENERIC_SYSTEM_PROMPT}, audit
+            content_str = str(content)
+            content_str, n_cred = _redact_credentials(content_str)
+            audit["redacted_credentials"] += n_cred
+            content_str, n_sec = _redact_high_entropy(content_str)
+            audit["redacted_secrets"] += n_sec
+            content_str, n_path = _redact_paths(content_str)
+            audit["redacted_paths"] += n_path
+            if content_str.strip():
+                audit["redacted_system"] = int(content_str != str(content))
+                return {"role": "system", "content": content_str}, audit
+            audit["dropped_messages"] = 1
             return None, audit
         if role == "tool":
             content_str = str(content)

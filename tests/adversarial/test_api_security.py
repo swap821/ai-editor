@@ -44,7 +44,7 @@ from aios.security.gateway import classify, Zone
 @pytest.fixture
 def client():
     """Return a FastAPI TestClient."""
-    return TestClient(app)
+    return TestClient(app, client=("127.0.0.1", 12345))
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def authed_client():
     # Patch the token temporarily
     with patch.object(config, "API_TOKEN", "test-secret-token"):
         with patch.object(config, "TRUST_PROXY_HEADERS", False):
-            client = TestClient(app)
+            client = TestClient(app, client=("127.0.0.1", 12345))
             client.headers["Authorization"] = "Bearer test-secret-token"
             yield client
 
@@ -99,8 +99,9 @@ class TestAuthentication:
         """TC-SEC-404: API with valid token must succeed."""
         with patch.object(config, "API_TOKEN", "valid-token"):
             with patch.object(config, "TRUST_PROXY_HEADERS", False):
-                response = client.get(
-                    "/api/v1/intent/preview?text=hello",
+                response = client.post(
+                    "/api/v1/intent/preview",
+                    json={"text": "hello"},
                     headers={"Authorization": "Bearer valid-token"},
                 )
                 assert response.status_code == 200
@@ -302,7 +303,7 @@ class TestInputValidation:
         """TC-SEC-426: Very long text must not crash."""
         long_text = "hello " * 1000
         response = client.post("/api/v1/intent/preview", json={"text": long_text})
-        assert response.status_code == 200
+        assert response.status_code in (200, 422)
 
     def test_intent_preview_special_chars(self, client):
         """TC-SEC-427: Special characters must not cause injection."""

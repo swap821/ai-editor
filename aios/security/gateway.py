@@ -132,7 +132,9 @@ _ENV_MUTATION_PATTERNS = _compile([
 # network access, or process launches behind an otherwise innocent executable.
 _SHELL_ESCAPE_PATTERNS = _compile([
     r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?\s+-c\b",
-    r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?\s+-m\b",  # G3: python -m http.server etc.
+    # G3: python -m http.server etc. stays RED, but the dedicated verify path
+    # intentionally uses "python -m pytest ..." and is classified below as YELLOW.
+    r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?\s+-m\s+(?!pytest\b)",
     r"(?:^|[;&|]\s*)node\s+-e\b",
     r"(?:^|[;&|]\s*)(?:powershell|pwsh)\b[^\n]*\s-(?:command|encodedcommand)\b",
     r"(?:^|[;&|]\s*)cmd(?:\.exe)?\s+/c\b",

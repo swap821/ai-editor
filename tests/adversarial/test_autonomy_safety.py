@@ -382,7 +382,7 @@ class TestLedgerObservability:
         for _ in range(3):
             enabled_ledger.record_outcome("create", "training_ground/a.py", success=True)
         for _ in range(3):
-            enabled_ledger.record_outcome("create", "training_ground/b.py", success=True)
+            enabled_ledger.record_outcome("create", "training_ground/b.txt", success=True)
         assert enabled_ledger.earned_count() == 2
 
     def test_ledger_map_includes_enabled_status(self, enabled_ledger, monkeypatch):

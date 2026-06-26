@@ -37,6 +37,8 @@ _CACHE: dict[str, tuple[list[str], float]] = {}
 def cloud_capability(model_id: str) -> int:
     """Coarse capability score for a cloud *model_id* (calibration refines it)."""
     s = model_id.lower()
+    if "sonnet" in s or "opus" in s:
+        return 360
     if any(k in s for k in _LIGHT):
         return 250
     if any(k in s for k in _FRONTIER):

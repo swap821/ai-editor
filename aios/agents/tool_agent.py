@@ -3,8 +3,9 @@
 SECURITY FIX (H2): Prose tool-call recovery is now STRICT tiered:
   Tier 1: Exact JSON array/object at start of text
   Tier 2: Markdown code block with JSON
-  Tier 3: ReAct Action pattern (only when explicitly enabled)
-  NO ast.literal_eval, NO heuristic parsing
+  Tier 3: Python-literal object/array from local models (literal_eval only)
+  Tier 4: ReAct Action pattern (validated through the same allowlist)
+  NO heuristic/fuzzy parsing
 
 SECURITY FIX (H3): Agent loop detection prevents runaway execution:
   - Repeated identical tool calls are detected
@@ -79,6 +80,7 @@ loop with a scripted fake and touch neither Ollama nor a shell.
 """
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -468,10 +470,32 @@ def _validate_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return validated
 
 
+def _parse_structured_tool_payload(payload: str) -> object:
+    """Parse a model-emitted tool payload without executing code."""
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return ast.literal_eval(payload)
+
+
+def _validated_from_structured_payload(payload: str) -> list[dict[str, Any]]:
+    """Parse and validate one object/array-shaped recovered tool-call payload."""
+    try:
+        parsed = _parse_structured_tool_payload(payload)
+    except (SyntaxError, ValueError, TypeError, MemoryError, RecursionError):
+        return []
+    if isinstance(parsed, list):
+        if all(isinstance(item, dict) for item in parsed):
+            return _validate_tool_calls(parsed)
+    elif isinstance(parsed, dict):
+        return _validate_tool_calls([parsed])
+    return []
+
+
 def _extract_text_tool_calls(
     content: object,
     *,
-    enable_react_recovery: bool = False,
+    enable_react_recovery: bool = True,
 ) -> list[dict[str, Any]]:
     """Extract tool calls from model prose -- STRICT TIERED recovery.
 
@@ -481,8 +505,10 @@ def _extract_text_tool_calls(
 
     Tier 1: Exact JSON array/object at start of text (safest)
     Tier 2: Markdown code block with JSON (moderate safety)
-    Tier 3: ReAct Action pattern (RESTRICTED -- only when enabled)
-    NO TIER 4+: No ast.literal_eval, no heuristic parsing, no fuzzy matching
+    Tier 3: Python-literal object/array from local models. This uses
+        ast.literal_eval only; it does not execute calls/attributes/imports.
+    Tier 4: ReAct Action pattern (validated through the same allowlist)
+    NO fuzzy matching.
 
     If none of the tiers match, the model did not intend a tool call and
     the content is treated as ordinary assistant text.
@@ -498,23 +524,20 @@ def _extract_text_tool_calls(
     # ---- TIER 1: Exact JSON array/object at start of text ----
     # A message that BEGINS with [ or { is a structured call, not prose.
     if text_stripped.startswith("[") or text_stripped.startswith("{"):
+        calls = _validated_from_structured_payload(text_stripped)
+        if calls:
+            return calls
+        # Not valid JSON/Python literal as a whole -- try raw_decode for the
+        # first JSON object so a second printed JSON object stays unexecuted until
+        # the loop re-anchors on the first result.
         try:
-            parsed = json.loads(text_stripped)
-            if isinstance(parsed, list):
-                if all(isinstance(item, dict) for item in parsed):
-                    return _validate_tool_calls(parsed)
-            elif isinstance(parsed, dict):
-                return _validate_tool_calls([parsed])
+            first, _ = json.JSONDecoder().raw_decode(text_stripped)
+            if isinstance(first, dict):
+                return _validate_tool_calls([first])
+            if isinstance(first, list):
+                return _validate_tool_calls(first)
         except json.JSONDecodeError:
-            # Not valid JSON -- try raw_decode for partial objects
-            try:
-                first, _ = json.JSONDecoder().raw_decode(text_stripped)
-                if isinstance(first, dict):
-                    return _validate_tool_calls([first])
-                if isinstance(first, list):
-                    return _validate_tool_calls(first)
-            except json.JSONDecodeError:
-                pass
+            pass
 
     # ---- TIER 2: Markdown code block with JSON ----
     code_block_match = re.search(
@@ -522,20 +545,13 @@ def _extract_text_tool_calls(
     )
     if code_block_match:
         cleaned = code_block_match.group(1).strip()
-        try:
-            parsed = json.loads(cleaned)
-            if isinstance(parsed, list):
-                if all(isinstance(item, dict) for item in parsed):
-                    return _validate_tool_calls(parsed)
-            elif isinstance(parsed, dict):
-                return _validate_tool_calls([parsed])
-        except json.JSONDecodeError:
-            pass
+        calls = _validated_from_structured_payload(cleaned)
+        if calls:
+            return calls
 
-    # ---- TIER 3: ReAct Action pattern (STRICT -- only when enabled) ----
-    # This is the riskiest tier as it parses prose narration. It is OFF
-    # by default and should only be enabled for models known to use the
-    # ReAct format consistently.
+    # ---- TIER 3: ReAct Action pattern ----
+    # ReAct parses prose narration, so keep it restricted to an explicit
+    # "Action:" line plus JSON args, then the normal allowlist/primitive filter.
     if enable_react_recovery:
         for match in re.finditer(
             r"(?ims)^\s*action:\s*([a-z0-9_]+)\s*(\{.*)", content
@@ -549,11 +565,8 @@ def _extract_text_tool_calls(
                     [{"name": match.group(1), "arguments": args_obj}]
                 )
 
-    # ---- NO TIER 4+: No ast.literal_eval, no heuristic parsing ----
-    # ast.literal_eval was REMOVED: it could execute arbitrary Python
-    # literal expressions, which is an attack surface. If the model did
-    # not produce valid JSON in one of the tiers above, it did not
-    # intend a tool call.
+    # No heuristic/fuzzy parsing. If the model did not produce one of the
+    # structured forms above, it did not intend a tool call.
     return []
 
 
@@ -691,8 +704,8 @@ class ToolAgent:
         self._tool_call_history: list[tuple[str, str]] = []
         #: How many consecutive identical calls before we consider it a loop.
         self._repeated_tool_threshold = 3
-        #: Enable ReAct prose recovery (disabled by default -- risky tier 3).
-        self._enable_react_recovery = False
+        #: Enable validated ReAct prose recovery for local models.
+        self._enable_react_recovery = True
 
     def _detect_agent_loop(self, tool_calls: list[dict[str, Any]]) -> bool:
         """Detect if the agent is stuck in a repetitive loop.

@@ -22,16 +22,9 @@ describe('getSessionId', () => {
     expect(getSessionId()).toBe(FALLBACK_SESSION_ID);
   });
 
-  it('returns cookie-session identifier when cookie-based', () => {
-    // Simulate cookie-based session active
-    vi.stubGlobal('window', {
-      ...window,
-    });
-    // After initSession resolves with cookie-based, getSessionId returns 'cookie-session'
-    // We test this by checking the fallback path isn't taken
+  it('returns a stable client identifier while cookie state is unchecked', () => {
     const sid = getSessionId();
-    expect(sid).toBeTruthy();
-    expect(typeof sid).toBe('string');
+    expect(sid).toBe(FALLBACK_SESSION_ID);
   });
 
   it('falls back to the stable fallback id when storage is blocked', () => {

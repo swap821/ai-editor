@@ -63,7 +63,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── Stripe API Keys ─────────────────────────────────────────────────────
     (
         "STRIPE_API_KEY",
-        re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]{24,}\b"),
+        re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9_]{24,}\b"),
     ),
     # ── OpenAI API Keys ─────────────────────────────────────────────────────
     ("OPENAI_API_KEY", re.compile(r"\bsk-[A-Za-z0-9]{32,}\b")),
@@ -81,7 +81,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── Slack Tokens ────────────────────────────────────────────────────────
     (
         "SLACK_TOKEN",
-        re.compile(r"\bxox[baprs]-[A-Za-z0-9-]+\b"),
+        re.compile(r"\bxox[baprs]-[A-Za-z0-9_-]+\b"),
     ),
     # ── Google API keys (AIza…). Typical length is 39 chars; allow slack. ───
     ("GOOGLE_API_KEY", re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b")),

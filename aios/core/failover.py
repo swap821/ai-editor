@@ -9,11 +9,12 @@ automatically.
 
 Privacy-hardened behaviour (H9 mitigation):
   * **At most ONE cloud provider per turn.**  The failover loop identifies the
-    first cloud candidate, pre-filters messages through :class:`PrivacyFilter`,
-    and attempts that single cloud candidate.  If it fails the turn falls back to
-    a *local* (Ollama) candidate — never to a second cloud provider.  This
-    prevents a privacy cascade where the same (possibly sensitive) message list
-    is leaked to multiple cloud providers in a single turn.
+    first cloud provider, pre-filters messages through :class:`PrivacyFilter`,
+    and may try that provider's ranked model candidates.  If they fail the turn
+    falls back to a *local* (Ollama) candidate — never to a different cloud
+    provider when local fallback exists.  This prevents a privacy cascade where
+    the same (possibly sensitive) message list is leaked to multiple cloud
+    providers in a single turn.
   * The privacy filter is applied **once**, before any cloud transmission, so
     the same redacted copy is used for the cloud attempt and any subsequent local
     fallback.
@@ -105,10 +106,10 @@ class FailoverChatClient:
         candidate fails — so the turn rides any single model's outage transparently.
 
         Privacy rule (H9): at most **one** cloud provider is attempted per turn.
-        If the cloud candidate fails, failover falls back to a *local* candidate
-        (Ollama) — never to a second cloud provider.  This prevents the same
-        (potentially sensitive) message list from being exposed to multiple cloud
-        providers in a single turn.
+        If all ranked models for that cloud provider fail, failover falls back to
+        a *local* candidate (Ollama) — never to a different cloud provider when
+        local fallback exists.  This prevents the same (potentially sensitive)
+        message list from being exposed to multiple cloud providers in one turn.
 
         The optional ``on_failover`` hook is fired only after a later candidate
         *successfully* serves the turn, and it reports that successful candidate as
@@ -142,6 +143,7 @@ class FailoverChatClient:
                 )
 
         attempted: set[int] = set()
+        attempted_cloud_providers: set[str] = set()
 
         # --- 1. Try candidates from *started* forward, respecting H9. ---
         for i in range(started, len(self._candidates)):
@@ -149,19 +151,22 @@ class FailoverChatClient:
                 continue
 
             client, m, provider = self._candidates[i]
+            provider_key = provider.strip().lower()
 
-            # H9: if we've already tried a cloud provider this turn, skip additional
-            # cloud providers — unless there is no local fallback at all.
-            if i in cloud_indices and any(idx in attempted for idx in cloud_indices):
+            # H9: multiple ranked models from the same cloud provider are allowed;
+            # a different cloud provider is skipped when a local fallback exists.
+            if i in cloud_indices and attempted_cloud_providers and provider_key not in attempted_cloud_providers:
                 if has_local_fallback:
-                    continue  # skip: H9 says one cloud max when local exists
-                # No local fallback — we have to try remaining clouds as last resort.
+                    continue
+                # No local fallback — we have to try remaining providers as last resort.
                 logger.warning(
                     "H9: no local fallback available; trying additional cloud provider %s",
                     provider,
                 )
 
             attempted.add(i)
+            if i in cloud_indices:
+                attempted_cloud_providers.add(provider_key)
             use_messages = filtered_messages if i in cloud_indices else messages
 
             try:

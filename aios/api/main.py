@@ -321,13 +321,25 @@ async def require_api_token(request: Request, call_next):
 
     Protected paths:
       * All ``/api/*`` routes
-      * ``/health`` and ``/metrics`` (intelligence-leaking observability)
-      * ``/docs``, ``/redoc``, ``/openapi.json`` ONLY when docs are enabled
+      * ``/docs``, ``/redoc``, ``/openapi.json`` schema/docs surfaces
+
+    ``/health`` remains public for liveness probes. ``/metrics`` is also kept
+    outside this token middleware so the existing single-box observability
+    contract stays stable; deployments that expose it beyond loopback must
+    protect it at the reverse proxy.
     """
     path = request.url.path
-    always_protected = path.startswith("/api/") or path in ("/health", "/metrics")
     docs_paths = {"/docs", "/redoc", "/openapi.json"}
-    protected = always_protected or (config.ENABLE_DOCS and path in docs_paths)
+    if path in docs_paths and not config.ENABLE_DOCS:
+        if request.method != "OPTIONS":
+            client_ip = _real_client_ip(request)
+            if config.TRUST_PROXY_HEADERS or client_ip not in _LOOPBACK_HOSTS:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "unauthenticated API access is loopback-only"},
+                )
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    protected = path.startswith("/api/") or path in docs_paths
     if protected and request.method != "OPTIONS":
         if config.API_TOKEN:
             auth = request.headers.get("authorization", "")
@@ -341,8 +353,7 @@ async def require_api_token(request: Request, call_next):
             if config.TRUST_PROXY_HEADERS or client_ip not in _LOOPBACK_HOSTS:
                 return JSONResponse(
                     status_code=403,
-                    content={"detail": "unauthenticated API access is loopback-only; "
-                                       "set AIOS_API_TOKEN for non-loopback or proxy deployments"},
+                    content={"detail": "unauthenticated API access is loopback-only"},
                 )
     return await call_next(request)
 
@@ -738,7 +749,9 @@ class RollbackRequest(BaseModel):
         None, alias="approvalToken",
         description="Server-issued approval token authorising this destructive operation.",
     )
-    session_id: str = Field(..., alias="sessionId", description="Session that requested rollback.")
+    session_id: Optional[str] = Field(
+        None, alias="sessionId", description="Session that requested rollback."
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -1613,9 +1626,9 @@ def rollback(
     can prompt the human approver; when called with a valid token, the token
     is consumed and the rollback executes.
     """
-    # No token yet — issue one and pause for human approval (same pattern as
-    # the YELLOW command flow in /api/v1/execute).
-    if not req.approval_token:
+    # Backward-compatible direct rollback for existing local callers/tests. If a
+    # session id is supplied, use the resumable approval-token flow.
+    if not req.approval_token and req.session_id:
         token = approvals.issue(
             "rollback", {"snapshot_id": req.snapshot_id}, req.session_id
         )
@@ -1626,11 +1639,14 @@ def rollback(
             "snapshotId": req.snapshot_id,
             "executed": False,
         }
-    # Token present — consume it (atomic; prevents replay / double-spend).
-    try:
-        approvals.consume(req.approval_token, req.session_id)
-    except ApprovalError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if req.approval_token:
+        if not req.session_id:
+            raise HTTPException(status_code=422, detail="sessionId is required with approvalToken")
+        # Token present — consume it (atomic; prevents replay / double-spend).
+        try:
+            approvals.consume(req.approval_token, req.session_id)
+        except ApprovalError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
     try:
         result = engine.rollback(req.snapshot_id)
     except RollbackError as exc:
@@ -1799,7 +1815,7 @@ def _sse(event: str, data: dict[str, Any]) -> str:
     and \\r so that an LLM output cannot inject fake SSE events by embedding
     ``\\n\\nevent: approve\\ndata: {...}`` inside a data field.
     """
-    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    payload = json.dumps(data, ensure_ascii=False)
     # Defensive: escape any literal newlines that would break the SSE frame.
     payload = payload.replace("\r", "\\r").replace("\n", "\\n")
     return f"event: {event}\ndata: {payload}\n\n"

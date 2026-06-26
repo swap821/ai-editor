@@ -229,8 +229,14 @@ class DockerRunner:
         argv = _parse_argv(command)
         resolved_cwd = str(Path(cwd).resolve())
         # H4 — Docker mount spec characters can break out of the mount string.
-        # Commas, equals, and colons are separators in the --mount syntax.
-        if any(ch in resolved_cwd for ch in ",=:"):
+        # Commas, equals, and non-drive-letter colons are separators in the
+        # --mount syntax. A normal Windows root ("C:\...") is allowed.
+        colon_scan = (
+            resolved_cwd[2:]
+            if len(resolved_cwd) >= 2 and resolved_cwd[1] == ":" and resolved_cwd[0].isalpha()
+            else resolved_cwd
+        )
+        if any(ch in resolved_cwd for ch in ",=") or ":" in colon_scan:
             raise ValueError(
                 "working directory path contains characters not permitted in Docker mount spec"
             )
