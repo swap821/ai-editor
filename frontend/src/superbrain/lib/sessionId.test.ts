@@ -26,7 +26,6 @@ describe('getSessionId', () => {
     // Simulate cookie-based session active
     vi.stubGlobal('window', {
       ...window,
-      // @ts-expect-error private module state
     });
     // After initSession resolves with cookie-based, getSessionId returns 'cookie-session'
     // We test this by checking the fallback path isn't taken

@@ -160,7 +160,6 @@ class TestSingleFailureRevocation:
 
 class TestSuccessStreakCounting:
     """TC-SEC-561 through TC-SEC-566: Success streak to earned promotion."""
-        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
 
     def test_single_success_probation(self, enabled_ledger, monkeypatch):
         """TC-SEC-561: 1 success with min=3 must be probation."""
@@ -360,7 +359,6 @@ class TestOperatorRevocation:
 
 class TestLedgerObservability:
     """TC-SEC-583 through TC-SEC-587: Ledger must be observable without secrets."""
-        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
 
     def test_ledger_map_returns_summary(self, enabled_ledger, monkeypatch):
         """TC-SEC-583: ledger_map() must return summary."""
