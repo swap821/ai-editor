@@ -52,8 +52,9 @@ export default function TierGovernor() {
   }, []);
 
   // Dev-only profiling hook: read the live FPS / relief factor / applied DPR.
+  // SECURITY (H4): double-gated with hostname check.
   useEffect(() => {
-    if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') return undefined;
+    if (typeof window === 'undefined' || process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost') return undefined;
     const host = window as typeof window & { __getPerf?: () => typeof perfRef.current };
     host.__getPerf = () => perfRef.current;
     return () => {
