@@ -19,6 +19,7 @@ any network, model, or host side effects.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 import secrets
@@ -88,6 +89,7 @@ from aios.core.alignment import (
 )
 from aios.core.planner import Planner, PlannerError
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
+from aios.core.session_manager import SessionManager
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
@@ -109,6 +111,11 @@ from aios.security.secret_scanner import scan_and_redact
 
 _APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
+
+#: Server-side session manager with httpOnly cookie support.
+#: Sessions are stored in-memory keyed by SHA-256 hash; the raw ID
+#: never leaves the server except inside the httpOnly cookie response.
+_SESSION_MANAGER = SessionManager(max_age=3600, cleanup_interval=300)
 
 #: Cloud chat-client singletons. Built lazily and reused across requests so we do
 #: not re-run boto3/gcloud credential discovery on every turn. Enablement is still
@@ -212,7 +219,17 @@ async def bind_request_context(request: Request, call_next):
     clear_contextvars()
     bind_contextvars(request_id=request_id, method=request.method, path=request.url.path)
     try:
-        if request.method in ("POST", "PUT", "PATCH"):
+        session_id: Optional[str] = None
+        # P0 SECURITY: prefer session from httpOnly cookie (not accessible to JS/XSS)
+        # Fall back to body field for clients that haven't migrated yet.
+        cookie_hash = request.cookies.get("session_id")
+        if cookie_hash:
+            manager = get_session_manager()
+            session = manager.validate_session(cookie_hash)
+            if session is not None:
+                # Use the session hash as the log key (raw ID never leaves memory)
+                session_id = session.session_hash
+        if not session_id and request.method in ("POST", "PUT", "PATCH"):
             content_type = request.headers.get("content-type", "")
             if "application/json" in content_type:
                 try:
@@ -221,9 +238,11 @@ async def bind_request_context(request: Request, call_next):
                 except Exception:
                     payload = None
                 if isinstance(payload, dict):
-                    session_id = payload.get("sessionId") or payload.get("session_id")
-                    if session_id:
-                        bind_contextvars(session_id_hash=session_log_key(str(session_id)))
+                    body_sid = payload.get("sessionId") or payload.get("session_id")
+                    if body_sid:
+                        session_id = str(body_sid)
+        if session_id:
+            bind_contextvars(session_id_hash=session_log_key(session_id))
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
         return response
@@ -236,6 +255,60 @@ async def bind_request_context(request: Request, call_next):
 #: backdoor. Tests that need unauthenticated access should use an explicit
 #: loopback client address.
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+def _is_private_ip(ip: str) -> bool:
+    """Return True if *ip* is a loopback, link-local, or RFC 1918/4193 address.
+
+    Uses the standard-library ``ipaddress`` module so IPv4 and IPv6 are both
+    handled correctly (e.g. ``::1``, ``fc00::``, ``fe80::``).
+    """
+    ip = ip.strip()
+    if not ip:
+        return True  # empty = unsafe, treat as private
+    try:
+        addr = ipaddress.ip_address(ip)
+        return addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_reserved
+    except ValueError:
+        # Not a valid IP — could be a Unix socket path or empty string.
+        # Fail closed: treat unparseable as private (untrusted).
+        return True
+
+
+def _real_client_ip(request: Request) -> str:
+    """Return the best-effort real client IP for auth decisions.
+
+    When TRUST_PROXY_HEADERS is enabled, parse X-Forwarded-For as a
+    comma-separated chain and take the **rightmost** non-private IP (the one
+    closest to the server that is still a public/resolvable address). If every
+    IP in the chain is private, fall back to the direct peer — in that case
+    the deployment MUST set AIOS_API_TOKEN because loopback exemption is
+    unsafe behind a proxy.
+
+    When TRUST_PROXY_HEADERS is disabled, use the direct peer IP.
+    """
+    direct = request.client.host if request.client else ""
+    if not config.TRUST_PROXY_HEADERS:
+        return direct
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if not forwarded:
+        return direct
+    # X-Forwarded-For is a comma-separated chain: left = original client,
+    # right = closest to server. Take the rightmost non-private IP.
+    chain = [h.strip() for h in forwarded.split(",") if h.strip()]
+    # If TRUSTED_PROXIES is configured, only trust entries from those proxies.
+    if config.TRUSTED_PROXIES:
+        # Walk from rightmost to leftmost, stop at first IP that is NOT a
+        # trusted proxy (that IP made the request through the proxy chain).
+        for ip in reversed(chain):
+            if ip not in config.TRUSTED_PROXIES:
+                return ip
+        # Every IP in the chain is a trusted proxy — use direct peer.
+        return direct
+    # No trusted proxy whitelist: take the rightmost non-private IP.
+    for ip in reversed(chain):
+        if not _is_private_ip(ip):
+            return ip
+    # All IPs in the chain are private — possible spoofing attempt.
+    return direct
 
 
 @app.middleware("http")
@@ -245,31 +318,99 @@ async def require_api_token(request: Request, call_next):
     When the operator has configured a trusted reverse proxy, the loopback
     exemption is disabled entirely: the direct peer may be the proxy, so only
     a bearer token can authenticate the real client.
+
+    Protected paths:
+      * All ``/api/*`` routes
+      * ``/health`` and ``/metrics`` (intelligence-leaking observability)
+      * ``/docs``, ``/redoc``, ``/openapi.json`` ONLY when docs are enabled
     """
-    protected = request.url.path.startswith("/api/") or request.url.path in {
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-    }
+    path = request.url.path
+    always_protected = path.startswith("/api/") or path in ("/health", "/metrics")
+    docs_paths = {"/docs", "/redoc", "/openapi.json"}
+    protected = always_protected or (config.ENABLE_DOCS and path in docs_paths)
     if protected and request.method != "OPTIONS":
         if config.API_TOKEN:
             auth = request.headers.get("authorization", "")
             expected = f"Bearer {config.API_TOKEN}"
             if not secrets.compare_digest(auth, expected):
                 return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
-        elif not config.TRUST_PROXY_HEADERS:
-            client_host = request.client.host if request.client else ""
-            if client_host not in _LOOPBACK_HOSTS:
+        else:
+            # No API token configured — ONLY loopback is permitted, and NEVER
+            # when behind a proxy (the peer IP is the proxy, not the client).
+            client_ip = _real_client_ip(request)
+            if config.TRUST_PROXY_HEADERS or client_ip not in _LOOPBACK_HOSTS:
                 return JSONResponse(
                     status_code=403,
-                    content={"detail": "unauthenticated API access is loopback-only"},
+                    content={"detail": "unauthenticated API access is loopback-only; "
+                                       "set AIOS_API_TOKEN for non-loopback or proxy deployments"},
                 )
-        else:
-            return JSONResponse(
-                status_code=403,
-                content={"detail": "unauthenticated API access is loopback-only"},
-            )
     return await call_next(request)
+
+
+# --------------------------------------------------------------------------- #
+# In-memory sliding-window rate limiter for sensitive API endpoints.
+# Protects against brute-force on approval tokens and DoS on execute/reflect.
+# Best-effort, per-process; the durable RateLimiter governs RED actions.
+# --------------------------------------------------------------------------- #
+_RATE_LIMIT_WINDOW_S = 60.0
+_RATE_LIMIT_ENDPOINTS: dict[str, int] = {
+    "/api/v1/approval/req": 10,
+    "/api/v1/execute": 30,
+    "/api/terminal": 20,
+}
+_RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
+_RATE_LIMIT_LOCK = threading.Lock()
+
+
+def _check_endpoint_rate_limit(path: str, client_ip: str) -> None:
+    """Raise HTTP 429 if *client_ip* exceeds the per-minute cap for *path*.
+
+    A simple monotonic sliding window keyed by ``path|ip``. Best-effort and
+    in-process; intended to slow brute-force on approval tokens and noisy
+    execute/terminal endpoints.
+    """
+    cap = _RATE_LIMIT_ENDPOINTS.get(path)
+    if cap is None:
+        return
+    key = f"{path}|{client_ip}"
+    now = time.monotonic()
+    cutoff = now - _RATE_LIMIT_WINDOW_S
+    with _RATE_LIMIT_LOCK:
+        hits = [t for t in _RATE_LIMIT_HITS.get(key, []) if t[1] > cutoff]
+        if len(hits) >= cap:
+            _RATE_LIMIT_HITS[key] = hits
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Rate limit exceeded for {path}. "
+                    f"Limit is {cap} per {int(_RATE_LIMIT_WINDOW_S)}s."
+                ),
+            )
+        hits.append((key, now))
+        _RATE_LIMIT_HITS[key] = hits
+
+
+@app.middleware("http")
+async def endpoint_rate_limit(request: Request, call_next):
+    """Apply per-endpoint, per-IP rate limits before the request reaches handlers."""
+    if request.method != "OPTIONS":
+        path = request.url.path
+        if path in _RATE_LIMIT_ENDPOINTS:
+            # Use the same IP extraction logic as the auth middleware.
+            client_ip = _real_client_ip(request)
+            try:
+                _check_endpoint_rate_limit(path, client_ip)
+            except HTTPException:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": f"Rate limit exceeded for {path}"},
+                )
+    return await call_next(request)
+
+
+def get_session_manager() -> SessionManager:
+    """Provide the server-side session manager singleton."""
+    return _SESSION_MANAGER
 
 
 def get_llm_client() -> LLMClient:
@@ -593,6 +734,13 @@ class RollbackRequest(BaseModel):
     snapshot_id: Optional[str] = Field(
         None, description="Target snapshot SHA; defaults to the previous snapshot."
     )
+    approval_token: Optional[str] = Field(
+        None, alias="approvalToken",
+        description="Server-issued approval token authorising this destructive operation.",
+    )
+    session_id: str = Field(..., alias="sessionId", description="Session that requested rollback.")
+
+    model_config = {"populate_by_name": True}
 
 
 class ApplyProposalRequest(BaseModel):
@@ -747,6 +895,45 @@ class OnboardingStateResponse(BaseModel):
     firstAutonomy: bool
 
 
+class SessionCreateResponse(BaseModel):
+    """Response from POST /api/v1/auth/session — session created."""
+
+    authenticated: bool = Field(
+        ..., description="True when the session is authenticated."
+    )
+    session_id: str = Field(
+        ..., alias="sessionId", description="The session identifier (for cookie-based clients)."
+    )
+    cookie_based: bool = Field(
+        True, alias="cookieBased",
+        description="True when session travels via httpOnly cookie.",
+    )
+    warning: Optional[str] = Field(
+        None,
+        description="Security warning when cookie-less fallback is in use.",
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class SessionStatusResponse(BaseModel):
+    """Response from GET /api/v1/auth/session — current session status."""
+
+    authenticated: bool = Field(
+        ..., description="True when a valid session exists."
+    )
+    cookie_based: bool = Field(
+        True, alias="cookieBased",
+        description="True when session travels via httpOnly cookie.",
+    )
+    session_id: Optional[str] = Field(
+        None, alias="sessionId",
+        description="The session identifier (only when not cookie-based).",
+    )
+
+    model_config = {"populate_by_name": True}
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -846,6 +1033,107 @@ def onboarding_state(
         firstCloudRoute=_has_cloud_route(),
         firstAutonomy=ledger["summary"]["earned"] > 0,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Session management — httpOnly Secure SameSite=Strict cookies (H2 hardening)
+# --------------------------------------------------------------------------- #
+# SECURITY: Session IDs are managed server-side and travel in httpOnly cookies
+# that are completely inaccessible to JavaScript. This prevents XSS-based
+# session theft (OWASP A07:2021). The raw session ID is never logged or exposed.
+# --------------------------------------------------------------------------- #
+
+def _set_session_cookie(response: Response, raw_session_id: str) -> str:
+    """Set the session_id cookie with httpOnly, Secure, SameSite=Strict flags.
+
+    Returns the cookie value (the SHA-256 hash) so it can be used as a
+    session identifier in logs (the raw ID is never logged).
+    """
+    cookie_value = hashlib.sha256(raw_session_id.encode()).hexdigest()
+    # In development (loopback) Secure=False so the cookie works over HTTP.
+    # In production behind HTTPS, Secure=True is enforced by config check.
+    secure = config.API_HOST not in {"127.0.0.1", "localhost", "::1"}
+    response.set_cookie(
+        key="session_id",
+        value=cookie_value,
+        httponly=True,          # NOT accessible to JavaScript — prevents XSS theft
+        secure=secure,          # HTTPS only in production; loopback allows HTTP
+        samesite="strict",      # NOT sent cross-origin — prevents CSRF
+        max_age=3600,           # 1 hour
+        path="/",             # Sent for all API paths
+    )
+    return cookie_value
+
+
+@app.post("/api/v1/auth/session")
+def create_session(
+    response: Response,
+    manager: SessionManager = Depends(get_session_manager),
+) -> SessionCreateResponse:
+    """Create a new server-side session and set the httpOnly session cookie.
+
+    The session ID is stored in an httpOnly, Secure, SameSite=Strict cookie.
+    JavaScript cannot read this cookie, preventing XSS-based session theft.
+
+    If cookies are blocked (e.g., privacy mode), the session ID is returned
+    in the response body with a security warning — the client should fall
+    back to sending it in the ``sessionId`` field of subsequent requests.
+    """
+    raw_id = manager.create_session()
+    cookie_hash = _set_session_cookie(response, raw_id)
+    return SessionCreateResponse(
+        authenticated=True,
+        session_id=cookie_hash,
+        cookie_based=True,
+    )
+
+
+@app.get("/api/v1/auth/session")
+def get_session_status(
+    request: Request,
+    manager: SessionManager = Depends(get_session_manager),
+) -> SessionStatusResponse:
+    """Check whether the current session is valid.
+
+    Returns ``authenticated: true`` when the request carries a valid
+    session cookie. The frontend calls this on load to determine whether
+    a session exists without needing to read the cookie directly
+    (httpOnly cookies are invisible to JavaScript).
+    """
+    cookie_hash = request.cookies.get("session_id")
+    session = manager.validate_session(cookie_hash)
+    if session is not None:
+        return SessionStatusResponse(
+            authenticated=True,
+            cookie_based=True,
+        )
+    return SessionStatusResponse(
+        authenticated=False,
+        cookie_based=True,
+    )
+
+
+@app.delete("/api/v1/auth/session")
+def destroy_session(
+    request: Request,
+    response: Response,
+    manager: SessionManager = Depends(get_session_manager),
+) -> dict[str, Any]:
+    """Invalidate the current session (logout).
+
+    Removes the session from server-side storage AND clears the cookie
+    so the browser stops sending it.
+    """
+    cookie_hash = request.cookies.get("session_id")
+    manager.invalidate_session(cookie_hash)
+    response.delete_cookie(
+        key="session_id",
+        path="/",
+        httponly=True,
+        secure=config.API_HOST not in {"127.0.0.1", "localhost", "::1"},
+        samesite="strict",
+    )
+    return {"authenticated": False}
 
 
 @app.post("/api/v1/memory/search")
@@ -1314,9 +1602,35 @@ def approval_req(
 
 @app.post("/api/v1/rollback")
 def rollback(
-    req: RollbackRequest, engine: RollbackEngine = Depends(get_rollback_engine)
+    req: RollbackRequest,
+    engine: RollbackEngine = Depends(get_rollback_engine),
+    approvals: ApprovalStore = Depends(get_approval_store),
 ) -> dict[str, Any]:
-    """Restore the sandbox working tree to a prior snapshot."""
+    """Restore the sandbox working tree to a prior snapshot.
+
+    Rollback is a DESTRUCTIVE operation that requires a server-issued approval
+    token. When called without a token, one is issued and returned so the UI
+    can prompt the human approver; when called with a valid token, the token
+    is consumed and the rollback executes.
+    """
+    # No token yet — issue one and pause for human approval (same pattern as
+    # the YELLOW command flow in /api/v1/execute).
+    if not req.approval_token:
+        token = approvals.issue(
+            "rollback", {"snapshot_id": req.snapshot_id}, req.session_id
+        )
+        return {
+            "requiresApproval": True,
+            "approvalToken": token,
+            "actionType": "rollback",
+            "snapshotId": req.snapshot_id,
+            "executed": False,
+        }
+    # Token present — consume it (atomic; prevents replay / double-spend).
+    try:
+        approvals.consume(req.approval_token, req.session_id)
+    except ApprovalError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     try:
         result = engine.rollback(req.snapshot_id)
     except RollbackError as exc:
@@ -1479,8 +1793,16 @@ def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _sse(event: str, data: dict[str, Any]) -> str:
-    """Format one Server-Sent Event frame."""
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+    """Format one Server-Sent Event frame.
+
+    All newline characters (\\n, \\r) in the JSON payload are escaped to \\n
+    and \\r so that an LLM output cannot inject fake SSE events by embedding
+    ``\\n\\nevent: approve\\ndata: {...}`` inside a data field.
+    """
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    # Defensive: escape any literal newlines that would break the SSE frame.
+    payload = payload.replace("\r", "\\r").replace("\n", "\\n")
+    return f"event: {event}\ndata: {payload}\n\n"
 
 
 #: Agent event type -> SSE event name the front-end's stream reader understands.

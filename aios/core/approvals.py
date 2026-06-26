@@ -121,7 +121,7 @@ class ApprovalStore:
 
     def issue(self, action_type: str, payload: dict[str, Any], session_id: str) -> str:
         """Record an exact action and return its opaque approval token."""
-        if action_type not in {"command", "edit", "create"}:
+        if action_type not in {"command", "edit", "create", "rollback"}:
             raise ApprovalError(f"unsupported approval action: {action_type}")
         if not session_id:
             raise ApprovalError("approval requires a session id")
@@ -156,19 +156,24 @@ class ApprovalStore:
         return token
 
     def consume(self, token: str, session_id: str) -> ApprovedAction:
-        """Consume one capability; it cannot be replayed even if invalid/expired."""
+        """Consume one capability; it cannot be replayed even if invalid/expired.
+
+        Uses atomic DELETE ... RETURNING in SQL mode so concurrent requests
+        with the same token race safely — only one wins. In-memory mode holds
+        the class lock for the entire check-and-delete to prevent TOCTOU.
+        """
         if not token:
             raise ApprovalError("approval token is required")
         if self.db_path is not None:
             digest = self._token_digest(token)
             with self._connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                # Atomic DELETE ... RETURNING eliminates the SELECT-then-DELETE
+                # race: two concurrent connections cannot both see the row.
                 row = conn.execute(
-                    "SELECT action_type, payload_json, session_id, expires_at "
-                    "FROM approval_pending WHERE token_digest = ?",
+                    "DELETE FROM approval_pending WHERE token_digest = ? RETURNING "
+                    "action_type, payload_json, session_id, expires_at",
                     (digest,),
                 ).fetchone()
-                conn.execute("DELETE FROM approval_pending WHERE token_digest = ?", (digest,))
             if row is None:
                 raise ApprovalError("approval token is unknown or already used")
             if float(row["expires_at"]) < self._clock():
@@ -177,15 +182,18 @@ class ApprovalStore:
             if stored_session not in {session_id, self._session_digest(session_id)}:
                 raise ApprovalError("approval token belongs to a different session")
             return self._row_action(row, session_id)
+        # In-memory: hold the lock for the full check-and-delete to prevent
+        # a second thread from seeing the token after the first has validated
+        # but before it has been removed.
         with self._lock:
             pending = self._pending.pop(token, None)
-        if pending is None:
-            raise ApprovalError("approval token is unknown or already used")
-        if pending.expires_at < self._clock():
-            raise ApprovalError("approval token expired")
-        if pending.action.session_id != session_id:
-            raise ApprovalError("approval token belongs to a different session")
-        return pending.action
+            if pending is None:
+                raise ApprovalError("approval token is unknown or already used")
+            if pending.expires_at < self._clock():
+                raise ApprovalError("approval token expired")
+            if pending.action.session_id != session_id:
+                raise ApprovalError("approval token belongs to a different session")
+            return pending.action
 
     def clear(self) -> None:
         """Clear pending capabilities (tests / controlled restart)."""

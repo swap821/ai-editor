@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import threading
 import time
@@ -46,9 +47,32 @@ from aios.security.gateway import (
 )
 
 #: Environment variables whose *names* indicate a secret; stripped from children.
-_SECRET_NAME_HINTS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "BEARER")
+_SECRET_NAME_HINTS = (
+    "KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "BEARER",
+    "AUTH", "APIKEY", "PIN", "PASSPHRASE", "DATABASE", "CONNECTION",
+    "WEBHOOK", "MNEMONIC", "KEYSTORE", "CERTIFICATE", "PRIVATE",
+    "SIGNING", "ENCRYPTION", "ACCESS", "REFRESH", "SESSION",
+)
 #: Variables removed regardless of value (no home/identity propagation).
-_STRIPPED_NAMES = ("HOME", "USERPROFILE", "AWS_BEARER_TOKEN_BEDROCK")
+# fmt: off
+_STRIPPED_NAMES = (
+    # Identity / home propagation (C17)
+    "HOME", "USERPROFILE",
+    # Dynamic linker injection vectors (C19)
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "LD_PROFILE",
+    "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+    # Python module search path injection (H6)
+    "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONIOENCODING",
+    # Identity / credential leak vectors (H17-H18)
+    "SSH_AUTH_SOCK", "GNUPGHOME", "HISTFILE", "MAIL", "HOSTNAME",
+    # AWS-specific bearer token
+    "AWS_BEARER_TOKEN_BEDROCK",
+    # AWS credential leak vectors (C5 hardening)
+    "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+    # Database connection string leak (C5 hardening)
+    "DATABASE_URL",
+)
+# fmt: on
 _OUTPUT_TRUNCATED = "\n[OUTPUT TRUNCATED]\n"
 
 
@@ -105,6 +129,7 @@ def _bounded_run(
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        start_new_session=True,
     )
     streams = [process.stdout, process.stderr]
     captured = [bytearray(), bytearray()]
@@ -135,7 +160,16 @@ def _bounded_run(
     try:
         return_code = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        process.kill()
+        # SIGSTOP bypass: wake stopped processes so they can receive the fatal signal
+        try:
+            os.kill(process.pid, signal.SIGCONT)
+        except (OSError, ProcessLookupError):
+            pass
+        # Kill the entire process group — not just the immediate child
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            process.kill()
         process.wait()
         raise
     finally:
@@ -193,7 +227,14 @@ class DockerRunner:
         self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
     ) -> tuple[str, str, int]:
         argv = _parse_argv(command)
-        mount = f"type=bind,src={Path(cwd).resolve()},dst=/workspace,rw"
+        resolved_cwd = str(Path(cwd).resolve())
+        # H4 — Docker mount spec characters can break out of the mount string.
+        # Commas, equals, and colons are separators in the --mount syntax.
+        if any(ch in resolved_cwd for ch in ",=:"):
+            raise ValueError(
+                "working directory path contains characters not permitted in Docker mount spec"
+            )
+        mount = f"type=bind,src={resolved_cwd},dst=/workspace,rw"
         docker_argv = [
             self.runtime,
             "run",

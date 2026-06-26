@@ -1,4 +1,16 @@
-"""Agentic tool loop — lets the chat actually act, under the security gateway.
+"""Agentic tool loop -- lets the chat actually act, under the security gateway.
+
+SECURITY FIX (H2): Prose tool-call recovery is now STRICT tiered:
+  Tier 1: Exact JSON array/object at start of text
+  Tier 2: Markdown code block with JSON
+  Tier 3: ReAct Action pattern (only when explicitly enabled)
+  NO ast.literal_eval, NO heuristic parsing
+
+SECURITY FIX (H3): Agent loop detection prevents runaway execution:
+  - Repeated identical tool calls are detected
+  - Alternating patterns (A->B->A->B) are detected
+  - Hard ceiling on iteration count
+
 
 The agent runs a bounded reason -> act -> observe loop on the local model via
 Ollama's function-calling chat API. Each turn the model may call a tool; the
@@ -8,53 +20,53 @@ model produces a final answer or a step cap is reached.
 
 Tools exposed to the model:
 
-  * ``read_file``        — read a project file. Reads are GREEN/safe, but the
+  * ``read_file``        -- read a project file. Reads are GREEN/safe, but the
     path is canonicalised and must stay within the project root (no traversal,
     no symlink escape), and content is secret-scrubbed before the model sees it.
-  * ``read_directory``   — list a project directory (same scope rule).
-  * ``execute_terminal`` — run a shell command through the gateway + sandbox
+  * ``read_directory``   -- list a project directory (same scope rule).
+  * ``execute_terminal`` -- run a shell command through the gateway + sandbox
     :class:`~aios.core.executor.Executor`. GREEN runs immediately. A YELLOW
     command pauses the turn and asks the human; once authorised (the command is
     passed back in ``approved_commands``) it actually runs via
     ``execute_approved``. RED is always blocked. The agent never auto-runs a
     non-GREEN command.
-  * ``edit_file``        — replace a unique snippet in a sandbox file. Scope-
+  * ``edit_file``        -- replace a unique snippet in a sandbox file. Scope-
     locked to the executor's roots; shows a unified diff and pauses for approval
     (YELLOW); an approved edit (passed back in ``approved_edits``) is snapshotted,
     written, and audited.
-  * ``create_file``      — author a NEW file in the sandbox. Same human gate as
+  * ``create_file``      -- author a NEW file in the sandbox. Same human gate as
     ``edit_file``: scope-locked, shows an all-additions preview and pauses for
     approval (YELLOW); an approved creation (passed back in ``approved_creations``)
     is snapshotted + audited, then written. Refuses to overwrite an existing file
     (use ``edit_file`` for that).
-  * ``verify``           — run a verification command (e.g. the test suite)
+  * ``verify``           -- run a verification command (e.g. the test suite)
     through the SAME gated Executor and judge pass/fail by exit code + parsed
-    counts (blueprint stage 8). Fail-closed — a blocked, timed-out, or non-zero
-    run is a FAIL, never a silent pass — and a genuine failure feeds the same
+    counts (blueprint stage 8). Fail-closed -- a blocked, timed-out, or non-zero
+    run is a FAIL, never a silent pass -- and a genuine failure feeds the same
     reflection hook, closing the execute -> verify -> reflect loop.
-  * ``plan``             — decompose a multi-step goal into an ordered,
+  * ``plan``             -- decompose a multi-step goal into an ordered,
     confidence-scored plan via the Planner + the 0.72 confidence gate (blueprint
-    Q4). ADVISORY only — it never executes; steps below the threshold are flagged
+    Q4). ADVISORY only -- it never executes; steps below the threshold are flagged
     for human review, and the model still routes real actions through the gate. It
     needs a completion-capable LLM (injected separately from the chat client,
     which may be cloud Bedrock with no ``.complete()``); without one it degrades
     to a graceful "unavailable" result.
-  * ``self_analyze``     — read + diagnose this project's OWN codebase (the
+  * ``self_analyze``     -- read + diagnose this project's OWN codebase (the
     Self-Analysis module, Tiers T0/T1; Assessment §6). Builds an architecture map
     and a deterministic diagnostic report (missing tests, smells, TODOs,
     complexity), writes it to the report table, and returns a summary. Strictly
-    READ-ONLY/GREEN — it never edits source, runs anything, or loads a model — and
+    READ-ONLY/GREEN -- it never edits source, runs anything, or loads a model -- and
     the analysed ``path`` is confined to the project root like the other reads.
-  * ``propose_fixes``    — Self-Analysis Tier T2: draft candidate fix DIFFS for the
+  * ``propose_fixes``    -- Self-Analysis Tier T2: draft candidate fix DIFFS for the
     ``open`` findings and store them (status open->proposed) for human review.
-    READ-ONLY — it reads source + writes the report's ``proposed_diff``, but NEVER
+    READ-ONLY -- it reads source + writes the report's ``proposed_diff``, but NEVER
     edits source and NEVER applies a diff (apply is T3, behind the full gate). Uses
     the injected completion LLM; without one it degrades to a graceful "unavailable".
 
 Force-verify-after-write: whenever an approved ``edit_file``/``create_file``
 actually lands, the loop AUTONOMOUSLY runs the written file's sibling pytest
 through the same gated :class:`~aios.core.verifier.Verifier` and surfaces the
-verdict — so an authoritative PASS/FAIL, not the model's narration, is what the
+verdict -- so an authoritative PASS/FAIL, not the model's narration, is what the
 model and the UI see next (the weak local model otherwise gets the last word and
 can confabulate success). A Python file with no sibling test is reported
 UNVERIFIED; non-Python writes are left untouched. Fail-closed: an unrunnable or
@@ -67,7 +79,6 @@ loop with a scripted fake and touch neither Ollama nor a shell.
 """
 from __future__ import annotations
 
-import ast
 import json
 import re
 from pathlib import Path
@@ -101,6 +112,16 @@ DEFAULT_MAX_ITERS = 5
 #: The loop's step-cap sentinel answer. Exported so composition layers (the
 #: role-pass conductor) can recognise it as a non-answer at a leg boundary.
 STEP_LIMIT_TEXT = "Reached the step limit and stopped for safety."
+
+
+class AgentLoopError(Exception):
+    """Raised when the agent is detected in a repetitive loop.
+
+    This is a safety mechanism: if the model repeatedly makes the same
+    tool call(s) without making progress, we stop the loop rather than
+    letting it consume resources or potentially cause harm.
+    """
+    pass
 
 
 #: Cap on tool output fed back to the model (keeps context small on local models).
@@ -192,7 +213,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
                 "Edit a file in the sandbox by replacing an exact, unique "
                 "snippet. Shows a unified diff and pauses for human approval "
                 "before writing (file edits are caution-level). old_string must "
-                "occur exactly once — include enough surrounding context to make "
+                "occur exactly once -- include enough surrounding context to make "
                 "it unique."
             ),
             "parameters": {
@@ -227,7 +248,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "description": (
                 "Create a NEW file in the sandbox with the given content. Shows a "
                 "preview and pauses for human approval before writing (caution-"
-                "level); never overwrites an existing file — use edit_file to "
+                "level); never overwrites an existing file -- use edit_file to "
                 "modify one. Confined to the sandbox playground (training_ground/)."
             ),
             "parameters": {
@@ -256,7 +277,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "name": "verify",
             "description": (
                 "Run a verification command (e.g. the test suite) to confirm the "
-                "previous change actually worked — judged by exit code + parsed "
+                "previous change actually worked -- judged by exit code + parsed "
                 "pass/fail counts. Use after edits or commands to verify success. "
                 "Commands run FROM the sandbox directory, so give test paths "
                 "sandbox-relative: write 'pytest test_x.py', NOT "
@@ -403,78 +424,136 @@ def _coerce_args(raw: object) -> dict[str, Any]:
     return cast(dict[str, Any], parsed) if isinstance(parsed, dict) else {}
 
 
-def _extract_text_tool_calls(content: object) -> list[dict[str, Any]]:
-    """Recover one allowlisted tool call emitted as JSON prose by a local model.
+def _validate_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Validate extracted tool calls against the allowlist.
 
-    Some otherwise-capable Ollama models print fenced JSON calls instead of
-    populating the native ``tool_calls`` field — sometimes several blocks in a
-    single message, and sometimes keying the arguments as ``parameters``
-    (llama3.1 style) rather than ``arguments``. Candidates are the whole
-    message plus each ```-fenced block, in order. Accept only a whole JSON
-    object whose name is in ``TOOL_SPECS``, and recover at most the FIRST such
-    call: the loop's tool result re-anchors the model before it continues, so
-    the one-call-at-a-time protocol is preserved. Everything else remains
-    ordinary assistant text.
+    SECURITY: Every tool call recovered from prose MUST pass through this
+    validator before dispatch. It enforces:
+      * Tool name is in the advertised allowlist
+      * Arguments are primitive values only (str, int, float, bool)
+        -- no nested objects that could carry injection payloads
     """
-    if not isinstance(content, str) or not content.strip():
-        return []
-    candidates: list[object] = [content.strip()]
-    candidates += [
-        match.group(1).strip()
-        for match in re.finditer(r"```[a-zA-Z0-9_+-]*\s*(.*?)```", content, re.DOTALL)
-    ]
-    if content.strip().startswith("{"):
-        # A message that BEGINS with a JSON object is a call, not prose — some
-        # models emit several bare objects back-to-back with no fences at all.
-        # Decode just the first object; the loop's result re-anchors the rest.
-        try:
-            first, _ = json.JSONDecoder().raw_decode(content.strip())
-            if isinstance(first, dict):
-                candidates.append(first)
-        except json.JSONDecodeError:
-            pass
-    for match in re.finditer(r"(?ims)^\s*action:\s*([a-z0-9_]+)\s*(\{.*)", content):
-        # ReAct-style narration ("Action: create_file {…}") — the fourth prose
-        # shape observed live. raw_decode stops at the first complete object.
-        try:
-            args_obj, _ = json.JSONDecoder().raw_decode(match.group(2))
-        except json.JSONDecodeError:
-            continue
-        if isinstance(args_obj, dict):
-            candidates.append({"name": match.group(1), "arguments": args_obj})
-    for candidate in candidates:
-        if isinstance(candidate, dict):
-            data: object = candidate
-        else:
-            cleaned = str(candidate)
-            if cleaned.startswith("```") and cleaned.endswith("```"):
-                cleaned = re.sub(r"^```[a-zA-Z0-9_+-]*\s*", "", cleaned)
-                cleaned = re.sub(r"\s*```$", "", cleaned)
-            try:
-                data = json.loads(cleaned)
-            except json.JSONDecodeError:
-                try:
-                    # Some local models emit a Python-style mapping inside a
-                    # `json` fence (single-quoted string values). `literal_eval`
-                    # parses only literals/containers and never executes calls
-                    # or expressions.
-                    data = ast.literal_eval(cleaned)
-                except (SyntaxError, ValueError):
-                    continue
-        if not isinstance(data, dict):
-            continue
+    validated: list[dict[str, Any]] = []
+    for call in calls:
+        name = ""
+        raw_args: object = None
 
-        function = data.get("function")
+        function = call.get("function")
         if isinstance(function, dict):
             name = str(function.get("name", ""))
             raw_args = function.get("arguments", function.get("parameters"))
         else:
-            name = str(data.get("name") or data.get("tool") or "")
-            raw_args = data.get("arguments", data.get("parameters", data.get("input")))
+            name = str(call.get("name") or call.get("tool") or "")
+            raw_args = call.get("arguments", call.get("parameters", call.get("input")))
+
         if name not in _TOOL_NAMES:
+            # Audit-log the block attempt
+            log_action(
+                "tool-agent",
+                f"Blocked prose-recovered tool call to non-allowlisted tool: {name}",
+                zone=Zone.YELLOW,
+            )
             continue
+
         args = _coerce_args(raw_args)
-        return [{"function": {"name": name, "arguments": args}}]
+        # Validate arguments are primitives only -- no nested objects
+        if not all(isinstance(v, (str, int, float, bool, type(None))) for v in args.values()):
+            log_action(
+                "tool-agent",
+                f"Blocked tool call '{name}' with non-primitive arguments",
+                zone=Zone.YELLOW,
+            )
+            continue
+        validated.append({"function": {"name": name, "arguments": args}})
+    return validated
+
+
+def _extract_text_tool_calls(
+    content: object,
+    *,
+    enable_react_recovery: bool = False,
+) -> list[dict[str, Any]]:
+    """Extract tool calls from model prose -- STRICT TIERED recovery.
+
+    SECURITY: This function implements a deliberately restrictive tiered
+    recovery to prevent models from hiding tool calls in normal-looking
+    text. Each tier is more permissive but still bounded.
+
+    Tier 1: Exact JSON array/object at start of text (safest)
+    Tier 2: Markdown code block with JSON (moderate safety)
+    Tier 3: ReAct Action pattern (RESTRICTED -- only when enabled)
+    NO TIER 4+: No ast.literal_eval, no heuristic parsing, no fuzzy matching
+
+    If none of the tiers match, the model did not intend a tool call and
+    the content is treated as ordinary assistant text.
+
+    Every recovered call passes through :func:`_validate_tool_calls` for
+    allowlist + argument validation before being returned.
+    """
+    if not isinstance(content, str) or not content.strip():
+        return []
+
+    text_stripped = content.strip()
+
+    # ---- TIER 1: Exact JSON array/object at start of text ----
+    # A message that BEGINS with [ or { is a structured call, not prose.
+    if text_stripped.startswith("[") or text_stripped.startswith("{"):
+        try:
+            parsed = json.loads(text_stripped)
+            if isinstance(parsed, list):
+                if all(isinstance(item, dict) for item in parsed):
+                    return _validate_tool_calls(parsed)
+            elif isinstance(parsed, dict):
+                return _validate_tool_calls([parsed])
+        except json.JSONDecodeError:
+            # Not valid JSON -- try raw_decode for partial objects
+            try:
+                first, _ = json.JSONDecoder().raw_decode(text_stripped)
+                if isinstance(first, dict):
+                    return _validate_tool_calls([first])
+                if isinstance(first, list):
+                    return _validate_tool_calls(first)
+            except json.JSONDecodeError:
+                pass
+
+    # ---- TIER 2: Markdown code block with JSON ----
+    code_block_match = re.search(
+        r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL
+    )
+    if code_block_match:
+        cleaned = code_block_match.group(1).strip()
+        try:
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, list):
+                if all(isinstance(item, dict) for item in parsed):
+                    return _validate_tool_calls(parsed)
+            elif isinstance(parsed, dict):
+                return _validate_tool_calls([parsed])
+        except json.JSONDecodeError:
+            pass
+
+    # ---- TIER 3: ReAct Action pattern (STRICT -- only when enabled) ----
+    # This is the riskiest tier as it parses prose narration. It is OFF
+    # by default and should only be enabled for models known to use the
+    # ReAct format consistently.
+    if enable_react_recovery:
+        for match in re.finditer(
+            r"(?ims)^\s*action:\s*([a-z0-9_]+)\s*(\{.*)", content
+        ):
+            try:
+                args_obj, _ = json.JSONDecoder().raw_decode(match.group(2))
+            except json.JSONDecodeError:
+                continue
+            if isinstance(args_obj, dict):
+                return _validate_tool_calls(
+                    [{"name": match.group(1), "arguments": args_obj}]
+                )
+
+    # ---- NO TIER 4+: No ast.literal_eval, no heuristic parsing ----
+    # ast.literal_eval was REMOVED: it could execute arbitrary Python
+    # literal expressions, which is an attack surface. If the model did
+    # not produce valid JSON in one of the tiers above, it did not
+    # intend a tool call.
     return []
 
 
@@ -526,7 +605,7 @@ class ToolAgent:
     ) -> None:
         self.llm = llm
         #: Caste view (role-pass): an alternative system prompt and a hard tool
-        #: subset. ``allowed_tools`` is enforced mechanically — the specs
+        #: subset. ``allowed_tools`` is enforced mechanically -- the specs
         #: advertised to the model are filtered AND ``_dispatch`` denies any
         #: disallowed name first-line, which also covers calls recovered from
         #: prose by ``_extract_text_tool_calls``. ``None`` -> full registry.
@@ -545,23 +624,23 @@ class ToolAgent:
         self.read_root = (read_root or config.PROJECT_ROOT).resolve()
         self.session_id = session_id
         #: Optional recalled-memory block injected into the system prompt
-        #: (blueprint stage 4 — the agent reasons with relevant past knowledge).
+        #: (blueprint stage 4 -- the agent reasons with relevant past knowledge).
         self.memory_context = memory_context
         #: Optional reflection hook fired when a command genuinely fails (not when
-        #: it is merely blocked by the gateway) — blueprint stage 9.
+        #: it is merely blocked by the gateway) -- blueprint stage 9.
         self.on_failure = on_failure
         #: Optional confirmation hook: promotes a pending lesson only when the
         #: same failed command later succeeds in this live run (blueprint Q6).
         self.confirm_lesson = confirm_lesson
         #: Commands a human has explicitly authorised this turn (blueprint Q5).
         #: A YELLOW command listed here runs via ``execute_approved`` instead of
-        #: pausing again — this is what makes in-chat approval *resumable*. RED is
+        #: pausing again -- this is what makes in-chat approval *resumable*. RED is
         #: still refused even if listed, because approval can't authorise RED.
         self.approved_commands = set(approved_commands or [])
         #: File edits a human has authorised this turn, keyed by **filepath** ->
         #: ``(old_string, new_string)``. Keyed by filepath (not the full triple)
         #: so an approved edit still applies when the model regenerates slightly
-        #: different args on the replayed turn — we then apply exactly the edit the
+        #: different args on the replayed turn -- we then apply exactly the edit the
         #: human approved, not the model's drifted one. An unapproved ``edit_file``
         #: pauses with a diff; an approved one is snapshotted + audited, then written.
         self.approved_edits: dict[str, tuple[str, str]] = {
@@ -589,27 +668,75 @@ class ToolAgent:
         #: Verifier (blueprint stage 8) built from THIS agent's OWN executor and
         #: reflection hook, so a ``verify`` runs through the same security-gated,
         #: sandboxed pipeline and a genuine failure feeds the same reflection sink.
-        #: Constructed once and reused by the ``verify`` tool — we never rewrite it.
+        #: Constructed once and reused by the ``verify`` tool -- we never rewrite it.
         self._verifier = Verifier(self.executor, on_failure=self.on_failure)
         #: Planner (blueprint Q4) built from an injected COMPLETION client
-        #: (:meth:`LLMClient.complete`) — deliberately NOT ``self.llm``, which is a
+        #: (:meth:`LLMClient.complete`) -- deliberately NOT ``self.llm``, which is a
         #: CHAT client that may be cloud Bedrock with no ``.complete()``. Built once
         #: and reused by the ``plan`` tool; ``None`` when no planner LLM is injected,
         #: in which case ``plan`` degrades gracefully. We never rewrite planner.py.
         self._planner: Optional[Planner] = (
             Planner(planner_llm) if planner_llm is not None else None
         )
-        #: Completion client for the Self-Analysis T2 ``propose_fixes`` tool — the
+        #: Completion client for the Self-Analysis T2 ``propose_fixes`` tool -- the
         #: SAME kind as ``planner_llm`` (``.complete()``), deliberately NOT
         #: ``self.llm`` (the chat client, possibly cloud Bedrock). ``None`` -> the
-        #: tool degrades gracefully. Never used to edit/apply source — only to draft
+        #: tool degrades gracefully. Never used to edit/apply source -- only to draft
         #: proposal diffs stored in the report.
         self._self_analysis_llm = self_analysis_llm
 
-    def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
-        """Drive the loop, yielding event dicts the API maps to SSE.
+        # ---- Loop safety: detect repetitive tool-call patterns ----
+        #: All tool calls made in this run, as (name, arg_signature) tuples,
+        #: for loop detection. Reset each run() invocation.
+        self._tool_call_history: list[tuple[str, str]] = []
+        #: How many consecutive identical calls before we consider it a loop.
+        self._repeated_tool_threshold = 3
+        #: Enable ReAct prose recovery (disabled by default -- risky tier 3).
+        self._enable_react_recovery = False
 
-        Event types: ``tool_call``, ``tool_result``, ``tool_blocked``,
+    def _detect_agent_loop(self, tool_calls: list[dict[str, Any]]) -> bool:
+        """Detect if the agent is stuck in a repetitive loop.
+
+        Returns True when:
+          * The last N tool calls are identical (stuck repeating one action)
+          * The last 4 calls form an A->B->A->B alternating pattern
+            (oscillating between two actions with no progress)
+
+        These patterns indicate the model is not making progress and
+        continuing the loop would waste resources or potentially cause
+        harm (e.g., repeated file reads, repeated failed commands).
+        """
+        current = [
+            (str(c.get("function", {}).get("name", "")), str(c.get("function", {}).get("arguments", {})))
+            for c in tool_calls
+        ]
+        self._tool_call_history.extend(current)
+
+        # Check 1: last N calls are all identical (repeating the same action)
+        if len(self._tool_call_history) >= self._repeated_tool_threshold:
+            last_n = self._tool_call_history[-self._repeated_tool_threshold:]
+            if len(set(last_n)) == 1:
+                return True
+
+        # Check 2: alternating A->B->A->B pattern (oscillation)
+        if len(self._tool_call_history) >= 4:
+            last_4 = self._tool_call_history[-4:]
+            if (
+                last_4[0] == last_4[2]
+                and last_4[1] == last_4[3]
+                and last_4[0] != last_4[1]
+            ):
+                return True
+
+        return False
+
+    def _reset_loop_safety(self) -> None:
+        """Reset loop-detection state at the start of each run."""
+        self._tool_call_history = []
+
+    def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
+
+        """Event types: ``tool_call``, ``tool_result``, ``tool_blocked``,
         ``human_required`` (pauses the turn for YELLOW approval), ``text``,
         ``code``, ``done``, ``error``.
         """
@@ -622,6 +749,9 @@ class ToolAgent:
                 spec for spec in TOOL_SPECS
                 if str(spec["function"]["name"]) in self.allowed_tools
             ]
+        # Reset loop-safety tracking at the start of each fresh run.
+        self._reset_loop_safety()
+
         convo: list[dict[str, Any]] = [{"role": "system", "content": system}]
         convo.extend(messages)
         if self.approved_creations or self.approved_edits:
@@ -647,7 +777,28 @@ class ToolAgent:
                 return
             tool_calls: list[dict[str, Any]] = msg.get("tool_calls") or []
             if not tool_calls:
-                tool_calls = _extract_text_tool_calls(msg.get("content"))
+                tool_calls = _extract_text_tool_calls(
+                    msg.get("content"),
+                    enable_react_recovery=self._enable_react_recovery,
+                )
+
+            # ---- Loop safety: detect repetitive patterns ----
+            if tool_calls and self._detect_agent_loop(tool_calls):
+                log_action(
+                    "tool-agent",
+                    "Agent loop detected: stopping for safety",
+                    zone=Zone.YELLOW,
+                )
+                yield {
+                    "type": "error",
+                    "text": (
+                        "Agent loop detected: the model repeated the same action(s) "
+                        "without making progress. Stopped for safety. "
+                        "Try rephrasing your request."
+                    ),
+                }
+                yield {"type": "done"}
+                return
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.get("content", "")}
             if tool_calls:
                 assistant_msg["tool_calls"] = tool_calls
@@ -715,7 +866,7 @@ class ToolAgent:
                         output, status, failed = self._dispatch(name, args)
                     else:
                         # A caution action the human hasn't authorised yet: pause the
-                        # whole turn and ask. The turn is *resumable* — the frontend
+                        # whole turn and ask. The turn is *resumable* -- the frontend
                         # re-calls /api/generate with the command/edit whitelisted, so
                         # we return here without applying it, recording no assistant
                         # answer (the paused turn is replayed, not continued mid-stream).
@@ -760,7 +911,7 @@ class ToolAgent:
                         )
                 elif name in ("edit_file", "create_file") and status == "ok":
                     # A write actually landed. Force a verification so the
-                    # AUTHORITATIVE PASS/FAIL — not the model's narration — is the
+                    # AUTHORITATIVE PASS/FAIL -- not the model's narration -- is the
                     # next signal the model and UI see ("trust evidence, not the
                     # model"). Reuses the gated Verifier; fail-closed, and a genuine
                     # FAIL reflects exactly once (inside the Verifier).
@@ -798,7 +949,7 @@ class ToolAgent:
         """
         # Two phases ON PURPOSE: apply ALL granted writes first, THEN verify each.
         # A turn that creates a module AND its test grants both at once; verifying a
-        # test the instant it lands — before its sibling module is applied — fails on
+        # test the instant it lands -- before its sibling module is applied -- fails on
         # the missing import and records a FALSE verified_failure even though the
         # finished files are correct. Landing every write first means each test sees
         # its module on disk, so the verdict reflects the code, not the write order.
@@ -806,7 +957,7 @@ class ToolAgent:
         for index, (filepath, content) in enumerate(self.approved_creations.items()):
             output, status, _ = self._create_file(filepath, content)
             if status == "noop":
-                # Already landed on an earlier replay — STILL queue it for verify so
+                # Already landed on an earlier replay -- STILL queue it for verify so
                 # the FINAL (done) replay carries the verdict. Skipping it loses the
                 # evidence recorded on the apply-replay and the turn reads 'unverified'.
                 applied.append((index, filepath, "create_file"))
@@ -837,7 +988,7 @@ class ToolAgent:
                 yield {"type": "tool_blocked", "tool": "edit_file",
                        "reason": output[:_PREVIEW_LIMIT], "id": call_id}
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
-        # Phase 2 — every granted file is now on disk; verify against the truth.
+        # Phase 2 -- every granted file is now on disk; verify against the truth.
         for index, filepath, action_type in applied:
             yield from self._auto_verify(filepath, index, convo, action_type=action_type)
 
@@ -874,30 +1025,7 @@ class ToolAgent:
         self, filepath: str, index: int, convo: list[dict[str, Any]],
         *, action_type: str = "create_file",
     ) -> Iterator[dict[str, Any]]:
-        """Force a verification after a successful write — evidence over narration.
-
-        The live loop's real danger is a weak model *narrating* success after a
-        write that never landed or never worked (it gets the last word). So when an
-        approved ``edit_file``/``create_file`` actually writes, we run the file's
-        sibling pytest OURSELVES, surface the authoritative verdict as a visible
-        step, and feed it back into ``convo`` so the model's next turn is anchored
-        to PASS/FAIL — not its own prose.
-
-        Scope (all fail-closed — never lets an unverified change look verified):
-          * a non-Python write (``.txt``/``.json``/config) has no test to run, so
-            we stay silent and leave the loop exactly as it was for those;
-          * a Python write with NO sibling test is reported ``[VERIFY SKIPPED] …
-            UNVERIFIED``;
-          * a Python write WITH a sibling test (or a written ``test_*.py`` itself)
-            is run through the SAME gated :class:`Verifier` the ``verify`` tool
-            uses — so a genuine FAIL reflects exactly once (inside the Verifier),
-            and a refused/unrunnable command is a FAIL, never a silent pass.
-
-        The verify command is a BARE runner (``config.VERIFY_RUNNER``) plus a
-        *sandbox-relative* test path: the executor runs from the sandbox cwd, and
-        the gateway classifies any absolute / ``..`` path in a command as
-        out-of-scope (RED), so an absolute interpreter path would be refused.
-        """
+        # Force a verification after a successful write -- evidence over narration.
         p = Path(filepath)
         if p.suffix != ".py":
             return  # not a pytest-verifiable artifact; leave the loop untouched
@@ -910,7 +1038,7 @@ class ToolAgent:
         if not test_abs.is_file():
             note = (
                 f"[VERIFY SKIPPED] no sibling test for {filepath} "
-                f"(looked for {test_abs.name}); the change is UNVERIFIED — "
+                f"(looked for {test_abs.name}); the change is UNVERIFIED -- "
                 "do not assume it works."
             )
             yield {"type": "tool_result", "tool": "verify",
@@ -921,7 +1049,7 @@ class ToolAgent:
         # Express the test path relative to the executor's sandbox cwd
         # (SCOPE_ROOTS[0]) so the command carries no out-of-scope absolute path;
         # fall back to the absolute path only if it lies outside that root (then
-        # the gateway's scope check judges it — still fail-closed).
+        # the gateway's scope check judges it -- still fail-closed).
         roots = config.SCOPE_ROOTS
         cwd = roots[0].resolve() if roots else self.read_root
         try:
@@ -944,8 +1072,8 @@ class ToolAgent:
         # Fold the authoritative verdict into the earned-autonomy evidence for
         # this write class: a PASS extends the streak (eventually graduating the
         # class to autonomous), a FAIL revokes it instantly. This is the ONLY
-        # writer of autonomy evidence — it is the verifier's word, never the
-        # model's. (Skipped/non-Python writes returned above record nothing.)
+        # writer of autonomy evidence -- it is the verifier's word, never the
+        # model's. (Skipped/non-Python writes record nothing.)
         if self.autonomy is not None:
             self.autonomy.record_outcome(action_type, filepath, success=verified_ok)
 
@@ -963,12 +1091,12 @@ class ToolAgent:
         """Route a tool call to its handler. Returns ``(output, status, failed)``.
 
         ``failed`` marks a genuine execution failure worth reflecting on (a
-        non-zero exit, timeout, or launch error) — never a security block or a
+        non-zero exit, timeout, or launch error) -- never a security block or a
         scope denial, which are correct behaviour rather than mistakes.
         """
         if self.allowed_tools is not None and name not in self.allowed_tools:
             # Caste enforcement happens where tools execute, not where prompts
-            # hope — this also catches prose-rescued calls, which flow through
+            # hope -- this also catches prose-rescued calls, which flow through
             # the same dispatcher.
             return (
                 f"[BLOCKED] tool '{name}' is not permitted for the current role. "

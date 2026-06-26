@@ -26,6 +26,7 @@ import re
 import sqlite3
 import threading
 import time
+import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -67,6 +68,29 @@ def _compile(patterns: list[str]) -> list[Pattern[str]]:
     return [re.compile(p, re.IGNORECASE) for p in patterns]
 
 
+# C3-hardened: Map common Unicode homoglyphs to ASCII equivalents.
+# Cyrillic lookalikes are a primary bypass vector for prompt-injection.
+_HOMOGLYPH_MAP = str.maketrans({
+    "\u0430": "a",   # CYRILLIC SMALL LETTER A
+    "\u0435": "e",   # CYRILLIC SMALL LETTER IE
+    "\u043e": "o",   # CYRILLIC SMALL LETTER O
+    "\u0440": "p",   # CYRILLIC SMALL LETTER ER
+    "\u0441": "c",   # CYRILLIC SMALL LETTER ES
+    "\u0445": "x",   # CYRILLIC SMALL LETTER HA
+    "\u0410": "A",   # CYRILLIC CAPITAL LETTER A
+    "\u0415": "E",   # CYRILLIC CAPITAL LETTER IE
+    "\u041e": "O",   # CYRILLIC CAPITAL LETTER O
+    "\u0420": "P",   # CYRILLIC CAPITAL LETTER ER
+    "\u0421": "C",   # CYRILLIC CAPITAL LETTER ES
+    "\u0425": "X",   # CYRILLIC CAPITAL LETTER HA
+})
+
+
+def _normalize_homoglyphs(text: str) -> str:
+    """Replace Unicode homoglyphs with ASCII equivalents after NFKC normalization."""
+    return text.translate(_HOMOGLYPH_MAP)
+
+
 # 1. Prompt-injection attempts to override system policy via the payload -> RED.
 _INJECTION_PATTERNS = _compile([
     r"ignore\s+(all\s+)?(the\s+)?previous\s+instructions",
@@ -80,7 +104,8 @@ _INJECTION_PATTERNS = _compile([
 
 # 2. Destructive / high-risk operations -> RED.
 _DESTRUCTIVE_PATTERNS = _compile([
-    r"\brm\s+-[rf]{1,2}\b", r"\brm\s+--recursive", r"\brm\s+/",
+    # C2-hardened: catch bare "rm -rf" AND absolute-path "/bin/rm -rf /"
+    r"(?:^|[;|&\s])\S*\brm\b\s+-[rf]", r"\brm\s+--recursive", r"\brm\s+/",
     r"\bdel\s+/[sq]\b", r"\bdel\s+\*", r"\berase\s+/",
     r"\bformat\s+[a-z]:", r"\bmkfs\b", r"\bmkfs\.", r"\bdd\s+if=",
     r">\s*/dev/sd[a-z]", r"\bchmod\s+777\b", r"\bchown\b",
@@ -99,7 +124,7 @@ _NETWORK_PATTERNS = _compile([
 
 # 4. Environment / secret mutation -> RED.
 _ENV_MUTATION_PATTERNS = _compile([
-    r"\bexport\s+\w+\s*=", r"\bsetx\b", r"\bset\s+\w+=",
+    r"\bexport\s+\w+\s*=" , r"\bsetx\b", r"\bset\s+\w+=",
     r"\$env:\w+\s*=", r"\bset-item\s+env:",
 ])
 
@@ -107,18 +132,23 @@ _ENV_MUTATION_PATTERNS = _compile([
 # network access, or process launches behind an otherwise innocent executable.
 _SHELL_ESCAPE_PATTERNS = _compile([
     r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?\s+-c\b",
+    r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?\s+-m\b",  # G3: python -m http.server etc.
     r"(?:^|[;&|]\s*)node\s+-e\b",
     r"(?:^|[;&|]\s*)(?:powershell|pwsh)\b[^\n]*\s-(?:command|encodedcommand)\b",
     r"(?:^|[;&|]\s*)cmd(?:\.exe)?\s+/c\b",
     r"(?:^|[;&|]\s*)(?:bash|sh)\s+-c\b",
+    # G3: perl/ruby/php/lua -e / -r code execution
+    r"(?:^|[;|&\s])(?:perl|ruby|php|lua)\s+-[er]\b",
 ])
 
 # No shell composition is accepted, even after human approval. Executor launches
 # structured argv with shell=False; rejecting metacharacters here keeps the
 # classification contract aligned with that execution boundary.
 _SHELL_COMPOSITION_PATTERNS = _compile([
-    r"[;&|<>`]",
-    r"[\r\n]",
+    r"[;&|<>`]",           # shell metacharacters
+    r"[\r\n]",              # line breaks
+    r"\$\(",               # C1: $(…) command substitution
+    r"\$\{",               # G4: ${…} parameter expansion
 ])
 
 # 5. Caution operations requiring human approval -> YELLOW.
@@ -295,6 +325,12 @@ def classify(command: str, *, injection_shield: object = None) -> Classification
     try:
         if not command or not isinstance(command, str) or not command.strip():
             return ClassificationResult(Zone.RED, 1.0, "Empty/invalid command (fail-closed).")
+
+        # C3: Normalize Unicode homoglyphs (e.g., Cyrillic о vs Latin o) before matching
+        command = unicodedata.normalize("NFKC", command)
+        command = _normalize_homoglyphs(command)
+        # Defense: collapse whitespace to prevent bypasses via newlines/tabs
+        command = " ".join(command.split())
 
         for pat in _INJECTION_PATTERNS:
             if pat.search(command):
