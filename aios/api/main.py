@@ -99,6 +99,7 @@ from aios.memory.development import DevelopmentTracker
 from aios.memory.embeddings import VectorIndex
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
+from aios.memory.facts_protocol import GraphStore
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -457,15 +458,17 @@ def get_swarm_pattern_memory() -> SwarmPatternMemory:
     return SwarmPatternMemory()
 
 
-def get_semantic_facts() -> SemanticFacts:
+def get_semantic_facts() -> GraphStore:
     """Provide the human-approved personalization facts store (REAL only).
 
-    Reads the ``semantic_facts`` table (human-gated writes); returns an empty
-    list when no facts exist, so the conversational endpoint stays honest —
-    personalization is dormant, never fabricated, when nothing is known. Cheap
-    and stateless (opens a fresh connection per call). Overridden in tests.
+    SQLite is the local-first default; Neo4j is used when ``AIOS_NEO4J_URI`` is
+    set. Reads human-gated facts; returns an empty list when no facts exist, so
+    the conversational endpoint stays honest — personalization is dormant, never
+    fabricated, when nothing is known. Cheap and stateless. Overridden in tests.
     """
-    return SemanticFacts()
+    from aios.memory.facts_store import get_graph_store
+
+    return get_graph_store()
 
 
 def get_autonomy() -> AutonomyLedger:
@@ -1049,7 +1052,7 @@ def reconcile_fact(
 def memory_facts_graph(
     start: str,
     depth: int = 2,
-    facts: SemanticFacts = Depends(get_semantic_facts),
+    facts: GraphStore = Depends(get_semantic_facts),
 ) -> dict[str, Any]:
     """Multi-hop fact-graph traversal from *start* — the transitive reasoning
     single-hop ``facts_for`` cannot do (G1). Read-only: returns the active-fact
@@ -1526,7 +1529,7 @@ CHAT_SYSTEM_PROMPT = (
 )
 
 
-def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Optional[str]:
+def _operator_facts_block(facts: GraphStore, subject: str = "operator") -> Optional[str]:
     """Build a REAL-facts-only personalization block, or ``None`` when dormant.
 
     Reads human-approved active facts for *subject* (newest-first) and renders
@@ -1552,7 +1555,7 @@ def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Op
 
 
 
-def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
+def _recall_facts(facts: GraphStore, user_text: str) -> Optional[str]:
     """Recall relevant semantic facts (+ single-hop neighbors) for the forge.
 
     The agentic loop reasons about code and architecture, so it needs the
@@ -1804,7 +1807,7 @@ def generate(
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
     alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
     alignment_interpreter: Optional[AlignmentInterpreter] = Depends(get_alignment_interpreter),
-    facts: SemanticFacts = Depends(get_semantic_facts),
+    facts: GraphStore = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
@@ -2465,7 +2468,7 @@ def chat(
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
-    facts: SemanticFacts = Depends(get_semantic_facts),
+    facts: GraphStore = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
 ) -> StreamingResponse:
     """Stream a lean Hinglish conversational reply (the Jarvis voice mind, Slice 1).

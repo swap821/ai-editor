@@ -467,6 +467,15 @@ API_CORS_ORIGINS: Final[tuple[str, ...]] = tuple(
 #: non-default hosts or reverse-proxy setups.
 PROBE_BASE: Final[str] = _env_str("AIOS_PROBE_BASE", "http://127.0.0.1:8000")
 
+# --------------------------------------------------------------------------- #
+# Optional Neo4j knowledge-graph backend
+# --------------------------------------------------------------------------- #
+#: When set, the semantic-fact graph is backed by Neo4j instead of SQLite.
+#: SQLite remains the local-first default; Neo4j is opt-in.
+NEO4J_URI: Final[Optional[str]] = _env_str("AIOS_NEO4J_URI", None)
+NEO4J_USER: Final[str] = _env_str("AIOS_NEO4J_USER", "neo4j")
+NEO4J_PASSWORD: Final[str] = _env_str("AIOS_NEO4J_PASSWORD", "aios")
+
 
 # --------------------------------------------------------------------------- #
 # Startup banner
@@ -488,6 +497,7 @@ def startup_banner() -> dict[str, object]:
         "router_cloud_tasks": list(ROUTER_CLOUD_TASKS),
         "earned_autonomy": EARNED_AUTONOMY_ENABLED,
         "scope_roots": [str(p) for p in SCOPE_ROOTS],
+        "neo4j_enabled": bool(NEO4J_URI),
     }
 
 
@@ -569,5 +579,8 @@ __all__ = [
     "TRUST_PROXY_HEADERS",
     "API_CORS_ORIGINS",
     "PROBE_BASE",
+    "NEO4J_URI",
+    "NEO4J_USER",
+    "NEO4J_PASSWORD",
     "startup_banner",
 ]

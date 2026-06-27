@@ -80,6 +80,18 @@ services:
     depends_on:
       - prometheus
 
+  neo4j:
+    image: neo4j:5.25-community
+    ports:
+      - "${AIOS_NEO4J_BOLT_PORT:-7687}:7687"
+      - "${AIOS_NEO4J_HTTP_PORT:-7474}:7474"
+    environment:
+      - NEO4J_AUTH=${AIOS_NEO4J_USER:-neo4j}/${AIOS_NEO4J_PASSWORD:-aios}
+    volumes:
+      - neo4j-data:/data
+    networks:
+      - aios-net
+
 networks:
   aios-net:
     driver: bridge
@@ -87,3 +99,4 @@ networks:
 volumes:
   prometheus-data:
   grafana-data:
+  neo4j-data:

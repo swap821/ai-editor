@@ -16,6 +16,7 @@ from typing import Optional
 
 from aios import config
 from aios.memory.db import get_connection
+from aios.memory.facts_protocol import GraphRow
 from aios.security.secret_scanner import scan_and_redact
 
 
@@ -135,14 +136,15 @@ class SemanticFacts:
             )
             return FactWriteResult(True, int(cur.lastrowid), "reconciled")
 
-    def get(self, fact_id: int) -> Optional[sqlite3.Row]:
+    def get(self, fact_id: int) -> Optional[GraphRow]:
         """Return the row for *fact_id*, or ``None``."""
         with get_connection(self.db_path) as conn:
-            return conn.execute(
+            row = conn.execute(
                 "SELECT * FROM semantic_facts WHERE id = ?", (fact_id,)
             ).fetchone()
+            return GraphRow(dict(row)) if row is not None else None
 
-    def facts_for(self, subject: str, predicate: Optional[str] = None) -> list[sqlite3.Row]:
+    def facts_for(self, subject: str, predicate: Optional[str] = None) -> list[GraphRow]:
         """Return active facts for *subject* (optionally filtered by *predicate*)."""
         sql = "SELECT * FROM semantic_facts WHERE subject = ? AND status = 'active'"
         params: list[object] = [subject]
@@ -151,9 +153,9 @@ class SemanticFacts:
             params.append(predicate)
         sql += " ORDER BY id DESC"
         with get_connection(self.db_path) as conn:
-            return conn.execute(sql, params).fetchall()
+            return [GraphRow(dict(r)) for r in conn.execute(sql, params).fetchall()]
 
-    def neighbors(self, subject: str) -> list[sqlite3.Row]:
+    def neighbors(self, subject: str) -> list[GraphRow]:
         """Return ACTIVE facts adjacent to *subject* — both outgoing edges
         (where *subject* is the subject) and incoming edges (where *subject* is
         the object). This is the single-hop neighborhood used to enrich a recalled
@@ -176,9 +178,9 @@ class SemanticFacts:
         ORDER BY direction, subject, predicate
         """
         with get_connection(self.db_path) as conn:
-            return conn.execute(sql, (subject, subject)).fetchall()
+            return [GraphRow(dict(r)) for r in conn.execute(sql, (subject, subject)).fetchall()]
 
-    def traverse(self, start: str, max_depth: int = 2) -> list[sqlite3.Row]:
+    def traverse(self, start: str, max_depth: int = 2) -> list[GraphRow]:
         """Walk the ACTIVE fact graph outward from *start*, following
         ``object -> subject`` links up to *max_depth* hops — the multi-hop
         reasoning that single-hop :meth:`facts_for` cannot do.
@@ -221,9 +223,9 @@ class SemanticFacts:
         ORDER BY depth, subject, predicate
         """
         with get_connection(self.db_path) as conn:
-            return conn.execute(sql, {"start": start, "max_depth": depth}).fetchall()
+            return [GraphRow(dict(r)) for r in conn.execute(sql, {"start": start, "max_depth": depth}).fetchall()]
 
-    def search(self, query: str) -> list[sqlite3.Row]:
+    def search(self, query: str) -> list[GraphRow]:
         """Return ACTIVE facts whose subject or object contains a token from *query*.
 
         This is a simple, deterministic token match (case-insensitive)
@@ -251,4 +253,4 @@ class SemanticFacts:
         ORDER BY id DESC
         """
         with get_connection(self.db_path) as conn:
-            return conn.execute(sql, params).fetchall()
+            return [GraphRow(dict(r)) for r in conn.execute(sql, params).fetchall()]
