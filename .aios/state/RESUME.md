@@ -50,8 +50,12 @@ Operator approved "do all remaining gate items"; all landed on `council-runtime-
 - New tests: `test_council_detail_and_report_return_422_on_corrupt_artifact`, `test_spawner_refuses_duplicate_mission_id`.
 - Verified: backend `pytest --cov` exit 0, 1158 passed / 1 skipped, 87.14%; frontend CouncilDashboard test + typecheck + build all pass.
 
+## Council Runtime v0.1 — MERGED + STASHES RESCUED (2026-06-27)
+- Council Runtime v0.1 (security-hardened) FAST-FORWARD MERGED to `master` + pushed (`2bc21ea`); CI GREEN (backend+frontend, run 28296559304). 20 zero-byte junk files swept from repo root.
+- Both dangling stashes RESCUED into pushed branches (stash list now empty): `rescue/full-knowledge-graph-wip` (Neo4j facts backend WIP, base 1de1bac, 12 files) and `rescue/skills-ui-ux-pro-max` (design-taste-frontend + ui-ux-pro-max project skills, base 7eab53d, 51 files). Gotcha logged: `git stash branch` checks out the stash's OLD base whose .gitignore predates `coverage.xml`/`.gstack`, so `git add -A` swept those artifacts in — stage explicit stash paths (or amend them out) when rescuing onto an old base.
+
 ## Single Next Action
-`council-runtime-v01` is now security- and robustness-clean and merge-ready for `master` pending operator review (open a PR or fast-forward merge). BEFORE the eventual cruft sweep: rescue the two dangling stashes (`stash@{0}` knowledge-graph WIP + `stash@{1}` skill files — only copies) into real branches. Next FEATURE after merge: Phase 3A-lite durable Council state (`council_state.py`, SQLite `queen_verdicts`/`council_events`). NOTE the council "worker" still does no real work (hardcoded heartbeat, `worker_entry.py:97`) and 3 of 4 Queens are stubs — real intelligence is the larger Phase-3+ effort, not a merge blocker for the v0.1 foundation.
+Operator's choice of next feature. Options: (a) Phase 3A-lite durable Council state (`council_state.py`, SQLite `queen_verdicts`/`council_events`); (b) make the council actually THINK — the worker still does no real work (hardcoded heartbeat `worker_entry.py:97`) and 3 of 4 Queens are stubs (Phase 3+ real-intelligence effort); (c) integrate the rescued knowledge-graph or skills branches. None are blockers — the v0.1 foundation is shipped and green.
 
 ## Open Approvals / Blockers
 - Local `.env` sets `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; mask it with `$env:AIOS_ROUTER_CLOUD_TASKS=''` when testing default local-first privacy behavior.
