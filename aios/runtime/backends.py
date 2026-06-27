@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 from aios.runtime.contracts import MissionContract, WorkerResult
+from aios.runtime.secret_policy import SecretPolicy
 
 WorkerHandleStatus = Literal[
     "born",
@@ -75,6 +76,7 @@ class ControlledSubprocessBackend(WorkerBackend):
         self.python_executable = python_executable or sys.executable
         self.worker_module = worker_module
         self.project_root = Path(__file__).resolve().parents[2]
+        self.secret_policy = SecretPolicy()
         self._processes: dict[str, asyncio.subprocess.Process] = {}
 
     async def spawn(self, contract: MissionContract) -> WorkerHandle:
@@ -208,6 +210,7 @@ class ControlledSubprocessBackend(WorkerBackend):
             for name, value in os.environ.items()
             if name.upper() in allowed_names
         }
+        env = self.secret_policy.worker_environment(env)
         env["PYTHONPATH"] = str(self.project_root)
         env["PYTHONIOENCODING"] = "utf-8"
         return env

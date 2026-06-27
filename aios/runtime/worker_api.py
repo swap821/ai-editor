@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from aios.runtime.contracts import MissionContract, WorkerResult
+from aios.runtime.intelligence_gateway import (
+    IntelligenceGateway,
+    IntelligenceRequest,
+)
 
 
 def _utc_now() -> str:
@@ -35,6 +39,7 @@ class WorkerRuntime:
         worker_id: str,
         runtime_root: str | Path,
         result_path: str | Path,
+        intelligence_gateway: IntelligenceGateway | None = None,
     ) -> None:
         self.contract = contract
         self.worker_id = worker_id
@@ -45,6 +50,7 @@ class WorkerRuntime:
         self.worker_dir = self.mission_dir / "workers" / worker_id
         self.approval_dir = self.mission_dir / "approvals"
         self.evidence_path = self.worker_dir / "evidence.json"
+        self.intelligence_gateway = intelligence_gateway or IntelligenceGateway()
         self.worker_dir.mkdir(parents=True, exist_ok=True)
         self.approval_dir.mkdir(parents=True, exist_ok=True)
 
@@ -144,18 +150,36 @@ class WorkerRuntime:
             "request_plan",
             {"prompt_length": len(prompt), "allow_cloud": allow_cloud},
         )
-        if allow_cloud:
-            self._block(
-                "request_plan",
-                "cloud reasoning is disabled during deterministic worker birth",
-                {"allow_cloud": allow_cloud},
-            )
+        response = self.intelligence_gateway.request(
+            IntelligenceRequest(
+                mission_id=self.contract.mission_id,
+                worker_id=self.worker_id,
+                purpose="plan",
+                prompt=prompt,
+                risk=self.contract.risk_level,
+                allow_cloud=allow_cloud,
+                max_tokens=int(
+                    self.contract.metadata.get("plan_max_tokens", 1500)
+                ),
+                timeout_seconds=int(
+                    self.contract.metadata.get("plan_timeout_seconds", 20)
+                ),
+            ),
+            contract=self.contract,
+        )
+        self.evidence.setdefault("intelligence", []).append(response.model_dump())
         self._record_tool(
             "request_plan",
-            {"allow_cloud": allow_cloud},
+            {
+                "allow_cloud": allow_cloud,
+                "provider": response.provider,
+                "used_cloud": response.used_cloud,
+                "fallback_used": response.fallback_used,
+            },
             "completed",
         )
-        return "Phase 1A deterministic worker birth has no reasoning provider."
+        self._persist_evidence()
+        return response.text
 
     def emit_evidence(self, data: dict[str, Any]) -> None:
         self.evidence.update(data)
@@ -185,7 +209,13 @@ class WorkerRuntime:
         self._steps += 1
         if tool in self.contract.forbidden_tools:
             self._block(tool, "tool is forbidden by MissionContract", payload)
-        if tool in {"read_file", "write_file", "run_command", "request_approval", "request_plan"}:
+        if tool in {
+            "read_file",
+            "write_file",
+            "run_command",
+            "request_approval",
+            "request_plan",
+        }:
             if tool not in self.contract.allowed_tools:
                 self._block(tool, "tool is not allowed by MissionContract", payload)
 

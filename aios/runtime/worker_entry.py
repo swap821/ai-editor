@@ -53,6 +53,20 @@ def run_worker(
     risk_after = contract.risk_level
 
     try:
+        plan_text = ""
+        if "request_plan" in contract.allowed_tools or contract.metadata.get(
+            "hybrid_plan_prompt"
+        ):
+            plan_prompt = str(
+                contract.metadata.get("hybrid_plan_prompt")
+                or f"Create a plan for this mission: {contract.goal}"
+            )
+            plan_text = runtime.request_plan(
+                plan_prompt,
+                allow_cloud=bool(contract.metadata.get("allow_cloud_reasoning", False)),
+            )
+            runtime.emit_evidence({"plan_text": plan_text})
+
         forbidden_probe = str(
             contract.metadata.get("deterministic_forbidden_probe")
             or _default_forbidden_probe(contract)
@@ -83,6 +97,9 @@ def run_worker(
                 "// Council Runtime deterministic worker heartbeat",
             )
         )
+        if plan_text and contract.metadata.get("include_plan_in_comment", False):
+            first_line = plan_text.splitlines()[0][:120]
+            comment = f"{comment} | plan: {first_line}"
         separator = "" if original.endswith("\n") else "\n"
         runtime.write_file(target_file, f"{original}{separator}{comment}\n")
 
