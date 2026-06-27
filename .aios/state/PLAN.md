@@ -1,7 +1,16 @@
 # PLAN.md — Blueprint-vs-Reality & The Real Forward Roadmap
 
+> **2026-06-27 Council Runtime supersession:** for near-term build order, the
+> operator has elevated
+> [`docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`](../../docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md)
+> as the canonical roadmap. This older plan remains the blueprint-vs-reality
+> and system-context map, but execution now follows the sovereign Council
+> Runtime sequence: Phase 0 foundation lock, 30-day First Heartbeat, then the
+> 24-week path to v1.0.
+
 > **Full refresh authored by Claude Code on 2026-06-14**, restructuring the prior
-> 2026-06-13 refresh. This is the **single source of truth for "what is next."**
+> 2026-06-13 refresh. Before the 2026-06-27 Council Runtime supersession above,
+> this was the **single source of truth for "what is next."**
 > Grounded in the 2026-06-14 whole-repository deep read (8 lenses) + the 2026-06-13
 > backend deep read (`.aios/state/BACKEND_TRUE_PICTURE.md`, 8-agent), and verified
 > live this session against code on the **`feat/jarvis-voice`** branch (the currently

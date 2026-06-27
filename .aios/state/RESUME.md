@@ -1,59 +1,30 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-27T09:10:47Z
+Last updated: 2026-06-27T09:44:54Z
 
 ## Current Goal
-Start Council Runtime v0.1 from the sovereign roadmap, implementing **Phase 0 only** on branch `council-runtime-v01`.
+Build Council Runtime v0.1 from the sovereign roadmap. The roadmap is now the near-term canon: Phase 0 foundation lock, 30-day First Heartbeat, then 24-week v1.0.
 
 ## Last Completed + Verified
-- Claimed `council-runtime-phase0` as Codex builder.
-- Created branch `council-runtime-v01` from synced `master`.
-- Added `FOUNDATION_LOCK.md` declaring the foundation modules that Council Runtime wraps rather than rewrites.
-- Added frozen v0.1 Pydantic schemas in `aios/runtime/contracts.py`:
-  - `MissionContract`
-  - `WorkerResult`
-  - `QueenVerdict`
-  - `RunLedger`
-  - `KingReport`
-- Added Phase 0 docstring-only stubs for runtime, council, pheromone memory, and policy modules.
-- Added `tests/test_runtime_contracts.py` for imports, valid schemas, invalid schema rejection, unknown-field rejection, and default-factory isolation.
-- Verified:
-  - `python -m pytest tests/test_runtime_contracts.py -q` -> `4 passed`
-  - direct contract import smoke passes
-  - no protected foundation modules were modified
+- Phase 0 was committed locally as `b0dd154` on branch `council-runtime-v01`.
+- Added v0.1 runtime contracts, docstring-only stubs, `FOUNDATION_LOCK.md`, and `tests/test_runtime_contracts.py`.
+- Promoted the exact roadmap artifact to `docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`.
+- Updated Tier-1 pointers in `.aios/state/PLAN.md` and `.aios/state/FUTURE_FRONTIER.md` so they no longer compete with the roadmap.
+- Verified backend gates:
+  - `$env:AIOS_ROUTER_CLOUD_TASKS=''; .venv\Scripts\python.exe -m pytest -q` -> pass, 1 skipped, 1 known httpx warning.
+  - `git diff --check` -> pass, CRLF warnings only.
 
 ## Single Next Action
-Review Phase 0. Do not continue into WorkerSpawner, WorkerRuntime behavior, Ollama, cloud, UI, or ToolAgent changes until Phase 0 is accepted.
+Begin Phase 1A deterministic worker birth from the roadmap: define the non-executing `WorkerSpawner` / `WorkerRuntime` boundary around `MissionContract` without touching protected foundation modules or adding real worker side effects yet.
 
 ## Open Approvals / Blockers
-- The roadmap text file remains untracked local reference material: `Sovereign AI-OS Transformation Roadmap v.txt`.
+- Local `.env` sets `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; mask it with `$env:AIOS_ROUTER_CLOUD_TASKS=''` when testing default local-first privacy behavior.
 - The preserved knowledge-graph WIP remains in `stash@{0}` from the prior sync task; do not drop it without explicit operator instruction.
-- Phase 0 is not committed yet.
+- Kimi is currently off; proceed solo unless the operator re-enables a reviewer.
 
 ## Active Files
-- `FOUNDATION_LOCK.md`
-- `aios/runtime/contracts.py`
-- `aios/runtime/__init__.py`
-- `aios/runtime/backends.py`
-- `aios/runtime/worker_api.py`
-- `aios/runtime/worker_entry.py`
-- `aios/runtime/spawner.py`
-- `aios/runtime/run_ledger.py`
-- `aios/runtime/king_report.py`
-- `aios/runtime/snapshots.py`
-- `aios/runtime/leases.py`
-- `aios/runtime/intelligence_gateway.py`
-- `aios/runtime/budget_guard.py`
-- `aios/runtime/secret_policy.py`
-- `aios/council/__init__.py`
-- `aios/council/queen_verdict.py`
-- `aios/council/council_orchestrator.py`
-- `aios/council/service_definitions.py`
-- `aios/council/queens/__init__.py`
-- `aios/memory/pheromones.py`
-- `aios/policy/__init__.py`
-- `aios/policy/constitution.py`
-- `aios/policy/policy_evolution.py`
-- `tests/test_runtime_contracts.py`
+- `docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`
+- `.aios/state/PLAN.md`
+- `.aios/state/FUTURE_FRONTIER.md`
 - `.aios/state/RESUME.md`
 - `.aios/memory/experiences.jsonl`
