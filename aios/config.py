@@ -90,6 +90,10 @@ APPROVAL_DB_PATH: Final[Path] = DATA_DIR / "aios_approvals.db"
 AUDIT_DB_PATH: Final[Path] = DATA_DIR / "aios_audit.db"
 FAISS_INDEX_PATH: Final[Path] = DATA_DIR / "vector_index.faiss"
 ROLLBACK_DIR: Final[Path] = _env_path("AIOS_ROLLBACK_DIR", DATA_DIR / "rollback")
+COUNCIL_RUNTIME_DIR: Final[Path] = _env_path(
+    "AIOS_COUNCIL_RUNTIME_DIR", DATA_DIR / "council_runtime"
+)
+COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 EMBEDDING_MODEL: Final[str] = _env_str("AIOS_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_DIM: Final[int] = _env_int("AIOS_EMBEDDING_DIM", 384)
@@ -245,13 +249,14 @@ def startup_banner() -> dict[str, object]:
         "probe_base": PROBE_BASE,
         "router_cloud_tasks": list(ROUTER_CLOUD_TASKS),
         "earned_autonomy": EARNED_AUTONOMY_ENABLED,
+        "council_runtime_dir": str(COUNCIL_RUNTIME_DIR),
         "scope_roots": [str(p) for p in SCOPE_ROOTS],
     }
 
 
 __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
-    "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR",
+    "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
     "EMBEDDING_MODEL", "EMBEDDING_DIM",
     "RETRIEVAL_ALPHA_BM25", "RETRIEVAL_BETA_FAISS", "RETRIEVAL_GAMMA_RECENCY",
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",

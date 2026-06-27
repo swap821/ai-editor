@@ -30,6 +30,8 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -105,6 +107,9 @@ from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
+from aios.runtime.contracts import KingReport, RunLedger
+from aios.runtime.king_report import KingReportStore
+from aios.runtime.run_ledger import RunLedgerStore
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import RateLimiter, Zone, classify
 from aios.security.secret_scanner import scan_and_redact
@@ -665,6 +670,12 @@ def get_alignment_evaluation_store() -> AlignmentEvaluationStore:
     return AlignmentEvaluationStore()
 
 
+def get_council_runtime_root() -> Path:
+    """Runtime artifact root for Council missions."""
+    config.COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    return config.COUNCIL_RUNTIME_DIR
+
+
 def get_alignment_interpreter(
     llm: LLMClient = Depends(get_llm_client),
 ) -> Optional[AlignmentInterpreter]:
@@ -848,6 +859,16 @@ class CurriculumTaskRequest(BaseModel):
     level: int = Field(..., ge=1)
     prompt: str
     held_out: bool = Field(False, alias="heldOut")
+
+    model_config = {"populate_by_name": True}
+
+
+class CouncilDecisionRequest(BaseModel):
+    """King decision for a Council mission or pending worker approval request."""
+
+    mission_id: str = Field(..., alias="missionId")
+    request_id: str | None = Field(None, alias="requestId")
+    reason: str = ""
 
     model_config = {"populate_by_name": True}
 
@@ -1486,6 +1507,272 @@ def add_curriculum_task(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"id": task_id, "executed": False}
+
+
+def _validate_council_mission_id(mission_id: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", mission_id):
+        raise HTTPException(status_code=422, detail="invalid mission id")
+    return mission_id
+
+
+def _validate_council_request_id(request_id: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", request_id):
+        raise HTTPException(status_code=422, detail="invalid approval request id")
+    return request_id
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _latest_intelligence_for_dashboard(report: KingReport) -> dict[str, Any]:
+    model_routing = report.council_summary.get("model_routing", {})
+    return model_routing if isinstance(model_routing, dict) else {}
+
+
+def _mission_dir(runtime_root: Path, mission_id: str) -> Path:
+    return runtime_root / "missions" / mission_id
+
+
+def _read_council_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("council_dashboard_json_skipped", path=str(path), exc_info=exc)
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _king_decision(runtime_root: Path, mission_id: str) -> dict[str, Any] | None:
+    return _read_council_json(_mission_dir(runtime_root, mission_id) / "king_decision.json")
+
+
+def _pending_approvals_for_dashboard(runtime_root: Path, mission_id: str) -> list[dict[str, Any]]:
+    approvals_dir = _mission_dir(runtime_root, mission_id) / "approvals"
+    if not approvals_dir.is_dir():
+        return []
+    pending: list[dict[str, Any]] = []
+    for request_path in sorted(approvals_dir.glob("*.request.json"), key=lambda path: path.stat().st_mtime):
+        request_id = request_path.name.removesuffix(".request.json")
+        response_path = approvals_dir / f"{request_id}.response.json"
+        if response_path.exists():
+            continue
+        payload = _read_council_json(request_path)
+        if payload is None:
+            continue
+        pending.append(
+            {
+                "requestId": request_id,
+                "workerId": payload.get("worker_id"),
+                "action": payload.get("action"),
+                "reason": payload.get("reason"),
+                "createdAt": payload.get("created_at"),
+            }
+        )
+    return pending
+
+
+def _council_summary_from_artifacts(
+    *,
+    runtime_root: Path,
+    mission_id: str,
+    report: KingReport,
+    ledger: RunLedger | None,
+    updated_at: float,
+) -> dict[str, Any]:
+    verification = report.verification_result
+    commands = []
+    if isinstance(verification, dict):
+        raw_commands = verification.get("commands", [])
+        if isinstance(raw_commands, list):
+            commands = raw_commands
+    return {
+        "missionId": mission_id,
+        "mission": report.mission,
+        "status": report.status,
+        "recommendation": report.recommendation,
+        "risk": report.risk,
+        "approvalNeeded": report.approval_needed,
+        "rollbackAvailable": report.rollback_available,
+        "rollbackId": report.rollback_id,
+        "filesTouched": list(report.files),
+        "blockedAttempts": (
+            len(ledger.blocked_attempts)
+            if ledger is not None
+            else int(report.council_summary.get("blocked_attempts", 0) or 0)
+        ),
+        "verificationPassed": all(
+            isinstance(command, dict) and command.get("returncode") == 0
+            for command in commands
+        ) if commands else None,
+        "councilVerdicts": report.council_summary.get("council_verdicts", []),
+        "modelRouting": _latest_intelligence_for_dashboard(report),
+        "pendingApprovals": _pending_approvals_for_dashboard(runtime_root, mission_id),
+        "kingDecision": _king_decision(runtime_root, mission_id),
+        "updatedAt": updated_at,
+    }
+
+
+def _write_council_decision(
+    *,
+    runtime_root: Path,
+    req: CouncilDecisionRequest,
+    approved: bool,
+) -> dict[str, Any]:
+    safe_id = _validate_council_mission_id(req.mission_id)
+    mission_dir = _mission_dir(runtime_root, safe_id)
+    if not mission_dir.is_dir():
+        raise HTTPException(status_code=404, detail="council mission not found")
+
+    request_id = _validate_council_request_id(req.request_id) if req.request_id else None
+    decided_at = _utc_now_iso()
+    response_written = False
+    if request_id:
+        approvals_dir = mission_dir / "approvals"
+        request_path = approvals_dir / f"{request_id}.request.json"
+        response_path = approvals_dir / f"{request_id}.response.json"
+        if not request_path.exists():
+            raise HTTPException(status_code=404, detail="approval request not found")
+        if response_path.exists():
+            raise HTTPException(status_code=409, detail="approval request already decided")
+        response_path.write_text(
+            json.dumps(
+                {
+                    "request_id": request_id,
+                    "mission_id": safe_id,
+                    "approved": approved,
+                    "reason": req.reason,
+                    "decided_at": decided_at,
+                    "decided_by": "king_dashboard",
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        response_written = True
+
+    decision = {
+        "mission_id": safe_id,
+        "request_id": request_id,
+        "decision": "approve" if approved else "reject",
+        "approved": approved,
+        "reason": req.reason,
+        "decided_at": decided_at,
+        "decided_by": "king_dashboard",
+    }
+    (mission_dir / "king_decision.json").write_text(
+        json.dumps(decision, indent=2),
+        encoding="utf-8",
+    )
+    return {
+        "missionId": safe_id,
+        "decision": decision,
+        "approvalResponseWritten": response_written,
+    }
+
+
+@app.get("/api/v1/council/missions")
+def council_missions(
+    limit: int = 20,
+    runtime_root: Path = Depends(get_council_runtime_root),
+) -> dict[str, Any]:
+    """List stored Council mission reports for the operator dashboard."""
+    mission_root = runtime_root / "missions"
+    if not mission_root.is_dir():
+        return {"missions": [], "count": 0}
+
+    reports = KingReportStore(runtime_root)
+    ledgers = RunLedgerStore(runtime_root)
+    items: list[dict[str, Any]] = []
+    for mission_dir in mission_root.iterdir():
+        if not mission_dir.is_dir():
+            continue
+        mission_id = mission_dir.name
+        report_path = reports.path_for(mission_id)
+        if not report_path.exists():
+            continue
+        try:
+            report = reports.read(mission_id)
+            ledger = ledgers.read(mission_id) if ledgers.path_for(mission_id).exists() else None
+        except Exception as exc:  # noqa: BLE001 - one corrupt artifact must not kill the dashboard
+            logger.warning("council_dashboard_artifact_skipped", mission_id=mission_id, exc_info=exc)
+            continue
+        items.append(
+            _council_summary_from_artifacts(
+                runtime_root=runtime_root,
+                mission_id=mission_id,
+                report=report,
+                ledger=ledger,
+                updated_at=report_path.stat().st_mtime,
+            )
+        )
+
+    items.sort(key=lambda item: item["updatedAt"], reverse=True)
+    bounded_limit = max(1, min(int(limit), 100))
+    return {"missions": items[:bounded_limit], "count": len(items)}
+
+
+@app.get("/api/v1/council/missions/{mission_id}")
+def council_mission_detail(
+    mission_id: str,
+    runtime_root: Path = Depends(get_council_runtime_root),
+) -> dict[str, Any]:
+    """Return the stored RunLedger and KingReport for one Council mission."""
+    safe_id = _validate_council_mission_id(mission_id)
+    reports = KingReportStore(runtime_root)
+    ledgers = RunLedgerStore(runtime_root)
+    report_path = reports.path_for(safe_id)
+    if not report_path.exists():
+        raise HTTPException(status_code=404, detail="council mission not found")
+    report = reports.read(safe_id)
+    ledger = ledgers.read(safe_id) if ledgers.path_for(safe_id).exists() else None
+    return {
+        "missionId": safe_id,
+        "summary": _council_summary_from_artifacts(
+            runtime_root=runtime_root,
+            mission_id=safe_id,
+            report=report,
+            ledger=ledger,
+            updated_at=report_path.stat().st_mtime,
+        ),
+        "report": report.model_dump(),
+        "ledger": ledger.model_dump() if ledger is not None else None,
+        "pendingApprovals": _pending_approvals_for_dashboard(runtime_root, safe_id),
+        "kingDecision": _king_decision(runtime_root, safe_id),
+    }
+
+
+@app.get("/api/v1/council/reports/{mission_id}")
+def council_report(
+    mission_id: str,
+    runtime_root: Path = Depends(get_council_runtime_root),
+) -> dict[str, Any]:
+    """Return only the human-facing KingReport for one Council mission."""
+    safe_id = _validate_council_mission_id(mission_id)
+    store = KingReportStore(runtime_root)
+    if not store.path_for(safe_id).exists():
+        raise HTTPException(status_code=404, detail="council report not found")
+    return {"missionId": safe_id, "report": store.read(safe_id).model_dump()}
+
+
+@app.post("/api/v1/council/approve")
+def council_approve(
+    req: CouncilDecisionRequest,
+    runtime_root: Path = Depends(get_council_runtime_root),
+) -> dict[str, Any]:
+    """Record King approval for a Council mission or pending worker request."""
+    return _write_council_decision(runtime_root=runtime_root, req=req, approved=True)
+
+
+@app.post("/api/v1/council/reject")
+def council_reject(
+    req: CouncilDecisionRequest,
+    runtime_root: Path = Depends(get_council_runtime_root),
+) -> dict[str, Any]:
+    """Record King rejection for a Council mission or pending worker request."""
+    return _write_council_decision(runtime_root=runtime_root, req=req, approved=False)
 
 
 @app.post("/api/v1/security/classify")

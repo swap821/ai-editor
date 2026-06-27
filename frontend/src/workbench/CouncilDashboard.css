@@ -1,0 +1,384 @@
+.council-dashboard {
+  position: absolute;
+  top: 132px;
+  right: 30px;
+  z-index: 24;
+  width: min(386px, 30vw);
+  max-height: min(640px, 66vh);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  color: rgba(235, 244, 255, 0.92);
+  background:
+    linear-gradient(180deg, rgba(12, 18, 31, 0.86), rgba(5, 8, 18, 0.8)),
+    radial-gradient(120% 100% at 10% 0%, rgba(123, 245, 251, 0.08), transparent 48%);
+  border: 1px solid rgba(180, 210, 240, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  overflow: hidden;
+}
+
+.council-dashboard__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(180, 210, 240, 0.12);
+}
+
+.council-dashboard__eyebrow {
+  margin: 0 0 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(123, 245, 251, 0.7);
+}
+
+.council-dashboard h2,
+.council-dashboard h3,
+.council-dashboard p {
+  margin: 0;
+}
+
+.council-dashboard h2 {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: rgba(248, 252, 255, 0.96);
+}
+
+.council-dashboard h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(190, 208, 230, 0.78);
+}
+
+.council-dashboard__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(180, 210, 240, 0.16);
+  border-radius: 8px;
+  color: rgba(225, 237, 252, 0.86);
+  background: rgba(255, 255, 255, 0.045);
+  cursor: pointer;
+}
+
+.council-dashboard__icon-btn:hover {
+  background: rgba(123, 245, 251, 0.08);
+  border-color: rgba(123, 245, 251, 0.3);
+}
+
+.council-dashboard__icon-btn:focus-visible,
+.council-dashboard__mission:focus-visible {
+  outline: 2px solid rgba(123, 245, 251, 0.72);
+  outline-offset: 2px;
+}
+
+.council-dashboard__body {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.council-dashboard__missions {
+  display: flex;
+  gap: 7px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(180, 210, 240, 0.1);
+}
+
+.council-dashboard__mission {
+  flex: 0 0 164px;
+  min-height: 58px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgba(180, 210, 240, 0.12);
+  border-radius: 8px;
+  color: rgba(232, 240, 252, 0.84);
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  text-align: left;
+}
+
+.council-dashboard__mission.is-selected {
+  color: rgba(248, 252, 255, 0.98);
+  border-color: rgba(123, 245, 251, 0.42);
+  background: rgba(123, 245, 251, 0.08);
+}
+
+.council-dashboard__mission-main {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.council-dashboard__mission-main span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.council-dashboard__mission-main small {
+  font-size: 10px;
+  color: rgba(190, 208, 230, 0.68);
+}
+
+.council-dashboard__risk-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 50%;
+}
+
+.council-dashboard__risk-dot.is-ok,
+.council-dashboard__badge.is-ok,
+.council-dashboard__verdict.is-ok {
+  background: rgba(84, 240, 160, 0.14);
+  color: #b9f8d8;
+  border-color: rgba(84, 240, 160, 0.28);
+}
+
+.council-dashboard__risk-dot.is-warn,
+.council-dashboard__badge.is-warn,
+.council-dashboard__verdict.is-warn {
+  background: rgba(250, 204, 21, 0.14);
+  color: #fde68a;
+  border-color: rgba(250, 204, 21, 0.3);
+}
+
+.council-dashboard__risk-dot.is-danger,
+.council-dashboard__badge.is-danger,
+.council-dashboard__verdict.is-danger {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.council-dashboard__detail {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 13px 14px 15px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.council-dashboard__mission-title {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.council-dashboard__mission-title strong {
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(248, 252, 255, 0.96);
+}
+
+.council-dashboard__badge,
+.council-dashboard__verdict {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.council-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 13px;
+}
+
+.council-dashboard__grid span,
+.council-dashboard__section {
+  border: 1px solid rgba(180, 210, 240, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.council-dashboard__grid span {
+  min-height: 58px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  font-size: 12px;
+  color: rgba(232, 240, 252, 0.88);
+}
+
+.council-dashboard__grid b {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(190, 208, 230, 0.68);
+}
+
+.council-dashboard__section {
+  margin-top: 8px;
+  padding: 10px;
+}
+
+.council-dashboard__decision {
+  display: grid;
+  gap: 8px;
+}
+
+.council-dashboard__decision strong {
+  font-size: 13px;
+  color: rgba(248, 252, 255, 0.95);
+}
+
+.council-dashboard__decision p {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(190, 208, 230, 0.72);
+}
+
+.council-dashboard__decision-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.council-dashboard__decision-actions button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(84, 240, 160, 0.28);
+  border-radius: 8px;
+  color: #b9f8d8;
+  background: rgba(84, 240, 160, 0.12);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.council-dashboard__decision-actions button.is-reject {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.council-dashboard__decision-actions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.council-dashboard__verdicts,
+.council-dashboard__route {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.council-dashboard__mono-list {
+  display: grid;
+  gap: 5px;
+  font-family: var(--mono, 'SFMono-Regular', Consolas, monospace);
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(216, 232, 248, 0.86);
+  word-break: break-word;
+}
+
+.council-dashboard__split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.council-dashboard__split > div {
+  min-width: 0;
+}
+
+.council-dashboard__split strong {
+  font-size: 15px;
+  color: rgba(248, 252, 255, 0.95);
+}
+
+.council-dashboard__route span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 7px;
+  color: rgba(208, 228, 245, 0.86);
+  background: rgba(96, 165, 250, 0.1);
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  font-size: 11px;
+}
+
+.council-dashboard__muted,
+.council-dashboard__empty,
+.council-dashboard__error {
+  color: rgba(190, 208, 230, 0.66);
+  font-size: 12px;
+}
+
+.council-dashboard__error {
+  color: #fecaca;
+}
+
+.council-dashboard__empty {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+@media (max-width: 1160px) {
+  .council-dashboard {
+    width: min(360px, 36vw);
+  }
+}
+
+@media (max-width: 760px) {
+  .council-dashboard {
+    top: 88px;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-height: 34vh;
+  }
+
+  .council-dashboard__header {
+    padding: 10px 12px;
+  }
+
+  .council-dashboard__detail {
+    padding: 10px 12px 12px;
+  }
+
+  .council-dashboard__grid {
+    grid-template-columns: 1fr;
+  }
+}

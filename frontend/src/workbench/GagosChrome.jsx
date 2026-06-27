@@ -53,6 +53,7 @@ import {
   selectNextAvailableVertebraSeat,
 } from '../superbrain/lib/materializedSurfaceAnchors';
 import SwarmHUD from '../superbrain/components/ui/SwarmHUD';
+import CouncilDashboard from './CouncilDashboard';
 import './GagosChrome.css';
 
 const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
@@ -669,6 +670,7 @@ export default function GagosChrome() {
       ) : null}
 
       <SwarmHUD />
+      <CouncilDashboard />
 
       <section className="gagos-chat" aria-label="Conversation">
         {messages.length === 0 && !busy ? (

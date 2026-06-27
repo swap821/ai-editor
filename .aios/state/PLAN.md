@@ -7,6 +7,10 @@
 > and system-context map, but execution now follows the sovereign Council
 > Runtime sequence: Phase 0 foundation lock, 30-day First Heartbeat, then the
 > 24-week path to v1.0.
+> **Status 2026-06-27:** Phase 0, Phase 1A, Phase 1B, Phase 2, and
+> Dashboard-lite (KingReport API/panel plus approve/reject decision artifacts)
+> are implemented on `council-runtime-v01`; trust `RESUME.md` for current gates
+> and the next single action.
 
 > **Full refresh authored by Claude Code on 2026-06-14**, restructuring the prior
 > 2026-06-13 refresh. Before the 2026-06-27 Council Runtime supersession above,
