@@ -219,6 +219,49 @@ class WorkerRuntime:
         self._persist_evidence()
         return response.text
 
+    def request_change(
+        self,
+        prompt: str,
+        *,
+        allow_cloud: bool = False,
+        purpose: str = "plan",
+    ) -> str:
+        """Ask the IntelligenceGateway for proposed file content (the worker's
+        "think/act" generation). ``purpose`` is "plan" for the first attempt and
+        "repair" for self-correction. Output is already secret-redacted by the
+        gateway; the worker still applies it only via the scoped write_file."""
+        self._begin_tool(
+            "request_change",
+            {"prompt_length": len(prompt), "allow_cloud": allow_cloud, "purpose": purpose},
+        )
+        response = self.intelligence_gateway.request(
+            IntelligenceRequest(
+                mission_id=self.contract.mission_id,
+                worker_id=self.worker_id,
+                purpose=purpose,  # type: ignore[arg-type]
+                prompt=prompt,
+                risk=self.contract.risk_level,
+                allow_cloud=allow_cloud,
+                max_tokens=int(self.contract.metadata.get("change_max_tokens", 2000)),
+                timeout_seconds=int(self.contract.metadata.get("change_timeout_seconds", 30)),
+            ),
+            contract=self.contract,
+        )
+        self.evidence.setdefault("intelligence", []).append(response.model_dump())
+        self._record_tool(
+            "request_change",
+            {
+                "purpose": purpose,
+                "allow_cloud": allow_cloud,
+                "provider": response.provider,
+                "used_cloud": response.used_cloud,
+                "fallback_used": response.fallback_used,
+            },
+            "completed",
+        )
+        self._persist_evidence()
+        return response.text
+
     def emit_evidence(self, data: dict[str, Any]) -> None:
         self.evidence.update(data)
         self._persist_evidence()

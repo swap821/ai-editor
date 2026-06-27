@@ -119,3 +119,27 @@ Full backend suite + 85% floor green; frozen security spine untouched.
 Ships **off by default** (`AIOS_WORKER_REASONING=false`). Production enables it
 (with a local Ollama or policy-permitted cloud) to get a worker that thinks and
 acts; until then, behavior is exactly today's deterministic worker.
+
+## Adversarial review outcome (2026-06-28)
+
+4-angle adversarial review. Containment held: no filesystem-scope escape, no
+command injection, no secret/provider leakage (worker gateway `cloud_clients={}`),
+guaranteed termination. Two findings were fixed before merge:
+- **[HIGH] empty `verification_commands` → false `completed`/GREEN.** The LLM worker
+  now raises `ContractViolation` when no verification command exists — an
+  unverifiable edit can never be reported completed. (`worker_entry._run_llm_worker`)
+- **[MEDIUM] no size cap on written content (DoS).** Added `WORKER_MAX_FILE_BYTES`
+  (default 1 MB); oversized proposals are refused before write.
+
+### Tracked follow-ups (not blockers; scope-bounded)
+- **Verifier-executed write targets (exec channel).** If the target is a
+  pytest-imported file (`conftest.py`, `test_*.py`), the worker writes LLM content
+  that the verification step then executes — bounded to the workspace inside the
+  already-scrubbed worker subprocess, but real. Fix later: run verification via the
+  isolated execution backend and/or flag/approval-gate contracts whose write
+  surface intersects the verifier's import surface; tighten the worker_api
+  directory-prefix write match to explicit entries/globs.
+- **Step-budget exhaustion mislabels as `contract_violation`/RED** instead of
+  `failed` (cosmetic honesty; `worker_api._begin_tool`).
+- **Deterministic-twin** has the same vacuous-pass on empty verification, but it
+  writes a fixed heartbeat (not hostile content) — low risk, pre-existing.

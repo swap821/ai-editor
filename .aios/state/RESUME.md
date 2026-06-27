@@ -62,8 +62,15 @@ Real Queen reasoning shipped (opt-in behind `AIOS_COUNCIL_REASONING`, default of
 - Spec: `docs/superpowers/specs/2026-06-27-thinking-queens-design.md`. Adversarial review (4-angle workflow): invariant HOLDS, zero exploitable escalations.
 - Verified: backend `pytest --cov` exit 0, 1179 passed / 1 skipped, 87.24%. Frozen spine untouched.
 
+## Real Worker — think/act/react — DONE + VERIFIED (2026-06-28)
+LLM-driven worker shipped (opt-in behind `AIOS_WORKER_REASONING`, default off → today's deterministic heartbeat):
+- `aios/runtime/worker_entry.py` `_run_llm_worker`: bounded think→act(scoped write_file)→verify(allowlisted run_command)→repair(`purpose="repair"`) loop, capped by `WORKER_MAX_REPAIRS` (default 2) + `max_steps`. `worker_api.request_change` is the gateway wrapper.
+- Reuses ALL existing isolation (scoped FS, command allowlist, secret-scrubbing gateway, scrubbed subprocess). Honest: gateway-unavailable → `failed`, never false success.
+- Adversarial 4-angle review: containment HELD (no scope escape, no command injection, no secret/provider leak, guaranteed termination). Two findings FIXED before merge: [HIGH] empty `verification_commands` → false completed (now raises ContractViolation — unverifiable edit can't be "completed"); [MEDIUM] DoS (added `WORKER_MAX_FILE_BYTES` cap, default 1 MB).
+- Spec: `docs/superpowers/specs/2026-06-28-real-worker-design.md`. Verified: backend `pytest --cov` exit 0, 87.27% (7 new real-worker tests). Frozen spine untouched.
+
 ## Single Next Action
-Operator's choice. Tracked follow-ups from the Phase-3 adversarial review (neither a blocker): R2 — the worker-backend FS enforcer must canonicalize paths (./ ../ symlinks, Windows case) before comparing to `allowed_files`; R4 — emit a metric/alert on MemoryQueen `retrieval_error` (currently log-only). Bigger next slices: the REAL WORKER (replace the hardcoded heartbeat `worker_entry.py:97` so the worker does the mission via the IntelligenceGateway) and a product endpoint that ORIGINATES a council mission (today the thinking council only runs via the orchestrator API + flag, not a one-click product action). Also available: Phase 3B Queen-as-services, Phase 4 pheromones, or integrating the rescued knowledge-graph/skills branches.
+Operator's choice. Real-worker follow-ups (tracked, scope-bounded, not blockers): verifier-executed write targets (a worker writing `conftest.py`/`test_*.py` that the verification step runs — bounded to the scrubbed worker subprocess; fix = route verification via the isolated backend + flag/approval-gate those write surfaces); step-budget-exhaustion mislabels as contract_violation (cosmetic). Bigger next slices: a product endpoint that ORIGINATES a council mission (today the thinking-and-acting council only runs via the orchestrator API + flags, not a one-click product action) — this would finally make GAGOS chat → real council mission end-to-end. Also: Phase 3B Queen-as-services, Phase 4 pheromones, prior Phase-3 follow-ups (R2 path-canon, R4 retrieval metric), or integrating the rescued branches.
 
 ## Open Approvals / Blockers
 - Local `.env` sets `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; mask it with `$env:AIOS_ROUTER_CLOUD_TASKS=''` when testing default local-first privacy behavior.

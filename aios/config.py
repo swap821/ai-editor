@@ -118,6 +118,13 @@ COUNCIL_STATE_DB: Final[Path] = COUNCIL_RUNTIME_DIR / "council_state.db"
 # Off by default → Queens stay deterministic (matches the gated, opt-in pattern
 # used for AIOS_EARNED_AUTONOMY / AIOS_SWARM_*; keeps CI deterministic).
 COUNCIL_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_REASONING", False)
+# Phase 3 "real worker": opt-in LLM-driven worker that generates+applies the edit
+# and self-corrects. Off by default → the deterministic heartbeat worker (CI-safe).
+WORKER_REASONING: Final[bool] = _env_bool("AIOS_WORKER_REASONING", False)
+# Max self-correction retries after a failed verification (<= WORKER_MAX_REPAIRS+1 attempts).
+WORKER_MAX_REPAIRS: Final[int] = _env_int("AIOS_WORKER_MAX_REPAIRS", 2)
+# Max bytes of LLM-proposed content the worker will write per edit (DoS guard).
+WORKER_MAX_FILE_BYTES: Final[int] = _env_int("AIOS_WORKER_MAX_FILE_BYTES", 1_000_000)
 
 EMBEDDING_MODEL: Final[str] = _env_str("AIOS_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_DIM: Final[int] = _env_int("AIOS_EMBEDDING_DIM", 384)
@@ -282,7 +289,8 @@ def startup_banner() -> dict[str, object]:
 __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
     "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
-    "COUNCIL_STATE_DB", "COUNCIL_REASONING",
+    "COUNCIL_STATE_DB", "COUNCIL_REASONING", "WORKER_REASONING", "WORKER_MAX_REPAIRS",
+    "WORKER_MAX_FILE_BYTES",
     "EMBEDDING_MODEL", "EMBEDDING_DIM",
     "RETRIEVAL_ALPHA_BM25", "RETRIEVAL_BETA_FAISS", "RETRIEVAL_GAMMA_RECENCY",
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",
