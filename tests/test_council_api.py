@@ -115,6 +115,26 @@ def test_council_missions_skips_corrupt_artifacts(tmp_path: Path) -> None:
     assert [mission["missionId"] for mission in body["missions"]] == ["mission-api-valid"]
 
 
+def test_council_detail_and_report_return_422_on_corrupt_artifact(tmp_path: Path) -> None:
+    """A corrupt single-mission artifact is a clean 422, not an unhandled 500
+    (the list route already skips corrupt artifacts; these routes did not)."""
+    runtime_root = tmp_path / "runtime"
+    _seed_mission(runtime_root)
+    KingReportStore(runtime_root).path_for("mission-api-1").write_text(
+        "{not valid json", encoding="utf-8"
+    )
+    app.dependency_overrides[get_council_runtime_root] = lambda: runtime_root
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            detail = client.get("/api/v1/council/missions/mission-api-1")
+            report = client.get("/api/v1/council/reports/mission-api-1")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert detail.status_code == 422
+    assert report.status_code == 422
+
+
 def test_council_mission_detail_and_report_reject_path_escape(
     tmp_path: Path,
 ) -> None:

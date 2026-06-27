@@ -42,8 +42,16 @@ Deep review (19-agent workflow + direct source verification) found 3 worker-isol
 - New tests: `test_council_routes_reject_dotdot_traversal`, `test_run_command_is_fail_closed_to_verification_allowlist`, `test_restricted_environment_sets_worker_sandbox_flag`, `test_config_skips_dotenv_inside_worker_sandbox`.
 - Verified: `pytest -q --cov=aios --cov-fail-under=85` → exit 0, 1156 passed / 1 skipped, 87.11%. Diff: 6 files, +166/-4. NOT yet committed (awaiting operator go).
 
+## Merge-Gate Cleanup (2026-06-27, after security hotfix) — DONE + VERIFIED
+Operator approved "do all remaining gate items"; all landed on `council-runtime-v01` (security hotfix committed `1c3b586`; gate items in a follow-up commit):
+- Rollback de-scoped from the SURFACE (it was never functional): removed the Rollback row from `CouncilDashboard.jsx` (also kills the `?:`/`??` precedence bug that rendered it blank) and dropped `rollbackAvailable`/`rollbackId` from the product `_council_summary_from_artifacts`. KEPT the frozen `KingReport`/`RunLedger` rollback fields (inert, default False/None) — ripping frozen-schema fields is high-churn/risk at v0.1; build real rollback in the healing phase instead.
+- Corrupt-artifact robustness: `council_mission_detail` + `council_report` now return 422 (not unhandled 500) on a corrupt stored artifact (list route was already guarded).
+- Concurrency/collision guard: new `claim_mission()` in `spawner.py` does an atomic `mkdir(exist_ok=False)`; `WorkerSpawner.run` claims for the normal path and `CouncilOrchestrator._blocked_run` claims for the blocked path → a duplicate `mission_id` now fails closed with `MissionCollisionError` instead of silently clobbering artifacts.
+- New tests: `test_council_detail_and_report_return_422_on_corrupt_artifact`, `test_spawner_refuses_duplicate_mission_id`.
+- Verified: backend `pytest --cov` exit 0, 1158 passed / 1 skipped, 87.14%; frontend CouncilDashboard test + typecheck + build all pass.
+
 ## Single Next Action
-Operator decision: commit the security hotfix to `council-runtime-v01`. Then the remaining (non-blocking) merge-gate cleanup before master: de-scope vaporware rollback from `KingReport`/`CouncilDashboard` (rollback never functional), add a 500→guard on the per-mission detail/report routes for corrupt artifacts (list route already guarded), and a concurrency/collision guard on `run_ledger`. Phase 3A-lite (durable `council_state.py` SQLite) remains the next feature after that.
+`council-runtime-v01` is now security- and robustness-clean and merge-ready for `master` pending operator review (open a PR or fast-forward merge). BEFORE the eventual cruft sweep: rescue the two dangling stashes (`stash@{0}` knowledge-graph WIP + `stash@{1}` skill files — only copies) into real branches. Next FEATURE after merge: Phase 3A-lite durable Council state (`council_state.py`, SQLite `queen_verdicts`/`council_events`). NOTE the council "worker" still does no real work (hardcoded heartbeat, `worker_entry.py:97`) and 3 of 4 Queens are stubs — real intelligence is the larger Phase-3+ effort, not a merge blocker for the v0.1 foundation.
 
 ## Open Approvals / Blockers
 - Local `.env` sets `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; mask it with `$env:AIOS_ROUTER_CLOUD_TASKS=''` when testing default local-first privacy behavior.

@@ -12,7 +12,7 @@ from aios.runtime.backends import ControlledSubprocessBackend
 from aios.runtime.contracts import MissionContract, WorkerResult
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
-from aios.runtime.spawner import WorkerSpawner
+from aios.runtime.spawner import MissionCollisionError, WorkerSpawner
 from aios.runtime.worker_api import ContractViolation, WorkerRuntime
 
 
@@ -220,3 +220,15 @@ def test_config_skips_dotenv_inside_worker_sandbox(
     assert config_module._worker_sandbox_active() is True
     monkeypatch.delenv("AIOS_WORKER_SANDBOX", raising=False)
     assert config_module._worker_sandbox_active() is False
+
+
+def test_spawner_refuses_duplicate_mission_id(tmp_path: Path) -> None:
+    """A second run with the same mission_id is fail-closed, so it cannot
+    silently clobber the first run's ledger/report artifacts."""
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    contract = _mission(workspace)
+
+    asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
+    with pytest.raises(MissionCollisionError):
+        asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))

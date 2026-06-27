@@ -23,7 +23,7 @@ from aios.runtime.contracts import (
 )
 from aios.runtime.king_report import KingReportStore, build_king_report
 from aios.runtime.run_ledger import RunLedgerStore
-from aios.runtime.spawner import WorkerRun, WorkerSpawner
+from aios.runtime.spawner import WorkerRun, WorkerSpawner, claim_mission
 
 
 def _utc_now() -> str:
@@ -126,6 +126,9 @@ class CouncilOrchestrator:
         verdicts: list[QueenVerdict],
     ) -> CouncilRun:
         now = _utc_now()
+        # The blocked path never reaches spawner.run (which would claim the
+        # mission), so claim here to keep the same fail-closed collision guard.
+        claim_mission(self.runtime_root, contract.mission_id)
         risk = highest_risk([contract.risk_level, *(verdict.risk for verdict in verdicts)])
         result = WorkerResult(
             mission_id=contract.mission_id,

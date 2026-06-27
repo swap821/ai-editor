@@ -16,6 +16,31 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+class MissionCollisionError(RuntimeError):
+    """Raised when a mission_id already owns runtime artifacts on disk.
+
+    Fail-closed: refusing to run prevents one mission from silently clobbering
+    another run's ledger/report/worker artifacts under the same id.
+    """
+
+
+def claim_mission(runtime_root: str | Path, mission_id: str) -> Path:
+    """Atomically claim a mission_id's runtime directory.
+
+    The exclusive ``mkdir`` is the collision boundary for the whole mission, so
+    a second run with the same id fails closed instead of overwriting the first.
+    """
+    mission_dir = Path(runtime_root) / "missions" / mission_id
+    try:
+        mission_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise MissionCollisionError(
+            f"mission_id {mission_id!r} already has runtime artifacts; "
+            "refusing to overwrite"
+        ) from exc
+    return mission_dir
+
+
 @dataclass(frozen=True)
 class WorkerRun:
     contract: MissionContract
@@ -47,6 +72,7 @@ class WorkerSpawner:
 
     async def run(self, contract: MissionContract) -> WorkerRun:
         created_at = _utc_now()
+        claim_mission(self.runtime_root, contract.mission_id)
         sealed_contract = self._seal_contract(contract)
         handle = await self.backend.spawn(sealed_contract)
         try:
@@ -81,4 +107,4 @@ class WorkerSpawner:
         return contract.model_copy(update={"snapshot_id": snapshot_id})
 
 
-__all__ = ["WorkerRun", "WorkerSpawner"]
+__all__ = ["MissionCollisionError", "WorkerRun", "WorkerSpawner", "claim_mission"]

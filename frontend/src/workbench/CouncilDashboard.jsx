@@ -206,7 +206,6 @@ export default function CouncilDashboard() {
               <span><b>Status</b>{titleCase(report.status || selectedSummary.status)}</span>
               <span><b>Recommendation</b>{titleCase(report.recommendation || selectedSummary.recommendation)}</span>
               <span><b>Approval</b>{approvalNeeded ? 'Needed' : 'Not needed'}</span>
-              <span><b>Rollback</b>{report.rollback_available ?? selectedSummary.rollbackAvailable ? (report.rollback_id || 'Available') : 'None'}</span>
             </div>
 
             <div className="council-dashboard__section council-dashboard__decision">

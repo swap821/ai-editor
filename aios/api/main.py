@@ -1608,8 +1608,6 @@ def _council_summary_from_artifacts(
         "recommendation": report.recommendation,
         "risk": report.risk,
         "approvalNeeded": report.approval_needed,
-        "rollbackAvailable": report.rollback_available,
-        "rollbackId": report.rollback_id,
         "filesTouched": list(report.files),
         "blockedAttempts": (
             len(ledger.blocked_attempts)
@@ -1739,8 +1737,12 @@ def council_mission_detail(
     report_path = reports.path_for(safe_id)
     if not report_path.exists():
         raise HTTPException(status_code=404, detail="council mission not found")
-    report = reports.read(safe_id)
-    ledger = ledgers.read(safe_id) if ledgers.path_for(safe_id).exists() else None
+    try:
+        report = reports.read(safe_id)
+        ledger = ledgers.read(safe_id) if ledgers.path_for(safe_id).exists() else None
+    except Exception as exc:  # noqa: BLE001 - a corrupt artifact is a 422, not a 500
+        logger.warning("council_dashboard_artifact_corrupt", mission_id=safe_id, exc_info=exc)
+        raise HTTPException(status_code=422, detail="council artifact is corrupt") from exc
     return {
         "missionId": safe_id,
         "summary": _council_summary_from_artifacts(
@@ -1767,7 +1769,12 @@ def council_report(
     store = KingReportStore(runtime_root)
     if not store.path_for(safe_id).exists():
         raise HTTPException(status_code=404, detail="council report not found")
-    return {"missionId": safe_id, "report": store.read(safe_id).model_dump()}
+    try:
+        report = store.read(safe_id)
+    except Exception as exc:  # noqa: BLE001 - a corrupt artifact is a 422, not a 500
+        logger.warning("council_report_artifact_corrupt", mission_id=safe_id, exc_info=exc)
+        raise HTTPException(status_code=422, detail="council report is corrupt") from exc
+    return {"missionId": safe_id, "report": report.model_dump()}
 
 
 @app.post("/api/v1/council/approve")
