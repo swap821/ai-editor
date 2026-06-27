@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-27T14:20:35Z
+Last updated: 2026-06-27T22:30:00Z
 
 ## Current Goal
 Build Council Runtime v0.1 from the sovereign roadmap. The roadmap remains the near-term canon: Phase 0 foundation lock, 30-day First Heartbeat, then 24-week v1.0.
@@ -54,8 +54,16 @@ Operator approved "do all remaining gate items"; all landed on `council-runtime-
 - Council Runtime v0.1 (security-hardened) FAST-FORWARD MERGED to `master` + pushed (`2bc21ea`); CI GREEN (backend+frontend, run 28296559304). 20 zero-byte junk files swept from repo root.
 - Both dangling stashes RESCUED into pushed branches (stash list now empty): `rescue/full-knowledge-graph-wip` (Neo4j facts backend WIP, base 1de1bac, 12 files) and `rescue/skills-ui-ux-pro-max` (design-taste-frontend + ui-ux-pro-max project skills, base 7eab53d, 51 files). Gotcha logged: `git stash branch` checks out the stash's OLD base whose .gitignore predates `coverage.xml`/`.gstack`, so `git add -A` swept those artifacts in — stage explicit stash paths (or amend them out) when rescuing onto an old base.
 
+## Phase 3 — Thinking Queens — DONE + VERIFIED (2026-06-27)
+Real Queen reasoning shipped (opt-in behind `AIOS_COUNCIL_REASONING`, default off → deterministic, CI-safe):
+- `aios/council/reasoning.py`: `reconcile_plan` enforces the NARROW-ONLY privilege invariant (LLM may drop files / raise risk / add approval+verification, never widen scope, lower risk, or clear approval); `plan_with_llm`; `MistakeBackedRetriever` over the verified mistake pool. Hardened fail-closed: `_max_risk` → RED on malformed floor, `_clamp01` rejects NaN/inf.
+- `PlannerQueen(llm=...)` does real plan decomposition (clamped); `MemoryQueen(retriever=...)` can DEFER/DENY on prior verified failures (never grant). Both fall back to today's deterministic behavior with no client / flag off.
+- `aios/council/council_state.py` (roadmap Phase 3A): durable SQLite `queen_verdicts` + `council_events`; orchestrator persists every verdict/event best-effort (non-fatal).
+- Spec: `docs/superpowers/specs/2026-06-27-thinking-queens-design.md`. Adversarial review (4-angle workflow): invariant HOLDS, zero exploitable escalations.
+- Verified: backend `pytest --cov` exit 0, 1179 passed / 1 skipped, 87.24%. Frozen spine untouched.
+
 ## Single Next Action
-Operator's choice of next feature. Options: (a) Phase 3A-lite durable Council state (`council_state.py`, SQLite `queen_verdicts`/`council_events`); (b) make the council actually THINK — the worker still does no real work (hardcoded heartbeat `worker_entry.py:97`) and 3 of 4 Queens are stubs (Phase 3+ real-intelligence effort); (c) integrate the rescued knowledge-graph or skills branches. None are blockers — the v0.1 foundation is shipped and green.
+Operator's choice. Tracked follow-ups from the Phase-3 adversarial review (neither a blocker): R2 — the worker-backend FS enforcer must canonicalize paths (./ ../ symlinks, Windows case) before comparing to `allowed_files`; R4 — emit a metric/alert on MemoryQueen `retrieval_error` (currently log-only). Bigger next slices: the REAL WORKER (replace the hardcoded heartbeat `worker_entry.py:97` so the worker does the mission via the IntelligenceGateway) and a product endpoint that ORIGINATES a council mission (today the thinking council only runs via the orchestrator API + flag, not a one-click product action). Also available: Phase 3B Queen-as-services, Phase 4 pheromones, or integrating the rescued knowledge-graph/skills branches.
 
 ## Open Approvals / Blockers
 - Local `.env` sets `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; mask it with `$env:AIOS_ROUTER_CLOUD_TASKS=''` when testing default local-first privacy behavior.

@@ -112,6 +112,12 @@ COUNCIL_RUNTIME_DIR: Final[Path] = _env_path(
     "AIOS_COUNCIL_RUNTIME_DIR", DATA_DIR / "council_runtime"
 )
 COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+# Phase 3A durable Council deliberation store (queen verdicts + events).
+COUNCIL_STATE_DB: Final[Path] = COUNCIL_RUNTIME_DIR / "council_state.db"
+# Phase 3 "thinking Queens": opt-in real LLM/memory-backed Queen reasoning.
+# Off by default → Queens stay deterministic (matches the gated, opt-in pattern
+# used for AIOS_EARNED_AUTONOMY / AIOS_SWARM_*; keeps CI deterministic).
+COUNCIL_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_REASONING", False)
 
 EMBEDDING_MODEL: Final[str] = _env_str("AIOS_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_DIM: Final[int] = _env_int("AIOS_EMBEDDING_DIM", 384)
@@ -268,6 +274,7 @@ def startup_banner() -> dict[str, object]:
         "router_cloud_tasks": list(ROUTER_CLOUD_TASKS),
         "earned_autonomy": EARNED_AUTONOMY_ENABLED,
         "council_runtime_dir": str(COUNCIL_RUNTIME_DIR),
+        "council_reasoning": COUNCIL_REASONING,
         "scope_roots": [str(p) for p in SCOPE_ROOTS],
     }
 
@@ -275,6 +282,7 @@ def startup_banner() -> dict[str, object]:
 __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
     "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
+    "COUNCIL_STATE_DB", "COUNCIL_REASONING",
     "EMBEDDING_MODEL", "EMBEDDING_DIM",
     "RETRIEVAL_ALPHA_BM25", "RETRIEVAL_BETA_FAISS", "RETRIEVAL_GAMMA_RECENCY",
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",

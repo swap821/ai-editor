@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
+from aios.council.council_state import CouncilState
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 
@@ -38,6 +39,23 @@ def _request(workspace: Path, **overrides: object) -> CouncilMissionRequest:
     }
     data.update(overrides)
     return CouncilMissionRequest(**data)  # type: ignore[arg-type]
+
+
+def test_council_orchestrator_persists_deliberation_to_state(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    state = CouncilState(db_path=tmp_path / "council_state.db")
+    request = _request(workspace)
+
+    asyncio.run(
+        CouncilOrchestrator(runtime_root=runtime_root, council_state=state).run(request)
+    )
+
+    verdicts = state.verdicts_for(request.mission_id)
+    queens = {verdict["queen_name"] for verdict in verdicts}
+    assert {"planner", "security", "memory", "testing"} <= queens
+    events = state.events_for(request.mission_id)
+    assert any(event["event_type"] == "report" for event in events)
 
 
 def test_council_orchestrator_runs_full_loop_and_records_report(
