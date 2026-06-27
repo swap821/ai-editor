@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -160,3 +162,61 @@ def test_controlled_subprocess_backend_omits_cloud_secret_env(
     assert "AWS_SECRET_ACCESS_KEY" not in env
     assert "AIOS_ROUTER_CLOUD_TASKS" not in env
     assert env["PYTHONIOENCODING"] == "utf-8"
+
+
+def test_run_command_is_fail_closed_to_verification_allowlist(tmp_path: Path) -> None:
+    """run_command must run ONLY declared verification commands; an arbitrary
+    host command (e.g. dumping the environment to exfiltrate secrets) is blocked
+    and recorded as a durable blocked_attempt."""
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    allowed_cmd = f"{sys.executable} -c \"print('verification ok')\""
+    contract = _mission(
+        workspace,
+        allowed_tools=["read_file", "write_file", "run_command"],
+        verification_commands=[allowed_cmd],
+    )
+    runtime = WorkerRuntime(
+        contract,
+        worker_id="worker-cmd",
+        runtime_root=runtime_root,
+        result_path=runtime_root / "result.json",
+    )
+
+    # The declared verification command is permitted.
+    result = runtime.run_command(shlex.split(allowed_cmd, posix=os.name != "nt"))
+    assert result["returncode"] == 0
+
+    # An undeclared command is fail-closed blocked, even though run_command is
+    # an allowed tool — this is the regression the review flagged.
+    with pytest.raises(ContractViolation):
+        runtime.run_command([sys.executable, "-c", "import os; print(dict(os.environ))"])
+    assert any(
+        attempt["tool"] == "run_command"
+        and "verification_commands" in attempt["reason"]
+        for attempt in runtime.blocked_attempts
+    )
+
+
+def test_restricted_environment_sets_worker_sandbox_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The spawner flags the worker as sandboxed so aios.config skips dotenv."""
+    monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "bearer-secret-value")
+    env = ControlledSubprocessBackend(tmp_path / "runtime")._restricted_environment()
+    assert env["AIOS_WORKER_SANDBOX"] == "1"
+    assert "AWS_BEARER_TOKEN_BEDROCK" not in env
+
+
+def test_config_skips_dotenv_inside_worker_sandbox(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Closes the load_dotenv re-injection hole: with the sandbox flag set,
+    aios.config must not re-read .env (which would restore scrubbed secrets)."""
+    import aios.config as config_module
+
+    monkeypatch.setenv("AIOS_WORKER_SANDBOX", "1")
+    assert config_module._worker_sandbox_active() is True
+    monkeypatch.delenv("AIOS_WORKER_SANDBOX", raising=False)
+    assert config_module._worker_sandbox_active() is False

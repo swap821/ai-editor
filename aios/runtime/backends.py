@@ -213,6 +213,9 @@ class ControlledSubprocessBackend(WorkerBackend):
         env = self.secret_policy.worker_environment(env)
         env["PYTHONPATH"] = str(self.project_root)
         env["PYTHONIOENCODING"] = "utf-8"
+        # Tell aios.config it is running inside a scrubbed worker so it does not
+        # re-read .env and re-inject the secrets stripped just above.
+        env["AIOS_WORKER_SANDBOX"] = "1"
         return env
 
 

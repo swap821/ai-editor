@@ -1512,11 +1512,17 @@ def add_curriculum_task(
 def _validate_council_mission_id(mission_id: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", mission_id):
         raise HTTPException(status_code=422, detail="invalid mission id")
+    # The charset above admits "." and "..", which the path layer would treat
+    # as traversal out of the missions/ tree. Reject them explicitly.
+    if mission_id in {".", ".."} or ".." in mission_id:
+        raise HTTPException(status_code=422, detail="invalid mission id")
     return mission_id
 
 
 def _validate_council_request_id(request_id: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", request_id):
+        raise HTTPException(status_code=422, detail="invalid approval request id")
+    if request_id in {".", ".."} or ".." in request_id:
         raise HTTPException(status_code=422, detail="invalid approval request id")
     return request_id
 
@@ -1531,7 +1537,14 @@ def _latest_intelligence_for_dashboard(report: KingReport) -> dict[str, Any]:
 
 
 def _mission_dir(runtime_root: Path, mission_id: str) -> Path:
-    return runtime_root / "missions" / mission_id
+    # Defense in depth alongside _validate_council_mission_id: resolve the
+    # candidate and confirm it stays strictly inside the missions/ tree, so no
+    # mission_id can ever address a sibling or parent directory.
+    base = (runtime_root / "missions").resolve()
+    candidate = (base / mission_id).resolve()
+    if base not in candidate.parents:
+        raise HTTPException(status_code=422, detail="invalid mission id")
+    return candidate
 
 
 def _read_council_json(path: Path) -> dict[str, Any] | None:

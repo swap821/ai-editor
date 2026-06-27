@@ -136,6 +136,36 @@ def test_council_mission_detail_and_report_reject_path_escape(
     assert escaped.status_code in {404, 422}
 
 
+def test_council_routes_reject_dotdot_traversal(tmp_path: Path) -> None:
+    """A mission_id of '..' must not escape the missions/ tree on read or write.
+
+    Uses %2e%2e (which survives client-side URL normalization) for GET, and the
+    POST body for the write path, mirroring the two real escapes the review
+    reproduced.
+    """
+    runtime_root = tmp_path / "runtime"
+    _seed_mission(runtime_root)
+    # A sibling artifact a single-level '..' escape would have reached/clobbered.
+    (runtime_root / "king_report.json").write_text("{}", encoding="utf-8")
+    app.dependency_overrides[get_council_runtime_root] = lambda: runtime_root
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            report_escape = client.get("/api/v1/council/reports/%2e%2e")
+            detail_escape = client.get("/api/v1/council/missions/%2e%2e")
+            write_escape = client.post(
+                "/api/v1/council/approve",
+                json={"missionId": "..", "reason": "traversal attempt"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert report_escape.status_code == 422
+    assert detail_escape.status_code == 422
+    assert write_escape.status_code == 422
+    # The write must never have landed a decision outside missions/.
+    assert not (runtime_root / "king_decision.json").exists()
+
+
 def test_council_approve_records_king_report_decision(tmp_path: Path) -> None:
     runtime_root = tmp_path / "runtime"
     _seed_mission(runtime_root)

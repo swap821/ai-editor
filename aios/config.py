@@ -9,7 +9,25 @@ from dotenv import load_dotenv
 
 PROJECT_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 
-load_dotenv(PROJECT_ROOT / ".env")
+
+def _worker_sandbox_active() -> bool:
+    """True inside a Council Runtime worker subprocess.
+
+    ``ControlledSubprocessBackend`` scrubs every secret from the worker's
+    environment and sets ``AIOS_WORKER_SANDBOX=1``. Re-reading ``.env`` here
+    would re-inject the very secrets the spawner stripped, so dotenv loading is
+    suppressed when this flag is present.
+    """
+    return os.getenv("AIOS_WORKER_SANDBOX", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+if not _worker_sandbox_active():
+    load_dotenv(PROJECT_ROOT / ".env")
 
 _LOGGER: Final[logging.Logger] = logging.getLogger(__name__)
 

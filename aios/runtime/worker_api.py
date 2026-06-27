@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
+import shlex
 import subprocess
 import time
 import uuid
@@ -15,6 +17,11 @@ from aios.runtime.intelligence_gateway import (
     IntelligenceGateway,
     IntelligenceRequest,
 )
+from aios.runtime.secret_policy import SecretPolicy
+
+# Captured command output is redacted and capped before it is persisted into the
+# durable evidence ledger, so a noisy or hostile command cannot bloat the ledger.
+_MAX_COMMAND_OUTPUT: int = 50_000
 
 
 def _utc_now() -> str:
@@ -51,6 +58,7 @@ class WorkerRuntime:
         self.approval_dir = self.mission_dir / "approvals"
         self.evidence_path = self.worker_dir / "evidence.json"
         self.intelligence_gateway = intelligence_gateway or IntelligenceGateway()
+        self._secret_policy = SecretPolicy()
         self.worker_dir.mkdir(parents=True, exist_ok=True)
         self.approval_dir.mkdir(parents=True, exist_ok=True)
 
@@ -84,10 +92,36 @@ class WorkerRuntime:
         self._record_tool("write_file", {"path": rel}, "completed")
         self._persist_evidence()
 
+    def _command_allowed(self, command: list[str]) -> bool:
+        """A command may run only if its argv is the shlex split of a declared
+        ``verification_commands`` entry. This is fail-closed: an empty allowlist
+        permits nothing, and the normalization mirrors ``worker_entry`` exactly
+        so the legitimate verification path matches while arbitrary host commands
+        do not."""
+        for allowed in self.contract.verification_commands:
+            try:
+                if shlex.split(allowed, posix=os.name != "nt") == command:
+                    return True
+            except ValueError:
+                continue
+        return False
+
     def run_command(self, command: list[str]) -> dict[str, Any]:
         self._begin_tool("run_command", {"command": command})
         if not command:
             self._block("run_command", "empty command", {"command": command})
+        if not all(isinstance(part, str) for part in command):
+            self._block(
+                "run_command",
+                "command must be a list of strings",
+                {"command": command},
+            )
+        if not self._command_allowed(command):
+            self._block(
+                "run_command",
+                "command is not in MissionContract.verification_commands",
+                {"command": command},
+            )
         result = subprocess.run(
             command,
             cwd=str(self.workspace_root),
@@ -100,8 +134,12 @@ class WorkerRuntime:
         payload = {
             "command": command,
             "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
+            "stdout": self._secret_policy.redact_text(
+                (result.stdout or "")[:_MAX_COMMAND_OUTPUT]
+            ),
+            "stderr": self._secret_policy.redact_text(
+                (result.stderr or "")[:_MAX_COMMAND_OUTPUT]
+            ),
         }
         self.evidence.setdefault("verification", []).append(payload)
         self._record_tool("run_command", {"command": command}, "completed")
