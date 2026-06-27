@@ -7,7 +7,23 @@ from aios.runtime.contracts import KingReport, RunLedger, WorkerResult
 
 
 def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
-    if result.status == "completed":
+    denied = [
+        verdict
+        for verdict in ledger.council_verdicts
+        if verdict.verdict in {"deny", "defer"}
+    ]
+    if denied:
+        status = "failed" if any(v.verdict == "deny" for v in denied) else "needs_revision"
+        recommendation = (
+            "reject"
+            if any(v.queen == "security" and v.verdict == "deny" for v in denied)
+            else "revise"
+        )
+        human_summary = (
+            "Council blocked approval: "
+            + "; ".join(f"{verdict.queen}: {verdict.reason}" for verdict in denied)
+        )
+    elif result.status == "completed":
         status = "completed"
         recommendation = "approve" if ledger.contract.requires_approval else "observe"
         human_summary = (
@@ -27,6 +43,8 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
         recommendation = "revise"
         human_summary = f"Worker ended with status {result.status}: {result.summary}"
 
+    intelligence = _latest_intelligence(ledger)
+
     return KingReport(
         mission_id=ledger.mission_id,
         mission=ledger.mission,
@@ -35,6 +53,17 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
             "workers_created": ledger.workers_created,
             "blocked_attempts": len(ledger.blocked_attempts),
             "backend": result.evidence.get("backend", "controlled_subprocess"),
+            "council_verdicts": [
+                {
+                    "queen": verdict.queen,
+                    "verdict": verdict.verdict,
+                    "risk": verdict.risk,
+                    "reason": verdict.reason,
+                    "confidence": verdict.confidence,
+                }
+                for verdict in ledger.council_verdicts
+            ],
+            "model_routing": intelligence,
         },
         recommendation=recommendation,
         risk=ledger.risk_after,
@@ -46,6 +75,22 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
         evidence=ledger.evidence,
         human_summary=human_summary,
     )
+
+
+def _latest_intelligence(ledger: RunLedger) -> dict:
+    intelligence = ledger.evidence.get("intelligence", [])
+    if not isinstance(intelligence, list) or not intelligence:
+        return {}
+    latest = intelligence[-1]
+    if not isinstance(latest, dict):
+        return {}
+    return {
+        "provider": latest.get("provider"),
+        "model": latest.get("model"),
+        "used_cloud": latest.get("used_cloud"),
+        "cost_estimate": latest.get("cost_estimate"),
+        "fallback_used": latest.get("fallback_used"),
+    }
 
 
 class KingReportStore:
