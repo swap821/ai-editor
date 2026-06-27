@@ -48,6 +48,30 @@
       "sourceType": "github",
       "skillPath": ".claude/skills/gstack-scrape/SKILL.md",
       "computedHash": "23c7e8a19da4e503f82c9a4fad4155739923fe71fc85ed697da98f258ff558f1"
+    },
+    "canvas-automation": {
+      "source": "ComposioHQ/awesome-codex-skills",
+      "sourceType": "github",
+      "skillPath": "composio-skills/canvas-automation/SKILL.md",
+      "computedHash": "98a75804f03d1c524e4b24188fc09993bd64c29259718dcb5508192a60b16be1"
+    },
+    "templated-automation": {
+      "source": "ComposioHQ/awesome-codex-skills",
+      "sourceType": "github",
+      "skillPath": "composio-skills/templated-automation/SKILL.md",
+      "computedHash": "1bcaae6bdf2c5c76cfcb9de96ddde207df0d54baccd7fd378ef34c486c9ef9f9"
+    },
+    "figma-extract": {
+      "source": "nexu-io/open-design",
+      "sourceType": "github",
+      "skillPath": "plugins/_official/atoms/figma-extract/SKILL.md",
+      "computedHash": "1e538a2666b7c8a2fb91d534fd43fd78ff8a84285290419ead06388607cee550"
+    },
+    "token-map": {
+      "source": "nexu-io/open-design",
+      "sourceType": "github",
+      "skillPath": "plugins/_official/atoms/token-map/SKILL.md",
+      "computedHash": "a801a40172f27f8c26a827525dd85cfa884214622ca1682697bcb609562d901c"
     }
   }
 }
