@@ -28,7 +28,11 @@ from aios.runtime.contracts import (
     RunLedger,
     WorkerResult,
 )
-from aios.runtime.king_report import KingReportStore, build_king_report
+from aios.runtime.king_report import (
+    KingReportStore,
+    build_deliberation_report,
+    build_king_report,
+)
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.spawner import WorkerRun, WorkerSpawner, claim_mission
 
@@ -80,9 +84,28 @@ class CouncilOrchestrator:
         self.council_state = council_state
 
     async def run(self, request: CouncilMissionRequest | MissionContract) -> CouncilRun:
+        """Full loop: deliberate, then execute when the council does not block.
+
+        Preserves the original one-shot behavior. The HTTP origination flow uses
+        deliberate() and execute() separately so a human approves between them.
+        """
+        deliberation = self.deliberate(request)
+        if has_blocking_verdict(deliberation.verdicts):
+            return deliberation
+        return await self.execute(deliberation.contract, deliberation.verdicts)
+
+    def deliberate(
+        self, request: CouncilMissionRequest | MissionContract
+    ) -> CouncilRun:
+        """Phase 1 (sync): Queens deliberate; NO worker spawns. Produces a King
+        report with status ``awaiting_approval`` (passed) or ``blocked`` (denied).
+        Claims the mission dir so a later execute() need not re-claim."""
         draft = self.planner.draft(request)
         contract = draft.contract
         verdicts = [draft.verdict]
+        # Claim once, here — covers both the blocked and awaiting-approval paths
+        # (and the later execute() phase, which spawns with claim=False).
+        claim_mission(self.runtime_root, contract.mission_id)
         self._persist_verdict(contract.mission_id, draft.verdict)
 
         security_verdict = self.security.review(contract)
@@ -97,7 +120,44 @@ class CouncilOrchestrator:
         if has_blocking_verdict(verdicts):
             return self._blocked_run(contract=contract, verdicts=verdicts)
 
-        worker_run = await self.spawner.run(contract)
+        now = _utc_now()
+        risk = highest_risk([contract.risk_level, *(v.risk for v in verdicts)])
+        ledger = RunLedger(
+            mission_id=contract.mission_id,
+            mission=contract.goal,
+            risk_before=contract.risk_level,
+            risk_after=risk,
+            contract=contract,
+            workers_created=[],
+            files_allowed=list(contract.allowed_files),
+            council_verdicts=verdicts,
+            status="awaiting_approval",
+            created_at=now,
+            completed_at=None,
+            evidence={"council": verdicts_as_metadata(verdicts)},
+        )
+        ledger_path = self.ledger_store.write(ledger)
+        report = build_deliberation_report(contract=contract, verdicts=verdicts)
+        report_path = self.report_store.write(report)
+        self._persist_event(contract.mission_id, "deliberated", risk=report.risk)
+        return CouncilRun(
+            contract=contract,
+            verdicts=verdicts,
+            ledger=ledger,
+            report=report,
+            worker_run=None,
+            ledger_path=ledger_path,
+            report_path=report_path,
+        )
+
+    async def execute(
+        self,
+        contract: MissionContract,
+        verdicts: list[QueenVerdict],
+    ) -> CouncilRun:
+        """Phase 2 (async): the worker acts (post-approval). The mission dir was
+        already claimed by deliberate(), so the spawner runs with claim=False."""
+        worker_run = await self.spawner.run(contract, claim=False)
         self._persist_event(
             contract.mission_id,
             "worker_spawned",
@@ -107,7 +167,7 @@ class CouncilOrchestrator:
             contract=worker_run.contract,
             ledger=worker_run.ledger,
         )
-        verdicts.append(testing_verdict)
+        verdicts = [*verdicts, testing_verdict]
         self._persist_verdict(contract.mission_id, testing_verdict)
 
         ledger = self._enrich_worker_ledger(worker_run=worker_run, verdicts=verdicts)
@@ -153,9 +213,7 @@ class CouncilOrchestrator:
         verdicts: list[QueenVerdict],
     ) -> CouncilRun:
         now = _utc_now()
-        # The blocked path never reaches spawner.run (which would claim the
-        # mission), so claim here to keep the same fail-closed collision guard.
-        claim_mission(self.runtime_root, contract.mission_id)
+        # Mission already claimed by deliberate() before this is reached.
         risk = highest_risk([contract.risk_level, *(verdict.risk for verdict in verdicts)])
         result = WorkerResult(
             mission_id=contract.mission_id,

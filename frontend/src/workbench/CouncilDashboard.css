@@ -29,6 +29,52 @@
   border-bottom: 1px solid rgba(180, 210, 240, 0.12);
 }
 
+.council-dashboard__originate {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(180, 210, 240, 0.12);
+}
+
+.council-dashboard__originate textarea,
+.council-dashboard__originate input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12px;
+  color: rgba(235, 244, 255, 0.92);
+  background: rgba(8, 12, 22, 0.6);
+  border: 1px solid rgba(180, 210, 240, 0.18);
+  border-radius: 6px;
+}
+
+.council-dashboard__originate textarea:focus,
+.council-dashboard__originate input:focus {
+  outline: none;
+  border-color: rgba(123, 245, 251, 0.5);
+}
+
+.council-dashboard__originate button {
+  align-self: flex-end;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(5, 8, 18, 0.92);
+  background: rgba(123, 245, 251, 0.86);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.council-dashboard__originate button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .council-dashboard__eyebrow {
   margin: 0 0 3px;
   font-size: 10px;

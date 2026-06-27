@@ -70,9 +70,12 @@ class WorkerSpawner:
         self.ledger_store = ledger_store or RunLedgerStore(self.runtime_root)
         self.report_store = report_store or KingReportStore(self.runtime_root)
 
-    async def run(self, contract: MissionContract) -> WorkerRun:
+    async def run(self, contract: MissionContract, *, claim: bool = True) -> WorkerRun:
         created_at = _utc_now()
-        claim_mission(self.runtime_root, contract.mission_id)
+        # claim=False when a prior phase (e.g. CouncilOrchestrator.deliberate)
+        # already claimed the mission dir; re-claiming would falsely collide.
+        if claim:
+            claim_mission(self.runtime_root, contract.mission_id)
         sealed_contract = self._seal_contract(contract)
         handle = await self.backend.spawn(sealed_contract)
         try:

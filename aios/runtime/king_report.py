@@ -3,7 +3,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from aios.runtime.contracts import KingReport, RunLedger, WorkerResult
+from aios.runtime.contracts import (
+    KingReport,
+    MissionContract,
+    QueenVerdict,
+    RunLedger,
+    WorkerResult,
+)
 
 
 def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
@@ -77,6 +83,46 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
     )
 
 
+def build_deliberation_report(
+    *,
+    contract: MissionContract,
+    verdicts: list[QueenVerdict],
+) -> KingReport:
+    """Pre-execution report: the council has deliberated and the mission awaits
+    King approval. No worker has run; nothing has been edited yet."""
+    return KingReport(
+        mission_id=contract.mission_id,
+        mission=contract.goal,
+        status="awaiting_approval",
+        council_summary={
+            "workers_created": [],
+            "blocked_attempts": 0,
+            "council_verdicts": [
+                {
+                    "queen": verdict.queen,
+                    "verdict": verdict.verdict,
+                    "risk": verdict.risk,
+                    "reason": verdict.reason,
+                    "confidence": verdict.confidence,
+                }
+                for verdict in verdicts
+            ],
+            "model_routing": {},
+        },
+        recommendation="approve" if contract.requires_approval else "observe",
+        risk=contract.risk_level,
+        files=list(contract.allowed_files),
+        verification_result={},
+        approval_needed=contract.requires_approval,
+        rollback_available=False,
+        evidence={"council": [v.model_dump() for v in verdicts]},
+        human_summary=(
+            "Council deliberation complete; awaiting King approval before the "
+            "worker may act."
+        ),
+    )
+
+
 def _latest_intelligence(ledger: RunLedger) -> dict:
     intelligence = ledger.evidence.get("intelligence", [])
     if not isinstance(intelligence, list) or not intelligence:
@@ -114,4 +160,4 @@ class KingReportStore:
         )
 
 
-__all__ = ["KingReportStore", "build_king_report"]
+__all__ = ["KingReportStore", "build_deliberation_report", "build_king_report"]

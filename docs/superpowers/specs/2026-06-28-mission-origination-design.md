@@ -112,3 +112,30 @@ exists), `approval_needed=True`, council summary from the verdicts, no worker fi
 Off by default (`AIOS_COUNCIL_ORIGINATION=false`). Enabling it (with `WORKER_REASONING`
 for real edits, or deterministic otherwise) gives: dashboard form → deliberation →
 King approval → worker acts → King report — the supervised end-to-end loop.
+
+## Adversarial review outcome (2026-06-28)
+
+4-angle review. Containment held (no workspace escape, no protected-file access,
+auth + flag-off clean), but the **single-supervised-execution** thesis was broken;
+all fixed before merge:
+- **[HIGH] Double-execute TOCTOU** — concurrent `/approve` both passed the
+  status-only gate → two workers per approval. Fixed: an atomic one-shot
+  `decision.lock` (`mkdir(exist_ok=False)`) in `_write_council_decision`; the
+  second decision gets **409**.
+- **[HIGH] Reject non-binding** — a rejected mission stayed approvable. Fixed by
+  the same one-shot lock: reject claims it, so a later approve is **409** and never
+  executes.
+- **[HIGH] No rate limit on `/council/*`** (session-key spoofable) → authed DoS.
+  Fixed: `/council/missions`, `/approve`, `/reject` added to `_RATE_LIMIT_ENDPOINTS`
+  (IP-keyed, 20/30/30 per 60 s).
+- **[MED] Wildcard scope-widening** — `allowedFiles:["*"]` passed. Fixed: reject
+  glob metacharacters in `_validate_mission_scope`.
+- **Defense-in-depth:** `_run_council_execution` re-runs `has_blocking_verdict` on
+  the stored ledger before executing (guards a tampered-ledger confused-deputy).
+
+### Tracked follow-ups (not blockers)
+- A global semaphore bounding concurrent worker subprocesses (rate-limit caps the
+  flood; a hard concurrency cap is stronger).
+- Bind approval to a contract/verdict hash (not just `missionId`) and assert at
+  startup that `COUNCIL_WORKSPACE_ROOT` is not an ancestor of the repo.
+- Per-caller mission ownership (single-token deployment today).

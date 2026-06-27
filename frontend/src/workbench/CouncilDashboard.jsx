@@ -49,6 +49,10 @@ export default function CouncilDashboard() {
   const [error, setError] = useState('');
   const [decisionBusy, setDecisionBusy] = useState(false);
   const [decisionError, setDecisionError] = useState('');
+  const [originGoal, setOriginGoal] = useState('');
+  const [originFiles, setOriginFiles] = useState('');
+  const [originBusy, setOriginBusy] = useState(false);
+  const [originError, setOriginError] = useState('');
 
   const selectedSummary = useMemo(
     () => missions.find((mission) => mission.missionId === selectedId) || missions[0] || null,
@@ -72,6 +76,30 @@ export default function CouncilDashboard() {
       setLoading(false);
     }
   }, []);
+
+  const submitOrigination = useCallback(async () => {
+    const goal = originGoal.trim();
+    const allowedFiles = originFiles
+      .split(/[\n,]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (!goal || allowedFiles.length === 0) {
+      setOriginError('Goal and at least one allowed file are required');
+      return;
+    }
+    setOriginBusy(true);
+    setOriginError('');
+    try {
+      await postJson('/api/v1/council/missions', { goal, allowedFiles });
+      setOriginGoal('');
+      setOriginFiles('');
+      void loadMissions();
+    } catch (err) {
+      setOriginError('Could not originate mission (origination may be disabled)');
+    } finally {
+      setOriginBusy(false);
+    }
+  }, [originGoal, originFiles, loadMissions]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -170,6 +198,36 @@ export default function CouncilDashboard() {
           <RefreshCw size={16} aria-hidden="true" />
         </button>
       </div>
+
+      <form
+        className="council-dashboard__originate"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submitOrigination();
+        }}
+        aria-label="Originate a council mission"
+      >
+        <textarea
+          className="council-dashboard__origin-goal"
+          value={originGoal}
+          onChange={(event) => setOriginGoal(event.target.value)}
+          placeholder="Mission goal (e.g. add aria-labels to the login form)"
+          rows={2}
+          aria-label="Mission goal"
+        />
+        <input
+          type="text"
+          className="council-dashboard__origin-files"
+          value={originFiles}
+          onChange={(event) => setOriginFiles(event.target.value)}
+          placeholder="Allowed files (comma or newline separated)"
+          aria-label="Allowed files"
+        />
+        {originError ? <p className="council-dashboard__error">{originError}</p> : null}
+        <button type="submit" disabled={originBusy}>
+          {originBusy ? 'Sending…' : 'Send to Council'}
+        </button>
+      </form>
 
       <div className="council-dashboard__body">
         <div className="council-dashboard__missions" aria-label="Council missions">

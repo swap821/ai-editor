@@ -41,6 +41,57 @@ def _request(workspace: Path, **overrides: object) -> CouncilMissionRequest:
     return CouncilMissionRequest(**data)  # type: ignore[arg-type]
 
 
+class _DenySecurity:
+    name = "security"
+
+    def review(self, contract):  # noqa: ANN001 - matches SecurityQueen.review
+        from aios.runtime.contracts import QueenVerdict
+
+        return QueenVerdict(
+            queen="security", verdict="deny", risk="RED", reason="denied for test", confidence=0.9
+        )
+
+
+def test_deliberate_produces_awaiting_approval_without_acting(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    run = CouncilOrchestrator(runtime_root=runtime_root).deliberate(_request(workspace))
+
+    assert run.report.status == "awaiting_approval"
+    assert run.worker_run is None
+    # The worker never ran: the target file is untouched.
+    target = workspace / "frontend" / "src" / "pages" / "Login.jsx"
+    assert "heartbeat" not in target.read_text(encoding="utf-8")
+
+
+def test_execute_after_deliberate_runs_worker_without_collision(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    orchestrator = CouncilOrchestrator(runtime_root=runtime_root)
+
+    deliberation = orchestrator.deliberate(_request(workspace))
+    assert deliberation.report.status == "awaiting_approval"
+
+    run = asyncio.run(
+        orchestrator.execute(deliberation.contract, deliberation.verdicts)
+    )
+    assert run.report.status == "completed"
+    assert "// Council Runtime deterministic worker heartbeat" in (
+        workspace / "frontend" / "src" / "pages" / "Login.jsx"
+    ).read_text(encoding="utf-8")
+
+
+def test_deliberate_blocks_on_denying_security(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    run = CouncilOrchestrator(
+        runtime_root=runtime_root, security=_DenySecurity()
+    ).deliberate(_request(workspace))
+
+    assert run.worker_run is None
+    assert run.report.status == "failed"  # denied mission never awaits/executes
+
+
 def test_council_orchestrator_persists_deliberation_to_state(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"

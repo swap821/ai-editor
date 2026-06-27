@@ -125,6 +125,13 @@ WORKER_REASONING: Final[bool] = _env_bool("AIOS_WORKER_REASONING", False)
 WORKER_MAX_REPAIRS: Final[int] = _env_int("AIOS_WORKER_MAX_REPAIRS", 2)
 # Max bytes of LLM-proposed content the worker will write per edit (DoS guard).
 WORKER_MAX_FILE_BYTES: Final[int] = _env_int("AIOS_WORKER_MAX_FILE_BYTES", 1_000_000)
+# Mission origination over HTTP (chat -> council). Off by default (endpoint 404s).
+COUNCIL_ORIGINATION: Final[bool] = _env_bool("AIOS_COUNCIL_ORIGINATION", False)
+# Sandboxed root that chat-originated missions must edit inside (scope is confined here).
+COUNCIL_WORKSPACE_ROOT: Final[Path] = _env_path(
+    "AIOS_COUNCIL_WORKSPACE_ROOT", DATA_DIR / "council_workspace"
+)
+COUNCIL_WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
 
 EMBEDDING_MODEL: Final[str] = _env_str("AIOS_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_DIM: Final[int] = _env_int("AIOS_EMBEDDING_DIM", 384)
@@ -290,7 +297,7 @@ __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
     "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
     "COUNCIL_STATE_DB", "COUNCIL_REASONING", "WORKER_REASONING", "WORKER_MAX_REPAIRS",
-    "WORKER_MAX_FILE_BYTES",
+    "WORKER_MAX_FILE_BYTES", "COUNCIL_ORIGINATION", "COUNCIL_WORKSPACE_ROOT",
     "EMBEDDING_MODEL", "EMBEDDING_DIM",
     "RETRIEVAL_ALPHA_BM25", "RETRIEVAL_BETA_FAISS", "RETRIEVAL_GAMMA_RECENCY",
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",

@@ -19,6 +19,7 @@ any network, model, or host side effects.
 """
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import json
 import re
@@ -34,7 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -110,6 +111,9 @@ from aios.memory.working import WorkingMemory
 from aios.runtime.contracts import KingReport, RunLedger
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
+from aios.council import CouncilMissionRequest, CouncilOrchestrator
+from aios.council.council_state import CouncilState
+from aios.council.queen_verdict import has_blocking_verdict
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import RateLimiter, Zone, classify
 from aios.security.secret_scanner import scan_and_redact
@@ -373,6 +377,11 @@ _RATE_LIMIT_ENDPOINTS: dict[str, int] = {
     "/api/v1/approval/req": 10,
     "/api/v1/execute": 30,
     "/api/terminal": 20,
+    # Council origination/decisions: IP-keyed cap (the per-session throttle is
+    # spoofable by varying sessionId) — bounds mission/worker spawn floods.
+    "/api/v1/council/missions": 20,
+    "/api/v1/council/approve": 30,
+    "/api/v1/council/reject": 30,
 }
 _RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -869,6 +878,29 @@ class CouncilDecisionRequest(BaseModel):
     mission_id: str = Field(..., alias="missionId")
     request_id: str | None = Field(None, alias="requestId")
     reason: str = ""
+
+    model_config = {"populate_by_name": True}
+
+
+class CouncilMissionOriginationRequest(BaseModel):
+    """Body for ``POST /api/v1/council/missions`` — originate a council mission.
+
+    Scope is EXPLICIT and operator-provided (never LLM-inferred): allowedFiles is
+    required and validated to stay inside the council workspace.
+    """
+
+    goal: str = Field(..., min_length=1, max_length=2000)
+    allowed_files: list[str] = Field(..., alias="allowedFiles", min_length=1)
+    workspace_root: Optional[str] = Field(None, alias="workspaceRoot")
+    forbidden_files: list[str] = Field(
+        default_factory=lambda: ["backend/", ".env", "aios/security/"],
+        alias="forbiddenFiles",
+    )
+    verification_commands: list[str] = Field(
+        default_factory=list, alias="verificationCommands"
+    )
+    risk_level: str = Field("YELLOW", alias="riskLevel")
+    session_id: str = Field("council-session", alias="sessionId")
 
     model_config = {"populate_by_name": True}
 
@@ -1638,6 +1670,17 @@ def _write_council_decision(
         raise HTTPException(status_code=404, detail="council mission not found")
 
     request_id = _validate_council_request_id(req.request_id) if req.request_id else None
+    # One-shot mission-level decision under origination: an atomic mkdir lock makes
+    # the King decision final and single. This closes the double-execute race (two
+    # concurrent approves: only one wins the lock) and makes reject terminal (a
+    # later approve cannot claim the lock, so it cannot execute).
+    if config.COUNCIL_ORIGINATION and request_id is None:
+        try:
+            (mission_dir / "decision.lock").mkdir(exist_ok=False)
+        except FileExistsError as exc:
+            raise HTTPException(
+                status_code=409, detail="council mission already decided"
+            ) from exc
     decided_at = _utc_now_iso()
     response_written = False
     if request_id:
@@ -1682,6 +1725,127 @@ def _write_council_decision(
         "decision": decision,
         "approvalResponseWritten": response_written,
     }
+
+
+def _resolve_council_workspace(raw: Optional[str]) -> Path:
+    """Return a writable workspace confined to config.COUNCIL_WORKSPACE_ROOT."""
+    base = config.COUNCIL_WORKSPACE_ROOT.resolve()
+    if raw is None:
+        base.mkdir(parents=True, exist_ok=True)
+        return base
+    candidate = Path(raw).resolve()
+    if candidate != base and base not in candidate.parents:
+        raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
+
+
+def _validate_mission_scope(allowed_files: list[str], workspace_root: Path) -> list[str]:
+    """Confine allowed_files to workspace_root — explicit, fail-closed, no traversal."""
+    base = workspace_root.resolve()
+    safe: list[str] = []
+    for raw in allowed_files:
+        if not isinstance(raw, str) or not raw.strip():
+            raise HTTPException(status_code=422, detail="allowedFiles entries must be non-empty")
+        if any(ch in raw for ch in "*?[]"):
+            # Origination scope must be concrete operator files; a glob like "*"
+            # would let the approved worker touch every file under the workspace.
+            raise HTTPException(status_code=422, detail=f"glob not allowed in scope: {raw}")
+        candidate = Path(raw)
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise HTTPException(status_code=422, detail=f"unsafe allowed file: {raw}")
+        resolved = (base / candidate).resolve()
+        if resolved != base and base not in resolved.parents:
+            raise HTTPException(status_code=422, detail=f"allowed file escapes workspace: {raw}")
+        safe.append(candidate.as_posix())
+    return safe
+
+
+def _write_failed_council_report(runtime_root: Path, mission_id: str, reason: str) -> None:
+    """Persist a minimal failed report so a background failure is visible to the poll."""
+    try:
+        KingReportStore(runtime_root).write(
+            KingReport(
+                mission_id=mission_id,
+                mission=mission_id,
+                status="failed",
+                recommendation="revise",
+                risk="YELLOW",
+                approval_needed=True,
+                rollback_available=False,
+                human_summary=f"Council mission failed: {reason}",
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - best-effort failure surface
+        logger.warning("council_failed_report_write_failed", mission_id=mission_id, exc_info=exc)
+
+
+def _run_council_deliberation(runtime_root: Path, request: CouncilMissionRequest) -> None:
+    """Background: deliberate only (no worker). Failures surface as a failed report."""
+    try:
+        CouncilOrchestrator(
+            runtime_root=runtime_root,
+            council_state=CouncilState(db_path=runtime_root / "council_state.db"),
+        ).deliberate(request)
+    except Exception as exc:  # noqa: BLE001 - background task must not crash the server
+        logger.warning("council_deliberation_failed", mission_id=request.mission_id, exc_info=exc)
+        _write_failed_council_report(runtime_root, request.mission_id, str(exc))
+
+
+def _run_council_execution(runtime_root: Path, mission_id: str) -> None:
+    """Background: run the approved worker — reads the deliberated ledger for the
+    contract + verdicts, executes (worker acts), and writes the final report."""
+    try:
+        ledger = RunLedgerStore(runtime_root).read(mission_id)
+        # Defense in depth: never execute a ledger that carries a blocking verdict
+        # (guards against an on-disk ledger tampered between deliberate and approve).
+        if has_blocking_verdict(list(ledger.council_verdicts)):
+            raise RuntimeError("ledger carries a blocking verdict; refusing to execute")
+        orchestrator = CouncilOrchestrator(
+            runtime_root=runtime_root,
+            council_state=CouncilState(db_path=runtime_root / "council_state.db"),
+        )
+        asyncio.run(orchestrator.execute(ledger.contract, list(ledger.council_verdicts)))
+    except Exception as exc:  # noqa: BLE001 - background task must not crash the server
+        logger.warning("council_execution_failed", mission_id=mission_id, exc_info=exc)
+        _write_failed_council_report(runtime_root, mission_id, str(exc))
+
+
+@app.post("/api/v1/council/missions")
+def council_originate(
+    req: CouncilMissionOriginationRequest,
+    background: BackgroundTasks,
+    runtime_root: Path = Depends(get_council_runtime_root),
+) -> dict[str, Any]:
+    """Originate a Council mission from a goal: deliberate, then await King approval.
+
+    The worker does NOT act here — origination runs only the Queen deliberation in
+    the background and produces an ``awaiting_approval`` (or ``blocked``) report.
+    Approving the mission later triggers execution. Scope is explicit + confined.
+    """
+    if not config.COUNCIL_ORIGINATION:
+        raise HTTPException(status_code=404, detail="council origination is disabled")
+    _enforce_conversation_rate_limit(req.session_id)
+    if (injection_reason := _check_prompt_injection(req.goal)):
+        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
+    workspace_root = _resolve_council_workspace(req.workspace_root)
+    safe_allowed = _validate_mission_scope(req.allowed_files, workspace_root)
+    mission_id = f"mission-{uuid.uuid4().hex[:12]}"
+    mission_request = CouncilMissionRequest(
+        mission_id=mission_id,
+        goal=req.goal,
+        workspace_root=str(workspace_root),
+        allowed_files=safe_allowed,
+        forbidden_files=list(req.forbidden_files),
+        # The worker's reasoning is governed by WORKER_REASONING (the LLM worker
+        # uses request_change, not request_plan), so the origination default omits
+        # request_plan: the deterministic worker needs no model when reasoning is off.
+        allowed_tools=["read_file", "write_file", "run_command"],
+        verification_commands=list(req.verification_commands),
+        risk_level=req.risk_level,  # type: ignore[arg-type]
+    )
+    background.add_task(_run_council_deliberation, runtime_root, mission_request)
+    return {"missionId": mission_id, "status": "deliberating"}
 
 
 @app.get("/api/v1/council/missions")
@@ -1780,10 +1944,29 @@ def council_report(
 @app.post("/api/v1/council/approve")
 def council_approve(
     req: CouncilDecisionRequest,
+    background: BackgroundTasks,
     runtime_root: Path = Depends(get_council_runtime_root),
 ) -> dict[str, Any]:
-    """Record King approval for a Council mission or pending worker request."""
-    return _write_council_decision(runtime_root=runtime_root, req=req, approved=True)
+    """Record King approval; if the mission is awaiting execution, run the worker.
+
+    A mission-level approval (no requestId) of a mission whose report is
+    ``awaiting_approval`` schedules execute() in the background — this is the gate
+    where a human authorizes the worker to act.
+    """
+    result = _write_council_decision(runtime_root=runtime_root, req=req, approved=True)
+    if config.COUNCIL_ORIGINATION and req.request_id is None:
+        safe_id = result["missionId"]
+        store = KingReportStore(runtime_root)
+        try:
+            awaiting = store.path_for(safe_id).exists() and (
+                store.read(safe_id).status == "awaiting_approval"
+            )
+        except Exception:  # noqa: BLE001 - a read failure simply means "don't execute"
+            awaiting = False
+        if awaiting:
+            background.add_task(_run_council_execution, runtime_root, safe_id)
+            result["execution"] = "scheduled"
+    return result
 
 
 @app.post("/api/v1/council/reject")

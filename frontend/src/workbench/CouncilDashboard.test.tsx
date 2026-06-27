@@ -76,6 +76,12 @@ describe('CouncilDashboard', () => {
           }),
         });
       }
+      if (options?.method === 'POST' && url.includes('/api/v1/council/missions')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ missionId: 'mission-new', status: 'deliberating' }),
+        });
+      }
       if (url.includes('/api/v1/council/missions/mission-ui-1')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(detailPayload) });
       }
@@ -115,6 +121,35 @@ describe('CouncilDashboard', () => {
     expect(JSON.parse(String(approveCall?.[1]?.body))).toMatchObject({
       missionId: 'mission-ui-1',
       requestId: 'approval-ui-1',
+    });
+  });
+
+  it('originates a mission from the form', async () => {
+    render(<CouncilDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Mission goal')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Mission goal'), {
+      target: { value: 'add aria labels to login' },
+    });
+    fireEvent.change(screen.getByLabelText('Allowed files'), {
+      target: { value: 'frontend/src/pages/Login.jsx' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Council' }));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([url, options]) =>
+          (options as RequestInit | undefined)?.method === 'POST' &&
+          String(url).includes('/api/v1/council/missions'),
+      );
+      expect(call).toBeTruthy();
+      expect(JSON.parse(String((call?.[1] as RequestInit)?.body))).toMatchObject({
+        goal: 'add aria labels to login',
+        allowedFiles: ['frontend/src/pages/Login.jsx'],
+      });
     });
   });
 });
