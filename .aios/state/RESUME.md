@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-27T10:32:47Z
+Last updated: 2026-06-27T10:38:05Z
 
 ## Current Goal
 Build Council Runtime v0.1 from the sovereign roadmap. The roadmap remains the near-term canon: Phase 0 foundation lock, 30-day First Heartbeat, then 24-week v1.0.
@@ -13,15 +13,17 @@ Build Council Runtime v0.1 from the sovereign roadmap. The roadmap remains the n
 - Updated `WorkerRuntime.request_plan()` to call `IntelligenceGateway`, record provider/fallback/secret/budget evidence, and return text only.
 - Updated deterministic `worker_entry` so hybrid missions can request a plan before still acting only through `read_file` / `write_file` / `run_command`.
 - Added `tests/test_runtime_intelligence_gateway.py` covering cloud opt-in, budget fallback, secret fallback/redaction, runtime plan-only evidence, and hybrid worker-entry plan requests.
+- Committed Phase 1B as `3efdfb4` and pushed `council-runtime-v01` to GitHub.
 - Verified:
   - `.venv\Scripts\python.exe -m pytest tests\test_runtime_contracts.py tests\test_runtime_worker_birth.py tests\test_runtime_intelligence_gateway.py -q` -> 13 passed.
   - `$env:AIOS_ROUTER_CLOUD_TASKS=''; .venv\Scripts\python.exe -m pytest -q` -> pass, 1 skipped, 1 known httpx warning.
   - `$env:AIOS_ROUTER_CLOUD_TASKS=''; .venv\Scripts\python.exe -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` -> pass, 1 skipped, 87.01% coverage, 1 known httpx warning.
   - `git diff --check` -> pass, CRLF warnings only.
+  - GitHub Actions CI run `28286656641` -> success (`backend` 3m14s, `frontend` 56s).
   - Protected foundation modules were not modified.
 
 ## Single Next Action
-Commit and push Phase 1B, check GitHub CI, then begin Phase 2 simulated Council wrappers: Planner Queen, Security Queen wrapper, Testing Queen wrapper, Memory Queen basic wrapper, `CouncilOrchestrator`, and a full loop into `WorkerSpawner` / `KingReport`.
+Begin Phase 2 simulated Council wrappers: Planner Queen, Security Queen wrapper, Testing Queen wrapper, Memory Queen basic wrapper, `CouncilOrchestrator`, and a full loop into `WorkerSpawner` / `KingReport`.
 
 ## Open Approvals / Blockers
 - Local `.env` sets `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; mask it with `$env:AIOS_ROUTER_CLOUD_TASKS=''` when testing default local-first privacy behavior.
