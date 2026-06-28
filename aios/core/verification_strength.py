@@ -29,9 +29,12 @@ class VerificationStrength(IntEnum):
 _TEST_RUNNER_TOKENS: frozenset[str] = frozenset(
     {"pytest", "py.test", "jest", "vitest", "mocha", "unittest", "phpunit", "rspec"}
 )
+#: Interpreters that may front a ``-m <runner>`` invocation at the program position.
+_PYTHON_PROGRAMS: frozenset[str] = frozenset({"python", "python3", "py"})
+#: ``-m`` modules that count as a recognized test runner (``python -m pytest``).
+_DASH_M_RUNNERS: frozenset[str] = frozenset({"pytest", "unittest"})
+#: Multi-word runner invocations, matched ONLY at the program position (tokens[0:]).
 _TEST_RUNNER_PAIRS: tuple[tuple[str, ...], ...] = (
-    ("-m", "pytest"),
-    ("-m", "unittest"),
     ("go", "test"),
     ("cargo", "test"),
     ("npm", "test"),
@@ -41,6 +44,7 @@ _TEST_RUNNER_PAIRS: tuple[tuple[str, ...], ...] = (
 _CHECKER_TOKENS: frozenset[str] = frozenset(
     {"mypy", "pyright", "tsc", "ruff", "flake8", "eslint", "pylint", "tslint"}
 )
+#: Multi-word checker invocations, matched ONLY at the program position.
 _CHECKER_PAIRS: tuple[tuple[str, ...], ...] = (
     ("npm", "run", "typecheck"),
     ("npm", "run", "lint"),
@@ -65,12 +69,26 @@ def _tokens(command: str) -> list[str]:
     return [tok.lower() for tok in command.replace("\\", "/").split()]
 
 
-def _has_pair(tokens: list[str], pairs: tuple[tuple[str, ...], ...]) -> bool:
+def _program_starts_with(
+    tokens: list[str], base: str, pairs: tuple[tuple[str, ...], ...]
+) -> bool:
+    """True if any *pair* sits at the PROGRAM POSITION.
+
+    ``pair[0]`` is matched against the program BASENAME (so an absolute
+    ``/usr/bin/npm`` still matches ``npm``); the remaining elements match the
+    literal tokens that follow. Anchoring to the program position is the spoof
+    defense: a runner token appearing in ARGUMENT position — e.g.
+    ``echo go test 3 passed`` or ``echo -m pytest 1 passed`` — must NEVER
+    classify, or a GREEN no-op could forge STRONG evidence (CVE-class bypass of
+    the strength gate). A bare scan of all offsets is exactly that hole.
+    """
     for pair in pairs:
-        n = len(pair)
-        for i in range(len(tokens) - n + 1):
-            if tuple(tokens[i : i + n]) == pair:
-                return True
+        if (
+            base == pair[0]
+            and len(tokens) >= len(pair)
+            and tuple(tokens[1 : len(pair)]) == pair[1:]
+        ):
+            return True
     return False
 
 
@@ -82,21 +100,34 @@ def _program_basename(tokens: list[str]) -> str:
 
 
 def _is_test_runner(command: str) -> bool:
-    # PROGRAM-POSITION only (basename) or a structural pair like "-m pytest" —
-    # NOT a bare token anywhere, else "echo running pytest: 5 passed" forges STRONG.
+    # A recognized runner ONLY at the program position: a bare runner basename
+    # (pytest), a "python -m <runner>" front, or a multi-word runner (go test)
+    # anchored at token 0 — NEVER a token anywhere, else "echo running pytest: 5
+    # passed" or "echo -m pytest 1 passed" or "echo go test 3 passed" forges STRONG.
     tokens = _tokens(command)
+    if not tokens:
+        return False
     base = _program_basename(tokens).removesuffix(".exe")
     if base in _TEST_RUNNER_TOKENS:
         return True
-    return _has_pair(tokens, _TEST_RUNNER_PAIRS)
+    if (
+        base in _PYTHON_PROGRAMS
+        and len(tokens) >= 3
+        and tokens[1] == "-m"
+        and tokens[2] in _DASH_M_RUNNERS
+    ):
+        return True
+    return _program_starts_with(tokens, base, _TEST_RUNNER_PAIRS)
 
 
 def _is_checker(command: str) -> bool:
     tokens = _tokens(command)
+    if not tokens:
+        return False
     base = _program_basename(tokens).removesuffix(".exe")
     if base in _CHECKER_TOKENS:
         return True
-    return _has_pair(tokens, _CHECKER_PAIRS)
+    return _program_starts_with(tokens, base, _CHECKER_PAIRS)
 
 
 def derive_strength(

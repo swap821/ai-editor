@@ -2515,15 +2515,22 @@ def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict
 def _verify_target_key(command: str) -> str:
     """Classification key for one verification target.
 
-    The same file is legitimately verified through different command
-    spellings within one turn (the forced auto-verify vs the model's own
-    pytest call), so the key is the basename of the first ``.py`` token. A
-    suite-wide verify with no file token keys on the whole command — a
+    The same file is legitimately verified through different command spellings
+    within one turn (the forced auto-verify vs the model's own pytest call), so
+    the key is the first ``.py`` token — normalized but WITH its directory kept.
+    Keeping the directory is load-bearing: two different files that share a
+    basename (``a/test_w.py`` vs ``b/test_w.py``) must NOT collide, or a later
+    sibling PASS would overwrite (mask) an earlier FAIL/weak target in the
+    authoritative per-target maps and launder the turn's verdict + strength
+    upward. A suite-wide verify with no file token keys on the whole command — a
     whole-suite FAIL must be resolved by a whole-suite PASS.
     """
     for token in command.replace('"', " ").replace("'", " ").split():
         if token.endswith(".py"):
-            return token.replace("\\", "/").rsplit("/", 1)[-1].lower()
+            norm = token.replace("\\", "/").lower()
+            while norm.startswith("./"):
+                norm = norm[2:]
+            return norm or "unattributed"
     return command.strip().lower() or "unattributed"
 
 

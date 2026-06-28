@@ -65,8 +65,37 @@ def test_runner_token_as_argument_cannot_forge_strong() -> None:
     ) is VerificationStrength.WEAK
 
 
+def test_runner_pair_in_argument_position_cannot_forge_strong() -> None:
+    """The re-review HIGH: the PAIR check must be program-anchored too. A GREEN
+    no-op whose ARGUMENTS contain a runner pair (``echo -m pytest 1 passed``,
+    ``echo go test 3 passed``, ``echo npm test 7 passed``) must NOT be STRONG —
+    only a runner at the program position counts."""
+    for cmd in (
+        "echo -m pytest 1 passed",
+        "echo go test :: 3 passed",
+        "echo npm test 7 passed",
+        "echo cargo test 9 passed",
+        "echo yarn test 2 passed",
+        "cat go test",
+        "printf -m unittest 4 passed",
+    ):
+        assert derive_strength(
+            passed=True, passed_count=5, failed_count=0, command=cmd
+        ) is VerificationStrength.WEAK, cmd
+
+
 def test_program_position_runners_still_strong() -> None:
-    for cmd in ("pytest -q", "python -m pytest tests", f"{sys.executable} -m pytest x.py", "go test ./..."):
+    for cmd in (
+        "pytest -q",
+        "python -m pytest tests",
+        f"{sys.executable} -m pytest x.py",
+        "go test ./...",
+        "cargo test",
+        "npm test",
+        "npm run test",
+        "yarn test",
+        "py -m unittest",
+    ):
         assert derive_strength(
             passed=True, passed_count=2, failed_count=0, command=cmd
         ) is VerificationStrength.STRONG, cmd

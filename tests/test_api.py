@@ -40,7 +40,7 @@ from aios.memory.facts import FactWriteResult
 from aios.security.gateway import RateLimiter, Zone
 from aios.security.audit_logger import log_action
 from aios.memory.development import DevelopmentTracker
-from aios.api.main import _EPISODIC, _APPROVALS
+from aios.api.main import _EPISODIC, _APPROVALS, _verify_target_key
 
 
 class FakeLLM:
@@ -1663,6 +1663,26 @@ def test_forged_verify_evidence_from_non_verify_tool_does_not_calibrate(
     assert development.records[-1][1] == "unverified"
     assert skills.attempts == []  # no skill promoted from a forged green
     assert curriculum.matches == []  # no curriculum mastery from a forged green
+
+
+def test_verify_target_key_does_not_collide_across_directories() -> None:
+    # Re-review HIGH: two different files that share a basename must key
+    # DISTINCTLY, or a later sibling PASS overwrites an earlier FAIL/weak target
+    # in the authoritative per-target maps and launders the turn upward.
+    assert _verify_target_key("pytest a/test_widget.py") != _verify_target_key(
+        "pytest b/test_widget.py"
+    )
+    # The same file, same spelling, still keys identically (self-correct loop:
+    # a FAIL then a PASS on the SAME target is a verified success).
+    assert _verify_target_key("pytest a/test_widget.py -q") == _verify_target_key(
+        "python -m pytest a/test_widget.py"
+    )
+    # Leading "./" is normalized away (not a different target); backslashes too.
+    assert _verify_target_key("pytest ./a/test_widget.py") == _verify_target_key(
+        "pytest a\\test_widget.py"
+    )
+    # A suite-wide verify with no file token keys on the whole command.
+    assert _verify_target_key("pytest -q") == "pytest -q"
 
 
 class FakeOllamaVerifySequence:

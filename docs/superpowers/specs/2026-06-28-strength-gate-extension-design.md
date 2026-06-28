@@ -119,6 +119,54 @@ slice gates, so they land together rather than as a follow-up.
    authoritative strength is also passed into `curriculum.record_matching(...,
    strength=...)` so mastery can't be laundered via the evidence text either.
 
+## Second adversarial re-review (Verifier-owned, 24 agents) — 2 HIGH fixed, 1 MEDIUM surfaced
+
+A full re-review of the landed fixes (commit `426defe`) returned
+`invariant_holds = false` — the fixes still leaked. Two HIGH live-path forgeries
+fixed here; one MEDIUM grandfathering decision surfaced to the operator (two other
+findings correctly refuted: npm/cargo wrapper runners are gateway-RED hence not
+live-reachable; the configurable WEAK/MEDIUM floor requires the operator to
+deliberately disable their own keystone).
+
+1. **[HIGH] `_is_test_runner` PAIR-scan was not program-anchored.** The bare-token
+   check was anchored to the program position, but `_has_pair` scanned EVERY token
+   offset, so a GREEN `echo -m pytest 1 passed` / `echo go test :: 3 passed` /
+   `echo npm test 7 passed` minted `strength=STRONG` (the model controls echo's
+   stdout → `passed_count=1`), passed the provenance gate (it IS a real `verify`
+   call), and calibrated all four sites. **Fixed:** replaced `_has_pair` with
+   `_program_starts_with` — pairs match ONLY at the program position (pair[0] vs
+   the program basename, rest vs the following tokens); `python -m pytest` handled
+   explicitly (interpreter at program position + `-m` + recognized module). Verified
+   live: every `echo …` forge now reads WEAK; every real runner (incl. absolute
+   `…/npm.exe run test`) stays STRONG. Regression:
+   `test_runner_pair_in_argument_position_cannot_forge_strong`.
+
+2. **[HIGH] Per-target key collision masked FAIL/weak targets.** `_verify_target_key`
+   stripped the directory, so `a/test_w.py` and `b/test_w.py` collided; a later
+   sibling PASS overwrote an earlier FAIL/weak target in the authoritative maps
+   (last-write-wins), laundering the turn's verdict AND strength upward. **Fixed:**
+   the key keeps the directory (normalized, leading `./` stripped). Same file/same
+   spelling still shares a key (the self-correct FAIL→PASS loop is preserved — note
+   the review's "FAIL-sticky + MIN-strength" suggestion would have BROKEN that loop;
+   collision-resistant keying is the correct root fix). Regression:
+   `test_verify_target_key_does_not_collide_across_directories`.
+
+3. **[MEDIUM — surfaced, not auto-fixed] Legacy pre-gate `verified` rows.** Rows
+   promoted before the strength gate carry `verification_strength IS NULL` and are
+   still recalled (recall has no strength predicate). The reviewer's suggested
+   fix (demote them) directly conflicts with an explicit, tested migration
+   invariant — *"migration preserves earned verified state; trail rows are
+   irreplaceable provenance; nothing is destroyed"* (`test_migration_*`) — and
+   would demote the operator's genuinely-earned pre-gate skills (most were real
+   STRONG pytest passes that simply predate the stamp). It is bounded (no NEW row
+   can be created this way; the gate is live for all new records) and is a one-time
+   grandfathering POLICY decision, so it is surfaced to the operator rather than
+   applied unilaterally. Options: (A) demote legacy verified+NULL → candidate
+   (fail-closed, recoverable, but contradicts the preserve-provenance invariant);
+   (B) recall-time filter (non-destructive, same practical effect — earned skills
+   stop being recalled until re-verified); (C) accept (lowest priority — bounded,
+   pre-existing data only).
+
 ## Rollout
 No flag. Behavior changes only for below-STRONG greens, which now stop calibrating
 these three sites — the intended fix. Default-STRONG params preserve back-compat
