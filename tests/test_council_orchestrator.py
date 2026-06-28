@@ -4,6 +4,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_state import CouncilState
 from aios.runtime.king_report import KingReportStore
@@ -64,7 +66,12 @@ def test_deliberate_produces_awaiting_approval_without_acting(tmp_path: Path) ->
     assert "heartbeat" not in target.read_text(encoding="utf-8")
 
 
-def test_execute_after_deliberate_runs_worker_without_collision(tmp_path: Path) -> None:
+def test_execute_after_deliberate_runs_worker_without_collision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Verification runs in the spawned worker subprocess; pin host (no Docker in CI;
+    # isolation backend is orthogonal, Phase 2b — the var propagates to the worker).
+    monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     orchestrator = CouncilOrchestrator(runtime_root=runtime_root)
@@ -111,7 +118,10 @@ def test_council_orchestrator_persists_deliberation_to_state(tmp_path: Path) -> 
 
 def test_council_orchestrator_runs_full_loop_and_records_report(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Verification runs in the spawned worker subprocess; pin host (no Docker in CI).
+    monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     request = _request(workspace)

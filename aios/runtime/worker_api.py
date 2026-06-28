@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from aios import config
+from aios.core.executor import DockerRunner, _sanitise_env
 from aios.runtime.contracts import MissionContract, WorkerResult
 from aios.runtime.intelligence_gateway import (
     IntelligenceGateway,
@@ -22,6 +24,19 @@ from aios.runtime.secret_policy import SecretPolicy
 # Captured command output is redacted and capped before it is persisted into the
 # durable evidence ledger, so a noisy or hostile command cannot bloat the ledger.
 _MAX_COMMAND_OUTPUT: int = 50_000
+
+
+def _runner_for_backend(backend: str):
+    """Resolve the isolated runner for a worker's verification command (Phase 2b).
+
+    Container-by-default isolates the only arbitrary command a worker runs, reusing
+    the Phase 2 hardened DockerRunner. ``host`` is handled separately (a direct
+    argv subprocess — the explicit dev-only opt-out), so this returns None for it;
+    any other value is unsupported and the caller fails closed.
+    """
+    if backend == "container":
+        return DockerRunner()
+    return None
 
 
 def _utc_now() -> str:
@@ -47,8 +62,13 @@ class WorkerRuntime:
         runtime_root: str | Path,
         result_path: str | Path,
         intelligence_gateway: IntelligenceGateway | None = None,
+        command_runner=None,
     ) -> None:
         self.contract = contract
+        #: Phase 2b — the runner for verification commands. None => resolved from the
+        #: configured execution backend at call time (container by default). Injected
+        #: in tests to force a backend or assert fail-closed behavior.
+        self._command_runner = command_runner
         self.worker_id = worker_id
         self.runtime_root = Path(runtime_root).resolve()
         self.result_path = Path(result_path).resolve()
@@ -122,24 +142,58 @@ class WorkerRuntime:
                 "command is not in MissionContract.verification_commands",
                 {"command": command},
             )
-        result = subprocess.run(
-            command,
-            cwd=str(self.workspace_root),
-            shell=False,
-            capture_output=True,
-            text=True,
-            timeout=self.contract.timeout_seconds,
-            check=False,
-        )
+        # Phase 2b — run the (already allowlisted) verification command through the
+        # container boundary by DEFAULT; host is the explicit dev-only opt-out.
+        #   * host -> run the argv directly (no reparse, so a quoted argument like
+        #     `-c "print('a b')"` survives and a bare `python` resolves normally).
+        #   * container (or an injected runner) -> the Phase 2 hardened runner, with
+        #     the command re-quoted via shlex.join (round-trips through the runner's
+        #     argv parse on the Linux host where containers run) and the workspace as
+        #     cwd. Fail-closed: a runner that cannot launch (container unavailable)
+        #     yields a non-zero result, NEVER a silent host fallback.
+        runner = self._command_runner
+        backend = config.APPROVED_EXECUTION_BACKEND
+        if runner is None and backend == "host":
+            try:
+                proc = subprocess.run(
+                    command,
+                    cwd=str(self.workspace_root),
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.contract.timeout_seconds,
+                    check=False,
+                )
+                stdout, stderr, returncode = proc.stdout or "", proc.stderr or "", proc.returncode
+            except subprocess.TimeoutExpired:
+                raise
+            except Exception as exc:  # noqa: BLE001 - report a launch failure cleanly
+                stdout, stderr, returncode = "", f"[host verification failed to launch] {exc}", 1
+        else:
+            active = runner if runner is not None else _runner_for_backend(backend)
+            if active is None:
+                stdout, stderr, returncode = (
+                    "",
+                    f"[verification backend '{backend}' is not supported]",
+                    1,
+                )
+            else:
+                try:
+                    stdout, stderr, returncode = active(
+                        shlex.join(command),
+                        cwd=str(self.workspace_root),
+                        env=_sanitise_env(),
+                        timeout_s=self.contract.timeout_seconds,
+                    )
+                except subprocess.TimeoutExpired:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - fail closed, never a host fallback
+                    stdout, stderr, returncode = "", f"[verification backend unavailable] {exc}", 1
         payload = {
             "command": command,
-            "returncode": result.returncode,
-            "stdout": self._secret_policy.redact_text(
-                (result.stdout or "")[:_MAX_COMMAND_OUTPUT]
-            ),
-            "stderr": self._secret_policy.redact_text(
-                (result.stderr or "")[:_MAX_COMMAND_OUTPUT]
-            ),
+            "returncode": returncode,
+            "stdout": self._secret_policy.redact_text((stdout or "")[:_MAX_COMMAND_OUTPUT]),
+            "stderr": self._secret_policy.redact_text((stderr or "")[:_MAX_COMMAND_OUTPUT]),
         }
         self.evidence.setdefault("verification", []).append(payload)
         self._record_tool("run_command", {"command": command}, "completed")

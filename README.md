@@ -178,10 +178,13 @@ Experience -> outcome evaluation -> candidate lesson/fact/skill
   a loud, **development-only** opt-out — scope locking, NOT an OS isolation boundary
   (approved commands run as the backend OS user, and self-apply refuses).
   - The container default governs the **Executor** (approved-arbitrary exec +
-    self-apply). The opt-in Council **worker** subprocess (`aios/runtime/`, off
-    unless `AIOS_COUNCIL_ORIGINATION`/`AIOS_WORKER_REASONING` is set) runs its
-    contract verification commands host-side and is not yet governed by this
-    setting — containerizing it is tracked as Phase 2b.
+    self-apply) AND the opt-in Council **worker**'s verification: a worker's
+    `run_command` (its contract `verification_commands` — the only arbitrary command
+    a worker runs) goes through the same container by default, fail-closed, with the
+    workspace bind-mounted (Phase 2b). The worker's own orchestration + LLM calls
+    stay on the host process (so the reasoning worker keeps local-LLM access); the
+    worker honors the same `AIOS_APPROVED_EXECUTION_BACKEND` setting. Whole-worker
+    isolation + an LLM network policy is a future slice.
 - Unauthenticated API requests are accepted only from loopback. Non-loopback API
   deployment requires a random `AIOS_API_TOKEN` of at least 32 characters;
   configure the same value as

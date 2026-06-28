@@ -68,6 +68,9 @@ def test_approve_triggers_execution_and_worker_acts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
+    # Verification runs in the spawned worker subprocess; pin host (no Docker in CI;
+    # isolation backend is orthogonal, Phase 2b — the var propagates to the worker).
+    monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     workspace = tmp_path / "ws"
     (workspace / "tests").mkdir(parents=True)
     (workspace / "tests" / "test_smoke.py").write_text(

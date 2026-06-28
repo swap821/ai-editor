@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from aios.core.executor import _default_runner
 from aios.runtime.contracts import MissionContract, WorkerResult
 from aios.runtime.intelligence_gateway import IntelligenceGatewayError
 from aios.runtime.worker_api import WorkerRuntime
@@ -100,6 +101,10 @@ def _runtime(contract: MissionContract, gateway: FakeGateway, tmp_path: Path) ->
         runtime_root=runtime_root,
         result_path=runtime_root / "result.json",
         intelligence_gateway=gateway,
+        # These tests exercise the think->act->verify LOOP with real verification
+        # in-process; the isolation backend is orthogonal (Phase 2b) and there is no
+        # Docker in CI, so run verification on the host runner explicitly.
+        command_runner=_default_runner,
     )
 
 

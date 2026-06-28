@@ -116,7 +116,13 @@ def test_worker_runtime_writes_approval_request_without_ui_wiring(
 
 def test_controlled_subprocess_worker_birth_writes_ledger_and_report(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This test exercises worker birth + the full ledger/report; verification runs
+    # for real in the spawned subprocess. The isolation backend is orthogonal
+    # (Phase 2b) and there is no Docker in CI, so run verification on the host (the
+    # var now propagates into the worker subprocess).
+    monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     contract = _mission(workspace)
@@ -164,10 +170,15 @@ def test_controlled_subprocess_backend_omits_cloud_secret_env(
     assert env["PYTHONIOENCODING"] == "utf-8"
 
 
-def test_run_command_is_fail_closed_to_verification_allowlist(tmp_path: Path) -> None:
+def test_run_command_is_fail_closed_to_verification_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """run_command must run ONLY declared verification commands; an arbitrary
     host command (e.g. dumping the environment to exfiltrate secrets) is blocked
     and recorded as a durable blocked_attempt."""
+    # The allowlist check (the property under test) is independent of the execution
+    # backend; pin host so the permitted command runs in-process without Docker.
+    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     allowed_cmd = f"{sys.executable} -c \"print('verification ok')\""

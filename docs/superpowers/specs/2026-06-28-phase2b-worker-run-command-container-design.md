@@ -88,3 +88,20 @@ No flag/migration. Container-by-default already governs the Executor; this exten
 it to the worker's verification. README updated: the worker's verification now runs
 inside the boundary by default (Phase 2b), host is the dev-only opt-out. Whole-worker
 isolation + LLM network policy remains a future slice.
+
+## Adversarial review — CLEAN
+
+A focused adversarial skeptic (6 attack angles, code-read) returned **INVARIANT
+HOLDS — CLEAN**. Verified: no silent host fallback (container failure → non-zero,
+never `subprocess.run`; unknown/empty backend → fail-closed non-zero, not host); the
+6 newly-allowlisted env vars are config not secrets and the secret scrub still runs
+after the allowlist (and `DockerRunner` gets `_sanitise_env`, not the worker's raw
+env); `_command_allowed` still runs FIRST and `shlex.join`→`_parse_argv` round-trips
+the exact argv (which lands AFTER the image, so it's in-container only — no docker
+flag smuggling, and `;&|<>` are rejected); the worker's container gets the full Phase
+2 hardening + the H4 mount guard, and `workspace_root` is confined to
+`COUNCIL_WORKSPACE_ROOT` upstream (422 on escape); every misconfig path is
+fail-closed and recorded in evidence; `TimeoutExpired` is re-raised (never a false
+pass); redaction/cap/evidence shape unchanged. Note (pre-existing, out of scope): the
+worker *process itself* still runs on the host (its boundary is `WorkerRuntime`); this
+slice containerizes only its `run_command` verification, exactly as scoped.

@@ -204,6 +204,17 @@ class ControlledSubprocessBackend(WorkerBackend):
             "TEMP",
             "TMP",
             "PYTHONIOENCODING",
+            # Phase 2b — the worker must honor the operator's execution-backend
+            # choice (container by default; host the explicit opt-out). These are
+            # configuration, not secrets; without them a host-opt-out worker would
+            # wrongly default back to the container. The secret scrub below still
+            # strips everything outside this allowlist.
+            "AIOS_APPROVED_EXECUTION_BACKEND",
+            "AIOS_CONTAINER_RUNTIME",
+            "AIOS_CONTAINER_IMAGE",
+            "AIOS_CONTAINER_MEMORY_MB",
+            "AIOS_CONTAINER_CPUS",
+            "AIOS_CONTAINER_PIDS_LIMIT",
         }
         env = {
             name: value
