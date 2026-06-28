@@ -3,6 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from aios.core.verification_strength import (
+    VerificationStrength,
+    meets_promotion_floor,
+    promotion_floor,
+    strength_from_name,
+)
 from aios.runtime.contracts import (
     KingReport,
     MissionContract,
@@ -51,6 +57,27 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
 
     intelligence = _latest_intelligence(ledger)
 
+    # Slice A1 — the King approves on TYPED evidence. Surface the verification
+    # strength and FLAG a positive recommendation that rests on below-floor (weak/
+    # hollow) evidence. Fail-closed: a missing/unparseable strength reads NONE
+    # (strength_from_name defaults to STRONG, so NONE must be passed explicitly),
+    # so weak/unknown evidence is flagged, never waved through.
+    verification_result = dict(ledger.verification)
+    strength = strength_from_name(
+        verification_result.get("strength"), VerificationStrength.NONE
+    )
+    meets_floor = meets_promotion_floor(strength)
+    verification_result["meets_floor"] = meets_floor
+    if recommendation in {"approve", "observe"} and not meets_floor:
+        floor = promotion_floor().name
+        verification_result["below_floor_warning"] = (
+            f"verification strength {strength.name} is below the {floor} floor — this "
+            "recommendation rests on weak evidence; review before approving"
+        )
+        human_summary = (
+            f"⚠ Weak verification ({strength.name} < {floor} floor). " + human_summary
+        )
+
     return KingReport(
         mission_id=ledger.mission_id,
         mission=ledger.mission,
@@ -74,7 +101,7 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
         recommendation=recommendation,
         risk=ledger.risk_after,
         files=list(ledger.files_touched),
-        verification_result=dict(ledger.verification),
+        verification_result=verification_result,
         approval_needed=ledger.contract.requires_approval,
         rollback_available=bool(ledger.rollback_id),
         rollback_id=ledger.rollback_id,

@@ -107,3 +107,22 @@ weakest authoritative passing target. Consistent mental model across the codebas
 No flag, no migration. Behavior change is additive: ledgers/reports gain a typed
 strength + a caution on weak positive recommendations. A2 (organism render) follows
 as its own slice.
+
+## Adversarial review — CLEAN
+
+A focused adversarial skeptic (6 attack angles, code-read + live probes) returned
+**INVARIANT HOLDS — CLEAN**. Verified: fail-open is closed (missing/empty/malformed/
+garbage strength → NONE → flagged; the `strength_from_name` STRONG default is
+neutralized by the explicit `NONE`); command-aware spoof defense survives this path
+(`echo 5 passed` → WEAK); `min()` weakest-link holds (one strong cannot mask a weak/
+failed sibling); `build_king_report` is the only positive-recommendation path
+(`build_deliberation_report` is correctly out of scope — pre-execution, no evidence
+yet); frozen contracts not violated (open `dict[str, Any]` keys only). Defense-in-
+depth noted: the `TestingQueen` independently denies on any failed check, forcing the
+King's `denied` branch — a second fail-closed computation of the same evidence. Two
+non-defeating follow-ups (do not block A1): (1) the dashboard + council API payload
+don't yet render `meets_floor`/`below_floor_warning` — **this is A2**; (2) a
+hand-forged `RunLedger` object could assert `strength="STRONG"`, but that is outside
+A1's trust model (the name can only be minted by the spoof-proof
+`_verification_strength` in the sole production constructor; forging the ledger forges
+everything).
