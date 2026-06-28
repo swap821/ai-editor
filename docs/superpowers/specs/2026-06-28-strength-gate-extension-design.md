@@ -76,6 +76,49 @@ Evidence-format validation is unchanged.
 - Full backend suite + 85% floor; frozen spine untouched. Then Verifier-owned
   adversarial review (try to make a hollow green calibrate any of the 3).
 
+## Adversarial review outcome (Verifier-owned) — fixes folded into this slice
+
+The Phase-1 adversarial review returned `invariant_holds = false` with three
+findings. All were fixed before landing (the operator's standing "fix any HIGH,
+then land" pattern); they share the evidence → strength → calibration path this
+slice gates, so they land together rather than as a follow-up.
+
+1. **[HIGH] Hollow-STRONG from a zero-test run (a regression introduced mid-slice).**
+   A mid-slice experiment dropped the `passed_count > 0` requirement from
+   `derive_strength` STRONG, on the theory that a runner's exit code is
+   authoritative. That mints STRONG for a recognized runner that asserted
+   NOTHING — `jest --passWithNoTests`, `vitest --passWithNoTests`, `pytest` over
+   an empty path, a no-op `npm test` wrapper — all exit 0 with 0 passes.
+   **Reverted.** STRONG again requires `_is_test_runner(command) and passed_count
+   > 0 and failed_count == 0`. The command-aware program-position check is the
+   *spoof* defense (`echo "5 passed"` stays WEAK); `passed_count > 0` is the
+   *hollow-run* defense (a real runner that asserted nothing stays WEAK). The
+   brittleness that motivated the experiment (a fake/real verify producing exit 0
+   with no parseable "N passed") is a test-fixture artifact, fixed by giving the
+   affected test a runner that emits realistic counted output — NOT by weakening
+   the taxonomy. Regression test: `test_test_runner_that_asserted_nothing_is_not_strong`.
+
+2. **[HIGH] Forgeable evidence — provenance gate.** The chat/generate evidence
+   collector appended ANY tool-result whose output started with `[VERIFY PASS/FAIL]`,
+   so a model running a GREEN `echo "[VERIFY PASS] 5 passed (strength=STRONG)"`
+   forged authoritative evidence and a STRONG strength, laundering a hollow turn
+   into calibration. **Fixed:** the collector now requires trusted provenance —
+   `ev.get("tool") == "verify"` (the model's `verify` and the forced
+   `autoverify-*`, the only emitters of real verifier evidence) — in addition to
+   the string prefix. (Predates this slice, but it defeats the gate's whole
+   premise, so it is fixed here.) Regression test:
+   `test_forged_verify_evidence_from_non_verify_tool_does_not_calibrate`.
+
+3. **[MEDIUM] turn_strength laundering.** `turn_strength` was the strength of the
+   LAST `[VERIFY PASS]` across all evidence, so a model could append a STRONG
+   advisory verify after a weak forced auto-verify to raise the turn. **Fixed:**
+   strength is now tracked per target (`auto_strengths`/`verify_strengths`) and
+   the turn strength is the **weakest authoritative passing target** (auto-verify
+   if any ran, else the model's own verify) — one strong target cannot mask a weak
+   one, and an advisory verify cannot raise the authoritative auto-verify. The
+   authoritative strength is also passed into `curriculum.record_matching(...,
+   strength=...)` so mastery can't be laundered via the evidence text either.
+
 ## Rollout
 No flag. Behavior changes only for below-STRONG greens, which now stop calibrating
 these three sites — the intended fix. Default-STRONG params preserve back-compat

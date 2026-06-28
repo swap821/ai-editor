@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from aios import config
+from aios.core.verification_strength import (
+    VerificationStrength,
+    meets_promotion_floor,
+    strength_from_text,
+)
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
 
@@ -66,13 +71,31 @@ class CurriculumManager:
             )
             return int(cur.lastrowid)
 
-    def record_matching(self, prompt: str, *, passed: bool, evidence: str) -> list[int]:
-        """Apply an authoritative verifier result to exactly matching available tasks."""
+    def record_matching(
+        self,
+        prompt: str,
+        *,
+        passed: bool,
+        evidence: str,
+        strength: VerificationStrength | None = None,
+    ) -> list[int]:
+        """Apply an authoritative verifier result to exactly matching available tasks.
+
+        *strength* lets the caller supply the turn's already-resolved authoritative
+        strength (the weakest passing target) so mastery cannot be laundered by a
+        later advisory verify embedding a stronger token in *evidence*. When omitted
+        (direct callers/tests) the strength is derived from *evidence*.
+        """
         if not evidence.startswith("[VERIFY PASS]") and not evidence.startswith("[VERIFY FAIL]"):
             raise ValueError("curriculum progress requires authoritative verifier evidence")
         expected_pass = evidence.startswith("[VERIFY PASS]")
         if bool(passed) != expected_pass:
             raise ValueError("curriculum result conflicts with verifier evidence")
+        # A pass advances mastery only if it was STRONGLY verified (roadmap Phase 1):
+        # a weak green is still recorded as an attempt but contributes no success, so
+        # it can never unlock the next level.
+        eff_strength = strength if strength is not None else strength_from_text(evidence)
+        counts_as_success = passed and meets_promotion_floor(eff_strength)
         init_memory_db(self.db_path)
         updated: list[int] = []
         with get_connection(self.db_path) as conn:
@@ -89,7 +112,7 @@ class CurriculumManager:
                 conn.execute(
                     "UPDATE curriculum_tasks SET attempts = attempts + 1, "
                     "successes = successes + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (1 if passed else 0, task_id),
+                    (1 if counts_as_success else 0, task_id),
                 )
                 updated.append(task_id)
                 self._refresh_level(conn, str(row["skill_name"]), int(row["level"]))

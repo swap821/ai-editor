@@ -188,6 +188,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
         if skill_cols and name not in skill_cols:
             conn.execute(f"ALTER TABLE procedural_skills ADD COLUMN {name} {ddl}")
 
+    # Swarm patterns: verification-strength taxonomy (roadmap Phase 1 extension) —
+    # a below-floor green is recorded but ineligible to promote a pattern.
+    swarm_cols = {row[1] for row in conn.execute("PRAGMA table_info(swarm_patterns)")}
+    swarm_additions = {
+        "weak_success_count": "INTEGER NOT NULL DEFAULT 0",
+        "verification_strength": "TEXT",
+    }
+    for name, ddl in swarm_additions.items():
+        if swarm_cols and name not in swarm_cols:
+            conn.execute(f"ALTER TABLE swarm_patterns ADD COLUMN {name} {ddl}")
+
     # Backfill arc identities (NULL-only => idempotent; pure function of stored
     # data, no clock).
     for row in conn.execute(

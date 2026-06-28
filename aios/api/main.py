@@ -114,7 +114,11 @@ from aios.runtime.run_ledger import RunLedgerStore
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
-from aios.core.verification_strength import strength_from_text
+from aios.core.verification_strength import (
+    VerificationStrength,
+    meets_promotion_floor,
+    strength_from_text,
+)
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import RateLimiter, Zone, classify
 from aios.security.secret_scanner import scan_and_redact
@@ -2939,10 +2943,16 @@ def generate(
         blocked_actions = 0
         verification_evidence: list[str] = []
         verify_verdicts: dict[str, str] = {}
+        #: Per-target verification strength (parallel to the verdict dicts), so the
+        #: turn's calibration strength is the WEAKEST authoritative PASS — a strong
+        #: verify on one target can never launder a weak one, and a model's advisory
+        #: verify can never raise the authoritative strength (see ``record_outcome``).
+        verify_strengths: dict[str, VerificationStrength] = {}
         #: Verdicts from the FORCED auto-verify only (id ``autoverify-*``). This is
         #: the authoritative evidence for the turn's outcome; the model's own
         #: ``verify`` tool calls are advisory and must not override it.
         auto_verdicts: dict[str, str] = {}
+        auto_strengths: dict[str, VerificationStrength] = {}
         communication_notice = (
             alignment.communication_notice() if alignment is not None else ""
         )
@@ -2952,10 +2962,31 @@ def generate(
 
         def record_outcome(outcome: str) -> None:
             """Best-effort development, skill, and curriculum evidence write."""
+            # The strength of this turn's authoritative verification gates ALL
+            # calibration (roadmap Phase 1): a below-floor (weak) green must not
+            # calibrate the router/planner, promote a swarm pattern, or advance
+            # curriculum mastery. Strength is the WEAKEST authoritative target
+            # strength (auto-verify if any ran, else the model's own verify) — not
+            # the last PASS across all evidence. This defeats laundering: a model
+            # cannot append a STRONG advisory verify to raise a turn whose forced
+            # auto-verify was weak, and one strong target cannot mask a weak one.
+            authoritative_strengths = auto_strengths or verify_strengths
+            turn_strength = (
+                min(authoritative_strengths.values())
+                if authoritative_strengths
+                else VerificationStrength.NONE
+            )
+            # A weak verified_success is recorded as 'unverified' so it is excluded
+            # from router/planner calibration (reuses the existing exclusion).
+            dev_outcome = (
+                "unverified"
+                if outcome == "verified_success" and not meets_promotion_floor(turn_strength)
+                else outcome
+            )
             try:
                 development.record(
                     user_text,
-                    outcome,
+                    dev_outcome,
                     tool_calls=len(workflow_steps),
                     human_interventions=len(req.approval_tokens),
                     blocked_actions=blocked_actions,
@@ -2995,7 +3026,7 @@ def generate(
                         user_text,
                         workflow_steps,
                         success=passed,
-                        strength=strength_from_text(evidence),
+                        strength=turn_strength,
                     )
                 except Exception as exc:  # noqa: BLE001 - skill learning is best-effort
                     logger.warning("Failed to record skill attempt", exc_info=exc)
@@ -3021,12 +3052,14 @@ def generate(
             if swarm_plan:
                 try:
                     swarm_patterns.record_attempt(
-                        user_text, swarm_plan, success=passed
+                        user_text, swarm_plan, success=passed, strength=turn_strength
                     )
                 except Exception as exc:  # noqa: BLE001 - pattern learning is best-effort
                     logger.warning("Failed to record swarm pattern attempt", exc_info=exc)
             try:
-                curriculum.record_matching(user_text, passed=passed, evidence=evidence)
+                curriculum.record_matching(
+                    user_text, passed=passed, evidence=evidence, strength=turn_strength
+                )
             except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 logger.warning("Failed to record curriculum match", exc_info=exc)
 
@@ -3063,7 +3096,17 @@ def generate(
                     blocked_actions += 1
                 if kind == "tool_result":
                     output = str(ev.get("output", ""))
-                    if output.startswith("[VERIFY PASS]") or output.startswith("[VERIFY FAIL]"):
+                    # Provenance gate: ONLY the verify tool (the model's `verify`
+                    # and the forced `autoverify-*`, both emitted with tool=="verify")
+                    # may contribute authoritative verification evidence. Without
+                    # this, any tool whose output a model controls — e.g.
+                    # `echo "[VERIFY PASS] 5 passed (strength=STRONG)"` auto-executed
+                    # GREEN — would forge a passing verdict and a STRONG strength,
+                    # laundering a hollow turn into calibration. The string prefix is
+                    # necessary but not sufficient; trusted provenance is.
+                    if ev.get("tool") == "verify" and (
+                        output.startswith("[VERIFY PASS]") or output.startswith("[VERIFY FAIL]")
+                    ):
                         verification_evidence.append(output)
                         raw_target = str(ev.get("target") or "")
                         key = (
@@ -3076,6 +3119,7 @@ def generate(
                         )
                         verdict = "PASS" if output.startswith("[VERIFY PASS]") else "FAIL"
                         verify_verdicts[key] = verdict
+                        verify_strengths[key] = strength_from_text(output)
                         # The FORCED auto-verify (run by the system after a write) is
                         # the authoritative evidence; the model's OWN `verify` tool
                         # call is advisory. A model running a broken verify command —
@@ -3084,6 +3128,7 @@ def generate(
                         # written code actually passes the forced check.
                         if str(ev.get("id", "")).startswith("autoverify"):
                             auto_verdicts[key] = verdict
+                            auto_strengths[key] = verify_strengths[key]
                         # Surface a typed verification frame so the UI can celebrate or
                         # reflect without parsing the raw tool output.
                         yield _sse(

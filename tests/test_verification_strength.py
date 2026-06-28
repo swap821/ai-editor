@@ -86,6 +86,21 @@ def test_test_runner_with_failures_is_not_strong() -> None:
     ) is not VerificationStrength.STRONG
 
 
+def test_test_runner_that_asserted_nothing_is_not_strong() -> None:
+    """The hollow-run defense: a recognized runner that collected/asserted NOTHING
+    and exited 0 (``jest --passWithNoTests``, an empty ``pytest`` path, a no-op
+    ``npm test`` wrapper) must stay WEAK — exit 0 with zero passes proves nothing."""
+    for cmd in (
+        "jest --passWithNoTests",
+        "vitest run --passWithNoTests",
+        "pytest -q",
+        "npm test",
+    ):
+        assert derive_strength(
+            passed=True, passed_count=0, failed_count=0, command=cmd
+        ) is VerificationStrength.WEAK, cmd
+
+
 # --- the gate ---------------------------------------------------------------
 
 def test_floor_is_strong_by_default(monkeypatch: pytest.MonkeyPatch) -> None:

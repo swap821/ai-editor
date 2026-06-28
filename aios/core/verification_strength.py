@@ -113,6 +113,14 @@ def derive_strength(
     """
     if not passed:
         return VerificationStrength.NONE
+    # STRONG = a recognized test runner that asserted PASSING behavior: it must have
+    # reported at least one passing test and no failures. The ``passed_count > 0``
+    # floor is load-bearing — without it a runner that collected NOTHING and exited 0
+    # (``jest --passWithNoTests``, ``vitest --passWithNoTests``, ``pytest`` over an
+    # empty path, an ``npm test`` wrapper whose script is a no-op) would mint STRONG
+    # while asserting nothing. The command-aware program-position check is the spoof
+    # defense (``echo "5 passed"`` stays WEAK); ``passed_count`` is the hollow-run
+    # defense (a real runner that asserted nothing stays WEAK).
     if _is_test_runner(command) and passed_count > 0 and failed_count == 0:
         return VerificationStrength.STRONG
     if _is_checker(command):
