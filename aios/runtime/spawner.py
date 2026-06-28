@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from aios.runtime.backends import ControlledSubprocessBackend, WorkerBackend, WorkerHandle
+from aios.runtime.concurrency import WORKER_POOL
 from aios.runtime.contracts import KingReport, MissionContract, RunLedger, WorkerResult
 from aios.runtime.king_report import KingReportStore, build_king_report
 from aios.runtime.run_ledger import RunLedgerStore, build_run_ledger
@@ -77,31 +78,35 @@ class WorkerSpawner:
         if claim:
             claim_mission(self.runtime_root, contract.mission_id)
         sealed_contract = self._seal_contract(contract)
-        handle = await self.backend.spawn(sealed_contract)
-        try:
-            result = await self.backend.reap(handle)
-        finally:
-            if handle.status not in {"dead", "killed"}:
-                await self.backend.kill(handle, "spawner cleanup after reap")
+        # Global fail-closed cap: hold a worker slot for the subprocess lifetime so
+        # a flood of approved missions cannot spawn unbounded subprocesses. At
+        # capacity this raises WorkerCapacityError (the caller reports it).
+        with WORKER_POOL.slot():
+            handle = await self.backend.spawn(sealed_contract)
+            try:
+                result = await self.backend.reap(handle)
+            finally:
+                if handle.status not in {"dead", "killed"}:
+                    await self.backend.kill(handle, "spawner cleanup after reap")
 
-        ledger = build_run_ledger(
-            contract=sealed_contract,
-            handle=handle,
-            result=result,
-            created_at=created_at,
-        )
-        ledger_path = self.ledger_store.write(ledger)
-        report = build_king_report(ledger=ledger, result=result)
-        report_path = self.report_store.write(report)
-        return WorkerRun(
-            contract=sealed_contract,
-            handle=handle,
-            result=result,
-            ledger=ledger,
-            report=report,
-            ledger_path=ledger_path,
-            report_path=report_path,
-        )
+            ledger = build_run_ledger(
+                contract=sealed_contract,
+                handle=handle,
+                result=result,
+                created_at=created_at,
+            )
+            ledger_path = self.ledger_store.write(ledger)
+            report = build_king_report(ledger=ledger, result=result)
+            report_path = self.report_store.write(report)
+            return WorkerRun(
+                contract=sealed_contract,
+                handle=handle,
+                result=result,
+                ledger=ledger,
+                report=report,
+                ledger_path=ledger_path,
+                report_path=report_path,
+            )
 
     def _seal_contract(self, contract: MissionContract) -> MissionContract:
         if contract.snapshot_id:
