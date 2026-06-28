@@ -31,6 +31,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from aios import config
+from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.memory.db import get_connection
 from aios.security.secret_scanner import scan_and_redact
 
@@ -148,13 +149,23 @@ class AutonomyLedger:
 
     # -- evidence ----------------------------------------------------------
 
-    def record_outcome(self, action_type: str, target: str, *, success: bool) -> dict[str, Any]:
+    def record_outcome(
+        self,
+        action_type: str,
+        target: str,
+        *,
+        success: bool,
+        strength: VerificationStrength = VerificationStrength.STRONG,
+    ) -> dict[str, Any]:
         """Fold one verifier-authoritative outcome into the signature's evidence.
 
-        Success extends the streak and promotes to ``earned`` once it reaches
-        ``min_successes``; a single failure resets the streak to 0 and revokes.
-        Returns the resulting record (caller emits/audits it).
+        Only a success at or above the promotion floor extends the streak and can
+        promote to ``earned``. A below-floor success is treated as unverifiable
+        for autonomy and revokes/reset-streaks fail-closed: YELLOW can graduate
+        only from behavior-asserting evidence. A single failure resets the streak
+        to 0 and revokes. Returns the resulting record (caller emits/audits it).
         """
+        eligible_success = success and meets_promotion_floor(strength)
         sig = self.signature(action_type, target)
         norm = self._normalize(action_type, target)
         now = _now_iso()
@@ -166,13 +177,14 @@ class AutonomyLedger:
                 (sig,),
             ).fetchone()
             if row is None:
-                if success:
+                if eligible_success:
                     succ, fail, streak = 1, 0, 1
                     status = "earned" if streak >= self.min_successes else "probation"
                     earned_at, revoked_at = (now if status == "earned" else None), None
                 else:
                     # A failure is always loud: even a first-ever outcome that
-                    # fails marks the signature revoked, never silently neutral.
+                    # fails (or passes only weakly) marks the signature revoked,
+                    # never silently neutral.
                     succ, fail, streak, status = 0, 1, 0, "revoked"
                     earned_at, revoked_at = None, now
                 conn.execute(
@@ -184,7 +196,7 @@ class AutonomyLedger:
                     (sig, action_type, norm, succ, fail, streak, status,
                      earned_at, revoked_at, now, now),
                 )
-            elif success:
+            elif eligible_success:
                 succ = int(row["success_count"]) + 1
                 fail = int(row["failure_count"])
                 streak = int(row["streak"]) + 1

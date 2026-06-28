@@ -40,7 +40,7 @@ from aios.memory.facts import FactWriteResult
 from aios.security.gateway import RateLimiter, Zone
 from aios.security.audit_logger import log_action
 from aios.memory.development import DevelopmentTracker
-from aios.api.main import _EPISODIC, _APPROVALS, _verify_target_key
+from aios.api.main import _EPISODIC, _APPROVALS, _verify_target_key, _verify_target_keys
 
 
 class FakeLLM:
@@ -1683,6 +1683,11 @@ def test_verify_target_key_does_not_collide_across_directories() -> None:
     )
     # A suite-wide verify with no file token keys on the whole command.
     assert _verify_target_key("pytest -q") == "pytest -q"
+    # Multi-file commands expose every file target, not only the first one.
+    assert _verify_target_keys("pytest a/test_widget.py b/test_widget.py -q") == [
+        "a/test_widget.py",
+        "b/test_widget.py",
+    ]
 
 
 class FakeOllamaVerifySequence:
@@ -1937,6 +1942,48 @@ def test_final_pass_on_one_target_cannot_mask_anothers_failure(
     assert response.status_code == 200
     assert response.text.count("[VERIFY PASS]") >= 2
     assert "[VERIFY FAIL]" in response.text
+    assert development.records[-1][1] == "verified_failure"
+
+
+def test_final_pass_on_first_file_cannot_mask_multi_file_failure(
+    client: TestClient,
+) -> None:
+    # FAIL(test_ok.py + test_broken.py) -> PASS(test_ok.py): if the multi-file
+    # command keyed only on the first file, the PASS would overwrite the unresolved
+    # broken-file failure. The turn must stay verified_failure.
+    development = RecordingDevelopment()
+
+    class FakeOllamaMultiThenSingle(FakeOllamaVerifySequence):
+        commands = (
+            "pytest test_ok.py test_broken.py -q",
+            "pytest test_ok.py -q",
+        )
+
+    app.dependency_overrides[get_ollama_client] = FakeOllamaMultiThenSingle
+    app.dependency_overrides[get_executor] = lambda: Executor(
+        runner=BrokenFileRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+    )
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    session = "growth-multi-target"
+    tokens = [
+        get_approval_store().issue(
+            "command", {"command": "pytest test_ok.py test_broken.py -q"}, session
+        ),
+        get_approval_store().issue("command", {"command": "pytest test_ok.py -q"}, session),
+    ]
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session,
+            "approvalTokens": tokens,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "[VERIFY FAIL]" in response.text and "[VERIFY PASS]" in response.text
     assert development.records[-1][1] == "verified_failure"
 
 

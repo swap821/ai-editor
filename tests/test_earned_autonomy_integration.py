@@ -137,3 +137,35 @@ def test_earned_grant_writes_a_distinct_earned_autonomy_audit_entry(tmp_path, mo
         assert "verified" in earned[0][1]  # carries the evidence that earned it
     finally:
         scope_lock.set_scope_roots(list(original))
+
+
+def test_weak_auto_verify_revokes_earned_write_shape(tmp_path, monkeypatch) -> None:
+    """The ToolAgent must pass verifier strength into the autonomy ledger.
+
+    A `.py` write with an existing sibling test triggers forced auto-verify. The
+    fake runner exits 0 but reports no passing assertions, so the verifier emits
+    WEAK. That must not maintain the earned YELLOW->GREEN grant.
+    """
+    original = _in_sandbox(tmp_path, monkeypatch)
+    try:
+        (tmp_path / "test_new.py").write_text("def test_new():\n    assert True\n")
+        ledger = AutonomyLedger(db_path=tmp_path / "mem.db", min_successes=2)
+        ledger.record_outcome("create_file", "new.py", success=True)
+        ledger.record_outcome("create_file", "new.py", success=True)
+        assert ledger.is_earned("create_file", "new.py")
+
+        chat = ScriptedChat([
+            _create_call("new.py", "x = 1\n"),
+            {"role": "assistant", "content": "done"},
+        ])
+        events = list(ToolAgent(chat, _executor(), max_iters=3, autonomy=ledger).run(
+            [{"role": "user", "content": "write the module"}]
+        ))
+
+        assert "earned_autonomy" in [e["type"] for e in events]
+        assert (tmp_path / "new.py").read_text() == "x = 1\n"
+        assert ledger.is_earned("create_file", "new.py") is False
+        record = ledger.record_for("create_file", "new.py")
+        assert record is not None and record["status"] == "revoked"
+    finally:
+        scope_lock.set_scope_roots(list(original))

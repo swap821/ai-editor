@@ -92,6 +92,12 @@ from aios.core.autonomy import AutonomyLedger
 from aios.core.executor import Executor
 from aios.core.llm import LLMClient, LLMError
 from aios.core.planner import Planner
+from aios.core.verification_strength import (
+    VerificationStrength,
+    derive_strength,
+    parse_test_counts,
+    strength_from_text,
+)
 from aios.core.verifier import Verifier
 from aios.security.audit_logger import log_action
 from aios.security.gateway import Zone
@@ -920,7 +926,7 @@ class ToolAgent:
                         # Only a successful retry of the SAME failed command is
                         # evidence that its lesson proved itself.
                         yield from self._confirm(
-                            pending_lessons, str(args.get("command", "")), index
+                            pending_lessons, str(args.get("command", "")), output, index
                         )
                 elif name in ("edit_file", "create_file") and status == "ok":
                     # A write actually landed. Force a verification so the
@@ -1023,14 +1029,26 @@ class ToolAgent:
         )
 
     def _confirm(
-        self, pending_lessons: list[tuple[int, str]], command: str, index: int
+        self,
+        pending_lessons: list[tuple[int, str]],
+        command: str,
+        output: str,
+        index: int,
     ) -> Iterator[dict[str, Any]]:
         """Promote lessons only after their exact failed command succeeds."""
+        passed_count, failed_count = parse_test_counts(output)
+        strength = derive_strength(
+            passed=True,
+            passed_count=passed_count,
+            failed_count=failed_count,
+            command=command,
+        )
         yield from tool_loop_helpers.confirm(
             pending_lessons,
             command,
             index,
             self.confirm_lesson,
+            strength=strength,
             preview_limit=_PREVIEW_LIMIT,
         )
 
@@ -1076,11 +1094,13 @@ class ToolAgent:
             yield {"type": "tool_blocked", "tool": "verify",
                    "reason": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
             verified_ok = False  # an unverifiable change is fail-closed
+            verify_strength = VerificationStrength.NONE
         else:
             yield {"type": "tool_result", "tool": "verify",
                    "output": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}",
                    "target": command}
             verified_ok = output.lstrip().startswith("[VERIFY PASS]")
+            verify_strength = strength_from_text(output)
         convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
         # Fold the authoritative verdict into the earned-autonomy evidence for
         # this write class: a PASS extends the streak (eventually graduating the
@@ -1088,7 +1108,9 @@ class ToolAgent:
         # writer of autonomy evidence -- it is the verifier's word, never the
         # model's. (Skipped/non-Python writes record nothing.)
         if self.autonomy is not None:
-            self.autonomy.record_outcome(action_type, filepath, success=verified_ok)
+            self.autonomy.record_outcome(
+                action_type, filepath, success=verified_ok, strength=verify_strength
+            )
 
     # ----------------------------------------------------------------- finish
     def _finish(self, content: str) -> Iterator[dict[str, Any]]:

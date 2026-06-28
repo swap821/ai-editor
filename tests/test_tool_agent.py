@@ -55,7 +55,7 @@ class FlakyRunner:
         self.calls += 1
         if self.calls == 1:
             return "", "boom: assertion failed", 1
-        return "ok", "", 0
+        return "3 passed in 0.2s", "", 0
 
 
 class PassRunner:
@@ -461,7 +461,36 @@ def test_agent_reflects_on_command_failure() -> None:
 
 
 def test_agent_promotes_lesson_after_corrective_success() -> None:
-    # Fail a command (records lesson 7), then succeed on the retry -> verify it.
+    # Fail a test command (records lesson 7), then succeed on the retry with
+    # behavior-asserting output -> verify it.
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "pytest -q"}),
+        _tool_call("execute_terminal", {"command": "pytest -q"}),
+        {"role": "assistant", "content": "Fixed and passing."},
+    ])
+
+    def on_failure(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "guard the input",
+                "recurrence": False, "mistake_id": 7}
+
+    confirmed: list[int] = []
+    events = list(
+        ToolAgent(
+            chat, _flaky_executor(), max_iters=4,
+            on_failure=on_failure, confirm_lesson=confirmed.append,
+            approved_commands=["pytest -q"],
+        ).run([{"role": "user", "content": "make the tests pass"}])
+    )
+
+    assert confirmed == [7], "the lesson should be promoted after the corrective success"
+    verify_steps = [e for e in events if e.get("tool") == "reflect" and "Verified" in e.get("output", "")]
+    assert verify_steps, "a 'lesson verified' step should be surfaced"
+
+
+def test_agent_does_not_promote_lesson_after_weak_corrective_success() -> None:
+    # The same failed command succeeds on retry, but it is a weak GREEN command
+    # ("echo" with no assertions), so it cannot turn a mistake into planner-visible
+    # verified lesson evidence.
     chat = ScriptedChat([
         _tool_call("execute_terminal", {"command": "echo tests"}),
         _tool_call("execute_terminal", {"command": "echo tests"}),
@@ -480,9 +509,9 @@ def test_agent_promotes_lesson_after_corrective_success() -> None:
         ).run([{"role": "user", "content": "make the tests pass"}])
     )
 
-    assert confirmed == [7], "the lesson should be promoted after the corrective success"
+    assert confirmed == []
     verify_steps = [e for e in events if e.get("tool") == "reflect" and "Verified" in e.get("output", "")]
-    assert verify_steps, "a 'lesson verified' step should be surfaced"
+    assert verify_steps == []
 
 
 def test_agent_does_not_verify_failed_command_lesson_on_unrelated_success() -> None:

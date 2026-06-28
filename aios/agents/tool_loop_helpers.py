@@ -11,6 +11,7 @@ import re
 from collections.abc import Iterator
 from typing import Any, Callable, Optional
 
+from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.core.verifier import VerifierResult
 
 #: A failure hook: given (command, error_output), return a lesson dict or None.
@@ -157,13 +158,16 @@ def confirm(
     index: int,
     confirm_lesson: ConfirmHook | None,
     *,
+    strength: VerificationStrength = VerificationStrength.STRONG,
     preview_limit: int = 400,
 ) -> Iterator[dict[str, Any]]:
     """Promote lessons only after their exact failed command succeeds."""
     promoted = [mistake_id for mistake_id, failed in pending_lessons if failed == command]
-    pending_lessons[:] = [item for item in pending_lessons if item[1] != command]
     if confirm_lesson is None or not promoted:
         return
+    if not meets_promotion_floor(strength):
+        return
+    pending_lessons[:] = [item for item in pending_lessons if item[1] != command]
     for mistake_id in promoted:
         try:
             confirm_lesson(mistake_id)

@@ -2512,26 +2512,39 @@ def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict
         return []
 
 
-def _verify_target_key(command: str) -> str:
-    """Classification key for one verification target.
+def _verify_target_keys(command: str) -> list[str]:
+    """Classification keys for one verification command.
 
     The same file is legitimately verified through different command spellings
-    within one turn (the forced auto-verify vs the model's own pytest call), so
-    the key is the first ``.py`` token — normalized but WITH its directory kept.
+    within one turn (the forced auto-verify vs the model's own pytest call), so a
+    file key is the normalized ``.py`` token WITH its directory kept.
     Keeping the directory is load-bearing: two different files that share a
     basename (``a/test_w.py`` vs ``b/test_w.py``) must NOT collide, or a later
     sibling PASS would overwrite (mask) an earlier FAIL/weak target in the
-    authoritative per-target maps and launder the turn's verdict + strength
-    upward. A suite-wide verify with no file token keys on the whole command — a
-    whole-suite FAIL must be resolved by a whole-suite PASS.
+    authoritative per-target maps and launder the turn's verdict + strength.
+
+    Multi-file commands return one key per file. A failed ``pytest a.py b.py``
+    therefore marks both targets unresolved; later single-file passes can clear
+    each target independently, but a PASS on only ``a.py`` cannot mask ``b.py``.
+    A suite-wide verify with no file token keys on the whole command — a
+    whole-suite FAIL must be resolved by a whole-suite PASS of that same command.
     """
+    keys: list[str] = []
+    seen: set[str] = set()
     for token in command.replace('"', " ").replace("'", " ").split():
         if token.endswith(".py"):
             norm = token.replace("\\", "/").lower()
             while norm.startswith("./"):
                 norm = norm[2:]
-            return norm or "unattributed"
-    return command.strip().lower() or "unattributed"
+            if norm and norm not in seen:
+                seen.add(norm)
+                keys.append(norm)
+    return keys or [command.strip().lower() or "unattributed"]
+
+
+def _verify_target_key(command: str) -> str:
+    """Backward-compatible single-target helper for older tests/callers."""
+    return _verify_target_keys(command)[0]
 
 
 def _workflow_step(event: dict[str, Any]) -> str:
@@ -3116,17 +3129,19 @@ def generate(
                     ):
                         verification_evidence.append(output)
                         raw_target = str(ev.get("target") or "")
-                        key = (
-                            _verify_target_key(raw_target)
+                        keys = (
+                            _verify_target_keys(raw_target)
                             if raw_target
                             # Unattributed evidence keys uniquely: its verdict
                             # can never be cleared by a later PASS elsewhere
                             # (fail-closed).
-                            else f"unattributed-{len(verification_evidence)}"
+                            else [f"unattributed-{len(verification_evidence)}"]
                         )
                         verdict = "PASS" if output.startswith("[VERIFY PASS]") else "FAIL"
-                        verify_verdicts[key] = verdict
-                        verify_strengths[key] = strength_from_text(output)
+                        strength = strength_from_text(output)
+                        for key in keys:
+                            verify_verdicts[key] = verdict
+                            verify_strengths[key] = strength
                         # The FORCED auto-verify (run by the system after a write) is
                         # the authoritative evidence; the model's OWN `verify` tool
                         # call is advisory. A model running a broken verify command —
@@ -3134,14 +3149,20 @@ def generate(
                         # sandbox cwd → exit 4, 0 tests — must NOT fail a turn whose
                         # written code actually passes the forced check.
                         if str(ev.get("id", "")).startswith("autoverify"):
-                            auto_verdicts[key] = verdict
-                            auto_strengths[key] = verify_strengths[key]
+                            for key in keys:
+                                auto_verdicts[key] = verdict
+                                auto_strengths[key] = strength
                         # Surface a typed verification frame so the UI can celebrate or
                         # reflect without parsing the raw tool output.
-                        yield _sse(
-                            "verify_result",
-                            {"verdict": verdict.lower(), "target": key, "output": output[:320]},
-                        )
+                        for key in keys:
+                            yield _sse(
+                                "verify_result",
+                                {
+                                    "verdict": verdict.lower(),
+                                    "target": key,
+                                    "output": output[:320],
+                                },
+                            )
                 yield _sse("step", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])

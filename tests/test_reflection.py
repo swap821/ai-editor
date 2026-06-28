@@ -13,6 +13,7 @@ from typing import Optional
 import pytest
 
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
+from aios.core.verification_strength import VerificationStrength
 from aios.memory import db as memdb
 from aios.memory.mistake import MistakeMemory
 
@@ -150,6 +151,14 @@ def test_confirm_lesson_promotes_to_verified(db_path: Path) -> None:
     reflection = agent.reflect("c", "e", task_id="t1")
     agent.confirm_lesson(reflection.mistake_id)
     assert mistakes.get(reflection.mistake_id)["verification_status"] == "verified"
+
+
+def test_confirm_lesson_refuses_weak_evidence(db_path: Path) -> None:
+    mistakes = MistakeMemory(db_path)
+    agent = ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes)
+    reflection = agent.reflect("c", "e", task_id="t1")
+    agent.confirm_lesson(reflection.mistake_id, strength=VerificationStrength.WEAK)
+    assert mistakes.get(reflection.mistake_id)["verification_status"] == "pending"
 
 
 def test_legacy_suggested_fix_alias_is_accepted(db_path: Path) -> None:

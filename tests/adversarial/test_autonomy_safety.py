@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, patch
 
 from aios import config
 from aios.core.autonomy import AutonomyLedger
+from aios.core.verification_strength import VerificationStrength
 from aios.memory.db import get_connection
 
 
@@ -204,6 +205,36 @@ class TestSuccessStreakCounting:
         result = enabled_ledger.record_outcome("create", "training_ground/test.py", success=True)
         assert result["status"] == "earned"
         assert result["streak"] == 4
+
+    def test_weak_success_cannot_build_autonomy_streak(self, enabled_ledger, monkeypatch):
+        """A zero-assertion/weak verifier pass must not graduate a YELLOW shape."""
+        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
+        for _ in range(3):
+            result = enabled_ledger.record_outcome(
+                "create",
+                "training_ground/test.py",
+                success=True,
+                strength=VerificationStrength.WEAK,
+            )
+        assert result["status"] == "revoked"
+        assert result["success_count"] == 0
+        assert result["streak"] == 0
+        assert enabled_ledger.is_earned("create", "training_ground/test.py") is False
+
+    def test_weak_success_revokes_already_earned_autonomy(self, enabled_ledger, monkeypatch):
+        """Existing autonomy must narrow when the verifier no longer asserts behavior."""
+        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
+        for _ in range(3):
+            enabled_ledger.record_outcome("create", "training_ground/test.py", success=True)
+        result = enabled_ledger.record_outcome(
+            "create",
+            "training_ground/test.py",
+            success=True,
+            strength=VerificationStrength.WEAK,
+        )
+        assert result["status"] == "revoked"
+        assert result["streak"] == 0
+        assert enabled_ledger.is_earned("create", "training_ground/test.py") is False
 
 
 # ============================================================================ #

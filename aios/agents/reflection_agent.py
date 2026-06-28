@@ -23,6 +23,7 @@ from typing import Any, Optional
 
 from aios import config
 from aios.core.llm import LLMClient
+from aios.core.verification_strength import VerificationStrength
 from aios.memory.mistake import MistakeMemory
 
 REFLECT_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
@@ -168,9 +169,14 @@ class ReflectionAgent:
             recurrence=recurrence,
         )
 
-    def confirm_lesson(self, mistake_id: int) -> None:
-        """Promote a lesson to 'verified' after it proves itself on a later task."""
-        self.mistakes.promote(mistake_id)
+    def confirm_lesson(
+        self,
+        mistake_id: int,
+        *,
+        strength: VerificationStrength = VerificationStrength.STRONG,
+    ) -> None:
+        """Promote a lesson after it proves itself with strong enough evidence."""
+        self.mistakes.promote(mistake_id, strength=strength)
 
     def recall_pending(self, task_id: str, limit: int = 5) -> list[dict[str, Any]]:
         """Return this task's pending lessons as plain dicts for injection.

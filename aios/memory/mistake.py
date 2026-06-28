@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from aios import config
+from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
@@ -208,8 +209,20 @@ class MistakeMemory:
                 (mistake_id,),
             )
 
-    def promote(self, mistake_id: int) -> None:
-        """Promote a lesson from ``pending`` to ``verified``."""
+    def promote(
+        self,
+        mistake_id: int,
+        *,
+        strength: VerificationStrength = VerificationStrength.STRONG,
+    ) -> None:
+        """Promote a lesson from ``pending`` to ``verified``.
+
+        Below-floor evidence leaves the lesson pending. Verified mistake lessons
+        feed planner confidence, so a weak green must not graduate into that
+        cross-task calibration path.
+        """
+        if not meets_promotion_floor(strength):
+            return
         with get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE mistake_pool SET verification_status = 'verified' "
