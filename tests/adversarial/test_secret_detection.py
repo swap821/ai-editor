@@ -561,3 +561,45 @@ class TestMultipleSecretDetection:
         assert result.detected is True
         assert "STRIPE_API_KEY" in result.findings
         assert "AWS_ACCESS_KEY" in result.findings
+
+
+# ============================================================================ #
+# Phase 3: broadened PEM headers + keyword-gated short hex (low false-positive)
+# ============================================================================ #
+
+
+class TestPhase3ScannerHardening:
+    """Broaden PEM coverage and close the short-hex gap WITHOUT over-redacting."""
+
+    def test_encrypted_pem_private_key_redacted(self):
+        text = (
+            "-----BEGIN ENCRYPTED PRIVATE KEY-----\n"
+            "MIIFAKEbase64keymaterialAAAA1234567890\n"
+            "-----END ENCRYPTED PRIVATE KEY-----"
+        )
+        result = scan_and_redact(text)
+        assert result.detected is True
+        assert "PRIVATE_KEY" in result.findings
+        assert "base64keymaterial" not in result.scrubbed
+
+    def test_pgp_private_key_block_redacted(self):
+        text = (
+            "-----BEGIN PGP PRIVATE KEY BLOCK-----\n"
+            "lQVYBFAKEpgpkeymaterialABCDEF1234567890\n"
+            "-----END PGP PRIVATE KEY BLOCK-----"
+        )
+        result = scan_and_redact(text)
+        assert result.detected is True
+        assert "PRIVATE_KEY" in result.findings
+
+    def test_short_hex_secret_with_keyword_context_redacted(self):
+        # 8 hex chars: below ASSIGNED_SECRET's 12-char floor, but keyword-gated -> real.
+        result = scan_and_redact("api_key: a1b2c3d4")
+        assert result.detected is True
+        assert "a1b2c3d4" not in result.scrubbed
+
+    def test_bare_hex_without_keyword_is_not_over_redacted(self):
+        # A git SHA in prose with no secret keyword nearby must survive (no FP).
+        text = "Fixed in commit a1b2c3d4e5 on main."
+        result = scan_and_redact(text)
+        assert "a1b2c3d4e5" in result.scrubbed

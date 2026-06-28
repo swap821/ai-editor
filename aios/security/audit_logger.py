@@ -95,7 +95,10 @@ CREATE TABLE IF NOT EXISTS tamper_audit_trail (
     current_hash    TEXT NOT NULL,
     previous_hash   TEXT NOT NULL,
     signature       TEXT,
-    key_id          INTEGER
+    key_id          INTEGER,
+    -- Chain-hash preimage version (Phase 3): existing rows default to 1 (legacy
+    -- concat); new rows use 2 (collision-resistant canonical JSON).
+    hash_version    INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_audit_zone ON tamper_audit_trail(security_zone);
 CREATE INDEX IF NOT EXISTS idx_audit_time ON tamper_audit_trail(timestamp);
@@ -106,6 +109,18 @@ CREATE TABLE IF NOT EXISTS audit_keys (
     public_key_hex  TEXT NOT NULL UNIQUE,
     created_at      TEXT NOT NULL,
     active          INTEGER NOT NULL DEFAULT 1
+);
+
+-- Signed tip-anchor (Phase 3): a single row pinning the chain's tip so a
+-- tail-truncation (lopping the latest entries) is detectable. Updated atomically
+-- inside each append transaction and Ed25519-signed.
+CREATE TABLE IF NOT EXISTS audit_tip_anchor (
+    anchor_id       INTEGER PRIMARY KEY CHECK (anchor_id = 1),
+    tip_entry_id    INTEGER NOT NULL,
+    tip_hash        TEXT NOT NULL,
+    signature       TEXT,
+    key_id          INTEGER,
+    updated_at      TEXT NOT NULL
 );
 """
 
@@ -146,6 +161,10 @@ class ChainStatus:
     signature_valid: bool = True
     invalid_signatures: tuple[int, ...] = ()
     unsigned_entries: int = 0
+    #: Tip-anchor verdict (Phase 3), checked on a full verify-to-tip:
+    #: True = the signed anchor matches the real tip; False = tail-truncation /
+    #: anchor tamper detected; None = no anchor present (legacy / never-written).
+    tip_anchor_valid: Optional[bool] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -392,6 +411,39 @@ def _verify_entry_signature(
         return False
 
 
+def _canonical_tip_anchor(tip_entry_id: int, tip_hash: str) -> str:
+    """Canonical JSON of the tip-anchor fields (sorted keys)."""
+    return json.dumps(
+        {"tip_entry_id": int(tip_entry_id), "tip_hash": tip_hash},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _sign_tip_anchor(
+    private_key: Ed25519PrivateKey, tip_entry_id: int, tip_hash: str
+) -> str:
+    """Ed25519-sign the canonical tip-anchor; return a hex signature."""
+    data = hashlib.sha256(
+        _canonical_tip_anchor(tip_entry_id, tip_hash).encode("utf-8")
+    ).digest()
+    return private_key.sign(data).hex()
+
+
+def _verify_tip_anchor_signature(
+    public_key: Ed25519PublicKey, signature_hex: str, tip_entry_id: int, tip_hash: str
+) -> bool:
+    """Verify an Ed25519 signature over the canonical tip-anchor."""
+    try:
+        data = hashlib.sha256(
+            _canonical_tip_anchor(tip_entry_id, tip_hash).encode("utf-8")
+        ).digest()
+        public_key.verify(bytes.fromhex(signature_hex), data)
+        return True
+    except (InvalidSignature, ValueError):
+        return False
+
+
 # --------------------------------------------------------------------------- #
 # Database helpers
 # --------------------------------------------------------------------------- #
@@ -411,6 +463,15 @@ def init_audit_db(db_path: Path = config.AUDIT_DB_PATH) -> None:
     conn = _connect(db_path)
     try:
         conn.executescript(_AUDIT_SCHEMA)
+        # ALTER-if-missing: add hash_version to a pre-Phase-3 ledger (existing rows
+        # are legacy v1; new appends write v2). CREATE TABLE IF NOT EXISTS never
+        # adds a column to an existing table.
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(tamper_audit_trail)")}
+        if "hash_version" not in cols:
+            conn.execute(
+                "ALTER TABLE tamper_audit_trail "
+                "ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1"
+            )
         conn.commit()
     finally:
         conn.close()
@@ -428,12 +489,46 @@ def _ensure_initialized(db_path: Path) -> None:
 # Hash chain
 # --------------------------------------------------------------------------- #
 
+#: Current chain-hash preimage version. v2 (canonical JSON) is unambiguous at field
+#: boundaries; v1 (legacy delimiter-less concat) is KEPT only so pre-existing chains
+#: still verify under their own version.
+_CHAIN_HASH_VERSION: int = 2
+
+
 def compute_entry_hash(
-    previous_hash: str, timestamp: str, actor: str, payload: str, zone: str
+    previous_hash: str,
+    timestamp: str,
+    actor: str,
+    payload: str,
+    zone: str,
+    *,
+    version: int = _CHAIN_HASH_VERSION,
 ) -> str:
-    """Return ``SHA256(previous_hash || timestamp || actor || payload || zone)``."""
-    raw = f"{previous_hash}{timestamp}{actor}{payload}{zone}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    """Return the chain hash of an entry's fields, by preimage *version*.
+
+    v1 (legacy): ``SHA256(previous_hash || timestamp || actor || payload || zone)`` —
+    delimiter-less, so distinct field splits collide (``actor='ab',payload='c'`` ==
+    ``actor='a',payload='bc'``). Retained ONLY to verify entries written before the
+    Phase 3 hardening.
+
+    v2 (default): ``SHA256(canonical_json({fields}))`` — sorted-key JSON is an
+    unambiguous, injective encoding, so no field-boundary collision is possible.
+    """
+    if version == 1:
+        raw = f"{previous_hash}{timestamp}{actor}{payload}{zone}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    canonical = json.dumps(
+        {
+            "previous_hash": previous_hash,
+            "timestamp": timestamp,
+            "actor": actor,
+            "action_payload": payload,
+            "security_zone": zone,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _zone_str(zone: Union[Zone, str]) -> str:
@@ -523,8 +618,8 @@ def log_action(
                 cur = conn.execute(
                     "INSERT INTO tamper_audit_trail "
                     "(timestamp, actor, action_payload, security_zone, "
-                    " current_hash, previous_hash, signature, key_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    " current_hash, previous_hash, signature, key_id, hash_version) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         timestamp,
                         actor,
@@ -534,11 +629,32 @@ def log_action(
                         previous_hash,
                         signature,
                         key_id,
+                        _CHAIN_HASH_VERSION,
                     ),
+                )
+                entry_id = int(cur.lastrowid)
+
+                # Phase 3: re-pin the signed tip-anchor to this new tip, in the SAME
+                # transaction, so a later tail-truncation (deleting the latest
+                # entries without re-signing the anchor) is detectable by verify_chain.
+                anchor_sig: Optional[str] = None
+                if sign_state.enabled and sign_state.private_key is not None:
+                    anchor_sig = _sign_tip_anchor(
+                        sign_state.private_key, entry_id, current_hash
+                    )
+                conn.execute(
+                    "INSERT INTO audit_tip_anchor "
+                    "(anchor_id, tip_entry_id, tip_hash, signature, key_id, updated_at) "
+                    "VALUES (1, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(anchor_id) DO UPDATE SET "
+                    "tip_entry_id=excluded.tip_entry_id, tip_hash=excluded.tip_hash, "
+                    "signature=excluded.signature, key_id=excluded.key_id, "
+                    "updated_at=excluded.updated_at",
+                    (entry_id, current_hash, anchor_sig, key_id, timestamp),
                 )
                 conn.commit()
                 return AuditEntry(
-                    entry_id=int(cur.lastrowid),
+                    entry_id=entry_id,
                     current_hash=current_hash,
                     previous_hash=previous_hash,
                     redacted=redacted,
@@ -647,13 +763,18 @@ def verify_chain(
                 unsigned_entries=unsigned_count,
             )
 
-        # --- 2. Payload integrity check ---
+        # --- 2. Payload integrity check (recompute under the entry's OWN version) ---
+        try:
+            entry_version = int(entry["hash_version"])
+        except (IndexError, KeyError, TypeError):
+            entry_version = 1  # pre-migration row defaults to the legacy preimage
         computed = compute_entry_hash(
             previous_hash,
             entry["timestamp"],
             entry["actor"],
             entry["action_payload"],
             entry["security_zone"],
+            version=entry_version,
         )
         if computed != entry["current_hash"]:
             return ChainStatus(
@@ -693,6 +814,23 @@ def verify_chain(
 
         previous_hash = entry["current_hash"]
 
+    # --- 4. Tip-anchor check (Phase 3): detect tail-truncation on a verify-to-tip. ---
+    tip_anchor_valid: Optional[bool] = None
+    if to_id is None:
+        tip_anchor_valid = _check_tip_anchor(db_path, pub_keys, verify_signatures)
+        if tip_anchor_valid is False:
+            return ChainStatus(
+                valid=False,
+                total_entries=len(rows),
+                broken_at=None,
+                reason="Tail truncation or tip-anchor tamper detected.",
+                head_hash=previous_hash if rows else config.AUDIT_GENESIS_HASH,
+                signature_valid=len(invalid_sigs) == 0,
+                invalid_signatures=tuple(invalid_sigs),
+                unsigned_entries=unsigned_count,
+                tip_anchor_valid=False,
+            )
+
     chain_valid = len(invalid_sigs) == 0
     return ChainStatus(
         valid=chain_valid,
@@ -701,7 +839,66 @@ def verify_chain(
         signature_valid=chain_valid,
         invalid_signatures=tuple(invalid_sigs),
         unsigned_entries=unsigned_count,
+        tip_anchor_valid=tip_anchor_valid,
     )
+
+
+def _check_tip_anchor(
+    db_path: Path,
+    pub_keys: dict[int, "Ed25519PublicKey"],
+    verify_signatures: bool,
+) -> Optional[bool]:
+    """Compare the signed tip-anchor to the real chain tip (Phase 3).
+
+    Returns True if the anchor matches the tip (and its signature verifies), False
+    on a tail-truncation / anchor tamper, and None only for a genuinely legacy or
+    never-written ledger (no v2 entries, so the anchor feature was never active).
+
+    A DELETED anchor on a hardened chain is detected: a v2 entry only exists if the
+    anchor was written alongside it (``log_action`` does both in one transaction), so
+    a v2 entry plus a missing anchor means the anchor was removed → tampering. Residual
+    limit (documented): an attacker who deletes EVERY entry AND the anchor leaves a
+    pristine-looking empty DB; only an externally-published anchor could detect that.
+    """
+    conn = _connect(db_path)
+    try:
+        anchor = conn.execute(
+            "SELECT tip_entry_id, tip_hash, signature, key_id FROM audit_tip_anchor "
+            "WHERE anchor_id = 1"
+        ).fetchone()
+        tip = conn.execute(
+            "SELECT entry_id, current_hash FROM tamper_audit_trail "
+            "ORDER BY entry_id DESC LIMIT 1"
+        ).fetchone()
+        # A v2 entry implies the anchor feature was active when the chain was written.
+        hardened = conn.execute(
+            "SELECT 1 FROM tamper_audit_trail WHERE hash_version >= 2 LIMIT 1"
+        ).fetchone() is not None
+    finally:
+        conn.close()
+
+    if anchor is None:
+        # Missing anchor on a HARDENED, non-empty chain = the anchor was deleted to
+        # evade truncation detection (fail-closed). Only a pure-legacy (v1-only) or
+        # never-written chain legitimately has no anchor.
+        if tip is not None and hardened:
+            return False
+        return None
+    if tip is None:
+        return False  # anchor proves an entry existed, but the chain is now empty
+    if int(tip["entry_id"]) != int(anchor["tip_entry_id"]) or (
+        tip["current_hash"] != anchor["tip_hash"]
+    ):
+        return False  # the tip moved/shrank without re-anchoring — truncation/tamper
+
+    sig = anchor["signature"]
+    if sig and verify_signatures and _ED25519_AVAILABLE:
+        pk = pub_keys.get(int(anchor["key_id"])) if anchor["key_id"] else None
+        if pk is None or not _verify_tip_anchor_signature(
+            pk, sig, int(anchor["tip_entry_id"]), anchor["tip_hash"]
+        ):
+            return False
+    return True
 
 
 # --------------------------------------------------------------------------- #

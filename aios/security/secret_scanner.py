@@ -46,11 +46,14 @@ _CONTEXT_SECRET_KEYWORDS: tuple[str, ...] = (
 _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── Private Keys (PEM/SSH) ──────────────────────────────────────────────
     (
+        # Any PEM/SSH/PGP private-key block. ``[A-Z0-9 ]*`` covers RSA/EC/DSA/OPENSSH/
+        # ENCRYPTED (and any future header); ``( BLOCK)?`` covers PGP key blocks.
+        # PEM markers are unambiguous, so this broadening adds zero false positives.
         "PRIVATE_KEY",
         re.compile(
-            r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
             r"[\s\S]*?"
-            r"-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
         ),
     ),
     # ── JWT Tokens (header.payload.signature) ───────────────────────────────
@@ -119,6 +122,20 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
         re.compile(
             r"\b(?:password|passwd|secret|api[_-]?key|apikey|token)\s*[=:]\s*"
             r"['\"]?[A-Za-z0-9\-_]{12,}['\"]?",
+            re.IGNORECASE,
+        ),
+    ),
+    # ── Short hex secret, KEYWORD-GATED ─────────────────────────────────────
+    #: Closes the short-hex gap below ASSIGNED_SECRET's 12-char floor (e.g.
+    #: ``api_key: a1b2c3d4``). The secret keyword + assignment is REQUIRED, so a
+    #: bare hex token in prose (a git SHA, an id, a color) is NOT redacted — the
+    #: gate keeps false positives near zero. Placed after ASSIGNED_SECRET so longer
+    #: values keep that label.
+    (
+        "SHORT_SECRET",
+        re.compile(
+            r"\b(?:password|passwd|secret|api[_-]?key|apikey|token)\s*[=:]\s*"
+            r"['\"]?[A-Fa-f0-9]{8,}['\"]?",
             re.IGNORECASE,
         ),
     ),

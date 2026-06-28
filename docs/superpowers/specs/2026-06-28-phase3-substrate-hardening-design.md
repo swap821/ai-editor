@@ -65,10 +65,16 @@ shorter chain. Add an external anchor to the tip:
   `valid=False`, `reason="tail truncation detected"`. A MISSING anchor (legacy DB /
   manually-inserted rows) → `tip_anchor_valid=None`, does NOT fail (back-compat).
   `ChainStatus` gains `tip_anchor_valid: Optional[bool] = None`.
-- **Honest limitation (documented):** the anchor is in the same DB, so an attacker
-  with the signing key can re-sign a truncated anchor. It raises truncation to the
-  same bar as signature forgery (key required) — a real strengthening for the local
-  threat model; true immutability needs external anchor publication (out of scope).
+- A MISSING anchor is fail-closed on a *hardened* chain: a v2 entry only exists if
+  the anchor was written with it, so a v2 entry + no anchor = the anchor was deleted
+  → `tip_anchor_valid=False`. Only a pure-v1 (pre-Phase-3) or never-written chain
+  legitimately has no anchor → `None` (back-compat, no false positive).
+- **Honest residual limitation (documented; raised by the adversarial review):** a
+  DB-write attacker who re-signs a truncated anchor needs the signing key; one who
+  deletes the anchor on a hardened chain is now detected. The ONLY undetectable case
+  is a TOTAL wipe — deleting *every* entry AND the anchor leaves a pristine-looking
+  empty DB indistinguishable from never-written. Detecting that requires an
+  externally-published anchor (CT-log/remote), which is out of scope.
 
 ### 3. Secret scanner — broaden PEM + close the short-key gap (low-FP only)
 - **PEM:** generalize to

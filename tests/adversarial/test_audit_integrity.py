@@ -264,31 +264,33 @@ class TestDeletionDetection:
         # The chain breaks at entry 3 because its previous_hash won't match entry 2's (deleted)
         assert status.broken_at is not None
 
-    def test_deleted_last_entry_still_valid(self, tmp_audit_db):
-        """TC-SEC-615: Deleting the last entry should leave valid chain for remainder."""
+    def test_deleted_last_entry_now_detected(self, tmp_audit_db):
+        """TC-SEC-615 (Phase 3): deleting the LAST entry is now DETECTED via the
+        signed tip-anchor. Previously this left a 'valid' shorter chain — the
+        tail-truncation gap Phase 3 closes (strengthened, not weakened)."""
         log_action("test-actor", "action 1", Zone.GREEN, db_path=tmp_audit_db)
         entry2 = log_action("test-actor", "action 2", Zone.GREEN, db_path=tmp_audit_db)
-        # Delete the last entry
         conn = sqlite3.connect(str(tmp_audit_db))
         conn.execute("DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,))
         conn.commit()
         conn.close()
         status = verify_chain(db_path=tmp_audit_db)
-        # Only entry 1 remains, chain should be valid
-        assert status.valid is True
-        assert status.total_entries == 1
+        assert status.valid is False
+        assert status.tip_anchor_valid is False
 
-    def test_all_entries_deleted_returns_genesis(self, tmp_audit_db):
-        """TC-SEC-616: All entries deleted should return genesis hash."""
+    def test_all_entries_deleted_now_detected(self, tmp_audit_db):
+        """TC-SEC-616 (Phase 3): truncation-to-empty is DETECTED — the signed
+        anchor proves an entry existed, distinguishing it from a never-written DB
+        (which has no anchor and stays valid)."""
         log_action("test-actor", "action 1", Zone.GREEN, db_path=tmp_audit_db)
         conn = sqlite3.connect(str(tmp_audit_db))
         conn.execute("DELETE FROM tamper_audit_trail")
         conn.commit()
         conn.close()
         status = verify_chain(db_path=tmp_audit_db)
-        assert status.valid is True
+        assert status.valid is False
+        assert status.tip_anchor_valid is False
         assert status.total_entries == 0
-        assert status.head_hash == config.AUDIT_GENESIS_HASH
 
     def test_deletion_then_append_recovers(self, tmp_audit_db):
         """TC-SEC-617: After deleting, the next append correctly chains from the new head."""
