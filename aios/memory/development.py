@@ -149,6 +149,47 @@ class DevelopmentTracker:
             if total >= floor
         }
 
+    def task_profile(
+        self, *, min_attempts: int = 1, limit: int = 5000
+    ) -> dict[str, tuple[int, float]]:
+        """Per-task ``(verified_attempts, verified_success_rate)`` from the evidence.
+
+        Like :meth:`model_task_success_rates` but keyed on the task category alone
+        (across providers/models) — the input to the narrative self-model. Reads ONLY
+        ``verified_success``/``verified_failure`` events (so weak greens, recorded as
+        ``unverified`` by the Phase 1 gate, are excluded by construction). The
+        store-level floor stays 1; the self-model applies its own ``min_attempts``.
+        """
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT outcome, metadata_json FROM development_events "
+                "WHERE outcome IN ('verified_success','verified_failure') "
+                "ORDER BY id DESC LIMIT ?",
+                (max(int(limit), 1),),
+            ).fetchall()
+        tally: dict[str, list[int]] = {}  # task -> [successes, total]
+        for row in rows:
+            try:
+                meta = json.loads(row["metadata_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(meta, dict):
+                continue
+            task = str(meta.get("task") or "").strip()
+            if not task:
+                continue
+            agg = tally.setdefault(task, [0, 0])
+            agg[1] += 1
+            if row["outcome"] == "verified_success":
+                agg[0] += 1
+        floor = max(int(min_attempts), 1)
+        return {
+            task: (total, round(succ / total, 6))
+            for task, (succ, total) in tally.items()
+            if total >= floor
+        }
+
     def summary(self) -> dict[str, Any]:
         """Return high-signal developmental metrics over all recorded tasks."""
         init_memory_db(self.db_path)

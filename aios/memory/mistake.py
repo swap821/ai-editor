@@ -26,6 +26,30 @@ class MistakeMemory:
     def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
         self.db_path = db_path
 
+    def recurring(self, *, limit: int = 5) -> list[dict]:
+        """Return VERIFIED lessons that have recurred (``occurrence_count > 1``).
+
+        The narrative self-model's cautions: a lesson must be BOTH verified AND
+        repeated before it is allowed to characterize the system. Most-recurring
+        first; a pending/superseded or one-off lesson is excluded (fail-closed).
+        """
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT lesson_text, error_type, occurrence_count FROM mistake_pool "
+                "WHERE verification_status = 'verified' AND occurrence_count > 1 "
+                "ORDER BY occurrence_count DESC, id DESC LIMIT ?",
+                (max(int(limit), 1),),
+            ).fetchall()
+        return [
+            {
+                "lesson_text": str(row["lesson_text"]),
+                "error_type": str(row["error_type"]),
+                "occurrence_count": int(row["occurrence_count"]),
+            }
+            for row in rows
+        ]
+
     def record(
         self,
         task_id: str,

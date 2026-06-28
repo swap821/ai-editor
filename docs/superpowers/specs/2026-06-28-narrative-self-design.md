@@ -91,3 +91,18 @@ taxonomy, per-model self-traits, persistence/decay of the self-model.
 ## Rollout
 Opt-in, no migration. With the flag on, a grounded self-model paragraph joins the
 recalled context when (and only when) there is qualifying verified evidence.
+
+## Adversarial review — CLEAN
+
+A focused adversarial skeptic (6 angles, code-read + live probes) returned
+**INVARIANT HOLDS — CLEAN**. Verified: no grounded-only bypass (`task_profile`
+filters `verified_*` only; weak greens are downgraded to `unverified` upstream and
+excluded; `recurring()` requires verified + occurrence>1, and `promote` is itself
+floor-gated); the `min_attempts` gate fires before classification, bands are
+disjoint (strength XOR soft_spot), mid-rate yields neither, rounding only affects
+display not classification; fail-open is impossible (`render` empty → `""`,
+`_recall_self_model` → `None` on empty/exception, advisory); no injection/leak — the
+`subject` is the FIXED router task vocabulary (`coding/reasoning/general/fast`, never
+raw user text) and `lesson_text` is `scan_and_redact`-scrubbed at every write, output
+capped at `max_traits`; default-off (the sole caller is behind the flag) and the
+denominator is never zero. No fixes required.

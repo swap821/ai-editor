@@ -99,6 +99,8 @@ from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
+from aios.memory.mistake import MistakeMemory
+from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.memory.embeddings import VectorIndex
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
@@ -2394,6 +2396,23 @@ def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Op
 
 
 
+def _recall_self_model(
+    development: DevelopmentTracker, mistakes: MistakeMemory
+) -> Optional[str]:
+    """Synthesize the grounded, verified-only autobiographical self-model paragraph.
+
+    Deterministic and fail-closed: with too little verified evidence the model is
+    empty and nothing is injected (the organism never invents a self). Advisory —
+    a failure degrades to ``None`` and never blocks the turn.
+    """
+    try:
+        text = render_self_model(synthesize_self_model(development, mistakes))
+    except Exception as exc:  # noqa: BLE001 - the self-model is advisory recall
+        logger.warning("Failed to synthesize self-model", exc_info=exc)
+        return None
+    return text or None
+
+
 def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
     """Recall relevant semantic facts (+ single-hop neighbors) for the forge.
 
@@ -2892,6 +2911,24 @@ def generate(
                     "id": "fact-recall",
                 },
             )
+
+        # Narrative self (opt-in): a grounded, verified-only autobiographical
+        # self-model joins the recalled context — the organism reasoning with an
+        # honest sense of what it's actually reliable at. Fail-closed: empty when
+        # there's too little verified evidence.
+        if config.NARRATIVE_SELF_ENABLED:
+            self_model_block = _recall_self_model(development, MistakeMemory())
+            if self_model_block:
+                context_parts.append(self_model_block)
+                yield _sse(
+                    "step",
+                    {
+                        "type": "tool_result",
+                        "tool": "self_model",
+                        "output": self_model_block[:400],
+                        "id": "self-model-recall",
+                    },
+                )
 
         memory_context = "\n\n".join(context_parts) or None
 
