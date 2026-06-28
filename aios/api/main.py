@@ -25,7 +25,6 @@ import json
 import re
 import secrets
 import sqlite3
-import sys
 import threading
 import time
 import uuid
@@ -54,7 +53,6 @@ from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
 from aios.core.executor import (
     Executor,
-    _bounded_run,
     approved_runner_from_config,
     validate_approved_execution_backend,
 )
@@ -157,7 +155,9 @@ async def lifespan(app: FastAPI):
             )
         if len(config.API_TOKEN) < 32:
             raise RuntimeError("AIOS_API_TOKEN must be at least 32 characters for non-loopback use")
-    validate_approved_execution_backend()
+    backend_warning = validate_approved_execution_backend()
+    if backend_warning:
+        logger.warning("approved_execution_backend", detail=backend_warning)
     init_memory_db()
     init_audit_db()
     # Opt-in second injection layer: install the vector blocklist when enabled.
@@ -547,25 +547,29 @@ def get_self_apply_engine(
         using that cwd would look for ``training_ground/tests`` and roll back good
         proposals. The command still passes through the same Executor gateway and
         audit path before this runner is invoked.
+
+        Phase 2 — self-apply is CONTAINER-ONLY. It is the single path by which an
+        approved proposal reaches real ``aios/`` source, so it must never verify (and
+        thus never apply) on the bare host. In host mode (``isolated_runner is None``)
+        it REFUSES; the proposal is rolled back. The verify suite runs INSIDE the
+        container with a container-appropriate interpreter (the host ``.venv`` path
+        in ``DEFAULT_VERIFY_COMMAND`` does not exist in the image), with the real
+        project root bind-mounted so it tests the proposed change.
         """
         if command != DEFAULT_VERIFY_COMMAND:
             raise ValueError("self-apply verifier accepts only the fixed project test command")
-        if isolated_runner is not None:
-            return isolated_runner(
-                command,
-                cwd=str(config.PROJECT_ROOT),
-                env=env,
-                timeout_s=timeout_s,
+        if isolated_runner is None:
+            raise RuntimeError(
+                "self-apply requires the container execution boundary; host mode "
+                "refuses (set AIOS_APPROVED_EXECUTION_BACKEND=container and start the "
+                "container runtime to apply proposals)"
             )
-        completed = _bounded_run(
-            [sys.executable, "-m", "pytest", "tests/", "-q"],
+        return isolated_runner(
+            "python -m pytest tests/ -q",
             cwd=str(config.PROJECT_ROOT),
             env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
+            timeout_s=timeout_s,
         )
-        return completed.stdout or "", completed.stderr or "", completed.returncode
 
     verify_executor = Executor(
         runner=project_root_runner,

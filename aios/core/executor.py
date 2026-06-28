@@ -307,13 +307,35 @@ def approved_runner_from_config() -> Optional[Runner]:
     )
 
 
-def validate_approved_execution_backend() -> None:
-    """Validate an explicitly selected isolated backend during API startup."""
+def validate_approved_execution_backend() -> Optional[str]:
+    """Announce/validate the approved-exec backend at startup; return a warning to log.
+
+    Degrade, don't brick (Phase 2): a *configured-but-unavailable* container backend
+    does NOT abort startup — it returns a warning, and the approved-arbitrary-exec
+    and self-apply paths fail closed at call time instead. Host mode returns a loud
+    development-only warning. Only an UNKNOWN backend value (real misconfiguration)
+    still raises. Returns ``None`` when the container backend is ready and silent.
+    """
     runner = approved_runner_from_config()
     if isinstance(runner, DockerRunner):
-        runner.ensure_available()
-    elif isinstance(runner, UnavailableIsolationRunner):
+        try:
+            runner.ensure_available()
+        except RuntimeError as exc:
+            return (
+                f"container execution backend unavailable ({exc}); approved arbitrary "
+                "execution and self-apply will FAIL CLOSED until the container is "
+                "available. Set AIOS_APPROVED_EXECUTION_BACKEND=host to run on the host "
+                "instead (development only)."
+            )
+        return None
+    if isinstance(runner, UnavailableIsolationRunner):
         raise RuntimeError(runner.reason)
+    # Host mode (runner is None): a conscious, loud opt-out.
+    return (
+        "host execution backend selected: approved commands run as the backend OS "
+        "user — DEVELOPMENT ONLY, not an OS/container isolation boundary. Set "
+        "AIOS_APPROVED_EXECUTION_BACKEND=container (the supported path) to isolate."
+    )
 
 
 def _sanitise_env() -> dict[str, str]:

@@ -167,10 +167,21 @@ Experience -> outcome evaluation -> candidate lesson/fact/skill
   retained prefix, preventing unbounded response-memory growth.
 - Live Preview runs in a script-only sandbox with a restrictive CSP and no CDN
   or network egress.
-- Default `host` execution is scope locking, not OS isolation. Set
-  `AIOS_APPROVED_EXECUTION_BACKEND=container` after building `Dockerfile.executor`
-  to run approved arbitrary-code commands in a fail-closed, no-network,
-  read-only-root Docker container with a single scoped read-write mount.
+- The **container is the default** execution backend for approved arbitrary-code
+  commands and self-apply: a fail-closed, no-network, read-only-root Docker
+  container (`--cap-drop ALL`, `no-new-privileges`, non-root `65534`, pids/mem/cpu
+  caps, `noexec` tmpfs) with a single scoped read-write mount. Build the image once:
+  `docker build -f Dockerfile.executor -t aios-executor:local .`. If the container
+  is unavailable the app still boots (degrade, don't brick) and approved-exec +
+  self-apply fail closed — with a startup warning — until it is. Self-apply runs
+  **only** through the container boundary. `AIOS_APPROVED_EXECUTION_BACKEND=host` is
+  a loud, **development-only** opt-out — scope locking, NOT an OS isolation boundary
+  (approved commands run as the backend OS user, and self-apply refuses).
+  - The container default governs the **Executor** (approved-arbitrary exec +
+    self-apply). The opt-in Council **worker** subprocess (`aios/runtime/`, off
+    unless `AIOS_COUNCIL_ORIGINATION`/`AIOS_WORKER_REASONING` is set) runs its
+    contract verification commands host-side and is not yet governed by this
+    setting — containerizing it is tracked as Phase 2b.
 - Unauthenticated API requests are accepted only from loopback. Non-loopback API
   deployment requires a random `AIOS_API_TOKEN` of at least 32 characters;
   configure the same value as

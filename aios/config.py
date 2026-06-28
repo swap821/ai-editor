@@ -204,8 +204,12 @@ SCOPE_ROOTS: Final[tuple[Path, ...]] = _env_scope_roots(
 )
 
 VERIFY_RUNNER: Final[str] = _env_str("AIOS_VERIFY_RUNNER", "python -m pytest")
+# Phase 2 (execution boundary): the container is the supported default for running
+# arbitrary approved code. Host mode is a loud, explicit opt-out ("development
+# only") — it runs approved commands as the backend OS user, NOT an isolation
+# boundary. See aios/core/executor.py and the Phase 2 spec.
 APPROVED_EXECUTION_BACKEND: Final[str] = _env_str(
-    "AIOS_APPROVED_EXECUTION_BACKEND", "host"
+    "AIOS_APPROVED_EXECUTION_BACKEND", "container"
 ).strip().lower()
 CONTAINER_RUNTIME: Final[str] = _env_str("AIOS_CONTAINER_RUNTIME", "docker")
 CONTAINER_IMAGE: Final[str] = _env_str("AIOS_CONTAINER_IMAGE", "aios-executor:local")

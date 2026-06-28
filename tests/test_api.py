@@ -6,7 +6,6 @@ Ollama, spawns a shell, or touches the real sandbox/ledger.
 from __future__ import annotations
 
 import json
-import sys
 from types import SimpleNamespace
 from typing import Iterator, Optional
 
@@ -1359,27 +1358,46 @@ def test_rollback_endpoint_maps_error_to_500(client: TestClient) -> None:
     assert response.status_code == 500
 
 
-def test_self_apply_verifier_runs_fixed_suite_from_project_root(monkeypatch) -> None:
-    calls: list[dict] = []
+def test_self_apply_verifier_runs_through_container_from_project_root(monkeypatch) -> None:
+    # Phase 2: self-apply verifies through the container boundary, mounting the real
+    # project root, using a container-appropriate interpreter (not the host venv).
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    docker_argv: list[list[str]] = []
 
-    def fake_run(args, **kwargs):
-        calls.append({"args": args, **kwargs})
+    def fake_docker_spawn(argv, **kwargs):
+        docker_argv.append(argv)
         return SimpleNamespace(stdout="1 passed", stderr="", returncode=0)
 
-    monkeypatch.setattr("aios.api.main._bounded_run", fake_run)
+    monkeypatch.setattr("aios.core.executor._bounded_run", fake_docker_spawn)
     engine = get_self_apply_engine(_fake_executor())
 
     result = engine.verifier.verify(DEFAULT_VERIFY_COMMAND, approved=True)
 
     assert result.passed is True
-    assert calls[0]["args"] == [sys.executable, "-m", "pytest", "tests/", "-q"]
-    assert calls[0]["cwd"] == str(config.PROJECT_ROOT)
-    assert "shell" not in calls[0]
+    assert docker_argv, "expected the verify suite to run through the container"
+    argv = docker_argv[0]
+    assert argv[:3] == ["docker", "run", "--rm"]
+    expected_src = str(config.PROJECT_ROOT.resolve())
+    assert any(f"src={expected_src}" in tok for tok in argv)  # project root mounted
+    assert argv[-5:] == ["python", "-m", "pytest", "tests/", "-q"]
+
+
+def test_self_apply_refuses_in_host_mode(monkeypatch) -> None:
+    # Self-apply is container-ONLY: in host mode it refuses, never running the real
+    # project suite (and thus never applying a proposal) on the bare host.
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "host")
+    engine = get_self_apply_engine(_fake_executor())
+
+    result = engine.verifier.verify(DEFAULT_VERIFY_COMMAND, approved=True)
+
+    assert result.passed is False
+    assert "container" in result.summary.lower()
 
 
 def test_self_apply_verifier_refuses_any_other_runner_command(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
     monkeypatch.setattr(
-        "aios.api.main._bounded_run",
+        "aios.core.executor._bounded_run",
         lambda *args, **kwargs: pytest.fail("unexpected subprocess"),
     )
     engine = get_self_apply_engine(_fake_executor())

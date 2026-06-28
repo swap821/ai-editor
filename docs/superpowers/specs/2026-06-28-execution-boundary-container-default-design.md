@@ -123,3 +123,28 @@ Default behavior changes: a fresh install now defaults to container. On a box
 without Docker the operator sees a loud warning and either starts Docker (+ builds
 the image) or sets `AIOS_APPROVED_EXECUTION_BACKEND=host`. Existing host-mode
 users who want the old behavior set the env var once. No data migration.
+
+## Adversarial review (Verifier-owned, 36 agents) — CLEAN
+
+The escape-attempt review returned `invariant_holds = true`, verdict CLEAN, zero
+confirmed in-scope findings. Verified on disk: (1) approved-arbitrary exec routes
+through the hardened `DockerRunner` (flags are hardcoded literals; approved argv
+lands after the image so it is in-container; H4 mount guard holds) or fails closed
+to `ERROR` — the `or self.runner` host fallback fires ONLY in explicit host mode;
+(2) degrade-don't-brick boots and only logs the warning; (3) self-apply raises in
+host mode (rolls back, never verifies on the host). No in-scope skeptic finding
+cleared the ≥2-real-AND-live-reachable bar.
+
+Follow-ups (non-blocking, NOT in this slice):
+- **Phase 2b — containerize the Council worker.** The opt-in worker subprocess
+  (`aios/runtime/`, `ControlledSubprocessBackend` → `subprocess.run`, default off)
+  runs contract verification commands host-side and does not consult
+  `APPROVED_EXECUTION_BACKEND`. Real but separate, pre-existing, and explicitly
+  de-scoped from Phase 2. Documented in the README so the "container by default"
+  claim is not over-read.
+- **Optional env hardening.** Strip `DOCKER_HOST`/`DOCKER_TLS_VERIFY`/
+  `DOCKER_CERT_PATH`/`DOCKER_CONTEXT` in `_sanitise_env` so ambient env cannot
+  redirect the docker client to a rogue daemon. Both finders marked the exploit
+  NOT live-reachable (needs control of the backend OS env, outside the
+  approved-command threat model); deferred because it can break legitimate
+  remote-daemon setups. Operator decision.

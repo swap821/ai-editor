@@ -11,6 +11,7 @@ import sys
 
 import pytest
 
+from aios import config
 from aios.core.executor import (
     DockerRunner,
     Executor,
@@ -248,15 +249,108 @@ def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
     assert kwargs["timeout"] == 9
 
 
-def test_docker_backend_validation_fails_when_image_is_unavailable(monkeypatch) -> None:
+def test_default_execution_backend_is_container() -> None:
+    # Phase 2: the supported default is the container. (Skipped only when the
+    # operator has explicitly overridden the backend in their environment / .env.)
+    if os.environ.get("AIOS_APPROVED_EXECUTION_BACKEND"):
+        pytest.skip("backend explicitly overridden in environment")
+    assert config.APPROVED_EXECUTION_BACKEND == "container"
+
+
+def test_container_backend_validation_degrades_when_image_is_unavailable(monkeypatch) -> None:
+    # Degrade, don't brick: a container backend with no available Docker/image must
+    # NOT raise at startup (that would brick the whole app); it returns a warning
+    # and the exec path fails closed at call time instead.
     monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
     monkeypatch.setattr(
         "aios.core.executor._bounded_run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, stdout="", stderr="missing"),
     )
 
-    with pytest.raises(RuntimeError, match="isolated execution unavailable: missing"):
+    warning = validate_approved_execution_backend()
+
+    assert warning is not None
+    assert "missing" in warning
+    assert "host" in warning.lower()  # tells the operator how to opt out
+
+
+def test_container_backend_validation_is_silent_when_available(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor._bounded_run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, stdout="ok", stderr=""),
+    )
+
+    assert validate_approved_execution_backend() is None
+
+
+def test_host_backend_validation_warns_development_only(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "host")
+
+    warning = validate_approved_execution_backend()
+
+    assert warning is not None
+    assert "development only" in warning.lower()
+    assert "isolation boundary" in warning.lower()
+
+
+def test_unknown_backend_validation_still_raises(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "unknown")
+
+    with pytest.raises(RuntimeError, match="unsupported AIOS_APPROVED_EXECUTION_BACKEND"):
         validate_approved_execution_backend()
+
+
+def test_container_default_routes_approved_command_through_container_not_host(monkeypatch) -> None:
+    # The escape boundary: with the container backend, an approved arbitrary command
+    # is dispatched through the locked-down DockerRunner and NEVER the host runner.
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    docker_argv: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        docker_argv.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("aios.core.executor._bounded_run", fake_run)
+    host = RecordingRunner()
+    executor = Executor(
+        runner=host,
+        approved_runner=approved_runner_from_config(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+    )
+
+    result = executor.execute_approved("pip install flask")
+
+    assert result.status == "OK"
+    assert host.calls == []  # the host runner is never touched under the container default
+    assert docker_argv and docker_argv[0][:3] == ["docker", "run", "--rm"]
+    argv = docker_argv[0]
+    assert ["--network", "none"] == argv[argv.index("--network"):argv.index("--network") + 2]
+    assert "--read-only" in argv and "--cap-drop" in argv
+
+
+def test_container_backend_fails_closed_when_runner_raises(monkeypatch) -> None:
+    # No silent host fallback: if the container cannot run, the approved-exec path
+    # returns ERROR rather than dropping to the host runner.
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("docker daemon unreachable")
+
+    monkeypatch.setattr("aios.core.executor._bounded_run", boom)
+    host = RecordingRunner()
+    executor = Executor(
+        runner=host,
+        approved_runner=approved_runner_from_config(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+    )
+
+    result = executor.execute_approved("pip install flask")
+
+    assert result.status == "ERROR"
+    assert host.calls == []  # fail closed, never the host
 
 
 def test_invalid_approved_execution_backend_fails_closed(monkeypatch) -> None:
