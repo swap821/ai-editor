@@ -393,6 +393,24 @@
   color: #fecaca;
 }
 
+.council-dashboard__caution {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 7px 9px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #fde68a;
+  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  border-radius: 7px;
+}
+
+.council-dashboard__caution svg {
+  flex: none;
+  margin-top: 1px;
+}
+
 .council-dashboard__empty {
   width: 100%;
   min-height: 58px;

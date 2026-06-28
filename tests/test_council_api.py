@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
 from aios.api.main import app, get_council_runtime_root
-from aios.runtime.contracts import KingReport, MissionContract, QueenVerdict, RunLedger
-from aios.runtime.king_report import KingReportStore
-from aios.runtime.run_ledger import RunLedgerStore
+from aios.runtime.contracts import (
+    KingReport,
+    MissionContract,
+    QueenVerdict,
+    RunLedger,
+    WorkerResult,
+)
+from aios.runtime.king_report import KingReportStore, build_king_report
+from aios.runtime.run_ledger import RunLedgerStore, build_run_ledger
 
 
 def _seed_mission(runtime_root: Path, mission_id: str = "mission-api-1") -> None:
@@ -72,6 +79,58 @@ def _seed_mission(runtime_root: Path, mission_id: str = "mission-api-1") -> None
     )
     RunLedgerStore(runtime_root).write(ledger)
     KingReportStore(runtime_root).write(report)
+
+
+def _seed_weak_mission(runtime_root: Path, mission_id: str = "mission-weak-1") -> None:
+    """A real WEAK-verified mission (echo, exit 0, no test runner) through the full
+    A1 chain, so the payload exercises strength derivation end to end."""
+    contract = MissionContract(
+        mission_id=mission_id,
+        goal="touch the login copy",
+        worker_type="deterministic_worker",
+        created_by="planner_queen",
+        workspace_root=str(runtime_root / "workspace"),
+        allowed_files=["frontend/src/pages/Login.jsx"],
+        verification_commands=["echo done"],
+        requires_approval=True,
+    )
+    result = WorkerResult(
+        mission_id=mission_id,
+        worker_id="worker-weak",
+        status="completed",
+        risk_after="YELLOW",
+        started_at="2026-06-28T00:00:00+00:00",
+        ended_at="2026-06-28T00:00:01+00:00",
+        files_touched=["frontend/src/pages/Login.jsx"],
+        evidence={"verification": [{"command": ["echo", "done"], "returncode": 0, "stdout": "done", "stderr": ""}]},
+    )
+    ledger = build_run_ledger(
+        contract=contract,
+        handle=SimpleNamespace(worker_id="worker-weak"),
+        result=result,
+        created_at="2026-06-28T00:00:00+00:00",
+    )
+    report = build_king_report(ledger=ledger, result=result)
+    RunLedgerStore(runtime_root).write(ledger)
+    KingReportStore(runtime_root).write(report)
+
+
+def test_council_missions_surfaces_weak_verification_strength(tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    _seed_weak_mission(runtime_root)
+    app.dependency_overrides[get_council_runtime_root] = lambda: runtime_root
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.get("/api/v1/council/missions")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    mission = response.json()["missions"][0]
+    assert mission["recommendation"] == "approve"
+    assert mission["verificationStrength"] == "WEAK"
+    assert mission["verificationMeetsFloor"] is False
+    assert mission["verificationBelowFloorWarning"]  # a caution is surfaced
 
 
 def test_council_missions_lists_stored_reports(tmp_path: Path) -> None:

@@ -124,6 +124,63 @@ describe('CouncilDashboard', () => {
     });
   });
 
+  it('renders verification strength and flags a weak below-floor approval', async () => {
+    const weakMission = {
+      missionId: 'mission-weak',
+      mission: 'Touch the login copy.',
+      status: 'completed',
+      recommendation: 'approve',
+      risk: 'YELLOW',
+      approvalNeeded: true,
+      verificationStrength: 'WEAK',
+      verificationMeetsFloor: false,
+      verificationBelowFloorWarning:
+        'verification strength WEAK is below the STRONG floor — review before approving',
+      pendingApprovals: [{ requestId: 'a-weak', action: 'write_file', reason: 'YELLOW write needs King decision' }],
+      kingDecision: null,
+    };
+    const weakDetail = {
+      missionId: 'mission-weak',
+      report: {
+        mission_id: 'mission-weak',
+        mission: 'Touch the login copy.',
+        status: 'completed',
+        recommendation: 'approve',
+        risk: 'YELLOW',
+        files: ['frontend/src/pages/Login.jsx'],
+        verification_result: {
+          commands: [{ command: ['echo', 'done'], returncode: 0 }],
+          strength: 'WEAK',
+          meets_floor: false,
+          below_floor_warning:
+            'verification strength WEAK is below the STRONG floor — review before approving',
+        },
+        approval_needed: true,
+        human_summary: '⚠ Weak verification (WEAK < STRONG floor). Worker completed the mission.',
+      },
+      ledger: { blocked_attempts: [], verification: { commands: [{ command: ['echo', 'done'], returncode: 0 }] } },
+      pendingApprovals: [{ requestId: 'a-weak', action: 'write_file', reason: 'YELLOW write needs King decision' }],
+      kingDecision: null,
+    };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/api/v1/council/missions/mission-weak')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(weakDetail) });
+      }
+      if (url.includes('/api/v1/council/missions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ missions: [weakMission], count: 1 }) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    });
+
+    render(<CouncilDashboard />);
+
+    // Strength rendered as anatomy (not a Passed/Failed cell).
+    expect(await screen.findByText('WEAK')).toBeInTheDocument();
+    // The caution is surfaced at the decision point.
+    const caution = await screen.findByRole('alert');
+    expect(caution).toHaveTextContent(/review before approving/i);
+  });
+
   it('originates a mission from the form', async () => {
     render(<CouncilDashboard />);
 

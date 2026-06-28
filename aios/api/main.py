@@ -1636,13 +1636,18 @@ def _council_summary_from_artifacts(
     ledger: RunLedger | None,
     updated_at: float,
 ) -> dict[str, Any]:
-    verification = report.verification_result
+    verification = report.verification_result if isinstance(report.verification_result, dict) else {}
     commands = []
-    if isinstance(verification, dict):
-        raw_commands = verification.get("commands", [])
-        if isinstance(raw_commands, list):
-            commands = raw_commands
+    raw_commands = verification.get("commands", [])
+    if isinstance(raw_commands, list):
+        commands = raw_commands
     return {
+        # The TYPED verification the King approves on (Slice A1/A2): strength, whether
+        # it meets the promotion floor, and the caution when a positive recommendation
+        # rests on below-floor evidence. None when no strength was recorded.
+        "verificationStrength": verification.get("strength"),
+        "verificationMeetsFloor": verification.get("meets_floor"),
+        "verificationBelowFloorWarning": verification.get("below_floor_warning"),
         "missionId": mission_id,
         "mission": report.mission,
         "status": report.status,

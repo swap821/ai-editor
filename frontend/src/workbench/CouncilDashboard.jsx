@@ -25,6 +25,26 @@ function riskTone(risk) {
   return 'ok';
 }
 
+// Verification strength rendered as anatomy, not a table cell (The One Law): a
+// strong verdict imprints brightly, a weak one is visibly faint, and a positive
+// recommendation resting on below-floor evidence carries a caution at the decision
+// point. Pure derive over either the detail report or the mission summary shape.
+const STRENGTH_TONE = { STRONG: 'ok', MEDIUM: 'warn', WEAK: 'danger', NONE: 'danger' };
+const STRENGTH_INTENSITY = { STRONG: 1, MEDIUM: 0.74, WEAK: 0.46, NONE: 0.3 };
+
+function deriveVerificationStrength(report, summary) {
+  const vr = (report && report.verification_result) || {};
+  const level = vr.strength ?? summary?.verificationStrength ?? null;
+  if (!level) return null; // no typed verification recorded (older mission)
+  return {
+    level,
+    tone: STRENGTH_TONE[level] || 'danger',
+    intensity: STRENGTH_INTENSITY[level] ?? 0.3,
+    meetsFloor: (vr.meets_floor ?? summary?.verificationMeetsFloor) === true,
+    warning: vr.below_floor_warning ?? summary?.verificationBelowFloorWarning ?? null,
+  };
+}
+
 async function fetchJson(path, signal) {
   const response = await fetch(`${API_BASE}${path}`, { signal, headers: API_HEADERS });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -149,6 +169,7 @@ export default function CouncilDashboard() {
   const approvalNeeded = report.approval_needed ?? selectedSummary?.approvalNeeded;
   const canDecide = Boolean(selectedSummary && !kingDecision && (pendingApproval || approvalNeeded));
   const risk = report.risk || selectedSummary?.risk || 'GREEN';
+  const verification = deriveVerificationStrength(report, selectedSummary);
 
   const submitDecision = useCallback(async (approved) => {
     if (!selectedSummary || !canDecide) return;
@@ -276,6 +297,11 @@ export default function CouncilDashboard() {
               {pendingApproval ? (
                 <p>{pendingApproval.action || 'approval'} · {pendingApproval.reason || 'No reason recorded'}</p>
               ) : null}
+              {verification?.warning ? (
+                <p className="council-dashboard__caution" role="alert">
+                  <AlertTriangle size={13} aria-hidden="true" /> {verification.warning}
+                </p>
+              ) : null}
               {decisionError ? <p className="council-dashboard__error">{decisionError}</p> : null}
               {canDecide ? (
                 <div className="council-dashboard__decision-actions">
@@ -327,11 +353,21 @@ export default function CouncilDashboard() {
               </div>
               <div>
                 <h3><ShieldCheck size={14} aria-hidden="true" /> Verify</h3>
-                <strong>
-                  {verificationCommands.length
-                    ? verificationCommands.every((cmd) => cmd.returncode === 0) ? 'Passed' : 'Failed'
-                    : 'None'}
-                </strong>
+                {verification ? (
+                  <strong
+                    className={`council-dashboard__badge is-${verification.tone}`}
+                    style={{ opacity: verification.intensity }}
+                    title={verification.warning || `Verification strength: ${verification.level}`}
+                  >
+                    {titleCase(verification.level)}
+                  </strong>
+                ) : (
+                  <strong>
+                    {verificationCommands.length
+                      ? verificationCommands.every((cmd) => cmd.returncode === 0) ? 'Passed' : 'Failed'
+                      : 'None'}
+                  </strong>
+                )}
               </div>
             </div>
 
