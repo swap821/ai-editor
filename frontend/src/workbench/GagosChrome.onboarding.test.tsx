@@ -58,6 +58,28 @@ describe('GagosChrome onboarding coach', () => {
     });
   });
 
+  it('leads with a "what is this" identity card on the very first run', async () => {
+    fetchOnboardingState.mockResolvedValue({
+      firstDirective: false,
+      firstApproval: false,
+      firstVerify: false,
+      firstCloudRoute: false,
+      firstAutonomy: false,
+    });
+
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    await waitFor(() => {
+      // "what is this" — the identity, the front door's missing half.
+      expect(
+        screen.getByText(/local-first AI that acts only with your approval/i),
+      ).toBeInTheDocument();
+    });
+    // ...alongside the safe first action.
+    expect(screen.getByText(/Type a goal and press Enter/i)).toBeInTheDocument();
+  });
+
   it('advances to the approval milestone card after firstDirective', async () => {
     fetchOnboardingState.mockResolvedValue({
       firstDirective: true,

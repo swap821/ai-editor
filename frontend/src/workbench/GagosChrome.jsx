@@ -93,7 +93,13 @@ function extractWork(answer) {
 /** A friendly slab filename from the request, e.g. "reverse-a-string.py". */
 function deriveCoachCards(state) {
   if (!state) return [];
-  if (!state.firstDirective) return ['Type a goal and press Enter.'];
+  // First run: lead with WHAT GAGOS IS (the front door's "what is this"), then the
+  // safe first action. The identity card drops once they've sent a directive.
+  if (!state.firstDirective)
+    return [
+      'GAGOS — a local-first AI that acts only with your approval.',
+      'Type a goal and press Enter.',
+    ];
   if (!state.firstApproval) return ['I pause for your approval on writes, commands, and fetches.'];
   if (!state.firstVerify) return ['Watch for the green verify badge when a tool passes.'];
   if (!state.firstCloudRoute) return ['Some subtasks burst to the cloud factory — see the spine flash.'];
