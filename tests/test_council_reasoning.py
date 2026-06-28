@@ -251,6 +251,40 @@ def test_memory_deterministic_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> 
     assert queen.review(_contract()).verdict == "allow"  # flag off ignores retriever
 
 
+def _ledger_with(commands: list[dict]) -> object:
+    from aios.runtime.contracts import RunLedger
+
+    return RunLedger(
+        mission_id="m1",
+        mission="goal",
+        risk_before="YELLOW",
+        risk_after="YELLOW",
+        contract=_contract(),
+        status="completed",
+        created_at="2026-06-28T00:00:00+00:00",
+        verification={"commands": commands},
+    )
+
+
+def test_testing_queen_stamps_strong_from_pytest_ledger() -> None:
+    from aios.council.queens.testing import TestingQueen
+
+    ledger = _ledger_with(
+        [{"command": ["python", "-m", "pytest"], "returncode": 0, "stdout": "3 passed"}]
+    )
+    verdict = TestingQueen().verify(contract=_contract(), ledger=ledger)
+    assert verdict.verdict == "allow"
+    assert verdict.metadata["verification_strength"] == "STRONG"
+
+
+def test_testing_queen_stamps_weak_for_non_test_command() -> None:
+    from aios.council.queens.testing import TestingQueen
+
+    ledger = _ledger_with([{"command": ["echo", "ok"], "returncode": 0, "stdout": "ok"}])
+    verdict = TestingQueen().verify(contract=_contract(), ledger=ledger)
+    assert verdict.metadata["verification_strength"] == "WEAK"
+
+
 def test_memory_retrieval_error_falls_back_to_allow(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
 

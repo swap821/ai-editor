@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from aios.core.verification_strength import (
+    VerificationStrength,
+    derive_strength,
+    parse_test_counts,
+)
 from aios.core.verifier import Verifier
 from aios.runtime.contracts import MissionContract, QueenVerdict, RunLedger
 
@@ -52,6 +57,7 @@ class TestingQueen:
                     "summary": result.summary,
                     "exit_code": result.exit_code,
                     "status": result.status,
+                    "strength": result.strength.name,
                 }
             )
         return self._verdict_from_results(results, mode="verifier")
@@ -75,16 +81,28 @@ class TestingQueen:
                 confidence=0.78,
                 metadata={"mode": "ledger", "verification": []},
             )
-        results = [
-            {
-                "command": item.get("command"),
-                "passed": item.get("returncode") == 0,
-                "summary": (item.get("stdout") or item.get("stderr") or "")[-500:],
-                "exit_code": item.get("returncode"),
-                "status": "OK",
-            }
-            for item in commands
-        ]
+        results = []
+        for item in commands:
+            command = item.get("command")
+            command_str = " ".join(command) if isinstance(command, list) else str(command)
+            output = (item.get("stdout") or "") + (item.get("stderr") or "")
+            passed = item.get("returncode") == 0
+            passed_count, failed_count = parse_test_counts(output)
+            results.append(
+                {
+                    "command": command,
+                    "passed": passed,
+                    "summary": output[-500:],
+                    "exit_code": item.get("returncode"),
+                    "status": "OK",
+                    "strength": derive_strength(
+                        passed=passed,
+                        passed_count=passed_count,
+                        failed_count=failed_count,
+                        command=command_str,
+                    ).name,
+                }
+            )
         return self._verdict_from_results(results, mode="ledger")
 
     def _verdict_from_results(
@@ -93,6 +111,12 @@ class TestingQueen:
         *,
         mode: str,
     ) -> QueenVerdict:
+        # Aggregate strength = the weakest verification in the set (a chain is only
+        # as strong as its weakest link); NONE when there is nothing to certify.
+        strengths = [
+            VerificationStrength[r["strength"]] for r in results if r.get("strength")
+        ]
+        aggregate = (min(strengths) if strengths else VerificationStrength.NONE).name
         if not results:
             return QueenVerdict(
                 queen=self.name,
@@ -101,7 +125,7 @@ class TestingQueen:
                 reason="Testing Queen found no verification results.",
                 constraints=["Run at least one verification command."],
                 confidence=0.75,
-                metadata={"mode": mode, "verification": results},
+                metadata={"mode": mode, "verification": results, "verification_strength": aggregate},
             )
         failed = [result for result in results if not result["passed"]]
         if failed:
@@ -112,7 +136,7 @@ class TestingQueen:
                 reason=f"{len(failed)} verification command(s) failed.",
                 constraints=["Revise the mission before King approval."],
                 confidence=0.92,
-                metadata={"mode": mode, "verification": results},
+                metadata={"mode": mode, "verification": results, "verification_strength": aggregate},
             )
         return QueenVerdict(
             queen=self.name,
@@ -121,7 +145,7 @@ class TestingQueen:
             reason=f"{len(results)} verification command(s) passed.",
             constraints=[],
             confidence=0.9,
-            metadata={"mode": mode, "verification": results},
+            metadata={"mode": mode, "verification": results, "verification_strength": aggregate},
         )
 
 

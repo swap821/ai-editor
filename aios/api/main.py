@@ -114,6 +114,7 @@ from aios.runtime.run_ledger import RunLedgerStore
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
+from aios.core.verification_strength import strength_from_text
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import RateLimiter, Zone, classify
 from aios.security.secret_scanner import scan_and_redact
@@ -2986,8 +2987,15 @@ def generate(
             direct_id: Optional[int] = None
             if workflow_steps:
                 try:
+                    # Gate promotion on verification strength (roadmap Phase 1): the
+                    # strength token is stamped into the [VERIFY ...] evidence by the
+                    # Verifier (command-aware), so a weak green cannot mint a
+                    # verified skill. On a fail, success=False makes strength moot.
                     direct_id = skills.record_attempt(
-                        user_text, workflow_steps, success=passed
+                        user_text,
+                        workflow_steps,
+                        success=passed,
+                        strength=strength_from_text(evidence),
                     )
                 except Exception as exc:  # noqa: BLE001 - skill learning is best-effort
                     logger.warning("Failed to record skill attempt", exc_info=exc)

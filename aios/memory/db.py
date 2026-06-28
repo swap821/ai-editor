@@ -179,6 +179,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "reuse_failure_count": "INTEGER NOT NULL DEFAULT 0",
         "last_reused_at": "DATETIME",
         "superseded_by": "INTEGER",
+        # Verification-strength taxonomy (roadmap Phase 1): weak greens are
+        # recorded but ineligible to promote; the latest success's strength is kept.
+        "weak_success_count": "INTEGER NOT NULL DEFAULT 0",
+        "verification_strength": "TEXT",
     }
     for name, ddl in skill_additions.items():
         if skill_cols and name not in skill_cols:

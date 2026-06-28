@@ -1514,7 +1514,7 @@ class RecordingSkills:
     def relevant_verified(self, query, limit=3):
         return []
 
-    def record_attempt(self, goal, steps, *, success):
+    def record_attempt(self, goal, steps, *, success, strength=None):
         self.attempts.append((goal, steps, success))
         return 1
 
@@ -1716,7 +1716,7 @@ class ReuseRecordingSkills:
             },
         ]
 
-    def record_attempt(self, goal, steps, *, success):
+    def record_attempt(self, goal, steps, *, success, strength=None):
         self.attempts.append((goal, steps, success))
         return 1  # same id as the first recalled trail: the re-walked arc
 

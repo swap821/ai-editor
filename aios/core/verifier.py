@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from aios.core.executor import Executor
+from aios.core.verification_strength import VerificationStrength, derive_strength
 
 #: Reflection hook: ``(command, error_output) -> optional lesson summary``. The
 #: same shape the agentic loop uses, so the verifier can drive reflection too.
@@ -40,6 +41,7 @@ class VerifierResult:
     failed_count: int = 0
     exit_code: Optional[int] = None
     status: str = "OK"  # the underlying ExecutionResult.status
+    strength: VerificationStrength = VerificationStrength.NONE  # evidence strength
 
 
 def _parse_counts(output: str) -> tuple[int, int]:
@@ -109,6 +111,12 @@ class Verifier:
                 failed_count=failed_count,
                 exit_code=result.exit_code,
                 status="OK",
+                strength=derive_strength(
+                    passed=True,
+                    passed_count=passed_count,
+                    failed_count=failed_count,
+                    command=command,
+                ),
             )
 
         # Ran, but failed: bounded negative delta, scaled mildly by failure count.

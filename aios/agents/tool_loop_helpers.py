@@ -187,7 +187,7 @@ def format_verifier_result(result: VerifierResult) -> tuple[str, str, bool]:
     exit_str = "?" if result.exit_code is None else str(result.exit_code)
     header = (
         f"[VERIFY {verdict}] {result.passed_count} passed, "
-        f"{result.failed_count} failed (exit {exit_str})"
+        f"{result.failed_count} failed (exit {exit_str}) (strength={result.strength.name})"
     )
     body = result.summary.strip()
     output = f"{header}\n{body}" if body else header

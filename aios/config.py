@@ -118,6 +118,9 @@ COUNCIL_STATE_DB: Final[Path] = COUNCIL_RUNTIME_DIR / "council_state.db"
 # Off by default → Queens stay deterministic (matches the gated, opt-in pattern
 # used for AIOS_EARNED_AUTONOMY / AIOS_SWARM_*; keeps CI deterministic).
 COUNCIL_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_REASONING", False)
+# Minimum verification strength eligible to calibrate the future (skills/patterns/
+# confidence). STRONG = only behavior-asserting test suites; a weak green can't imprint.
+VERIFICATION_PROMOTION_FLOOR: Final[str] = _env_str("AIOS_VERIFICATION_PROMOTION_FLOOR", "STRONG")
 # Phase 3 "real worker": opt-in LLM-driven worker that generates+applies the edit
 # and self-corrects. Off by default → the deterministic heartbeat worker (CI-safe).
 WORKER_REASONING: Final[bool] = _env_bool("AIOS_WORKER_REASONING", False)
@@ -298,7 +301,8 @@ def startup_banner() -> dict[str, object]:
 __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
     "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
-    "COUNCIL_STATE_DB", "COUNCIL_REASONING", "WORKER_REASONING", "WORKER_MAX_REPAIRS",
+    "COUNCIL_STATE_DB", "COUNCIL_REASONING", "VERIFICATION_PROMOTION_FLOOR",
+    "WORKER_REASONING", "WORKER_MAX_REPAIRS",
     "WORKER_MAX_FILE_BYTES", "COUNCIL_ORIGINATION", "COUNCIL_WORKSPACE_ROOT",
     "COUNCIL_MAX_CONCURRENT_WORKERS",
     "EMBEDDING_MODEL", "EMBEDDING_DIM",

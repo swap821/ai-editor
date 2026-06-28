@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 from aios import config
+from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, skill_signature_v2, tokens
 from aios.security.secret_scanner import scan_and_redact
@@ -64,7 +65,14 @@ class SkillMemory:
         workflow = "|".join(step.strip().lower() for step in steps if step.strip())
         return hashlib.sha256(f"{goal_tokens}|{workflow}".encode("utf-8")).hexdigest()
 
-    def record_attempt(self, goal: str, steps: list[str], *, success: bool) -> int:
+    def record_attempt(
+        self,
+        goal: str,
+        steps: list[str],
+        *,
+        success: bool,
+        strength: VerificationStrength = VerificationStrength.STRONG,
+    ) -> int:
         """Record one verification-backed attempt and recalculate trust status.
 
         Trail identity is the arc-level ``signature_v2`` (goal tokens + tool
@@ -72,11 +80,20 @@ class SkillMemory:
         workflow with redaction noise in a filepath argument — reinforce ONE
         trail instead of fragmenting. The exact legacy ``signature`` is still
         stored on insert as lineage.
+
+        *strength* is the verification-strength that produced *success*. Only a
+        success at or above the promotion floor (default STRONG) increments the
+        promotion-eligible ``success_count``; a below-floor success is recorded in
+        ``weak_success_count`` but can never make a skill ``verified`` — a weak
+        green is remembered, but it cannot calibrate the future. Defaults to STRONG
+        so callers that do not yet pass strength keep their existing behavior.
         """
         clean_steps = [scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()]
         goal = scan_and_redact(goal.strip()).scrubbed
         if not goal or not clean_steps:
             raise ValueError("skill attempt requires a goal and workflow steps")
+        eligible = success and meets_promotion_floor(strength)
+        weak = success and not eligible
         sig = self._signature(goal, clean_steps)
         sig_v2 = skill_signature_v2(goal, clean_steps)
         steps_json = json.dumps(clean_steps, separators=(",", ":"))
@@ -84,7 +101,7 @@ class SkillMemory:
         with get_connection(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                "SELECT id, success_count, failure_count, steps_json "
+                "SELECT id, success_count, failure_count, weak_success_count, steps_json "
                 "FROM procedural_skills "
                 "WHERE signature_v2 = ? AND status != 'superseded'",
                 (sig_v2,),
@@ -93,27 +110,36 @@ class SkillMemory:
                 cur = conn.execute(
                     "INSERT INTO procedural_skills "
                     "(signature, signature_v2, goal_pattern, steps_json, "
-                    "success_count, failure_count) VALUES (?, ?, ?, ?, ?, ?)",
+                    "success_count, failure_count, weak_success_count, "
+                    "verification_strength) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         sig,
                         sig_v2,
                         goal,
                         steps_json,
-                        1 if success else 0,
+                        1 if eligible else 0,
                         0 if success else 1,
+                        1 if weak else 0,
+                        strength.name if success else None,
                     ),
                 )
                 skill_id = int(cur.lastrowid)
-                successes, failures = (1, 0) if success else (0, 1)
+                successes, failures = (1 if eligible else 0), (0 if success else 1)
             else:
                 skill_id = int(row["id"])
-                successes = int(row["success_count"]) + (1 if success else 0)
+                successes = int(row["success_count"]) + (1 if eligible else 0)
                 failures = int(row["failure_count"]) + (0 if success else 1)
+                weak_total = int(row["weak_success_count"] or 0) + (1 if weak else 0)
                 conn.execute(
                     "UPDATE procedural_skills SET success_count = ?, failure_count = ?, "
-                    "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (successes, failures, skill_id),
+                    "weak_success_count = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (successes, failures, weak_total, skill_id),
                 )
+                if success:
+                    conn.execute(
+                        "UPDATE procedural_skills SET verification_strength = ? WHERE id = ?",
+                        (strength.name, skill_id),
+                    )
                 # Recipe-quality refresh only (counts are never rewritten): a
                 # successful walk whose steps carry fewer redaction artifacts
                 # replaces the stored recipe, because recalled steps are

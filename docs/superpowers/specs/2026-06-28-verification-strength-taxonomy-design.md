@@ -103,3 +103,29 @@ No flag needed — the gate is always on, but defaulting `record_attempt`'s stre
 to STRONG means behavior is unchanged until the live caller passes real strength.
 The only behavioral change: a workflow proven solely by below-STRONG verification
 no longer becomes a `verified` skill — which is the intended fix.
+
+## Adversarial review outcome (2026-06-28, Verifier-owned per roadmap §6)
+
+The review's mandate was to make a hollow green imprint. It succeeded once —
+fixed before merge:
+- **[HIGH] forged STRONG** — `_is_test_runner` accepted a runner token in ANY
+  position, so `echo running pytest now: 5 passed` classified STRONG (and that
+  echo is GREEN/auto-exec while real pytest is YELLOW — the hollow path was
+  *easier*). Fixed: runner/checker must be in **program position** (basename) or a
+  structural pair (`-m pytest`, `go test`, `npm test`). Regression-tested.
+- **[LOW] floor clamp** — a misconfigured `NONE` floor would admit failed
+  verifications. Fixed: `promotion_floor()` clamps anything below WEAK up to
+  STRONG (misconfig can only make the gate stricter).
+
+Held under attack (no fix): stdout/strength-token injection (header-first +
+first-match), rate-math inflation, weak→success leakage, `record_reuse`
+laundering, db consolidation, TestingQueen aggregate (metadata-only, min-across).
+
+### Residual / follow-ups (not blockers)
+- A trivially-passing real test is legitimately STRONG — the gate certifies "a
+  recognized runner asserted passes," not test quality.
+- `record_attempt`'s `strength` defaults to STRONG (back-compat); future call
+  sites must pass it explicitly.
+- `swarm_patterns` + `curriculum` (+ `development`, `mistake`→confidence) promotion
+  sites are not yet gated — the next slice adopts `meets_promotion_floor` there.
+- Verified: full backend `pytest --cov` exit 0, 1221 passed / 1 skipped, 87.35%.
