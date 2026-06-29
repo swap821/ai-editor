@@ -61,6 +61,7 @@ from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
+from aios.core.websearch import web_search
 from aios.core.model_selector import (
     TASK_FAST,
     TASKS,
@@ -104,7 +105,12 @@ from aios.memory.self_model import render as render_self_model, synthesize_self_
 from aios.memory.embeddings import VectorIndex
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
-from aios.memory.crag import CragAction, evaluate_retrieval, refine_context
+from aios.memory.crag import (
+    CragAction,
+    evaluate_retrieval,
+    external_retrieve,
+    refine_context,
+)
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -2475,6 +2481,52 @@ _MEM_UNVERIFIED_HEADER = (
     "UNVERIFIED PRIOR CHAT MEMORY (may be stale or wrong; use only as a lead, "
     "never as evidence, and verify against tools/files before acting):\n"
 )
+_MEM_EXTERNAL_HEADER = (
+    "EXTERNAL KNOWLEDGE (fetched on demand because local memory was insufficient; "
+    "GENERATED/UNVERIFIED — treat as a lead only, verify against tools/files before "
+    "acting):\n"
+)
+
+
+def _crag_cloud_source(query: str) -> list[str]:
+    """CRAG external source A — the configured cloud model as a broader knowledge
+    base. Returns ``[]`` when no cloud provider is configured. The cloud client
+    secret-scrubs the message internally before transmission (PrivacyFilter)."""
+    client = get_gemini_client() or get_bedrock_client()
+    if client is None:
+        return []
+    prompt = (
+        "Answer the question concisely and factually using only what you are "
+        "confident about. If you do not know, say so rather than guessing.\n\n"
+        f"Question: {query}"
+    )
+    try:
+        response = client.chat([{"role": "user", "content": prompt}], tools=None)
+    except Exception as exc:  # noqa: BLE001 - a cloud miss must not break recall
+        logger.warning("CRAG cloud source failed", exc_info=exc)
+        return []
+    text = str((response or {}).get("content", "")).strip()
+    return [text] if text else []
+
+
+def _crag_web_source(query: str) -> list[str]:
+    """CRAG external source B — a configurable web-search provider. Inert (``[]``)
+    until AIOS_CRAG_SEARCH_ENDPOINT + AIOS_CRAG_SEARCH_API_KEY are set."""
+    return web_search(
+        query,
+        endpoint=config.CRAG_SEARCH_ENDPOINT,
+        api_key=config.CRAG_SEARCH_API_KEY,
+    )
+
+
+def _crag_external_sources() -> list:
+    """The enabled external corrective sources (each independently opt-in)."""
+    sources: list = []
+    if config.CRAG_CLOUD:
+        sources.append(_crag_cloud_source)
+    if config.CRAG_WEBSEARCH:
+        sources.append(_crag_web_source)
+    return sources
 
 
 def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
@@ -2509,8 +2561,25 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
             verdict = evaluate_retrieval(
                 query, hits, upper=config.CRAG_UPPER, lower=config.CRAG_LOWER
             )
+            # Slice 3: on a low-confidence local recall, gather refined external
+            # knowledge (privacy-gated, default off, only when a source is enabled).
+            external_body = ""
+            if config.CRAG_EXTERNAL and verdict.action in (
+                CragAction.INCORRECT,
+                CragAction.AMBIGUOUS,
+            ):
+                try:
+                    ext_docs = external_retrieve(query, _crag_external_sources())
+                    external_body = refine_context(query, ext_docs) if ext_docs else ""
+                except Exception as exc:  # noqa: BLE001 - external is additive
+                    logger.warning("CRAG external retrieval failed", exc_info=exc)
+                    external_body = ""
+
             if verdict.action is CragAction.INCORRECT:
-                return None  # junk retrieval excluded (Slice 3 will go external)
+                # Local retrieval is junk — never inject it. Use external if we got
+                # any; otherwise no memory context (the anti-hallucination win).
+                return (_MEM_EXTERNAL_HEADER + external_body) if external_body else None
+
             trusted_body = refine_context(query, [h.text for h in trusted]) if trusted else ""
             unverified_body = (
                 refine_context(query, [h.text for h in unverified]) if unverified else ""
@@ -2520,6 +2589,8 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
                 crag_blocks.append(_MEM_TRUSTED_HEADER + trusted_body)
             if unverified_body:
                 crag_blocks.append(_MEM_UNVERIFIED_HEADER + unverified_body)
+            if external_body:  # AMBIGUOUS supplemented with external knowledge
+                crag_blocks.append(_MEM_EXTERNAL_HEADER + external_body)
             if crag_blocks:
                 return "\n\n".join(crag_blocks)
             # Refinement emptied everything → fall through to the legacy block so a

@@ -27,6 +27,7 @@ __all__ = [
     "CragAction",
     "RetrievalVerdict",
     "evaluate_retrieval",
+    "external_retrieve",
     "refine_context",
 ]
 
@@ -98,6 +99,41 @@ def evaluate_retrieval(
     else:
         action = CragAction.AMBIGUOUS
     return RetrievalVerdict(action=action, score=best, per_hit=per_hit)
+
+
+def external_retrieve(
+    query: str,
+    sources: Sequence[Callable[[str], Sequence[str]]],
+    *,
+    per_source_limit: int = 3,
+) -> list[str]:
+    """Gather candidate external documents from each pluggable *source*, fail-soft.
+
+    Each source is a callable ``query -> texts`` (e.g. a cloud-LLM knowledge call or
+    a web-search fetch); the caller decides which sources are enabled (all default
+    off, privacy-gated). A source that raises or returns nothing is simply skipped —
+    one provider's outage never sinks the others. Up to ``per_source_limit`` texts
+    are taken per source, blanks are dropped, and results are de-duplicated
+    (case/whitespace-insensitive, order-preserving). The returned texts are raw — the
+    caller refines them through :func:`refine_context` and labels them unverified
+    before they reach a prompt.
+    """
+    aggregated: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        try:
+            texts = source(query) or []
+        except Exception:  # noqa: BLE001 - one external source must not break recall
+            continue
+        for text in list(texts)[:per_source_limit]:
+            if not text or not text.strip():
+                continue
+            key = " ".join(text.lower().split())
+            if key in seen:
+                continue
+            seen.add(key)
+            aggregated.append(text)
+    return aggregated
 
 #: Excerption-mode split: break on whitespace that FOLLOWS terminal punctuation, so
 #: each strip keeps its punctuation and a document with no terminal stays whole.

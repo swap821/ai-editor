@@ -292,6 +292,16 @@ ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
 CRAG: Final[bool] = _env_bool("AIOS_CRAG", False)
 CRAG_UPPER: Final[float] = _env_float("AIOS_CRAG_UPPER", 0.6)
 CRAG_LOWER: Final[float] = _env_float("AIOS_CRAG_LOWER", 0.2)
+# Slice 3 — external corrective retrieval on a low-confidence (INCORRECT/AMBIGUOUS)
+# local recall. Privacy-gated + default off; each source is independently opt-in and
+# inert until its provider is configured. CRAG_CLOUD = the configured cloud model as
+# a broader knowledge source (privacy-filtered inside the client). CRAG_WEBSEARCH =
+# a real web-search provider (Slice 3b; needs a key).
+CRAG_EXTERNAL: Final[bool] = _env_bool("AIOS_CRAG_EXTERNAL", False)
+CRAG_CLOUD: Final[bool] = _env_bool("AIOS_CRAG_CLOUD", False)
+CRAG_WEBSEARCH: Final[bool] = _env_bool("AIOS_CRAG_WEBSEARCH", False)
+CRAG_SEARCH_ENDPOINT: Final[str] = _env_str("AIOS_CRAG_SEARCH_ENDPOINT", "")
+CRAG_SEARCH_API_KEY: Final[str] = _env_str("AIOS_CRAG_SEARCH_API_KEY", "")
 ROUTER_CALIBRATION_WEIGHT: Final[float] = max(
     0.0, min(1.0, _env_float("AIOS_ROUTER_CALIBRATION_WEIGHT", 0.4))
 )
@@ -374,7 +384,8 @@ __all__ = [
     "GEMINI_THINKING_BUDGET", "GEMINI_ENABLED",
     "ROUTER_CLOUD_TASKS", "ROUTER_PREFER_LOCAL", "ROUTER_MAX_COST",
     "ROUTER_LLM_PICK", "ROUTER_CALIBRATION_WEIGHT",
-    "CRAG", "CRAG_UPPER", "CRAG_LOWER",
+    "CRAG", "CRAG_UPPER", "CRAG_LOWER", "CRAG_EXTERNAL", "CRAG_CLOUD",
+    "CRAG_WEBSEARCH", "CRAG_SEARCH_ENDPOINT", "CRAG_SEARCH_API_KEY",
     "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",

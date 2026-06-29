@@ -15,6 +15,7 @@ from aios.memory.crag import (
     CragAction,
     RetrievalVerdict,
     evaluate_retrieval,
+    external_retrieve,
     refine_context,
 )
 
@@ -223,3 +224,80 @@ def test_recall_memory_crag_refines_and_preserves_trust(monkeypatch) -> None:
     assert "Paris" in out  # golden strip kept
     assert "closing remarks" not in out  # filler refined away
     assert "- " not in out  # a refined block, not the legacy bullet list
+
+
+# ── Slice 3: external corrective retrieval (pluggable sources) ───────────────
+
+def test_external_retrieve_aggregates_sources_in_order() -> None:
+    cloud = lambda _q: ["cloud doc one", "cloud doc two"]
+    web = lambda _q: ["web doc one"]
+    docs = external_retrieve("q", [cloud, web])
+    assert docs == ["cloud doc one", "cloud doc two", "web doc one"]
+
+
+def test_external_retrieve_skips_failing_source() -> None:
+    def boom(_q: str):
+        raise RuntimeError("search api down")
+
+    web = lambda _q: ["survivor doc"]
+    docs = external_retrieve("q", [boom, web])
+    assert docs == ["survivor doc"]  # one source failing never sinks the rest
+
+
+def test_external_retrieve_dedupes_and_drops_blank() -> None:
+    a = lambda _q: ["Same Doc", "  ", ""]
+    b = lambda _q: ["same doc", "unique doc"]  # case/space-insensitive dup of "Same Doc"
+    docs = external_retrieve("q", [a, b])
+    assert docs == ["Same Doc", "unique doc"]
+
+
+def test_external_retrieve_caps_per_source() -> None:
+    flood = lambda _q: [f"doc {i}" for i in range(10)]
+    docs = external_retrieve("q", [flood], per_source_limit=3)
+    assert docs == ["doc 0", "doc 1", "doc 2"]
+
+
+def test_external_retrieve_no_sources_is_empty() -> None:
+    assert external_retrieve("q", []) == []
+
+
+def _patch_recall_external(monkeypatch, hits, *, sources):
+    from aios import config
+    from aios.api import main
+
+    monkeypatch.setattr(main, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(config, "CRAG", True)
+    monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
+    monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
+    monkeypatch.setattr(config, "CRAG_EXTERNAL", True)
+    monkeypatch.setattr(main, "_crag_external_sources", lambda: sources)
+    return main
+
+
+def test_recall_incorrect_uses_refined_external(monkeypatch) -> None:
+    hits = [_Hit("totally unrelated banana note here", faiss=0.05)]
+    sources = [lambda _q: ["The quantum entanglement phenomenon links particle states."]]
+    main = _patch_recall_external(monkeypatch, hits, sources=sources)
+    out = main._recall_memory("quantum entanglement")
+    assert out is not None
+    assert "EXTERNAL KNOWLEDGE" in out
+    assert "entanglement" in out
+    assert "banana" not in out  # junk local recall still excluded
+
+
+def test_recall_incorrect_without_external_returns_none(monkeypatch) -> None:
+    hits = [_Hit("totally unrelated banana note here", faiss=0.05)]
+    main = _patch_recall_external(monkeypatch, hits, sources=[lambda _q: []])
+    assert main._recall_memory("quantum entanglement") is None
+
+
+def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
+    # faiss 0.4 + only partial lexical overlap → score stays in the ambiguous band
+    # (not pushed to CORRECT), so local is kept AND external supplements it.
+    hits = [_Hit("the alpha section discusses several unrelated longer concepts here", faiss=0.4)]
+    sources = [lambda _q: ["External elaboration on the alpha topic with more detail."]]
+    main = _patch_recall_external(monkeypatch, hits, sources=sources)
+    out = main._recall_memory("alpha topic")
+    assert out is not None
+    assert "UNVERIFIED PRIOR CHAT MEMORY" in out  # local kept (ambiguous, not dropped)
+    assert "EXTERNAL KNOWLEDGE" in out  # external appended
