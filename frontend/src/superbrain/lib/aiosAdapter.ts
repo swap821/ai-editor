@@ -275,6 +275,7 @@ async function streamTurn(
   text: string,
   tokens: string[],
   signal?: AbortSignal,
+  onChunk?: (answer: string) => void,
 ): Promise<DirectiveResult> {
   let answer = '';
   let paused = false;
@@ -300,6 +301,9 @@ async function streamTurn(
           break;
         case 'text_chunk':
           answer += String(frame.data.text ?? '');
+          // Live seam: feed the growing answer to the caller so a work turn can
+          // grow its code slab as the (word-by-word) stream arrives.
+          onChunk?.(answer);
           break;
         case 'human_required':
           paused = true;
@@ -443,10 +447,14 @@ async function streamTurn(
 }
 
 /** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
-export async function sendDirective(text: string, signal?: AbortSignal): Promise<DirectiveResult> {
+export async function sendDirective(
+  text: string,
+  signal?: AbortSignal,
+  onChunk?: (answer: string) => void,
+): Promise<DirectiveResult> {
   setPendingApprovalState(null);
   resetSwarmHUD();
-  return streamTurn(text, [], signal);
+  return streamTurn(text, [], signal, onChunk);
 }
 
 /** Stream one CONVERSATIONAL turn through the Jarvis voice mind (POST

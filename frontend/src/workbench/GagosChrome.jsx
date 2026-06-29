@@ -121,6 +121,18 @@ function workFilepath(text, language) {
   return `${slug}.${LANG_EXT[language] || 'txt'}`;
 }
 
+/** Pull the code-so-far out of a STREAMING answer (the closing fence may not have
+ *  arrived yet) so a work slab can grow live as the reply streams. Returns empty
+ *  code until a fence opens. Exported for tests. (Slice 2 / A — live answer stream.) */
+export function extractStreamingCode(text) {
+  const open = /```([\w+-]*)\n?/.exec(String(text || ''));
+  if (!open) return { code: '', language: 'text' };
+  const after = String(text).slice(open.index + open[0].length);
+  const close = after.indexOf('```');
+  const code = close >= 0 ? after.slice(0, close) : after;
+  return { code, language: open[1] || 'text' };
+}
+
 function cleanText(text, max = 600) {
   // Strip light markdown so the caption reads as clean prose, not source.
   const compact = String(text ?? '')
@@ -436,7 +448,24 @@ export default function GagosChrome() {
           if (oldest) beginRetractingMaterializedTab(oldest);
         }
         const beforeCode = getLastEmittedCode();
-        const result = await sendDirective(text, abortRef.current?.signal);
+        // Slice 2 (A): grow the owned slab LIVE as the answer streams in (the same
+        // word-by-word stream the chat reply uses). Once a code fence opens, the
+        // code-so-far reveals into the slab; the final settle (below) cleans it up.
+        const onWritingChunk = (answer) => {
+          if (turnTokenRef.current !== token) return;
+          const partial = extractStreamingCode(answer);
+          if (partial.code && partial.code.trim()) {
+            updateMaterializedTab(writingTab.id, {
+              content: {
+                code: partial.code,
+                language: (partial.language || 'text').toLowerCase(),
+                filepath: workFilepath(text),
+                streaming: true,
+              },
+            });
+          }
+        };
+        const result = await sendDirective(text, abortRef.current?.signal, onWritingChunk);
         if (turnTokenRef.current !== token) {
           releaseWorkMaterialization();
           return;
