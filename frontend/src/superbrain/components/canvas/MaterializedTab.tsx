@@ -1790,12 +1790,7 @@ export default function MaterializedTab({
   // PREVIEW (#2): the RESULT of running this work — a compact verdict + the first
   // line of captured output, shown on the focused slab.
   const verifyVerdict = tab.content?.verifyVerdict;
-  const verifyLine =
-    (tab.content?.verifyOutput ?? '')
-      .split('\n')
-      .map((s) => s.trim())
-      .find(Boolean)
-      ?.slice(0, 48) ?? '';
+  const verifyOutput = tab.content?.verifyOutput ?? '';
   const inputText = tab.input?.text?.trim() ?? '';
   const approvalText = getApprovalBody(tab.approval);
   const buttonDisabled = !interactive || approvalBusy;
@@ -1804,6 +1799,12 @@ export default function MaterializedTab({
     () => formatMaterializedTextPreview(code, { maxLines: CONTENT_PREVIEW_LINES, maxCharsPerLine: CONTENT_PREVIEW_CHARS }),
     [code],
   );
+  // PREVIEW (richer): the run/verify OUTPUT, multi-line, for the right-half pane.
+  const verifyOutputPreview = useMemo(
+    () => formatMaterializedTextPreview(verifyOutput, { maxLines: 7, maxCharsPerLine: 30 }),
+    [verifyOutput],
+  );
+  const hasOutputPane = !!verifyVerdict && verifyOutputPreview.lines.length > 0;
   const approvalPreview = useMemo(
     () =>
       formatMaterializedTextPreview(approvalText, {
@@ -2298,7 +2299,9 @@ export default function MaterializedTab({
                 {/* Poster phase 6: the FOCUSED work tab shows the work as it
                     happens — a live data-viz panel bound to the real metricsStore
                     (right half; code reads on the left). */}
-                {focused && (
+                {/* Right half: live metrics by default — but the run OUTPUT when this
+                    slab has a verify result (the work's result beats decoration). */}
+                {focused && !hasOutputPane && (
                   <WorkTabLiveDashboard
                     width={dimensions.width}
                     height={dimensions.height}
@@ -2306,11 +2309,9 @@ export default function MaterializedTab({
                     theme={theme}
                   />
                 )}
-                {/* PREVIEW (#2): the work's RESULT — verdict + first output line —
-                    so the focused slab shows what the code DID, not just its source. */}
+                {/* PREVIEW: the work's RESULT — a verdict badge in the title band
+                    (always-clear strip) + the multi-line run output on the right. */}
                 {focused && verifyVerdict ? (
-                  /* The work's RESULT, in the title band (below the filename) — the
-                     one always-clear strip; the code well is full of source. */
                   <Text
                     position={[0, dimensions.height * 0.3, dimensions.thickness + 0.018]}
                     color={verifyVerdict === 'pass' ? '#54f0a0' : '#ff8a8a'}
@@ -2322,8 +2323,44 @@ export default function MaterializedTab({
                     outlineColor={theme.outline}
                     renderOrder={11}
                   >
-                    {(verifyVerdict === 'pass' ? 'verified  ' : 'failed  ') + (verifyLine || '(no output)')}
+                    {verifyVerdict === 'pass' ? 'verified' : 'failed'}
                   </Text>
+                ) : null}
+                {focused && hasOutputPane ? (
+                  <group>
+                    <Text
+                      position={[dimensions.width * 0.08, dimensions.height * 0.2, dimensions.thickness + 0.02]}
+                      color={theme.muted}
+                      fontSize={0.018}
+                      anchorX="left"
+                      anchorY="middle"
+                      outlineWidth={0.0014}
+                      outlineColor={theme.outline}
+                      renderOrder={11}
+                    >
+                      OUTPUT
+                    </Text>
+                    {verifyOutputPreview.lines.map((line, i) => (
+                      <Text
+                        key={`out-${tab.id}-${i}`}
+                        position={[
+                          dimensions.width * 0.08,
+                          dimensions.height * 0.13 - i * (POINTS ? 0.04 : 0.031),
+                          dimensions.thickness + 0.02,
+                        ]}
+                        color={verifyVerdict === 'pass' ? '#bdeedd' : '#f3c0c0'}
+                        fontSize={POINTS ? 0.024 : 0.018}
+                        anchorX="left"
+                        anchorY="middle"
+                        maxWidth={dimensions.width * 0.42}
+                        outlineWidth={0.0014}
+                        outlineColor={theme.outline}
+                        renderOrder={11}
+                      >
+                        {line || ' '}
+                      </Text>
+                    ))}
+                  </group>
                 ) : null}
                 <Text
                   position={[0, -dimensions.height * 0.42, dimensions.thickness + 0.014]}
