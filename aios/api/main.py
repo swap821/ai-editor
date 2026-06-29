@@ -2529,6 +2529,37 @@ def _crag_external_sources() -> list:
     return sources
 
 
+_CRAG_JUDGE_NUMBER = re.compile(r"\d*\.?\d+")
+
+
+def _crag_llm_judge(query: str, passage: str) -> float:
+    """A local-model relevance score in [0,1] for one (query, passage) pair.
+
+    Used as the evaluator's optional caution-only clamp (it can only *lower* a hit's
+    deterministic confidence — see ``evaluate_retrieval``). Raises on an unparseable
+    reply or a model error so the evaluator ignores it and the deterministic score
+    stands (never silently fabricates caution)."""
+    response = get_ollama_client().chat(
+        [
+            {
+                "role": "user",
+                "content": (
+                    "Rate how RELEVANT the passage is to answering the query, from "
+                    "0.0 (irrelevant) to 1.0 (directly answers it). Reply with ONLY "
+                    f"the number.\n\nQuery: {query}\nPassage: {passage}"
+                ),
+            }
+        ],
+        tools=None,
+        model=config.LLM_MODEL,
+    )
+    text = str((response or {}).get("content", ""))
+    match = _CRAG_JUDGE_NUMBER.search(text)
+    if not match:
+        raise ValueError(f"CRAG judge returned no score: {text!r}")
+    return max(0.0, min(1.0, float(match.group(0))))
+
+
 def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     """Best-effort hybrid recall of relevant semantic memories for *query*.
 
@@ -2559,7 +2590,11 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     if config.CRAG:
         try:
             verdict = evaluate_retrieval(
-                query, hits, upper=config.CRAG_UPPER, lower=config.CRAG_LOWER
+                query,
+                hits,
+                upper=config.CRAG_UPPER,
+                lower=config.CRAG_LOWER,
+                judge=_crag_llm_judge if config.CRAG_LLM_JUDGE else None,
             )
             # Slice 3: on a low-confidence local recall, gather refined external
             # knowledge (privacy-gated, default off, only when a source is enabled).

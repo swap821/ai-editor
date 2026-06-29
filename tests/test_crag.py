@@ -301,3 +301,54 @@ def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
     assert out is not None
     assert "UNVERIFIED PRIOR CHAT MEMORY" in out  # local kept (ambiguous, not dropped)
     assert "EXTERNAL KNOWLEDGE" in out  # external appended
+
+
+# ── Local-LLM judge (opt-in, AIOS_CRAG_LLM_JUDGE) ───────────────────────────
+
+class _FakeOllama:
+    def __init__(self, reply: str) -> None:
+        self._reply = reply
+
+    def chat(self, messages, *, tools=None, model=None):
+        return {"content": self._reply}
+
+
+def test_crag_llm_judge_parses_score(monkeypatch) -> None:
+    from aios.api import main
+
+    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("0.82"))
+    assert main._crag_llm_judge("q", "passage") == 0.82
+
+
+def test_crag_llm_judge_extracts_and_clamps(monkeypatch) -> None:
+    from aios.api import main
+
+    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("I'd say 1.5 relevance"))
+    assert main._crag_llm_judge("q", "p") == 1.0  # parsed + clamped to [0,1]
+
+
+def test_crag_llm_judge_raises_on_unparseable(monkeypatch) -> None:
+    import pytest
+
+    from aios.api import main
+
+    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("no number at all"))
+    with pytest.raises(Exception):  # noqa: B017 - evaluate_retrieval catches & ignores
+        main._crag_llm_judge("q", "p")
+
+
+def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
+    # A judge verdict of 0.0 caution-clamps a deterministically-strong hit down to
+    # INCORRECT, so the recall is dropped — the judge catches a false-positive.
+    from aios import config
+    from aios.api import main
+
+    hits = [_Hit("strongly worded but actually off-topic note here", faiss=0.95)]
+    monkeypatch.setattr(main, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("0.0"))
+    monkeypatch.setattr(config, "CRAG", True)
+    monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
+    monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
+    monkeypatch.setattr(config, "CRAG_LLM_JUDGE", True)
+    monkeypatch.setattr(config, "CRAG_EXTERNAL", False)
+    assert main._recall_memory("some query") is None

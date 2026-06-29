@@ -299,6 +299,10 @@ CRAG_LOWER: Final[float] = _env_float("AIOS_CRAG_LOWER", 0.2)
 # a real web-search provider (Slice 3b; needs a key).
 CRAG_EXTERNAL: Final[bool] = _env_bool("AIOS_CRAG_EXTERNAL", False)
 CRAG_CLOUD: Final[bool] = _env_bool("AIOS_CRAG_CLOUD", False)
+# Optional local-LLM relevance judge for the evaluator — a CAUTION-ONLY clamp (it
+# can only lower a hit's deterministic confidence, never rescue junk). Default off;
+# adds a local model call per hit, so it is opt-in.
+CRAG_LLM_JUDGE: Final[bool] = _env_bool("AIOS_CRAG_LLM_JUDGE", False)
 CRAG_WEBSEARCH: Final[bool] = _env_bool("AIOS_CRAG_WEBSEARCH", False)
 CRAG_SEARCH_ENDPOINT: Final[str] = _env_str("AIOS_CRAG_SEARCH_ENDPOINT", "")
 CRAG_SEARCH_API_KEY: Final[str] = _env_str("AIOS_CRAG_SEARCH_API_KEY", "")
@@ -385,7 +389,7 @@ __all__ = [
     "ROUTER_CLOUD_TASKS", "ROUTER_PREFER_LOCAL", "ROUTER_MAX_COST",
     "ROUTER_LLM_PICK", "ROUTER_CALIBRATION_WEIGHT",
     "CRAG", "CRAG_UPPER", "CRAG_LOWER", "CRAG_EXTERNAL", "CRAG_CLOUD",
-    "CRAG_WEBSEARCH", "CRAG_SEARCH_ENDPOINT", "CRAG_SEARCH_API_KEY",
+    "CRAG_WEBSEARCH", "CRAG_SEARCH_ENDPOINT", "CRAG_SEARCH_API_KEY", "CRAG_LLM_JUDGE",
     "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",
