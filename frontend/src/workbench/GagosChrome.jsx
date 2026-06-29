@@ -27,7 +27,7 @@ import { useVoiceSpeak, setVoiceSpeakMuted } from './voiceSpeak';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
-import { useTabStore, updateMaterializedTab } from '../superbrain/lib/tabStore';
+import { useTabStore, updateMaterializedTab, getTabStoreSnapshot } from '../superbrain/lib/tabStore';
 import { API_BASE } from '../config';
 import { sanitizeToText } from '../utils/sanitizeHtml';
 import {
@@ -108,17 +108,52 @@ function deriveCoachCards(state) {
   return ["You're fully underway. Keep building."];
 }
 
-function workFilepath(text, language) {
-  const slug = String(text)
-    .replace(/^(write|build|create|make|code|implement|fix|add|generate)\b/i, '')
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase()
-    .split('-')
-    .filter(Boolean)
-    .slice(0, 4)
-    .join('-') || 'work';
-  return `${slug}.${LANG_EXT[language] || 'txt'}`;
+const LANG_FROM_WORD = {
+  python: 'python', py: 'python', javascript: 'javascript', js: 'javascript',
+  typescript: 'typescript', ts: 'typescript', bash: 'bash', shell: 'bash', sh: 'bash',
+  sql: 'sql', go: 'go', rust: 'rust', html: 'html', css: 'css', json: 'json', c: 'c', cpp: 'cpp',
+};
+const FILEPATH_FILLER = new Set([
+  'a', 'an', 'the', 'please', 'can', 'you', 'me', 'my', 'for', 'to', 'that', 'which', 'with',
+  'and', 'of', 'in', 'on', 'file', 'script', 'program', 'code', 'function', 'func', 'def', 'class',
+  'method', 'component', 'simple', 'new', 'create', 'write', 'build', 'make', 'implement', 'generate',
+  'add', 'fix', 'prints', 'print', 'returns', 'return', 'using', 'use', 'it', 'its', 'named', 'called',
+  'do', 'thing', 'some', 'something',
+]);
+
+/** Best-effort filename for a materialized work slab. Prefers an explicit filename
+ *  in the directive, then a function/identifier name, then a filler-stripped slug;
+ *  infers the language from the prose when not given. Exported for tests. */
+export function workFilepath(text, language) {
+  const raw = String(text || '');
+  // 1) explicit filename in the directive wins.
+  const explicit = raw.match(/\b([\w-]+\.(?:py|js|jsx|ts|tsx|sh|json|html|css|sql|go|rs|c|cpp|txt|md))\b/i);
+  if (explicit) return explicit[1].toLowerCase();
+  // 2) infer language from the prose if the caller didn't pass one.
+  let lang = language;
+  if (!lang) {
+    const lw = raw.toLowerCase();
+    for (const word of Object.keys(LANG_FROM_WORD)) {
+      if (new RegExp(`\\b${word}\\b`).test(lw)) { lang = LANG_FROM_WORD[word]; break; }
+    }
+  }
+  // 3) a declared identifier (function/class/def NAME, or NAME() call) names the file.
+  const idMatch = raw.match(/\b(?:function|func|def|class|method|component)\s+([a-z_][\w]*)/i)
+    || raw.match(/\b([a-z_][a-z0-9_]{2,})\s*\(/i);
+  let slug;
+  if (idMatch && !FILEPATH_FILLER.has(idMatch[1].toLowerCase())) {
+    slug = idMatch[1].replace(/_/g, '-').toLowerCase();
+  } else {
+    // 4) cleaner slug — drop verbs/fillers/language words, keep the meaningful nouns.
+    slug = raw
+      .replace(/[^a-z0-9\s]+/gi, ' ')
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w && !FILEPATH_FILLER.has(w) && !LANG_FROM_WORD[w])
+      .slice(0, 3)
+      .join('-') || 'work';
+  }
+  return `${slug}.${LANG_EXT[lang] || 'txt'}`;
 }
 
 /** Pull the code-so-far out of a STREAMING answer (the closing fence may not have
@@ -272,6 +307,22 @@ export default function GagosChrome() {
       subscribeCognition((event) => {
         if (event.type === 'verify' && event.data?.verdict) {
           setVerifyToast({ verdict: event.data.verdict, detail: event.detail || '' });
+          // PREVIEW (#2): attach the run/verify RESULT to the matching slab so the
+          // focused surface shows what the code DID, not just what it says. Match by
+          // filename; fall back to the focused content slab when unattributed.
+          const verdict = String(event.data.verdict).toLowerCase() === 'pass' ? 'pass' : 'fail';
+          const output = String(event.data.output ?? '');
+          const targetBase = String(event.data.target ?? '').split(/[\\/]/).pop();
+          const snap = getTabStoreSnapshot();
+          const match =
+            snap.tabs.find(
+              (t) => t.kind === 'content' && t.content && t.content.filepath?.split(/[\\/]/).pop() === targetBase,
+            ) || snap.tabs.find((t) => t.id === snap.focusId && t.kind === 'content');
+          if (match && match.content) {
+            updateMaterializedTab(match.id, {
+              content: { ...match.content, verifyVerdict: verdict, verifyOutput: output },
+            });
+          }
           const id = window.setTimeout(() => setVerifyToast(null), 2600);
           return () => window.clearTimeout(id);
         }

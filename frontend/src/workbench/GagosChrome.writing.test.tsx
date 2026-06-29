@@ -139,6 +139,34 @@ describe('GagosChrome — live writing slab', () => {
     });
   });
 
+  it('attaches the verify result to the matching slab (preview)', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { showContentSurface, getTabStoreSnapshot: snap } = await import('../superbrain/lib/tabStore');
+    const { publishCognition } = await import('../superbrain/lib/cognitionBus');
+    render(<GagosChrome />);
+
+    act(() => {
+      showContentSurface({ code: 'print("hi")', language: 'python', filepath: 'greet.py' });
+    });
+    // A verify result arrives on the bus (target carries a dir; match by basename).
+    act(() => {
+      publishCognition({
+        type: 'verify',
+        label: 'VERIFY PASS',
+        detail: 'greet.py',
+        intensity: 0.75,
+        source: 'aios',
+        data: { verdict: 'pass', target: 'training_ground/greet.py', output: 'hi\n' },
+      });
+    });
+
+    await waitFor(() => {
+      const tab = snap().tabs.find((t) => t.content?.filepath === 'greet.py');
+      expect(tab?.content?.verifyVerdict).toBe('pass');
+      expect(tab?.content?.verifyOutput).toContain('hi');
+    });
+  });
+
   it('retracts the writing slab if the turn produces no code (conversation)', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);
@@ -164,6 +192,21 @@ describe('GagosChrome — live writing slab', () => {
       const tab = getTabStoreSnapshot().tabs.find((t) => t.kind === 'content');
       expect(tab?.lifecycle).toBe('retracting');
     });
+  });
+});
+
+describe('workFilepath', () => {
+  it('prefers an explicit filename, then an identifier, dropping filler words', async () => {
+    const { workFilepath } = await import('./GagosChrome');
+    // explicit filename in the directive wins
+    expect(workFilepath('create hello.py that prints hi')).toBe('hello.py');
+    expect(workFilepath('Create a Python file streamtest.py that prints x')).toBe('streamtest.py');
+    // a function/identifier name + inferred language
+    expect(workFilepath('Write a Python function bubble_sort with inline comments')).toBe('bubble-sort.py');
+    // no longer the old ugly "a-python-function-…" filler guess
+    expect(workFilepath('Write a Python function bubble_sort with inline comments')).not.toContain('a-python');
+    // graceful fallback when there is nothing clean
+    expect(workFilepath('do the thing')).toMatch(/\.\w+$/);
   });
 });
 

@@ -1787,6 +1787,15 @@ export default function MaterializedTab({
   // C-Slice1: the being is still WRITING this surface (code empty/partial) — show a
   // "writing…" cue instead of a blank slab until the code lands and reveals.
   const streaming = (tab.content?.streaming ?? false) && code.trim().length === 0;
+  // PREVIEW (#2): the RESULT of running this work — a compact verdict + the first
+  // line of captured output, shown on the focused slab.
+  const verifyVerdict = tab.content?.verifyVerdict;
+  const verifyLine =
+    (tab.content?.verifyOutput ?? '')
+      .split('\n')
+      .map((s) => s.trim())
+      .find(Boolean)
+      ?.slice(0, 48) ?? '';
   const inputText = tab.input?.text?.trim() ?? '';
   const approvalText = getApprovalBody(tab.approval);
   const buttonDisabled = !interactive || approvalBusy;
@@ -2297,6 +2306,25 @@ export default function MaterializedTab({
                     theme={theme}
                   />
                 )}
+                {/* PREVIEW (#2): the work's RESULT — verdict + first output line —
+                    so the focused slab shows what the code DID, not just its source. */}
+                {focused && verifyVerdict ? (
+                  /* The work's RESULT, in the title band (below the filename) — the
+                     one always-clear strip; the code well is full of source. */
+                  <Text
+                    position={[0, dimensions.height * 0.3, dimensions.thickness + 0.018]}
+                    color={verifyVerdict === 'pass' ? '#54f0a0' : '#ff8a8a'}
+                    fontSize={POINTS ? 0.026 : 0.02}
+                    anchorX="center"
+                    anchorY="middle"
+                    maxWidth={dimensions.width * 0.72}
+                    outlineWidth={0.0016}
+                    outlineColor={theme.outline}
+                    renderOrder={11}
+                  >
+                    {(verifyVerdict === 'pass' ? 'verified  ' : 'failed  ') + (verifyLine || '(no output)')}
+                  </Text>
+                ) : null}
                 <Text
                   position={[0, -dimensions.height * 0.42, dimensions.thickness + 0.014]}
                   color={theme.muted}
