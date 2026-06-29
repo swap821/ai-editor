@@ -12,8 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from aios.memory.crag import (
+    CalibrationResult,
     CragAction,
     RetrievalVerdict,
+    calibrate_thresholds,
     evaluate_retrieval,
     external_retrieve,
     refine_context,
@@ -352,3 +354,37 @@ def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
     monkeypatch.setattr(config, "CRAG_LLM_JUDGE", True)
     monkeypatch.setattr(config, "CRAG_EXTERNAL", False)
     assert main._recall_memory("some query") is None
+
+
+# ── Threshold calibration harness (tune AIOS_CRAG_UPPER/LOWER from real data) ─
+
+def test_calibrate_finds_separating_thresholds() -> None:
+    # Cleanly separable: relevant recalls score high, junk scores low → the harness
+    # finds thresholds that drop no relevant and accept no junk.
+    labeled = [
+        (0.85, True), (0.78, True), (0.82, True),
+        (0.05, False), (0.10, False), (0.15, False),
+    ]
+    result = calibrate_thresholds(labeled)
+    assert isinstance(result, CalibrationResult)
+    assert result.lower <= result.upper
+    assert result.false_drop_rate == 0.0  # no relevant recall routed INCORRECT
+    assert result.false_accept_rate == 0.0  # no junk routed CORRECT
+
+
+def test_calibrate_empty_raises() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        calibrate_thresholds([])
+
+
+def test_calibrate_weight_shifts_lower_to_protect_relevant() -> None:
+    # Overlapping scores. Heavily weighting false-drops should push `lower` down so
+    # relevant recalls are not dropped (trading more junk into the ambiguous band).
+    labeled = [
+        (0.30, True), (0.35, True), (0.45, True),
+        (0.25, False), (0.40, False), (0.50, False),
+    ]
+    protect = calibrate_thresholds(labeled, drop_weight=10.0, accept_weight=1.0)
+    assert protect.false_drop_rate == 0.0  # the heavily-weighted error is driven out

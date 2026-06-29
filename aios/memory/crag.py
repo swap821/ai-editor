@@ -24,8 +24,10 @@ from typing import Protocol
 from aios.memory.relevance import relevance
 
 __all__ = [
+    "CalibrationResult",
     "CragAction",
     "RetrievalVerdict",
+    "calibrate_thresholds",
     "evaluate_retrieval",
     "external_retrieve",
     "refine_context",
@@ -134,6 +136,77 @@ def external_retrieve(
             seen.add(key)
             aggregated.append(text)
     return aggregated
+
+
+@dataclass(frozen=True)
+class CalibrationResult:
+    """Tuned thresholds plus the two error rates they incur on the labeled data."""
+
+    lower: float
+    upper: float
+    false_drop_rate: float    # relevant recalls wrongly routed INCORRECT (score < lower)
+    false_accept_rate: float  # irrelevant recalls wrongly routed CORRECT (score >= upper)
+
+
+_DEFAULT_GRID: tuple[float, ...] = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+
+
+def calibrate_thresholds(
+    labeled: Sequence[tuple[float, bool]],
+    *,
+    grid: Sequence[float] = _DEFAULT_GRID,
+    drop_weight: float = 1.0,
+    accept_weight: float = 1.0,
+) -> CalibrationResult:
+    """Tune ``(lower, upper)`` for the CRAG gate from labeled recalls.
+
+    *labeled* is a list of ``(score, is_relevant)`` — the combined confidence score
+    (``max(faiss, lexical)``) a real recall received, paired with whether that recall
+    was actually useful. The harness sweeps ``lower <= upper`` over *grid* and
+    maximizes a utility that REWARDS correct decisions and penalizes wrong ones, so
+    pure hedging (routing everything to AMBIGUOUS) never wins:
+
+        +1 per relevant recall routed CORRECT (score >= upper)
+        +1 per irrelevant recall routed INCORRECT (score < lower)
+        -drop_weight   per relevant recall wrongly dropped (score < lower)
+        -accept_weight per irrelevant recall wrongly trusted (score >= upper)
+
+    Raise ``drop_weight`` to protect recall, ``accept_weight`` to suppress
+    hallucination risk. Ties prefer a NARROWER ambiguous band (more decisive).
+
+    Empty input raises — calibrating on no data would be meaningless theater.
+    """
+    if not labeled:
+        raise ValueError("calibrate_thresholds needs at least one labeled example")
+    relevant = [score for score, is_rel in labeled if is_rel]
+    irrelevant = [score for score, is_rel in labeled if not is_rel]
+
+    best_key: tuple[float, float] | None = None
+    best: CalibrationResult | None = None
+    for lower in grid:
+        for upper in grid:
+            if upper < lower:
+                continue
+            false_drops = sum(s < lower for s in relevant)
+            true_accepts = sum(s >= upper for s in relevant)
+            false_accepts = sum(s >= upper for s in irrelevant)
+            true_drops = sum(s < lower for s in irrelevant)
+            # Utility REWARDS correct decisions so pure hedging (all-AMBIGUOUS,
+            # which trivially has zero hard errors) never wins.
+            utility = (
+                true_accepts + true_drops
+                - drop_weight * false_drops
+                - accept_weight * false_accepts
+            )
+            fdr = (false_drops / len(relevant)) if relevant else 0.0
+            far = (false_accepts / len(irrelevant)) if irrelevant else 0.0
+            # Maximize utility; tie-break toward a NARROWER band (more decisive).
+            key = (-utility, upper - lower)
+            if best_key is None or key < best_key:
+                best_key = key
+                best = CalibrationResult(lower, upper, fdr, far)
+    assert best is not None  # grid is non-empty, so at least lower==upper qualifies
+    return best
 
 #: Excerption-mode split: break on whitespace that FOLLOWS terminal punctuation, so
 #: each strip keeps its punctuation and a document with no terminal stays whole.
