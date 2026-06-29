@@ -282,6 +282,16 @@ ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _env_router_tasks(
 ROUTER_PREFER_LOCAL: Final[bool] = _env_bool("AIOS_ROUTER_PREFER_LOCAL", True)
 ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().lower()
 ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
+
+# ── Corrective-RAG (CRAG) ────────────────────────────────────────────────────
+# Opt-in metacognitive gate on memory recall (default off → no behavior change):
+# evaluate retrieved context, drop junk, and refine the rest before it reaches the
+# prompt. Thresholds are on a [0,1] confidence scale (max of semantic cosine and
+# lexical relevance) and are operator-tunable per corpus. See
+# docs/superpowers/specs/2026-06-29-crag-for-gagos-design.md.
+CRAG: Final[bool] = _env_bool("AIOS_CRAG", False)
+CRAG_UPPER: Final[float] = _env_float("AIOS_CRAG_UPPER", 0.6)
+CRAG_LOWER: Final[float] = _env_float("AIOS_CRAG_LOWER", 0.2)
 ROUTER_CALIBRATION_WEIGHT: Final[float] = max(
     0.0, min(1.0, _env_float("AIOS_ROUTER_CALIBRATION_WEIGHT", 0.4))
 )
@@ -364,6 +374,7 @@ __all__ = [
     "GEMINI_THINKING_BUDGET", "GEMINI_ENABLED",
     "ROUTER_CLOUD_TASKS", "ROUTER_PREFER_LOCAL", "ROUTER_MAX_COST",
     "ROUTER_LLM_PICK", "ROUTER_CALIBRATION_WEIGHT",
+    "CRAG", "CRAG_UPPER", "CRAG_LOWER",
     "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",

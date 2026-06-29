@@ -104,6 +104,7 @@ from aios.memory.self_model import render as render_self_model, synthesize_self_
 from aios.memory.embeddings import VectorIndex
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
+from aios.memory.crag import CragAction, evaluate_retrieval, refine_context
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -2467,6 +2468,15 @@ def _latest_user(chat_messages: list[dict[str, Any]]) -> str:
     return ""
 
 
+_MEM_TRUSTED_HEADER = (
+    "VERIFIED TRUSTED MEMORY (still prefer current tool evidence when available):\n"
+)
+_MEM_UNVERIFIED_HEADER = (
+    "UNVERIFIED PRIOR CHAT MEMORY (may be stale or wrong; use only as a lead, "
+    "never as evidence, and verify against tools/files before acting):\n"
+)
+
+
 def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     """Best-effort hybrid recall of relevant semantic memories for *query*.
 
@@ -2474,6 +2484,13 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     relevant (or the memory subsystem is unavailable). ``hybrid_search``
     short-circuits to empty without loading the embedding model when the
     semantic index is empty, so this is a cheap no-op on a fresh system.
+
+    When Corrective-RAG is enabled (``AIOS_CRAG``, default off) the retrieval is
+    gated and refined before it reaches the prompt: a low-confidence (INCORRECT)
+    recall is DROPPED rather than injected — the core anti-hallucination win — and
+    the surviving hits are decompose-then-recomposed down to their golden strips.
+    Trust labels are preserved (CRAG judges *relevance*; verified/unverified judges
+    *trust*). CRAG fails soft to the unrefined block on any error.
     """
     try:
         hits = hybrid_search(query, top_k=top_k)
@@ -2486,17 +2503,36 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
         hit for hit in hits if getattr(hit, "verification_status", "unverified") == "verified"
     ]
     unverified = [hit for hit in hits if hit not in trusted]
+
+    if config.CRAG:
+        try:
+            verdict = evaluate_retrieval(
+                query, hits, upper=config.CRAG_UPPER, lower=config.CRAG_LOWER
+            )
+            if verdict.action is CragAction.INCORRECT:
+                return None  # junk retrieval excluded (Slice 3 will go external)
+            trusted_body = refine_context(query, [h.text for h in trusted]) if trusted else ""
+            unverified_body = (
+                refine_context(query, [h.text for h in unverified]) if unverified else ""
+            )
+            crag_blocks: list[str] = []
+            if trusted_body:
+                crag_blocks.append(_MEM_TRUSTED_HEADER + trusted_body)
+            if unverified_body:
+                crag_blocks.append(_MEM_UNVERIFIED_HEADER + unverified_body)
+            if crag_blocks:
+                return "\n\n".join(crag_blocks)
+            # Refinement emptied everything → fall through to the legacy block so a
+            # non-empty retrieval is never silently blanked.
+        except Exception as exc:  # noqa: BLE001 - CRAG is additive; never break recall
+            logger.warning("CRAG recall failed; using unrefined memory", exc_info=exc)
+
     blocks: list[str] = []
     if trusted:
-        blocks.append(
-            "VERIFIED TRUSTED MEMORY (still prefer current tool evidence when available):\n"
-            + "\n".join(f"- {hit.text}" for hit in trusted)
-        )
+        blocks.append(_MEM_TRUSTED_HEADER + "\n".join(f"- {hit.text}" for hit in trusted))
     if unverified:
         blocks.append(
-            "UNVERIFIED PRIOR CHAT MEMORY (may be stale or wrong; use only as a lead, "
-            "never as evidence, and verify against tools/files before acting):\n"
-            + "\n".join(f"- {hit.text}" for hit in unverified)
+            _MEM_UNVERIFIED_HEADER + "\n".join(f"- {hit.text}" for hit in unverified)
         )
     return "\n\n".join(blocks)
 

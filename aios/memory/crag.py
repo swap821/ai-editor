@@ -15,12 +15,89 @@ Design: docs/superpowers/specs/2026-06-29-crag-for-gagos-design.md
 """
 from __future__ import annotations
 
+import enum
 import re
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Protocol
 
 from aios.memory.relevance import relevance
 
-__all__ = ["refine_context"]
+__all__ = [
+    "CragAction",
+    "RetrievalVerdict",
+    "evaluate_retrieval",
+    "refine_context",
+]
+
+
+class CragAction(enum.Enum):
+    """The tripartite corrective routing decision for one retrieval event."""
+
+    CORRECT = "correct"      # local retrieval is good → refine & use it
+    AMBIGUOUS = "ambiguous"  # partial → refine local AND (Slice 3) seek external
+    INCORRECT = "incorrect"  # local is junk → drop it (Slice 3) and go external
+
+
+class _Hit(Protocol):
+    """Structural view of a retrieved hit (duck-types ``RetrievalResult``)."""
+
+    text: str
+    faiss: float
+
+
+@dataclass(frozen=True)
+class RetrievalVerdict:
+    """The evaluator's decision plus explainable per-hit confidence scores."""
+
+    action: CragAction
+    score: float            # the max per-hit confidence in [0, 1]
+    per_hit: list[float]    # one confidence per hit, in retrieval order
+
+
+def _clamp01(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def evaluate_retrieval(
+    query: str,
+    hits: Sequence[_Hit],
+    *,
+    upper: float,
+    lower: float,
+    judge: Callable[[str, str], float] | None = None,
+) -> RetrievalVerdict:
+    """Score retrieved *hits* for actual relevance and route them tripartite.
+
+    Per-hit confidence is ``max(semantic cosine, lexical relevance)`` — reusing the
+    already-computed FAISS sub-score and the deterministic lexical scorer, both on
+    ``[0, 1]``; a hit strong on *either* axis survives. ``CORRECT`` if any hit's
+    confidence ``>= upper``; ``INCORRECT`` if every hit is ``< lower`` (or there are
+    no hits); ``AMBIGUOUS`` otherwise.
+
+    The optional ``judge`` is a caution-only clamp (strengthen-only, like the
+    Reasoning King): it may only *lower* a hit's deterministic confidence, never
+    raise it — so a hallucinated "this is relevant!" can never rescue junk. A judge
+    error is ignored (the deterministic score stands).
+    """
+    per_hit: list[float] = []
+    for hit in hits:
+        score = max(_clamp01(getattr(hit, "faiss", 0.0)), relevance(query, hit.text))
+        if judge is not None:
+            try:
+                score = min(score, _clamp01(judge(query, hit.text)))
+            except Exception:  # noqa: BLE001 - a flaky judge must not break routing
+                pass
+        per_hit.append(score)
+
+    best = max(per_hit, default=0.0)
+    if best >= upper:
+        action = CragAction.CORRECT
+    elif best < lower:
+        action = CragAction.INCORRECT
+    else:
+        action = CragAction.AMBIGUOUS
+    return RetrievalVerdict(action=action, score=best, per_hit=per_hit)
 
 #: Excerption-mode split: break on whitespace that FOLLOWS terminal punctuation, so
 #: each strip keeps its punctuation and a document with no terminal stays whole.

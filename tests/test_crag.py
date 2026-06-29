@@ -9,7 +9,23 @@ docs/superpowers/specs/2026-06-29-crag-for-gagos-design.md.
 """
 from __future__ import annotations
 
-from aios.memory.crag import refine_context
+from dataclasses import dataclass
+
+from aios.memory.crag import (
+    CragAction,
+    RetrievalVerdict,
+    evaluate_retrieval,
+    refine_context,
+)
+
+
+@dataclass(frozen=True)
+class _Hit:
+    """Minimal stand-in for RetrievalResult (evaluate_retrieval duck-types it)."""
+
+    text: str
+    faiss: float = 0.0
+    verification_status: str = "unverified"
 
 
 def test_refine_keeps_golden_sentence_and_drops_filler() -> None:
@@ -89,3 +105,121 @@ def test_refine_spans_multiple_documents_in_order() -> None:
     assert "tea" in refined and "coffee" in refined
     assert "mountains" not in refined  # the irrelevant middle document dropped
     assert refined.index("tea") < refined.index("coffee")
+
+
+# ── Slice 2: evaluate_retrieval + tripartite gate ───────────────────────────
+
+def test_evaluate_correct_when_a_hit_exceeds_upper() -> None:
+    hits = [_Hit("irrelevant note", faiss=0.1), _Hit("strong semantic hit", faiss=0.9)]
+    verdict = evaluate_retrieval("q", hits, upper=0.6, lower=0.2)
+    assert verdict.action is CragAction.CORRECT
+    assert verdict.score == 0.9
+
+
+def test_evaluate_incorrect_when_all_below_lower() -> None:
+    # Low semantic AND no lexical overlap with the query → junk retrieval.
+    hits = [_Hit("apples and oranges", faiss=0.05), _Hit("bananas too", faiss=0.1)]
+    verdict = evaluate_retrieval("quantum physics", hits, upper=0.6, lower=0.2)
+    assert verdict.action is CragAction.INCORRECT
+
+
+def test_evaluate_ambiguous_between_thresholds() -> None:
+    hits = [_Hit("a partially related thing", faiss=0.4)]
+    verdict = evaluate_retrieval("q", hits, upper=0.6, lower=0.2)
+    assert verdict.action is CragAction.AMBIGUOUS
+
+
+def test_evaluate_score_uses_max_of_faiss_and_lexical() -> None:
+    # Low semantic score, but strong lexical overlap with the query → high confidence.
+    hits = [_Hit("the alpha beta gamma parameters", faiss=0.05)]
+    verdict = evaluate_retrieval("alpha beta gamma", hits, upper=0.6, lower=0.2)
+    assert verdict.score > 0.6  # lexical rescued it
+    assert verdict.action is CragAction.CORRECT
+
+
+def test_evaluate_empty_hits_is_incorrect() -> None:
+    verdict = evaluate_retrieval("q", [], upper=0.6, lower=0.2)
+    assert verdict.action is CragAction.INCORRECT
+    assert verdict.score == 0.0
+
+
+def test_evaluate_judge_can_only_lower_not_raise() -> None:
+    # Caution-only clamp: a generous judge cannot upgrade a junk hit.
+    hits = [_Hit("totally unrelated text here", faiss=0.05)]
+    verdict = evaluate_retrieval(
+        "quantum physics", hits, upper=0.6, lower=0.2, judge=lambda _q, _s: 1.0
+    )
+    assert verdict.action is CragAction.INCORRECT  # judge's 1.0 ignored upward
+
+    # ...but a strict judge CAN add caution (lower a strong deterministic score).
+    strong = [_Hit("strong hit", faiss=0.95)]
+    lowered = evaluate_retrieval(
+        "q", strong, upper=0.6, lower=0.2, judge=lambda _q, _s: 0.1
+    )
+    assert lowered.score == 0.1
+    assert lowered.action is CragAction.INCORRECT
+
+
+def test_evaluate_judge_error_falls_back_to_deterministic() -> None:
+    def boom(_q: str, _s: str) -> float:
+        raise RuntimeError("judge down")
+
+    hits = [_Hit("strong hit", faiss=0.9)]
+    verdict = evaluate_retrieval("q", hits, upper=0.6, lower=0.2, judge=boom)
+    assert verdict.action is CragAction.CORRECT  # deterministic stands
+    assert verdict.score == 0.9
+
+
+def test_retrieval_verdict_exposes_per_hit_scores() -> None:
+    hits = [_Hit("x", faiss=0.9), _Hit("y", faiss=0.3)]
+    verdict = evaluate_retrieval("q", hits, upper=0.6, lower=0.2)
+    assert isinstance(verdict, RetrievalVerdict)
+    assert verdict.per_hit == [0.9, 0.3]
+
+
+# ── Slice 2: wiring into _recall_memory (opt-in, AIOS_CRAG) ──────────────────
+
+def _patch_recall(monkeypatch, hits, *, crag: bool):
+    from aios import config
+    from aios.api import main
+
+    monkeypatch.setattr(main, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(config, "CRAG", crag)
+    monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
+    monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
+    return main
+
+
+def test_recall_memory_crag_off_is_legacy_bullets(monkeypatch) -> None:
+    hits = [_Hit("the alpha beta result is here and relevant", faiss=0.9, verification_status="verified")]
+    main = _patch_recall(monkeypatch, hits, crag=False)
+    out = main._recall_memory("alpha beta")
+    assert out is not None
+    assert "- the alpha beta result is here and relevant" in out  # unrefined bullet form
+
+
+def test_recall_memory_crag_drops_incorrect_retrieval(monkeypatch) -> None:
+    # Low semantic + zero lexical overlap → INCORRECT → the junk recall is excluded
+    # from the prompt entirely (the core anti-hallucination win of Slice 2).
+    hits = [_Hit("completely unrelated banana content here", faiss=0.05)]
+    main = _patch_recall(monkeypatch, hits, crag=True)
+    assert main._recall_memory("quantum physics") is None
+
+
+def test_recall_memory_crag_refines_and_preserves_trust(monkeypatch) -> None:
+    hits = [
+        _Hit(
+            "Intro filler with no real content at all here. "
+            "The capital of France is Paris indeed. "
+            "Some closing remarks that are pure noise too.",
+            faiss=0.9,
+            verification_status="verified",
+        )
+    ]
+    main = _patch_recall(monkeypatch, hits, crag=True)
+    out = main._recall_memory("capital of France")
+    assert out is not None
+    assert "VERIFIED TRUSTED MEMORY" in out  # trust label preserved
+    assert "Paris" in out  # golden strip kept
+    assert "closing remarks" not in out  # filler refined away
+    assert "- " not in out  # a refined block, not the legacy bullet list
