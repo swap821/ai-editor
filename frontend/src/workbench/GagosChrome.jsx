@@ -516,7 +516,28 @@ export default function GagosChrome() {
             });
           }
         };
-        const result = await sendDirective(text, abortRef.current?.signal, onWritingChunk);
+        // Candidate 3: the backend now reveals the FINAL code block as growing
+        // code_chunk snapshots (emit-time chunking — the model is non-streaming).
+        // These land after the prose stream and refine the slab with the real,
+        // structured artifact growing line-by-line into the being's body.
+        const onWritingCodeChunk = (code, language) => {
+          if (turnTokenRef.current !== token) return;
+          if (!code || !code.trim()) return;
+          updateMaterializedTab(writingTab.id, {
+            content: {
+              code,
+              language: (language || 'text').toLowerCase(),
+              filepath: workFilepath(text, language),
+              streaming: true,
+            },
+          });
+        };
+        const result = await sendDirective(
+          text,
+          abortRef.current?.signal,
+          onWritingChunk,
+          onWritingCodeChunk,
+        );
         if (turnTokenRef.current !== token) {
           releaseWorkMaterialization();
           return;

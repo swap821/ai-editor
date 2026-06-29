@@ -276,6 +276,7 @@ async function streamTurn(
   tokens: string[],
   signal?: AbortSignal,
   onChunk?: (answer: string) => void,
+  onCodeChunk?: (code: string, language: string) => void,
 ): Promise<DirectiveResult> {
   let answer = '';
   let paused = false;
@@ -316,6 +317,16 @@ async function streamTurn(
             source: 'aios',
           });
           break;
+        case 'code_chunk': {
+          // Incremental reveal of the final code block (emit-time chunking, the
+          // model itself is non-streaming). Grow the work slab snapshot-by-snapshot
+          // and keep lastEmittedCode current so an approval replay sees the code.
+          const code = String(frame.data.code ?? '');
+          const language = String(frame.data.language ?? 'text');
+          lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
+          onCodeChunk?.(code, language);
+          break;
+        }
         case 'code': {
           // Generated code used to vanish into the default branch. Capture it so
           // the forge can surface the brain's ACTUAL emitted code
@@ -451,10 +462,11 @@ export async function sendDirective(
   text: string,
   signal?: AbortSignal,
   onChunk?: (answer: string) => void,
+  onCodeChunk?: (code: string, language: string) => void,
 ): Promise<DirectiveResult> {
   setPendingApprovalState(null);
   resetSwarmHUD();
-  return streamTurn(text, [], signal, onChunk);
+  return streamTurn(text, [], signal, onChunk, onCodeChunk);
 }
 
 /** Stream one CONVERSATIONAL turn through the Jarvis voice mind (POST

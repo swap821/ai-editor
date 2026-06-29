@@ -3213,6 +3213,10 @@ def generate(
             elif kind == "text":
                 answer_parts.append(ev["text"])
                 yield _sse("text_chunk", {"text": ev["text"]})
+            elif kind == "code_chunk":
+                # Incremental reveal of the final code block (the model is
+                # non-streaming, so this is emit-time chunking, not raw tokens).
+                yield _sse("code_chunk", {"code": ev["code"], "language": ev["language"]})
             elif kind == "code":
                 yield _sse("code", {"code": ev["code"], "language": ev["language"]})
             elif kind == "error":

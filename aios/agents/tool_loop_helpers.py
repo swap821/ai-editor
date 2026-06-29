@@ -20,6 +20,32 @@ FailureHook = Callable[[str, str], Optional[dict[str, Any]]]
 ConfirmHook = Callable[[int], None]
 
 
+def chunk_code(code: str, *, steps: int = 12) -> list[str]:
+    """Break a complete code block into a growing sequence of prefix snapshots.
+
+    Each snapshot is a prefix of ``code`` ending on a line boundary, and the final
+    snapshot is always the whole block. This lets the UI reveal generated code
+    incrementally even though the (function-calling) model returns it in one frame
+    — honest "incremental reveal", not raw model tokens. A single line yields a
+    single snapshot; empty input yields none.
+    """
+    if not code:
+        return []
+    lines = code.split("\n")
+    if len(lines) <= 1:
+        return [code]
+    # Up to `steps` growing cut points spread across the lines, always ending on
+    # the full block. Cutting on line boundaries keeps each snapshot a clean prefix.
+    count = min(steps, len(lines))
+    cut_indices = sorted(
+        {max(1, round((i + 1) * len(lines) / count)) for i in range(count)}
+    )
+    snaps = ["\n".join(lines[:idx]) for idx in cut_indices]
+    if snaps[-1] != code:
+        snaps.append(code)
+    return snaps
+
+
 def finish_stream(
     content: str,
     *,
@@ -29,7 +55,8 @@ def finish_stream(
     """Stream a final answer word-by-word, then surface any fenced code block.
 
     The emitted sequence is ``text`` events (one per whitespace-preserving word),
-    an optional ``code`` event for the first fenced block, and a final ``done``.
+    then — for the first fenced block — a series of growing ``code_chunk`` events
+    (incremental reveal) followed by the final ``code`` event, and a ``done``.
     """
     text = content.strip() or "(no answer)"
     for word in re.findall(r"\S+\s*", text):
@@ -38,7 +65,10 @@ def finish_stream(
     if match:
         code = match.group(2).rstrip("\n")
         if code.strip():
-            yield {"type": "code", "code": code, "language": match.group(1) or "text"}
+            language = match.group(1) or "text"
+            for partial in chunk_code(code):
+                yield {"type": "code_chunk", "code": partial, "language": language}
+            yield {"type": "code", "code": code, "language": language}
     yield {"type": "done"}
 
 
