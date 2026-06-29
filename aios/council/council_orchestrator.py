@@ -7,12 +7,14 @@ every verdict and lifecycle event to a durable CouncilState store (best-effort).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from aios import config
 from aios.council.council_state import CouncilState
+from aios.council.king_reasoning import reason_king
 from aios.council.queen_verdict import (
     has_blocking_verdict,
     highest_risk,
@@ -71,6 +73,7 @@ class CouncilOrchestrator:
         memory: MemoryQueen | None = None,
         testing: TestingQueen | None = None,
         critique: CritiqueQueen | None = None,
+        king_complete: Callable[[str], str] | None = None,
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
         council_state: CouncilState | None = None,
@@ -86,6 +89,9 @@ class CouncilOrchestrator:
         self.critique = critique if critique is not None else (
             CritiqueQueen() if config.COUNCIL_CRITIQUE else None
         )
+        # Opt-in (AIOS_COUNCIL_KING_REASONING): an injected LLM `complete` the King
+        # uses to reason over the verdicts, clamped strengthen-only. None → off.
+        self.king_complete = king_complete
         self.ledger_store = ledger_store or self.spawner.ledger_store
         self.report_store = report_store or self.spawner.report_store
         # Optional Phase-3A durable deliberation log. None → no persistence.
@@ -191,6 +197,15 @@ class CouncilOrchestrator:
         ledger = self._enrich_worker_ledger(worker_run=worker_run, verdicts=verdicts)
         ledger_path = self.ledger_store.write(ledger)
         report = build_king_report(ledger=ledger, result=worker_run.result)
+        # Deeper cognition (opt-in): the Reasoning King enriches the recommendation +
+        # rationale, CLAMPED strengthen-only (never overrides a block; fail-closed).
+        if config.COUNCIL_KING_REASONING and self.king_complete is not None:
+            report = reason_king(
+                report,
+                contract=worker_run.contract,
+                verdicts=verdicts,
+                complete=self.king_complete,
+            )
         report_path = self.report_store.write(report)
         self._persist_event(
             contract.mission_id,

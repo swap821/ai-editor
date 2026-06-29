@@ -122,6 +122,11 @@ COUNCIL_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_REASONING", False)
 # verification was actually SUFFICIENT (strong + exercised the change). Off by
 # default (opt-in); strengthen-only — it can only add caution, never relax a block.
 COUNCIL_CRITIQUE: Final[bool] = _env_bool("AIOS_COUNCIL_CRITIQUE", False)
+# Phase: the Reasoning King — an opt-in LLM that reasons over the Queens' verdicts to
+# enrich the recommendation + rationale. Off by default; STRENGTHEN-ONLY (clamped so
+# it can add caution but never override a block or approve below floor; see
+# aios.council.king_reasoning). Requires an injected LLM `complete` callable.
+COUNCIL_KING_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_KING_REASONING", False)
 # Minimum verification strength eligible to calibrate the future (skills/patterns/
 # confidence). STRONG = only behavior-asserting test suites; a weak green can't imprint.
 VERIFICATION_PROMOTION_FLOOR: Final[str] = _env_str("AIOS_VERIFICATION_PROMOTION_FLOOR", "STRONG")
@@ -313,7 +318,8 @@ def startup_banner() -> dict[str, object]:
 __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
     "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
-    "COUNCIL_STATE_DB", "COUNCIL_REASONING", "COUNCIL_CRITIQUE", "VERIFICATION_PROMOTION_FLOOR",
+    "COUNCIL_STATE_DB", "COUNCIL_REASONING", "COUNCIL_CRITIQUE",
+    "COUNCIL_KING_REASONING", "VERIFICATION_PROMOTION_FLOOR",
     "WORKER_REASONING", "WORKER_MAX_REPAIRS",
     "WORKER_MAX_FILE_BYTES", "COUNCIL_ORIGINATION", "COUNCIL_WORKSPACE_ROOT",
     "COUNCIL_MAX_CONCURRENT_WORKERS",
