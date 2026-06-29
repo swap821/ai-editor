@@ -27,7 +27,7 @@ import { useVoiceSpeak, setVoiceSpeakMuted } from './voiceSpeak';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
-import { useTabStore, updateMaterializedTab, getTabStoreSnapshot } from '../superbrain/lib/tabStore';
+import { useTabStore, updateMaterializedTab, getTabStoreSnapshot, focusMaterializedTab } from '../superbrain/lib/tabStore';
 import { API_BASE } from '../config';
 import { sanitizeToText } from '../utils/sanitizeHtml';
 import {
@@ -546,7 +546,25 @@ export default function GagosChrome() {
             // line-reveal types the code in. Same slab, same seat — no duplicate.
             const filepath =
               (fresh?.filepath ? fresh.filepath.split(/[\\/]/).pop() : '') || workFilepath(text, language);
-            updateMaterializedTab(writingTab.id, { content: { code, language, filepath, streaming: false } });
+            // #3 (operate multiple tabs): if the REAL filename matches a DIFFERENT
+            // existing slab (the skeleton's guess differed), fold the code into THAT
+            // slab and drop the fresh skeleton — a re-edit updates one slab, never a
+            // duplicate. (Same-name guesses already reuse via showContentSurface.)
+            const base = filepath.split(/[\\/]/).pop();
+            const dup = getTabStoreSnapshot().tabs.find(
+              (t) =>
+                t.kind === 'content' &&
+                t.id !== writingTab.id &&
+                t.lifecycle !== 'retracting' &&
+                t.content?.filepath?.split(/[\\/]/).pop() === base,
+            );
+            const targetId = dup ? dup.id : writingTab.id;
+            if (dup) {
+              beginRetractingMaterializedTab(writingTab.id);
+              workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writingTab.id);
+              focusMaterializedTab(dup.id);
+            }
+            updateMaterializedTab(targetId, { content: { code, language, filepath, streaming: false } });
             pushMessage('gagos', `↳ I've materialized ${filepath} on the spine.`);
           } else {
             // No code -> the being is CONVERSING (e.g. asking to clarify). Retract the

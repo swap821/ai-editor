@@ -139,6 +139,43 @@ describe('GagosChrome — live writing slab', () => {
     });
   });
 
+  it('folds a re-edit into the existing slab when the real filename matches (#3)', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { showContentSurface, getTabStoreSnapshot: snap } = await import('../superbrain/lib/tabStore');
+    render(<GagosChrome />);
+
+    act(() => {
+      showContentSurface({ code: 'print("old")', language: 'python', filepath: 'greet.py' });
+    });
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    // directive whose filename GUESS differs from the real emitted file
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'update the greeting message' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    await waitFor(() => expect(lastOnChunk).toBeTypeOf('function'));
+
+    getLastEmittedCode.mockReturnValue({ code: 'print("new")', language: 'python', filepath: 'greet.py' });
+    await act(async () => {
+      resolveDirective({ ok: true, paused: false, answer: '' });
+    });
+
+    // The re-edit folds into the existing greet.py slab — one greet.py, updated.
+    await waitFor(() => {
+      const greets = snap().tabs.filter(
+        (t) =>
+          t.kind === 'content' &&
+          t.lifecycle !== 'retracting' &&
+          t.content?.filepath?.split(/[\\/]/).pop() === 'greet.py',
+      );
+      expect(greets.length).toBe(1);
+      expect(greets[0].content?.code).toContain('new');
+    });
+  });
+
   it('attaches the verify result to the matching slab (preview)', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     const { showContentSurface, getTabStoreSnapshot: snap } = await import('../superbrain/lib/tabStore');
