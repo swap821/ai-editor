@@ -170,6 +170,25 @@ def test_controlled_subprocess_backend_omits_cloud_secret_env(
     assert env["PYTHONIOENCODING"] == "utf-8"
 
 
+def test_restricted_environment_preserves_appdata_for_user_site(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """APPDATA/LOCALAPPDATA are non-secret OS path vars the Windows interpreter
+    needs to locate user site-packages (where pip installs without admin). They
+    belong with PATH/TEMP/WINDIR in the allowlist — withholding them crashes a
+    system-Python worker with ModuleNotFoundError. Secrets are STILL scrubbed."""
+    monkeypatch.setenv("APPDATA", r"C:\Users\x\AppData\Roaming")
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\x\AppData\Local")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-test")
+
+    env = ControlledSubprocessBackend(tmp_path / "runtime")._restricted_environment()
+
+    assert env.get("APPDATA") == r"C:\Users\x\AppData\Roaming"
+    assert env.get("LOCALAPPDATA") == r"C:\Users\x\AppData\Local"
+    assert "AWS_SECRET_ACCESS_KEY" not in env  # secrets still gone
+
+
 def test_run_command_is_fail_closed_to_verification_allowlist(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

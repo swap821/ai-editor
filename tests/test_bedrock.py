@@ -145,10 +145,19 @@ def test_list_models_filters_sorts_and_dedups() -> None:
     assert [m["name"] for m in models] == ["Amazon Nova Pro", "Anthropic Claude 3.5 Sonnet"]  # sorted
 
 
-def test_list_models_empty_on_control_plane_error() -> None:
+def test_list_models_falls_back_to_curated_range_on_control_plane_error() -> None:
+    # No control-plane access (``bedrock:ListFoundationModels`` denied — a common
+    # AWS permission posture) must NOT collapse the organism to a single Bedrock
+    # model. It offers the curated RANGE so ``auto`` + failover still pick across
+    # tiers/providers — mirroring the Gemini client's curated fallback.
+    from aios.core.bedrock import CURATED_MODELS
+
     class Boom:
         def list_foundation_models(self, **kwargs):
             raise RuntimeError("AccessDeniedException")
 
     client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=Boom())
-    assert client.list_models() == []
+    models = client.list_models()
+    assert len(models) > 1  # a RANGE, never just the one default
+    assert models == CURATED_MODELS
+    assert all(m.get("id") and m.get("name") for m in models)

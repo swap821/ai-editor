@@ -32,6 +32,20 @@ from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 
 logger = logging.getLogger(__name__)
 
+#: Curated Bedrock range — the fallback when live control-plane discovery is
+#: unavailable (``bedrock:ListFoundationModels`` denied, a common AWS posture). It
+#: spans providers and capability tiers so the organism still routes across a RANGE
+#: of cloud models, not just the one configured default. Live discovery, when
+#: permitted, supersedes this entirely. Mirrors the Gemini client's curated list.
+CURATED_MODELS: list[dict[str, str]] = [
+    {"id": "anthropic.claude-3-5-sonnet-20241022-v2:0", "name": "Anthropic Claude 3.5 Sonnet"},
+    {"id": "anthropic.claude-3-5-haiku-20241022-v1:0", "name": "Anthropic Claude 3.5 Haiku"},
+    {"id": "amazon.nova-pro-v1:0", "name": "Amazon Nova Pro"},
+    {"id": "amazon.nova-lite-v1:0", "name": "Amazon Nova Lite"},
+    {"id": "meta.llama3-1-70b-instruct-v1:0", "name": "Meta Llama 3.1 70B Instruct"},
+    {"id": "mistral.mistral-large-2407-v1:0", "name": "Mistral Large"},
+]
+
 
 def _to_converse(
     messages: list[dict[str, Any]],
@@ -228,12 +242,16 @@ class BedrockClient:
     def list_models(self) -> list[dict[str, str]]:
         """List on-demand, text Bedrock models for this region (best-effort).
 
-        Uses the control-plane ``ListFoundationModels`` (TEXT output, ON_DEMAND)
-        so the UI can offer the models this account/region can actually invoke.
-        Returns ``[{"id", "name"}]`` sorted by name, or ``[]`` on any error (e.g.
-        the API key lacks control-plane access) — callers fall back to a curated
-        list, so discovery failing never breaks the picker.
+        Tries live control-plane discovery (``ListFoundationModels``, TEXT output,
+        ON_DEMAND) so the picker can offer the models this account/region can
+        actually invoke; falls back to :data:`CURATED_MODELS` when discovery is
+        empty or unavailable (e.g. the API key lacks control-plane access). Either
+        way the organism gets a RANGE of cloud models, never just the one default,
+        and discovery failing never breaks the picker.
         """
+        return self._discover_models() or list(CURATED_MODELS)
+
+    def _discover_models(self) -> list[dict[str, str]]:
         ctrl = self._ctrl_client
         if ctrl is None:
             try:

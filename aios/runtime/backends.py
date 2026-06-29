@@ -203,6 +203,13 @@ class ControlledSubprocessBackend(WorkerBackend):
             "WINDIR",
             "TEMP",
             "TMP",
+            # Windows user site-packages live under %APPDATA%\Python (where pip
+            # installs without admin). These are non-secret OS path vars — same
+            # category as PATH/TEMP/WINDIR — that the interpreter needs to import
+            # its own deps; without them a system-Python worker dies with
+            # ModuleNotFoundError. The secret scrub below still strips real secrets.
+            "APPDATA",
+            "LOCALAPPDATA",
             "PYTHONIOENCODING",
             # Phase 2b — the worker must honor the operator's execution-backend
             # choice (container by default; host the explicit opt-out). These are

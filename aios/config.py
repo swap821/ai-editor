@@ -268,7 +268,17 @@ def _env_router_tasks(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     )
 
 
-ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _env_router_tasks("AIOS_ROUTER_CLOUD_TASKS", ())
+# The organism's source LLMs are local+cloud BY NATURE (operator decision,
+# 2026-06-29): the HIGH-LEVEL tasks (reasoning, coding) — where small local models
+# hit their ceiling — route to cloud by default; everything else stays local. The
+# privacy boundary still holds one layer down: cloud is only ever *eligible* when a
+# cloud provider is actually configured (see router_wiring._build_providers), so a
+# fresh install with no cloud creds runs fully local regardless. Override or disable
+# the set with AIOS_ROUTER_CLOUD_TASKS (e.g. "" forces local-only).
+_ROUTER_CLOUD_TASKS_DEFAULT: Final[tuple[str, ...]] = ("reasoning", "coding")
+ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _env_router_tasks(
+    "AIOS_ROUTER_CLOUD_TASKS", _ROUTER_CLOUD_TASKS_DEFAULT
+)
 ROUTER_PREFER_LOCAL: Final[bool] = _env_bool("AIOS_ROUTER_PREFER_LOCAL", True)
 ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().lower()
 ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
