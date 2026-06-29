@@ -11,12 +11,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from aios import config
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import (
     has_blocking_verdict,
     highest_risk,
     verdicts_as_metadata,
 )
+from aios.council.queens.critique import CritiqueQueen
 from aios.council.queens.memory import MemoryQueen
 from aios.council.queens.planner import CouncilMissionRequest, PlannerQueen
 from aios.council.queens.security import SecurityQueen
@@ -68,6 +70,7 @@ class CouncilOrchestrator:
         security: SecurityQueen | None = None,
         memory: MemoryQueen | None = None,
         testing: TestingQueen | None = None,
+        critique: CritiqueQueen | None = None,
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
         council_state: CouncilState | None = None,
@@ -78,6 +81,11 @@ class CouncilOrchestrator:
         self.security = security or SecurityQueen()
         self.memory = memory or MemoryQueen()
         self.testing = testing or TestingQueen()
+        # Opt-in (AIOS_COUNCIL_CRITIQUE): a second-order check on verification
+        # sufficiency. None → the Queen is absent (no behavior change).
+        self.critique = critique if critique is not None else (
+            CritiqueQueen() if config.COUNCIL_CRITIQUE else None
+        )
         self.ledger_store = ledger_store or self.spawner.ledger_store
         self.report_store = report_store or self.spawner.report_store
         # Optional Phase-3A durable deliberation log. None → no persistence.
@@ -169,6 +177,16 @@ class CouncilOrchestrator:
         )
         verdicts = [*verdicts, testing_verdict]
         self._persist_verdict(contract.mission_id, testing_verdict)
+
+        # Deeper cognition (opt-in): the Critique Queen scrutinizes whether the
+        # PASSING verification was actually sufficient (strong + exercised the
+        # change). Strengthen-only — it can only add caution, never relax a block.
+        if self.critique is not None:
+            critique_verdict = self.critique.review(
+                contract=worker_run.contract, testing_verdict=testing_verdict
+            )
+            verdicts = [*verdicts, critique_verdict]
+            self._persist_verdict(contract.mission_id, critique_verdict)
 
         ledger = self._enrich_worker_ledger(worker_run=worker_run, verdicts=verdicts)
         ledger_path = self.ledger_store.write(ledger)
