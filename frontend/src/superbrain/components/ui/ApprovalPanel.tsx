@@ -67,6 +67,10 @@ export interface ApprovalOutcome {
   action: 'authorize' | 'reject';
   kind: PendingApproval['kind'];
   filepath: string;
+  /** The proposed artifact, so a consumer can fill a "writing" slab on authorize:
+   *  full file content for a create, the unified diff for an edit. */
+  content: string;
+  diff: string;
 }
 
 export default function ApprovalPanel({
@@ -83,7 +87,13 @@ export default function ApprovalPanel({
 
   const authorize = useCallback(() => {
     setBusy('authorize');
-    const decided: ApprovalOutcome = { action: 'authorize', kind: pending.kind, filepath: pending.filepath };
+    const decided: ApprovalOutcome = {
+      action: 'authorize',
+      kind: pending.kind,
+      filepath: pending.filepath,
+      content: pending.content,
+      diff: pending.diff,
+    };
     void approvePendingApproval().finally(() => {
       setBusy(null);
       onSettled(decided);
@@ -92,7 +102,13 @@ export default function ApprovalPanel({
 
   const reject = useCallback(() => {
     setBusy('reject');
-    const decided: ApprovalOutcome = { action: 'reject', kind: pending.kind, filepath: pending.filepath };
+    const decided: ApprovalOutcome = {
+      action: 'reject',
+      kind: pending.kind,
+      filepath: pending.filepath,
+      content: pending.content,
+      diff: pending.diff,
+    };
     void rejectPendingApproval().finally(() => {
       setBusy(null);
       onSettled(decided);

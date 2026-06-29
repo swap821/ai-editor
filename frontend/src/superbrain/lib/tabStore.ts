@@ -9,6 +9,10 @@ export interface MaterializedTabContent {
   code: string;
   language: string;
   filepath: string;
+  /** True while the being is still WRITING this surface (code may be empty or
+   *  partial) — the slab shows a "writing…" cue + cursor. Cleared (false) once
+   *  the final code lands and the line-reveal settles to `live`. */
+  streaming?: boolean;
 }
 
 export interface MaterializedInputSurface {

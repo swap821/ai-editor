@@ -1784,6 +1784,9 @@ export default function MaterializedTab({
   const headerLabel = getSurfaceHeader(tab);
   const footerLabel = getSurfaceFooter(tab);
   const code = tab.content?.code ?? '';
+  // C-Slice1: the being is still WRITING this surface (code empty/partial) — show a
+  // "writing…" cue instead of a blank slab until the code lands and reveals.
+  const streaming = (tab.content?.streaming ?? false) && code.trim().length === 0;
   const inputText = tab.input?.text?.trim() ?? '';
   const approvalText = getApprovalBody(tab.approval);
   const buttonDisabled = !interactive || approvalBusy;
@@ -2242,6 +2245,25 @@ export default function MaterializedTab({
                 >
                   {footerLabel}
                 </Text>
+                {streaming ? (
+                  <Text
+                    key={`writing-${tab.id}`}
+                    position={[
+                      -dimensions.width * 0.38,
+                      dimensions.height * 0.16,
+                      dimensions.thickness + 0.02,
+                    ]}
+                    color={POINTS ? theme.header : theme.text}
+                    fontSize={POINTS ? 0.034 : 0.025}
+                    anchorX="left"
+                    anchorY="middle"
+                    outlineWidth={0.0016}
+                    outlineColor={theme.outline}
+                    renderOrder={10}
+                  >
+                    {'writing...|'}
+                  </Text>
+                ) : null}
                 {contentPreview.lines.slice(0, revealedCount).map((line, index, shown) => (
                   <Text
                     key={`content-line-${tab.id}-${index}`}

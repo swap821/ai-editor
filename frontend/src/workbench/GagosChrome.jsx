@@ -27,7 +27,7 @@ import { useVoiceSpeak, setVoiceSpeakMuted } from './voiceSpeak';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
-import { useTabStore } from '../superbrain/lib/tabStore';
+import { useTabStore, updateMaterializedTab } from '../superbrain/lib/tabStore';
 import { API_BASE } from '../config';
 import { sanitizeToText } from '../utils/sanitizeHtml';
 import {
@@ -220,6 +220,7 @@ export default function GagosChrome() {
   const threadRef = useRef(null);
   const inputRef = useRef(null);
   const workTabIdsRef = useRef([]); // accumulated work tabs (orchestration); newest = center focus
+  const writingTabIdRef = useRef(null); // the slab THIS turn is writing into (filled/retracted on resolve)
   const isHoldingMicRef = useRef(false);
 
   // Live active-LLM line from the router's `route` cognition events.
@@ -419,6 +420,21 @@ export default function GagosChrome() {
         // Own this turn's work materialization so the backend's CODE EMITTED
         // auto-fire (MaterializationLayer) doesn't ALSO spawn a duplicate tab.
         claimWorkMaterialization();
+        // C-Slice1 (live writing): materialize a "writing…" skeleton IMMEDIATELY so
+        // you watch the being write into its OWN body during the turn, instead of a
+        // blank wait. We own this slab by id and fill it (code reveals in) or retract
+        // it once the turn resolves — or, for a supervised write, after approval.
+        const writeSeat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+        const writingTab = showContentSurface(
+          { code: '', language: 'text', filepath: workFilepath(text), streaming: true },
+          getContentSurfacePlacement(writeSeat),
+        );
+        workTabIdsRef.current.push(writingTab.id);
+        // Cap the orchestration: beyond 5 tabs the OLDEST reabsorbs up the spine (phase 7).
+        while (workTabIdsRef.current.length > 5) {
+          const oldest = workTabIdsRef.current.shift();
+          if (oldest) beginRetractingMaterializedTab(oldest);
+        }
         const beforeCode = getLastEmittedCode();
         const result = await sendDirective(text, abortRef.current?.signal);
         if (turnTokenRef.current !== token) {
@@ -426,9 +442,12 @@ export default function GagosChrome() {
           return;
         }
         if (result?.paused) {
-          // Approval pause: hand materialization back to the backend flow (it fires
-          // CODE EMITTED on approve, which MaterializationLayer then materializes).
-          releaseWorkMaterialization();
+          // Supervised: the write happens AFTER approval. Keep the writing skeleton on
+          // the spine ("awaiting approval") and keep ownership through the operator's
+          // decision (long re-claim) so the post-approval CODE EMITTED doesn't double-
+          // fire. ApprovalPanel.onSettled fills (authorize) or retracts (reject) it.
+          writingTabIdRef.current = writingTab.id;
+          claimWorkMaterialization(600000);
           pushMessage('gagos', 'Holding for your approval before I build that.');
         } else {
           // Prefer the brain's ACTUAL emitted code (the dedicated `code` SSE frame,
@@ -443,21 +462,17 @@ export default function GagosChrome() {
           const language = fresh ? (fresh.language || 'text').toLowerCase() : extracted.language;
           const hasCode = Boolean((fresh || extracted.hasCode) && code.trim());
           if (hasCode) {
-            // A real artifact -> grow a code tab from a vertebra (poster phase 4-6).
+            // A real artifact -> FILL the owned skeleton in place (by id); the existing
+            // line-reveal types the code in. Same slab, same seat — no duplicate.
             const filepath =
               (fresh?.filepath ? fresh.filepath.split(/[\\/]/).pop() : '') || workFilepath(text, language);
-            const seat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
-            const tab = showContentSurface({ code, language, filepath }, getContentSurfacePlacement(seat));
-            workTabIdsRef.current.push(tab.id);
-            // Cap the orchestration: beyond 5 tabs the OLDEST reabsorbs up the spine (phase 7).
-            while (workTabIdsRef.current.length > 5) {
-              const oldest = workTabIdsRef.current.shift();
-              if (oldest) beginRetractingMaterializedTab(oldest);
-            }
+            updateMaterializedTab(writingTab.id, { content: { code, language, filepath, streaming: false } });
             pushMessage('gagos', `↳ I've materialized ${filepath} on the spine.`);
           } else {
-            // No code -> the being is CONVERSING (e.g. asking to clarify). Show its
-            // words as a normal reply; never grow an empty/garbage "code" tab.
+            // No code -> the being is CONVERSING (e.g. asking to clarify). Retract the
+            // premature writing skeleton so an empty "writing…" slab never lingers.
+            beginRetractingMaterializedTab(writingTab.id);
+            workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writingTab.id);
             const replyText = cleanText(stripAlignmentPreamble(result?.answer));
             if (replyText) {
               pushMessage('gagos', replyText);
@@ -697,13 +712,46 @@ export default function GagosChrome() {
           pending={pendingApproval}
           onSettled={(outcome) => {
             setPendingApproval(getPendingApproval());
+            const writeId = writingTabIdRef.current;
+            writingTabIdRef.current = null;
             if (!outcome) return;
-            // Narrate the decision in the thread — the 3D layer also shows it, but a
-            // DOM line guarantees a visible, accessible "done" confirmation.
             if (outcome.action === 'reject') {
+              // Declined: retract the writing skeleton (nothing was written).
+              if (writeId) {
+                beginRetractingMaterializedTab(writeId);
+                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
+              }
+              releaseWorkMaterialization();
               pushMessage('gagos', 'Stood down — that action was declined.');
               return;
             }
+            // Authorized: for a file write, FILL the owned skeleton with the approved
+            // code (the replay just emitted it) so it reveals in place. For a command/
+            // browse (no file artifact), retract the skeleton instead of leaving it empty.
+            if (writeId) {
+              const isFileKind = outcome.kind === 'create' || outcome.kind === 'edit';
+              const emittedNow = getLastEmittedCode();
+              // The approved artifact lives in the pending approval itself (a create
+              // carries the full content; an edit carries the diff) — NOT in a code
+              // SSE frame (the replay doesn't emit one). Fall back to lastEmittedCode.
+              const code =
+                (outcome.kind === 'create' ? outcome.content : outcome.kind === 'edit' ? (outcome.content || outcome.diff) : '') ||
+                (emittedNow && emittedNow.code) ||
+                '';
+              if (isFileKind && code.trim()) {
+                const filepath = outcome.filepath ? outcome.filepath.split(/[\\/]/).pop() : 'file';
+                const ext = (filepath.split('.').pop() || '').toLowerCase();
+                const language = (emittedNow && emittedNow.language)
+                  || (ext === 'py' ? 'python' : ext === 'ts' ? 'typescript' : ext === 'js' ? 'javascript' : ext || 'text');
+                updateMaterializedTab(writeId, { content: { code, language, filepath, streaming: false } });
+              } else {
+                beginRetractingMaterializedTab(writeId);
+                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
+              }
+              releaseWorkMaterialization();
+            }
+            // Narrate the decision in the thread — the 3D layer also shows it, but a
+            // DOM line guarantees a visible, accessible "done" confirmation.
             const verb = outcome.kind === 'create' ? 'Created'
               : outcome.kind === 'edit' ? 'Updated'
               : outcome.kind === 'command' ? 'Ran'
