@@ -48,13 +48,15 @@ FastAPI backend (`aios.api.main`)
 | `aios/memory/conversation.py` | Hashed durable alignment state for session restoration |
 | `aios/security/gateway.py` | Deterministic fail-closed zone classifier |
 | `aios/security/scope_lock.py` | Path and command scope enforcement |
-| `aios/security/audit_logger.py` | Tamper-evident audit ledger |
+| `aios/security/audit_logger.py` | Tamper-evident audit ledger (Ed25519-signed, versioned hash chain, signed tip-anchor against tail-truncation) |
 | `aios/core/executor.py` | Gated, scope-constrained command execution |
 | `aios/core/verifier.py` | Evidence-based verification of test/build commands |
+| `aios/core/verification_strength.py` | Command-aware grading of verifier evidence (STRONG/MEDIUM/WEAK/NONE); promotion floor = STRONG |
 | `aios/core/model_selector.py` | Task-aware local model auto-selection |
 | `aios/core/router.py` | Cross-provider hybrid router: privacy/cost policy gate + local-LLM pick + evidence calibration |
 | `aios/core/bedrock.py` / `aios/core/gemini.py` | Cloud chat clients (Bedrock Converse / Gemini via Vertex AI, gcloud ADC) |
 | `aios/core/self_apply.py` | Human-approved self-analysis proposal apply/verify/rollback |
+| `aios/memory/self_model.py` | Grounded narrative self: deterministic autobiography synthesized from verified telemetry |
 | `aios/memory/` | Episodic, semantic, lessons, facts, development, skills, curriculum |
 | `frontend/src/superbrain/SuperbrainApp.jsx` | GAGOS root app (3D brain canvas + chat chrome) |
 | `frontend/src/workbench/GagosChrome.{jsx,css}` | Product-safe 2D chat chrome (not byte-synced from lab) |
@@ -139,6 +141,9 @@ Experience -> outcome evaluation -> candidate lesson/fact/skill
   verifier evidence, repeated training passes, and a held-out pass.
 - Development metrics, skills, curriculum, trusted facts, and consolidation are
   exposed under `/api/v1/development/*` and `/api/v1/memory/*`.
+- The agent carries a grounded narrative self: a first-person autobiography
+  synthesized deterministically from verified telemetry (per-task success
+  profiles, recurring mistakes), never invented by the model (opt-in).
 
 ## Security Invariants
 
@@ -150,7 +155,10 @@ Experience -> outcome evaluation -> candidate lesson/fact/skill
 - YELLOW pauses for human approval and resumes the same turn with the approved
   command/edit/create payload.
 - Audit-before-write on guarded edits and self-apply.
-- Verification is evidence-based; model narration does not count as success.
+- Verification is evidence-based and graded by strength (STRONG/MEDIUM/WEAK/NONE),
+  command-aware: learning promotion (lessons, skills, earned-autonomy streaks)
+  requires a STRONG floor, so a weak or echoed green cannot mint trusted evidence.
+  Model narration never counts as success.
 - Semantic FAISS writes are coordinated across local worker processes with a
   shared file lock; writers reload before mutation and long-lived readers
   refresh after another process persists.

@@ -1,34 +1,57 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-28T05:54:35Z
+Last updated: 2026-06-29T01:48Z
 
 ## Current Goal
-Verification-strength review fixes are landed on `master`; keep the next session pointed at the next roadmap slice.
+GAGOS roadmap Phases 1–4 + the narrative self are shipped to `master`. The next
+frontier is PROOF, not more features: witness the supervised loop end-to-end with
+a live backend (operator's machine), and render the new governed state
+(verification strength) as organism anatomy. Keep the next session pointed there.
 
 ## Last Completed + Verified
-- Codex reclaimed the `verification-strength-gate-review-fixes` builder lease with `--adopt-dirty`; no other active writer was present.
-- Operator explicitly approved landing despite the prior Claude-review wait state.
-- Commit `cae1ab6` (`runtime: close verification-strength trust laundering paths`) landed on `council-runtime-v01`, then fast-forwarded into `master`.
-- `origin/council-runtime-v01` and `origin/master` were pushed to `cae1ab6`.
-- Fixed the remaining trust-laundering paths:
-  - Multi-file verifier commands now track every Python target instead of only the first file.
-  - Earned-autonomy streaks only advance on promotion-floor verifier strength; weak success resets/revokes.
-  - Mistake/lesson promotion now refuses below-floor verifier strength, including the ToolAgent retry confirmation path.
-- CI-equivalent local gates passed:
-  - Backend: `$env:AIOS_ROUTER_CLOUD_TASKS=''; .venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` -> exit 0, 1 skipped, 87.84% coverage.
-  - Frontend: `npm run typecheck` -> exit 0.
-  - Frontend: `npm test` -> 59 files / 360 tests passed.
-  - Frontend: `npm run build` -> exit 0.
-  - `git diff --check` -> clean apart from expected CRLF conversion warnings.
-- GitHub Actions: master CI run `28313030578` passed for `cae1ab6` (frontend 58s, backend 2m55s).
+All of the following landed on `council-runtime-v01`, fast-forwarded to `master`,
+and pushed; CI green each push. (`master` head: `8d5a4e5`.)
+- **Phase 1 — verification-strength taxonomy** (`aios/core/verification_strength.py`):
+  command-aware grading STRONG/MEDIUM/WEAK/NONE, program-position-anchored so an
+  `echo`/weak green cannot forge STRONG; promotion floor = STRONG gates lessons,
+  skills, and earned-autonomy streaks. Surfaced in the Council dashboard + run/king
+  ledgers. Adversarial-reviewed (arg-position runner-token forge caught + fixed).
+- **Phase 2 + 2b — execution boundary**: container is the default backend for
+  approved-arbitrary exec + self-apply AND the opt-in Council worker's
+  `run_command` verification; degrade-don't-brick startup; self-apply is
+  container-only; `AIOS_APPROVED_EXECUTION_BACKEND=host` is a loud dev-only opt-out.
+- **Phase 3 — tamper-evident substrate** (frozen §VIII, operator-approved,
+  strengthen-only): versioned hash preimage (v2 canonical JSON, v1 still verifies),
+  signed tip-anchor detecting tail-truncation incl. the anchor-deletion evasion;
+  secret scanner broadened (PEM variants + keyword-gated short-hex). Runtime
+  self-modification refusal untouched.
+- **Phase 4 — the front door**: cold-start living boot-loader + first-run
+  onboarding coach that leads with the identity line
+  ("GAGOS — a local-first AI that acts only with your approval.") then the safe
+  first action.
+- **The narrative self** (`aios/memory/self_model.py`): deterministic
+  autobiography synthesized from verified telemetry (task profiles, recurring
+  mistakes); opt-in (`AIOS_NARRATIVE_SELF`), empty when no verified evidence.
+- Docs refreshed to honestly claim now-earned capabilities (README component
+  table + Security Invariants: graded verification, container-default,
+  tamper-evidence, narrative self).
+- Gates each landing: backend `pytest` ≥85% coverage (1186+ passing locally;
+  3 embedder tests skip locally on the broken torch, run in CI), frontend
+  typecheck + vitest + build green.
 
 ## Single Next Action
-Start the next roadmap slice from clean `master` after reading this RESUME, warnings, recent experiences, and `agent_coord.py status`.
+PROVE THE SUPERVISED LOOP end-to-end against a live backend on the operator's
+machine: directive → deliberate → King approval → worker acts (scoped write) →
+verify → report — witnessed once, not dev-injected. This is the product thesis
+and the one high-value thing still unproven. (Render verification-strength as
+anatomy — the One Law — is the operator's aesthetic call and a fine parallel.)
 
 ## Open Approvals / Blockers
-- No open blocker.
-- Landing was operator-approved in this session.
+- No open blocker. Frozen §VIII was opened once this arc with explicit operator
+  approval (Phase 3) and re-closed; strengthen-only invariant held.
+- The live-loop proof needs the operator's running backend + browser to witness.
 
 ## Active Files
 - `.aios/state/RESUME.md`
-- `.aios/memory/experiences.jsonl`
+- `.aios/state/CEO_LOG.md`
+- `README.md`
