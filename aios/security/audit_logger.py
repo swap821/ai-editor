@@ -472,6 +472,15 @@ def init_audit_db(db_path: Path = config.AUDIT_DB_PATH) -> None:
                 "ALTER TABLE tamper_audit_trail "
                 "ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1"
             )
+        # ALTER-if-missing: add the Ed25519 columns to a PRE-SIGNATURE ledger.
+        # Without this, log_action's INSERT fail-closes on the missing `signature`
+        # column, bricking EVERY guarded write on an old DB. Strengthen-only:
+        # legacy rows keep NULL signatures, which verify_chain already treats as
+        # unsigned-legacy (no guard is relaxed).
+        if "signature" not in cols:
+            conn.execute("ALTER TABLE tamper_audit_trail ADD COLUMN signature TEXT")
+        if "key_id" not in cols:
+            conn.execute("ALTER TABLE tamper_audit_trail ADD COLUMN key_id TEXT")
         conn.commit()
     finally:
         conn.close()

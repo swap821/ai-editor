@@ -18,7 +18,8 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, previewIntent, fetchOnboardingState } from '../superbrain/lib/aiosAdapter';
+import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, getPendingApproval, subscribePendingApproval, previewIntent, fetchOnboardingState } from '../superbrain/lib/aiosAdapter';
+import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
 import { triggerSpineFlash } from './spineFlashBridge';
@@ -198,6 +199,12 @@ export default function GagosChrome() {
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
   const [verifyToast, setVerifyToast] = useState(null); // { verdict, detail }
+  // The supervised pause, surfaced as a DEPENDABLE DOM gate. The 3D being also
+  // presents the approval as a crowned slab, but that path is invisible when the
+  // WebGL scene can't render; this gate binds to the same single source of truth
+  // (the adapter's pending-approval store) so a YELLOW pause is NEVER left
+  // un-actionable. Authoritative decision surface for the supervised loop.
+  const [pendingApproval, setPendingApproval] = useState(() => getPendingApproval());
   const voice = useVoiceSpeak();
   const reducedMotion = useReducedMotion();
   // NeuralCommandDock working-dim: the dock yields while the being orchestrates work
@@ -217,6 +224,9 @@ export default function GagosChrome() {
 
   // Live active-LLM line from the router's `route` cognition events.
   useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
+  // Bind the DOM approval gate to the persisted pending-approval truth (fires
+  // immediately with the current value + on every change). Returns the unsub.
+  useEffect(() => subscribePendingApproval(setPendingApproval), []);
   // Live state read off the body: subscribe for instant phase changes + a light
   // poll so the lazy decay of complete/error → idle (rest) is reflected too.
   useEffect(() => {
@@ -677,6 +687,17 @@ export default function GagosChrome() {
 
       <SwarmHUD />
       <CouncilDashboard />
+
+      {/* The supervised decision surface — a dependable DOM gate that appears
+          whenever the mind pauses on a write/command/fetch, even if the 3D scene
+          can't render. AUTHORIZE redeems the server-issued capability; REJECT is
+          audited. Only these buttons can approve — no prose ever can. */}
+      {pendingApproval ? (
+        <ApprovalPanel
+          pending={pendingApproval}
+          onSettled={() => setPendingApproval(getPendingApproval())}
+        />
+      ) : null}
 
       <section className="gagos-chat" aria-label="Conversation">
         {messages.length === 0 && !busy ? (

@@ -167,6 +167,48 @@ def test_fresh_db_has_no_anchor_and_is_valid(db: Path) -> None:
     assert status.tip_anchor_valid is None  # never written -> no anchor (not a truncation)
 
 
+def test_pre_signature_db_is_migrated_so_guarded_writes_do_not_brick(tmp_path: Path) -> None:
+    # A PRE-SIGNATURE ledger (created before Ed25519 support): core columns +
+    # hash_version, but NO signature/key_id. init_audit_db must ALTER-add them, else
+    # every guarded write fail-closes on "no column named signature" — bricking all
+    # supervised actions. (Surfaced by the live supervised-loop proof on the real DB.)
+    db = tmp_path / "legacy_audit.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        "CREATE TABLE tamper_audit_trail ("
+        "entry_id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, "
+        "actor TEXT NOT NULL, action_payload TEXT NOT NULL, security_zone TEXT NOT NULL, "
+        "current_hash TEXT NOT NULL, previous_hash TEXT NOT NULL, "
+        "hash_version INTEGER NOT NULL DEFAULT 1)"
+    )
+    ts = "2026-01-01T00:00:00+00:00"
+    chash = compute_entry_hash(_GENESIS, ts, "legacy", "payload", "GREEN", version=1)
+    conn.execute(
+        "INSERT INTO tamper_audit_trail (timestamp, actor, action_payload, "
+        "security_zone, current_hash, previous_hash, hash_version) "
+        "VALUES (?, ?, ?, ?, ?, ?, 1)",
+        (ts, "legacy", "payload", "GREEN", chash, _GENESIS),
+    )
+    conn.commit()
+    conn.close()
+
+    init_audit_db(db)  # migration must add the missing columns
+
+    conn = sqlite3.connect(str(db))
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(tamper_audit_trail)")}
+    conn.close()
+    assert "signature" in cols
+    assert "key_id" in cols
+
+    # A guarded write now succeeds instead of raising AuditError...
+    entry = log_action("actor", "guarded-action", Zone.GREEN, db_path=db)
+    assert entry.entry_id is not None
+    # ...and the chain (legacy unsigned row + the new row) still verifies.
+    status = verify_chain(db_path=db, verify_signatures=False)
+    assert status.valid is True
+    assert status.total_entries == 2
+
+
 def test_append_re_anchors_after_a_deletion(db: Path) -> None:
     log_action("actor", "a1", Zone.GREEN, db_path=db)
     entry2 = log_action("actor", "a2", Zone.GREEN, db_path=db)
