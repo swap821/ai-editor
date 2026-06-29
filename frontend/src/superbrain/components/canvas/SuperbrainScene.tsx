@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { Float, useGLTF, PerspectiveCamera, OrbitControls } from '@react-three/drei';
+import { Float, PerspectiveCamera, OrbitControls } from '@react-three/drei';
+import { useBrainScene, preloadBrainScene } from '@/lib/brainScene';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
@@ -732,7 +733,11 @@ function BrainModel({
       }),
     [workspaceCount, viewportWidth, viewportHeight, approvalHeld],
   );
-  const { scene } = useGLTF('/models/brain.glb');
+  // Plain manual loader (brainScene.ts), NOT drei's useGLTF — the latter hangs the
+  // Suspense FOREVER under the strict CSP (its MeshoptDecoder WASM/blob-worker),
+  // which left the whole being black. A direct GLTFLoader load of this uncompressed
+  // GLB works; brainScene.ts wraps it in module-cached manual Suspense.
+  const scene = useBrainScene();
 
   /** COMPUTER BRAIN (operator's truth: the being only WEARS a brain SHAPE — the
    *  interior is a NETWORK OF NODES, not organic flesh).
@@ -1133,7 +1138,11 @@ function PointerBrainClone({
     [workspaceCount, viewportWidth, viewportHeight, approvalHeld],
   );
   const brainPresenceRef = useRef(brainPresence);
-  const { scene } = useGLTF('/models/brain.glb');
+  // Plain manual loader (brainScene.ts), NOT drei's useGLTF — the latter hangs the
+  // Suspense FOREVER under the strict CSP (its MeshoptDecoder WASM/blob-worker),
+  // which left the whole being black. A direct GLTFLoader load of this uncompressed
+  // GLB works; brainScene.ts wraps it in module-cached manual Suspense.
+  const scene = useBrainScene();
 
   const brainClone = useMemo(() => {
     const clone = scene.clone(true);
@@ -2034,4 +2043,4 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   );
 }
 
-useGLTF.preload('/models/brain.glb');
+preloadBrainScene(); // overlap the GLB parse with boot (see brainScene.ts)

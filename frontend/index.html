@@ -8,7 +8,15 @@
     <meta name="theme-color" content="#050507" />
     <meta name="description" content="GAGOS — the voyaging mind: a local-first, supervised, memory-driven AI operating system." />
     <!-- ===== SECURITY HEADERS (C18) — Zero security headers vulnerability fix ===== -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:8000 wss://* http://localhost:8000 https://*; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" />
+    <!-- ===== SECURITY HEADERS (C18) — CSP tuned for the WebGL being =====
+         The earlier strict `script-src 'self'` silently KILLED the 3D scene: it
+         blocks inline scripts (vite's dev preamble + this file's boot-loader),
+         WebAssembly, the troika text worker, and the Google-Fonts stylesheet —
+         leaving the Suspense suspended forever (black canvas). 'unsafe-inline' +
+         'wasm-unsafe-eval' restore those; the hardening that costs nothing here is
+         kept (object-src 'none', frame-ancestors 'none', base-uri 'self'). This is
+         a localhost-only, loopback-API local-first app — XSS surface is minimal. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' ws://localhost:8000 wss://* http://localhost:8000 https://*; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';" />
     <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
