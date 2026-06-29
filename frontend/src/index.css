@@ -29,7 +29,7 @@
   --color-warn:    #fbbf24;
   --color-danger:  #f87171;
 
-  --font-sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Geist", "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
 }
 

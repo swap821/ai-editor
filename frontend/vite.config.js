@@ -13,8 +13,46 @@ export default defineConfig(({ mode }) => {
   // so we bridge VITE_* -> NEXT_PUBLIC_* here instead of editing the ported file.
   const env = loadEnv(mode, process.cwd(), '')
   const AIOS_BASE = env.VITE_API_BASE || 'http://localhost:8000'
+
+  // ── Content-Security-Policy (C18), MODE-AWARE ─────────────────────────────
+  // The dev server MUST allow script 'unsafe-inline' — @vitejs/plugin-react
+  // injects an inline React-refresh preamble. The production BUILD has no inline
+  // scripts (the boot loader is the external /boot-loader.js), so the shipped CSP
+  // drops 'unsafe-inline' entirely. 'wasm-unsafe-eval' is kept (WebGL/three may
+  // compile WASM) — it permits WebAssembly only, NOT JS eval(). No 'unsafe-eval'
+  // (troika runs main-thread, see troikaConfig.ts) and no blob: in script-src.
+  // Fonts are self-hosted, so no CDN allowance. A too-strict `script-src 'self'`
+  // once blocked all of this and silently killed the 3D scene.
+  const isDev = mode !== 'production'
+  const csp = [
+    "default-src 'self'",
+    isDev
+      ? "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"
+      : "script-src 'self' 'wasm-unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "connect-src 'self' ws://localhost:8000 wss://* http://localhost:8000 https://*",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ') + ';'
+  const cspPlugin = {
+    name: 'gagos-csp',
+    transformIndexHtml() {
+      return [{
+        tag: 'meta',
+        attrs: { 'http-equiv': 'Content-Security-Policy', content: csp },
+        injectTo: 'head-prepend',
+      }]
+    },
+  }
+
   return {
     plugins: [
+      cspPlugin,
       react(),
       tailwindcss(),
     ],

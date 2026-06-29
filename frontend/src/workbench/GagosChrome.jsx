@@ -695,7 +695,24 @@ export default function GagosChrome() {
       {pendingApproval ? (
         <ApprovalPanel
           pending={pendingApproval}
-          onSettled={() => setPendingApproval(getPendingApproval())}
+          onSettled={(outcome) => {
+            setPendingApproval(getPendingApproval());
+            if (!outcome) return;
+            // Narrate the decision in the thread — the 3D layer also shows it, but a
+            // DOM line guarantees a visible, accessible "done" confirmation.
+            if (outcome.action === 'reject') {
+              pushMessage('gagos', 'Stood down — that action was declined.');
+              return;
+            }
+            const verb = outcome.kind === 'create' ? 'Created'
+              : outcome.kind === 'edit' ? 'Updated'
+              : outcome.kind === 'command' ? 'Ran'
+              : outcome.kind === 'browse' ? 'Fetched'
+              : 'Approved';
+            const target = outcome.filepath
+              || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
+            pushMessage('gagos', `↳ ${verb} ${target}.`);
+          }}
         />
       ) : null}
 

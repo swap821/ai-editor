@@ -7,16 +7,14 @@
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#050507" />
     <meta name="description" content="GAGOS — the voyaging mind: a local-first, supervised, memory-driven AI operating system." />
-    <!-- ===== SECURITY HEADERS (C18) — Zero security headers vulnerability fix ===== -->
-    <!-- ===== SECURITY HEADERS (C18) — CSP tuned for the WebGL being =====
-         The earlier strict `script-src 'self'` silently KILLED the 3D scene: it
-         blocks inline scripts (vite's dev preamble + this file's boot-loader),
-         WebAssembly, the troika text worker, and the Google-Fonts stylesheet —
-         leaving the Suspense suspended forever (black canvas). 'unsafe-inline' +
-         'wasm-unsafe-eval' restore those; the hardening that costs nothing here is
-         kept (object-src 'none', frame-ancestors 'none', base-uri 'self'). This is
-         a localhost-only, loopback-API local-first app — XSS surface is minimal. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' ws://localhost:8000 wss://* http://localhost:8000 https://*; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';" />
+    <!-- ===== SECURITY HEADERS (C18) =====
+         The Content-Security-Policy is injected by the gagos-csp vite plugin
+         (vite.config.js) so it can be MODE-AWARE: the dev server must allow
+         script 'unsafe-inline' for vite's React-refresh preamble, but the
+         production build has no inline scripts (the boot loader is the external
+         /boot-loader.js), so the built CSP drops 'unsafe-inline' entirely.
+         A too-strict `script-src 'self'` previously blocked WASM + the troika
+         worker + inline scripts and silently killed the 3D scene. -->
     <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
@@ -111,26 +109,8 @@
     </noscript>
 
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      /* Dismiss the boot loader without touching the port-managed 3D tree.
-         Order of dismissal: explicit scene-ready signal → window load (+grace)
-         → hard safety timeout (never trap the user behind the loader). */
-      (function () {
-        var loader = document.getElementById('boot-loader');
-        if (!loader) return;
-        function dismiss() {
-          if (loader.dataset.done) return;
-          loader.dataset.done = '1';
-          /* Narrate the handoff to assistive tech before the loader leaves (it is a
-             role=status polite live region) — otherwise the scene-ready transition is silent. */
-          var label = loader.querySelector('.boot-label');
-          if (label) label.textContent = 'The voyaging mind is ready';
-          window.setTimeout(function () { if (loader && loader.parentNode) loader.parentNode.removeChild(loader); }, 700);
-        }
-        window.addEventListener('gagos:ready', dismiss);           /* PRIMARY: the scene dispatches this on its first rendered frame */
-        window.addEventListener('load', function () { window.setTimeout(dismiss, 2500); }); /* grace fallback if the scene never signals */
-        window.setTimeout(dismiss, 9000);                          /* hard safety net */
-      })();
-    </script>
+    <!-- Boot-loader dismiss logic is EXTERNAL (served from 'self') so the CSP needs
+         no script 'unsafe-inline' for it. -->
+    <script src="/boot-loader.js"></script>
   </body>
 </html>

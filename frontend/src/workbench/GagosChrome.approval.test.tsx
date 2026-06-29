@@ -9,6 +9,24 @@ vi.mock('../superbrain/SuperbrainApp', () => ({
   default: () => <div data-testid="mock-being">being</div>,
 }));
 
+// Keep the real adapter (real pending-approval store + __injectApproval), but stub
+// the network-bound authorize/reject so the gate resolves without a backend.
+vi.mock('../superbrain/lib/aiosAdapter', async () => {
+  const actual = await vi.importActual<typeof import('../superbrain/lib/aiosAdapter')>(
+    '../superbrain/lib/aiosAdapter',
+  );
+  return {
+    ...actual,
+    approvePendingApproval: vi.fn(async () => {
+      (window as unknown as { __clearApproval?: () => void }).__clearApproval?.();
+      return { ok: true, paused: false, answer: '' };
+    }),
+    rejectPendingApproval: vi.fn(async () => {
+      (window as unknown as { __clearApproval?: () => void }).__clearApproval?.();
+    }),
+  };
+});
+
 type ApprovalHost = {
   __injectApproval?: (over?: Record<string, unknown>) => void;
   __clearApproval?: () => void;
@@ -61,6 +79,32 @@ describe('GagosChrome DOM approval gate', () => {
     // The decision names the exact action — never a vague ask (the target file
     // appears in both the title and the plain-language summary).
     expect(screen.getAllByText(/hello_loop\.py/i).length).toBeGreaterThan(0);
+  });
+
+  it('pushes a DOM confirmation into the thread after the operator authorizes', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    act(() => {
+      (window as unknown as ApprovalHost & { __injectApproval?: (o?: Record<string, unknown>) => void }).__injectApproval?.({
+        summary: 'Approval required to create hello_loop.py',
+        filepath: 'hello_loop.py',
+        kind: 'create',
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /authorize/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      screen.getByRole('button', { name: /authorize/i }).click();
+    });
+
+    // The thread now carries a plain-language done-confirmation naming the action.
+    await waitFor(() => {
+      expect(screen.getByText(/hello_loop\.py/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/created|approved/i)).toBeInTheDocument();
   });
 
   it('clears the gate once the pending approval is resolved', async () => {

@@ -9,7 +9,7 @@
   inset: 0;
   z-index: 20;
   pointer-events: none; /* the 3D being stays orbit-draggable; only controls capture */
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   color: #eaf0fb;
