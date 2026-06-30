@@ -1,13 +1,12 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-30T17:23Z
+Last updated: 2026-06-30T17:29Z
 
 ## Current Goal
 Birth-readiness P0 hardening is landed and GitHub-green; the local-browser
-birth proof has now been witnessed against an isolated runtime. A CI hotfix is
-in progress for the rollback approval false positive exposed by run
-`28462607128`. Do not declare "born" until CI is green, non-builder review, and
-operator visual acceptance are complete.
+birth proof has been witnessed against an isolated runtime; the rollback
+approval CI false positive is fixed and GitHub CI is green again. Do not declare
+"born" until non-builder review and operator visual acceptance are complete.
 
 ## Last Completed + Verified
 - Local/browser proof continuity was committed and pushed as `793adc1`
@@ -27,6 +26,9 @@ operator visual acceptance are complete.
   and full backend gate
   `.venv\Scripts\python.exe -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85`
   exited `0` with total coverage `89.20%`.
+- Hotfix commit `7062771` (`fix: allow rollback snapshot approvals`) was pushed;
+  GitHub Actions run `28463236999` completed successfully with both required jobs
+  green (`backend` and `frontend`).
 - Local Chrome DevTools proof loaded `http://localhost:5173` against backend
   `http://localhost:8000`: WebGL canvas rendered (`2133x1356` backing pixels),
   session became authenticated through httpOnly cookie flow
@@ -56,16 +58,18 @@ operator visual acceptance are complete.
   process remains on ports `8000` or `5173`.
 
 ## Single Next Action
-Commit and push the rollback approval false-positive hotfix, watch the new
-GitHub CI run to success, then hand off `birth-local-browser-proof` for
-non-builder review with the proof paths above.
+Hand off `birth-local-browser-proof` for non-builder review with the proof paths
+above. The reviewer should verify the evidence, then the operator makes the
+final visual/product acceptance call.
 
 ## Open Approvals / Blockers
-- Current blocker: GitHub CI must be made green after run `28462607128` failed.
+- No current CI blocker. GitHub still reports five Dependabot vulnerability
+  alerts; previous pip/npm audits in CI were clean, so triage those separately
+  through Dependabot/security alerts.
 - Product birth remains gated by non-builder review plus the operator's own
   browser acceptance; Codex cannot self-certify the organism as born.
 
 ## Active Files
-- Continuity files to update/commit if desired:
-  `.aios/state/RESUME.md`. Hotfix files: `aios/core/approvals.py`,
-  `tests/test_approvals.py`. Proof artifacts remain ignored under `.aios/tmp/`.
+- Continuity closeout only: `.aios/state/RESUME.md`,
+  `.aios/memory/experiences.jsonl`. Proof artifacts remain ignored under
+  `.aios/tmp/`.
