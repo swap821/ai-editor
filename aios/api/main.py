@@ -20,6 +20,7 @@ any network, model, or host side effects.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import ipaddress
 import json
 import re
@@ -452,6 +453,35 @@ def get_session_manager() -> SessionManager:
     return _SESSION_MANAGER
 
 
+def _session_id_from_request(request: Request, fallback: Optional[str] = None) -> str:
+    """Prefer the validated httpOnly session cookie, then body fallback.
+
+    Cookie-based browser clients should not expose a session id in JavaScript.
+    The fallback keeps older local callers working when cookies are unavailable.
+    """
+    cookie_hash = request.cookies.get("session_id")
+    if cookie_hash:
+        session = get_session_manager().validate_session(cookie_hash)
+        if session is not None:
+            return session.session_hash
+    return fallback or ""
+
+
+def _effective_rollback_snapshot(
+    engine: RollbackEngine, requested: Optional[str]
+) -> str:
+    """Resolve the rollback target before approval so the token binds a SHA."""
+    if requested:
+        return requested
+    snapshots = engine.list_snapshots(limit=2)
+    if len(snapshots) < 2:
+        raise HTTPException(
+            status_code=409,
+            detail="No previous snapshot to roll back to.",
+        )
+    return snapshots[1].sha
+
+
 def get_llm_client() -> LLMClient:
     """Provide the default local LLM client. Overridden in tests."""
     return OllamaClient()
@@ -771,7 +801,11 @@ class ApprovalRequest(BaseModel):
     """Body for ``/approval/req`` — a human's decision on an escalated action."""
 
     approval_token: str = Field(..., alias="approvalToken")
-    session_id: str = Field(..., alias="sessionId")
+    session_id: Optional[str] = Field(
+        None,
+        alias="sessionId",
+        description="Fallback session id when the httpOnly session cookie is unavailable.",
+    )
     approve: bool = Field(..., description="True to authorise execution, False to reject.")
 
     model_config = {"populate_by_name": True}
@@ -1854,6 +1888,11 @@ def council_originate(
     workspace_root = _resolve_council_workspace(req.workspace_root)
     safe_allowed = _validate_mission_scope(req.allowed_files, workspace_root)
     mission_id = f"mission-{uuid.uuid4().hex[:12]}"
+    allowed_tools = ["read_file", "write_file", "run_command"]
+    mission_metadata: dict[str, Any] = {}
+    if config.WORKER_REASONING:
+        allowed_tools.append("request_change")
+        mission_metadata["model_policy"] = {"mode": "local", "allow_cloud": False}
     mission_request = CouncilMissionRequest(
         mission_id=mission_id,
         goal=req.goal,
@@ -1863,9 +1902,10 @@ def council_originate(
         # The worker's reasoning is governed by WORKER_REASONING (the LLM worker
         # uses request_change, not request_plan), so the origination default omits
         # request_plan: the deterministic worker needs no model when reasoning is off.
-        allowed_tools=["read_file", "write_file", "run_command"],
+        allowed_tools=allowed_tools,
         verification_commands=list(req.verification_commands),
         risk_level=req.risk_level,  # type: ignore[arg-type]
+        metadata=mission_metadata,
     )
     background.add_task(_run_council_deliberation, runtime_root, mission_request)
     return {"missionId": mission_id, "status": "deliberating"}
@@ -2089,6 +2129,7 @@ def execute(
 @app.post("/api/v1/approval/req")
 def approval_req(
     req: ApprovalRequest,
+    request: Request,
     executor: Executor = Depends(get_executor),
     approvals: ApprovalStore = Depends(get_approval_store),
 ) -> dict[str, Any]:
@@ -2097,14 +2138,17 @@ def approval_req(
     Approve -> run the command in the sandbox (RED is still refused). Reject ->
     audit the rejection and return without running.
     """
+    session_id = _session_id_from_request(request, req.session_id)
+    if not session_id:
+        raise HTTPException(status_code=422, detail="sessionId or session cookie is required")
     try:
-        action = approvals.consume(req.approval_token, req.session_id)
+        action = approvals.consume(req.approval_token, session_id)
     except ApprovalError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     command = str(action.payload.get("command", ""))
     if not req.approve:
         if action.action_type == "command":
-            executor.reset_sensitive_actions(req.session_id)
+            executor.reset_sensitive_actions(session_id)
         target = command or str(action.payload.get("filepath", action.action_type))
         log_action("human-approval", f"REJECTED {action.action_type}: {target}", Zone.YELLOW)
         return {
@@ -2115,7 +2159,7 @@ def approval_req(
         }
     if action.action_type != "command":
         raise HTTPException(status_code=400, detail="approval token is not for a command")
-    executor.reset_sensitive_actions(req.session_id)
+    executor.reset_sensitive_actions(session_id)
 
     result = executor.execute_approved(command)
     return {
@@ -2129,6 +2173,7 @@ def approval_req(
 @app.post("/api/v1/rollback")
 def rollback(
     req: RollbackRequest,
+    request: Request,
     engine: RollbackEngine = Depends(get_rollback_engine),
     approvals: ApprovalStore = Depends(get_approval_store),
 ) -> dict[str, Any]:
@@ -2139,29 +2184,34 @@ def rollback(
     can prompt the human approver; when called with a valid token, the token
     is consumed and the rollback executes.
     """
-    # Backward-compatible direct rollback for existing local callers/tests. If a
-    # session id is supplied, use the resumable approval-token flow.
-    if not req.approval_token and req.session_id:
+    session_id = _session_id_from_request(request, req.session_id)
+    if not session_id:
+        raise HTTPException(status_code=422, detail="sessionId or session cookie is required")
+    try:
+        snapshot_id = _effective_rollback_snapshot(engine, req.snapshot_id)
+    except RollbackError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    if not req.approval_token:
         token = approvals.issue(
-            "rollback", {"snapshot_id": req.snapshot_id}, req.session_id
+            "rollback", {"snapshot_id": snapshot_id}, session_id
         )
         return {
             "requiresApproval": True,
             "approvalToken": token,
             "actionType": "rollback",
-            "snapshotId": req.snapshot_id,
+            "snapshotId": snapshot_id,
             "executed": False,
         }
-    if req.approval_token:
-        if not req.session_id:
-            raise HTTPException(status_code=422, detail="sessionId is required with approvalToken")
-        # Token present — consume it (atomic; prevents replay / double-spend).
-        try:
-            approvals.consume(req.approval_token, req.session_id)
-        except ApprovalError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
     try:
-        result = engine.rollback(req.snapshot_id)
+        action = approvals.consume(req.approval_token, session_id)
+    except ApprovalError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if action.action_type != "rollback":
+        raise HTTPException(status_code=400, detail="approval token is not for rollback")
+    if action.payload.get("snapshot_id") != snapshot_id:
+        raise HTTPException(status_code=403, detail="approval token snapshot does not match request")
+    try:
+        result = engine.rollback(snapshot_id)
     except RollbackError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return asdict(result)
@@ -2809,6 +2859,7 @@ def _make_confirm_hook(
 @app.post("/api/generate")
 def generate(
     req: GenerateRequest,
+    request: Request,
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
@@ -2846,7 +2897,8 @@ def generate(
     """
     chat_messages = _to_chat_messages(req.messages)
     user_text = _latest_user(chat_messages)
-    _enforce_conversation_rate_limit(req.session_id)
+    session_id = _session_id_from_request(request, req.session_id)
+    _enforce_conversation_rate_limit(session_id)
     if len(user_text) > 2000:
         raise HTTPException(
             status_code=422, detail="Input exceeds 2000 characters."
@@ -2871,7 +2923,6 @@ def generate(
         p, m = _active_route(chat_client, bedrock, gemini, model)
         return {"provider": p, "model": m, "task": task}
 
-    session_id = req.session_id
     compactor.touch_working_session(session_id)
     if req.approved_commands or req.approved_edits or req.approved_creations:
         raise HTTPException(
@@ -3562,6 +3613,7 @@ def _check_prompt_injection(text: str) -> Optional[str]:
 @app.post("/api/v1/chat")
 def chat(
     req: ChatRequest,
+    request: Request,
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
@@ -3586,8 +3638,9 @@ def chat(
     completed turn is embedded into L3 (self-reinforcing recall), exactly like
     ``/api/generate``. Best-effort persistence never breaks the chat.
     """
-    compactor.touch_working_session(req.session_id)
-    _enforce_conversation_rate_limit(req.session_id)
+    session_id = _session_id_from_request(request, req.session_id)
+    compactor.touch_working_session(session_id)
+    _enforce_conversation_rate_limit(session_id)
     user_text = req.transcript.strip()
     if (injection_reason := _check_prompt_injection(user_text)):
         raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
@@ -3619,7 +3672,7 @@ def chat(
             {"role": "user", "content": user_text},
         ]
 
-        _record_episode(req.session_id, "user", user_text)
+        _record_episode(session_id, "user", user_text)
 
         # The ACTIVE BRAIN for this turn (the UI 'voyaging mind' badge): provider/
         # model that served + privacy indicator. Local-first respected — the
@@ -3648,7 +3701,7 @@ def chat(
         for word in re.findall(r"\S+\s*", text):
             yield _sse("text_chunk", {"text": word})
 
-        _record_episode(req.session_id, "assistant", text)
+        _record_episode(session_id, "assistant", text)
         _index_turn(indexer, user_text, text)
         yield _sse("done", {})
 

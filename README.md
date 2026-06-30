@@ -194,9 +194,10 @@ Experience -> outcome evaluation -> candidate lesson/fact/skill
     worker honors the same `AIOS_APPROVED_EXECUTION_BACKEND` setting. Whole-worker
     isolation + an LLM network policy is a future slice.
 - Unauthenticated API requests are accepted only from loopback. Non-loopback API
-  deployment requires a random `AIOS_API_TOKEN` of at least 32 characters;
-  configure the same value as
-  `VITE_AIOS_API_TOKEN` only for a trusted/private frontend deployment.
+  deployment requires a random `AIOS_API_TOKEN` of at least 32 characters.
+  The browser UI no longer embeds that token in the bundle; expose a protected
+  deployment through a trusted same-origin/reverse-proxy boundary that injects
+  server-side auth, or keep the default UI on loopback.
 
 For production-style exposure, terminate TLS in a maintained reverse proxy and
 keep AI-OS bound to a private interface. A browser-delivered bearer token is

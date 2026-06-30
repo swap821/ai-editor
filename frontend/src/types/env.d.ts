@@ -5,9 +5,9 @@
  * These live in the PRODUCT tree (src/types/) and survive `npm run port`.
  *
  *  - `process.env.*`: the superbrain adapter reads Next-style `process.env`
- *    (NEXT_PUBLIC_AIOS_URL / NEXT_PUBLIC_AIOS_TOKEN / NODE_ENV). The Vite build
- *    statically replaces these via vite.config `define`; this only types them for
- *    tsc. Deliberately minimal — NOT the full @types/node global surface.
+ *    (NEXT_PUBLIC_AIOS_URL / NODE_ENV). The Vite build statically replaces these
+ *    via vite.config `define`; this only types them for tsc. Deliberately minimal
+ *    — NOT the full @types/node global surface.
  *  - `*.module.css` / `*.css`: CSS-module + side-effect CSS imports have no TS
  *    type; declare them so the imports resolve.
  */
@@ -16,7 +16,6 @@ declare const process: {
   env: {
     NODE_ENV?: 'development' | 'production' | 'test' | string;
     NEXT_PUBLIC_AIOS_URL?: string;
-    NEXT_PUBLIC_AIOS_TOKEN?: string;
     [key: string]: string | undefined;
   };
 };

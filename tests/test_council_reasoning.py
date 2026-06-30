@@ -295,3 +295,29 @@ def test_memory_retrieval_error_falls_back_to_allow(monkeypatch: pytest.MonkeyPa
     verdict = MemoryQueen(retriever=Boom()).review(_contract())
     assert verdict.verdict == "allow"
     assert verdict.metadata.get("retrieval_error") is True
+
+
+def test_security_queen_requires_model_policy_for_request_change() -> None:
+    from aios.council.queens.security import SecurityQueen
+
+    verdict = SecurityQueen().review(
+        _contract(allowed_tools=["read_file", "request_change"])
+    )
+
+    assert verdict.verdict == "deny"
+    assert "model_policy" in verdict.reason
+
+
+def test_security_queen_allows_request_change_with_explicit_local_policy() -> None:
+    from aios.council.queens.security import SecurityQueen
+
+    verdict = SecurityQueen().review(
+        _contract(
+            allowed_tools=["read_file", "request_change"],
+            metadata={"model_policy": {"mode": "local", "allow_cloud": False}},
+        )
+    )
+
+    assert verdict.verdict == "allow_with_approval"
+    assert verdict.risk == "YELLOW"
+    assert "request_change" in " ".join(verdict.constraints)

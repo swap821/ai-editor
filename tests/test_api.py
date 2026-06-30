@@ -1332,7 +1332,9 @@ def test_approval_req_refuses_red_even_when_approved(client: TestClient) -> None
     assert body["result"]["zone"] == "RED"
 
 
-def test_rollback_endpoint_restores_snapshot(client: TestClient, tmp_path) -> None:
+def test_rollback_endpoint_requires_session_before_approval(
+    client: TestClient, tmp_path
+) -> None:
     engine = RollbackEngine(repo_dir=tmp_path)
     work = tmp_path / "work.txt"
     work.write_text("v1", encoding="utf-8")
@@ -1342,10 +1344,120 @@ def test_rollback_endpoint_restores_snapshot(client: TestClient, tmp_path) -> No
 
     app.dependency_overrides[get_rollback_engine] = lambda: engine
     response = client.post("/api/v1/rollback", json={"snapshot_id": snap.sha})
+    assert response.status_code == 422
+    assert work.read_text(encoding="utf-8") == "v2"
+
+
+def test_rollback_endpoint_restores_snapshot_with_approval_token(
+    client: TestClient, tmp_path
+) -> None:
+    engine = RollbackEngine(repo_dir=tmp_path)
+    work = tmp_path / "work.txt"
+    work.write_text("v1", encoding="utf-8")
+    snap = engine.create_snapshot("v1 state")
+    work.write_text("v2", encoding="utf-8")
+    engine.create_snapshot("v2 state")
+
+    app.dependency_overrides[get_rollback_engine] = lambda: engine
+    pending = client.post(
+        "/api/v1/rollback",
+        json={"snapshot_id": snap.sha, "sessionId": "rollback-session"},
+    )
+    assert pending.status_code == 200
+    assert pending.json()["requiresApproval"] is True
+    response = client.post(
+        "/api/v1/rollback",
+        json={
+            "snapshot_id": snap.sha,
+            "sessionId": "rollback-session",
+            "approvalToken": pending.json()["approvalToken"],
+        },
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["restored"] is True
     assert work.read_text(encoding="utf-8") == "v1"
+
+
+def test_rollback_endpoint_uses_cookie_session_without_body_session(
+    client: TestClient, tmp_path
+) -> None:
+    engine = RollbackEngine(repo_dir=tmp_path)
+    work = tmp_path / "work.txt"
+    work.write_text("v1", encoding="utf-8")
+    snap = engine.create_snapshot("v1 state")
+    work.write_text("v2", encoding="utf-8")
+    engine.create_snapshot("v2 state")
+
+    assert client.post("/api/v1/auth/session").status_code == 200
+    app.dependency_overrides[get_rollback_engine] = lambda: engine
+    pending = client.post("/api/v1/rollback", json={"snapshot_id": snap.sha})
+    assert pending.status_code == 200
+    response = client.post(
+        "/api/v1/rollback",
+        json={
+            "snapshot_id": snap.sha,
+            "approvalToken": pending.json()["approvalToken"],
+        },
+    )
+    assert response.status_code == 200
+    assert work.read_text(encoding="utf-8") == "v1"
+
+
+def test_rollback_endpoint_rejects_token_for_different_snapshot(
+    client: TestClient, tmp_path
+) -> None:
+    engine = RollbackEngine(repo_dir=tmp_path)
+    work = tmp_path / "work.txt"
+    work.write_text("v1", encoding="utf-8")
+    snap1 = engine.create_snapshot("v1 state")
+    work.write_text("v2", encoding="utf-8")
+    snap2 = engine.create_snapshot("v2 state")
+
+    app.dependency_overrides[get_rollback_engine] = lambda: engine
+    token = get_approval_store().issue(
+        "rollback", {"snapshot_id": snap1.sha}, "rollback-session"
+    )
+    response = client.post(
+        "/api/v1/rollback",
+        json={
+            "snapshot_id": snap2.sha,
+            "sessionId": "rollback-session",
+            "approvalToken": token,
+        },
+    )
+    assert response.status_code == 403
+    assert work.read_text(encoding="utf-8") == "v2"
+
+
+def test_rollback_endpoint_binds_default_snapshot_at_approval_time(
+    client: TestClient, tmp_path
+) -> None:
+    engine = RollbackEngine(repo_dir=tmp_path)
+    work = tmp_path / "work.txt"
+    work.write_text("v1", encoding="utf-8")
+    snap1 = engine.create_snapshot("v1 state")
+    work.write_text("v2", encoding="utf-8")
+    snap2 = engine.create_snapshot("v2 state")
+
+    app.dependency_overrides[get_rollback_engine] = lambda: engine
+    pending = client.post("/api/v1/rollback", json={"sessionId": "rollback-session"})
+    assert pending.status_code == 200
+    assert pending.json()["snapshotId"] == snap1.sha
+
+    work.write_text("v3", encoding="utf-8")
+    snap3 = engine.create_snapshot("v3 state")
+    response = client.post(
+        "/api/v1/rollback",
+        json={
+            "sessionId": "rollback-session",
+            "approvalToken": pending.json()["approvalToken"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert engine.repo.head.commit.hexsha == snap3.sha
+    assert work.read_text(encoding="utf-8") == "v3"
 
 
 def test_rollback_endpoint_maps_error_to_500(client: TestClient) -> None:
@@ -1354,7 +1466,19 @@ def test_rollback_endpoint_maps_error_to_500(client: TestClient) -> None:
             raise RollbackError("boom")
 
     app.dependency_overrides[get_rollback_engine] = lambda: BoomEngine()
-    response = client.post("/api/v1/rollback", json={})
+    pending = client.post(
+        "/api/v1/rollback",
+        json={"snapshot_id": "deadbeef", "sessionId": "rollback-session"},
+    )
+    assert pending.status_code == 200
+    response = client.post(
+        "/api/v1/rollback",
+        json={
+            "snapshot_id": "deadbeef",
+            "sessionId": "rollback-session",
+            "approvalToken": pending.json()["approvalToken"],
+        },
+    )
     assert response.status_code == 500
 
 

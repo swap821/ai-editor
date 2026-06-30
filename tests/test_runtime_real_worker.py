@@ -83,7 +83,7 @@ def _contract(workspace: Path, **over: object) -> MissionContract:
         "workspace_root": str(workspace),
         "allowed_files": [TARGET],
         "forbidden_files": ["backend/", ".env", "aios/security/"],
-        "allowed_tools": ["read_file", "write_file", "run_command"],
+        "allowed_tools": ["read_file", "write_file", "run_command", "request_change"],
         "timeout_seconds": 30,
         "max_steps": 30,
         "verification_commands": [f"{sys.executable} check.py"],
@@ -168,6 +168,26 @@ def test_worker_reports_failed_when_repairs_exhausted(tmp_path: Path) -> None:
     assert result.status == "failed"
     assert gateway.calls == 2  # max_repairs=1 -> 2 attempts
     assert result.evidence["llm_worker"]["passed"] is False
+
+
+def test_worker_requires_request_change_tool_authority(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    contract = _contract(
+        workspace,
+        allowed_tools=["read_file", "write_file", "run_command"],
+    )
+    gateway = FakeGateway([WITH_MARKER])
+    runtime = _runtime(contract, gateway, tmp_path)
+
+    code = _run_llm_worker(
+        runtime=runtime, contract=contract, worker_id="worker-real", started_at="t0"
+    )
+
+    assert code == 1
+    result = _result(runtime)
+    assert result.status == "contract_violation"
+    assert result.evidence["blocked_attempts"][-1]["tool"] == "request_change"
+    assert gateway.calls == 0
 
 
 def test_worker_cannot_write_outside_scope(tmp_path: Path) -> None:

@@ -154,6 +154,29 @@ def test_controlled_subprocess_worker_birth_writes_ledger_and_report(
     assert stored_report == run.report
 
 
+def test_controlled_subprocess_worker_fails_when_verification_command_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
+    workspace = _workspace(tmp_path)
+    (workspace / "fail.py").write_text("import sys\nsys.exit(3)\n", encoding="utf-8")
+    runtime_root = tmp_path / "runtime"
+    contract = _mission(
+        workspace,
+        mission_id="mission-failing-verifier",
+        verification_commands=[f"{sys.executable} fail.py"],
+    )
+
+    run = asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
+
+    assert run.handle.status == "dead"
+    assert run.result.status == "failed"
+    assert run.ledger.status == "failed"
+    assert run.report.status == "failed"
+    assert run.ledger.verification["commands"][0]["returncode"] == 3
+
+
 def test_controlled_subprocess_backend_omits_cloud_secret_env(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

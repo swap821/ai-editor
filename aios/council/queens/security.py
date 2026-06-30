@@ -16,6 +16,7 @@ _ALLOWED_TOOLS = {
     "run_command",
     "request_approval",
     "request_plan",
+    "request_change",
 }
 
 _PROTECTED_PATTERNS = (
@@ -47,6 +48,18 @@ class SecurityQueen:
             if tool in {"write_file", "run_command"}:
                 risks.append("YELLOW")
                 constraints.append(f"{tool} remains contract-gated and auditable.")
+            if tool == "request_change":
+                model_policy = contract.metadata.get("model_policy")
+                if not isinstance(model_policy, dict) or not model_policy.get("mode"):
+                    deny_reasons.append(
+                        "request_change requires explicit metadata.model_policy"
+                    )
+                    risks.append("RED")
+                else:
+                    risks.append("YELLOW")
+                    constraints.append(
+                        "request_change remains IntelligenceGateway-gated with explicit model policy."
+                    )
 
         for rule in contract.allowed_files:
             normalized = self._normalize_path_rule(rule)

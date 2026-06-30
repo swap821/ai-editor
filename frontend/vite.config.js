@@ -70,11 +70,13 @@ export default defineConfig(({ mode }) => {
       // caused). Honours VITE_API_BASE so an operator override applies to BOTH UIs.
       'process.env.NEXT_PUBLIC_AIOS_URL': JSON.stringify(AIOS_BASE),
       // SECURITY: API token is NO LONGER baked into the bundle at build time.
-      // The adapter loads auth at runtime from a secure /auth/token endpoint
-      // (httpOnly cookie) or an in-memory token fetched after login.
+      // The adapter uses httpOnly session cookies for operator continuity; a
+      // token-protected non-loopback deployment must sit behind a trusted
+      // same-origin/reverse-proxy auth boundary rather than exposing the bearer
+      // token to browser JavaScript.
       // 'process.env.NEXT_PUBLIC_AIOS_TOKEN' is intentionally REMOVED —
       // embedding secrets in the frontend bundle exposes them to anyone who
-      // views the source.  See aiosAdapter.ts:runtimeAuth() for the replacement.
+      // views the source.
     },
     // ── W5-2 CODE-SPLIT ───────────────────────────────────────────────────────
     // The prod build used to emit one ~1.3 MB chunk (over Vite's 500 KB warning).

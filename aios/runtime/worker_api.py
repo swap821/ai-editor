@@ -350,6 +350,7 @@ class WorkerRuntime:
             "run_command",
             "request_approval",
             "request_plan",
+            "request_change",
         }:
             if tool not in self.contract.allowed_tools:
                 self._block(tool, "tool is not allowed by MissionContract", payload)

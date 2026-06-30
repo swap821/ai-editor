@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  __resetSessionForTests,
+  ensureSession,
   FALLBACK_SESSION_ID,
   getSessionId,
   getSessionIdForBody,
@@ -10,6 +12,7 @@ import {
 
 describe('getSessionId', () => {
   beforeEach(() => {
+    __resetSessionForTests();
     window.sessionStorage.clear();
     vi.restoreAllMocks();
   });
@@ -40,6 +43,12 @@ describe('getSessionId', () => {
 });
 
 describe('getSessionIdForBody', () => {
+  beforeEach(() => {
+    __resetSessionForTests();
+    window.sessionStorage.clear();
+    vi.restoreAllMocks();
+  });
+
   it('returns null when cookie-based (session travels in cookie)', () => {
     // Default state is cookie-based
     expect(getSessionIdForBody()).toBeNull();
@@ -47,6 +56,10 @@ describe('getSessionIdForBody', () => {
 });
 
 describe('isCookieBasedSession', () => {
+  beforeEach(() => {
+    __resetSessionForTests();
+  });
+
   it('returns true by default', () => {
     expect(isCookieBasedSession()).toBe(true);
   });
@@ -54,6 +67,7 @@ describe('isCookieBasedSession', () => {
 
 describe('initSession', () => {
   beforeEach(() => {
+    __resetSessionForTests();
     window.sessionStorage.clear();
     vi.restoreAllMocks();
   });
@@ -62,6 +76,31 @@ describe('initSession', () => {
     const sid = await initSession();
     expect(sid).toBeTruthy();
     expect(typeof sid).toBe('string');
+  });
+
+  it('keeps cookie mode only after the created cookie verifies', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ authenticated: false }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ authenticated: true }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ authenticated: true }),
+      } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await ensureSession();
+
+    expect(session.cookieBased).toBe(true);
+    expect(session.bodySessionId).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.every(([, init]) => init?.credentials === 'include')).toBe(true);
   });
 
   it('falls back to sessionStorage when server session fails', async () => {
@@ -76,6 +115,8 @@ describe('initSession', () => {
     const sid = await initSession();
     expect(sid).toBeTruthy();
     expect(typeof sid).toBe('string');
+    expect(isCookieBasedSession()).toBe(false);
+    expect(getSessionIdForBody()).toBe(sid);
   });
 
   it('returns fallback for SSR (no window)', async () => {

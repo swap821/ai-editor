@@ -188,7 +188,7 @@ def test_testing_queen_failure_changes_king_report_to_revision(
     run = asyncio.run(CouncilOrchestrator(runtime_root=tmp_path / "runtime").run(request))
 
     assert run.worker_run is not None
-    assert run.worker_run.result.status == "completed"
+    assert run.worker_run.result.status == "failed"
     assert run.ledger.status == "failed"
     assert run.report.status == "failed"
     assert run.report.recommendation == "revise"

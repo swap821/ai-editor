@@ -113,7 +113,8 @@ export async function initSession(): Promise<string> {
     const hasSession = await checkServerSession();
     if (!hasSession) {
       const created = await createServerSession();
-      if (!created) {
+      const verified = created ? await checkServerSession() : false;
+      if (!verified) {
         // Backend doesn't support cookie sessions — fall back to storage
         _cookieBased = false;
       }
@@ -211,6 +212,22 @@ export function getSessionIdForBody(): string | null {
   return getSessionId();
 }
 
+export interface SessionContext {
+  clientId: string;
+  bodySessionId: string | null;
+  cookieBased: boolean;
+}
+
+/** Initialize the session and return the request-shaping context. */
+export async function ensureSession(): Promise<SessionContext> {
+  const clientId = await initSession();
+  return {
+    clientId,
+    bodySessionId: getSessionIdForBody(),
+    cookieBased: isCookieBasedSession(),
+  };
+}
+
 /**
  * Destroy the current session (logout).
  *
@@ -238,4 +255,12 @@ export async function destroySession(): Promise<void> {
     // Storage blocked
   }
   _fallbackSessionId = null;
+}
+
+/** Test seam: reset module-level session detection without reloading the page. */
+export function __resetSessionForTests(): void {
+  _cookieBased = true;
+  _sessionChecked = false;
+  _fallbackSessionId = null;
+  _fallbackWarningEmitted = false;
 }

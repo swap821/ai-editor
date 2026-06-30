@@ -1,57 +1,53 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-29T01:48Z
+Last updated: 2026-06-30T10:54Z
 
 ## Current Goal
-GAGOS roadmap Phases 1–4 + the narrative self are shipped to `master`. The next
-frontier is PROOF, not more features: witness the supervised loop end-to-end with
-a live backend (operator's machine), and render the new governed state
-(verification strength) as organism anatomy. Keep the next session pointed there.
+Birth-readiness P0 hardening is ready to land from local `master`
+(`origin/master` base `e70dee8`). Codex reclaimed the worktree under
+`birth-readiness-p0-fixes`, did a review pass, fixed one additional rollback
+target-binding edge, reran gates, and witnessed the live supervised Council loop.
 
 ## Last Completed + Verified
-All of the following landed on `council-runtime-v01`, fast-forwarded to `master`,
-and pushed; CI green each push. (`master` head: `8d5a4e5`.)
-- **Phase 1 — verification-strength taxonomy** (`aios/core/verification_strength.py`):
-  command-aware grading STRONG/MEDIUM/WEAK/NONE, program-position-anchored so an
-  `echo`/weak green cannot forge STRONG; promotion floor = STRONG gates lessons,
-  skills, and earned-autonomy streaks. Surfaced in the Council dashboard + run/king
-  ledgers. Adversarial-reviewed (arg-position runner-token forge caught + fixed).
-- **Phase 2 + 2b — execution boundary**: container is the default backend for
-  approved-arbitrary exec + self-apply AND the opt-in Council worker's
-  `run_command` verification; degrade-don't-brick startup; self-apply is
-  container-only; `AIOS_APPROVED_EXECUTION_BACKEND=host` is a loud dev-only opt-out.
-- **Phase 3 — tamper-evident substrate** (frozen §VIII, operator-approved,
-  strengthen-only): versioned hash preimage (v2 canonical JSON, v1 still verifies),
-  signed tip-anchor detecting tail-truncation incl. the anchor-deletion evasion;
-  secret scanner broadened (PEM variants + keyword-gated short-hex). Runtime
-  self-modification refusal untouched.
-- **Phase 4 — the front door**: cold-start living boot-loader + first-run
-  onboarding coach that leads with the identity line
-  ("GAGOS — a local-first AI that acts only with your approval.") then the safe
-  first action.
-- **The narrative self** (`aios/memory/self_model.py`): deterministic
-  autobiography synthesized from verified telemetry (task profiles, recurring
-  mistakes); opt-in (`AIOS_NARRATIVE_SELF`), empty when no verified evidence.
-- Docs refreshed to honestly claim now-earned capabilities (README component
-  table + Security Invariants: graded verification, container-default,
-  tamper-evidence, narrative self).
-- Gates each landing: backend `pytest` ≥85% coverage (1186+ passing locally;
-  3 embedder tests skip locally on the broken torch, run in CI), frontend
-  typecheck + vitest + build green.
+- Rollback now requires a validated session cookie or fallback session and a
+  one-shot rollback approval token bound to the exact snapshot SHA. Review caught
+  and fixed the omitted-`snapshotId` case so "previous snapshot" is resolved at
+  approval time, not execution time.
+- Browser frontend no longer exposes `NEXT_PUBLIC_AIOS_TOKEN`; it uses httpOnly
+  session cookies with a verified fallback body session only when cookies fail.
+- Deterministic workers now require verification commands and report failed
+  verification as `failed`; LLM workers still require verification before success.
+- `request_change` is denied unless the MissionContract allows the tool, and the
+  Security Queen requires explicit `metadata.model_policy`.
+- Real CI now runs `pip_audit` and `npm audit`; tracked scratch probes were
+  deleted and local live-proof artifacts are ignored.
+- Local gates after review fix: backend full pytest coverage gate passed at
+  89.19%; frontend typecheck passed; Vitest passed 63 files / 376 tests; frontend
+  build passed; `pip_audit -r requirements.txt` and `npm audit --audit-level=high`
+  were clean; `git diff --check` passed.
+- Live supervised-loop witness passed on a temporary backend at
+  `127.0.0.1:8019`: mission `mission-a579d8114766` originated -> reached
+  `awaiting_approval` -> King approval scheduled execution -> worker touched only
+  `target.txt` -> verifier exit `0` -> final report `completed`.
 
 ## Single Next Action
-PROVE THE SUPERVISED LOOP end-to-end against a live backend on the operator's
-machine: directive → deliberate → King approval → worker acts (scoped write) →
-verify → report — witnessed once, not dev-injected. This is the product thesis
-and the one high-value thing still unproven. (Render verification-strength as
-anatomy — the One Law — is the operator's aesthetic call and a fine parallel.)
+Commit this patch on `master`, push to GitHub, watch the pushed GitHub Actions CI
+run to completion, then harden repository governance (branch protection/required
+CI plus Dependabot/security settings where permissions allow).
 
 ## Open Approvals / Blockers
-- No open blocker. Frozen §VIII was opened once this arc with explicit operator
-  approval (Phase 3) and re-closed; strengthen-only invariant held.
-- The live-loop proof needs the operator's running backend + browser to witness.
+- No code blocker. `pip check` remains red only because this local Python 3.14.5
+  venv has several packages whose metadata does not support the platform,
+  including pre-existing local `torch 2.12.0`; CI targets Python 3.11 and the
+  vulnerability audits are clean.
+- Product birth is still not public-ready until GitHub CI and repository
+  governance are confirmed on the pushed commit.
 
 ## Active Files
-- `.aios/state/RESUME.md`
-- `.aios/state/CEO_LOG.md`
-- `README.md`
+- Backend/session/security: `aios/api/main.py`, `aios/runtime/worker_entry.py`,
+  `aios/runtime/worker_api.py`, `aios/council/queens/security.py`
+- Frontend/session: `frontend/src/superbrain/lib/aiosAdapter.ts`,
+  `frontend/src/superbrain/lib/sessionId.ts`, related tests/config docs
+- Dependency/CI/docs: `.github/workflows/ci.yml`, `requirements.txt`,
+  `frontend/package*.json`, `README.md`, `.aios/state/PLAN.md`,
+  `.aios/state/RENOVATION_PLAN.md`

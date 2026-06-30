@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from aios.runtime.contracts import MissionContract
@@ -191,8 +192,9 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
     target.write_text("export function Login() { return null; }\n", encoding="utf-8")
     contract = _mission(
         workspace,
-        allowed_tools=["request_plan", "read_file", "write_file"],
+        allowed_tools=["request_plan", "read_file", "write_file", "run_command"],
         forbidden_files=["backend/"],
+        verification_commands=[f"{sys.executable} -c \"print('verification ok')\""],
         metadata={
             "hybrid_plan_prompt": "Plan a frontend-only edit",
             "allow_cloud_reasoning": True,
@@ -221,6 +223,7 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
             )
 
     monkeypatch.setattr("aios.runtime.worker_api.IntelligenceGateway", PatchedGateway)
+    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
 
     exit_code = run_worker(
         contract_path=contract_path,

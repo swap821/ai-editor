@@ -291,6 +291,10 @@ def run_worker(
 
         if not contract.allowed_files:
             raise ContractViolation("deterministic worker needs one allowed file")
+        if not contract.verification_commands:
+            raise ContractViolation(
+                "deterministic worker requires verification_commands to confirm its edit"
+            )
         target_file = str(
             contract.metadata.get("deterministic_target_file")
             or contract.allowed_files[0]
@@ -311,6 +315,9 @@ def run_worker(
         verification_results = []
         for command in contract.verification_commands:
             verification_results.append(runtime.run_command(_split_command(command)))
+        failed_verification = [
+            result for result in verification_results if result.get("returncode") != 0
+        ]
         runtime.emit_evidence(
             {
                 "deterministic_target_file": target_file,
@@ -318,7 +325,14 @@ def run_worker(
             }
         )
 
-        if forbidden_blocked:
+        if failed_verification:
+            status = "failed"
+            summary = (
+                "Deterministic worker verification failed: "
+                + _summarize_failures(failed_verification)
+            )
+            risk_after = contract.risk_level
+        elif forbidden_blocked:
             status = "completed"
             summary = "Deterministic worker completed under MissionContract."
             risk_after = "GREEN"

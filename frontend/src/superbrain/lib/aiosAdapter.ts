@@ -17,7 +17,7 @@
 
 import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
-import { getSessionId } from './sessionId';
+import { __resetSessionForTests, ensureSession } from './sessionId';
 import {
   endSwarmCaste,
   markSwarmCloudSubtask,
@@ -29,21 +29,16 @@ import {
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
 
-// Bearer token (optional). Read from the Next-style env in the lab; the product
-// (Vite) build injects the same name via vite.config `define` from
-// VITE_AIOS_API_TOKEN. Empty by default (loopback dev) — only sent when set, so
-// a token-protected / non-loopback backend no longer 401s the default UI.
-const AIOS_TOKEN = process.env.NEXT_PUBLIC_AIOS_TOKEN ?? '';
-
 function authHeaders(): Record<string, string> {
-  return AIOS_TOKEN ? { Authorization: `Bearer ${AIOS_TOKEN}` } : {};
+  return {};
 }
 
-// One session per operator, SHARED with the classic UI and the workbench organs
-// (the same persisted `aios_session_id`) so every face of the AI-OS continues
-// the SAME conversation. Single-sourced in ./sessionId — read-or-create-persist,
-// SSR-safe — so the four faces can never drift apart.
-const SESSION_ID: string = getSessionId();
+const FETCH_CREDENTIALS: RequestCredentials = 'include';
+
+async function sessionBodyFields(): Promise<Record<string, string>> {
+  const session = await ensureSession();
+  return session.bodySessionId ? { sessionId: session.bodySessionId } : {};
+}
 
 // ---------------------------------------------------------------- directives
 
@@ -281,14 +276,16 @@ async function streamTurn(
   let answer = '';
   let paused = false;
   try {
+    const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/generate`, {
       method: 'POST',
       signal,
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         messages: [{ role: 'user', content: [{ text }] }],
         modelId: 'auto',
-        sessionId: SESSION_ID,
+        ...sessionFields,
         approvalTokens: tokens,
       }),
     });
@@ -490,11 +487,13 @@ export async function sendVoiceTurn(
   let reply = '';
   const { signal } = opts;
   try {
+    const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/v1/chat`, {
       method: 'POST',
       signal,
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ transcript: text, sessionId: SESSION_ID }),
+      body: JSON.stringify({ transcript: text, ...sessionFields }),
     });
     if (!response.ok || !response.body) {
       throw new Error(`voice backend responded ${response.status}`);
@@ -567,12 +566,14 @@ export async function rejectPendingApproval(): Promise<void> {
   setPendingApprovalState(null);
   let confirmed = false;
   try {
+    const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
       method: 'POST',
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         approvalToken: pending.token,
-        sessionId: SESSION_ID,
+        ...sessionFields,
         approve: false,
       }),
     });
@@ -727,6 +728,7 @@ export async function previewIntent(text: string): Promise<IntentPreview> {
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/intent/preview`, {
       method: 'POST',
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ text }),
     });
@@ -762,6 +764,7 @@ export async function fetchOnboardingState(): Promise<OnboardingState> {
   };
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/onboarding/state`, {
+      credentials: FETCH_CREDENTIALS,
       headers: authHeaders(),
     });
     if (!res.ok) return empty;
@@ -780,6 +783,7 @@ export async function fetchOnboardingState(): Promise<OnboardingState> {
 
 /** Test seam: clear the module's poll memory between test cases. */
 export function __resetAiosAdapterForTests(): void {
+  __resetSessionForTests();
   seenTrailTotals.clear();
   seenTrailFailures.clear();
   seenTrailStatus.clear();
@@ -803,8 +807,14 @@ export async function pollOnce(): Promise<void> {
   try {
     const startedAt = performance.now();
     const [trailsRes, metricsRes] = await Promise.all([
-      fetch(`${AIOS_BASE}/api/v1/development/trails`, { headers: authHeaders() }),
-      fetch(`${AIOS_BASE}/api/v1/development/metrics`, { headers: authHeaders() }),
+      fetch(`${AIOS_BASE}/api/v1/development/trails`, {
+        credentials: FETCH_CREDENTIALS,
+        headers: authHeaders(),
+      }),
+      fetch(`${AIOS_BASE}/api/v1/development/metrics`, {
+        credentials: FETCH_CREDENTIALS,
+        headers: authHeaders(),
+      }),
     ]);
     if (!trailsRes.ok || !metricsRes.ok) throw new Error('bad status');
     const trailMap = (await trailsRes.json()) as TrailMapResponse;
@@ -889,7 +899,10 @@ export async function pollOnce(): Promise<void> {
     pollCount += 1;
     if (pollCount % CHAIN_PROBE_EVERY === 0) {
       try {
-        const chainRes = await fetch(`${AIOS_BASE}/api/v1/audit/verify`, { headers: authHeaders() });
+        const chainRes = await fetch(`${AIOS_BASE}/api/v1/audit/verify`, {
+          credentials: FETCH_CREDENTIALS,
+          headers: authHeaders(),
+        });
         if (chainRes.ok) {
           const chain = (await chainRes.json()) as { valid?: boolean; total_entries?: number };
           const wasValid = chainValid;
@@ -916,7 +929,10 @@ export async function pollOnce(): Promise<void> {
     // class. Best-effort and SEPARATE from the critical trails+metrics fetch:
     // an older backend without the endpoint never breaks the poll/link.
     try {
-      const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`, { headers: authHeaders() });
+      const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`, {
+        credentials: FETCH_CREDENTIALS,
+        headers: authHeaders(),
+      });
       if (autRes.ok) {
         lastAutonomy = (await autRes.json()) as AutonomySnapshot;
         for (const entry of lastAutonomy.entries ?? []) {
@@ -1012,7 +1028,7 @@ export async function fetchFactGraph(
   try {
     const res = await fetch(
       `${AIOS_BASE}/api/v1/memory/facts/graph?start=${encodeURIComponent(start)}&depth=${depth}`,
-      { headers: authHeaders() },
+      { credentials: FETCH_CREDENTIALS, headers: authHeaders() },
     );
     if (!res.ok) return [];
     const body = (await res.json()) as FactGraphResponse;
