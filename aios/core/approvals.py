@@ -67,6 +67,17 @@ class ApprovalStore:
     def _session_digest(session_id: str) -> str:
         return hashlib.sha256(session_id.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _payload_for_secret_scan(action_type: str, payload: dict[str, Any]) -> str:
+        scan_payload = dict(payload)
+        if action_type == "rollback":
+            snapshot_id = scan_payload.get("snapshot_id")
+            if isinstance(snapshot_id, str) and re.fullmatch(
+                r"[0-9a-f]{40}", snapshot_id
+            ):
+                scan_payload["snapshot_id"] = "<rollback-snapshot-sha>"
+        return json.dumps(scan_payload, separators=(",", ":"), sort_keys=True)
+
     def _connect(self) -> sqlite3.Connection:
         assert self.db_path is not None
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -130,7 +141,9 @@ class ApprovalStore:
         expires_at = self._clock() + self.timeout_s
         if self.db_path is not None:
             serialized = json.dumps(action.payload, separators=(",", ":"), sort_keys=True)
-            scan = scan_and_redact(serialized)
+            scan = scan_and_redact(
+                self._payload_for_secret_scan(action.action_type, action.payload)
+            )
             if scan.detected:
                 raise ApprovalError(
                     "approval payload contains credential-like data and cannot be persisted"
