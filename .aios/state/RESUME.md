@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-30T15:18Z
+Last updated: 2026-06-30T15:24Z
 
 ## Current Goal
 Birth-readiness P0 hardening is landed on `master`, pushed to GitHub, CI-green,
@@ -14,8 +14,8 @@ non-builder review before any "birth-ready" claim.
   verification, `request_change` contract gating, audit-gated CI, dependency
   upgrades, and scratch cleanup.
 - `c58945d` added Dependabot governance; `856f52b` tightened it to weekly grouped
-  pip/npm PRs with a lower open-PR ceiling. Initial ungrouped/generated
-  Dependabot PRs `#58-#69` were closed as superseded/noise.
+  pip/npm PRs with a lower open-PR ceiling. Initial generated Dependabot PRs
+  `#58-#70` were closed as superseded/noise.
 - GitHub Actions master CI succeeded for `2227a8a` (`28439072318`), `c58945d`
   (`28454462389`), and `856f52b` (`28454936703`); each had green `backend` and
   `frontend` jobs including dependency audits.
