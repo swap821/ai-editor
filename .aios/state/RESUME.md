@@ -1,53 +1,51 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-30T10:54Z
+Last updated: 2026-06-30T15:18Z
 
 ## Current Goal
-Birth-readiness P0 hardening is ready to land from local `master`
-(`origin/master` base `e70dee8`). Codex reclaimed the worktree under
-`birth-readiness-p0-fixes`, did a review pass, fixed one additional rollback
-target-binding edge, reran gates, and witnessed the live supervised Council loop.
+Birth-readiness P0 hardening is landed on `master`, pushed to GitHub, CI-green,
+and GitHub governance is hardened enough for supervised next-stage work. Codex
+held `birth-readiness-p0-fixes` as builder for the landing and must hand off for
+non-builder review before any "birth-ready" claim.
 
 ## Last Completed + Verified
-- Rollback now requires a validated session cookie or fallback session and a
-  one-shot rollback approval token bound to the exact snapshot SHA. Review caught
-  and fixed the omitted-`snapshotId` case so "previous snapshot" is resolved at
-  approval time, not execution time.
-- Browser frontend no longer exposes `NEXT_PUBLIC_AIOS_TOKEN`; it uses httpOnly
-  session cookies with a verified fallback body session only when cookies fail.
-- Deterministic workers now require verification commands and report failed
-  verification as `failed`; LLM workers still require verification before success.
-- `request_change` is denied unless the MissionContract allows the tool, and the
-  Security Queen requires explicit `metadata.model_policy`.
-- Real CI now runs `pip_audit` and `npm audit`; tracked scratch probes were
-  deleted and local live-proof artifacts are ignored.
-- Local gates after review fix: backend full pytest coverage gate passed at
-  89.19%; frontend typecheck passed; Vitest passed 63 files / 376 tests; frontend
-  build passed; `pip_audit -r requirements.txt` and `npm audit --audit-level=high`
-  were clean; `git diff --check` passed.
-- Live supervised-loop witness passed on a temporary backend at
+- `2227a8a` (`harden birth-readiness gates`) landed the P0 fixes: rollback
+  session + snapshot-bound approval, browser httpOnly session flow, honest worker
+  verification, `request_change` contract gating, audit-gated CI, dependency
+  upgrades, and scratch cleanup.
+- `c58945d` added Dependabot governance; `856f52b` tightened it to weekly grouped
+  pip/npm PRs with a lower open-PR ceiling. Initial ungrouped/generated
+  Dependabot PRs `#58-#69` were closed as superseded/noise.
+- GitHub Actions master CI succeeded for `2227a8a` (`28439072318`), `c58945d`
+  (`28454462389`), and `856f52b` (`28454936703`); each had green `backend` and
+  `frontend` jobs including dependency audits.
+- GitHub repo governance now has Dependabot security updates enabled, secret
+  scanning enabled, secret-scanning push protection enabled, delete-branch-on-merge
+  enabled, and `master` branch protection requiring strict `backend` + `frontend`
+  checks, linear history, conversation resolution, no force-pushes, and no
+  deletions. Admin enforcement is off to preserve operator direct-master control.
+- Optional GitHub secret-scanning non-provider patterns and validity checks
+  remained disabled after API request; record this as a GitHub/account feature
+  limitation, not a local repo failure.
+- Live supervised-loop witness passed before landing on a temporary backend at
   `127.0.0.1:8019`: mission `mission-a579d8114766` originated -> reached
   `awaiting_approval` -> King approval scheduled execution -> worker touched only
   `target.txt` -> verifier exit `0` -> final report `completed`.
 
 ## Single Next Action
-Commit this patch on `master`, push to GitHub, watch the pushed GitHub Actions CI
-run to completion, then harden repository governance (branch protection/required
-CI plus Dependabot/security settings where permissions allow).
+Release the Codex writer lease with a hash-pinned handoff against the final
+pushed `master` hash; after non-builder review, the operator should do
+product/browser acceptance before declaring the organism ready to be born.
 
 ## Open Approvals / Blockers
-- No code blocker. `pip check` remains red only because this local Python 3.14.5
+- No code blocker for the landed P0 hardening. `pip check` remains red only
+  because this local Python 3.14.5
   venv has several packages whose metadata does not support the platform,
   including pre-existing local `torch 2.12.0`; CI targets Python 3.11 and the
   vulnerability audits are clean.
-- Product birth is still not public-ready until GitHub CI and repository
-  governance are confirmed on the pushed commit.
+- Product birth is still not public-ready until non-builder review and operator
+  product/browser acceptance are complete.
 
 ## Active Files
-- Backend/session/security: `aios/api/main.py`, `aios/runtime/worker_entry.py`,
-  `aios/runtime/worker_api.py`, `aios/council/queens/security.py`
-- Frontend/session: `frontend/src/superbrain/lib/aiosAdapter.ts`,
-  `frontend/src/superbrain/lib/sessionId.ts`, related tests/config docs
-- Dependency/CI/docs: `.github/workflows/ci.yml`, `requirements.txt`,
-  `frontend/package*.json`, `README.md`, `.aios/state/PLAN.md`,
-  `.aios/state/RENOVATION_PLAN.md`
+- No product code is currently open for editing. Continuity closeout only:
+  `.aios/state/RESUME.md`, `.aios/memory/experiences.jsonl`.
