@@ -1,11 +1,11 @@
 # RESUME MANIFEST
 
-Last updated: 2026-06-30T21:37Z
+Last updated: 2026-06-30T21:45Z
 
 ## Current Goal
-Address Claude's non-builder birth-proof review, land the fixes, confirm GitHub
-CI, then hand off for re-review. Do not declare "born" until GitHub CI,
-non-builder approval, and operator browser acceptance are complete.
+Claude's non-builder birth-proof review findings have been fixed, committed,
+pushed, and confirmed green in GitHub CI. Do not declare "born" until the clean
+tree receives non-builder re-review and the operator gives browser acceptance.
 
 ## Last Completed + Verified
 - Claude's review artifact is tracked at
@@ -28,23 +28,19 @@ non-builder approval, and operator browser acceptance are complete.
   frontend `npm run test -- --run` (`63` files / `376` tests); frontend
   `npm run build`; `tools/check_css_canon.py`; `tools/check_canon_frozen.py`;
   and `git diff --check`.
+- Landing evidence: commit `3bc7384` (`fix: close birth proof review gaps`) was
+  pushed to `origin/master`; GitHub Actions run `28477617617` passed with both
+  required jobs green (`frontend` in 58s, `backend` in 4m53s).
 
 ## Single Next Action
-Commit and push the review fixes, watch GitHub CI to green, then run
-`python agent_coord.py handoff birth-local-browser-proof --from codex --to claude`
-with the proof paths and commit hash.
+Run `python agent_coord.py handoff birth-local-browser-proof --from codex --to claude`
+against the clean tree so Claude can re-review commit `3bc7384` and the proof
+paths, then wait for operator browser acceptance.
 
 ## Open Approvals / Blockers
-- GitHub CI has not yet run for this uncommitted fix set.
-- Product birth remains gated by GitHub CI, non-builder re-review, and the
-  operator's own browser acceptance; Codex cannot self-certify it as born.
+- Product birth remains gated by non-builder re-review and the operator's own
+  browser acceptance; Codex cannot self-certify it as born.
 
 ## Active Files
-- Review fixes: `.gitignore`, `aios/api/main.py`, `aios/config.py`,
-  `aios/core/session_manager.py`, `aios/runtime/snapshots.py`,
-  `aios/runtime/spawner.py`, `frontend/src/superbrain/lib/brainScene.ts`,
-  `frontend/src/workbench/CouncilDashboard.css`, `frontend/vite.config.js`,
-  and the matching backend tests.
-- Continuity/review docs: `.aios/state/BIRTH_PROOF_REVIEW_2026-06-30.md`,
-  `.aios/state/BIRTH_PROOF_RESPONSE_2026-07-01.md`,
-  `.aios/state/RESUME.md`, `.aios/memory/experiences.jsonl`.
+- Continuity-only local update pending: `.aios/state/RESUME.md`,
+  `.aios/memory/experiences.jsonl`. Code tree is otherwise clean at `3bc7384`.
