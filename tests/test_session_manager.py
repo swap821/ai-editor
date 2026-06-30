@@ -94,3 +94,49 @@ def test_session_count_and_cleanup_purges_expired() -> None:
         session.last_accessed = time.time() - 100  # expire them all
     manager._last_cleanup = 0.0  # bypass the cleanup throttle
     assert manager.session_count() == 0
+
+
+def test_durable_store_validates_cookie_hash_after_restart(tmp_path) -> None:
+    store = tmp_path / "sessions.db"
+    first = SessionManager(store_path=store)
+    raw = first.create_session({"user": "operator"})
+    cookie_hash = _hash(raw)
+
+    second = SessionManager(store_path=store)
+    session = second.validate_session(cookie_hash)
+
+    assert session is not None
+    assert session.session_hash == cookie_hash
+    assert session.session_id == ""  # raw id is intentionally not persisted
+    assert session.data == {"user": "operator"}
+    assert raw not in store.read_bytes().decode("latin1", errors="ignore")
+
+
+def test_durable_invalidate_removes_session_across_restarts(tmp_path) -> None:
+    store = tmp_path / "sessions.db"
+    first = SessionManager(store_path=store)
+    raw = first.create_session()
+    cookie_hash = _hash(raw)
+
+    second = SessionManager(store_path=store)
+    second.invalidate_session(cookie_hash)
+
+    third = SessionManager(store_path=store)
+    assert third.validate_session(cookie_hash) is None
+
+
+def test_durable_upgrade_carries_data_and_destroys_old_hash(tmp_path) -> None:
+    store = tmp_path / "sessions.db"
+    first = SessionManager(store_path=store)
+    raw = first.create_session({"role": "user"})
+    old_hash = _hash(raw)
+
+    second = SessionManager(store_path=store)
+    new_raw = second.upgrade_session(old_hash)
+    new_hash = _hash(new_raw)
+
+    third = SessionManager(store_path=store)
+    assert third.validate_session(old_hash) is None
+    upgraded = third.validate_session(new_hash)
+    assert upgraded is not None
+    assert upgraded.data == {"role": "user"}

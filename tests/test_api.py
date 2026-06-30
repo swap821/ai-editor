@@ -131,6 +131,37 @@ class FakeOllamaYellow:
         }
 
 
+class FakeOllamaSecretEdit:
+    """Ollama stand-in whose edit payload must be refused before token issue."""
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "edit_file",
+                        "arguments": {
+                            "filepath": "demo.py",
+                            "old_string": "return 1",
+                            "new_string": "return 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'",
+                        },
+                    }
+                }
+            ],
+        }
+
+
 class FakeRunner:
     """Stand-in process runner — records, never spawns."""
 
@@ -1024,6 +1055,37 @@ def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
     # must never reach the human approval prompt — it belongs in the audit log.
     assert "Caution operation requires approval" not in body
     assert "event: done" not in body            # the paused turn does not complete
+
+
+def test_generate_approval_payload_refusal_returns_error_frame(
+    client: TestClient,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    # If the approval payload itself contains credential-shaped data, token
+    # issuance must fail closed as an SSE error frame, not crash the ASGI stream.
+    old_roots = scope_lock.get_scope_roots()
+    (tmp_path / "demo.py").write_text("def demo():\n    return 1\n", encoding="utf-8")
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(config, "SCOPE_ROOTS", (tmp_path,))
+    scope_lock.set_scope_roots([tmp_path])
+    app.dependency_overrides[get_ollama_client] = FakeOllamaSecretEdit
+    try:
+        response = client.post(
+            "/api/generate",
+            json={
+                "messages": [{"role": "user", "content": [{"text": "fix demo.py"}]}],
+                "modelId": "ollama.llama3.2:3b",
+                "sessionId": "test-approval-payload-refused",
+            },
+        )
+    finally:
+        scope_lock.set_scope_roots(old_roots)
+
+    assert response.status_code == 200
+    assert "event: error" in response.text
+    assert "Approval request refused" in response.text
+    assert "event: human_required" not in response.text
 
 
 class FakeBedrockChat:

@@ -135,9 +135,13 @@ _APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
 
 #: Server-side session manager with httpOnly cookie support.
-#: Sessions are stored in-memory keyed by SHA-256 hash; the raw ID
-#: never leaves the server except inside the httpOnly cookie response.
-_SESSION_MANAGER = SessionManager(max_age=3600, cleanup_interval=300)
+#: Sessions are stored by SHA-256 hash only; the raw ID never leaves the server
+#: except inside the httpOnly cookie response, and is never persisted.
+_SESSION_MANAGER = SessionManager(
+    max_age=3600,
+    cleanup_interval=300,
+    store_path=config.SESSION_DB_PATH,
+)
 
 #: Cloud chat-client singletons. Built lazily and reused across requests so we do
 #: not re-run boto3/gcloud credential discovery on every turn. Enablement is still
@@ -3448,61 +3452,67 @@ def generate(
                 cmd = ev["command"]
                 edit = ev.get("edit")
                 creation = ev.get("creation")
-                if edit is not None:
-                    token = approvals.issue("edit", edit, session_id)
-                    # An edit_file approval: surface the unified diff + the edit
-                    # triple so the UI shows the diff and re-sends it as an
-                    # approved edit on resume (a snapshot is taken before writing).
-                    payload = {
-                        "input": {
-                            "edits": [edit],
-                            "approvalToken": token,
-                            "diff": ev.get("diff", ""),
-                            "explanation": (
-                                "The agent wants to edit a file. Review the diff "
-                                "and approve to apply it. A snapshot is taken first, "
-                                "then an available sibling test runs automatically."
-                            ),
-                        },
-                        "text": f"Approval required to apply an edit to {ev.get('filepath', '')}",
-                        "requiresApproval": True,
-                    }
-                elif creation is not None:
-                    token = approvals.issue("create", creation, session_id)
-                    # A create_file approval: surface the all-additions diff + the
-                    # {filepath, content} pair so the UI shows the new file and
-                    # re-sends it as an approved creation on resume (a snapshot is
-                    # taken before writing, so the new file stays revertible).
-                    payload = {
-                        "input": {
-                            "creations": [creation],
-                            "approvalToken": token,
-                            "diff": ev.get("diff", ""),
-                            "explanation": (
-                                "The agent wants to create a new file. Review the "
-                                "contents and approve to write it. A snapshot is "
-                                "taken first, then an available sibling test runs "
-                                "automatically."
-                            ),
-                        },
-                        "text": f"Approval required to create {ev.get('filepath', '')}",
-                        "requiresApproval": True,
-                    }
-                else:
-                    token = approvals.issue("command", {"command": cmd}, session_id)
-                    payload = {
-                        "input": {
-                            "commands": [cmd],
-                            "approvalToken": token,
-                            "explanation": (
-                                "The agent wants to run a caution-level command "
-                                "(e.g. a package install, git write, or file "
-                                "change). Review it and approve to let it run."
-                            ),
-                        },
-                        "text": f"Approval required to run: {cmd}",
-                        "requiresApproval": True,
-                    }
+                try:
+                    if edit is not None:
+                        token = approvals.issue("edit", edit, session_id)
+                        # An edit_file approval: surface the unified diff + the edit
+                        # triple so the UI shows the diff and re-sends it as an
+                        # approved edit on resume (a snapshot is taken before writing).
+                        payload = {
+                            "input": {
+                                "edits": [edit],
+                                "approvalToken": token,
+                                "diff": ev.get("diff", ""),
+                                "explanation": (
+                                    "The agent wants to edit a file. Review the diff "
+                                    "and approve to apply it. A snapshot is taken first, "
+                                    "then an available sibling test runs automatically."
+                                ),
+                            },
+                            "text": f"Approval required to apply an edit to {ev.get('filepath', '')}",
+                            "requiresApproval": True,
+                        }
+                    elif creation is not None:
+                        token = approvals.issue("create", creation, session_id)
+                        # A create_file approval: surface the all-additions diff + the
+                        # {filepath, content} pair so the UI shows the new file and
+                        # re-sends it as an approved creation on resume (a snapshot is
+                        # taken before writing, so the new file stays revertible).
+                        payload = {
+                            "input": {
+                                "creations": [creation],
+                                "approvalToken": token,
+                                "diff": ev.get("diff", ""),
+                                "explanation": (
+                                    "The agent wants to create a new file. Review the "
+                                    "contents and approve to write it. A snapshot is "
+                                    "taken first, then an available sibling test runs "
+                                    "automatically."
+                                ),
+                            },
+                            "text": f"Approval required to create {ev.get('filepath', '')}",
+                            "requiresApproval": True,
+                        }
+                    else:
+                        token = approvals.issue("command", {"command": cmd}, session_id)
+                        payload = {
+                            "input": {
+                                "commands": [cmd],
+                                "approvalToken": token,
+                                "explanation": (
+                                    "The agent wants to run a caution-level command "
+                                    "(e.g. a package install, git write, or file "
+                                    "change). Review it and approve to let it run."
+                                ),
+                            },
+                            "text": f"Approval required to run: {cmd}",
+                            "requiresApproval": True,
+                        }
+                except ApprovalError as exc:
+                    logger.warning("Approval payload refused before token issue", exc_info=exc)
+                    approvals.clear_session(session_id)
+                    yield _sse("error", {"text": f"Approval request refused: {exc}"})
+                    return
                 try:
                     development.record(
                         user_text,

@@ -15,10 +15,21 @@ const BRAIN_GLB = '/models/brain.glb';
 let cachedScene: THREE.Group | null = null;
 let pending: Promise<void> | null = null;
 
+function brainLoader(): GLTFLoader {
+  const loader = new GLTFLoader();
+  // The product GLB is stripped and every mesh receives a runtime shader, so the
+  // legacy spec/gloss material extension is intentionally ignored after parse.
+  loader.register(() => ({
+    name: 'KHR_materials_pbrSpecularGlossiness',
+    beforeRoot: () => Promise.resolve(),
+  }));
+  return loader;
+}
+
 function startLoad(): Promise<void> {
   if (!pending) {
     pending = new Promise<void>((resolve, reject) => {
-      new GLTFLoader().load(
+      brainLoader().load(
         BRAIN_GLB,
         (gltf) => {
           cachedScene = gltf.scene;

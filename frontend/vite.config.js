@@ -13,6 +13,15 @@ export default defineConfig(({ mode }) => {
   // so we bridge VITE_* -> NEXT_PUBLIC_* here instead of editing the ported file.
   const env = loadEnv(mode, process.cwd(), '')
   const AIOS_BASE = env.VITE_API_BASE || 'http://localhost:8000'
+  let AIOS_ORIGIN = 'http://localhost:8000'
+  let AIOS_WS_ORIGIN = 'ws://localhost:8000'
+  try {
+    const parsed = new URL(AIOS_BASE)
+    AIOS_ORIGIN = parsed.origin
+    AIOS_WS_ORIGIN = `${parsed.protocol === 'https:' ? 'wss:' : 'ws:'}//${parsed.host}`
+  } catch {
+    // Keep the default local backend origin.
+  }
 
   // ── Content-Security-Policy (C18), MODE-AWARE ─────────────────────────────
   // The dev server MUST allow script 'unsafe-inline' — @vitejs/plugin-react
@@ -30,7 +39,7 @@ export default defineConfig(({ mode }) => {
       ? "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"
       : "script-src 'self' 'wasm-unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
-    "connect-src 'self' ws://localhost:8000 wss://* http://localhost:8000 https://*",
+    `connect-src 'self' ${AIOS_WS_ORIGIN} ${AIOS_ORIGIN} ws://localhost:8000 wss://* http://localhost:8000 https://*`,
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "media-src 'self' blob:",

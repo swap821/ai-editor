@@ -8,10 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.runtime.backends import ControlledSubprocessBackend
 from aios.runtime.contracts import MissionContract, WorkerResult
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
+from aios.runtime.snapshots import SnapshotManager
 from aios.runtime.spawner import MissionCollisionError, WorkerSpawner
 from aios.runtime.worker_api import ContractViolation, WorkerRuntime
 
@@ -126,6 +128,9 @@ def test_controlled_subprocess_worker_birth_writes_ledger_and_report(
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     contract = _mission(workspace)
+    original = (workspace / "frontend" / "src" / "pages" / "Login.jsx").read_text(
+        encoding="utf-8"
+    )
 
     run = asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
 
@@ -145,8 +150,16 @@ def test_controlled_subprocess_worker_birth_writes_ledger_and_report(
     assert run.report.recommendation == "approve"
     assert run.report.approval_needed is True
     assert run.contract.snapshot_id is not None
+    assert run.result.rollback_id == run.contract.snapshot_id
+    assert run.ledger.rollback_id == run.contract.snapshot_id
+    assert run.report.rollback_available is True
+    assert run.report.rollback_id == run.contract.snapshot_id
     assert run.ledger_path.exists()
     assert run.report_path.exists()
+
+    restored = RollbackEngine(repo_dir=workspace).rollback(run.report.rollback_id)
+    assert restored.restored is True
+    assert target.read_text(encoding="utf-8") == original
 
     stored_ledger = RunLedgerStore(runtime_root).read(contract.mission_id)
     stored_report = KingReportStore(runtime_root).read(contract.mission_id)
@@ -285,3 +298,12 @@ def test_spawner_refuses_duplicate_mission_id(tmp_path: Path) -> None:
     asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
     with pytest.raises(MissionCollisionError):
         asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
+
+
+def test_snapshot_manager_refuses_existing_git_workspace(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / ".git").mkdir()
+    contract = _mission(workspace, mission_id="mission-existing-git")
+
+    with pytest.raises(RollbackError, match="already contains a .git"):
+        SnapshotManager(tmp_path / "runtime").create_snapshot(contract)

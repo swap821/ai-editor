@@ -105,6 +105,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 MEMORY_DB_PATH: Final[Path] = DATA_DIR / "aios_memory.db"
 APPROVAL_DB_PATH: Final[Path] = DATA_DIR / "aios_approvals.db"
+SESSION_DB_PATH: Final[Path] = DATA_DIR / "aios_sessions.db"
 AUDIT_DB_PATH: Final[Path] = DATA_DIR / "aios_audit.db"
 FAISS_INDEX_PATH: Final[Path] = DATA_DIR / "vector_index.faiss"
 ROLLBACK_DIR: Final[Path] = _env_path("AIOS_ROLLBACK_DIR", DATA_DIR / "rollback")
@@ -259,8 +260,10 @@ _VALID_ROUTER_TASKS: Final[tuple[str, ...]] = ("coding", "reasoning", "general",
 
 def _env_router_tasks(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     raw = os.getenv(name)
-    if raw in (None, ""):
+    if raw is None:
         return default
+    if raw == "":
+        return ()
     return tuple(
         t.strip().lower()
         for t in raw.split(",")

@@ -59,6 +59,8 @@ GAG demo/
 /.agents/*
 !/.agents/skills/
 /agents/
+.swarm/
+ruvector.db
 # One-off cloned external design toolkit (contains nested foreign .git repos).
 /codex-design-workspace/
 # Reserved audit scratch + escalated dev-server logs (local only).

@@ -89,6 +89,10 @@ class WorkerSpawner:
                 if handle.status not in {"dead", "killed"}:
                     await self.backend.kill(handle, "spawner cleanup after reap")
 
+            if sealed_contract.snapshot_id and result.rollback_id is None:
+                result = result.model_copy(
+                    update={"rollback_id": sealed_contract.snapshot_id}
+                )
             ledger = build_run_ledger(
                 contract=sealed_contract,
                 handle=handle,
