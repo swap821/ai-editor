@@ -46,7 +46,7 @@ python-dotenv==1.2.2
 PyYAML==6.0.3
 radon==6.0.1
 rank-bm25==0.2.2
-regex==2026.5.9
+regex==2026.6.28
 requests==2.34.2
 rich==15.0.0
 s3transfer==0.18.0
