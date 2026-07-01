@@ -26,11 +26,12 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
     ]
     if denied:
         status = "failed" if any(v.verdict == "deny" for v in denied) else "needs_revision"
-        recommendation = (
-            "reject"
-            if any(v.queen == "security" and v.verdict == "deny" for v in denied)
-            else "revise"
-        )
+        if any(v.queen == "security" and v.verdict == "deny" for v in denied):
+            recommendation = "reject"
+        elif ledger.rollback_id and ledger.files_touched:
+            recommendation = "rollback"
+        else:
+            recommendation = "revise"
         human_summary = (
             "Council blocked approval: "
             + "; ".join(f"{verdict.queen}: {verdict.reason}" for verdict in denied)
@@ -52,7 +53,7 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
         human_summary = "Worker was killed before successful completion."
     else:
         status = "failed"
-        recommendation = "revise"
+        recommendation = "rollback" if ledger.rollback_id and ledger.files_touched else "revise"
         human_summary = f"Worker ended with status {result.status}: {result.summary}"
 
     intelligence = _latest_intelligence(ledger)

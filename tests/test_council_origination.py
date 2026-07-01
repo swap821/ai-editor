@@ -77,6 +77,7 @@ def test_approve_triggers_execution_and_worker_acts(
         "def test_ok():\n    assert True\n", encoding="utf-8"
     )
     (workspace / "target.txt").write_text("original\n", encoding="utf-8")
+    original = (workspace / "target.txt").read_text(encoding="utf-8")
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", workspace)
     runtime_root = tmp_path / "runtime"
     _client_overrides(runtime_root)
@@ -98,6 +99,21 @@ def test_approve_triggers_execution_and_worker_acts(
 
             approve = client.post("/api/v1/council/approve", json={"missionId": mission_id})
             after = client.get(f"/api/v1/council/missions/{mission_id}")
+            rollback_id = after.json()["report"]["rollback_id"]
+            modified_text = (workspace / "target.txt").read_text(encoding="utf-8")
+            pending_rollback = client.post(
+                f"/api/v1/council/missions/{mission_id}/rollback",
+                json={"snapshotId": rollback_id, "sessionId": "s-exec"},
+            )
+            restored = client.post(
+                f"/api/v1/council/missions/{mission_id}/rollback",
+                json={
+                    "snapshotId": rollback_id,
+                    "approvalToken": pending_rollback.json()["approvalToken"],
+                    "sessionId": "s-exec",
+                },
+            )
+            rolled_back = client.get(f"/api/v1/council/missions/{mission_id}")
     finally:
         app.dependency_overrides.clear()
 
@@ -105,7 +121,19 @@ def test_approve_triggers_execution_and_worker_acts(
     assert approve.json().get("execution") == "scheduled"
     # The worker acted only AFTER approval — the target now carries the edit.
     assert after.json()["report"]["status"] == "completed"
-    assert "heartbeat" in (workspace / "target.txt").read_text(encoding="utf-8")
+    assert after.json()["report"]["rollback_available"] is True
+    assert after.json()["summary"]["rollbackAvailable"] is True
+    assert after.json()["summary"]["rollbackId"] == rollback_id
+    assert "heartbeat" in modified_text
+    assert pending_rollback.status_code == 200
+    assert pending_rollback.json()["requiresApproval"] is True
+    assert pending_rollback.json()["snapshotId"] == rollback_id
+    assert restored.status_code == 200
+    assert restored.json()["executed"] is True
+    assert restored.json()["result"]["restored"] is True
+    assert (workspace / "target.txt").read_text(encoding="utf-8") == original
+    assert rolled_back.json()["report"]["status"] == "rolled_back"
+    assert rolled_back.json()["summary"]["rollbackAvailable"] is False
 
 
 def test_reject_does_not_execute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -338,6 +338,48 @@
   opacity: 0.58;
 }
 
+.council-dashboard__recovery {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.council-dashboard__recovery h3,
+.council-dashboard__recovery p {
+  grid-column: 1 / -1;
+}
+
+.council-dashboard__snapshot {
+  min-width: 0;
+  font-family: var(--mono, 'SFMono-Regular', Consolas, monospace);
+  font-size: 11px;
+  color: rgba(216, 232, 248, 0.86);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.council-dashboard__recovery button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: 8px;
+  color: #fde68a;
+  background: rgba(250, 204, 21, 0.12);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.council-dashboard__recovery button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .council-dashboard__verdicts,
 .council-dashboard__route {
   display: flex;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Cloud, FileText, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Cloud, FileText, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
 import { API_BASE, API_HEADERS } from '../config';
+import { ensureSession } from '../superbrain/lib/sessionId';
 import './CouncilDashboard.css';
 
 const EMPTY_DETAIL = { summary: null, report: null, ledger: null };
@@ -46,16 +47,23 @@ function deriveVerificationStrength(report, summary) {
 }
 
 async function fetchJson(path, signal) {
-  const response = await fetch(`${API_BASE}${path}`, { signal, headers: API_HEADERS });
+  const response = await fetch(`${API_BASE}${path}`, {
+    signal,
+    credentials: 'include',
+    headers: API_HEADERS,
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 
 async function postJson(path, body) {
+  const session = await ensureSession();
+  const sessionBody = session.bodySessionId ? { sessionId: session.bodySessionId } : {};
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...API_HEADERS },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...sessionBody, ...body }),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
@@ -69,6 +77,8 @@ export default function CouncilDashboard() {
   const [error, setError] = useState('');
   const [decisionBusy, setDecisionBusy] = useState(false);
   const [decisionError, setDecisionError] = useState('');
+  const [rollbackBusy, setRollbackBusy] = useState(false);
+  const [rollbackError, setRollbackError] = useState('');
   const [originGoal, setOriginGoal] = useState('');
   const [originFiles, setOriginFiles] = useState('');
   const [originBusy, setOriginBusy] = useState(false);
@@ -167,7 +177,10 @@ export default function CouncilDashboard() {
   const pendingApproval = pendingApprovals[0] || null;
   const kingDecision = detail.kingDecision || detail.summary?.kingDecision || selectedSummary?.kingDecision || null;
   const approvalNeeded = report.approval_needed ?? selectedSummary?.approvalNeeded;
+  const rollbackAvailable = Boolean(report.rollback_available ?? selectedSummary?.rollbackAvailable);
+  const rollbackId = report.rollback_id ?? selectedSummary?.rollbackId ?? null;
   const canDecide = Boolean(selectedSummary && !kingDecision && (pendingApproval || approvalNeeded));
+  const canRollback = Boolean(selectedSummary && rollbackAvailable && rollbackId && !rollbackBusy);
   const risk = report.risk || selectedSummary?.risk || 'GREEN';
   const verification = deriveVerificationStrength(report, selectedSummary);
 
@@ -201,6 +214,41 @@ export default function CouncilDashboard() {
       setDecisionBusy(false);
     }
   }, [canDecide, loadMissions, pendingApproval, pendingApprovals, selectedSummary]);
+
+  const submitRollback = useCallback(async () => {
+    if (!selectedSummary || !rollbackId || !rollbackAvailable) return;
+    const confirmed = window.confirm(
+      `Rollback ${selectedSummary.missionId} to snapshot ${String(rollbackId).slice(0, 12)}?`,
+    );
+    if (!confirmed) return;
+    setRollbackBusy(true);
+    setRollbackError('');
+    try {
+      const path = `/api/v1/council/missions/${encodeURIComponent(selectedSummary.missionId)}/rollback`;
+      const pending = await postJson(path, { snapshotId: rollbackId });
+      if (!pending.approvalToken) throw new Error('missing rollback approval token');
+      const restored = await postJson(path, {
+        snapshotId: rollbackId,
+        approvalToken: pending.approvalToken,
+      });
+      setDetail((current) => ({
+        ...current,
+        report: restored.report || current.report,
+        summary: current.summary ? {
+          ...current.summary,
+          status: restored.report?.status || 'rolled_back',
+          recommendation: restored.report?.recommendation || 'observe',
+          rollbackAvailable: false,
+          rollbackId: restored.snapshotId || rollbackId,
+        } : current.summary,
+      }));
+      void loadMissions();
+    } catch (err) {
+      setRollbackError('Rollback failed');
+    } finally {
+      setRollbackBusy(false);
+    }
+  }, [loadMissions, rollbackAvailable, rollbackId, selectedSummary]);
 
   return (
     <aside className="council-dashboard" aria-label="Council runtime dashboard">
@@ -285,6 +333,7 @@ export default function CouncilDashboard() {
               <span><b>Status</b>{titleCase(report.status || selectedSummary.status)}</span>
               <span><b>Recommendation</b>{titleCase(report.recommendation || selectedSummary.recommendation)}</span>
               <span><b>Approval</b>{approvalNeeded ? 'Needed' : 'Not needed'}</span>
+              <span><b>Recovery</b>{rollbackAvailable ? 'Ready' : report.status === 'rolled_back' ? 'Restored' : 'None'}</span>
             </div>
 
             <div className="council-dashboard__section council-dashboard__decision">
@@ -327,6 +376,25 @@ export default function CouncilDashboard() {
                 </div>
               ) : null}
             </div>
+
+            {rollbackId ? (
+              <div className="council-dashboard__section council-dashboard__recovery">
+                <h3><RotateCcw size={14} aria-hidden="true" /> Recovery</h3>
+                <span className="council-dashboard__snapshot">{String(rollbackId).slice(0, 12)}</span>
+                {rollbackError ? <p className="council-dashboard__error">{rollbackError}</p> : null}
+                {rollbackAvailable ? (
+                  <button
+                    type="button"
+                    onClick={() => submitRollback()}
+                    disabled={!canRollback}
+                    aria-label="Rollback Council mission"
+                  >
+                    <RotateCcw size={14} aria-hidden="true" />
+                    Rollback
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="council-dashboard__section">
               <h3><ShieldCheck size={14} aria-hidden="true" /> Verdicts</h3>

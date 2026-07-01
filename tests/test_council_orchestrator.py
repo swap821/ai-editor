@@ -176,7 +176,7 @@ def test_council_orchestrator_blocks_protected_allowed_file_before_worker(
     assert "Protected foundation file" in security.reason
 
 
-def test_testing_queen_failure_changes_king_report_to_revision(
+def test_testing_queen_failure_changes_king_report_to_rollback(
     tmp_path: Path,
 ) -> None:
     workspace = _workspace(tmp_path, failing_test=True)
@@ -191,7 +191,9 @@ def test_testing_queen_failure_changes_king_report_to_revision(
     assert run.worker_run.result.status == "failed"
     assert run.ledger.status == "failed"
     assert run.report.status == "failed"
-    assert run.report.recommendation == "revise"
+    assert run.report.recommendation == "rollback"
+    assert run.report.rollback_available is True
+    assert run.report.rollback_id == run.contract.snapshot_id
     testing = next(verdict for verdict in run.verdicts if verdict.queen == "testing")
     assert testing.verdict == "deny"
     assert run.ledger.verification["commands"][0]["returncode"] != 0

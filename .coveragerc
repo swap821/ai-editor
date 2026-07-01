@@ -1,9 +1,2 @@
 [run]
 source = aios
-omit =
-    # Unintegrated swarm research backends. The shipped swarm path is
-    # aios/agents/swarm.py; include these in coverage when they are wired in.
-    aios/agents/swarm_adaptive.py
-    aios/agents/swarm_conflict.py
-    aios/agents/swarm_parallel.py
-    aios/agents/swarm_scout.py

@@ -94,6 +94,7 @@ describe('CouncilDashboard', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -179,6 +180,81 @@ describe('CouncilDashboard', () => {
     // The caution is surfaced at the decision point.
     const caution = await screen.findByRole('alert');
     expect(caution).toHaveTextContent(/review before approving/i);
+  });
+
+  it('restores a mission through the rollback recovery action', async () => {
+    const rollbackId = '1234567890abcdef1234567890abcdef12345678';
+    const rollbackMission = {
+      ...missionsPayload.missions[0],
+      rollbackAvailable: true,
+      rollbackId,
+    };
+    const rollbackDetail = {
+      ...detailPayload,
+      report: {
+        ...detailPayload.report,
+        rollback_available: true,
+        rollback_id: rollbackId,
+      },
+      summary: rollbackMission,
+    };
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fetchMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (options?.method === 'POST' && url.includes('/api/v1/council/missions/mission-ui-1/rollback')) {
+        const body = JSON.parse(String(options.body || '{}'));
+        if (!body.approvalToken) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              requiresApproval: true,
+              approvalToken: 'rollback-token',
+              snapshotId: rollbackId,
+              executed: false,
+            }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            requiresApproval: false,
+            missionId: 'mission-ui-1',
+            snapshotId: rollbackId,
+            executed: true,
+            result: { restored: true },
+            report: {
+              ...rollbackDetail.report,
+              status: 'rolled_back',
+              recommendation: 'observe',
+              rollback_available: false,
+            },
+          }),
+        });
+      }
+      if (url.includes('/api/v1/council/missions/mission-ui-1')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(rollbackDetail) });
+      }
+      if (url.includes('/api/v1/council/missions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ missions: [rollbackMission], count: 1 }) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    });
+
+    render(<CouncilDashboard />);
+
+    const rollback = await screen.findByRole('button', { name: 'Rollback Council mission' });
+    fireEvent.click(rollback);
+
+    await waitFor(() => {
+      const rollbackCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('/rollback'));
+      expect(rollbackCalls).toHaveLength(2);
+      expect(JSON.parse(String(rollbackCalls[0][1]?.body))).toMatchObject({ snapshotId: rollbackId });
+      expect(JSON.parse(String(rollbackCalls[1][1]?.body))).toMatchObject({
+        snapshotId: rollbackId,
+        approvalToken: 'rollback-token',
+      });
+    });
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(await screen.findByText('Restored')).toBeInTheDocument();
   });
 
   it('originates a mission from the form', async () => {

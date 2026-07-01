@@ -119,6 +119,7 @@ from aios.memory.working import WorkingMemory
 from aios.runtime.contracts import KingReport, RunLedger
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
+from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
@@ -938,6 +939,16 @@ class CouncilDecisionRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class CouncilRollbackRequest(BaseModel):
+    """Approval-gated restore of a Council mission workspace."""
+
+    snapshot_id: Optional[str] = Field(None, alias="snapshotId")
+    approval_token: Optional[str] = Field(None, alias="approvalToken")
+    session_id: Optional[str] = Field(None, alias="sessionId")
+
+    model_config = {"populate_by_name": True}
+
+
 class CouncilMissionOriginationRequest(BaseModel):
     """Body for ``POST /api/v1/council/missions`` — originate a council mission.
 
@@ -1701,6 +1712,8 @@ def _council_summary_from_artifacts(
         "recommendation": report.recommendation,
         "risk": report.risk,
         "approvalNeeded": report.approval_needed,
+        "rollbackAvailable": report.rollback_available,
+        "rollbackId": report.rollback_id,
         "filesTouched": list(report.files),
         "blockedAttempts": (
             len(ledger.blocked_attempts)
@@ -1872,6 +1885,64 @@ def _run_council_execution(runtime_root: Path, mission_id: str) -> None:
         _write_failed_council_report(runtime_root, mission_id, str(exc))
 
 
+def _council_rollback_target(ledger: RunLedger, report: KingReport) -> str:
+    if report.status == "rolled_back":
+        raise HTTPException(status_code=409, detail="council mission already rolled back")
+    snapshot_id = ledger.rollback_id or report.rollback_id or ledger.snapshot_id
+    if not snapshot_id:
+        raise HTTPException(
+            status_code=409,
+            detail="council mission has no rollback snapshot",
+        )
+    return snapshot_id
+
+
+def _write_council_rollback_artifacts(
+    *,
+    runtime_root: Path,
+    ledger: RunLedger,
+    report: KingReport,
+    snapshot_id: str,
+    result: Any,
+) -> KingReport:
+    restored_at = _utc_now_iso()
+    rollback_evidence = {
+        "snapshot_id": snapshot_id,
+        "restored": bool(result.restored),
+        "head_sha": result.head_sha,
+        "reason": result.reason,
+        "restored_at": restored_at,
+    }
+    ledger_evidence = dict(ledger.evidence)
+    ledger_evidence["rollback"] = rollback_evidence
+    updated_ledger = ledger.model_copy(
+        update={
+            "status": "rolled_back",
+            "completed_at": restored_at,
+            "evidence": ledger_evidence,
+        }
+    )
+    RunLedgerStore(runtime_root).write(updated_ledger)
+
+    report_evidence = dict(report.evidence)
+    report_evidence["rollback"] = rollback_evidence
+    updated_report = report.model_copy(
+        update={
+            "status": "rolled_back",
+            "recommendation": "observe",
+            "rollback_available": False,
+            "rollback_id": snapshot_id,
+            "evidence": report_evidence,
+            "human_summary": (
+                "Council rollback restored the workspace to snapshot "
+                f"{snapshot_id[:12]}."
+            ),
+        }
+    )
+    KingReportStore(runtime_root).write(updated_report)
+    return updated_report
+
+
 @app.post("/api/v1/council/missions")
 def council_originate(
     req: CouncilMissionOriginationRequest,
@@ -2006,6 +2077,85 @@ def council_report(
         logger.warning("council_report_artifact_corrupt", mission_id=safe_id, exc_info=exc)
         raise HTTPException(status_code=422, detail="council report is corrupt") from exc
     return {"missionId": safe_id, "report": report.model_dump()}
+
+
+@app.post("/api/v1/council/missions/{mission_id}/rollback")
+def council_mission_rollback(
+    mission_id: str,
+    req: CouncilRollbackRequest,
+    request: Request,
+    runtime_root: Path = Depends(get_council_runtime_root),
+    approvals: ApprovalStore = Depends(get_approval_store),
+) -> dict[str, Any]:
+    """Restore one Council mission workspace to its pre-worker snapshot."""
+    safe_id = _validate_council_mission_id(mission_id)
+    reports = KingReportStore(runtime_root)
+    ledgers = RunLedgerStore(runtime_root)
+    if not reports.path_for(safe_id).exists() or not ledgers.path_for(safe_id).exists():
+        raise HTTPException(status_code=404, detail="council mission not found")
+    try:
+        report = reports.read(safe_id)
+        ledger = ledgers.read(safe_id)
+    except Exception as exc:  # noqa: BLE001 - corrupt artifacts are caller-visible
+        logger.warning("council_rollback_artifact_corrupt", mission_id=safe_id, exc_info=exc)
+        raise HTTPException(status_code=422, detail="council artifact is corrupt") from exc
+
+    snapshot_id = _council_rollback_target(ledger, report)
+    if req.snapshot_id and req.snapshot_id != snapshot_id:
+        raise HTTPException(
+            status_code=403,
+            detail="requested snapshot does not match council mission rollback target",
+        )
+    session_id = _session_id_from_request(request, req.session_id)
+    if not session_id:
+        raise HTTPException(status_code=422, detail="sessionId or session cookie is required")
+
+    payload = {"mission_id": safe_id, "snapshot_id": snapshot_id}
+    if not req.approval_token:
+        token = approvals.issue("rollback", payload, session_id)
+        return {
+            "requiresApproval": True,
+            "approvalToken": token,
+            "actionType": "rollback",
+            "missionId": safe_id,
+            "snapshotId": snapshot_id,
+            "executed": False,
+        }
+    try:
+        action = approvals.consume(req.approval_token, session_id)
+    except ApprovalError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if action.action_type != "rollback":
+        raise HTTPException(status_code=400, detail="approval token is not for rollback")
+    if action.payload != payload:
+        raise HTTPException(
+            status_code=403,
+            detail="approval token does not match council mission rollback target",
+        )
+    try:
+        result = SnapshotManager(runtime_root).rollback_snapshot(
+            ledger.contract.workspace_root,
+            snapshot_id,
+        )
+    except RollbackError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    if not result.restored:
+        raise HTTPException(status_code=500, detail=result.reason)
+    updated_report = _write_council_rollback_artifacts(
+        runtime_root=runtime_root,
+        ledger=ledger,
+        report=report,
+        snapshot_id=snapshot_id,
+        result=result,
+    )
+    return {
+        "requiresApproval": False,
+        "missionId": safe_id,
+        "snapshotId": snapshot_id,
+        "executed": True,
+        "result": asdict(result),
+        "report": updated_report.model_dump(),
+    }
 
 
 @app.post("/api/v1/council/approve")

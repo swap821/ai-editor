@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from aios.agents.rollback_engine import RollbackEngine, RollbackError
+from aios.agents.rollback_engine import RollbackEngine, RollbackError, RollbackResult
 from aios.runtime.contracts import MissionContract
 
 
@@ -49,6 +49,13 @@ class SnapshotManager:
             encoding="utf-8",
         )
         return snapshot_id
+
+    def rollback_snapshot(
+        self, workspace_root: str | Path, snapshot_id: str
+    ) -> RollbackResult:
+        """Restore a Council-owned workspace to a recorded rollback snapshot."""
+        engine = self._engine_for(Path(workspace_root).resolve())
+        return engine.rollback(snapshot_id)
 
     def _engine_for(self, workspace_root: Path) -> RollbackEngine:
         """Build the rollback engine for a Council workspace.

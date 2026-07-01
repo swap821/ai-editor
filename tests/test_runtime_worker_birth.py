@@ -173,6 +173,8 @@ def test_controlled_subprocess_worker_fails_when_verification_command_fails(
 ) -> None:
     monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     workspace = _workspace(tmp_path)
+    target = workspace / "frontend" / "src" / "pages" / "Login.jsx"
+    original = target.read_text(encoding="utf-8")
     (workspace / "fail.py").write_text("import sys\nsys.exit(3)\n", encoding="utf-8")
     runtime_root = tmp_path / "runtime"
     contract = _mission(
@@ -187,7 +189,14 @@ def test_controlled_subprocess_worker_fails_when_verification_command_fails(
     assert run.result.status == "failed"
     assert run.ledger.status == "failed"
     assert run.report.status == "failed"
+    assert run.report.recommendation == "rollback"
+    assert run.report.rollback_available is True
+    assert run.report.rollback_id == run.contract.snapshot_id
     assert run.ledger.verification["commands"][0]["returncode"] == 3
+
+    restored = RollbackEngine(repo_dir=workspace).rollback(run.report.rollback_id)
+    assert restored.restored is True
+    assert target.read_text(encoding="utf-8") == original
 
 
 def test_controlled_subprocess_backend_omits_cloud_secret_env(
