@@ -1,17 +1,18 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-01T12:04Z
+Last updated: 2026-07-01T12:14Z
 
 ## Current Goal
 Execute the grounded fusion roadmap slice-by-slice, preserving supervised
 authority and avoiding any premature birth claim.
 
 ## Last Completed + Verified
-- Rollback recovery hardening and orphaned swarm cleanup are landed on
+- Rollback recovery hardening and orphaned swarm cleanup landed on
   `origin/master` at `27cf2e5`; GitHub CI run `28504424476` passed.
 - RuFlo memory migration completed: 41 `gagos-mem-*` entries plus 5 workflow
   entries, verified through Ruflo list/search/CLI/local exact retrieval.
-- Fusion C1 completed locally under Codex writer lease:
+- Fusion C1 landed on `master` and `origin/master`:
+  - commit `53e8c74` (`feat: add typed SSE event spine`);
   - added `aios/core/events.py` with typed `Event`, `EventType`, `EventPhase`,
     JSON round-trip, and SSE payload adaptation;
   - wired `aios/api/main.py` streaming responses through a per-turn SSE writer
@@ -21,21 +22,29 @@ authority and avoiding any premature birth claim.
   - added coverage in `tests/test_events.py` and `tests/test_api.py`.
 
 ## Verification
-- `.venv\Scripts\python.exe -m pytest tests/test_events.py tests/test_api.py::test_generate_stream_emits_active_brain_route_event -q` passed.
-- `.venv\Scripts\python.exe -m pytest tests/test_api.py::test_generate_streams_text_code_and_done tests/test_api.py::test_generate_without_user_message_emits_error tests/test_api.py::test_generate_recalls_memory_as_step tests/test_api.py::test_generate_pauses_for_yellow_approval -q` passed.
-- `.venv\Scripts\python.exe -m pytest tests/test_chat.py -q` passed.
-- `.venv\Scripts\python.exe -m compileall -q aios tests` passed.
-- `.venv\Scripts\python.exe -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` passed at `89.18%` coverage with 4 skips.
-- `git diff --check` passed.
+- Local pre-commit C1 gates passed:
+  - `.venv\Scripts\python.exe -m pytest tests/test_events.py tests/test_api.py::test_generate_stream_emits_active_brain_route_event -q`;
+  - `.venv\Scripts\python.exe -m pytest tests/test_api.py::test_generate_streams_text_code_and_done tests/test_api.py::test_generate_without_user_message_emits_error tests/test_api.py::test_generate_recalls_memory_as_step tests/test_api.py::test_generate_pauses_for_yellow_approval -q`;
+  - `.venv\Scripts\python.exe -m pytest tests/test_chat.py -q`;
+  - `.venv\Scripts\python.exe -m compileall -q aios tests`;
+  - `.venv\Scripts\python.exe -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` passed at `89.18%` coverage with 4 skips;
+  - `git diff --check` passed.
+- GitHub CI run `28516331659` for `53e8c74` passed:
+  backend success (`12:07:42Z`-`12:11:42Z`) and frontend success
+  (`12:07:42Z`-`12:08:41Z`).
 
 ## Single Next Action
-Hand off `fusion-c1-event-spine` for non-builder review before any commit/push.
-If review passes, the operator can explicitly request commit, push, and GitHub CI
-confirmation.
+Follow the roadmap order from
+`docs/superpowers/specs/2026-07-01-fusion-roadmap-workorders.md`:
+1. Shared tree recommended order is Lane K first: K1 dependency triage + import
+   graph, then K2 cloud streaming client methods, K3 privacy-filter hardening,
+   K4 regex/CTE micro-correctness.
+2. Codex Lane C then continues sequentially: C2 confidence gate on the default
+   path, C3 planner calibration on the guaranteed path, C4 cloud streaming
+   consumption after K2 lands.
 
 ## Open Approvals / Blockers
-- Do not commit or push this C1 lane yet; Claude's fusion handoff explicitly says
-  no commit/push before review.
+- Do not declare born. Fusion C1 is only the first event-spine slice.
 - No frontend files were changed for C1. The existing CRW Phase-0 frontend lint
   report remains a separate reporter finding, not part of this slice.
 - Frozen security spine was not touched: no changes under `aios/security/*`.
@@ -44,10 +53,7 @@ confirmation.
   continuity artifacts and are not part of C1.
 
 ## Active Files
-- C1 implementation/tests:
-  `aios/core/events.py`, `aios/api/main.py`, `tests/test_events.py`,
-  `tests/test_api.py`.
-- Continuity:
+- Continuity only after C1 landing closeout:
   `.aios/state/RESUME.md`, `.aios/memory/experiences.jsonl`.
 
 ## Notes Not Yet Promoted
