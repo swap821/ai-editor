@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 import pytest
 from fastapi.testclient import TestClient
@@ -504,6 +504,23 @@ def test_generate_without_user_message_emits_error(client: TestClient) -> None:
     assert "event: error" in response.text
 
 
+def _sse_frames(body: str) -> list[dict[str, Any]]:
+    frames: list[dict[str, Any]] = []
+    for block in body.split("\n\n"):
+        if not block.strip():
+            continue
+        event: Optional[str] = None
+        data: Optional[dict[str, Any]] = None
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                event = line[len("event: ") :]
+            elif line.startswith("data: "):
+                data = json.loads(line[len("data: ") :])
+        if event is not None and data is not None:
+            frames.append({"event": event, "data": data})
+    return frames
+
+
 def test_generate_stream_emits_active_brain_route_event(client: TestClient) -> None:
     # The turn announces which provider/model served it (the UI 'active brain' badge).
     response = client.post(
@@ -519,6 +536,17 @@ def test_generate_stream_emits_active_brain_route_event(client: TestClient) -> N
     assert '"provider": "ollama"' in body
     assert '"privacy": "local"' in body
     assert '"model": "llama3.2:3b"' in body
+    frames = _sse_frames(body)
+    seqs = [frame["data"]["seq"] for frame in frames]
+    assert seqs == list(range(1, len(seqs) + 1))
+    route = next(frame["data"] for frame in frames if frame["event"] == "route")
+    assert route["provider"] == "ollama"
+    assert route["privacy"] == "local"
+    assert route["model"] == "llama3.2:3b"
+    assert route["phase"] == "chemotaxis"
+    assert route["cognition_type"] == "route"
+    assert isinstance(route["turn_id"], str) and route["turn_id"]
+    assert isinstance(route["timestamp"], str) and route["timestamp"]
 
 
 def _route_models(body: str) -> list[str]:

@@ -57,6 +57,7 @@ from aios.core.executor import (
     approved_runner_from_config,
     validate_approved_execution_backend,
 )
+from aios.core.events import event_for_sse
 from aios.core import catalog, router
 from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
@@ -2525,18 +2526,36 @@ def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _sse(event: str, data: dict[str, Any]) -> str:
+def _sse(
+    event: str,
+    data: dict[str, Any],
+    *,
+    turn_id: Optional[str] = None,
+    seq: Optional[int] = None,
+) -> str:
     """Format one Server-Sent Event frame.
 
     All newline characters (\\n, \\r) in the JSON payload are escaped to \\n
     and \\r so that an LLM output cannot inject fake SSE events by embedding
     ``\\n\\nevent: approve\\ndata: {...}`` inside a data field.
     """
+    if turn_id is not None and seq is not None:
+        data = event_for_sse(event, data, turn_id=turn_id, seq=seq).to_sse_payload()
     payload = json.dumps(data, ensure_ascii=False)
     # Defensive: escape any literal newlines that would break the SSE frame.
     payload = payload.replace("\r", "\\r").replace("\n", "\\n")
     return f"event: {event}\ndata: {payload}\n\n"
 
+
+def _sse_writer(turn_id: str) -> Callable[[str, dict[str, Any]], str]:
+    seq = 0
+
+    def write(event: str, data: dict[str, Any]) -> str:
+        nonlocal seq
+        seq += 1
+        return _sse(event, data, turn_id=turn_id, seq=seq)
+
+    return write
 
 #: Agent event type -> SSE event name the front-end's stream reader understands.
 _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
@@ -3104,8 +3123,9 @@ def generate(
         raise HTTPException(status_code=400, detail=f"invalid approval token: {exc}") from exc
 
     def event_stream() -> Iterator[str]:
+        sse = _sse_writer(session_id)
         if not user_text:
-            yield _sse("error", {"text": "No user message provided."})
+            yield sse("error", {"text": "No user message provided."})
             return
 
         # The ACTIVE BRAIN for this turn: which provider/model served it + a privacy
@@ -3125,7 +3145,7 @@ def generate(
             if (p, m) == announced_route:
                 return None  # unchanged since the last announcement — don't repeat
             announced_route = (p, m)
-            return _sse(
+            return sse(
                 "route",
                 {
                     "provider": p,
@@ -3187,20 +3207,20 @@ def generate(
                     conversation_state.save(session_id, alignment_payload)
             except Exception as exc:  # noqa: BLE001 - continuity must never break the chat
                 logger.warning("Failed to persist alignment frame", exc_info=exc)
-            yield _sse("alignment", alignment_payload)
+            yield sse("alignment", alignment_payload)
             if alignment.communication.ambiguity_action == "ask":
                 question = alignment.communication.clarifying_question
                 _record_episode(session_id, "user", user_text)
                 _record_episode(session_id, "assistant", question)
                 approvals.clear_session(session_id)
-                yield _sse("text_chunk", {"text": question})
-                yield _sse("done", {})
+                yield sse("text_chunk", {"text": question})
+                yield sse("done", {})
                 return
 
         semantic = _recall_memory(user_text)
         if semantic:
             context_parts.append(semantic)
-            yield _sse(
+            yield sse(
                 "step",
                 {
                     "type": "tool_result",
@@ -3218,7 +3238,7 @@ def generate(
                 for le in lessons
             )
             context_parts.append(block)
-            yield _sse(
+            yield sse(
                 "step",
                 {
                     "type": "tool_result",
@@ -3236,7 +3256,7 @@ def generate(
                 for skill in recalled_skills
             )
             context_parts.append(skill_block)
-            yield _sse(
+            yield sse(
                 "step",
                 {
                     "type": "tool_result",
@@ -3249,7 +3269,7 @@ def generate(
         facts_block = _recall_facts(facts, user_text)
         if facts_block:
             context_parts.append(facts_block)
-            yield _sse(
+            yield sse(
                 "step",
                 {
                     "type": "tool_result",
@@ -3267,7 +3287,7 @@ def generate(
             self_model_block = _recall_self_model(development, MistakeMemory())
             if self_model_block:
                 context_parts.append(self_model_block)
-                yield _sse(
+                yield sse(
                     "step",
                     {
                         "type": "tool_result",
@@ -3371,7 +3391,7 @@ def generate(
         )
         if communication_notice:
             answer_parts.append(communication_notice)
-            yield _sse("text_chunk", {"text": communication_notice})
+            yield sse("text_chunk", {"text": communication_notice})
 
         def record_outcome(outcome: str) -> None:
             """Best-effort development, skill, and curriculum evidence write."""
@@ -3548,7 +3568,7 @@ def generate(
                         # Surface a typed verification frame so the UI can celebrate or
                         # reflect without parsing the raw tool output.
                         for key in keys:
-                            yield _sse(
+                            yield sse(
                                 "verify_result",
                                 {
                                     "verdict": verdict.lower(),
@@ -3556,29 +3576,29 @@ def generate(
                                     "output": output[:320],
                                 },
                             )
-                yield _sse("step", ev)
+                yield sse("step", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])
-                yield _sse("text_chunk", {"text": ev["text"]})
+                yield sse("text_chunk", {"text": ev["text"]})
             elif kind == "code_chunk":
                 # Incremental reveal of the final code block (the model is
                 # non-streaming, so this is emit-time chunking, not raw tokens).
-                yield _sse("code_chunk", {"code": ev["code"], "language": ev["language"]})
+                yield sse("code_chunk", {"code": ev["code"], "language": ev["language"]})
             elif kind == "code":
-                yield _sse("code", {"code": ev["code"], "language": ev["language"]})
+                yield sse("code", {"code": ev["code"], "language": ev["language"]})
             elif kind == "error":
-                yield _sse("error", {"text": ev["text"]})
+                yield sse("error", {"text": ev["text"]})
             elif kind == "earned_autonomy":
                 # The earned-autonomy bridge auto-applied a write with NO human
                 # pause — the write class earned it by verified-success evidence.
                 # Surface it so the brain can show itself acting on its own
                 # earned trust (still gated, audited, and revocable).
-                yield _sse("earned_autonomy", ev)
+                yield sse("earned_autonomy", ev)
             elif kind == "swarm_plan":
                 # Plan event from the ant-colony; used internally for pattern
                 # recording and also surfaced to the UI so the HUD can render it.
                 swarm_plan = ev.get("plan")
-                yield _sse(kind, ev)
+                yield sse(kind, ev)
             elif kind in ("caste_start", "caste_end", "cloud_route"):
                 # Observational swarm lifecycle frames for the 3D HUD.
                 if kind == "cloud_route" and cloud_provider:
@@ -3590,7 +3610,7 @@ def generate(
                         )
                     except Exception as exc:  # noqa: BLE001 - audit must never break the stream
                         logger.warning("Failed to record cloud-route audit entry", exc_info=exc)
-                yield _sse(kind, ev)
+                yield sse(kind, ev)
             elif kind == "human_required":
                 # The agent paused on a YELLOW command. Ask the UI for approval;
                 # the turn ends here (no answer recorded) and is replayed once the
@@ -3661,7 +3681,7 @@ def generate(
                 except ApprovalError as exc:
                     logger.warning("Approval payload refused before token issue", exc_info=exc)
                     approvals.clear_session(session_id)
-                    yield _sse("error", {"text": f"Approval request refused: {exc}"})
+                    yield sse("error", {"text": f"Approval request refused: {exc}"})
                     return
                 try:
                     development.record(
@@ -3674,7 +3694,7 @@ def generate(
                     )
                 except Exception as exc:  # noqa: BLE001 - metrics must never break approval
                     logger.warning("Development metrics recording failed for paused turn", exc_info=exc)
-                yield _sse("human_required", payload)
+                yield sse("human_required", payload)
             elif kind == "done":
                 # 4. Persist the answer (L2) and consolidate the turn into L3.
                 answer = "".join(answer_parts)
@@ -3699,7 +3719,7 @@ def generate(
                     else:
                         record_outcome("verified_success")
                 approvals.clear_session(session_id)
-                yield _sse("done", {})
+                yield sse("done", {})
 
     return StreamingResponse(
         event_stream(),
@@ -3814,8 +3834,9 @@ def chat(
     provider, model = _active_route(chat_client, bedrock, gemini, model)
 
     def event_stream() -> Iterator[str]:
+        sse = _sse_writer(session_id)
         if not user_text:
-            yield _sse("error", {"text": "No transcript provided."})
+            yield sse("error", {"text": "No transcript provided."})
             return
 
         # Build the conversational system prompt: the Hinglish persona + REAL
@@ -3837,7 +3858,7 @@ def chat(
         # The ACTIVE BRAIN for this turn (the UI 'voyaging mind' badge): provider/
         # model that served + privacy indicator. Local-first respected — the
         # provider is whatever the router chose, never hardcoded cloud.
-        yield _sse(
+        yield sse(
             "route",
             {
                 "provider": provider,
@@ -3852,18 +3873,18 @@ def chat(
         try:
             reply = chat_client.chat(messages, tools=None, model=model)
         except LLMError as exc:
-            yield _sse("error", {"text": str(exc)})
+            yield sse("error", {"text": str(exc)})
             return
         text = str((reply or {}).get("content", "")).strip() or "(no answer)"
 
         # Fake-stream word-by-word, mirroring ToolAgent._finish, so the UI's
         # existing text_chunk reader works identically for local + cloud.
         for word in re.findall(r"\S+\s*", text):
-            yield _sse("text_chunk", {"text": word})
+            yield sse("text_chunk", {"text": word})
 
         _record_episode(session_id, "assistant", text)
         _index_turn(indexer, user_text, text)
-        yield _sse("done", {})
+        yield sse("done", {})
 
     return StreamingResponse(
         event_stream(),
