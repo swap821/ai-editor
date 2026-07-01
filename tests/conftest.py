@@ -39,11 +39,18 @@ if os.name == "nt":
 # Keep pytest's own numbered tmp root on a writable scratch path. With no
 # explicit --basetemp, pytest reads PYTEST_DEBUG_TEMPROOT lazily when tmp_path
 # is first used, so setting it here is early enough for the session.
+#
+# Session/data dir suffixes use only 8 hex chars (not a full 32-char uuid4().hex)
+# to leave headroom under Windows' 260-char MAX_PATH: this root gets nested under
+# pytest-of-<user>/pytest-N/<test-name>/... plus per-test subdirs (mission/worker/
+# git-repo trees), and a git worktree checkout adds its own long prefix on top of
+# the repo root. 8 hex chars (~4e9 values) is still effectively collision-free for
+# a single machine's concurrent local runs.
 _DEFAULT_SCRATCH_ROOT = Path(__file__).resolve().parents[1] / ".aios" / "tmp" / "pytest-root"
 _PYTEST_SESSION_ROOT = Path(
     os.environ.get(
         "PYTEST_DEBUG_TEMPROOT",
-        _DEFAULT_SCRATCH_ROOT / f"pytest-session-{uuid4().hex}",
+        _DEFAULT_SCRATCH_ROOT / f"pytest-session-{uuid4().hex[:8]}",
     )
 )
 _PYTEST_SESSION_ROOT.mkdir(parents=True, exist_ok=True)
@@ -61,7 +68,7 @@ _TEST_TMP_ROOT = Path(
     )
 )
 _TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
-_TEST_DATA_DIR_PATH = _TEST_TMP_ROOT / f"aios-test-data-{uuid4().hex}"
+_TEST_DATA_DIR_PATH = _TEST_TMP_ROOT / f"aios-test-data-{uuid4().hex[:8]}"
 _TEST_DATA_DIR_PATH.mkdir(parents=True, exist_ok=False)
 os.environ["AIOS_DATA_DIR"] = str(_TEST_DATA_DIR_PATH)
 
