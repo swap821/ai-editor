@@ -19,6 +19,9 @@ from aios.memory.db import get_connection
 from aios.security.secret_scanner import scan_and_redact
 
 
+_TRAVERSE_ROW_LIMIT = 256
+
+
 @dataclass(frozen=True)
 class FactWriteResult:
     """Outcome of attempting to write a fact."""
@@ -219,9 +222,13 @@ class SemanticFacts:
         SELECT subject, predicate, object, depth, path
         FROM graph
         ORDER BY depth, subject, predicate
+        LIMIT :row_limit
         """
         with get_connection(self.db_path) as conn:
-            return conn.execute(sql, {"start": start, "max_depth": depth}).fetchall()
+            return conn.execute(
+                sql,
+                {"start": start, "max_depth": depth, "row_limit": _TRAVERSE_ROW_LIMIT},
+            ).fetchall()
 
     def search(self, query: str) -> list[sqlite3.Row]:
         """Return ACTIVE facts whose subject or object contains a token from *query*.

@@ -101,6 +101,13 @@ def test_filter_truncates_old_history() -> None:
     assert len(safe) < len(msgs)
 
 
+def test_history_window_has_floor_and_coding_can_keep_more_turns() -> None:
+    general = PrivacyFilter(history_window=1, coding_history_window=5, task="general")
+    coding = PrivacyFilter(history_window=1, coding_history_window=5, task="coding")
+    assert general.history_window == 2
+    assert coding.history_window == 5
+
+
 # ── validate_response() ──────────────────────────────────────────────────────
 
 def test_validate_response_accepts_valid() -> None:
@@ -164,9 +171,21 @@ def test_redact_file_content_extracts_filename_hint() -> None:
     assert "config.yaml" in out
 
 
-def test_redact_file_content_stubs_large_blob() -> None:
+def test_redact_file_content_truncates_large_blob() -> None:
     out, n = PrivacyFilter()._redact_file_content("A" * 600)
-    assert out == "[LARGE BLOB REDACTED]" and n == 1
+    assert out.startswith("A" * 500)
+    assert out.endswith("[...truncated...]")
+    assert n == 1
+
+
+def test_filter_truncates_large_multiline_non_code_tool_blob() -> None:
+    line = "plain words repeated for safe context " * 4
+    blob = "\n".join(f"line {i} {line}" for i in range(12))
+    safe, audit = PrivacyFilter().filter([{"role": "tool", "content": blob}])
+    content = safe[0]["content"]
+    assert "[...truncated...]" in content
+    assert "line 11" not in content
+    assert audit["redacted_tool_files"] == 1
 
 
 def test_redact_file_content_leaves_short_text() -> None:

@@ -37,7 +37,7 @@ Privacy-hardened behaviour (H9 mitigation):
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterator, Optional
 
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter
@@ -172,7 +172,6 @@ class FailoverChatClient:
             try:
                 result = client.chat(use_messages, tools=tools, model=m)
                 # Success — stick with this candidate.
-                previous_idx = self._idx
                 self._idx = i
                 # Fire failover hook if we changed providers.
                 if self._on_failover and i != started:
@@ -191,6 +190,122 @@ class FailoverChatClient:
                 self._idx = min(i + 1, len(self._candidates) - 1)  # forward-only
 
         # --- 2. All candidates from started onward failed. ---
+        detail = "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
+        raise LLMError(f"all {len(self._candidates)} model candidate(s) failed: {detail}")
+
+    def stream_chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+    ) -> Iterator[str]:
+        """Stream a no-tool chat turn with the same failover/privacy contract.
+
+        Candidates that expose ``stream_chat`` produce real provider chunks. A
+        candidate without streaming support falls back to ``chat`` and yields the
+        final content as one chunk. If a provider fails before yielding the first
+        chunk, failover continues to the next candidate. Once any chunk is sent,
+        the stream cannot be replayed through a different model without mixing
+        answers, so later provider errors surface as ``LLMError``.
+        """
+        if tools:
+            result = self.chat(messages, tools=tools, model=model)
+            content = str((result or {}).get("content", ""))
+            if content:
+                yield content
+            return
+
+        errors: list[tuple[str, str, Exception]] = []
+        started = self._idx
+
+        cloud_indices: list[int] = []
+        local_indices: list[int] = []
+        for i, (_client, _m, provider) in enumerate(self._candidates):
+            if _is_cloud_provider(provider):
+                cloud_indices.append(i)
+            elif _is_local_provider(provider):
+                local_indices.append(i)
+            else:
+                local_indices.append(i)
+
+        has_local_fallback = bool(local_indices)
+        filtered_messages = messages
+        if cloud_indices:
+            filtered_messages, audit = self._privacy_filter.filter(messages)
+            if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+                logger.info(
+                    "Failover privacy filter applied (cloud candidate detected)",
+                    extra={"audit": audit, "primary_provider": self._candidates[started][2]},
+                )
+
+        attempted: set[int] = set()
+        attempted_cloud_providers: set[str] = set()
+
+        for i in range(started, len(self._candidates)):
+            if i in attempted:
+                continue
+            client, m, provider = self._candidates[i]
+            provider_key = provider.strip().lower()
+            if i in cloud_indices and attempted_cloud_providers and provider_key not in attempted_cloud_providers:
+                if has_local_fallback:
+                    continue
+                logger.warning(
+                    "H9: no local fallback available; trying additional cloud provider %s",
+                    provider,
+                )
+
+            attempted.add(i)
+            if i in cloud_indices:
+                attempted_cloud_providers.add(provider_key)
+            use_messages = filtered_messages if i in cloud_indices else messages
+
+            try:
+                stream_fn = getattr(client, "stream_chat", None)
+                if callable(stream_fn):
+                    iterator = iter(stream_fn(use_messages, tools=None, model=m))
+                    try:
+                        first = next(iterator)
+                    except StopIteration:
+                        first = None
+                    self._idx = i
+                    if self._on_failover and i != started:
+                        success_provider = self._candidates[i][2]
+                        success_model = self._candidates[i][1]
+                        for failed_provider, failed_model, exc in errors:
+                            try:
+                                self._on_failover(
+                                    failed_provider, failed_model, success_provider, success_model, exc
+                                )
+                            except Exception:  # noqa: BLE001 - a hook must never break failover
+                                pass
+                    if first:
+                        yield str(first)
+                    for chunk in iterator:
+                        if chunk:
+                            yield str(chunk)
+                    return
+
+                result = client.chat(use_messages, tools=None, model=m)
+                self._idx = i
+                if self._on_failover and i != started:
+                    success_provider = self._candidates[i][2]
+                    success_model = self._candidates[i][1]
+                    for failed_provider, failed_model, exc in errors:
+                        try:
+                            self._on_failover(
+                                failed_provider, failed_model, success_provider, success_model, exc
+                            )
+                        except Exception:  # noqa: BLE001 - a hook must never break failover
+                            pass
+                content = str((result or {}).get("content", ""))
+                if content:
+                    yield content
+                return
+            except LLMError as exc:
+                errors.append((provider, m, exc))
+                self._idx = min(i + 1, len(self._candidates) - 1)
+
         detail = "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
         raise LLMError(f"all {len(self._candidates)} model candidate(s) failed: {detail}")
 

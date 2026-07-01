@@ -15,15 +15,21 @@ pytestmark = [pytest.mark.cloud]
 
 
 class FakeBedrock:
-    """Stub bedrock-runtime: records the converse kwargs, returns a canned reply."""
+    """Stub bedrock-runtime: records the converse kwargs, returns canned replies."""
 
-    def __init__(self, reply: dict) -> None:
+    def __init__(self, reply: dict, *, stream_reply: dict | None = None) -> None:
         self.reply = reply
+        self.stream_reply = stream_reply or {"stream": []}
         self.last: dict | None = None
+        self.stream_last: dict | None = None
 
     def converse(self, **kwargs):
         self.last = kwargs
         return self.reply
+
+    def converse_stream(self, **kwargs):
+        self.stream_last = kwargs
+        return self.stream_reply
 
 
 def test_to_converse_splits_system_and_pairs_tools() -> None:
@@ -103,6 +109,37 @@ def test_chat_calls_converse_and_returns_agent_shape() -> None:
     assert fake.last["modelId"] == "model-x"
     assert "toolConfig" in fake.last
     assert fake.last["inferenceConfig"]["maxTokens"] >= 1
+
+
+def test_stream_chat_calls_converse_stream_and_yields_text_chunks() -> None:
+    fake = FakeBedrock(
+        {},
+        stream_reply={"stream": [
+            {"messageStart": {"role": "assistant"}},
+            {"contentBlockDelta": {"delta": {"text": "hel"}}},
+            {"contentBlockDelta": {"delta": {"text": "lo"}}},
+            {"messageStop": {"stopReason": "end_turn"}},
+        ]},
+    )
+    client = BedrockClient(model="model-x", region="us-east-1", client=fake)
+    chunks = list(client.stream_chat(
+        [{"role": "user", "content": "say hello"}],
+        tools=[{"function": {"name": "read_file", "description": "", "parameters": {}}}],
+    ))
+    assert chunks == ["hel", "lo"]
+    assert fake.stream_last["modelId"] == "model-x"
+    assert "toolConfig" in fake.stream_last
+    assert fake.stream_last["inferenceConfig"]["maxTokens"] >= 1
+
+
+def test_stream_chat_applies_privacy_filter_before_converse_stream() -> None:
+    raw_path = r"C:\Users\kumar\ai-editor\secrets.txt"
+    fake = FakeBedrock({}, stream_reply={"stream": []})
+    client = BedrockClient(model="m", region="r", client=fake)
+    list(client.stream_chat([{"role": "user", "content": f"read {raw_path}"}]))
+    sent = fake.stream_last["messages"][0]["content"][0]["text"]
+    assert raw_path not in sent
+    assert "[PATH REDACTED]" in sent
 
 
 def test_chat_wraps_failures_as_llmerror() -> None:

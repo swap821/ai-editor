@@ -109,6 +109,58 @@ def test_chat_streams_text_chunk_then_done(
     assert body.index("event: text_chunk") < body.index("event: done")
 
 
+class StreamingChatOllama(CapturingChatOllama):
+    """Local stand-in exposing stream_chat; chat() must not be used."""
+
+    def stream_chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ):
+        self.calls.append(messages)
+        self.tools_seen.append(tools)
+        yield "Arre "
+        yield "stream ho raha hai"
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        raise AssertionError("streaming chat endpoint should consume stream_chat")
+
+
+
+def test_chat_consumes_real_stream_chunks_when_available() -> None:
+    ollama = StreamingChatOllama()
+    indexer = FakeIndexer()
+    app.dependency_overrides[get_ollama_client] = lambda: ollama
+    app.dependency_overrides[get_bedrock_client] = lambda: None
+    app.dependency_overrides[get_gemini_client] = lambda: None
+    app.dependency_overrides[get_semantic_indexer] = lambda: indexer
+    app.dependency_overrides[get_semantic_facts] = lambda: FakeFacts()
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.post(
+                "/api/v1/chat",
+                json={"transcript": "stream karke bolo", "sessionId": "voice-stream"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.text
+    assert body.index("event: route") < body.index("event: text_chunk")
+    assert "Arre " in body
+    assert "stream ho raha hai" in body
+    assert ollama.tools_seen == [None]
+    assert indexer.added and "Arre stream ho raha hai" in indexer.added[0]
+
+
 def test_chat_system_prompt_is_hinglish_conversational(
     chat_setup: tuple[TestClient, CapturingChatOllama],
 ) -> None:

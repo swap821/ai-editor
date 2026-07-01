@@ -114,6 +114,53 @@ def test_non_llmerror_propagates_and_does_not_failover() -> None:
     assert after.calls == 0
 
 
+class StreamOK:
+    """A streaming client that yields fixed chunks and records the model."""
+
+    def __init__(self, chunks: list[str]) -> None:
+        self.chunks = chunks
+        self.calls = 0
+        self.models: list[str | None] = []
+
+    def stream_chat(self, messages, *, tools=None, model=None):
+        self.calls += 1
+        self.models.append(model)
+        yield from self.chunks
+
+    def chat(self, messages, *, tools=None, model=None):
+        raise AssertionError("streaming path should not call chat")
+
+
+class StreamBoom:
+    """A streaming client that fails before yielding any chunk."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def stream_chat(self, messages, *, tools=None, model=None):
+        self.calls += 1
+        raise LLMError("stream provider down")
+
+
+
+def test_stream_chat_yields_chunks_from_successful_candidate() -> None:
+    c = StreamOK(["hel", "lo"])
+    fc = FailoverChatClient([(c, "stream-model", "gemini")])
+
+    assert list(fc.stream_chat(MSG)) == ["hel", "lo"]
+    assert fc.active_provider == "gemini" and fc.active_model == "stream-model"
+    assert c.calls == 1 and c.models == ["stream-model"]
+
+
+def test_stream_chat_fails_over_before_first_chunk() -> None:
+    bad, good = StreamBoom(), StreamOK(["fallback ", "stream"])
+    fc = FailoverChatClient([(bad, "m1", "bedrock"), (good, "m2", "bedrock")])
+
+    assert list(fc.stream_chat(MSG)) == ["fallback ", "stream"]
+    assert fc.active_provider == "bedrock" and fc.active_model == "m2"
+    assert bad.calls == 1 and good.calls == 1
+
+
 def test_empty_candidate_list_is_rejected() -> None:
     with pytest.raises(ValueError):
         FailoverChatClient([])

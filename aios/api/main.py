@@ -57,6 +57,7 @@ from aios.core.executor import (
     approved_runner_from_config,
     validate_approved_execution_backend,
 )
+from aios.core.confidence_filter import gate as confidence_gate
 from aios.core.events import event_for_sse
 from aios.core import catalog, router
 from aios.core.bedrock import BedrockClient
@@ -3029,6 +3030,86 @@ def _make_confirm_hook(
     return confirm
 
 
+def _calibrate_default_confidence(
+    query: str,
+    raw_confidence: Any,
+    *,
+    reflector: Optional[ReflectionAgent],
+    development: DevelopmentTracker,
+    skills: SkillMemory,
+) -> tuple[float, dict[str, Any]]:
+    """Apply planner-style verified-memory calibration to the default chat gate."""
+    started = time.perf_counter()
+    try:
+        confidence = float(raw_confidence)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if not (0.0 <= confidence <= 1.0):
+        confidence = 0.0
+
+    lessons: list[dict[str, Any]] = []
+    outcome = None
+    verified_skills: list[dict[str, Any]] = []
+    if reflector is not None:
+        try:
+            lessons = reflector.mistakes.relevant_verified(query, limit=5)
+        except Exception:  # noqa: BLE001 - default chat remains available if memory is down
+            pass
+    try:
+        outcome = development.relevant_success_rate(query)
+    except Exception:  # noqa: BLE001 - default chat remains available if metrics are down
+        pass
+    try:
+        verified_skills = skills.relevant_verified(query, limit=3)
+    except Exception:  # noqa: BLE001 - default chat remains available if memory is down
+        pass
+
+    lesson_adjustment = max(
+        -0.4,
+        sum(float(item["confidence_delta"]) * float(item["relevance"]) for item in lessons),
+    )
+    history_adjustment = 0.0
+    if outcome is not None:
+        history_adjustment = max(
+            -0.15,
+            min(0.15, (outcome.success_rate - 0.5) * 0.3 * outcome.relevance),
+        )
+    skill_adjustment = min(
+        config.SKILL_CONFIDENCE_BONUS_MAX,
+        sum(
+            float(item["strength"]) * float(item["relevance"])
+            for item in verified_skills
+        ),
+    )
+    final = round(
+        max(
+            0.0,
+            min(
+                1.0,
+                confidence
+                + lesson_adjustment
+                + history_adjustment
+                + skill_adjustment,
+            ),
+        ),
+        6,
+    )
+    latency_ms = round((time.perf_counter() - started) * 1000, 3)
+    evidence = {
+        "raw_confidence": confidence,
+        "lesson_adjustment": round(lesson_adjustment, 6),
+        "history_adjustment": round(history_adjustment, 6),
+        "skill_adjustment": round(skill_adjustment, 6),
+        "final_confidence": final,
+        "lesson_ids": [int(item["mistake_id"]) for item in lessons],
+        "outcome_attempts": outcome.attempts if outcome is not None else 0,
+        "outcome_success_rate": outcome.success_rate if outcome is not None else None,
+        "skill_ids": [int(item["skill_id"]) for item in verified_skills],
+        "latency_ms": latency_ms,
+    }
+    return final, evidence
+
+
 @app.post("/api/generate")
 def generate(
     req: GenerateRequest,
@@ -3213,6 +3294,41 @@ def generate(
                 _record_episode(session_id, "user", user_text)
                 _record_episode(session_id, "assistant", question)
                 approvals.clear_session(session_id)
+                yield sse("text_chunk", {"text": question})
+                yield sse("done", {})
+                return
+
+            confidence, confidence_calibration = _calibrate_default_confidence(
+                " ".join(part for part in (user_text, alignment.goal, alignment.intent) if part),
+                alignment.confidence,
+                reflector=reflector,
+                development=development,
+                skills=skills,
+            )
+            confidence_result = confidence_gate(confidence)
+            if not confidence_result.passed:
+                question = (
+                    "I am not confident enough in my understanding to proceed. "
+                    "What should I clarify before continuing?"
+                )
+                if alignment.unknowns:
+                    question = (
+                        "I am not confident enough in my understanding to proceed. "
+                        f"Please clarify: {alignment.unknowns[0]}"
+                    )
+                payload = {
+                    "confidence": confidence,
+                    "threshold": config.CONFIDENCE_THRESHOLD,
+                    "reason": confidence_result.reason,
+                    "goal": alignment.goal,
+                    "intent": alignment.intent,
+                    "question": question,
+                    "calibration": confidence_calibration,
+                }
+                _record_episode(session_id, "user", user_text)
+                _record_episode(session_id, "assistant", question)
+                approvals.clear_session(session_id)
+                yield sse("confidence.gated", payload)
                 yield sse("text_chunk", {"text": question})
                 yield sse("done", {})
                 return
@@ -3790,6 +3906,27 @@ def _check_prompt_injection(text: str) -> Optional[str]:
     return None
 
 
+def _stream_chat_chunks(
+    chat_client: Any,
+    messages: list[dict[str, Any]],
+    *,
+    model: str,
+) -> Iterator[str]:
+    """Yield real chat chunks when available, else preserve word streaming."""
+    stream_fn = getattr(chat_client, "stream_chat", None)
+    if callable(stream_fn):
+        for chunk in stream_fn(messages, tools=None, model=model):
+            text = str(chunk)
+            if text:
+                yield text
+        return
+
+    reply = chat_client.chat(messages, tools=None, model=model)
+    text = str((reply or {}).get("content", "")).strip() or "(no answer)"
+    for word in re.findall(r"\S+\s*", text):
+        yield word
+
+
 @app.post("/api/v1/chat")
 def chat(
     req: ChatRequest,
@@ -3807,8 +3944,9 @@ def chat(
     router (so the operator's local-first privacy gate is fully intact), recalls
     relevant memory, and injects REAL personalization facts, then calls the chat
     client ONCE for a single reply — NO ``ToolAgent`` loop, NO file-write/coding
-    tools. The reply is fake-streamed word-by-word (mirroring ``ToolAgent._finish``)
-    so cloud and local providers share one wire shape. Frames, in order:
+    tools. Providers with streaming support forward real chunks; non-streaming
+    clients fall back to word-by-word chunks so every route keeps one wire shape.
+    Frames, in order:
 
       * ``route``       — the provider/model that served + a privacy indicator.
       * ``text_chunk``  — the reply, as a sequence of ``{"text": ...}`` frames.
@@ -3831,7 +3969,7 @@ def chat(
     chat_client, model = _select_chat_client(
         req.model_id, client, bedrock, gemini=gemini, task=task,
     )
-    provider, model = _active_route(chat_client, bedrock, gemini, model)
+    _, model = _active_route(chat_client, bedrock, gemini, model)
 
     def event_stream() -> Iterator[str]:
         sse = _sse_writer(session_id)
@@ -3856,31 +3994,42 @@ def chat(
         _record_episode(session_id, "user", user_text)
 
         # The ACTIVE BRAIN for this turn (the UI 'voyaging mind' badge): provider/
-        # model that served + privacy indicator. Local-first respected — the
-        # provider is whatever the router chose, never hardcoded cloud.
-        yield sse(
-            "route",
-            {
-                "provider": provider,
-                "model": model,
-                "privacy": "local" if provider == router.PROVIDER_OLLAMA else "cloud",
+        # model that actually served + privacy indicator. For streaming clients,
+        # the first chunk proves which failover candidate won; route is still the
+        # first frame emitted, but it is not guessed before the provider answers.
+        route_sent = False
+        text_parts: list[str] = []
+
+        def route_payload() -> dict[str, Any]:
+            active_provider, active_model = _active_route(
+                chat_client, bedrock, gemini, model
+            )
+            return {
+                "provider": active_provider,
+                "model": active_model,
+                "privacy": "local" if active_provider == router.PROVIDER_OLLAMA else "cloud",
                 "task": task,
                 "auto": req.model_id in _AUTO_IDS,
-            },
-        )
+            }
 
-        # ONE chat call, tools=None => pure text, no tool loop, no file writes.
+        # ONE no-tool chat stream => pure text, no tool loop, no file writes.
         try:
-            reply = chat_client.chat(messages, tools=None, model=model)
+            for chunk in _stream_chat_chunks(chat_client, messages, model=model):
+                if not route_sent:
+                    yield sse("route", route_payload())
+                    route_sent = True
+                text_parts.append(chunk)
+                yield sse("text_chunk", {"text": chunk})
         except LLMError as exc:
             yield sse("error", {"text": str(exc)})
             return
-        text = str((reply or {}).get("content", "")).strip() or "(no answer)"
 
-        # Fake-stream word-by-word, mirroring ToolAgent._finish, so the UI's
-        # existing text_chunk reader works identically for local + cloud.
-        for word in re.findall(r"\S+\s*", text):
-            yield sse("text_chunk", {"text": word})
+        if not route_sent:
+            yield sse("route", route_payload())
+        text = "".join(text_parts).strip()
+        if not text:
+            text = "(no answer)"
+            yield sse("text_chunk", {"text": text})
 
         _record_episode(session_id, "assistant", text)
         _index_turn(indexer, user_text, text)

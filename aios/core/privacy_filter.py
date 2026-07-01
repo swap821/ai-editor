@@ -22,6 +22,8 @@ import logging
 import re
 from typing import Any, Final
 
+from aios import config
+
 #: Minimal generic replacement for system prompts (never transmits the real one).
 _GENERIC_SYSTEM_PROMPT: Final[str] = (
     "You are a helpful coding assistant. Be concise and accurate."
@@ -69,8 +71,22 @@ _MAX_REQUEST_SIZE: Final[int] = 2 * 1024 * 1024  # 2 MiB
 #: Maximum number of messages allowed in a single request.
 _MAX_MESSAGES_PER_REQUEST: Final[int] = 50
 
-#: Number of recent conversation turns to retain for cloud transmission.
-_HISTORY_WINDOW: Final[int] = 2
+#: Minimum number of recent conversation turns to retain for cloud transmission.
+_MIN_HISTORY_WINDOW: Final[int] = 2
+
+#: Default recent conversation turns retained for cloud transmission.
+_HISTORY_WINDOW: Final[int] = max(_MIN_HISTORY_WINDOW, config.CLOUD_HISTORY_WINDOW)
+
+#: Coding tasks may keep more context, but never less than the default floor.
+_CODING_HISTORY_WINDOW: Final[int] = max(_HISTORY_WINDOW, config.CLOUD_CODING_HISTORY_WINDOW)
+
+_CODING_TASK_HINTS: Final[tuple[str, ...]] = (
+    "code", "coding", "debug", "fix", "implement", "refactor", "test",
+)
+
+_LARGE_BLOB_CHAR_LIMIT: Final[int] = 500
+_LARGE_BLOB_LINE_LIMIT: Final[int] = 8
+_LARGE_BLOB_TRUNCATION_MARKER: Final[str] = "[...truncated...]"
 
 logger = logging.getLogger(__name__)
 
@@ -153,15 +169,28 @@ class PrivacyFilter:
     def __init__(
         self,
         *,
-        history_window: int = _HISTORY_WINDOW,
+        history_window: int | None = None,
+        coding_history_window: int | None = None,
+        task: str = "general",
         max_request_size: int = _MAX_REQUEST_SIZE,
         max_response_size: int = _MAX_RESPONSE_SIZE,
         max_messages: int = _MAX_MESSAGES_PER_REQUEST,
     ) -> None:
-        self.history_window = history_window
+        base_history_window = _HISTORY_WINDOW if history_window is None else history_window
+        coding_window = _CODING_HISTORY_WINDOW if coding_history_window is None else coding_history_window
+        self.history_window = self._history_window_for_task(task, base_history_window, coding_window)
         self.max_request_size = max_request_size
         self.max_response_size = max_response_size
         self.max_messages = max_messages
+
+    @staticmethod
+    def _history_window_for_task(task: str, history_window: int, coding_history_window: int) -> int:
+        base = max(_MIN_HISTORY_WINDOW, int(history_window))
+        coding = max(base, int(coding_history_window))
+        task_lower = str(task or "general").lower()
+        if any(hint in task_lower for hint in _CODING_TASK_HINTS):
+            return coding
+        return base
 
     def filter(
         self,
@@ -301,9 +330,16 @@ class PrivacyFilter:
                 fname = self._extract_filename_hint(text)
                 stub = f"[FILE CONTENT REDACTED: {fname}]"
                 return stub, count + 1
-        if len(text) > 500 and text.count("\n") < 3:
-            return "[LARGE BLOB REDACTED]", count + 1
+        if len(text) > _LARGE_BLOB_CHAR_LIMIT:
+            return self._truncate_large_blob(text), count + 1
         return text, count
+
+    def _truncate_large_blob(self, text: str) -> str:
+        lines = text.splitlines() or [text]
+        head = "\n".join(lines[:_LARGE_BLOB_LINE_LIMIT])
+        if len(head) > _LARGE_BLOB_CHAR_LIMIT:
+            head = head[:_LARGE_BLOB_CHAR_LIMIT].rstrip()
+        return f"{head}\n{_LARGE_BLOB_TRUNCATION_MARKER}"
 
     def _extract_filename_hint(self, text: str) -> str:
         for line in text.splitlines()[:3]:

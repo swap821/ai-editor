@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.core.llm import LLMError
@@ -148,6 +148,18 @@ def _parse_output(message: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _stream_text_from_converse(response: dict[str, Any]) -> Iterator[str]:
+    """Yield text deltas from a Bedrock ``converse_stream`` response."""
+    stream = response.get("stream") if isinstance(response, dict) else response
+    for event in stream or []:
+        if not isinstance(event, dict):
+            continue
+        delta = (event.get("contentBlockDelta") or {}).get("delta") or {}
+        text = delta.get("text")
+        if text:
+            yield str(text)
+
+
 class BedrockClient:
     """:class:`~aios.agents.tool_agent.ChatClient` backed by Bedrock Converse."""
 
@@ -238,6 +250,50 @@ class BedrockClient:
         # --- Validate response structure before returning to the agent. ---
         self._privacy_filter.validate_response(result)
         return result
+
+    def stream_chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+    ) -> Iterator[str]:
+        """Yield text chunks from Bedrock ConverseStream.
+
+        STREAM SEAM (C4): main.py no-tool chat paths may consume this.
+        Privacy is identical to :meth:`chat`: sanitize before cloud transmission
+        and scrub provider failures before surfacing them as :class:`LLMError`.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Bedrock privacy filter applied", extra=audit)
+
+        system, converse_messages = _to_converse(safe_messages)
+        kwargs: dict[str, Any] = {
+            "modelId": model or self.model,
+            "messages": converse_messages,
+            "inferenceConfig": {"maxTokens": self.max_tokens, "temperature": self.temperature},
+        }
+        if system:
+            kwargs["system"] = system
+        tool_config = _to_tool_config(tools)
+        if tool_config:
+            kwargs["toolConfig"] = tool_config
+
+        try:
+            response = self._client.converse_stream(**kwargs)
+            yield from _stream_text_from_converse(response)
+        except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Bedrock ConverseStream failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,
+            )
+            raise LLMError(
+                f"Bedrock ConverseStream failed for '{model or self.model}': {scrubbed}"
+            ) from exc
 
     def list_models(self) -> list[dict[str, str]]:
         """List on-demand, text Bedrock models for this region (best-effort).

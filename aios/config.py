@@ -255,6 +255,9 @@ GEMINI_MAX_TOKENS: Final[int] = _env_int("AIOS_GEMINI_MAX_TOKENS", 1024)
 GEMINI_THINKING_BUDGET: Final[int] = _env_int("AIOS_GEMINI_THINKING_BUDGET", 0)
 GEMINI_ENABLED: Final[bool] = bool(GEMINI_PROJECT and GEMINI_MODEL)
 
+CLOUD_HISTORY_WINDOW: Final[int] = _env_int("AIOS_CLOUD_HISTORY_WINDOW", 2)
+CLOUD_CODING_HISTORY_WINDOW: Final[int] = _env_int("AIOS_CLOUD_CODING_HISTORY_WINDOW", 4)
+
 _VALID_ROUTER_TASKS: Final[tuple[str, ...]] = ("coding", "reasoning", "general", "fast")
 
 

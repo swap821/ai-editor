@@ -219,6 +219,8 @@ _REASONING_HINTS = (
     r"\bthink through\b", r"\bstep[- ]by[- ]step\b", r"\barchitect",
     r"\bpros and cons\b", r"\bevaluate\b", r"\bshould i\b",
 )
+_CODING_HINT_PATTERNS = tuple(re.compile(pattern) for pattern in _CODING_HINTS)
+_REASONING_HINT_PATTERNS = tuple(re.compile(pattern) for pattern in _REASONING_HINTS)
 
 
 def infer_task(text: Optional[str]) -> str:
@@ -232,8 +234,8 @@ def infer_task(text: Optional[str]) -> str:
     t = (text or "").lower()
     if not t.strip():
         return TASK_GENERAL
-    if any(re.search(p, t) for p in _CODING_HINTS):
+    if any(pattern.search(t) for pattern in _CODING_HINT_PATTERNS):
         return TASK_CODING
-    if any(re.search(p, t) for p in _REASONING_HINTS):
+    if any(pattern.search(t) for pattern in _REASONING_HINT_PATTERNS):
         return TASK_REASONING
     return TASK_GENERAL

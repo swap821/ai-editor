@@ -108,3 +108,11 @@ def test_traverse_avoids_cycles(facts: SemanticFacts) -> None:
     # path. The recursion terminates instead of looping forever.
     assert len(path) == 1
     assert path[0]["subject"] == "a" and path[0]["object"] == "b"
+
+
+def test_traverse_caps_pathological_fanout(facts: SemanticFacts) -> None:
+    for i in range(300):
+        facts.add_fact("root", f"p{i:03d}", f"node{i:03d}")
+    path = facts.traverse("root", max_depth=1)
+    assert len(path) == 256
+    assert path[-1]["predicate"] == "p255"

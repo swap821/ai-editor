@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.core.llm import LLMError
@@ -168,6 +168,19 @@ def _parse_output(response: Any) -> dict[str, Any]:
     return result
 
 
+def _stream_text_from_gemini(chunks: Any) -> Iterator[str]:
+    """Yield text chunks from a Gemini ``generate_content_stream`` iterable."""
+    for chunk in chunks or []:
+        text = getattr(chunk, "text", None)
+        if text:
+            yield str(text)
+            continue
+        parsed = _parse_output(chunk)
+        content = parsed.get("content")
+        if content:
+            yield str(content)
+
+
 class GeminiClient:
     """:class:`~aios.agents.tool_agent.ChatClient` backed by Gemini (Vertex AI)."""
 
@@ -267,6 +280,55 @@ class GeminiClient:
         # --- Validate response structure before returning to the agent. ---
         self._privacy_filter.validate_response(result)
         return result
+
+    def stream_chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+    ) -> Iterator[str]:
+        """Yield text chunks from Gemini ``generate_content_stream``.
+
+        STREAM SEAM (C4): main.py no-tool chat paths may consume this.
+        Privacy is identical to :meth:`chat`: sanitize before cloud transmission
+        and scrub provider failures before surfacing them as :class:`LLMError`.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Gemini privacy filter applied", extra=audit)
+
+        system_text, contents = _to_gemini(safe_messages)
+        gen_config: dict[str, Any] = {
+            "temperature": self.temperature,
+            "max_output_tokens": self.max_tokens,
+        }
+        if system_text.strip():
+            gen_config["system_instruction"] = system_text
+        if self.thinking_budget >= 0:
+            gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
+        tool_decls = _to_tools(tools)
+        if tool_decls:
+            gen_config["tools"] = tool_decls
+
+        try:
+            stream = self._client.models.generate_content_stream(
+                model=model or self.model,
+                contents=contents,
+                config=gen_config,
+            )
+            yield from _stream_text_from_gemini(stream)
+        except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Gemini generate_content_stream failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,
+            )
+            raise LLMError(
+                f"Gemini generate_content_stream failed for '{model or self.model}': {scrubbed}"
+            ) from exc
 
     def list_models(self) -> list[dict[str, str]]:
         """List invocable Gemini chat models for the picker (best-effort).

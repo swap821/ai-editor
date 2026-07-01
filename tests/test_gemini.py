@@ -58,24 +58,30 @@ class _Model:
 
 
 class _FakeModels:
-    """Stub ``client.models``: records generate_content kwargs, returns a canned reply."""
+    """Stub ``client.models``: records generate_content kwargs, returns canned replies."""
 
-    def __init__(self, response, listing) -> None:
+    def __init__(self, response, listing, stream=None) -> None:
         self._response = response
         self._listing = listing
+        self._stream = stream or []
         self.last: dict | None = None
+        self.stream_last: dict | None = None
 
     def generate_content(self, **kwargs):
         self.last = kwargs
         return self._response
+
+    def generate_content_stream(self, **kwargs):
+        self.stream_last = kwargs
+        return self._stream
 
     def list(self):
         return self._listing
 
 
 class FakeGemini:
-    def __init__(self, response, listing=None) -> None:
-        self.models = _FakeModels(response, listing or [])
+    def __init__(self, response, listing=None, stream=None) -> None:
+        self.models = _FakeModels(response, listing or [], stream=stream)
 
 
 # --- Message conversion -----------------------------------------------------
@@ -164,6 +170,35 @@ def test_chat_calls_generate_content_and_returns_agent_shape() -> None:
     assert fake.models.last["model"] == "gemini-x"
     assert "tools" in fake.models.last["config"]
     assert fake.models.last["config"]["max_output_tokens"] >= 1
+
+
+def test_stream_chat_calls_generate_content_stream_and_yields_text_chunks() -> None:
+    fake = FakeGemini(
+        None,
+        stream=[
+            _Response([_Candidate(_Content([_Part(text="hel")]))]),
+            _Response([_Candidate(_Content([_Part(text="lo")]))]),
+        ],
+    )
+    client = GeminiClient(model="gemini-x", project="p", location="us-central1", client=fake)
+    chunks = list(client.stream_chat(
+        [{"role": "user", "content": "say hello"}],
+        tools=[{"function": {"name": "read_file", "description": "", "parameters": {}}}],
+    ))
+    assert chunks == ["hel", "lo"]
+    assert fake.models.stream_last["model"] == "gemini-x"
+    assert "tools" in fake.models.stream_last["config"]
+    assert fake.models.stream_last["config"]["thinking_config"] == {"thinking_budget": 0}
+
+
+def test_stream_chat_applies_privacy_filter_before_generate_content_stream() -> None:
+    raw_path = r"C:\Users\kumar\ai-editor\secrets.txt"
+    fake = FakeGemini(None, stream=[])
+    client = GeminiClient(model="m", project="p", client=fake)
+    list(client.stream_chat([{"role": "user", "content": f"read {raw_path}"}]))
+    sent = fake.models.stream_last["contents"][0]["parts"][0]["text"]
+    assert raw_path not in sent
+    assert "[PATH REDACTED]" in sent
 
 
 def test_chat_passes_system_instruction_separately() -> None:

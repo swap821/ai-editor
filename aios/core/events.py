@@ -36,6 +36,7 @@ _SSE_TO_COGNITION: dict[str, EventType] = {
     "caste_end": EventType.AGENT_DISPATCH,
     "caste_start": EventType.AGENT_DISPATCH,
     "cloud_route": EventType.ROUTE,
+    "confidence.gated": EventType.APPROVAL_REQUIRED,
     "code": EventType.KNOWLEDGE_ACQUIRED,
     "code_chunk": EventType.KNOWLEDGE_ACQUIRED,
     "done": EventType.SYNTHESIS,

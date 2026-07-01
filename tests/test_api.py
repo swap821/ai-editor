@@ -43,9 +43,23 @@ from aios.api.main import _EPISODIC, _APPROVALS, _verify_target_key, _verify_tar
 
 
 class FakeLLM:
-    """Deterministic LLM stand-in for reflect + plan endpoints."""
+    """Deterministic LLM stand-in for reflect + plan + alignment endpoints."""
 
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+        if "understanding layer" in (system or ""):
+            return json.dumps(
+                {
+                    "goal": "Handle the latest request",
+                    "intent": "execute",
+                    "desired_outcome": "A completed response or gated action",
+                    "constraints": [],
+                    "assumptions": [],
+                    "unknowns": [],
+                    "decisions": [],
+                    "confidence": 0.92,
+                    "next_action": "Proceed under existing gates",
+                }
+            )
         if "planning module" in (system or ""):
             return json.dumps(
                 {"steps": [
@@ -738,6 +752,106 @@ def test_generate_asks_before_agent_tools_when_policy_finds_blocking_ambiguity(
     assert "event: done" in response.text
     assert chat.calls == []
 
+
+def test_generate_low_confidence_alignment_pauses_before_agent_tools(
+    client: TestClient,
+) -> None:
+    class LowConfidenceLLM:
+        def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+            return json.dumps(
+                {
+                    "goal": "Possibly edit the project",
+                    "intent": "execute",
+                    "desired_outcome": "Unclear",
+                    "constraints": [],
+                    "assumptions": [],
+                    "unknowns": ["which file to change"],
+                    "decisions": [],
+                    "confidence": 0.41,
+                    "next_action": "Ask before acting",
+                }
+            )
+
+    chat = CapturingOllama()
+    app.dependency_overrides[get_llm_client] = LowConfidenceLLM
+    app.dependency_overrides[get_ollama_client] = lambda: chat
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "Implement the settings endpoint"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-confidence-gated",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "event: confidence.gated" in body
+    assert '"confidence": 0.41' in body
+    assert '"threshold": 0.72' in body
+    assert "Please clarify: which file to change" in body
+    assert "event: done" in body
+    assert "event: code" not in body
+    assert chat.calls == []
+
+
+def test_generate_verified_mistake_calibrates_default_confidence_gate(
+    client: TestClient,
+) -> None:
+    class HighConfidenceLLM:
+        def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+            return json.dumps(
+                {
+                    "goal": "Implement the settings endpoint",
+                    "intent": "execute",
+                    "desired_outcome": "Endpoint completed correctly",
+                    "constraints": [],
+                    "assumptions": [],
+                    "unknowns": [],
+                    "decisions": [],
+                    "confidence": 0.9,
+                    "next_action": "Proceed",
+                }
+            )
+
+    class FakeMistakes:
+        def relevant_verified(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+            return [
+                {
+                    "mistake_id": 77,
+                    "confidence_delta": -0.4,
+                    "relevance": 1.0,
+                }
+            ]
+
+    class FakeReflector:
+        mistakes = FakeMistakes()
+
+    chat = CapturingOllama()
+    app.dependency_overrides[get_llm_client] = HighConfidenceLLM
+    app.dependency_overrides[get_ollama_client] = lambda: chat
+    app.dependency_overrides[get_reflection_agent] = lambda: FakeReflector()
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "Implement the settings endpoint"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-confidence-calibrated",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "event: confidence.gated" in body
+    assert '"confidence": 0.5' in body
+    assert '"raw_confidence": 0.9' in body
+    assert '"lesson_adjustment": -0.4' in body
+    assert '"final_confidence": 0.5' in body
+    assert '"lesson_ids": [77]' in body
+    assert "What should I clarify before continuing?" in body
+    assert chat.calls == []
 
 def test_generate_states_unverified_assumptions_then_runs_normal_agent(
     client: TestClient,
