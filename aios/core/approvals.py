@@ -76,6 +76,11 @@ class ApprovalStore:
                 r"[0-9a-f]{40}", snapshot_id
             ):
                 scan_payload["snapshot_id"] = "<rollback-snapshot-sha>"
+            mission_id = scan_payload.get("mission_id")
+            if isinstance(mission_id, str) and re.fullmatch(
+                r"mission-[0-9a-f]{12}", mission_id
+            ):
+                scan_payload["mission_id"] = "<council-mission-id>"
         return json.dumps(scan_payload, separators=(",", ":"), sort_keys=True)
 
     def _connect(self) -> sqlite3.Connection:

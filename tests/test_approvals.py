@@ -110,10 +110,30 @@ def test_durable_store_allows_rollback_snapshot_sha_false_positive(tmp_path) -> 
     assert store.consume(token, "s1").payload["snapshot_id"] == snapshot_id
 
 
+def test_durable_store_allows_rollback_mission_id_false_positive(tmp_path) -> None:
+    store = ApprovalStore(timeout_ms=1000, db_path=tmp_path / "approvals.sqlite")
+    payload = {
+        "mission_id": "mission-46d0a75c984b",
+        "snapshot_id": "791d70d93f158eea8a8ed49d44dc36acbb526b0d",
+    }
+
+    token = store.issue("rollback", payload, "s1")
+
+    assert store.consume(token, "s1").payload == payload
+
+
 def test_durable_store_still_refuses_secret_in_rollback_payload(tmp_path) -> None:
     store = ApprovalStore(timeout_ms=1000, db_path=tmp_path / "approvals.sqlite")
     snapshot_id = "362869006241aca05ad0219b818267172ec2e53d"
     secret = "sk-" + "a" * 40
 
     with pytest.raises(ApprovalError, match="credential-like data"):
-        store.issue("rollback", {"snapshot_id": snapshot_id, "note": secret}, "s1")
+        store.issue(
+            "rollback",
+            {
+                "mission_id": "mission-46d0a75c984b",
+                "snapshot_id": snapshot_id,
+                "note": secret,
+            },
+            "s1",
+        )
