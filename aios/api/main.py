@@ -3613,6 +3613,22 @@ def generate(
                 )
             except Exception as exc:  # noqa: BLE001 - metrics must never break chat
                 logger.warning("Development metrics recording failed", exc_info=exc)
+            if config.FACTS_AUTO_EXTRACT:
+                # Supervised memory formation runs on EVERY turn — an operator
+                # statement ("I prefer dark mode") is true regardless of whether
+                # the turn's code verified; its gate is the quarantined proposal
+                # queue plus a named human approval, not the verification floor.
+                # (Sat below the unverified early-return until the organism
+                # conformance test caught ordinary conversation never proposing
+                # anything, 2026-07-02.)
+                try:
+                    for fact_subject, fact_predicate, fact_object in extract_candidates(
+                        user_text,
+                        max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
+                    ):
+                        facts.propose(fact_subject, fact_predicate, fact_object)
+                except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
+                    logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
             if outcome not in {"verified_success", "verified_failure"}:
                 return
             passed = outcome == "verified_success"
@@ -3685,18 +3701,6 @@ def generate(
                 )
             except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 logger.warning("Failed to record curriculum match", exc_info=exc)
-            if config.FACTS_AUTO_EXTRACT:
-                # Supervised memory formation: candidates come from the
-                # operator's own words only and land in the quarantined
-                # proposal queue — approval is the only path into recall.
-                try:
-                    for fact_subject, fact_predicate, fact_object in extract_candidates(
-                        user_text,
-                        max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
-                    ):
-                        facts.propose(fact_subject, fact_predicate, fact_object)
-                except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
-                    logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
 
         if req.swarm:
             event_source = run_swarm(

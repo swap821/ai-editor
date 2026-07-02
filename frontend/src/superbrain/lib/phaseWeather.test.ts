@@ -37,6 +37,9 @@ describe('weatherFromEvent reducer', () => {
     );
     expect(aligned.confidence).toBe(0.92);
 
+    // The backend stamps confidence.gated with the EMOTION phase (its own
+    // HESITATION event type), so a hesitation tints the body purple, not
+    // reflex orange — the seam the organism conformance test pinned.
     const hesitant = weatherFromEvent(
       aligned,
       { type: 'hesitation', phase: 'emotion', data: { confidence: 0.41 } },

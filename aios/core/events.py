@@ -29,6 +29,7 @@ class EventType(str, Enum):
     ROUTE = "route"
     VOICE_SPEAKING = "voice-speaking"
     VERIFY = "verify"
+    HESITATION = "hesitation"
 
 
 _SSE_TO_COGNITION: dict[str, EventType] = {
@@ -36,7 +37,12 @@ _SSE_TO_COGNITION: dict[str, EventType] = {
     "caste_end": EventType.AGENT_DISPATCH,
     "caste_start": EventType.AGENT_DISPATCH,
     "cloud_route": EventType.ROUTE,
-    "confidence.gated": EventType.APPROVAL_REQUIRED,
+    # Confidence gating is the EMOTION layer (uncertainty/hesitation), NOT
+    # reflex approval — it shares no permission token with human_required.
+    # Its own type keeps its phase emotion, so the body tints purple (weather),
+    # not orange (reflex), when the mind pauses unsure. (The organism
+    # conformance test caught this sharing APPROVAL_REQUIRED's reflex phase.)
+    "confidence.gated": EventType.HESITATION,
     "code": EventType.KNOWLEDGE_ACQUIRED,
     "code_chunk": EventType.KNOWLEDGE_ACQUIRED,
     "done": EventType.SYNTHESIS,
@@ -62,6 +68,7 @@ _TYPE_TO_PHASE: dict[EventType, EventPhase] = {
     EventType.ROUTE: EventPhase.CHEMOTAXIS,
     EventType.VOICE_SPEAKING: EventPhase.NARRATIVE,
     EventType.VERIFY: EventPhase.REFLEX,
+    EventType.HESITATION: EventPhase.EMOTION,
 }
 
 
