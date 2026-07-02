@@ -34,6 +34,21 @@ class BusEvent:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
+# THE LAW, enforced structurally (not just documented): the bus carries what
+# HAPPENED, never what is PERMITTED. Event types in these authority families
+# are refused at append — fail-closed at the substrate boundary, so no future
+# producer can quietly route a decision through the observation tier. (The
+# adversarial W2 review correctly flagged a test-only guard as tautological;
+# this gate is the structural fix.)
+_AUTHORITY_EVENT_PREFIXES: tuple[str, ...] = (
+    "skill.",
+    "autonomy.",
+    "approval.",
+    "verdict.",
+    "zone.",
+    "grant.",
+)
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cortex_events (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,16 +77,23 @@ class CortexBus:
 
     def __init__(
         self,
-        db_path: Path = config.CORTEX_BUS_DB,
+        db_path: Optional[Path] = None,
         *,
-        retention_max: int = config.CORTEX_BUS_RETENTION_MAX,
-        retention_days: int = config.CORTEX_BUS_RETENTION_DAYS,
+        retention_max: Optional[int] = None,
+        retention_days: Optional[int] = None,
         hint_path: Optional[Path] = None,
     ) -> None:
-        self.db_path = db_path
-        self.retention_max = max(1, int(retention_max))
-        self.retention_days = max(1, int(retention_days))
-        self.hint_path = hint_path or db_path.with_suffix(".hint")
+        # Resolve config at CALL time, not import time: a def-time default
+        # freezes the value before test isolation / env overrides can apply
+        # (the repo's known monkeypatch-staleness trap).
+        self.db_path = db_path if db_path is not None else config.CORTEX_BUS_DB
+        self.retention_max = max(
+            1, int(retention_max if retention_max is not None else config.CORTEX_BUS_RETENTION_MAX)
+        )
+        self.retention_days = max(
+            1, int(retention_days if retention_days is not None else config.CORTEX_BUS_RETENTION_DAYS)
+        )
+        self.hint_path = hint_path or self.db_path.with_suffix(".hint")
         self._handlers: list[Callable[[BusEvent], None]] = []
         self._init()
 
@@ -100,6 +122,12 @@ class CortexBus:
         signature = (signature or "").strip()
         if not event_type or not signature:
             raise ValueError("cortex event requires a non-empty event_type and signature")
+        if event_type.startswith(_AUTHORITY_EVENT_PREFIXES):
+            raise ValueError(
+                f"authority-bearing event type {event_type!r} may never ride the "
+                "cortex bus — decisions stay synchronous on the verifier's return "
+                "value (ADR §4.1)"
+            )
         body = json.dumps(dict(payload or {}), ensure_ascii=False)
         with self._connect() as conn:
             cur = conn.execute(

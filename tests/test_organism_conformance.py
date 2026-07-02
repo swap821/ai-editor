@@ -168,6 +168,63 @@ def test_low_confidence_turn_pauses_asks_and_runs_no_tools(client: TestClient) -
     assert events[-1] == "done"
 
 
+def test_bus_carries_only_observations_on_a_real_turn(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, facts_db: SemanticFacts
+) -> None:
+    """W3, integrated: with the cortex bus ON, a REAL turn through the app must
+    (a) produce only observation events on the bus — never an authority type,
+    (b) prove the PRODUCTION wiring is live: the lifespan-subscribed
+    SelfModelHandler processes the observation within ~1s (the adversarial W2
+    review found the handler dispatching into a void; this pins the fix)."""
+    import time
+    import sqlite3 as sql
+
+    from aios import config
+    from aios.api import main as api_main
+
+    monkeypatch.setattr(config, "CORTEX_BUS", True)
+    monkeypatch.setattr(config, "CORTEX_BUS_DB", tmp_path / "conformance_bus.db")
+
+    app.dependency_overrides[get_llm_client] = FakeLLM
+    app.dependency_overrides[get_ollama_client] = FakeOllama
+    app.dependency_overrides[get_executor] = _fake_executor
+    app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
+    app.dependency_overrides[get_semantic_facts] = lambda: facts_db
+    get_approval_store().clear()
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            # The lifespan must have wired the observer — not a test harness.
+            assert api_main._self_model_handler is not None, (
+                "lifespan must subscribe SelfModelHandler when CORTEX_BUS is on"
+            )
+            frames = _turn(client, "make a button")
+            assert [e for e, _ in frames][-1] == "done"
+
+            # (a) Only observation types ever landed on the bus.
+            with sql.connect(tmp_path / "conformance_bus.db") as conn:
+                types = {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT DISTINCT event_type FROM cortex_events"
+                    )
+                }
+            assert types == {"turn.completed"}, f"unexpected bus events: {types}"
+
+            # (b) The production-wired handler processes it within ~1s: the
+            # dispatcher drains on its 250ms heartbeat and the handler either
+            # caches a rendering or (with too little verified evidence in this
+            # hermetic DB) an honest empty result — either way the EVENT must
+            # be consumed, proving the observer is attached.
+            deadline = time.monotonic() + 2.0
+            bus = api_main._cortex_bus
+            assert bus is not None
+            while time.monotonic() < deadline and bus.pending_count() > 0:
+                time.sleep(0.05)
+            assert bus.pending_count() == 0, "the observation was never consumed"
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_operator_preference_lands_quarantined_never_active(
     client: TestClient, facts_db: SemanticFacts
 ) -> None:

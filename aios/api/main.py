@@ -120,6 +120,9 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.runtime.contracts import KingReport, RunLedger
+from aios.runtime.cortex_bus import CortexBus
+from aios.runtime.cortex_bus_dispatcher import CortexBusDispatcher
+from aios.runtime.self_model_handler import SelfModelHandler
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
@@ -154,6 +157,15 @@ _bedrock_client: Optional[BedrockClient] = None
 _gemini_client: Optional[GeminiClient] = None
 _bedrock_lock = threading.Lock()
 _gemini_lock = threading.Lock()
+
+# ── Cortex bus W2 — singletons (None when CORTEX_BUS is off) ─────────────────
+# The bus and its dispatcher are module-level so the lifespan can start/stop
+# them and the generate endpoint can append to them without FastAPI Depends.
+# Both are None when config.CORTEX_BUS is False (the default) — zero overhead
+# on the hot path when the feature is off.
+_cortex_bus: Optional[CortexBus] = None
+_cortex_dispatcher: Optional[CortexBusDispatcher] = None
+_self_model_handler: Optional[SelfModelHandler] = None
 
 logger = get_logger(__name__)
 _METRICS = get_collector()
@@ -192,7 +204,38 @@ async def lifespan(app: FastAPI):
                 "Vector injection shield failed to load; regex layer remains active",
                 exc_info=exc,
             )
+    # Cortex bus W2: start the drainer ONLY when opted in.  The bus default is
+    # OFF (config.CORTEX_BUS=False) — this block is completely skipped in the
+    # common case, so behavior is byte-identical to W1 when the flag is unset.
+    global _cortex_bus, _cortex_dispatcher, _self_model_handler
+    if config.CORTEX_BUS:
+        try:
+            _cortex_bus = CortexBus()
+            # The first observer: the self-model rebuild subscribed BEFORE the
+            # dispatcher starts, so no early event dispatches into a void. The
+            # per-turn recall path reads this handler's cache (falling back to
+            # inline synthesis until the first event lands) — that is what
+            # actually takes the synthesis off the hot path.
+            _self_model_handler = SelfModelHandler(DevelopmentTracker(), MistakeMemory())
+            _cortex_bus.subscribe(_self_model_handler)
+            _cortex_dispatcher = _build_cortex_dispatcher(_cortex_bus)
+            _cortex_dispatcher.start()
+            logger.info("cortex_bus_started")
+        except Exception as exc:  # noqa: BLE001 - enhancement; never block startup
+            logger.warning("cortex_bus_failed_to_start", exc_info=exc)
+            _cortex_bus = None
+            _cortex_dispatcher = None
+            _self_model_handler = None
     yield
+    # Shutdown: stop the dispatcher cleanly if it was started.
+    if _cortex_dispatcher is not None:
+        try:
+            _cortex_dispatcher.stop()
+        except Exception:  # noqa: BLE001
+            pass
+        _cortex_dispatcher = None
+        _cortex_bus = None
+        _self_model_handler = None
 
 
 app = FastAPI(
@@ -201,6 +244,40 @@ app = FastAPI(
     summary="Local-first, memory-driven, security-gated, human-supervised AI OS.",
     lifespan=lifespan,
 )
+
+
+# ── Cortex bus W2 helpers ─────────────────────────────────────────────────────
+
+def _build_cortex_dispatcher(bus: CortexBus) -> CortexBusDispatcher:
+    """Factory for the dispatcher (isolated so tests can call it directly)."""
+    return CortexBusDispatcher(bus, poll_interval=0.25)
+
+
+def _get_cortex_dispatcher() -> Optional[CortexBusDispatcher]:
+    """Return the live dispatcher, or None when the bus is off (default)."""
+    return _cortex_dispatcher if config.CORTEX_BUS else None
+
+
+def _append_turn_completed(
+    bus: Optional[CortexBus], session_id: str
+) -> None:
+    """Best-effort: append a 'turn.completed' OBSERVATION to the cortex bus.
+
+    Called immediately after the 'done' SSE frame is emitted. Carries a
+    NON-AUTHORITY payload (observation metadata only — no skill promotion,
+    autonomy credit, or approval decision). Silently no-ops when bus is None
+    (i.e. when CORTEX_BUS is off) so the common path is completely unaffected.
+    """
+    if bus is None:
+        return
+    try:
+        bus.append(
+            "turn.completed",
+            session_id,
+            {"ts": datetime.now(timezone.utc).isoformat()},
+        )
+    except Exception:  # noqa: BLE001 — best-effort; never break a turn
+        logger.warning("cortex_bus_append_failed", exc_info=True)
 
 # Browser clients (the Vite front-end) run on a different origin, so the API
 # must opt them in explicitly. Origins come from config (env-overridable).
@@ -3468,7 +3545,21 @@ def generate(
         # honest sense of what it's actually reliable at. Fail-closed: empty when
         # there's too little verified evidence.
         if config.NARRATIVE_SELF_ENABLED:
-            self_model_block = _recall_self_model(development, MistakeMemory())
+            # W2: when the cortex bus is on, the self-model was synthesized OFF
+            # the hot path by SelfModelHandler (turn.completed observer) — read
+            # its cache. Fall back to inline synthesis when the bus is off
+            # (default: identical to pre-W2 behavior) or before the first
+            # observation has been processed.
+            cached_self_model = (
+                _self_model_handler.recall()
+                if config.CORTEX_BUS and _self_model_handler is not None
+                else None
+            )
+            self_model_block = (
+                cached_self_model
+                if cached_self_model is not None
+                else _recall_self_model(development, MistakeMemory())
+            )
             if self_model_block:
                 context_parts.append(self_model_block)
                 yield sse(
@@ -3940,6 +4031,10 @@ def generate(
                     )
                 approvals.clear_session(session_id)
                 yield sse("done", {})
+                # Cortex bus W2: emit a cold-path observation AFTER the done
+                # frame so the hot path is never delayed. Best-effort and
+                # completely skipped when CORTEX_BUS is off (the default).
+                _append_turn_completed(_cortex_bus, session_id)
 
     return StreamingResponse(
         event_stream(),

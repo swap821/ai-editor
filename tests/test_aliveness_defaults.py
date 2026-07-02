@@ -46,3 +46,5 @@ def test_wonder_phase_organs_stay_opt_in() -> None:
     assert config.COUNCIL_REASONING is False
     assert config.COUNCIL_ORIGINATION is False
     assert config.SWARM_CLOUD_BURST_ENABLED is False
+    # cortex bus W2: the cold-path dispatcher is opt-in (wonder-phase infra)
+    assert config.CORTEX_BUS is False

@@ -212,6 +212,26 @@ def test_hint_is_raised_on_append_and_cleared_on_poll(tmp_path: Path) -> None:
     assert seen[0].payload["n"] == 1
 
 
+def test_authority_event_types_are_refused_at_append(tmp_path: Path) -> None:
+    """THE LAW, structural: no authority family may ride the bus — enforced at
+    the substrate boundary so a future producer cannot quietly route a decision
+    through the observation tier (the adversarial W2 review's blocking ask)."""
+    bus = _bus(tmp_path)
+    for forbidden in (
+        "skill.promoted",
+        "autonomy.credited",
+        "approval.decided",
+        "verdict.recorded",
+        "zone.classified",
+        "grant.issued",
+    ):
+        with pytest.raises(ValueError):
+            bus.append(forbidden, "session-1", {})
+    assert bus.pending_count() == 0  # nothing slipped through
+    # Observations still flow.
+    assert bus.append("turn.completed", "session-1", {}) > 0
+
+
 def test_poll_once_drains_even_without_a_hint(tmp_path: Path) -> None:
     # The hint is an optimization; a poll with no hint still drains (safety net).
     db = tmp_path / "bus.db"
