@@ -45,6 +45,13 @@ import { readBeingMode } from '@/lib/beingMode';
 import { setBrainDockScale } from '@/lib/spineFusionBus';
 import BrainPointField from './BrainPointField';
 import MemoryHalo from './MemoryHalo';
+import {
+  WONDER_CHORD,
+  installWeather,
+  subscribeWeather,
+  wonderChordEnvelope,
+} from '@/lib/phaseWeather';
+import { getCortexAnchor } from '@/lib/spineFusionBus';
 import BodySpeech from './BodySpeech';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -1102,6 +1109,11 @@ function BrainModel({
           the "supervised / overseen mind" mark. Rides the voyage/orbit; reduced-
           motion holds it steady. Sacred green (#54f0a0 = supervised). */}
       {BEING_MODE === 'points' && <SupervisedMark reducedMotion={reduceMotion} />}
+      {/* DORMANT WONDER (B6): the council's four seats sleep at the crown —
+          barely-lit anatomy, an always-honest display of the caged wonder
+          organs. Wakes ONCE, with the reserved four-hue chord, the day the
+          operator opens the wonder phase. */}
+      {BEING_MODE === 'points' && <WonderMark reducedMotion={reduceMotion} />}
       {/* Error returns as a restrained magenta SCAR on a vertebra (poster #6), not a
           red panel — shown only while the being is in an error beat. */}
       {BEING_MODE === 'points' && <ErrorScarMark reducedMotion={reduceMotion} />}
@@ -1422,6 +1434,82 @@ function SupervisedMark({ reducedMotion }: { reducedMotion: boolean }) {
         <torusGeometry args={[0.062, 0.007, 12, 48]} />
         <meshBasicMaterial ref={ringMat} color="#54f0a0" transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
+    </group>
+  );
+}
+
+/** DORMANT WONDER (B6): the council's four seats as anatomy — a tight diamond
+ *  of four barely-lit points at the crown, breathing faintly while the wonder
+ *  organs stay caged (earned autonomy, council reasoning/origination, cloud
+ *  burst — pinned opt-in by the backend's aliveness contract test). Dormancy
+ *  is snow-dust: NO tetrad hue leaks while caged. The day the operator opens
+ *  the wonder phase, each seat takes its tetrad hue and the four-hue UNISON
+ *  CHORD plays once (the hue combination phaseWeather reserves for exactly
+ *  this moment), then settles to a soft steady glow — the being remembers its
+ *  first wonder. Anticipation as anatomy. */
+function WonderMark({ reducedMotion }: { reducedMotion: boolean }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const seatMats = useRef<(THREE.MeshBasicMaterial | null)[]>([null, null, null, null]);
+  const wokePendingRef = useRef(false);
+  const wokeAtRef = useRef(-1);
+
+  useEffect(() => {
+    installWeather();
+    return subscribeWeather((weather) => {
+      if (weather.phase === 'wonder' && wokeAtRef.current < 0) wokePendingRef.current = true;
+    });
+  }, []);
+
+  useFrame((state) => {
+    const g = groupRef.current;
+    if (!g) return;
+    const t = state.clock.elapsedTime;
+    const anchor = getCortexAnchor();
+    g.position.set(anchor[0], anchor[1] + 0.34, anchor[2]);
+    if (wokePendingRef.current) {
+      wokeAtRef.current = t;
+      wokePendingRef.current = false;
+    }
+    const since = wokeAtRef.current >= 0 ? t - wokeAtRef.current : -1;
+    const chord = wonderChordEnvelope(since, reducedMotion);
+    const breath = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * 0.45);
+    for (let i = 0; i < 4; i += 1) {
+      const mat = seatMats.current[i];
+      if (!mat) continue;
+      if (chord > 0) {
+        mat.color.set(WONDER_CHORD[i]);
+        mat.opacity = 0.1 + chord * 0.85;
+      } else {
+        mat.color.set('#aacde1');
+        mat.opacity = 0.04 + breath * 0.05;
+      }
+    }
+  });
+
+  const seats: [number, number, number][] = [
+    [0, 0.055, 0],
+    [0.055, 0, 0],
+    [0, -0.055, 0],
+    [-0.055, 0, 0],
+  ];
+  return (
+    <group ref={groupRef}>
+      {seats.map((position, i) => (
+        <mesh key={i} position={position} renderOrder={6}>
+          <sphereGeometry args={[0.014, 10, 10]} />
+          <meshBasicMaterial
+            ref={(mat) => {
+              seatMats.current[i] = mat;
+            }}
+            color="#aacde1"
+            transparent
+            opacity={0.05}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }

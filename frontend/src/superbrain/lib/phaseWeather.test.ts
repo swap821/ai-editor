@@ -12,6 +12,7 @@ import {
   phaseHueOf,
   tensionOf,
   weatherFromEvent,
+  wonderChordEnvelope,
   type WeatherState,
 } from './phaseWeather';
 
@@ -133,6 +134,26 @@ describe('hesitationFlinch — the held-breath envelope (B3)', () => {
     for (let t = 0; t <= 1.2; t += 0.05) {
       expect(hesitationFlinch(t, false)).toBeLessThanOrEqual(0.25);
     }
+  });
+});
+
+describe('wonderChordEnvelope — the reserved chord (B6)', () => {
+  it('is dark before waking and attacks to full unison by 0.9s', () => {
+    expect(wonderChordEnvelope(-1, false)).toBe(0);
+    expect(wonderChordEnvelope(0.9, false)).toBeCloseTo(1, 5);
+    expect(wonderChordEnvelope(0.4, false)).toBeGreaterThan(0.5);
+  });
+
+  it('rings down to a soft steady glow and holds it forever', () => {
+    expect(wonderChordEnvelope(2.8, false)).toBeCloseTo(0.35, 5);
+    expect(wonderChordEnvelope(60, false)).toBeCloseTo(0.35, 5);
+    expect(wonderChordEnvelope(1.5, false)).toBeGreaterThan(wonderChordEnvelope(2.5, false));
+  });
+
+  it('reduced motion crossfades straight to the steady glow', () => {
+    expect(wonderChordEnvelope(0.3, true)).toBeCloseTo(0.175, 5);
+    expect(wonderChordEnvelope(0.6, true)).toBeCloseTo(0.35, 5);
+    expect(wonderChordEnvelope(10, true)).toBeCloseTo(0.35, 5);
   });
 });
 

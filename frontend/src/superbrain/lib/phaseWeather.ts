@@ -109,6 +109,24 @@ export function hesitationFlinch(sinceSeconds: number, reducedMotion: boolean): 
   return sinceSeconds < 1.1 ? Math.exp(-sinceSeconds * 2.2) * 0.25 : 0;
 }
 
+/** B6 — the wonder chord's brightness envelope. Plays ONCE when the wonder
+ *  phase first arrives: a fast attack to full unison, a slow ring-down, then
+ *  a soft steady glow (the being remembers its first wonder). Reduced motion
+ *  crossfades straight to the steady glow. Negative = not yet woken = dark. */
+export function wonderChordEnvelope(sinceSeconds: number, reducedMotion: boolean): number {
+  if (sinceSeconds < 0) return 0;
+  if (reducedMotion) return Math.min(1, sinceSeconds / 0.6) * 0.35;
+  if (sinceSeconds < 0.9) {
+    const k = sinceSeconds / 0.9;
+    return 1 - Math.pow(1 - k, 3);
+  }
+  if (sinceSeconds < 2.8) {
+    const k = (sinceSeconds - 0.9) / 1.9;
+    return 1 - (1 - 0.35) * k;
+  }
+  return 0.35;
+}
+
 let state: WeatherState = CALM_WEATHER;
 let installed = false;
 const listeners = new Set<(next: WeatherState) => void>();
