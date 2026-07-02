@@ -1074,6 +1074,71 @@ export async function fetchFactGraph(
   }
 }
 
+/* ------------------------------------------------- pending fact proposals */
+
+/** One auto-extracted fact awaiting the operator's touch (B4 memory halo). */
+export interface FactProposal {
+  id: number;
+  subject: string;
+  predicate: string;
+  object: string;
+  source: string;
+}
+
+interface PendingFactsResponse {
+  proposals?: FactProposal[];
+}
+
+/** Fetch the quarantined pending-fact queue. [] on any error (never throws). */
+export async function fetchPendingFacts(): Promise<FactProposal[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/memory/facts/pending`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as PendingFactsResponse;
+    return Array.isArray(body.proposals) ? body.proposals : [];
+  } catch {
+    return [];
+  }
+}
+
+export type ProposalResolution = 'approved' | 'contradiction' | 'failed';
+
+/** Approve one proposal — the operator's touch mints knowledge THROUGH the
+ *  backend's contradiction check. 'contradiction' (409) means the fact stays
+ *  pending for an explicit reconcile; the halo flares and holds the mote. */
+export async function approveFactProposal(id: number): Promise<ProposalResolution> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/memory/facts/pending/${id}/approve`, {
+      method: 'POST',
+      credentials: FETCH_CREDENTIALS,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ resolvedBy: 'operator' }),
+    });
+    if (res.status === 409) return 'contradiction';
+    return res.ok ? 'approved' : 'failed';
+  } catch {
+    return 'failed';
+  }
+}
+
+/** Reject one proposal — it resolves without ever touching recall. */
+export async function rejectFactProposal(id: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/memory/facts/pending/${id}/reject`, {
+      method: 'POST',
+      credentials: FETCH_CREDENTIALS,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ resolvedBy: 'operator' }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Start the trails/metrics poll. Returns a stop function. */
 export function startAiosPolling(intervalMs = 20_000): () => void {
   if (typeof window === 'undefined') return () => undefined;

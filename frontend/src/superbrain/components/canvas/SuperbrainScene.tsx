@@ -44,6 +44,7 @@ import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 import { setBrainDockScale } from '@/lib/spineFusionBus';
 import BrainPointField from './BrainPointField';
+import MemoryHalo from './MemoryHalo';
 import BodySpeech from './BodySpeech';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
@@ -1088,6 +1089,13 @@ function BrainModel({
         {NODE_BRAIN && (
           <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} />
         )}
+        {/* MEMORY HALO (B4): pending fact proposals orbit the cortex as
+            narrative-green motes — the operator's touch ABSORBS (approves,
+            through the backend's contradiction check) or RELEASES (rejects)
+            each candidate memory. The queue is quarantined server-side; this
+            halo is the only window through which a proposal becomes knowledge.
+            Renders nothing while the queue is empty. */}
+        <MemoryHalo reducedMotion={reduceMotion} />
       </group>
       <MaterializationLayer reducedMotion={reduceMotion} />
       {/* Status FROM the body (poster #6): a calm green pulse at the brainstem —
