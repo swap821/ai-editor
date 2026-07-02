@@ -7,7 +7,7 @@ Progression requires repeated training success plus a held-out pass.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
 
 from aios import config
 from aios.core.verification_strength import (
@@ -90,6 +90,7 @@ class CurriculumManager:
         passed: bool,
         evidence: str,
         strength: VerificationStrength | None = None,
+        on_mastered: Optional[Callable[[str, int], None]] = None,
     ) -> list[int]:
         """Apply an authoritative verifier result to matching available tasks.
 
@@ -136,7 +137,12 @@ class CurriculumManager:
                     (1 if counts_as_success else 0, task_id),
                 )
                 updated.append(task_id)
-                self._refresh_level(conn, str(row["skill_name"]), int(row["level"]))
+                skill_name = str(row["skill_name"])
+                level = int(row["level"])
+                if self._refresh_level(conn, skill_name, level) and on_mastered is not None:
+                    # Fires only on the transition to mastered (a mastered
+                    # level's tasks leave 'available', so it cannot re-fire).
+                    on_mastered(skill_name, level)
         return updated
 
     def _fuzzy_rows(self, conn, prompt: str) -> list:
@@ -158,7 +164,12 @@ class CurriculumManager:
         ]
         return candidates if len(candidates) == 1 else []
 
-    def _refresh_level(self, conn, skill_name: str, level: int) -> None:
+    def _refresh_level(self, conn, skill_name: str, level: int) -> bool:
+        """Master the level when its evidence thresholds are met.
+
+        Returns ``True`` only when this call performs the mastery transition,
+        so callers can announce growth without ever double-firing.
+        """
         rows = conn.execute(
             "SELECT held_out, successes FROM curriculum_tasks "
             "WHERE skill_name = ? AND level = ?",
@@ -174,7 +185,7 @@ class CurriculumManager:
             or not training_covered
             or not held_out_passed
         ):
-            return
+            return False
         conn.execute(
             "UPDATE curriculum_tasks SET status = 'mastered', updated_at = CURRENT_TIMESTAMP "
             "WHERE skill_name = ? AND level = ?",
@@ -185,6 +196,7 @@ class CurriculumManager:
             "WHERE skill_name = ? AND level = ? AND status = 'locked'",
             (skill_name, level + 1),
         )
+        return True
 
     def list(self, skill_name: str | None = None) -> list[dict[str, Any]]:
         """Return curriculum state; no task is ever executed here."""

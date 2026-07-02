@@ -1873,7 +1873,7 @@ class RecordingCurriculum:
         self.matches: list[tuple[str, bool, str]] = []
         self.tasks: list[dict] = []
 
-    def record_matching(self, prompt, *, passed, evidence, strength=None):
+    def record_matching(self, prompt, *, passed, evidence, strength=None, on_mastered=None):
         self.matches.append((prompt, passed, evidence))
         return [1]
 

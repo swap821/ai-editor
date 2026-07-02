@@ -3577,6 +3577,8 @@ def generate(
             answer_parts.append(communication_notice)
             yield sse("text_chunk", {"text": communication_notice})
 
+        mastered_levels: list[tuple[str, int]] = []
+
         def record_outcome(outcome: str) -> None:
             """Best-effort development, skill, and curriculum evidence write."""
             # The strength of this turn's authoritative verification gates ALL
@@ -3675,7 +3677,11 @@ def generate(
                     logger.warning("Failed to record swarm pattern attempt", exc_info=exc)
             try:
                 curriculum.record_matching(
-                    user_text, passed=passed, evidence=evidence, strength=turn_strength
+                    user_text,
+                    passed=passed,
+                    evidence=evidence,
+                    strength=turn_strength,
+                    on_mastered=lambda skill, level: mastered_levels.append((skill, level)),
                 )
             except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 logger.warning("Failed to record curriculum match", exc_info=exc)
@@ -3914,6 +3920,20 @@ def generate(
                         record_outcome("verified_failure")
                     else:
                         record_outcome("verified_success")
+                # B5 growth: announce curriculum mastery so the body's lattice
+                # can harden. Additive frame; fires only on the transition and
+                # only under the STRONG promotion floor (gated inside
+                # record_matching), so a weak green can never make the body
+                # celebrate growth that did not happen.
+                for mastered_skill, mastered_level in mastered_levels:
+                    yield sse(
+                        "skill.mastered",
+                        {
+                            "skill": mastered_skill,
+                            "level": mastered_level,
+                            "source": "curriculum",
+                        },
+                    )
                 approvals.clear_session(session_id)
                 yield sse("done", {})
 

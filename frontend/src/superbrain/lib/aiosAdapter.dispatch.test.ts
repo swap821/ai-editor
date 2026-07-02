@@ -104,6 +104,21 @@ describe('B1 — typed event spine reaches the cognition bus', () => {
     expect(dispatch?.phase).toBe('chemotaxis');
   });
 
+  it('announces curriculum mastery as SKILL MASTERED for the lattice (B5)', async () => {
+    stubBackend([
+      'event: skill.mastered\ndata: {"skill":"string-ops","level":1,"source":"curriculum","phase":"narrative","seq":7}\n\n',
+      'event: done\ndata: {}\n\n',
+    ]);
+    await sendDirective('grow');
+
+    const mastery = seen.find(
+      (event) => event.type === 'knowledge-acquired' && /SKILL MASTERED/.test(event.label ?? ''),
+    );
+    expect(mastery).toBeDefined();
+    expect(mastery?.label).toBe('SKILL MASTERED — STRING-OPS L1');
+    expect(mastery?.phase).toBe('narrative');
+  });
+
   it('stays backward compatible: frames without spine fields publish phase-free', async () => {
     stubBackend([
       'event: route\ndata: {"provider":"ollama","model":"qwen","privacy":"local"}\n\n',

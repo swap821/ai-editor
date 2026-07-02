@@ -95,3 +95,38 @@ def test_threshold_is_respected(tmp_path: Path) -> None:
     cm = _cm(tmp_path, fuzzy_threshold=0.95)
     cm.add_task("string-ops", 1, TASK_PROMPT)
     assert cm.record_matching(PARAPHRASE, passed=True, evidence=PASS_STRONG) == []
+
+
+def test_mastery_fires_the_growth_callback_exactly_once(tmp_path: Path) -> None:
+    cm = _cm(tmp_path, training_passes_required=1)
+    training = "write a python function that reverses a string"
+    held_out = "write a python function that uppercases a string"
+    cm.add_task("string-ops", 1, training)
+    cm.add_task("string-ops", 1, held_out, held_out=True)
+
+    mastered: list[tuple[str, int]] = []
+    on_mastered = lambda skill, level: mastered.append((skill, level))  # noqa: E731
+
+    cm.record_matching(training, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered)
+    assert mastered == []  # held-out not yet passed — no growth announced
+    cm.record_matching(held_out, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered)
+    assert mastered == [("string-ops", 1)]
+
+    # Mastered tasks leave 'available', so the transition can never re-fire.
+    cm.record_matching(training, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered)
+    assert mastered == [("string-ops", 1)]
+
+
+def test_weak_greens_never_announce_growth(tmp_path: Path) -> None:
+    cm = _cm(tmp_path, training_passes_required=1)
+    cm.add_task("string-ops", 1, TASK_PROMPT)
+    cm.add_task("string-ops", 1, "write a python function that uppercases a string", held_out=True)
+    mastered: list[tuple[str, int]] = []
+    for prompt in (TASK_PROMPT, "write a python function that uppercases a string"):
+        cm.record_matching(
+            prompt,
+            passed=True,
+            evidence=PASS_WEAK,
+            on_mastered=lambda skill, level: mastered.append((skill, level)),
+        )
+    assert mastered == []

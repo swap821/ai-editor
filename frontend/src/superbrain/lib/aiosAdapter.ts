@@ -444,6 +444,25 @@ async function streamTurn(
           });
           break;
         }
+        case 'skill.mastered': {
+          // B5 growth: a curriculum level was mastered under the STRONG
+          // verification floor (gated server-side — a weak green can never
+          // reach this frame). The existing body machinery already knows the
+          // choreography: NodeLattice routes SKILL MASTERED to its CAUSAL hub
+          // and the outcome imprints celebrate.
+          const skill = String(frame.data.skill ?? 'skill');
+          const level = Number(frame.data.level ?? 0);
+          publishCognition({
+            type: 'knowledge-acquired',
+            label: `SKILL MASTERED — ${skill.toUpperCase()} L${level}`,
+            detail: 'curriculum level mastered under the STRONG verification floor',
+            intensity: 0.9,
+            source: 'aios',
+            data: frame.data,
+            ...spine,
+          });
+          break;
+        }
         case 'confidence.gated': {
           // The emotion layer's honest pause: the mind is UNSURE and asks for
           // clarity. Not an approval — there is no permission token — so it
