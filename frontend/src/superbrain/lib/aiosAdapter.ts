@@ -293,6 +293,7 @@ async function streamTurn(
       throw new Error(`backend responded ${response.status}`);
     }
     for await (const frame of readSse(response.body)) {
+      const spine = spineOf(frame.data);
       switch (frame.event) {
         case 'step':
           publishStep(frame.data);
@@ -312,6 +313,7 @@ async function streamTurn(
             detail: String(frame.data.text ?? 'The supervised mind is waiting for its human.').slice(0, 160),
             intensity: 1,
             source: 'aios',
+            ...spine,
           });
           break;
         case 'code_chunk': {
@@ -337,6 +339,7 @@ async function streamTurn(
             detail: `${language} · ${code.split('\n').length} line(s)`,
             intensity: 0.7,
             source: 'aios',
+            ...spine,
           });
           break;
         }
@@ -354,6 +357,8 @@ async function streamTurn(
                   : 'declared understanding',
               intensity: 0.3,
               source: 'aios',
+              data: typeof confidence === 'number' ? { confidence } : undefined,
+              ...spine,
             });
           }
           break;
@@ -369,6 +374,7 @@ async function streamTurn(
             detail: `earned trust applied · ${what}`.slice(0, 140),
             intensity: 1,
             source: 'aios',
+            ...spine,
           });
           break;
         }
@@ -379,6 +385,7 @@ async function streamTurn(
             detail: String(frame.data.text ?? 'unknown error').slice(0, 140),
             intensity: 0.4,
             source: 'aios',
+            ...spine,
           });
           break;
         case 'done':
@@ -389,6 +396,7 @@ async function streamTurn(
               detail: answer.trim().slice(0, 160) || 'turn complete',
               intensity: 0.9,
               source: 'aios',
+              ...spine,
             });
           }
           break;
@@ -403,6 +411,7 @@ async function streamTurn(
             intensity: 0.3,
             source: 'aios',
             data: d,
+            ...spine,
           });
           break;
         }
@@ -431,6 +440,22 @@ async function streamTurn(
             intensity: verdict === 'pass' ? 0.75 : 0.95,
             source: 'aios',
             data: frame.data,
+            ...spine,
+          });
+          break;
+        }
+        case 'confidence.gated': {
+          // The emotion layer's honest pause: the mind is UNSURE and asks for
+          // clarity. Not an approval — there is no permission token — so it
+          // gets its own event type. B1 only listens; B3 gives it a posture.
+          publishCognition({
+            type: 'hesitation',
+            label: 'THE MIND PAUSES — UNSURE',
+            detail: String(frame.data.question ?? 'Confidence below threshold; asking for clarity.').slice(0, 160),
+            intensity: 0.8,
+            source: 'aios',
+            data: frame.data,
+            ...spine,
           });
           break;
         }
@@ -452,6 +477,17 @@ async function streamTurn(
     });
     return { ok: false, paused: false, answer };
   }
+}
+
+/** Forward the typed event spine's additive fields (phase / seq) so body
+ *  systems can index motion to the organism's REAL cognitive phase. Absent on
+ *  frames from pre-spine backends — consumers treat a missing phase as
+ *  unknown, never as an error. */
+function spineOf(data: Record<string, unknown>): { phase?: string; seq?: number } {
+  const out: { phase?: string; seq?: number } = {};
+  if (typeof data.phase === 'string') out.phase = data.phase;
+  if (typeof data.seq === 'number') out.seq = data.seq;
+  return out;
 }
 
 /** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */

@@ -39,7 +39,11 @@ export type CognitionEventType =
   | 'voice-speaking'
   /** A verification tool returned a PASS or FAIL verdict — surface it as a
    *  transient celebration or reflection cue. */
-  | 'verify';
+  | 'verify'
+  /** The mind is not confident enough to proceed and asks for clarity — the
+   *  emotion layer's honest pause (backend `confidence.gated`). Distinct from
+   *  approval-required: there is no permission token, only uncertainty. */
+  | 'hesitation';
 
 export interface CognitionEvent {
   type: CognitionEventType;
@@ -53,6 +57,13 @@ export interface CognitionEvent {
   source?: string;
   /** Structured payload for data-carrying events (e.g. telemetry). */
   data?: Record<string, unknown>;
+  /** Cognitive phase of the organism when this fired (typed event spine:
+   *  chemotaxis / reflex / emotion / narrative / wonder). Optional — absent on
+   *  events from non-turn sources or pre-spine backends; every consumer must
+   *  treat a missing phase as "unknown", never as an error. */
+  phase?: string;
+  /** Monotonic per-turn sequence number from the typed event spine. */
+  seq?: number;
 }
 
 type Listener = (event: CognitionEvent) => void;
