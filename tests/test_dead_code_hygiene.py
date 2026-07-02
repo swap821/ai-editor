@@ -14,6 +14,9 @@ REMOVED_PRODUCT_DEAD_CODE = (
     "aios/policy/constitution.py",
     "aios/policy/policy_evolution.py",
     "aios/runtime/leases.py",
+    # 2026-07-02: zero importers (K1 import graph) AND 0% coverage — the two
+    # instruments agreed; operator-approved deletion.
+    "aios/council/service_definitions.py",
 )
 
 
