@@ -52,3 +52,8 @@ A durable **outbox**, not an in-memory queue. Rationale, ratified: workers are s
 ## 7. Status
 
 Design ratified 2026-07-02. **Build is NOT authorized by this doc** — the operator chose to refine the design and stop. Building W1 begins only on a separate explicit "go", at which point the `superpowers:writing-plans` skill turns this into a step-by-step implementation plan.
+
+**UPDATE 2026-07-02 (late): W1–W3 SHIPPED — this doc's whole-epoch definition of done is met.**
+- W1 substrate `1a63752` · W2 first observer + structural authority gate `85e96e4` · W3 conformance guard `8864501` (each gate exit 0; final coverage 87.59% branch).
+- The §2 law is now held at TWO layers: structurally (`CortexBus.append` refuses authority-family event types, fail-closed) and by the permanent W3 guard (real promotion turn with dispatch neutered → promotion lands synchronously while the bus sits undrained; five mutation red-proofs confirm the guard has teeth).
+- W4 remains a profiled-only option. Wonder organs remain caged (`test_aliveness_defaults.py`); enabling any is a SEPARATE operator gate each, exactly as §4 requires.

@@ -1,72 +1,66 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-02T14:50Z (SESSION-END — operator switching to a fresh
-Claude Code app session)
+Last updated: 2026-07-02T18:25Z (W3 shipped — wonder-epoch cortex-bus design
+doc COMPLETE; CI healed twice this session)
 
 ## Current Goal
-Wonder epoch W1+W2 DONE under full discipline. The organism now has a working
-cold-path observation tier with its first live observer — default OFF, wonder
-organs still caged. Next epoch step is W3-completion review + the operator's
-next directive in the NEW session.
+The wonder epoch's enabling infrastructure is DONE: W1 (durable bus) + W2
+(first live observer + structural authority gate) + W3 (permanent conformance
+guard) are all green, reviewed, and pushed. The bus is default OFF and every
+wonder organ remains caged. The next move is the operator's: either a wonder
+organ's own gate (council triggers first, per the roadmap) or the standing
+highest-leverage alternative — the ten-minute "prove it" demo path.
 
 ## FIRST ACTIONS FOR THE NEW SESSION
-1. Operator wants workflow subagents on **Sonnet 5.0** (this session's 'sonnet'
-   alias resolved to claude-sonnet-4-6). Fix: update the Claude Code app (alias
-   registry refresh) OR set env ANTHROPIC_DEFAULT_SONNET_MODEL to the exact
-   Sonnet-5 model id in settings.json via the update-config flow — then verify
-   with a cheap probe agent before any real workflow.
-2. Push decision: ONE unpushed commit `85e96e4` (W2). Origin is at `dfc2f2e`.
-   Review + push on operator's word.
-3. Ultracode is the operator's standing mode now: Fable supervises, Sonnet
-   workflows do the boring build work, adversarial verify before Fable review
-   (this pattern JUST proved itself — see below).
+1. Nothing is blocked. Master == origin, CI green end to end.
+2. Offer the operator the fork: wonder-organ gate (council deliberation
+   triggers, its own design+approval cycle) vs the "prove it" demo path
+   (external reviews' convergent gap). Do NOT enable any wonder flag without
+   a per-organ operator decision.
+3. Sonnet-5 alias: RESOLVED — probe-verified `sonnet` → claude-sonnet-5
+   (2026-07-02). Workflows are correctly armed; no env override needed.
 
-## Last Completed + Verified (this closeout)
-- CORTEX BUS W2 (`85e96e4`, local): SelfModelHandler is the first LIVE
-  observer. Dispatcher (daemon, 250ms + 50ms hint-wake) starts in lifespan
-  ONLY when AIOS_CORTEX_BUS; producer appends turn.completed after done;
-  lifespan SUBSCRIBES the handler; per-turn recall reads the handler cache
-  (inline fallback until first observation / always when off — default path
-  byte-identical). STRUCTURAL LAW: CortexBus.append refuses authority
-  families (skill./autonomy./approval./verdict./zone./grant.) — fail-closed
-  at the substrate. Integrated conformance test drives a REAL turn with the
-  bus on: only observations land, the production-wired observer consumes
-  within the dispatch window. Full gate exit 0, coverage 87.56% (branch).
-- THE SUPERVISION PATTERN WORKED: Sonnet built 80% correctly; the adversarial
-  Sonnet verifier caught the BLOCKING void (handler never subscribed in
-  production — its tests wired it themselves) and the tautological W3 guard;
-  Fable closed both seams + found a third (CortexBus config frozen at import
-  time — def-time default args; now call-time resolved).
-
-## Session Totals (2026-07-02, one day)
-Backend: foundations 100% default-on (curriculum fuzzy, CRAG, self-model,
-facts quarantine) · audit verifier false-alarm fixed (RED §VIII) · coverage
-honesty (branch mode, agent_coord visible, legacy deleted, conformance suite)
-· cortex bus W1+W2. Frontend: body campaign B1–B6 (phase chord, weather,
-hesitation, memory halo — operator absorbed fact #1 by hand, growth beats,
-dormant wonder crown) + coverage measurement + CI enforcement. All pushed
-except `85e96e4`.
+## Last Completed + Verified (this session)
+- PUSHED W2 (`85e96e4` + `1f6a662`) on operator's word.
+- CI HEALED #1 (`c69492d`): master had been red since 09:39Z — e8de86b added
+  tests/test_audit_recovery.py (real Ed25519 signing tests) but `cryptography`
+  was never in requirements.txt (local venv only), and the breaking commit's
+  own CI run was CANCELLED so the gap surfaced under a docs commit. Fix:
+  declare cryptography==49.0.0 (NOT skip the tests — signing is a shipped
+  feature; CI now tests it armed). Verified green: run 28601126357.
+- Dependabot red rows in Actions = historical residue: the failing update
+  jobs targeted /legacy/legacy_node which was already deleted from master;
+  open alerts now 0 (auto-resolved). Nothing recurs, nothing to do.
+- W3 (`8864501`): test_skill_promotion_is_synchronous_and_never_rides_the_bus
+  in tests/test_organism_conformance.py — three real STRONG-verified turns,
+  bus ON, dispatcher neutered for causal isolation; skill 'verified'
+  synchronously while all three observations sit undrained; outbox
+  observation-only. Non-tautology proven by FIVE mutation red-proofs (builder
+  M1-M3 + two independent adversarial mutations) — every one turned the guard
+  red at the assertion naming the broken invariant. Full gate exit 0 @ 87.59%.
+- Supervision pattern (2nd run): Sonnet builder + adversarial Sonnet verifier
+  (CONFIRMED, zero harness intrusion) + Fable seam-close (docstring). The
+  gate agent died on the 5hr session limit — Fable ran the full gate itself
+  via Bash instead of resuming (no agents needed for pytest). Worker model
+  probe-verified claude-sonnet-5 in the transcripts (48/48 calls).
 
 ## Open Approvals / Blockers
-- `85e96e4` unpushed (operator reviews in new session).
-- Reviewer kimi assigned on all handoffs (may be out; Codex/operator can).
-- Port landmine STANDS: do NOT run `npm run port` (18/29 live-set divergence).
-- DEEP_AUDIT_REMAINING_REPORT.md: +48 pre-existing uncommitted lines, operator
-  to review.
-- Wonder organs remain caged (pinned by test_aliveness_defaults incl.
-  CORTEX_BUS itself); enabling any is a SEPARATE operator gate each.
+- None blocking. Wonder organs caged (pinned by test_aliveness_defaults.py);
+  each needs its own operator gate.
+- Port landmine STANDS: do NOT run `npm run port`.
+- DEEP_AUDIT_REMAINING_REPORT.md: +48 pre-existing uncommitted lines,
+  operator to review.
+- Repo-root junk for operator triage: `'pointfield_v19'`, `'pointfield_v20'`
+  (literal quotes in the filenames) + large untracked `.agents/skills/` tree.
 
 ## Active Files
+- tests/test_organism_conformance.py (W3 guard lives here)
 - aios/runtime/{cortex_bus,cortex_bus_dispatcher,self_model_handler}.py
-- aios/api/main.py (lifespan wiring, producer, cache-read recall)
-- tests/{test_cortex_bus,test_cortex_bus_w2,test_organism_conformance}.py
-- Specs: 2026-07-02-wonder-epoch-cortex-bus-design.md (ratified) · plans/
-  2026-07-02-cortex-bus-w1.md
+- Spec: docs/superpowers/specs/2026-07-02-wonder-epoch-cortex-bus-design.md
+  (§7 updated: W1–W3 shipped, epoch definition-of-done met)
 
 ## Notes Not Yet Promoted
-- Dev servers STOPPED at session end (:5173 vite, :8000 aios) — restart in
-  the new session when needed (`cd frontend; npm run dev` + `.venv\Scripts\python -m aios`).
-- Gemini deep-research triage (operator briefed): AST code-defense + MCP tool
-  routing = good roadmap candidates; CRDT = YAGNI; Docker sandbox already
-  shipped. The real gap all three external reviews converge on: the ten-minute
-  "prove it" demo path — still the highest-leverage unbuilt thing.
+- Dev servers still stopped (:5173 vite, :8000 aios) — restart when needed.
+- Gemini deep-research triage stands: AST code-defense + MCP tool routing =
+  good roadmap candidates; CRDT = YAGNI. The ten-minute "prove it" demo path
+  remains the highest-leverage unbuilt thing per all three external reviews.
