@@ -127,6 +127,23 @@ CREATE TABLE IF NOT EXISTS semantic_facts (
                 CHECK (status IN ('active','superseded'))
 );
 
+-- Auto-extracted fact candidates awaiting human review. A SEPARATE table on
+-- purpose: every recall path reads only semantic_facts, so an unreviewed
+-- proposal is structurally incapable of reaching a prompt. Approval promotes
+-- through the contradiction-aware add_fact; rejection is recorded, not deleted.
+CREATE TABLE IF NOT EXISTS fact_proposals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    subject     TEXT NOT NULL,
+    predicate   TEXT NOT NULL,
+    object      TEXT NOT NULL,
+    source      TEXT NOT NULL DEFAULT 'auto-extract',
+    status      TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','approved','rejected')),
+    resolved_by TEXT,
+    resolved_at DATETIME
+);
+
 -- == Self-Analysis report (the module's own-code diagnostics) =================
 -- Modelled on mistake_pool (Assessment §6.4): a structured, queryable record of
 -- findings the Self-Analysis agent produces while reading + diagnosing the
@@ -237,6 +254,7 @@ CREATE INDEX IF NOT EXISTS idx_mistake_time     ON mistake_pool(timestamp);
 CREATE INDEX IF NOT EXISTS idx_mistake_verified ON mistake_pool(verification_status)
     WHERE verification_status = 'verified';
 CREATE INDEX IF NOT EXISTS idx_facts_sp         ON semantic_facts(subject, predicate);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON fact_proposals(status);
 CREATE INDEX IF NOT EXISTS idx_development_sig  ON development_events(task_signature);
 CREATE INDEX IF NOT EXISTS idx_development_outcome ON development_events(outcome);
 CREATE INDEX IF NOT EXISTS idx_skills_status    ON procedural_skills(status);

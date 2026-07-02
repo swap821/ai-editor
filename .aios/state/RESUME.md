@@ -1,75 +1,61 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-01T13:17Z
+Last updated: 2026-07-02T04:05Z
 
 ## Current Goal
-Execute the fusion roadmap slice-by-slice without premature birth claims, under
-one-writer discipline. Kimi is unavailable; Codex is the solo active builder for
-this combined K/C pass.
+Operator directive (2026-07-02): chemotaxis + reflex + emotion + narrative at
+100% so the organism is ready for its WONDER phase. STATUS: the four
+foundation layers are structurally complete and default-on — three verified
+slices shipped this session, all UNCOMMITTED awaiting the operator's landing.
 
-## Last Completed + Verified
-- Fusion C1 is already landed on origin/master at 53e8c74; GitHub CI run
-  28516331659 passed.
-- Local combined pass completed for K1-K4 plus C2-C4:
-  - K1: removed unused httpx2/httpcore2/truststore pins and wrote
-    docs/superpowers/specs/2026-07-01-import-graph.md with dependency triage
-    plus AST import graph evidence.
-  - K2/C4: added Bedrock/Gemini stream_chat, failover streaming, and real
-    no-tool /api/v1/chat chunk consumption with truthful lazy route metadata.
-  - K3: hardened cloud privacy filtering with configurable coding history window
-    and bounded large-blob truncation instead of all-or-nothing redaction.
-  - K4: precompiled model-selector regex hints and capped recursive facts CTE
-    traversal at 256 rows.
-  - C2/C3: default /api/generate now pauses on low calibrated alignment
-    confidence before tool loops; verified lessons/development/skill evidence
-    calibrates the confidence gate with SSE evidence.
+## Last Completed + Verified (this session, in order)
+1. `curriculum-fuzzy-aliveness` (handoff 1c2ac940…): organic-prompt learning —
+   deterministic fail-closed fuzzy curriculum matching, default on.
+   Gate: exit 0, coverage 88.83%.
+2. `layer-defaults-awaken` (handoff dced79a5…): CRAG local corrective recall +
+   narrative self-model default ON; tests/test_aliveness_defaults.py pins
+   foundations-awake AND wonder-organs-gated in both directions.
+   Gate: exit 0, coverage 88.88%.
+3. `facts-auto-extraction` (this handoff): supervised memory formation —
+   deterministic extractor over OPERATOR statements only (questions never
+   match; never file contents), capped 3/turn, proposals land in the NEW
+   quarantined fact_proposals table (schema.sql; no recall path reads it),
+   GET /api/v1/memory/facts/pending + approve/reject endpoints; approval
+   promotes THROUGH the contradiction-aware add_fact. 17 new tests.
+   Gate: exit 0, coverage 88.91%.
 
-## Verification
-- Focused slice suite passed: 102 tests across Bedrock, Gemini, privacy filter,
-  model selector, facts, failover, chat streaming, confidence gating, and events.
-- Full backend CI-equivalent gate passed:
-  .venv\Scripts\python.exe -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85
-  => coverage 88.85%, 4 skips.
-- .venv\Scripts\python.exe -m compileall -q aios tests passed.
-- git diff --check passed (only CRLF conversion warnings).
-- C3 calibration overhead probe: empty_avg_ms=0.0033, lesson_avg_ms=0.0037.
+## Four-Layer Declaration (behavioral, default path, evidence-backed)
+- CHEMOTAXIS 100%: alignment interpretation · CRAG corrective recall · typed
+  SSE spine · router — all default-on.
+- REFLEX 100%: approval gates · scope lock · verify + strength taxonomy ·
+  hardened rollback · confidence pause — all default-on, spine frozen.
+- EMOTION 100% structural: confidence gate (0.72) on the default path,
+  calibrated by verified lessons/development/skills; reflect-on-failure on.
+  Honest limit: reflection QUALITY is local-model-bound (7B) — anatomy done.
+- NARRATIVE 100% structural: 4-layer memory · consolidation · compaction ·
+  organic curriculum learning · self-model injection · supervised fact
+  formation — all default-on, all human-gated where knowledge is minted.
+- WONDER: deliberately caged (earned autonomy, council reasoning/origination,
+  cloud burst, CRAG external arms) — pinned by the contract test.
 
 ## Single Next Action
-Operator landing decision: review this combined local diff, then explicitly say
-whether to commit/push K1-K4+C2-C4 as one roadmap commit. Do not declare born.
+OPERATOR: land the three slices (suggest one commit per slice, or one
+"four-layer aliveness" commit). Then the wonder phase opens per fusion
+roadmap §4: durable cortex bus design gate FIRST (needs sign-off), then
+gated organs one at a time.
 
 ## Open Approvals / Blockers
-- Not committed or pushed yet in this closeout.
-- Frozen security spine was not touched: no changes under aios/security/*.
-- Existing untracked tool/skill artifacts remain unrelated: .agents/skills/,
-  .codex/, 500, .aios/state/CODEX_KEEPERS_HANDOFF.md,
-  .aios/state/RUFLO_MEMORY_MIGRATION_TASK.md, and tuple[list[str].
-- New untracked file from this pass: docs/superpowers/specs/2026-07-01-import-graph.md.
-
-## Active Files
-- requirements.txt
-- aios/api/main.py
-- aios/config.py
-- aios/core/bedrock.py
-- aios/core/events.py
-- aios/core/failover.py
-- aios/core/gemini.py
-- aios/core/model_selector.py
-- aios/core/privacy_filter.py
-- aios/memory/facts.py
-- tests/test_api.py
-- tests/test_bedrock.py
-- tests/test_chat.py
-- tests/test_facts.py
-- tests/test_failover.py
-- tests/test_gemini.py
-- tests/test_privacy_filter.py
-- docs/superpowers/specs/2026-07-01-import-graph.md
-- .aios/state/RESUME.md, .aios/memory/experiences.jsonl
+- All three slices UNCOMMITTED (operator commits; trees hash-pinned via
+  handoffs). Files: aios/config.py, aios/memory/{curriculum,facts,
+  fact_extraction(NEW)}.py, aios/memory/schema.sql, aios/api/main.py,
+  tests/{test_curriculum_fuzzy,test_aliveness_defaults,test_fact_extraction}.py (NEW).
+- Reviewer assigned kimi on all three (Kimi may be out — Codex/operator review).
+- Follow-up defects (reported, unfixed): env-coupled test_agent_coord handoff
+  test; tree_snapshot PermissionError on OS-locked untracked files.
 
 ## Notes Not Yet Promoted
-- /api/generate remains non-streaming for tool-capable cloud turns because
-  streamed provider deltas do not safely carry tool calls. Real streaming is now
-  consumed on no-tool chat paths.
-- Failover stream only changes provider before the first chunk; after any chunk
-  is emitted, later provider errors surface instead of mixing model outputs.
+- Deferred seams (deliberate): facts.proposed SSE beat + approval UI (frontend,
+  ships with the being's approval surface); /api/v1/chat pure-text path does
+  not extract facts (only agentic generate); embedding-based fuzzy/extraction
+  upgrades (lexical has no stemming).
+- Gate discipline: short OUT-OF-REPO --basetemp; never pipe pytest through tail.

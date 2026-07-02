@@ -107,6 +107,7 @@ from aios.memory.mistake import MistakeMemory
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.memory.embeddings import VectorIndex
 from aios.memory.episodic import EpisodicMemory
+from aios.memory.fact_extraction import extract_candidates
 from aios.memory.facts import SemanticFacts
 from aios.memory.crag import (
     CragAction,
@@ -920,6 +921,14 @@ class FactPromotionRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class FactProposalResolveRequest(BaseModel):
+    """Body for resolving one auto-extracted fact proposal (human-gated)."""
+
+    resolved_by: str = Field(..., alias="resolvedBy")
+
+    model_config = {"populate_by_name": True}
+
+
 class CurriculumTaskRequest(BaseModel):
     """Body for defining a safe curriculum task; definitions never auto-run."""
 
@@ -1429,6 +1438,65 @@ def clear_conversation_alignment_correction(
         "activeCorrection": None,
         "correctionHistory": state.correction_history(req.session_id),
     }
+
+
+@app.get("/api/v1/memory/facts/pending")
+def memory_facts_pending(
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> dict[str, Any]:
+    """Auto-extracted fact proposals awaiting human review.
+
+    Proposals are quarantined in their own table — no recall path reads them —
+    so this queue is the ONLY window through which they can become knowledge.
+    """
+    proposals = [
+        {
+            "id": int(row["id"]),
+            "subject": row["subject"],
+            "predicate": row["predicate"],
+            "object": row["object"],
+            "source": row["source"],
+            "timestamp": row["timestamp"],
+        }
+        for row in facts.pending_proposals()
+    ]
+    return {"proposals": proposals}
+
+
+@app.post("/api/v1/memory/facts/pending/{proposal_id}/approve")
+def approve_fact_proposal(
+    proposal_id: int,
+    req: FactProposalResolveRequest,
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> dict[str, Any]:
+    """Human approval promotes a proposal through the contradiction check."""
+    result = facts.approve_proposal(proposal_id, approved_by=req.resolved_by)
+    if result.reason == "contradiction":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason": result.reason,
+                "conflictId": result.conflict_id,
+                "conflictObject": result.conflict_object,
+            },
+        )
+    if result.reason == "not pending":
+        raise HTTPException(status_code=404, detail=result.reason)
+    if not result.committed:
+        raise HTTPException(status_code=422, detail=result.reason)
+    return asdict(result)
+
+
+@app.post("/api/v1/memory/facts/pending/{proposal_id}/reject")
+def reject_fact_proposal(
+    proposal_id: int,
+    req: FactProposalResolveRequest,
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> dict[str, Any]:
+    """Human rejection resolves a proposal without it ever touching recall."""
+    if not facts.reject_proposal(proposal_id, rejected_by=req.resolved_by):
+        raise HTTPException(status_code=404, detail="not pending")
+    return {"rejected": True, "proposalId": proposal_id}
 
 
 @app.post("/api/v1/memory/facts")
@@ -3611,6 +3679,18 @@ def generate(
                 )
             except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 logger.warning("Failed to record curriculum match", exc_info=exc)
+            if config.FACTS_AUTO_EXTRACT:
+                # Supervised memory formation: candidates come from the
+                # operator's own words only and land in the quarantined
+                # proposal queue — approval is the only path into recall.
+                try:
+                    for fact_subject, fact_predicate, fact_object in extract_candidates(
+                        user_text,
+                        max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
+                    ):
+                        facts.propose(fact_subject, fact_predicate, fact_object)
+                except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
+                    logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
 
         if req.swarm:
             event_source = run_swarm(

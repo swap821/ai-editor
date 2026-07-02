@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from aios import config
-from aios.memory.db import get_connection
+from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
 
 
@@ -31,6 +31,15 @@ class FactWriteResult:
     reason: str  # 'committed' | 'already present' | 'reconciled' | 'contradiction' | ...
     conflict_id: Optional[int] = None
     conflict_object: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ProposalResult:
+    """Outcome of proposing an auto-extracted fact for human review."""
+
+    proposed: bool
+    proposal_id: Optional[int]
+    reason: str  # 'proposed' | 'already proposed' | 'already known' | ...
 
 
 class SemanticFacts:
@@ -259,3 +268,104 @@ class SemanticFacts:
         """
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
+
+    # ── Auto-extracted proposals (supervised memory formation) ────────────────
+    #
+    # Proposals live in ``fact_proposals`` — a separate table no recall path
+    # reads — so an unreviewed candidate is structurally incapable of reaching
+    # a prompt. Only a named human approval moves knowledge across the boundary,
+    # and it moves through the same contradiction-aware ``add_fact`` gate.
+
+    def propose(
+        self, subject: str, predicate: str, obj: str, *, source: str = "auto-extract"
+    ) -> ProposalResult:
+        """Queue a fact candidate for human review; never enters recall.
+
+        Idempotent: an identical active fact ('already known') or identical
+        pending proposal ('already proposed') creates no new row.
+        """
+        subject = scan_and_redact(subject.strip()).scrubbed
+        predicate = scan_and_redact(predicate.strip()).scrubbed
+        obj = scan_and_redact(obj.strip()).scrubbed
+        source = scan_and_redact((source or "").strip()).scrubbed or "auto-extract"
+        if not (subject and predicate and obj):
+            return ProposalResult(False, None, "empty subject/predicate/object")
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            active = conn.execute(
+                "SELECT id FROM semantic_facts "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'active'",
+                (subject, predicate, obj),
+            ).fetchone()
+            if active is not None:
+                return ProposalResult(False, None, "already known")
+            pending = conn.execute(
+                "SELECT id FROM fact_proposals "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'pending'",
+                (subject, predicate, obj),
+            ).fetchone()
+            if pending is not None:
+                return ProposalResult(False, int(pending["id"]), "already proposed")
+            cur = conn.execute(
+                "INSERT INTO fact_proposals (subject, predicate, object, source) "
+                "VALUES (?, ?, ?, ?)",
+                (subject, predicate, obj, source),
+            )
+            return ProposalResult(True, int(cur.lastrowid), "proposed")
+
+    def pending_proposals(self, limit: int = 100) -> list[sqlite3.Row]:
+        """Return pending fact proposals, newest first."""
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            return conn.execute(
+                "SELECT * FROM fact_proposals WHERE status = 'pending' "
+                "ORDER BY id DESC LIMIT ?",
+                (max(1, int(limit)),),
+            ).fetchall()
+
+    def approve_proposal(self, proposal_id: int, *, approved_by: str) -> FactWriteResult:
+        """Promote one pending proposal THROUGH the contradiction-aware write.
+
+        A contradiction is returned, not committed, and the proposal stays
+        pending for an explicit human ``reconcile``. Idempotent under retries:
+        if the fact already landed, the proposal is still marked approved.
+        """
+        approver = (approved_by or "").strip()
+        if not approver:
+            return FactWriteResult(False, None, "approver required")
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM fact_proposals WHERE id = ?", (int(proposal_id),)
+            ).fetchone()
+        if row is None or str(row["status"]) != "pending":
+            return FactWriteResult(False, None, "not pending")
+        result = self.add_fact(
+            str(row["subject"]),
+            str(row["predicate"]),
+            str(row["object"]),
+            approved_by=approver,
+        )
+        if result.committed:
+            with get_connection(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE fact_proposals SET status = 'approved', resolved_by = ?, "
+                    "resolved_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'",
+                    (approver, int(proposal_id)),
+                )
+        return result
+
+    def reject_proposal(self, proposal_id: int, *, rejected_by: str) -> bool:
+        """Resolve a pending proposal as rejected; ``False`` if not pending."""
+        resolver = (rejected_by or "").strip()
+        if not resolver:
+            return False
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            cur = conn.execute(
+                "UPDATE fact_proposals SET status = 'rejected', resolved_by = ?, "
+                "resolved_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'",
+                (resolver, int(proposal_id)),
+            )
+            return cur.rowcount == 1

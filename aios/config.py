@@ -339,6 +339,17 @@ CURRICULUM_FUZZY_THRESHOLD: Final[float] = max(
     0.0, min(1.0, _env_float("AIOS_CURRICULUM_FUZZY_THRESHOLD", 0.5))
 )
 
+# ── Facts auto-extraction (supervised memory formation) ─────────────────────
+# After a turn, deterministically extract fact candidates from the OPERATOR'S
+# OWN statements only (never file contents or model output — memory-poisoning
+# surfaces) into the quarantined fact_proposals table. Nothing reaches recall
+# until a named human approves it through the contradiction check. Default on
+# per the operator's 2026-07-02 four-layer directive; local and model-free.
+FACTS_AUTO_EXTRACT: Final[bool] = _env_bool("AIOS_FACTS_AUTO_EXTRACT", True)
+FACTS_AUTO_EXTRACT_MAX_PER_TURN: Final[int] = max(
+    0, min(10, _env_int("AIOS_FACTS_AUTO_EXTRACT_MAX_PER_TURN", 3))
+)
+
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
@@ -420,6 +431,7 @@ __all__ = [
     "CRAG", "CRAG_UPPER", "CRAG_LOWER", "CRAG_EXTERNAL", "CRAG_CLOUD",
     "CRAG_WEBSEARCH", "CRAG_SEARCH_ENDPOINT", "CRAG_SEARCH_API_KEY", "CRAG_LLM_JUDGE",
     "CURRICULUM_FUZZY", "CURRICULUM_FUZZY_THRESHOLD",
+    "FACTS_AUTO_EXTRACT", "FACTS_AUTO_EXTRACT_MAX_PER_TURN",
     "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",

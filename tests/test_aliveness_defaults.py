@@ -27,6 +27,9 @@ def test_foundation_layers_default_awake() -> None:
     assert config.NARRATIVE_SELF_ENABLED is True
     assert config.CURRICULUM_FUZZY is True
     assert 0.0 <= config.CURRICULUM_FUZZY_THRESHOLD <= 1.0
+    # narrative — supervised memory formation (quarantined proposals)
+    assert config.FACTS_AUTO_EXTRACT is True
+    assert config.FACTS_AUTO_EXTRACT_MAX_PER_TURN >= 1
     # narrative — chat turns are indexed into memory
     assert config.INDEX_CHAT is True
 
