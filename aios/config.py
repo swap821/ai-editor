@@ -350,6 +350,21 @@ FACTS_AUTO_EXTRACT_MAX_PER_TURN: Final[int] = max(
     0, min(10, _env_int("AIOS_FACTS_AUTO_EXTRACT_MAX_PER_TURN", 3))
 )
 
+# ── Cortex bus (durable cold-path observation tier) ─────────────────────────
+# The event tier for cold, re-derivable observers (self-model rebuild, future
+# council triggers). Carries OBSERVATIONS, never authority — a decision stays
+# synchronous on the verifier's return value. Default off; W1 is pure infra
+# with no producers/consumers. See
+# docs/superpowers/specs/2026-07-02-wonder-epoch-cortex-bus-design.md.
+CORTEX_BUS: Final[bool] = _env_bool("AIOS_CORTEX_BUS", False)
+CORTEX_BUS_DB: Final[Path] = DATA_DIR / "cortex_bus.db"
+CORTEX_BUS_RETENTION_MAX: Final[int] = max(
+    100, _env_int("AIOS_CORTEX_BUS_RETENTION", 10_000)
+)
+CORTEX_BUS_RETENTION_DAYS: Final[int] = max(
+    1, _env_int("AIOS_CORTEX_BUS_RETENTION_DAYS", 7)
+)
+
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
@@ -432,6 +447,8 @@ __all__ = [
     "CRAG_WEBSEARCH", "CRAG_SEARCH_ENDPOINT", "CRAG_SEARCH_API_KEY", "CRAG_LLM_JUDGE",
     "CURRICULUM_FUZZY", "CURRICULUM_FUZZY_THRESHOLD",
     "FACTS_AUTO_EXTRACT", "FACTS_AUTO_EXTRACT_MAX_PER_TURN",
+    "CORTEX_BUS", "CORTEX_BUS_DB", "CORTEX_BUS_RETENTION_MAX",
+    "CORTEX_BUS_RETENTION_DAYS",
     "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",
