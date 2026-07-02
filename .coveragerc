@@ -1,2 +1,8 @@
 [run]
-source = aios
+# agent_coord.py is the coordination control plane (hash-pinned handoffs);
+# it has its own test suite — its coverage must be VISIBLE, not assumed.
+source = aios, agent_coord
+# Branch coverage: line-only counts `if a and b` as covered when one path
+# ran. The branch number is lower and TRUER (coverage-honesty pass,
+# operator-ordered 2026-07-02).
+branch = True

@@ -134,6 +134,27 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ['./src/test/setup.js'],
       css: false,
+      // Coverage honesty (operator-ordered 2026-07-02): the frontend had NO
+      // coverage measurement at all — 411 green tests and no number. Scope:
+      // everything under src/ is MEASURED so the truth is visible; floors are
+      // claimed only where unit tests genuinely bind behavior (the pure-logic
+      // libraries). The canvas bodies are per-frame WebGL choreography,
+      // exercised by the live browser and the operator's eye — measured,
+      // never floor-claimed until a conformance harness exists.
+      coverage: {
+        provider: 'v8',
+        reporter: ['text-summary', 'text'],
+        include: ['src/**/*.{js,jsx,ts,tsx}'],
+        exclude: ['src/**/*.test.*', 'src/test/**', 'src/main.jsx'],
+        // First-ever measurement (2026-07-02): all files 33.0% lines —
+        // superbrain/lib 76.1%, workbench 71.9%, canvas bodies on faith.
+        // Floors sit a couple points under measured truth: they catch
+        // regression, not aspiration. Raise them as the number rises.
+        thresholds: {
+          'src/superbrain/lib/**': { lines: 74, branches: 61, functions: 73, statements: 73 },
+          'src/workbench/**': { lines: 69, branches: 57, functions: 69, statements: 66 },
+        },
+      },
     },
   }
 })
