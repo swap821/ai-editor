@@ -801,7 +801,18 @@ def verify_chain(
         sig_hex = entry["signature"]
         entry_key_id = entry["key_id"]
         if sig_hex and verify_signatures and _ED25519_AVAILABLE:
-            pk = pub_keys.get(entry_key_id) if entry_key_id else None
+            # Migrated ledgers (ALTER-added key_id TEXT column) read key_id
+            # back as a STRING while pub_keys is int-keyed — coerce exactly
+            # like the tip-anchor check does (int(anchor["key_id"])), or every
+            # honestly-signed entry on a migrated ledger reads as "key
+            # unknown". Unparseable ids stay unknown → suspicious (the
+            # fail-closed posture is unchanged). §VIII operator-approved
+            # 2026-07-02; reproduced in tests/test_audit_recovery.py.
+            try:
+                entry_key = int(entry_key_id) if entry_key_id is not None else None
+            except (TypeError, ValueError):
+                entry_key = None
+            pk = pub_keys.get(entry_key) if entry_key is not None else None
             if pk is not None:
                 sig_valid = _verify_entry_signature(
                     pk,
@@ -844,6 +855,9 @@ def verify_chain(
     return ChainStatus(
         valid=chain_valid,
         total_entries=len(rows),
+        # A failed status must always NAME its failure mode — valid=False with
+        # reason=None is an alarm that explains nothing (§VIII 2026-07-02).
+        reason=None if chain_valid else "Invalid Ed25519 signatures detected.",
         head_hash=previous_hash if rows else config.AUDIT_GENESIS_HASH,
         signature_valid=chain_valid,
         invalid_signatures=tuple(invalid_sigs),
