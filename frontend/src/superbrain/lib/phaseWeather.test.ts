@@ -7,6 +7,7 @@ import {
   WONDER_CHORD,
   __resetWeatherForTests,
   getWeather,
+  hesitationFlinch,
   installWeather,
   phaseHueOf,
   tensionOf,
@@ -106,6 +107,32 @@ describe('phaseHueOf — the chord', () => {
     expect(phaseHueOf({ phase: 'wonder', confidence: null, updatedAt: 0 })).toBeNull();
     expect(phaseHueOf(calm())).toBeNull();
     expect(WONDER_CHORD).toEqual(Object.values(PHASE_HUES));
+  });
+});
+
+describe('hesitationFlinch — the held-breath envelope (B3)', () => {
+  it('peaks softly at onset and decays without oscillation', () => {
+    expect(hesitationFlinch(0, false)).toBeCloseTo(0.25, 5);
+    expect(hesitationFlinch(0.5, false)).toBeLessThan(hesitationFlinch(0.2, false));
+    expect(hesitationFlinch(0.2, false)).toBeLessThan(0.25);
+  });
+
+  it('ends by 1.1s and never fires before onset', () => {
+    expect(hesitationFlinch(1.1, false)).toBe(0);
+    expect(hesitationFlinch(5, false)).toBe(0);
+    expect(hesitationFlinch(-0.1, false)).toBe(0);
+  });
+
+  it('reduced motion gets one soft linear crossfade', () => {
+    expect(hesitationFlinch(0, true)).toBeCloseTo(0.2, 5);
+    expect(hesitationFlinch(0.3, true)).toBeCloseTo(0.1, 5);
+    expect(hesitationFlinch(0.6, true)).toBe(0);
+  });
+
+  it('stays gentler than the error wince ceiling (0.55) at every point', () => {
+    for (let t = 0; t <= 1.2; t += 0.05) {
+      expect(hesitationFlinch(t, false)).toBeLessThanOrEqual(0.25);
+    }
   });
 });
 

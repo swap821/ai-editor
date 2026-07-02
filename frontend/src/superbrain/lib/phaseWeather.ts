@@ -97,6 +97,18 @@ export function phaseHueOf(state: WeatherState): string | null {
   return PHASE_HUES[state.phase];
 }
 
+/** B3 — the hesitation beat: ONE slow dim swell, a held breath — deliberately
+ *  distinct from the error wince (agitated 22Hz throbs) and the approval
+ *  release (bright burst). Pure envelope: seconds since onset → flinch
+ *  luminance. Reduced motion gets a single soft linear crossfade. */
+export function hesitationFlinch(sinceSeconds: number, reducedMotion: boolean): number {
+  if (sinceSeconds < 0) return 0;
+  if (reducedMotion) {
+    return sinceSeconds < 0.6 ? (1 - sinceSeconds / 0.6) * 0.2 : 0;
+  }
+  return sinceSeconds < 1.1 ? Math.exp(-sinceSeconds * 2.2) * 0.25 : 0;
+}
+
 let state: WeatherState = CALM_WEATHER;
 let installed = false;
 const listeners = new Set<(next: WeatherState) => void>();
