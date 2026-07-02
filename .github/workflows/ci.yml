@@ -64,8 +64,12 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
-      - name: Unit tests
-        run: npm test
+      - name: Unit tests + coverage
+        # Runs the suite AND measures coverage, enforcing the per-directory
+        # floors in vite.config.js (src/superbrain/lib, src/workbench). Coverage
+        # was previously only available locally via `npm run test:coverage`;
+        # this makes the floors an actual CI gate, not an honor-system dial.
+        run: npm run test:coverage
 
       - name: Production build
         run: npm run build
