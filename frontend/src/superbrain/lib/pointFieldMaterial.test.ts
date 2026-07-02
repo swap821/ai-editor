@@ -17,7 +17,7 @@ describe('createPointFieldMaterial', () => {
     const m = createPointFieldMaterial();
     for (const key of ['uTime','uPixelRatio','uRefDist','uSize','uAttenK','uFogDensity','uGlowMul',
                         'uGrow','uFlow','uFlowSpeed','uCurlAmp','uArrival','uReabsorb','uIgnite','uAwaken','uStatePulse','uReabsorbGlow',
-                        'uBodyOpacity','uBreath','uPostureColor','uPostureTint']) {
+                        'uBodyOpacity','uBreath','uPostureColor','uPostureTint','uTension']) {
       expect(m.uniforms[key]).toBeDefined();
     }
   });
@@ -45,6 +45,6 @@ describe('createPointFieldMaterial', () => {
   it('emits above 1.0 for bloom and has a versioned cache key', () => {
     const m = createPointFieldMaterial();
     expect(m.uniforms.uGlowMul.value).toBeGreaterThan(1.0);
-    expect(m.customProgramCacheKey()).toContain('v19');
+    expect(m.customProgramCacheKey()).toContain('v20');
   });
 });

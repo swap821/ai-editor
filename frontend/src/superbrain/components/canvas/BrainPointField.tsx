@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { getWeather, installWeather, tensionOf } from '@/lib/phaseWeather';
 import * as THREE from 'three';
 import { samplePointField, type PointFieldSource, type PointFieldData } from '@/lib/pointFieldSampler';
 import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePointField';
@@ -179,6 +180,7 @@ export default function BrainPointField({
   };
   useEffect(() => {
     setDpr();
+    installWeather(); // B2: bind the emotional weather to the cognition bus (idempotent)
     window.addEventListener('resize', setDpr);
     return () => {
       window.removeEventListener('resize', setDpr);
@@ -378,6 +380,14 @@ export default function BrainPointField({
     // intake rings at the very bottom) RETRACTS while the being is orchestrating —
     // any work surface present — so it stops cluttering the bottom behind the active
     // surface; it unfurls back at rest. Gated on real panel presence (not phase) so
+    // EMOTIONAL WEATHER (B2): the mind's live confidence becomes field tension —
+    // calm laminar drift when sure, fine-grained shimmer when unsure. Motion
+    // only (amplitude/rate of the existing per-point shimmer); hue untouched.
+    // Reduced-motion pins it calm; stale weather self-fades (tensionOf).
+    if (u.uTension) {
+      const tensionTarget = reduce ? 0 : tensionOf(getWeather(), Date.now());
+      u.uTension.value = THREE.MathUtils.damp(u.uTension.value, tensionTarget, 1.6, delta);
+    }
     // it stays hidden even when a materialized tab sits idle.
     if (u.uSprayHide) {
       const orchestrating = getTabStoreSnapshot().tabs.some(

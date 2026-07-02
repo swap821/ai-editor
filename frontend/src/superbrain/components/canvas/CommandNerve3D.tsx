@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { getFunnelAnchor } from '@/lib/funnelAnchorBus';
+import { getWeather, installWeather, phaseHueOf } from '@/lib/phaseWeather';
 
 /**
  * CommandNerve3D — the operator's command nerve as a REAL 3D tube in the scene
@@ -38,6 +39,12 @@ const _lastBtn = new THREE.Vector3(1e9, 1e9, 1e9);
 const _lastConv = new THREE.Vector3(1e9, 1e9, 1e9);
 const REBUILD_EPS = 0.004; // world units — rebuild the tube only when an endpoint moved enough
 
+// PHASE CHORD (B2): damp targets for the intake nerve's phase tint — module
+// scope so no colors are allocated per frame. Base = the nerve's canon purple.
+const NERVE_BASE_COLOR = new THREE.Color('#b06eff');
+const NERVE_TINT_TARGET = new THREE.Color();
+const NERVE_PHASE_COLOR = new THREE.Color();
+
 interface CommandNerve3DProps {
   reducedMotion: boolean;
 }
@@ -67,6 +74,21 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
     const cordNode = cordNodeRef.current;
     const beadGroup = beadGroupRef.current;
     if (!mesh) return;
+    // PHASE CHORD (B2): the intake nerve hints the mind's ACTIVE cognitive
+    // phase — canon purple at rest, blended 35% toward the phase's tetrad hue
+    // mid-turn (phaseWeather; wonder deliberately yields no single hue). Damped
+    // so phase changes glide, never snap; reduced-motion keeps the tint too
+    // (it is a slow color, not a large translation).
+    installWeather();
+    if (tubeMatRef.current) {
+      const phaseHue = phaseHueOf(getWeather());
+      if (phaseHue) {
+        NERVE_TINT_TARGET.copy(NERVE_BASE_COLOR).lerp(NERVE_PHASE_COLOR.set(phaseHue), 0.35);
+      } else {
+        NERVE_TINT_TARGET.copy(NERVE_BASE_COLOR);
+      }
+      tubeMatRef.current.color.lerp(NERVE_TINT_TARGET, Math.min(1, delta * 2.5));
+    }
     const funnel = getFunnelAnchor();
     const sendBtn = typeof document !== 'undefined' ? document.querySelector('.gagos-send') : null;
 
