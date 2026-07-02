@@ -22,6 +22,7 @@ import {
   absorbMote,
   dismissPresentation,
   getHalo,
+  installHaloDevHooks,
   moteOrbitOffset,
   presentMote,
   releaseMote,
@@ -54,6 +55,7 @@ export default function MemoryHalo({ reducedMotion }: MemoryHaloProps) {
   useEffect(() => {
     const unsubscribe = subscribeHalo(setHalo);
     const stopPolling = startHaloPolling();
+    installHaloDevHooks();
     return () => {
       unsubscribe();
       stopPolling();
@@ -215,16 +217,25 @@ export default function MemoryHalo({ reducedMotion }: MemoryHaloProps) {
                 >
                   a memory asks to form
                 </Text>
-                {/* ABSORB node — the operator mints this belief */}
-                <group position={[0.16, -0.12, 0]}>
+                {/* ABSORB node — the operator mints this belief. The visible
+                    sphere is jewelry; the INVISIBLE hit sphere is the real
+                    touch target (the first live touch missed a 0.036 target —
+                    affordance hardened, deliberateness kept: absorb is still
+                    its own explicit node, never the mote itself). */}
+                <group position={[0.2, -0.14, 0]}>
                   <mesh
                     renderOrder={12}
                     onClick={(event) => {
                       event.stopPropagation();
                       void absorbMote(id);
                     }}
+                    onPointerOver={(event) => event.stopPropagation()}
                   >
-                    <sphereGeometry args={[0.036, 14, 14]} />
+                    <sphereGeometry args={[0.09, 10, 10]} />
+                    <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+                  </mesh>
+                  <mesh renderOrder={12}>
+                    <sphereGeometry args={[0.042, 14, 14]} />
                     <meshBasicMaterial
                       color={MOTE_COLOR}
                       transparent
@@ -235,10 +246,12 @@ export default function MemoryHalo({ reducedMotion }: MemoryHaloProps) {
                     />
                   </mesh>
                   <Text
-                    position={[0.07, 0, 0]}
-                    fontSize={0.04}
+                    position={[0.1, 0, 0]}
+                    fontSize={0.054}
                     anchorX="left"
                     color={MOTE_COLOR}
+                    outlineWidth={0.005}
+                    outlineColor="#02040a"
                     material-toneMapped={false}
                     renderOrder={12}
                   >
@@ -246,15 +259,20 @@ export default function MemoryHalo({ reducedMotion }: MemoryHaloProps) {
                   </Text>
                 </group>
                 {/* RELEASE node — declined, drifts back to the void */}
-                <group position={[0.16, -0.22, 0]}>
+                <group position={[0.2, -0.28, 0]}>
                   <mesh
                     renderOrder={12}
                     onClick={(event) => {
                       event.stopPropagation();
                       void releaseMote(id);
                     }}
+                    onPointerOver={(event) => event.stopPropagation()}
                   >
-                    <sphereGeometry args={[0.028, 12, 12]} />
+                    <sphereGeometry args={[0.09, 10, 10]} />
+                    <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+                  </mesh>
+                  <mesh renderOrder={12}>
+                    <sphereGeometry args={[0.032, 12, 12]} />
                     <meshBasicMaterial
                       color={RELEASE_NODE_COLOR}
                       transparent
@@ -265,10 +283,12 @@ export default function MemoryHalo({ reducedMotion }: MemoryHaloProps) {
                     />
                   </mesh>
                   <Text
-                    position={[0.07, 0, 0]}
-                    fontSize={0.04}
+                    position={[0.1, 0, 0]}
+                    fontSize={0.054}
                     anchorX="left"
                     color={RELEASE_NODE_COLOR}
+                    outlineWidth={0.005}
+                    outlineColor="#02040a"
                     material-toneMapped={false}
                     renderOrder={12}
                   >

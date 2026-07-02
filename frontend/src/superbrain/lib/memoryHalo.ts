@@ -224,3 +224,18 @@ export function startHaloPolling(intervalMs = 20_000): () => void {
 export function __resetHaloForTests(): void {
   state = { motes: [], presentingId: null };
 }
+
+/** Dev-only drive/inspect hooks (house pattern: __POINTFIELD, __injectApproval).
+ *  Lets the operator or a live session exercise the EXACT same code paths the
+ *  3D touch targets call — absorb/release here IS the click's path. */
+export function installHaloDevHooks(): void {
+  if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') return;
+  (window as unknown as { __HALO?: unknown }).__HALO = {
+    state: getHalo,
+    present: presentMote,
+    dismiss: dismissPresentation,
+    absorb: (id: number) => void absorbMote(id),
+    release: (id: number) => void releaseMote(id),
+    sync: () => void fetchPendingFacts().then(syncProposals),
+  };
+}
