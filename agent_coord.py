@@ -655,6 +655,11 @@ def _print(value: object) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    # The git worktree whose tree is hash-pinned on handoff/verdict and checked
+    # for dirtiness on claim/release. Defaults to this repo; override for a
+    # separate worktree (true parallel lanes) or to isolate a test from the
+    # live tree (a CLI test must not depend on the real repo staying frozen).
+    parser.add_argument("--root", type=Path, default=ROOT)
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("init")
@@ -738,12 +743,13 @@ def main(argv: list[str] | None = None) -> int:
                 ttl_minutes=args.ttl_minutes,
                 adopt_dirty=args.adopt_dirty,
                 override_routing=args.override_routing,
+                root=args.root,
             )
         elif args.command == "heartbeat":
             result = heartbeat(conn, args.agent, ttl_minutes=args.ttl_minutes)
         elif args.command == "release":
             result = release(
-                conn, args.task_id, args.agent, allow_dirty=args.allow_dirty
+                conn, args.task_id, args.agent, allow_dirty=args.allow_dirty, root=args.root
             )
         elif args.command == "message":
             result = {
@@ -759,19 +765,20 @@ def main(argv: list[str] | None = None) -> int:
                 args.recipient,
                 args.summary,
                 args.evidence,
+                root=args.root,
             )
         elif args.command == "verdict":
             result = record_verdict(
-                conn, args.task_id, args.reviewer, args.verdict, args.summary
+                conn, args.task_id, args.reviewer, args.verdict, args.summary, root=args.root
             )
         elif args.command == "inbox":
             result = inbox(
                 conn, args.agent, unread_only=args.unread_only, mark_read=args.mark_read
             )
         elif args.command == "brief":
-            result = brief(conn, args.agent)
+            result = brief(conn, args.agent, root=args.root)
         else:
-            result = status(conn)
+            result = status(conn, root=args.root)
         _print(result)
         return 0
     except CoordinationError as exc:

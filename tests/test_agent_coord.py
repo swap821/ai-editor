@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from datetime import timedelta
 from pathlib import Path
@@ -226,9 +227,26 @@ def test_messages_are_bounded_and_tasks_must_exist(conn) -> None:
         agent_coord.send_message(conn, "missing", "codex", "claude", "note", "hello")
 
 
+def _isolated_worktree(tmp_path: Path) -> Path:
+    """A throwaway one-commit git repo so handoff/verdict hash-pin a STABLE
+    tree — the CLI lifecycle must not depend on the live repo staying frozen
+    for the length of a full-suite run (the historical flake: passes in
+    isolation, fails in the full run when the real tree mutates mid-test)."""
+    root = tmp_path / "worktree"
+    root.mkdir()
+    (root / "seed.txt").write_text("seed", encoding="utf-8")
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    for cmd in (["init"], ["add", "-A"], ["commit", "-m", "seed"]):
+        subprocess.run(["git", *cmd], cwd=root, env=env, check=True,
+                       capture_output=True)
+    return root
+
+
 def test_cli_lifecycle_uses_the_same_control_plane(tmp_path: Path, capsys) -> None:
     db = tmp_path / "coordination.db"
-    base = ["--db", str(db)]
+    root = _isolated_worktree(tmp_path)
+    base = ["--db", str(db), "--root", str(root)]
 
     assert agent_coord.main([*base, "init"]) == 0
     assert agent_coord.main(
