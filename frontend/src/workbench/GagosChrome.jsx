@@ -168,6 +168,32 @@ export function extractStreamingCode(text) {
   return { code, language: open[1] || 'text' };
 }
 
+// Backend redaction markers (secret scanner / privacy filter) arrive as literal
+// "[SENSITIVE: <id>]" (and sibling "[... REDACTED]") tokens inside step notes and
+// replies. The withheld value never reaches the client — this is presentation
+// only: each token renders as a calm chip instead of a raw bracket-hash string.
+// Runs AFTER sanitizeToText, building safe React elements (never raw HTML).
+const REDACTION_TOKEN =
+  /\[(?:SENSITIVE:\s*[^\]]*|CREDENTIAL REDACTED|PATH REDACTED|FILE CONTENT REDACTED[^\]]*)\]/g;
+
+function renderWithRedactionChips(text) {
+  const value = String(text ?? '');
+  const parts = value.split(REDACTION_TOKEN);
+  if (parts.length === 1) return value;
+  const out = [];
+  parts.forEach((part, i) => {
+    if (part) out.push(part);
+    if (i < parts.length - 1) {
+      out.push(
+        <span key={`redact-${i}`} className="gagos-redaction" title="Withheld by the security scanner">
+          restricted
+        </span>,
+      );
+    }
+  });
+  return out;
+}
+
 function cleanText(text, max = 600) {
   // Strip light markdown so the caption reads as clean prose, not source.
   const compact = String(text ?? '')
@@ -920,7 +946,7 @@ export default function GagosChrome() {
                           (e.g. <script>alert(document.cookie)</script>). sanitizeToText
                           escapes all HTML entities and strips dangerous content.
                           Apply to ALL LLM output before rendering. */}
-                      {sanitizeToText(m.text)}
+                      {renderWithRedactionChips(sanitizeToText(m.text))}
                       {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
                       {m.retry ? (
                         <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>

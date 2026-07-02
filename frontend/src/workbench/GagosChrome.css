@@ -149,6 +149,23 @@
   right: 30px;
 }
 
+/* Backend redaction tokens render as a calm withheld-content chip — the value
+   itself never reaches the client; this is presentation only (never un-redacts).
+   Canon cyan family; the dashed edge reads "sealed". */
+.gagos-redaction {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: baseline;
+  color: rgba(174, 243, 255, 0.75);
+  background: rgba(123, 245, 251, 0.07);
+  border: 1px dashed rgba(123, 245, 251, 0.28);
+}
+
 /* Retry on a failed turn — a graceful way back, never a silent dead-end. */
 .gagos-retry {
   display: inline-block;
