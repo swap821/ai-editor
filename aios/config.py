@@ -316,6 +316,21 @@ ROUTER_CALIBRATION_WEIGHT: Final[float] = max(
     0.0, min(1.0, _env_float("AIOS_ROUTER_CALIBRATION_WEIGHT", 0.4))
 )
 
+# ── Developmental curriculum ─────────────────────────────────────────────────
+# Fuzzy (deterministic lexical) matching lets organically phrased turns count
+# toward curriculum tasks; exact prompt equality alone never fires outside
+# literal replays. Exact matches keep absolute priority; a fuzzy match
+# attributes ONLY when exactly one available task clears the threshold —
+# ambiguity attributes nothing (fail-closed), and mastery still requires the
+# STRONG verification floor plus held-out passes, so fuzzy widens attempts but
+# can never launder mastery. Local-only and model-free. Default on per the
+# operator's 2026-07-02 directive ("make this organism alive");
+# AIOS_CURRICULUM_FUZZY=false restores exact-only matching.
+CURRICULUM_FUZZY: Final[bool] = _env_bool("AIOS_CURRICULUM_FUZZY", True)
+CURRICULUM_FUZZY_THRESHOLD: Final[float] = max(
+    0.0, min(1.0, _env_float("AIOS_CURRICULUM_FUZZY_THRESHOLD", 0.5))
+)
+
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
@@ -396,6 +411,7 @@ __all__ = [
     "ROUTER_LLM_PICK", "ROUTER_CALIBRATION_WEIGHT",
     "CRAG", "CRAG_UPPER", "CRAG_LOWER", "CRAG_EXTERNAL", "CRAG_CLOUD",
     "CRAG_WEBSEARCH", "CRAG_SEARCH_ENDPOINT", "CRAG_SEARCH_API_KEY", "CRAG_LLM_JUDGE",
+    "CURRICULUM_FUZZY", "CURRICULUM_FUZZY_THRESHOLD",
     "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",

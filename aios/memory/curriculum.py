@@ -16,6 +16,7 @@ from aios.core.verification_strength import (
     strength_from_text,
 )
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
 
 
@@ -27,9 +28,20 @@ class CurriculumManager:
         db_path: Path = config.MEMORY_DB_PATH,
         *,
         training_passes_required: int = 2,
+        fuzzy_matching: bool | None = None,
+        fuzzy_threshold: float | None = None,
     ) -> None:
         self.db_path = db_path
         self.training_passes_required = max(training_passes_required, 1)
+        self.fuzzy_matching = (
+            config.CURRICULUM_FUZZY if fuzzy_matching is None else bool(fuzzy_matching)
+        )
+        threshold = (
+            config.CURRICULUM_FUZZY_THRESHOLD
+            if fuzzy_threshold is None
+            else float(fuzzy_threshold)
+        )
+        self.fuzzy_threshold = min(max(threshold, 0.0), 1.0)
 
     def add_task(
         self, skill_name: str, level: int, prompt: str, *, held_out: bool = False
@@ -79,7 +91,14 @@ class CurriculumManager:
         evidence: str,
         strength: VerificationStrength | None = None,
     ) -> list[int]:
-        """Apply an authoritative verifier result to exactly matching available tasks.
+        """Apply an authoritative verifier result to matching available tasks.
+
+        Exact prompt equality has absolute priority (byte-compatible with the
+        historical behavior, including the ambiguity error). When no exact row
+        exists and fuzzy matching is enabled, a deterministic lexical fallback
+        attributes the outcome iff exactly ONE available task clears the
+        relevance threshold — zero or several candidates attribute nothing, so
+        an ambiguous turn can never credit the wrong task.
 
         *strength* lets the caller supply the turn's already-resolved authoritative
         strength (the weakest passing target) so mastery cannot be laundered by a
@@ -107,6 +126,8 @@ class CurriculumManager:
             ).fetchall()
             if len(rows) > 1:
                 raise ValueError("curriculum prompt is ambiguous across available tasks")
+            if not rows and self.fuzzy_matching:
+                rows = self._fuzzy_rows(conn, prompt.strip())
             for row in rows:
                 task_id = int(row["id"])
                 conn.execute(
@@ -117,6 +138,25 @@ class CurriculumManager:
                 updated.append(task_id)
                 self._refresh_level(conn, str(row["skill_name"]), int(row["level"]))
         return updated
+
+    def _fuzzy_rows(self, conn, prompt: str) -> list:
+        """Deterministic near-match fallback when no exact prompt row exists.
+
+        Fail-closed: a zero relevance score never attributes (even at threshold
+        0.0), and more than one clearing candidate attributes nothing rather
+        than guessing between them.
+        """
+        available = conn.execute(
+            "SELECT id, skill_name, level, prompt FROM curriculum_tasks "
+            "WHERE status = 'available'",
+        ).fetchall()
+        candidates = [
+            row
+            for row in available
+            if (score := relevance(prompt, str(row["prompt"]))) >= self.fuzzy_threshold
+            and score > 0.0
+        ]
+        return candidates if len(candidates) == 1 else []
 
     def _refresh_level(self, conn, skill_name: str, level: int) -> None:
         rows = conn.execute(
