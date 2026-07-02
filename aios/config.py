@@ -181,9 +181,11 @@ SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_
 EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", False)
 EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5)
 
-# Narrative self (opt-in, default off): inject a grounded, verified-only
-# autobiographical self-model into the agent's recalled context.
-NARRATIVE_SELF_ENABLED: Final[bool] = _env_bool("AIOS_NARRATIVE_SELF", False)
+# Narrative self: inject a grounded, verified-only autobiographical self-model
+# into the agent's recalled context. Local SQLite reads only — no model calls.
+# Default on per the operator's 2026-07-02 four-layer directive (narrative
+# 100% before the wonder phase); AIOS_NARRATIVE_SELF=false switches it off.
+NARRATIVE_SELF_ENABLED: Final[bool] = _env_bool("AIOS_NARRATIVE_SELF", True)
 
 SWARM_MAX_WORKERS: Final[int] = _env_int("AIOS_SWARM_MAX_WORKERS", 4)
 SWARM_WORKER_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_WORKER_CONCURRENCY", 1)
@@ -290,12 +292,18 @@ ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().l
 ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
 
 # ── Corrective-RAG (CRAG) ────────────────────────────────────────────────────
-# Opt-in metacognitive gate on memory recall (default off → no behavior change):
-# evaluate retrieved context, drop junk, and refine the rest before it reaches the
-# prompt. Thresholds are on a [0,1] confidence scale (max of semantic cosine and
-# lexical relevance) and are operator-tunable per corpus. See
+# Metacognitive gate on memory recall: evaluate retrieved context, drop junk,
+# and refine the rest before it reaches the prompt. Deterministic and local
+# (the LLM judge and external sources below stay independently opt-in); fails
+# soft to the unrefined block on any error. Evidence for default-on: the repo's
+# own ablation measured -5.1% accuracy when refinement is removed (see
+# tests/test_crag.py docstring), and the operator's 2026-07-02 four-layer
+# directive requires chemotaxis/narrative recall at full strength.
+# AIOS_CRAG=false restores legacy unrefined recall. Thresholds are on a [0,1]
+# confidence scale (max of semantic cosine and lexical relevance),
+# operator-tunable per corpus. See
 # docs/superpowers/specs/2026-06-29-crag-for-gagos-design.md.
-CRAG: Final[bool] = _env_bool("AIOS_CRAG", False)
+CRAG: Final[bool] = _env_bool("AIOS_CRAG", True)
 CRAG_UPPER: Final[float] = _env_float("AIOS_CRAG_UPPER", 0.6)
 CRAG_LOWER: Final[float] = _env_float("AIOS_CRAG_LOWER", 0.2)
 # Slice 3 — external corrective retrieval on a low-confidence (INCORRECT/AMBIGUOUS)
