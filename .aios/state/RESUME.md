@@ -1,54 +1,58 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-02T09:45Z
+Last updated: 2026-07-02T13:50Z
 
 ## Current Goal
-Organism alive: foundations 100% (morning, pushed) + body B1–B6 (afternoon,
-pushed) + first hand-formed memory ABSORBED by the operator (fact #1 active:
-"operator — wants — the organism alive"). Coverage-honesty pass underway per
-the operator's "is coverage covering everything" audit.
+Wonder epoch, opened under discipline: ratified design → plan → W1 built. The
+cortex bus is the cold-path observation tier the wonder organs will need;
+built and proven BEFORE any organ is enabled.
 
-## Last Completed + Verified (this closeout)
-- AUDIT VERIFIER FIX `e8de86b` (RED, §VIII operator-approved): verify_chain
-  false-alarmed on MIGRATED ledgers (ALTER-added key_id TEXT column → string
-  key ids; int-keyed lookup missed → every honest signature flagged
-  suspicious; also failed statuses carried reason=None). Two strengthen-only
-  changes: anchor-style int coercion + always-named failure reasons.
-  tests/test_audit_recovery.py = 21 characterization tests (true migrated-
-  lifecycle reproduction, rotation, retro-signing, anchors, truncation,
-  tamper branches, key lifecycle). audit_logger coverage 71%→92%; suite
-  88.91%→89.65%; full gate exit 0. LIVE LEDGER NOW: valid=True,
-  signature_valid=True, tip_anchor_valid=True, 353 entries (351 unsigned
-  legacy, counted, non-fatal). The /metrics critical spam is gone by truth.
-- Orphan deleted `e8de86b`+`d5c2422`: aios/council/service_definitions.py
-  (zero importers per K1 graph AND 0% coverage — two instruments agreed);
-  resurrection-guarded in test_dead_code_hygiene.py. Every remaining aios/
-  module is reachable from the entrypoints (wired-active or wired-caged).
-
-## Coverage-Honesty Ledger (operator briefed; remaining items HIS to order)
-1. Frontend has NO coverage measurement (no provider installed) — add
-   @vitest/coverage-v8 + floor lib/ (~1h).
-2. Branch coverage off (line-only) — flip `branch = True`, accept the truer
-   lower number.
-3. agent_coord.py + canon/health root scripts outside coverage source.
-4. legacy/ tree: 26 tracked files incl. broken tests — delete or quarantine.
-5. The organism conformance test (e2e turn → every frame → every body
-   channel) — the only instrument that sees seams; first wonder-epoch item
-   alongside the Phase-4 bus design gate.
+## Last Completed + Verified
+- CORTEX BUS W1 SUBSTRATE (`1a63752`, local): durable SQLite outbox in
+  aios/runtime/cortex_bus.py. append (durable→commit→wake-hint, fail-soft cap),
+  dispatch_pending (append-order = per-entity order, mark-after-success =
+  at-least-once idempotent replay), poll_once/hint_pending (dispatcher tick,
+  lost-hint-safe), sweep (age-out + config-lowered reclaim; never sweeps
+  pending). AIOS_CORTEX_BUS default OFF — zero producers/consumers, no behavior
+  change. 13 TDD tests. TDD caught a real subtlety: append's fail-soft cap
+  bounds COUNT, so sweep's real job is the TIME window (test corrected to prove
+  it). Gate: exit 0, coverage 87.55% (branch), cortex_bus.py 95%.
+  test_aliveness_defaults.py still green (nothing enabled).
+- Process: brainstorming skill → 3 forks ratified (outbox+250ms/hint,
+  per-entity signature, self-model as W2 observer) → writing-plans skill →
+  inline TDD execution. Spec `2026-07-02-wonder-epoch-cortex-bus-design.md`,
+  plan `2026-07-02-cortex-bus-w1.md`.
 
 ## Single Next Action
-Operator's pick from the ledger above (recommended: frontend coverage
-measurement), or open the wonder epoch (bus design gate, fusion roadmap §4).
+OPERATOR: (a) push decision on the W1 commit (held per your review preference),
+and (b) go/no-go on W2 — the self-model rebuild moved off the hot path onto the
+bus (its own review gate per the spec). W2 needs its own plan (writing-plans)
+before build. Do NOT start W2 without a go.
 
 ## Open Approvals / Blockers
-- .aios/state/DEEP_AUDIT_REMAINING_REPORT.md has +48 uncommitted lines
-  predating this session — operator to review/land.
-- Port landmine unchanged (18/29 live-set divergence — do NOT run npm run
-  port until reconciled). Kimi assigned reviewer on all session handoffs.
-- Optional operator run: retroactively_sign_unsinged_entries (351 legacy
-  entries; documented attests-at-signing-time caveat).
+- W1 commit `1a63752` local, NOT pushed (awaiting operator).
+- Earlier coverage-honesty commits + design/plan docs ARE pushed (origin at
+  ffdebdd before W1). W1 sits on top locally.
+- W3 (conformance guard: authority NEVER on the bus) is designed, not built —
+  it lands with the W2 wiring, not before, since W1 has no producer to guard.
+- .aios/state/DEEP_AUDIT_REMAINING_REPORT.md still has +48 pre-session
+  uncommitted lines — operator to review/land.
+
+## Wonder-Epoch Ledger (spec §4)
+- W1 substrate — DONE (this session), default-off, reviewed-ready.
+- W2 self-model observer — NEXT (separate plan + gate; acceptance = turn
+  latency before/after + self-model fresh within ~1s).
+- W3 authority-never-on-bus conformance guard — with W2.
+- W4 facts-off-hot-path — optional, only if profiled.
+- Phase-4 organs (council/autonomy/cloud burst) — each a SEPARATE later gate.
+
+## Active Files
+- aios/runtime/cortex_bus.py (NEW) · aios/config.py · tests/test_cortex_bus.py (NEW)
+- docs/superpowers/specs/2026-07-02-wonder-epoch-cortex-bus-design.md
+- docs/superpowers/plans/2026-07-02-cortex-bus-w1.md
 
 ## Notes Not Yet Promoted
-- Dev servers may still be running: :5173 (vite) + :8000 (aios).
-- Junk empty artifact files keep appearing at repo root (shell-fragment
-  names); cleaned twice today — worth finding the generating command.
+- Gate discipline held all session: short OUT-OF-REPO --basetemp, explicit
+  exit capture, never pipe pytest through tail.
+- The cortex_bus is deliberately import-clean (only aios.config) so it never
+  entangles the memory engine or the frozen spine.
