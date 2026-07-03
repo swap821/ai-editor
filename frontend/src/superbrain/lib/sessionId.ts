@@ -139,7 +139,12 @@ export async function initSession(): Promise<string> {
     const created =
       typeof window.crypto?.randomUUID === 'function'
         ? window.crypto.randomUUID()
-        : `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        : (() => {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+            return `sb-${token}`;
+          })();
     window.sessionStorage.setItem(SESSION_STORAGE_KEY, created);
     _fallbackSessionId = created;
 
@@ -156,7 +161,14 @@ export async function initSession(): Promise<string> {
   } catch {
     // Storage blocked — return in-memory fallback (lost on refresh)
     if (!_fallbackSessionId) {
-      _fallbackSessionId = `mem-${Date.now().toString(36)}`;
+      if (typeof window.crypto?.randomUUID === 'function') {
+        _fallbackSessionId = `mem-${window.crypto.randomUUID()}`;
+      } else {
+        const bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        _fallbackSessionId = `mem-${token}`;
+      }
     }
     return _fallbackSessionId;
   }
