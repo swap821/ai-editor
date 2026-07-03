@@ -17,9 +17,12 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from aios import config
+
+if TYPE_CHECKING:
+    from aios.core.native_planner import NativePlanner
 from aios.core.confidence_filter import TaskStep, filter_steps
 from aios.core.llm import LLMClient
 from aios.memory.development import DevelopmentTracker
@@ -59,6 +62,7 @@ class Plan:
     approved: list[TaskStep]
     escalate: list[dict[str, Any]]
     calibrations: list["Calibration"]
+    native_source: Optional[Any] = None
 
     @property
     def requires_human(self) -> bool:
@@ -137,12 +141,15 @@ class Planner:
         mistakes: Optional[MistakeMemory] = None,
         development: Optional[DevelopmentTracker] = None,
         skills: Optional[SkillMemory] = None,
+        native: Optional["NativePlanner"] = None,
     ) -> None:
         self.llm = llm
         self.threshold = threshold
         self.mistakes = mistakes or MistakeMemory()
         self.development = development or DevelopmentTracker()
         self.skills = skills or SkillMemory()
+        self._native = native
+        self._last_native_source: Optional[Any] = None
 
     def _calibrate(self, goal: str, step: TaskStep) -> tuple[TaskStep, Calibration]:
         """Adjust self-reported confidence using only verified external evidence."""
@@ -227,6 +234,23 @@ class Planner:
         """
         if not goal or not goal.strip():
             raise PlannerError("Goal must be a non-empty string.")
+
+        self._last_native_source = None
+
+        # ── Sovereignty S3: native planning from verified experience ──
+        if self._native is not None:
+            native_result = self._native.try_plan(goal.strip())
+            if native_result is not None:
+                self._last_native_source = native_result
+                partition = filter_steps(native_result.steps, self.threshold)
+                return Plan(
+                    goal=goal.strip(),
+                    steps=native_result.steps,
+                    approved=partition["approved"],
+                    escalate=partition["escalate"],
+                    calibrations=[],
+                    native_source=native_result,
+                )
 
         prompt = PLAN_USER_TEMPLATE.format(goal=goal.strip())
         raw = self.llm.complete(prompt, system=PLAN_SYSTEM_PROMPT)

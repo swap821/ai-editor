@@ -592,6 +592,23 @@ async function streamTurn(
           });
           break;
         }
+        // ── Sovereignty S3: Native planner — template-based planning ──
+        case 'native_plan': {
+          const evConf = frame.data.evidence_confidence;
+          publishCognition({
+            type: 'template-plan',
+            label: 'TEMPLATE PLAN',
+            detail: `${String(frame.data.source ?? '?')} template · ` +
+                    `confidence ${typeof evConf === 'number'
+                      ? (evConf * 100).toFixed(0) + '%' : '?'}`,
+            intensity: 0.5,
+            source: 'aios',
+            phase: 'narrative',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
         default:
           break; // alignment and future frames are advisory to the scene
       }
