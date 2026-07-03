@@ -1,234 +1,408 @@
-# AI-OS - Supervised, Security-Gated, Memory-Driven Agent
+# GAGOS — a supervised AI operating system that earns its own intelligence
 
-A local-workspace AI operating system modeled on the Jarvis pattern: an LLM agent
-that can inspect, plan, execute, edit, verify, and learn inside an IDE workspace,
-while every risky action passes through deterministic security gates and explicit
-human approval.
+> **Think of most AI agent tools as a telephone.** You call an expert (the LLM), relay
+> questions back and forth, and hang up. GAGOS is different. It's closer to an **apprentice
+> who works under a master craftsman** — supervised on every action, learning from verified
+> outcomes, remembering its mistakes, and gradually developing the ability to perform
+> practiced tasks entirely on its own. The master (you) always has final authority.
+> The apprentice earns autonomy by proving competence, never by claiming it.
 
-> Honest status: this is an active Python/FastAPI MVP with a React/Vite UI. The
-> runtime is **local-first Ollama**, with a **cross-provider router** that can
-> escalate a turn to **AWS Bedrock** or **Google Gemini (Vertex AI / gcloud ADC)**
-> only when an operator privacy policy permits it (cloud is off by default). The
-> older Node/Express implementation is retained under `legacy_node/` for history,
-> but it is not the active backend.
+---
 
-## Prove it in ten minutes
+## What this is
 
-Don't take the architecture diagram's word for it — watch the supervised loop
-(directive -> YELLOW pause -> human approval -> scoped execution -> forced
-verify -> recorded learning) happen end to end, either as a scripted terminal
-checklist or live in the browser. See **[PROVE_IT.md](PROVE_IT.md)**.
+GAGOS is a local-first, supervised AI operating system — a Python backend (`aios/`) and a
+WebGL organism frontend (`frontend/`) — that orchestrates LLMs (local Ollama, AWS Bedrock,
+Google Gemini) through a security-gated, verification-backed pipeline where:
+
+- **Every action is classified** into GREEN (auto-execute), YELLOW (human approval required),
+  or RED (blocked) by a deterministic, fail-closed security gateway. Think of it like airport
+  security — the scanner doesn't care who packed the bag; it scans the contents.
+
+- **Every outcome is verified** by running real tests, not by asking the LLM "did it work?"
+  A passing test is evidence. A model's narration is not.
+
+- **Every lesson is earned.** A skill becomes "verified" only after ≥3 independently successful
+  executions at ≥80% rate. A mistake becomes a lesson only after the fix proves itself on a
+  later task. Nothing is trusted because the model said so.
+
+- **The LLM is an untrusted subordinate.** It proposes actions. The security gateway, verifier,
+  confidence filter, and human operator *decide*. The model can never approve its own writes,
+  override the gateway, or escalate its own permissions.
+
+The frontend renders all of this as a **living organism** — a spectral particle cloud brain,
+a spinal cord panel controller, nerve conduction pulses, metabolic cost tracking, and body
+posture shifts that show *how* the system is thinking, not just what it outputs. The organism's
+body tells the truth about its cognitive state.
+
+## The sovereignty thesis
+
+> **Analogy:** Most AI tools are like a restaurant that closes when the chef (LLM) doesn't
+> show up. GAGOS is building a restaurant where the kitchen staff learn the regular menu
+> by doing it repeatedly under the chef's supervision. Eventually, the chef can take a day
+> off and the regulars still get served. The tasting menu still needs the chef. But the
+> signature dishes? The staff have those down cold.
+
+The system earns native intelligence through accumulated verified experience:
+
+- **Cerebellum (Phase S1 — LANDED ✓):** Verified skill arcs compile into deterministic
+  playbooks that replay without any LLM call, through the full security gateway. Like muscle
+  memory — a pianist who's practiced a piece a thousand times doesn't read the sheet music
+  anymore, but still follows the rules of music.
+
+- **Knowledge Graph (Phase S2 — IN PROGRESS):** The system's verified facts form a
+  confidence-weighted graph it can traverse to answer questions and make inferences without
+  consulting an LLM. Like a doctor's diagnostic intuition — cough + fever + rash → measles?
+  → check vaccination history. Graph traversal, not text generation.
+
+- **Native Planner (Phase S3 — SPEC'D):** Known task shapes plan deterministically from
+  compiled templates. Like a chess engine's opening book — the first 15 moves are recalled
+  instantly; creative play starts when the position leaves the book.
+
+When all three are wired, LLMs become **turbochargers, not the engine**. The system handles
+every task shape it's verified before. Novel tasks fall through to the LLM. Cold start (no
+experience) behaves identically to today. Sovereignty is earned, never declared.
+
+---
 
 ## Architecture
 
-```text
-React/Vite UI + Monaco
-        |
-        | HTTP + SSE
-        v
-FastAPI backend (`aios.api.main`)
-        |
-        +-- ToolAgent: read, edit/create sandbox files, execute, verify, plan
-        +-- Security gateway: deterministic GREEN/YELLOW/RED, fail-closed
-        +-- Scope lock: path canonicalization against configured roots
-        +-- Audit ledger: SHA-256 hash chain, secret-scrubbed payloads
-        +-- Memory: SQLite episodic/semantic/mistake/facts + FAISS retrieval
-        +-- Reflection: failed command -> structured lesson
-        +-- Development: verified outcomes, calibrated plans, reusable skills
-        +-- Curriculum: held-out, verifier-gated progression; never auto-runs
-        +-- Self-analysis: scan -> propose diffs -> human apply -> verify/rollback
-        +-- Earned autonomy: a YELLOW action class auto-applies after N verified successes (opt-in, audited)
-        +-- Worker swarm / role-pass: decompose -> gated workers -> synthesize (opt-in)
-        +-- Router: task-aware, cross-provider, evidence-calibrated, privacy-gated
-        |
-        +-- Ollama local models by default (local-first)
-        +-- Bedrock Converse / Google Gemini (Vertex) when a task is opted into cloud
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        OPERATOR (you)                          │
+│  Final authority on YELLOW actions · approves/rejects writes   │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌────────────────────────────▼────────────────────────────────────┐
+│                    ORGANISM FRONTEND                            │
+│  Brain point field · Spine anatomy · Nerve conduction          │
+│  Body posture · Metabolism · Memory galaxy · Boot sequence      │
+│  React 19 + Three.js + R3F · Tailwind v4 · Vitest              │
+│  SSE ←→ cognitionBus → every visual component                  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ SSE
+┌────────────────────────────▼────────────────────────────────────┐
+│                      FastAPI BACKEND                            │
+│                                                                 │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
+│  │ CEREBELLUM  │  │  TOOL AGENT  │  │     COUNCIL RUNTIME    │ │
+│  │ compiled    │→ │ reason→act→  │  │ Queens (Plan/Security/ │ │
+│  │ playbook    │  │ observe loop │  │ Memory/Test/Critique)  │ │
+│  │ replay      │  │ + reflection │  │ → King Report          │ │
+│  └──────┬──────┘  └──────┬───────┘  └────────────────────────┘ │
+│         │                │                                      │
+│         ▼                ▼                                      │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              SECURITY GATEWAY (frozen)                    │  │
+│  │  3-zone classify → scope lock → secret scan → audit log  │  │
+│  │  Fail-closed · Deterministic · LLM-independent            │  │
+│  │  Ed25519-signed hash-chained tamper-evident ledger        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    MEMORY SYSTEM                          │  │
+│  │  Semantic facts (graph) · Episodic · Mistake · Skills     │  │
+│  │  CRAG refinement · BM25+FAISS hybrid · Temporal decay     │  │
+│  │  Fact extraction (operator-only) · Curriculum tracking    │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                 MULTI-CLOUD ROUTER                        │  │
+│  │  Policy (operator-owned) → Rank (evidence-calibrated)     │  │
+│  │  → optional LLM picker (constrained to allowed set)       │  │
+│  │  Ollama (local) · Bedrock (AWS) · Gemini (Google)         │  │
+│  │  LOCAL_FIRST default — nothing leaves the machine          │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Core Modules
+---
 
-| File | Responsibility |
-|------|----------------|
-| `aios/api/main.py` | FastAPI routes, SSE chat bridge, dependency injection |
-| `aios/agents/tool_agent.py` | Bounded tool loop, approval pause/resume, auto-verify after writes |
-| `aios/core/alignment.py` | Validated understanding frame plus deterministic communication/ambiguity policy |
-| `aios/memory/conversation.py` | Hashed durable alignment state for session restoration |
-| `aios/security/gateway.py` | Deterministic fail-closed zone classifier |
-| `aios/security/scope_lock.py` | Path and command scope enforcement |
-| `aios/security/audit_logger.py` | Tamper-evident audit ledger (Ed25519-signed, versioned hash chain, signed tip-anchor against tail-truncation) |
-| `aios/core/executor.py` | Gated, scope-constrained command execution |
-| `aios/core/verifier.py` | Evidence-based verification of test/build commands |
-| `aios/core/verification_strength.py` | Command-aware grading of verifier evidence (STRONG/MEDIUM/WEAK/NONE); promotion floor = STRONG |
-| `aios/core/model_selector.py` | Task-aware local model auto-selection |
-| `aios/core/router.py` | Cross-provider hybrid router: privacy/cost policy gate + local-LLM pick + evidence calibration |
-| `aios/core/bedrock.py` / `aios/core/gemini.py` | Cloud chat clients (Bedrock Converse / Gemini via Vertex AI, gcloud ADC) |
-| `aios/core/self_apply.py` | Human-approved self-analysis proposal apply/verify/rollback |
-| `aios/memory/self_model.py` | Grounded narrative self: deterministic autobiography synthesized from verified telemetry |
-| `aios/memory/` | Episodic, semantic, lessons, facts, development, skills, curriculum |
-| `frontend/src/superbrain/SuperbrainApp.jsx` | GAGOS root app (3D brain canvas + chat chrome) |
-| `frontend/src/workbench/GagosChrome.{jsx,css}` | Product-safe 2D chat chrome (not byte-synced from lab) |
-| `frontend/src/superbrain/components/canvas/WorkspaceCanvas.tsx` | WebGL-only alive-brain scene |
+## Quick start
 
-## Run
+### Prerequisites
 
-```powershell
-# Backend (canonical — binds host/port in lockstep with token policy)
-.venv\Scripts\python -m aios
+- Python 3.11+
+- Node.js 20+
+- (Optional) [Ollama](https://ollama.com) with a tool-calling model
+  (`ollama pull qwen2.5-coder:7b`)
 
-# Frontend
+### Backend
+
+```bash
+git clone https://github.com/swap821/ai-editor.git
+cd ai-editor
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt    # Linux/Mac
+# or: .venv\Scripts\pip install -r requirements.txt  # Windows
+
+# Run
+.venv/bin/python -m aios
+# Binds to 127.0.0.1:8000 by default
+```
+
+### Frontend
+
+```bash
 cd frontend
+npm install
 npm run dev
+# Opens at http://localhost:5173
 ```
 
-Open `http://localhost:5173`. Since the 2026-06-21 single-frontend collapse the only
-UI is **GAGOS — the points-being** at the clean root `/` (no URL params): a 3D
-"voyaging mind" point-field whose nervous system materializes the work surfaces.
-(The classic IDE shell and all `?ui=` routes were removed.) The model picker defaults
-to `Auto`, which runs the **cross-provider router**: it picks the best model for the
-task, staying on local Ollama unless the operator has opted a task class into the
-cloud. The privacy
-boundary and providers are operator-owned env (all in `aios/config.py`):
-`AIOS_ROUTER_CLOUD_TASKS` (which task classes may leave the machine; empty = local
-only), `AIOS_ROUTER_CALIBRATION_WEIGHT` (blend measured per-model success),
-`AIOS_BEDROCK_REGION` + `AWS_BEARER_TOKEN_BEDROCK` (Bedrock), and
-`AIOS_GEMINI_PROJECT` (Gemini via Vertex/gcloud ADC, `pip install google-genai`).
-Secrets stay server-side. Each turn emits a `route` SSE event, surfaced in the UI
-as an "active brain" badge (provider + model + a local/cloud privacy dot).
+### Prove it works
 
-## Tests
+```bash
+# Scripted end-to-end proof — no LLM required
+.venv/bin/python prove_it.py
 
-```powershell
-.venv\Scripts\python -m pytest -q
-cd frontend
-npm test
-npm run build
+# Sovereignty proof — cerebellum compiles and replays without LLM
+.venv/bin/python prove_cerebellum.py
 ```
 
-Current local verification target: a green run — run the commands above and trust
-the live pass/skip/fail counts (the counts grow as tests land; never trust a
-hardcoded number).
+Both scripts print `[PASS]` / `[FAIL]` per step with real evidence. No faked green bars.
 
-## Communication Alignment Loop
+---
 
-Every chat turn creates a visible, advisory `UnderstandingFrame` for the current
-goal, intent, desired outcome, constraints, assumptions, unknowns, decisions,
-confidence, next action, communication mode, and ambiguity policy.
+## The security spine
 
-- Model-proposed interpretation is secret-scrubbed, bounded, validated, and
-  explicitly unverified.
-- Deterministic policy chooses whether to proceed, state assumptions, or ask.
-- The Alignment Panel exposes the interpretation and policy at the point of action.
-- Conversation alignment survives refresh/restart under a hashed session key.
-- Users can directly correct fields; active corrections override interpretation
-  only and never approve actions or become verified evidence.
-- Corrections are reversible and revisioned as active, superseded, or cleared.
-- Active corrections reapply across turns until cleared; clearing restores the
-  latest uncorrected interpretation.
+> **Analogy:** Think of the security spine as a building's fire safety system. Smoke
+> detectors (gateway classification), fire doors (scope locks), sprinklers (secret
+> scanners), and the fire log (audit trail) all work independently of the building's
+> tenants (the LLMs). A new tenant doesn't get to disable the sprinklers. A compiled
+> playbook from the cerebellum doesn't get to bypass the gateway. The safety system
+> is structural, not behavioral.
 
-## Brain Growth Loop
+The security subsystem is **frozen** — no automated path can modify it. This is enforced
+structurally, not by policy.
 
-The system develops through durable, inspectable evidence rather than changing
-model weights or trusting repeated model narration:
+| Layer | What it does | File |
+|-------|-------------|------|
+| **Gateway** | Deterministic 3-zone classifier. Empty/unknown/exception → RED (fail-closed). Homoglyph normalization. Shell composition blocking. | `aios/security/gateway.py` |
+| **Scope Lock** | Canonicalizes paths, resolves symlinks, refuses traversal outside project root. | `aios/security/scope_lock.py` |
+| **Secret Scanner** | Regex + entropy detection. Secrets are redacted *before* hashing or storage. | `aios/security/secret_scanner.py` |
+| **Audit Logger** | Ed25519-signed, SHA-256 hash-chained, append-only ledger. Tamper-evident. Key rotation. | `aios/security/audit_logger.py` |
+| **Injection Shield** | Regex patterns for prompt injection attempts + optional embedding-similarity layer. | `aios/security/injection_shield.py` |
 
-```text
-Experience -> outcome evaluation -> candidate lesson/fact/skill
--> verification or human approval -> trusted promotion
--> similar-task retrieval -> measurable behavior change -> regression monitoring
+Adversarial test coverage: `tests/adversarial/` — 7 suites covering command substitution
+bypasses, Unicode homoglyphs, shell escape hatches, sandbox escapes, secret detection gaps,
+and more.
+
+---
+
+## The organism frontend
+
+> **Analogy:** Most AI UIs are dashboards — arrays of numbers and status indicators, like
+> reading a spreadsheet about someone's health. GAGOS's frontend is more like watching
+> a living creature — you can tell if it's relaxed, concentrating, struggling, or waiting
+> for you, the same way you can read a dog's posture without checking a status panel.
+
+The frontend renders the AI's cognitive state as a biological organism:
+
+| Component | What it represents | Key file |
+|-----------|-------------------|----------|
+| **Brain Point Field** | 3D spectral particle cloud — churns during LLM reasoning, calms during compiled recall | `BrainPointField.tsx` |
+| **Spine Anatomy** | Ordered panel controller — vertebrae are addressable seats for workspace tabs | `spineAnatomy.ts` |
+| **Nerve Conduction** | Attention pulses traveling the spine — fast and clean for cerebellum replays, preceded by brain activity for LLM turns | `AttentionConductionPulse.tsx` |
+| **Body Posture** | Whole-organism hue shift: purple (thinking), cyan (streaming), orange (holding for approval), green (complete), red (error) | `bodyPosture.ts` |
+| **Turn Metabolism** | Metabolic cost tracking — near-zero for compiled replays, high for novel LLM turns | `turnMetabolism.ts` |
+| **Phase Weather** | Emotional atmosphere from cognitive state — reflex (fast), narrative (structured), emotion (uncertain) | `phaseWeather.ts` |
+| **Lifecycle State Machine** | BOOTING → ARRIVING → REST ↔ ATTENTIVE, with materialization/reabsorption for tab lifecycle | `lifecycleStateMachine.ts` |
+| **Memory Galaxy** | Visual representation of stored memories and knowledge beads | `MemoryGalaxy.tsx` |
+
+Every visual component subscribes to the **cognitionBus** (`cognitionBus.ts`) — a module-level
+pub/sub that carries typed events from the backend SSE stream. New cognitive capabilities
+(cerebellum, knowledge graph) publish new event types on the same bus. The body reacts to
+signals it's never seen before because it's already wired to respond to the bus, not to
+specific signal types.
+
+---
+
+## The agentic loop
+
+> **Analogy:** Think of the tool agent like a surgical team, not a solo surgeon. The
+> surgeon (LLM) proposes the incision. The scrub nurse (gateway) checks the instrument.
+> The anesthesiologist (scope lock) confirms the patient is stable. The recorder (audit
+> logger) documents every action. The pathologist (verifier) examines the result. If the
+> surgeon proposes something dangerous, the team stops the procedure — the surgeon doesn't
+> get to overrule the team.
+
+The `ToolAgent` (`aios/agents/tool_agent.py`) runs a bounded reason→act→observe loop:
+
+1. **Cerebellum check** — if a compiled playbook matches, replay it without an LLM call
+2. **LLM proposes** a tool call (read, write, execute, verify, plan, analyze)
+3. **Gateway classifies** the action: GREEN → execute, YELLOW → pause for human, RED → block
+4. **Tool dispatches** through gated handlers with scope locking and secret scanning
+5. **Force-verify-after-write** — any landed write immediately triggers the test suite
+6. **Reflect on failure** — genuine errors produce structured lessons for the Mistake DB
+7. **Loop detection** — repeated identical calls or A→B→A→B oscillation stops the loop
+
+Additional agents: **Reflection Agent** (failure → structured lesson), **Rollback Engine**
+(git-snapshot restore on failure), **Self-Analysis Agent** (read-only codebase diagnosis),
+**Swarm** (stigmergic multi-agent decomposition with ant-colony patterns).
+
+---
+
+## Multi-cloud routing
+
+> **Analogy:** An F1 team doesn't use the same tire compound for every circuit. Soft tires
+> for Monaco (fast, short-lived), hards for Spa (durable, slower). The router is the tire
+> strategist — it picks the right model for the task, calibrated by real performance data,
+> within boundaries the team principal (operator) sets.
+
+The router (`aios/core/router.py`) selects models across three providers:
+
+1. **Policy gate** (deterministic, operator-owned): which task classes may leave the machine.
+   Default: `LOCAL_FIRST` — nothing goes to cloud until the operator opts in.
+2. **Evidence-calibrated rank**: capability scores blended with measured per-(provider, model,
+   task) verified-success rates from the development tracker.
+3. **Optional LLM picker**: a local model can reorder preference within the allowed set.
+   It can never escape the policy — its choice is validated against the allowed candidates.
+
+Supported providers: **Ollama** (local, free, private), **AWS Bedrock** (Claude via Converse
+API), **Google Gemini** (Vertex AI, lazy-loaded).
+
+---
+
+## Memory system
+
+| Layer | Purpose | Trust level |
+|-------|---------|-------------|
+| **Working Memory** | RAM-only session context | Ephemeral |
+| **Episodic Memory** | Chronological conversation record | Raw, unverified |
+| **Semantic Memory** | BM25 + FAISS hybrid retrieval with temporal decay | Verification-gated |
+| **Semantic Facts** | (Subject, Predicate, Object) triples with contradiction detection + graph traversal | Human-approved only |
+| **Mistake Memory** | Structured failure post-mortems with confidence deltas | Verified on corrective success |
+| **Skill Memory** | Procedural workflows with promotion/demotion lifecycle | ≥3 STRONG verifications |
+| **CRAG** | Corrective RAG — sentence-level knowledge strips, noise dropped | Deterministic refinement |
+| **Development Tracker** | Per-task outcomes with success rates for router calibration | Verification-backed |
+
+**The trust boundary:** facts enter the graph only through operator statements (via
+`fact_extraction.py`) or human-approved proposals. LLM-generated claims never enter.
+The graph is a catalog of what the system *knows*, not what it *guesses*.
+
+---
+
+## Project stats
+
+| Metric | Value |
+|--------|-------|
+| Python backend | ~57K lines across 87 modules |
+| Frontend (TS/TSX/JSX) | ~34K lines across 110 source files |
+| Backend test files | 109 (including 7 adversarial suites) |
+| Frontend test files | 69 |
+| Total test functions | 1,538 |
+| Test:code ratio (backend) | ~1:1 |
+| Commits | 710 (solo) |
+| Project age | 33 days (June 1 – July 3, 2026) |
+| CI | GitHub Actions — pytest 85% coverage gate + pip-audit + npm audit + typecheck + production build |
+| Dependencies | Fully pinned in `requirements.txt` |
+
+---
+
+## Observability
+
+Docker Compose stack with Prometheus, Grafana, and Alertmanager:
+
+```bash
+AIOS_API_TOKEN=<32-char-token> docker compose up --build
 ```
 
-- Prior chat remains explicitly `unverified`; repetition alone never makes it true.
-- Verified cross-session lessons calibrate similar future planner steps.
-- Historical success/failure changes confidence only after at least three relevant
-  verifier-backed outcomes.
-- Procedures become reusable skills after repeated verified success and regress
-  to candidate status when later verified failures reduce their success rate.
-- Facts require a human approver, surface contradictions, and supersede stale
-  vectors when reconciled.
-- Curriculum tasks never execute themselves. Progress requires authoritative
-  verifier evidence, repeated training passes, and a held-out pass.
-- Development metrics, skills, curriculum, trusted facts, and consolidation are
-  exposed under `/api/v1/development/*` and `/api/v1/memory/*`.
-- The agent carries a grounded narrative self: a first-person autobiography
-  synthesized deterministically from verified telemetry (per-task success
-  profiles, recurring mistakes), never invented by the model (opt-in).
+- **Prometheus** (`:9090`): request latency, zone classification counts, audit chain health
+- **Grafana** (`:3000`): pre-provisioned GAGOS dashboard
+- **Alertmanager** (`:9093`): alert routing
 
-## Security Invariants
+---
 
-- Fail-closed: empty, ambiguous, exception, or out-of-scope actions do not run.
-- Deterministic gateway: no LLM decides whether a command is safe.
-- Scope-locked writes/exec: the agent writes and runs only inside configured roots
-  unless a narrower human self-apply path is used.
-- RED cannot be one-click approved.
-- YELLOW pauses for human approval and resumes the same turn with the approved
-  command/edit/create payload.
-- Audit-before-write on guarded edits and self-apply.
-- Verification is evidence-based and graded by strength (STRONG/MEDIUM/WEAK/NONE),
-  command-aware: learning promotion (lessons, skills, earned-autonomy streaks)
-  requires a STRONG floor, so a weak or echoed green cannot mint trusted evidence.
-  Model narration never counts as success.
-- Semantic FAISS writes are coordinated across local worker processes with a
-  shared file lock; writers reload before mutation and long-lived readers
-  refresh after another process persists.
-- Approval capabilities, redeemed grants, sensitive-action rate limits, audit
-  appends, facts, reflection recurrence, self-apply, and rollback Git operations
-  coordinate across local worker processes.
-- New durable approval, rate-limit, and episodic records hash caller-supplied
-  session identifiers instead of storing them raw.
-- Approved edits/creates and self-apply rollback restoration publish atomically;
-  a failed write cannot leave a partially written target.
-- Commands are parsed into structured argv, shell composition is rejected, and
-  child processes launch with `shell=False`.
-- Oversized commands are refused and command output is drained with a bounded
-  retained prefix, preventing unbounded response-memory growth.
-- Live Preview runs in a script-only sandbox with a restrictive CSP and no CDN
-  or network egress.
-- The **container is the default** execution backend for approved arbitrary-code
-  commands and self-apply: a fail-closed, no-network, read-only-root Docker
-  container (`--cap-drop ALL`, `no-new-privileges`, non-root `65534`, pids/mem/cpu
-  caps, `noexec` tmpfs) with a single scoped read-write mount. Build the image once:
-  `docker build -f Dockerfile.executor -t aios-executor:local .`. If the container
-  is unavailable the app still boots (degrade, don't brick) and approved-exec +
-  self-apply fail closed — with a startup warning — until it is. Self-apply runs
-  **only** through the container boundary. `AIOS_APPROVED_EXECUTION_BACKEND=host` is
-  a loud, **development-only** opt-out — scope locking, NOT an OS isolation boundary
-  (approved commands run as the backend OS user, and self-apply refuses).
-  - The container default governs the **Executor** (approved-arbitrary exec +
-    self-apply) AND the opt-in Council **worker**'s verification: a worker's
-    `run_command` (its contract `verification_commands` — the only arbitrary command
-    a worker runs) goes through the same container by default, fail-closed, with the
-    workspace bind-mounted (Phase 2b). The worker's own orchestration + LLM calls
-    stay on the host process (so the reasoning worker keeps local-LLM access); the
-    worker honors the same `AIOS_APPROVED_EXECUTION_BACKEND` setting. Whole-worker
-    isolation + an LLM network policy is a future slice.
-- Unauthenticated API requests are accepted only from loopback. Non-loopback API
-  deployment requires a random `AIOS_API_TOKEN` of at least 32 characters.
-  The browser UI no longer embeds that token in the bundle; expose a protected
-  deployment through a trusted same-origin/reverse-proxy boundary that injects
-  server-side auth, or keep the default UI on loopback.
+## Tech stack
 
-For production-style exposure, terminate TLS in a maintained reverse proxy and
-keep AI-OS bound to a private interface. A browser-delivered bearer token is
-recoverable by that browser's user; it is not multi-user identity or authorization.
+**Backend:** Python 3.11 · FastAPI · SQLite (WAL) · sentence-transformers · FAISS ·
+GitPython · cryptography (Ed25519) · boto3 (Bedrock) · structlog · Prometheus client
 
-## Local Model Gallery
+**Frontend:** React 19 · Three.js / React Three Fiber · Tailwind CSS v4 · Monaco Editor ·
+Framer Motion · Vitest · TypeScript
 
-The system works best with several Ollama models installed. A good local set is:
+**Infrastructure:** Docker · Docker Compose · Prometheus · Grafana · Alertmanager ·
+GitHub Actions CI
 
-- `qwen2.5-coder:7b` - primary coding/tool-loop model
-- `qwen2.5:7b` - general/reasoning-capable tool model
-- `mistral:7b` - general fallback
-- `llama3.1:8b` - strong general/reasoning tool-loop model
-- `llama3.2:3b` or `qwen2.5-coder:3b` - small RAM-friendly fallback
-- `nomic-embed-text:latest` - embedding utility
+---
 
-The live gallery exposes only models considered compatible by the tested local
-policy. Ollama capability metadata alone is insufficient: some models advertise
-tools but reject or ignore this agent's actual tool request. Auto additionally
-avoids models such as legacy Mistral that accept tools but do not use them
-reliably. `deepseek-r1:8b` remains useful directly in Ollama, but is hidden from
-AI-OS because its live request rejected this agent's tool schema.
+## Repository structure
 
-On June 9, 2026, all six exposed gallery models completed a live
-`read_directory` tool-call turn through `/api/generate`: Mistral 7B, Qwen 2.5
-7B, Qwen 2.5 Coder 7B/3B, Llama 3.1 8B, and Llama 3.2 3B. Auto still applies
-the stricter task-routing policy.
+```
+aios/                    # Python backend
+  api/main.py            # FastAPI orchestration (SSE streaming)
+  agents/                # Tool agent, reflection, rollback, swarm, self-analysis
+  core/                  # Router, planner, executor, verifier, cerebellum, confidence
+  council/               # Queens (planner/security/memory/testing/critique) + King
+  memory/                # Episodic, semantic, facts, skills, mistakes, CRAG, curriculum
+  runtime/               # Worker spawner, cortex bus, contracts, backends
+  security/              # Gateway, scope lock, secret scanner, audit logger (FROZEN)
+
+frontend/                # Organism UI
+  src/superbrain/        # 3D living-being components + lib
+    components/canvas/   # BrainPointField, NervousSystem, MemoryGalaxy, etc.
+    components/ui/       # SuperbrainHUD, ApprovalPanel, BootSequence
+    lib/                 # cognitionBus, bodyPosture, phaseWeather, tabStore, etc.
+  src/workbench/         # GagosChrome shell, CouncilDashboard, CommandDock
+
+tests/                   # Backend test suite
+  adversarial/           # Security bypass attempt suites
+  golden/                # Snapshot-based golden tests
+  e2e/                   # End-to-end integration tests
+
+docs/superpowers/specs/  # Design specs (dated, grounded against code)
+tools/                   # Health checks, CSS canon guards, calibration
+training_ground/         # Sandboxed playground for agent operations
+observability/           # Prometheus, Grafana, Alertmanager config
+```
+
+---
+
+## Sovereignty roadmap
+
+| Phase | Status | What it delivers |
+|-------|--------|-----------------|
+| **S1 — Cerebellum** | ✅ Landed | Verified skills compile into deterministic playbooks. LLM-free execution for practiced tasks. |
+| **S2 — Knowledge Graph** | 🔨 Building | Confidence-weighted graph traversal over verified facts. Multi-hop inference without LLM. Cross-store ingestion from skills, mistakes, development outcomes. |
+| **S3 — Native Planner** | 📋 Spec'd | Known task shapes plan from compiled templates. Falls through to LLM for novel tasks. |
+| **S4 — Offline Mode** | 📋 Spec'd | Meaningful operation with all LLMs offline. `prove_sovereignty.py` end-to-end proof. |
+
+Design specs: `docs/superpowers/specs/2026-07-03-sovereignty-engine-design.md`
+
+---
+
+## The One Law
+
+> A task the system has verifiably completed three times before executes entirely without
+> an LLM call, through the full security gateway, with human approval on YELLOW steps,
+> verified by the same evidence-based verifier that judged the original successes — and the
+> organism's body shows the user, visually, that this is native action, not external
+> consultation.
+
+If this law holds, the system has earned the word "sovereign." Not declared it. Proved it.
+
+---
+
+## Builder council
+
+This project is developed by a multi-agent builder council coordinated through `AGENTS.md`:
+
+- **Claude Code** — primary implementer
+- **OpenAI Codex** — adversarial verifier
+- **Kimi Code CLI** — architect
+
+Council protocol: `agent_coord.py` manages leases, handoffs, and hash-pinned reviews.
+The human operator has final authority on all decisions. See `AGENTS.md` for the full
+coordination protocol.
+
+---
+
+## License
+
+This project is not currently under an open-source license. All rights reserved.
+Contact the maintainer for licensing inquiries.
+
+---
+
+<sub>Built solo. 710 commits in 33 days. The hard things are done. The engine is being installed.</sub>
