@@ -52,6 +52,7 @@ from aios.agents.swarm import run_swarm
 from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
+from aios.core.cerebellum import Cerebellum
 from aios.core.executor import (
     Executor,
     approved_runner_from_config,
@@ -771,6 +772,13 @@ def get_semantic_facts() -> SemanticFacts:
 def get_autonomy() -> AutonomyLedger:
     """Provide the earned-autonomy ledger (opt-in; off => never grants autonomy)."""
     return AutonomyLedger()
+
+
+def get_cerebellum() -> Cerebellum:
+    """Provide the compiled-experience engine (sovereignty S1)."""
+    cb = Cerebellum()
+    cb.try_compile_all()
+    return cb
 
 
 def get_curriculum_manager() -> CurriculumManager:
@@ -3274,6 +3282,7 @@ def generate(
     swarm_patterns: SwarmPatternMemory = Depends(get_swarm_pattern_memory),
     autonomy: AutonomyLedger = Depends(get_autonomy),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
+    cerebellum: Cerebellum = Depends(get_cerebellum),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
     alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
@@ -3621,6 +3630,9 @@ def generate(
                 # pause's convo tail for this session, or None. Model context
                 # only -- carries no authority of its own.
                 resume_tail=resume_tail,
+                # Sovereignty S1: compiled-experience engine. Matches verified
+                # skill arcs and replays them through _dispatch without an LLM.
+                cerebellum=cerebellum,
                 **overrides,
             )
 
@@ -3907,6 +3919,16 @@ def generate(
                 # Surface it so the brain can show itself acting on its own
                 # earned trust (still gated, audited, and revocable).
                 yield sse("earned_autonomy", ev)
+            elif kind.startswith("cerebellum_"):
+                # Sovereignty S1: the cerebellum replayed a compiled playbook.
+                # Forward all cerebellum events to the SSE stream so the
+                # organism body renders the reflex phase (orange, low
+                # metabolism, no brain churn).
+                if kind == "cerebellum_step_done":
+                    workflow_steps.append(
+                        f"{ev.get('tool', '?')}: cerebellum replay"
+                    )
+                yield sse(kind, ev)
             elif kind == "swarm_plan":
                 # Plan event from the ant-colony; used internally for pattern
                 # recording and also surfaced to the UI so the HUD can render it.

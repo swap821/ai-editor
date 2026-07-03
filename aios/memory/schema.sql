@@ -225,6 +225,26 @@ CREATE TABLE IF NOT EXISTS procedural_skills (
     superseded_by       INTEGER                     -- lineage pointer for consolidated fragments
 );
 
+-- == Compiled playbooks (Cerebellum — sovereignty engine S1) ================
+-- Deterministic tool-call sequences compiled from verified procedural skills.
+-- A compiled playbook replays without an LLM call, through the full security
+-- gateway.  Decompiled after consecutive replay failures.
+CREATE TABLE IF NOT EXISTS compiled_playbooks (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    compiled_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+    skill_id              INTEGER NOT NULL REFERENCES procedural_skills(id),
+    goal_pattern          TEXT NOT NULL,
+    signature_v2          TEXT,
+    steps_json            TEXT NOT NULL,
+    status                TEXT NOT NULL DEFAULT 'compiled'
+                          CHECK (status IN ('compiled','decompiled')),
+    replay_count          INTEGER NOT NULL DEFAULT 0,
+    consecutive_failures  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_compiled_skill ON compiled_playbooks(skill_id);
+CREATE INDEX IF NOT EXISTS idx_compiled_status ON compiled_playbooks(status);
+
 -- == Safe curriculum =========================================================
 -- Curriculum tasks never auto-execute. Verified live outcomes matching a task
 -- update its evidence; a level is mastered only after training passes plus a

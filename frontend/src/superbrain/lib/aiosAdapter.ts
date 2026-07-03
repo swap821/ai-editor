@@ -495,6 +495,72 @@ async function streamTurn(
           });
           break;
         }
+        // ── Sovereignty S1: Cerebellum — compiled experience replay ──────
+        case 'cerebellum_match': {
+          publishCognition({
+            type: 'reflex-recall',
+            label: 'COMPILED RECALL',
+            detail: String(frame.data.goal ?? 'practiced sequence'),
+            intensity: 0.6,
+            source: 'aios',
+            phase: 'reflex',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
+        case 'cerebellum_step': {
+          publishCognition({
+            type: 'reflex-recall',
+            label: 'MOTOR MEMORY',
+            detail: `${String(frame.data.tool ?? '?')} · step ${frame.data.step_index ?? '?'}/${frame.data.step_count ?? '?'}`,
+            intensity: 0.4,
+            source: 'aios',
+            phase: 'reflex',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
+        case 'cerebellum_step_done': {
+          publishCognition({
+            type: 'knowledge-acquired',
+            label: 'REFLEX STEP DONE',
+            detail: `${String(frame.data.tool ?? '?')} · ${String(frame.data.output ?? '').slice(0, 80)}`,
+            intensity: 0.3,
+            source: 'aios',
+            phase: 'reflex',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
+        case 'cerebellum_done': {
+          publishCognition({
+            type: 'synthesis',
+            label: 'REFLEX COMPLETE',
+            detail: String(frame.data.goal ?? 'compiled experience replay complete'),
+            intensity: 0.5,
+            source: 'aios',
+            phase: 'reflex',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
+        case 'cerebellum_abort': {
+          publishCognition({
+            type: 'hesitation',
+            label: 'REFLEX ABORT',
+            detail: `step ${frame.data.step_index ?? '?'}: ${String(frame.data.reason ?? 'unknown')}`,
+            intensity: 0.7,
+            source: 'aios',
+            phase: 'emotion',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
         default:
           break; // alignment and future frames are advisory to the scene
       }

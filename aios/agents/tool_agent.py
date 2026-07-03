@@ -89,6 +89,7 @@ from typing import Callable, Iterator, Optional, Protocol, Any, cast
 from aios import config
 from aios.agents import tool_handlers, tool_loop_helpers
 from aios.core.autonomy import AutonomyLedger
+from aios.core.cerebellum import Cerebellum
 from aios.core.executor import Executor
 from aios.core.llm import LLMClient, LLMError
 from aios.core.planner import Planner
@@ -642,6 +643,7 @@ class ToolAgent:
         allowed_tools: Optional[frozenset[str]] = None,
         autonomy: Optional[AutonomyLedger] = None,
         resume_tail: Optional[list[dict[str, Any]]] = None,
+        cerebellum: Optional[Cerebellum] = None,
     ) -> None:
         self.llm = llm
         #: Caste view (role-pass): an alternative system prompt and a hard tool
@@ -656,6 +658,11 @@ class ToolAgent:
         #: the SAME gated path instead of pausing for a human. None -> always
         #: pause (today's behaviour). RED never reaches this path.
         self.autonomy = autonomy
+        #: Compiled-experience engine (sovereignty S1). When a user message
+        #: matches a compiled playbook, the cerebellum replays the tool
+        #: sequence through _dispatch (full gateway) without an LLM call.
+        #: None -> always use the LLM (today's behaviour).
+        self.cerebellum = cerebellum
         self.executor = executor
         self.model = model
         self.max_iters = max_iters
@@ -817,6 +824,47 @@ class ToolAgent:
             # dropped-grant bug: a granted write silently vanished whenever the
             # replay chose a different path).
             yield from self._pre_apply_grants(convo)
+        # -- Cerebellum short-circuit (sovereignty S1) --------------------------
+        # If a compiled playbook matches this turn's user message AND there are
+        # no pending approvals (this is a fresh turn, not a continuation), replay
+        # the playbook through _dispatch (full gateway, same audit) without an
+        # LLM call. A successful replay returns immediately; an aborted replay
+        # falls through to the LLM loop below.
+        if (
+            self.cerebellum is not None
+            and not self.approved_commands
+            and not self.approved_edits
+            and not self.approved_creations
+            and not self.resume_tail
+        ):
+            _user_text = next(
+                (str(m.get("content", "")) for m in reversed(messages)
+                 if m.get("role") == "user"),
+                "",
+            )
+            _playbook = self.cerebellum.match(_user_text) if _user_text else None
+            if _playbook is not None:
+                _replay_ok = True
+                for _ev in self.cerebellum.replay(
+                    _playbook, dispatch_fn=self._dispatch,
+                ):
+                    yield _ev
+                    if _ev.get("type") == "cerebellum_abort":
+                        _replay_ok = False
+                if _replay_ok:
+                    yield {
+                        "type": "cerebellum_done",
+                        "goal": _playbook.goal_pattern,
+                        "playbook_id": _playbook.id,
+                        "replay_count": _playbook.replay_count,
+                    }
+                    yield from self._finish(
+                        f"Completed from compiled experience: "
+                        f"{_playbook.goal_pattern}"
+                    )
+                    return
+                # Aborted — fall through to the LLM loop below.
+
         required_tools = _explicit_tool_requests(messages)
         nudged_tools: set[str] = set()
 
