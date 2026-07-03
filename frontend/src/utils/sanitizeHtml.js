@@ -149,8 +149,13 @@ export function sanitizeHtml(dirty) {
   clean = filterAllowedTags(clean);
 
   // 8. Defense-in-depth: catch any remaining <script...> patterns
-  clean = clean.replace(/<script\b[^>]*>/gi, '');
-  clean = clean.replace(/<\/script\s*>/gi, '');
+  // Repeat until stable to avoid incomplete multi-character sanitization bypasses.
+  let previous;
+  do {
+    previous = clean;
+    clean = clean.replace(/<script\b[^>]*>/gi, '');
+    clean = clean.replace(/<\/script\s*>/gi, '');
+  } while (clean !== previous);
 
   // 9. Catch HTML comment-based attacks
   clean = clean.replace(/<!--[\s\S]*?-->/g, '');
