@@ -64,6 +64,8 @@ cd frontend; npm run dev                   # http://localhost:5173
 Leave the model dropdown on `Auto`; it routes to the best installed compatible
 local model for the task.
 
+Want a guided, witnessed proof instead of poking around? See **[PROVE_IT.md](PROVE_IT.md)** — the ten-minute supervised-loop demo.
+
 ---
 
 ## The honest part (so you're never surprised)

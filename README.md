@@ -12,6 +12,13 @@ human approval.
 > older Node/Express implementation is retained under `legacy_node/` for history,
 > but it is not the active backend.
 
+## Prove it in ten minutes
+
+Don't take the architecture diagram's word for it — watch the supervised loop
+(directive -> YELLOW pause -> human approval -> scoped execution -> forced
+verify -> recorded learning) happen end to end, either as a scripted terminal
+checklist or live in the browser. See **[PROVE_IT.md](PROVE_IT.md)**.
+
 ## Architecture
 
 ```text
