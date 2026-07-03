@@ -378,6 +378,25 @@ class Cerebellum:
         if pb is not None:
             pb.consecutive_failures += 1
 
+    def invalidate_for_skill(self, skill_id: int) -> bool:
+        """Mark any compiled playbook for *skill_id* as decompiled.
+
+        Called when the source skill is demoted from 'verified' back to
+        'candidate'. Returns True if a playbook was decompiled.
+        """
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            cur = conn.execute(
+                """UPDATE compiled_playbooks
+                   SET status = 'decompiled', updated_at = CURRENT_TIMESTAMP
+                   WHERE skill_id = ? AND status = 'compiled'""",
+                (skill_id,),
+            )
+            if cur.rowcount > 0:
+                self._refresh_cache()
+                return True
+        return False
+
     # ------------------------------------------------------------------
     # Cache
     # ------------------------------------------------------------------
