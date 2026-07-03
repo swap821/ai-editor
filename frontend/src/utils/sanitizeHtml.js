@@ -158,14 +158,11 @@ export function sanitizeHtml(dirty) {
 
   // 8. Defense-in-depth: catch any remaining <script...> patterns (fixed-point loop).
   {
-    const openScript = /<script\b[^>]*>/gi;
-    const closeScript = /<\/script[^>]*>/gi;
-    let prev;
-    do {
-      prev = clean;
-      clean = clean.replace(openScript, '');
-      clean = clean.replace(closeScript, '');
-    } while (clean !== prev);
+    const scriptTag = /<\/?script\b[^>]*>/gi;
+    while (scriptTag.test(clean)) {
+      scriptTag.lastIndex = 0;
+      clean = clean.replace(scriptTag, '');
+    }
   }
 
   // 9. Catch HTML comment-based attacks (fixed-point loop).

@@ -65,6 +65,12 @@ _TEST_DATA_DIR_PATH = _TEST_TMP_ROOT / f"aios-test-data-{uuid4().hex}"
 _TEST_DATA_DIR_PATH.mkdir(parents=True, exist_ok=False)
 os.environ["AIOS_DATA_DIR"] = str(_TEST_DATA_DIR_PATH)
 
+# Point COUNCIL_RUNTIME_DIR at the session root so _safe_resolve's containment
+# check (startswith) passes for every test's tmp_path — which is always a child
+# of _PYTEST_SESSION_ROOT.  Set as env var (not monkeypatch) so subprocess workers
+# spawned by the council runtime inherit it automatically.
+os.environ["AIOS_COUNCIL_RUNTIME_DIR"] = str(_PYTEST_SESSION_ROOT)
+
 # Best-effort cleanup at interpreter exit (the OS would reclaim the temp dir
 # anyway, but tidy up so repeated local runs don't accumulate scratch dirs).
 atexit.register(shutil.rmtree, _TEST_DATA_DIR_PATH, ignore_errors=True)

@@ -223,6 +223,8 @@ class ControlledSubprocessBackend(WorkerBackend):
             "AIOS_CONTAINER_MEMORY_MB",
             "AIOS_CONTAINER_CPUS",
             "AIOS_CONTAINER_PIDS_LIMIT",
+            "AIOS_DATA_DIR",
+            "AIOS_COUNCIL_RUNTIME_DIR",
         }
         env = {
             name: value
