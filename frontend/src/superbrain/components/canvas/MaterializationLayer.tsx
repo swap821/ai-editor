@@ -59,7 +59,7 @@ import { readBeingMode } from '@/lib/beingMode';
 const POINTS = readBeingMode() === 'points';
 
 const DEV_STUB_CONTENT: MaterializedTabContent = {
-  code: "export function hello(name = 'AI-OS') {\n  return `Hello, ${name}`;\n}\n",
+  code: "export function hello(name = 'GAGOS') {\n  return `Hello, ${name}`;\n}\n",
   language: 'javascript',
   filepath: 'hello.js',
 };

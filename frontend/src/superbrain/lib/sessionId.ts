@@ -1,7 +1,7 @@
 /**
  * getSessionId — the single source of truth for the operator's session id.
  *
- * ONE conversation per operator, SHARED across every face of the AI-OS (the
+ * ONE conversation per operator, SHARED across every face of GAGOS (the
  * canon HUD command bar, the workbench organs, and the classic IDE) so they all
  * continue the SAME backend conversation under the SAME session.
  *
@@ -31,7 +31,7 @@ export const SESSION_STORAGE_KEY = 'aios_session_id';
 /** The stable id used when storage is unavailable (SSR, privacy mode, sandbox). */
 export const FALLBACK_SESSION_ID = 'gag-superbrain-hud';
 
-/** The AI-OS API base URL. */
+/** The GAGOS API base URL. */
 const AIOS_BASE = process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
 
 /** Whether the backend supports cookie-based sessions (detected at runtime). */

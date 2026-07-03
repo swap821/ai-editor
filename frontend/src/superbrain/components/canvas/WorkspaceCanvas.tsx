@@ -17,8 +17,6 @@ import { TIER_DPR } from '@/lib/perfBudget';
 import { startAiosPolling } from '@/lib/aiosAdapter';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import {
-  transitionToArriving,
-  ArrivalMode,
   notifyDirective,
   tickLifecycle,
 } from '@/lib/lifecycleStateMachine';
@@ -40,10 +38,10 @@ function ReadySignal() {
   return null;
 }
 
-export default function WorkspaceCanvas({ children }: { children?: ReactNode }) {
+export default function WorkspaceCanvas({ children, booted = false }: { children?: ReactNode; booted?: boolean }) {
   return (
     <QualityTierProvider>
-      <WorkspaceInner>{children}</WorkspaceInner>
+      <WorkspaceInner booted={booted}>{children}</WorkspaceInner>
     </QualityTierProvider>
   );
 }
@@ -80,18 +78,10 @@ function readStoredSurface(): BrainSurface | null {
   }
 }
 
-function WorkspaceInner({ children }: { children?: ReactNode }) {
+function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: boolean }) {
   const { tier, perfTier } = useQualityTier();
-  // The pure-3D home has no 2D HUD to drive these, so they are the scene's
-  // resting defaults rather than React state. SuperbrainScene still consumes
-  // them; directives now reach the being through the cognition bus + posture
-  // machine (see the bridge effect below), not a DOM command bar.
   const mode: CognitiveMode = 'orchestrate';
   const activity = 0.72;
-  // Boot choreography contract: "is-booting" until the first frame settles,
-  // then "is-booted" once AIOS polling starts. Now flipped by the on-mount
-  // arrival effect (the 2D boot overlay that used to flip it was removed).
-  const [booted, setBooted] = useState(false);
   // GPU context-loss resilience: a lost context first gets a grace window to
   // restore in place (preventDefault opts in); if it never comes back, bumping
   // this key remounts the Canvas — a black dead screen is never acceptable on
@@ -110,26 +100,6 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
         window.clearTimeout(restoreTimerRef.current);
       }
     };
-  }, []);
-
-  // ARRIVAL (moved out of the removed 2D BootSequence overlay): on mount, start
-  // AIOS polling (flips the className to is-booted) and, after a short settle so
-  // the first frame / GLB lands, open the being. First-ever load on this device
-  // coalesces (A); a return awakens (C). Reduced-motion is honored by the scene
-  // (it renders the settled REST state immediately).
-  useEffect(() => {
-    setBooted(true);
-    const id = window.setTimeout(() => {
-      let firstEver = true;
-      try {
-        firstEver = window.localStorage.getItem('gag-has-arrived-v1') === null;
-        window.localStorage.setItem('gag-has-arrived-v1', '1');
-      } catch {
-        // Private mode: treat as first-ever (coalescence) — the richer opening.
-      }
-      transitionToArriving(firstEver ? ArrivalMode.COALESCENCE : ArrivalMode.AWAKENING);
-    }, 400);
-    return () => window.clearTimeout(id);
   }, []);
 
   const handleCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
@@ -171,7 +141,7 @@ function WorkspaceInner({ children }: { children?: ReactNode }) {
     });
   }, []);
 
-  // Once booted, the organism listens to the REAL AI-OS: trail/metric polling
+  // Once booted, the organism listens to GAGOS: trail/metric polling
   // feeds the intake channels and fires knowledge events when actual skill
   // trails are reinforced. Honest fallback: offline, the demo imagination
   // carries on and the bus says so.

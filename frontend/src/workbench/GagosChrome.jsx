@@ -1067,7 +1067,7 @@ export default function GagosChrome() {
               className={`gagos-btn gagos-speaker ${voice.muted ? 'is-muted' : ''} ${voice.speaking ? 'is-speaking' : ''}`}
               onClick={() => setVoiceSpeakMuted(!voice.muted)}
               aria-pressed={voice.muted}
-              aria-label={voice.muted ? 'Unmute Jarvis voice' : 'Mute Jarvis voice'}
+              aria-label={voice.muted ? 'Unmute GAGOS voice' : 'Mute GAGOS voice'}
               title={voice.muted ? 'Unmute voice' : 'Mute voice'}
             >
               <SpeakerIcon muted={voice.muted} />
