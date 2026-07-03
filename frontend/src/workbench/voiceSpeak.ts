@@ -1,4 +1,4 @@
-// Browser-native TTS loop for the Jarvis voice surface.
+// Browser-native TTS loop for the GAGOS voice surface.
 // Subscribes to cognition voice-speaking events, speaks the final reply,
 // and publishes speaking/speaking-complete events so the 3D brain keeps glowing.
 // SSR-safe: no window access until startVoiceSpeak() is called.

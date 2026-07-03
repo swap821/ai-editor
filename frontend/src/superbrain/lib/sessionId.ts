@@ -1,7 +1,7 @@
 /**
  * getSessionId — the single source of truth for the operator's session id.
  *
- * ONE conversation per operator, SHARED across every face of the AI-OS (the
+ * ONE conversation per operator, SHARED across every face of GAGOS (the
  * canon HUD command bar, the workbench organs, and the classic IDE) so they all
  * continue the SAME backend conversation under the SAME session.
  *
@@ -31,7 +31,7 @@ export const SESSION_STORAGE_KEY = 'aios_session_id';
 /** The stable id used when storage is unavailable (SSR, privacy mode, sandbox). */
 export const FALLBACK_SESSION_ID = 'gag-superbrain-hud';
 
-/** The AI-OS API base URL. */
+/** The GAGOS API base URL. */
 const AIOS_BASE = process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
 
 /** Whether the backend supports cookie-based sessions (detected at runtime). */
@@ -136,10 +136,15 @@ export async function initSession(): Promise<string> {
       _fallbackSessionId = existing;
       return existing;
     }
-    const created =
-      typeof window.crypto?.randomUUID === 'function'
-        ? window.crypto.randomUUID()
-        : `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const created = (() => {
+      if (typeof window.crypto?.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      const bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      return `sb-${hex}`;
+    })();
     window.sessionStorage.setItem(SESSION_STORAGE_KEY, created);
     _fallbackSessionId = created;
 
@@ -156,7 +161,14 @@ export async function initSession(): Promise<string> {
   } catch {
     // Storage blocked — return in-memory fallback (lost on refresh)
     if (!_fallbackSessionId) {
-      _fallbackSessionId = `mem-${Date.now().toString(36)}`;
+      if (typeof window.crypto?.randomUUID === 'function') {
+        _fallbackSessionId = `mem-${window.crypto.randomUUID()}`;
+      } else {
+        const bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        _fallbackSessionId = `mem-${hex}`;
+      }
     }
     return _fallbackSessionId;
   }

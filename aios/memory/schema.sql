@@ -1,5 +1,5 @@
 -- aios/memory/schema.sql
--- Schema for the AI OS memory layers: L2 Episodic, L3 Semantic, L4 Mistake.
+-- Schema for the GAGOS memory layers: L2 Episodic, L3 Semantic, L4 Mistake.
 --
 -- L1 Working memory is RAM-only (see working.py) and intentionally has no table.
 -- The tamper-evident audit trail lives in a SEPARATE database

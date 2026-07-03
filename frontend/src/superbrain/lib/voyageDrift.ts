@@ -1,4 +1,4 @@
-// voyageDrift (north-star: "an autonomous AI-OS superbrain travelling constant
+// voyageDrift (north-star: "an autonomous GAGOS superbrain travelling constant
 // into the deep-vast knowledgeable infinite space — the brain never stops
 // voyaging"). A perpetual, gentle whole-body drift + bank for the points home
 // being — turns the static turntable pose back into a voyaging organism

@@ -8,7 +8,8 @@
  * GagosChrome drives turns through the same adapter and cognition bus the being
  * already listens to, so the organism still arrives, listens and reacts.
  */
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
+import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
 import './superbrain.css';
@@ -16,10 +17,14 @@ import './superbrain.css';
 const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas'));
 
 export default function SuperbrainApp() {
+  const [booted, setBooted] = useState(false);
+  const handleBootComplete = useCallback(() => setBooted(true), []);
+
   return (
     <div className="font-sans antialiased">
+      <BootSequence onComplete={handleBootComplete} />
       <Suspense fallback={null}>
-        <WorkspaceCanvas>
+        <WorkspaceCanvas booted={booted}>
           <SuperbrainReactiveEffects />
         </WorkspaceCanvas>
       </Suspense>

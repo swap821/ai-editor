@@ -37,7 +37,7 @@ const BOOT_LINES: BootLine[] = [
   { text: 'calibrating supermind', status: 'NOMINAL' },
 ];
 
-/** TRUE BOOT: when the real AI-OS answers inside the boot window, the typed
+/** TRUE BOOT: when the real GAGOS backend answers inside the boot window, the typed
  *  statuses become measured facts (version, live trail counts, verified
  *  rate). Offline, the imagination's lore boots the kernel as before.
  *  Statuses re-render in place, so anything landing before the ~2.6s finale
@@ -85,7 +85,7 @@ interface BootTimings {
   ramp: number;
   /** Hard ceiling — bar is forced full here even if assets report nothing. */
   bar: number;
-  /** "SUPERMIND ONLINE" sweep duration. */
+  /** "GAGOS ONLINE" sweep duration. */
   finale: number;
   /** Fade-out duration before full unmount. */
   fade: number;
@@ -209,7 +209,7 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
     if (phase === 'fade') {
       publishCognition({
         type: 'synthesis',
-        label: 'SUPERMIND ONLINE',
+        label: 'GAGOS ONLINE',
         detail: 'GAGOS kernel boot complete — cognition core engaged.',
         intensity: 0.9,
         source: 'boot',
@@ -270,7 +270,7 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
             </div>
           </>
         ) : (
-          <p className={styles.finale}>SUPERMIND ONLINE</p>
+          <p className={styles.finale}>GAGOS ONLINE</p>
         )}
       </div>
     </div>

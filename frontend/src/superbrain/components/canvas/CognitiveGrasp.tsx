@@ -26,7 +26,7 @@ const ABSORB_PULSE_SECONDS = 0.5;
 
 /**
  * The glints are no longer lore: each cycle recalls a REAL trail from the
- * AI-OS pheromone map (the trail for a given absolute slot is a pure function
+ * GAGOS pheromone map (the trail for a given absolute slot is a pure function
  * of the slot, so every sub-component agrees without shared state). The
  * absorb moment publishes a RECALL — a label-anchored cortical burst that
  * lights the matching anatomical region — never 'knowledge-acquired', which

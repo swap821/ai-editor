@@ -1,4 +1,4 @@
-"""Centralised structured logging configuration for the AI-OS.
+"""Centralised structured logging configuration for GAGOS.
 
 The backend uses ``structlog`` bound to the standard-library logging sink so that
 existing tooling (``caplog`` in tests, journald, etc.) works out of the box while
