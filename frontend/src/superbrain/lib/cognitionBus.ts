@@ -50,7 +50,10 @@ export type CognitionEventType =
   | 'reflex-recall'
   /** Sovereignty S2: the knowledge graph produced an inference chain from
    *  confidence-weighted traversal — associative recall from stored facts. */
-  | 'graph-recall';
+  | 'graph-recall'
+  /** Sovereignty S3: the native planner produced a plan from verified
+   *  experience templates — no LLM consultation needed for planning. */
+  | 'template-plan';
 
 export interface CognitionEvent {
   type: CognitionEventType;

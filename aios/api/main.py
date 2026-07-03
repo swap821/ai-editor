@@ -93,6 +93,7 @@ from aios.core.alignment import (
     frame_from_state,
     validate_user_corrections,
 )
+from aios.core.native_planner import NativePlanner
 from aios.core.planner import Planner, PlannerError
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
 from aios.core.session_manager import SessionManager
@@ -796,6 +797,15 @@ def get_mistake_memory(
 ) -> MistakeMemory:
     """Provide mistake memory with knowledge graph ingestion wiring."""
     return MistakeMemory(facts=facts)
+
+
+def get_native_planner(
+    skills: SkillMemory = Depends(get_skill_memory),
+    patterns: SwarmPatternMemory = Depends(get_swarm_pattern_memory),
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> NativePlanner:
+    """Provide the sovereignty S3 native symbolic planner."""
+    return NativePlanner(skills=skills, patterns=patterns, facts=facts)
 
 
 def get_curriculum_manager() -> CurriculumManager:
@@ -2465,9 +2475,13 @@ def _serialize_plan(plan: Any) -> dict[str, Any]:
 
 
 @app.post("/api/v1/plan")
-def plan(req: PlanRequest, llm: LLMClient = Depends(get_llm_client)) -> dict[str, Any]:
+def plan(
+    req: PlanRequest,
+    llm: LLMClient = Depends(get_llm_client),
+    native: NativePlanner = Depends(get_native_planner),
+) -> dict[str, Any]:
     """Decompose a goal into a confidence-gated task tree."""
-    planner = Planner(llm)
+    planner = Planner(llm, native=native)
     try:
         result = planner.plan(req.goal)
     except PlannerError as exc:
@@ -3369,6 +3383,7 @@ def generate(
     autonomy: AutonomyLedger = Depends(get_autonomy),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
     cerebellum: Cerebellum = Depends(get_cerebellum),
+    native_planner: NativePlanner = Depends(get_native_planner),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
     alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
@@ -3739,6 +3754,9 @@ def generate(
                 # Sovereignty S1: compiled-experience engine. Matches verified
                 # skill arcs and replays them through _dispatch without an LLM.
                 cerebellum=cerebellum,
+                # Sovereignty S3: native symbolic planner. Plans known task
+                # shapes from verified experience without an LLM call.
+                native_planner=native_planner,
                 **overrides,
             )
 
@@ -4008,6 +4026,8 @@ def generate(
                                 },
                             )
                 yield sse("step", ev)
+            elif kind == "native_plan":
+                yield sse("native_plan", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])
                 yield sse("text_chunk", {"text": ev["text"]})

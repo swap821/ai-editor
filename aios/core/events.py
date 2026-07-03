@@ -48,6 +48,8 @@ _SSE_TO_COGNITION: dict[str, EventType] = {
     # Sovereignty S2: Knowledge graph — associative recall events.
     "graph_inference": EventType.KNOWLEDGE_ACQUIRED,
     "graph_horizon": EventType.HESITATION,
+    # Sovereignty S3: Native planner — template-based plan from verified experience.
+    "native_plan": EventType.AGENT_DISPATCH,
     "cloud_route": EventType.ROUTE,
     # Confidence gating is the EMOTION layer (uncertainty/hesitation), NOT
     # reflex approval — it shares no permission token with human_required.

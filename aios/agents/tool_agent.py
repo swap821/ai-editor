@@ -644,6 +644,7 @@ class ToolAgent:
         autonomy: Optional[AutonomyLedger] = None,
         resume_tail: Optional[list[dict[str, Any]]] = None,
         cerebellum: Optional[Cerebellum] = None,
+        native_planner: Optional[Any] = None,
     ) -> None:
         self.llm = llm
         #: Caste view (role-pass): an alternative system prompt and a hard tool
@@ -723,7 +724,9 @@ class ToolAgent:
         #: and reused by the ``plan`` tool; ``None`` when no planner LLM is injected,
         #: in which case ``plan`` degrades gracefully. We never rewrite planner.py.
         self._planner: Optional[Planner] = (
-            Planner(planner_llm) if planner_llm is not None else None
+            Planner(planner_llm, native=native_planner)
+            if planner_llm is not None
+            else None
         )
         #: Completion client for the Self-Analysis T2 ``propose_fixes`` tool -- the
         #: SAME kind as ``planner_llm`` (``.complete()``), deliberately NOT
@@ -1010,10 +1013,21 @@ class ToolAgent:
                         "id": call_id,
                     }
                     if name == "verify":
-                        # The raw verified command; the API derives a per-target
-                        # classification key from it (per-target last verdict).
                         result_event["target"] = str(args.get("command", ""))
                     yield result_event
+                    if name == "plan" and getattr(self, "_last_native_source", None) is not None:
+                        ns = self._last_native_source
+                        yield {
+                            "type": "native_plan",
+                            "goal": ns.goal_pattern,
+                            "source": ns.source,
+                            "source_id": ns.source_id,
+                            "relevance": ns.relevance_score,
+                            "evidence_confidence": ns.evidence_confidence,
+                            "preconditions_met": ns.preconditions_met,
+                            "step_count": len(ns.steps),
+                        }
+                        self._last_native_source = None
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
 
                 if name == "execute_terminal":
@@ -1340,7 +1354,13 @@ class ToolAgent:
 
     def _plan(self, goal: str) -> tuple[str, str, bool]:
         """Thin wrapper around :func:`tool_handlers.plan_task`."""
-        return tool_handlers.plan_task(goal, planner=self._planner)
+        result = tool_handlers.plan_task(goal, planner=self._planner)
+        self._last_native_source = (
+            getattr(self._planner, "_last_native_source", None)
+            if self._planner is not None
+            else None
+        )
+        return result
 
     def _self_analyze(self, path: str) -> tuple[str, str, bool]:
         """Thin wrapper around :func:`tool_handlers.self_analyze`."""
