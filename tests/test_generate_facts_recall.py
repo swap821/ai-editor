@@ -23,27 +23,27 @@ def test_recall_facts_returns_none_when_no_match(facts: SemanticFacts) -> None:
 
 def test_recall_facts_includes_matched_triple(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI")
-    block = _recall_facts(facts, "how is FastAPI used")
-    assert block is not None
-    assert "project uses FastAPI" in block
+    result = _recall_facts(facts, "how is FastAPI used")
+    assert result is not None
+    assert "project uses FastAPI" in result.text
 
 
 def test_recall_facts_includes_neighbors(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI")
     facts.add_fact("FastAPI", "needs", "uvicorn")
-    block = _recall_facts(facts, "project")
-    assert block is not None
-    assert "project uses FastAPI" in block
-    assert "FastAPI needs uvicorn" in block
+    result = _recall_facts(facts, "project")
+    assert result is not None
+    assert "project uses FastAPI" in result.text
+    assert "FastAPI needs uvicorn" in result.text
 
 
 def test_recall_facts_ignores_superseded_facts(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI")
     facts.reconcile("project", "uses", "Django")
-    block = _recall_facts(facts, "project")
-    assert block is not None
-    assert "FastAPI" not in block
-    assert "project uses Django" in block
+    result = _recall_facts(facts, "project")
+    assert result is not None
+    assert "FastAPI" not in result.text
+    assert "project uses Django" in result.text
 
 
 def test_recall_facts_degrades_gracefully_on_store_error(facts: SemanticFacts) -> None:

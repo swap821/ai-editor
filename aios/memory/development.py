@@ -10,10 +10,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+import logging
+
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, signature
 from aios.security.secret_scanner import scan_and_redact
+
+logger = logging.getLogger(__name__)
 
 _OUTCOMES = frozenset({"verified_success", "verified_failure", "unverified", "paused"})
 
@@ -30,8 +34,14 @@ class OutcomeEvidence:
 class DevelopmentTracker:
     """Persist task outcomes and compute evidence-backed development metrics."""
 
-    def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
+    def __init__(
+        self,
+        db_path: Path = config.MEMORY_DB_PATH,
+        *,
+        facts: Optional["SemanticFacts"] = None,
+    ) -> None:
         self.db_path = db_path
+        self._facts = facts
 
     def record(
         self,
@@ -68,7 +78,20 @@ class DevelopmentTracker:
                     payload,
                 ),
             )
-            return int(cur.lastrowid)
+            row_id = int(cur.lastrowid)
+
+        # S2: ingest verified outcome edges into the knowledge graph.
+        # OUTSIDE the with-block — add_fact() opens its own BEGIN IMMEDIATE.
+        if outcome in ("verified_success", "verified_failure") and self._facts is not None:
+            try:
+                from aios.core.graph_ingestion import edges_from_outcome
+
+                for s, p, o, conf in edges_from_outcome(task_text, outcome, tool_calls):
+                    self._facts.add_fact(s, p, o, confidence=conf)
+            except Exception:
+                logger.warning("graph ingestion from outcome failed (swallowed)", exc_info=True)
+
+        return row_id
 
     def relevant_success_rate(
         self, query: str, *, min_attempts: int = 3, limit: int = 50

@@ -30,7 +30,7 @@ import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
@@ -744,11 +744,6 @@ def get_reflection_agent(
     return ReflectionAgent(llm) if config.REFLECT_ON_FAILURE else None
 
 
-def get_development_tracker() -> DevelopmentTracker:
-    """Provide the evidence-backed developmental metrics store."""
-    return DevelopmentTracker()
-
-
 def get_swarm_pattern_memory() -> SwarmPatternMemory:
     """Provide the ant-colony swarm's decomposition-pattern memory."""
     return SwarmPatternMemory()
@@ -763,6 +758,13 @@ def get_semantic_facts() -> SemanticFacts:
     and stateless (opens a fresh connection per call). Overridden in tests.
     """
     return SemanticFacts()
+
+
+def get_development_tracker(
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> DevelopmentTracker:
+    """Provide the evidence-backed developmental metrics store."""
+    return DevelopmentTracker(facts=facts)
 
 
 def get_autonomy() -> AutonomyLedger:
@@ -2873,15 +2875,20 @@ def _recall_self_model(
     return text or None
 
 
-def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
+@dataclass
+class FactRecallResult:
+    """Rich result from fact recall: text for the prompt + inference metadata for SSE."""
+
+    text: str
+    inferences: list[dict] = field(default_factory=list)
+
+
+def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[FactRecallResult]:
     """Recall relevant semantic facts (+ single-hop neighbors) for the forge.
 
-    The agentic loop reasons about code and architecture, so it needs the
-    structured, approved facts from the knowledge graph — not just raw chat
-    memory. This block searches active facts whose subject/object appears in
-    the user message, includes one hop of neighbors for context, and renders
-    the result as prompt-ready triples. Empty or failing recall degrades to
-    ``None`` so the turn is never blocked by the fact store.
+    Returns a ``FactRecallResult`` with both the prompt-ready text AND the raw
+    inference metadata so the generator can emit ``graph_inference`` /
+    ``graph_horizon`` SSE events for the frontend.
     """
     user_text = (user_text or "").strip()
     if not user_text:
@@ -2918,7 +2925,8 @@ def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
 
     # S2: if any matched entity has deeper associations, include the
     # highest-confidence inference chain as structured context.
-    inferences: list[str] = []
+    inference_lines: list[str] = []
+    inference_events: list[dict] = []
     for node in list(nodes)[:5]:
         try:
             edges = facts.traverse_weighted(node, max_depth=3, min_path_confidence=0.3)
@@ -2927,21 +2935,35 @@ def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
 
                 result = infer(user_text, edges, min_confidence=0.3)
                 if result is not None and result.answer:
-                    inferences.append(
+                    inference_lines.append(
                         f"  Inference ({result.combined_confidence:.0%} confidence): "
                         f"{result.answer}"
                     )
+                    inference_events.append({
+                        "query": result.query,
+                        "chain": [
+                            {"subject": s.subject, "predicate": s.predicate,
+                             "object": s.object, "depth": s.depth,
+                             "confidence": s.confidence}
+                            for s in result.chain
+                        ],
+                        "combined_confidence": result.combined_confidence,
+                        "answer": result.answer,
+                        "reached_horizon": result.reached_horizon,
+                        "entity": node,
+                    })
         except Exception:
             logger.warning("traverse_weighted failed for %s", node, exc_info=True)
 
-    if inferences:
+    if inference_lines:
         triples += "\n\nINFERRED ASSOCIATIONS (confidence-weighted, use cautiously):\n"
-        triples += "\n".join(inferences[:3])
+        triples += "\n".join(inference_lines[:3])
 
-    return (
+    text = (
         "RELEVANT APPROVED FACTS (use these; do not invent beyond this graph):\n"
         + triples
     )
+    return FactRecallResult(text=text, inferences=inference_events)
 
 
 def _latest_user(chat_messages: list[dict[str, Any]]) -> str:
@@ -3668,18 +3690,25 @@ def generate(
                 },
             )
 
-        facts_block = _recall_facts(facts, user_text)
-        if facts_block:
-            context_parts.append(facts_block)
+        facts_result = _recall_facts(facts, user_text)
+        if facts_result:
+            context_parts.append(facts_result.text)
             yield sse(
                 "step",
                 {
                     "type": "tool_result",
                     "tool": "query_facts",
-                    "output": facts_block[:400],
+                    "output": facts_result.text[:400],
                     "id": "fact-recall",
                 },
             )
+            for inf in facts_result.inferences:
+                yield sse("graph_inference", inf)
+                if inf.get("reached_horizon"):
+                    yield sse("graph_horizon", {
+                        "entity": inf.get("entity", "?"),
+                        "confidence": inf.get("combined_confidence", 0),
+                    })
 
         # Narrative self (opt-in): a grounded, verified-only autobiographical
         # self-model joins the recalled context — the organism reasoning with an
