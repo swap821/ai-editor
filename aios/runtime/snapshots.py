@@ -24,7 +24,10 @@ class SnapshotManager:
     """
 
     def __init__(self, runtime_root: str | Path) -> None:
-        self.runtime_root = Path(runtime_root).resolve()
+        resolved_root = Path(runtime_root).resolve()
+        if not resolved_root.is_absolute() or not resolved_root.is_dir():
+            raise RollbackError("Council rollback refused: invalid runtime root")
+        self.runtime_root = resolved_root
         self.snapshot_dir = self.runtime_root / "snapshots"
 
     def create_snapshot(self, contract: MissionContract) -> str:
