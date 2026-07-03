@@ -55,7 +55,7 @@ import { getCortexAnchor } from '@/lib/spineFusionBus';
 import BodySpeech from './BodySpeech';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
- *  "AN AGENTIC AI-OS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
+ *  "AN AGENTIC GAGOS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
  *  DEEP VAST KNOWLEDGE SPACE." The voyage is not negotiable: the knowledge
  *  field FLYING PAST the camera carries the forward motion. Any sky change
  *  that removes that motion breaks the product. 'voyage' = the operator's

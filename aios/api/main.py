@@ -1,4 +1,4 @@
-"""FastAPI orchestration layer for the AI OS.
+"""FastAPI orchestration layer for GAGOS.
 
 Exposes the subsystems behind versioned HTTP endpoints. Phase 3a + 3b are live:
 
@@ -242,9 +242,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="GAGOS - AI OS",
+    title="GAGOS",
     version=aios.__version__,
-    summary="Local-first, memory-driven, security-gated, human-supervised AI OS.",
+    summary="Local-first, memory-driven, security-gated, human-supervised AI operating system.",
     lifespan=lifespan,
 )
 
@@ -996,7 +996,7 @@ class GenerateRequest(BaseModel):
 class ChatRequest(BaseModel):
     """Body for ``/api/v1/chat`` — the lean Hinglish conversational endpoint.
 
-    Conversation only (the Jarvis voice mind, Slice 1): a single ``transcript``
+    Conversation only (the GAGOS voice mind): a single ``transcript``
     line from the operator + an optional ``sessionId``. It reuses the multi-LLM
     router (privacy gate intact), memory recall, and REAL personalization facts,
     then streams one reply. NO file-write or coding tools run here — this is talk,
@@ -4312,7 +4312,7 @@ def chat(
     facts: SemanticFacts = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
 ) -> StreamingResponse:
-    """Stream a lean Hinglish conversational reply (the Jarvis voice mind, Slice 1).
+    """Stream a lean Hinglish conversational reply (the GAGOS voice mind).
 
     This is CONVERSATION, not the agentic forge: it reuses the cross-provider
     router (so the operator's local-first privacy gate is fully intact), recalls

@@ -21,7 +21,7 @@ export type CognitionEventType =
   | 'agent-dispatch'
   /** A synthesis cycle completed. */
   | 'synthesis'
-  /** The AI-OS paused for human approval — the organism holds its breath.
+  /** GAGOS paused for human approval — the organism holds its breath.
    *  This is the product's thesis rendered as an event: a supervised mind
    *  visibly deferring to its operator. */
   | 'approval-required'

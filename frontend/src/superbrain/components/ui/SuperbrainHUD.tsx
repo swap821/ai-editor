@@ -533,7 +533,7 @@ export default function SuperbrainHUD({
   onSurfaceChange,
 }: SuperbrainHUDProps) {
   const [directive, setDirective] = useState('');
-  // Jarvis VOICE (push-to-talk): speak -> POST /api/v1/chat -> the mind speaks
+  // GAGOS VOICE (push-to-talk): speak -> POST /api/v1/chat -> the mind speaks
   // back. A CONVERSATION channel, separate from the typed forge command bar: the
   // conversational endpoint runs NO tools and has NO approval mechanism, so a
   // spoken word can never redeem an approval token. The reply also flows to the
@@ -628,7 +628,7 @@ export default function SuperbrainHUD({
   const [turnState, setTurnState] = useState<'idle' | 'streaming' | 'done' | 'error'>('idle');
   const doneTimerRef = useRef<number | null>(null);
   /* A REAL, detectable submit failure: the operator dispatched while the link
-   * to the AI-OS was down (getLinkState() false). Honest · it is a true offline
+   * to GAGOS was down (getLinkState() false). Honest · it is a true offline
    * condition, never a fabricated error. Clears on the next focus/submit. */
   const [submitError, setSubmitError] = useState<string | null>(null);
   const errorTimerRef = useRef<number | null>(null);
@@ -1171,7 +1171,7 @@ export default function SuperbrainHUD({
     if (turnState === 'streaming') return;
     const nextDirective = directive.trim();
     if (!nextDirective) return;
-    /* HONEST failure path: if the link to the AI-OS is genuinely down at submit
+    /* HONEST failure path: if the link to GAGOS is genuinely down at submit
      * time the directive cannot be served. This is a real, detectable condition
      * (getLinkState()), not a fabricated error · surface it on the bar with an
      * assertive announcement and DO NOT pretend a turn began. */
@@ -1298,7 +1298,7 @@ export default function SuperbrainHUD({
 
             <div className="system-summary">
               {/* The dot tells the truth: green only while the adapter's
-                  last poll genuinely reached the AI-OS. */}
+                  last poll genuinely reached GAGOS. */}
               <span role="status">
                 <i className={`status-dot ${linkUp ? 'status-dot--live' : 'status-dot--down'}`} />{' '}
                 {linkUp ? 'CORE ONLINE' : 'LINK OFFLINE'}
@@ -1493,10 +1493,7 @@ export default function SuperbrainHUD({
           </header>
 
           <section className="core-readout" aria-label="Core status">
-            {/* SUPERMIND is the literal product name (claims nothing falsifiable),
-                so it stays. The fake "/ NN" build-tag is purged (P2): the only
-                live sub-readout is the REAL derived phase + honest link state. */}
-            <h2>SUPERMIND</h2>
+            <h2>GAGOS</h2>
             {/* aria-live sits on THIS line only (not the section): the static h2
                 must not re-announce on every 500ms phase tick · only the changed
                 phase + link words speak. */}
@@ -1579,7 +1576,7 @@ export default function SuperbrainHUD({
             </div>
           ) : null}
 
-          {/* COMMAND BAR · DIRECT THE SUPERMIND · the pilot vessel. Every readout
+          {/* COMMAND BAR · DIRECT GAGOS · the pilot vessel. Every readout
               is HONEST: the Execute label + the indeterminate working arc reflect
               the REAL turn-state (generating / synthesis), never a fabricated %;
               the brain chip + engaged counter read real `route`/`agent-dispatch`
@@ -1597,7 +1594,7 @@ export default function SuperbrainHUD({
               &gt;_
             </span>
             <div className="command-field">
-              <label htmlFor="directive">DIRECT THE SUPERMIND</label>
+              <label htmlFor="directive">DIRECT GAGOS</label>
               <input
                 id="directive"
                 value={directive}

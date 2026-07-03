@@ -11,7 +11,7 @@
  *              when measured frame rate declines. A demotion is evidence; it
  *              sticks across sessions until the operator overrides it.
  *
- *   generating the AI-OS is mid-turn (between a 'directive' and the next
+ *   generating GAGOS is mid-turn (between a 'directive' and the next
  *              'synthesis'/'approval-required' on the cognition bus). While
  *              the local model is thinking it owns the machine's memory
  *              bandwidth, so the interface dims its own cortex by one tier
@@ -78,7 +78,7 @@ interface QualityTierContextValue {
   perfTier: QualityTier;
   /** The machine's proven capability (persisted; demote-only ratchet). */
   baseTier: QualityTier;
-  /** True while a real AI-OS turn is streaming. */
+  /** True while a real GAGOS turn is streaming. */
   generating: boolean;
   /** Operator/governor override of the base tier; persisted. */
   setTier: (tier: QualityTier) => void;
@@ -118,7 +118,7 @@ export function QualityTierProvider({
     }
   }, []);
 
-  // The product signal: dim while the AI-OS is mid-turn. 'directive' opens a
+  // The product signal: dim while GAGOS is mid-turn. 'directive' opens a
   // turn; ANY settling event — a synthesis (including the adapter's honest
   // LINK OFFLINE) or an approval hold — closes it.
   useEffect(() => {
