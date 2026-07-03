@@ -139,7 +139,11 @@ export async function initSession(): Promise<string> {
     const created =
       typeof window.crypto?.randomUUID === 'function'
         ? window.crypto.randomUUID()
-        : `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        : `sb-${Date.now().toString(36)}-${Array.from(
+            window.crypto.getRandomValues(new Uint8Array(8))
+          )
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('')}`;
     window.sessionStorage.setItem(SESSION_STORAGE_KEY, created);
     _fallbackSessionId = created;
 
