@@ -126,6 +126,7 @@ from aios.runtime.self_model_handler import SelfModelHandler
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
+from aios.runtime import turn_state
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
@@ -3347,6 +3348,16 @@ def generate(
                 approved_creations.append(action.payload)
     except (ApprovalError, KeyError) as exc:
         raise HTTPException(status_code=400, detail=f"invalid approval token: {exc}") from exc
+    # Approval-resume continuation (ratified option A, S3): a resume (tokens
+    # present) replays the convo tail this session stashed at its last pause.
+    # A token-LESS fresh directive on the same session must NOT inherit a
+    # stale tail from an abandoned pause -- clear it instead, mirroring the
+    # approvals.clear_session() sibling call just above.
+    resume_tail = (
+        turn_state.take(session_id)
+        if req.approval_tokens
+        else (turn_state.clear(session_id) or None)
+    )
 
     def event_stream() -> Iterator[str]:
         sse = _sse_writer(session_id)
@@ -3606,6 +3617,10 @@ def generate(
                 # a write class has earned it, the turn applies it without pausing
                 # (still gated, audited, and revoked instantly on a verified fail).
                 autonomy=autonomy,
+                # Approval-resume continuation (ratified option A, S3): the prior
+                # pause's convo tail for this session, or None. Model context
+                # only -- carries no authority of its own.
+                resume_tail=resume_tail,
                 **overrides,
             )
 
@@ -3644,6 +3659,7 @@ def generate(
                 planner_llm=planner_llm,
                 self_analysis_llm=planner_llm,
                 autonomy=autonomy,
+                resume_tail=resume_tail,
                 **overrides,
             )
         answer_parts: list[str] = []
@@ -3919,6 +3935,16 @@ def generate(
                 cmd = ev["command"]
                 edit = ev.get("edit")
                 creation = ev.get("creation")
+                # Approval-resume continuation (ratified option A, S2): pop the
+                # convo tail off the event BEFORE any payload is built below --
+                # it must never reach `payload`/the SSE wire. Stashed under this
+                # session id so a later resume (token redeemed above) can pop it
+                # back out and splice it into the next ToolAgent.run's convo.
+                # The token itself lives only in `payload` (issued just below),
+                # never in the tail -- the tail carries no authority.
+                _convo_tail = ev.pop("_convo_tail", None)
+                if _convo_tail:
+                    turn_state.stash(session_id, _convo_tail)
                 try:
                     if edit is not None:
                         token = approvals.issue("edit", edit, session_id)
@@ -4030,6 +4056,7 @@ def generate(
                         },
                     )
                 approvals.clear_session(session_id)
+                turn_state.clear(session_id)
                 yield sse("done", {})
                 # Cortex bus W2: emit a cold-path observation AFTER the done
                 # frame so the hot path is never delayed. Best-effort and

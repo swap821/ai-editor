@@ -641,6 +641,7 @@ class ToolAgent:
         system_prompt: Optional[str] = None,
         allowed_tools: Optional[frozenset[str]] = None,
         autonomy: Optional[AutonomyLedger] = None,
+        resume_tail: Optional[list[dict[str, Any]]] = None,
     ) -> None:
         self.llm = llm
         #: Caste view (role-pass): an alternative system prompt and a hard tool
@@ -723,6 +724,16 @@ class ToolAgent:
         #: tool degrades gracefully. Never used to edit/apply source -- only to draft
         #: proposal diffs stored in the report.
         self._self_analysis_llm = self_analysis_llm
+        #: Approval-resume continuation (ratified option A). The convo tail a
+        #: PRIOR turn on this same session accumulated before it paused for
+        #: YELLOW approval (assistant tool_calls, tool results, everything
+        #: appended on top of the initial [system]+messages prefix). Spliced
+        #: onto ``convo`` right after the prefix and BEFORE the replayed
+        #: grant-anchor messages, so the model sees: its own prior ask -> the
+        #: now-applied grant -> continue. MODEL CONTEXT ONLY -- carries no
+        #: authority; everything it induces still flows through the same
+        #: gated dispatch loop. ``None`` -> today's behaviour unchanged.
+        self.resume_tail = resume_tail
 
         # ---- Loop safety: detect repetitive tool-call patterns ----
         #: All tool calls made in this run, as (name, arg_signature) tuples,
@@ -793,6 +804,12 @@ class ToolAgent:
 
         convo: list[dict[str, Any]] = [{"role": "system", "content": system}]
         convo.extend(messages)
+        if self.resume_tail:
+            # Continuation (ratified option A, S3): splice in the PRIOR turn's
+            # tail (this session's own last pause -- assistant tool_call(s) +
+            # tool results) BEFORE the grant anchor below, so ordering reads:
+            # the model's own prior ask -> approved+applied -> continue.
+            convo.extend(self.resume_tail)
         if self.approved_creations or self.approved_edits:
             # Approved writes land deterministically BEFORE the model speaks.
             # An approval is the human deciding the write happens; it must not
@@ -909,9 +926,26 @@ class ToolAgent:
                         # re-calls /api/generate with the command/edit whitelisted, so
                         # we return here without applying it, recording no assistant
                         # answer (the paused turn is replayed, not continued mid-stream).
-                        yield tool_loop_helpers.format_human_required_event(
+                        pause_event = tool_loop_helpers.format_human_required_event(
                             name, args, output, call_id
                         )
+                        # S2 (approval-resume continuation, ratified option A):
+                        # attach the CONVO TAIL -- everything this turn appended
+                        # on top of the initial [system]+messages prefix -- so
+                        # main.py can stash it for replay on resume. The prefix
+                        # length is exactly 1 (system) + len(messages) BEFORE any
+                        # resume_tail/grant-anchor splicing, since those are
+                        # themselves prior-turn history the resumed turn should
+                        # carry forward too (multi-pause chains compose: each
+                        # pause stashes the FULL current tail). The assistant
+                        # message carrying THIS tool_call was already appended
+                        # to convo above (line ~861) before this per-call dispatch
+                        # loop began, so the slice already ends with it -- no
+                        # synthetic re-append needed. Popped off the event by
+                        # main.py before it reaches the SSE payload -- this key
+                        # must NEVER be emitted to the client.
+                        pause_event["_convo_tail"] = list(convo[1 + len(messages):])
+                        yield pause_event
                         return
                 if status == "blocked":
                     yield {
