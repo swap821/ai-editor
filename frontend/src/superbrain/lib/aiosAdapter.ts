@@ -563,12 +563,14 @@ async function streamTurn(
         }
         // ── Sovereignty S2: Knowledge graph — associative recall ─────────
         case 'graph_inference': {
+          const chain = Array.isArray(frame.data.chain) ? frame.data.chain : [];
+          const conf = frame.data.combined_confidence;
           publishCognition({
             type: 'graph-recall',
             label: 'ASSOCIATIVE RECALL',
-            detail: `${frame.data.chain?.length ?? '?'}-hop inference · ` +
-                    `confidence ${typeof frame.data.combined_confidence === 'number'
-                      ? (frame.data.combined_confidence * 100).toFixed(0) + '%' : '?'}`,
+            detail: `${chain.length}-hop inference · ` +
+                    `confidence ${typeof conf === 'number'
+                      ? (conf * 100).toFixed(0) + '%' : '?'}`,
             intensity: 0.7,
             source: 'aios',
             phase: 'narrative',
