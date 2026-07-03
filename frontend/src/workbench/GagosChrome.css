@@ -982,9 +982,16 @@
   box-shadow: 0 0 8px rgba(248, 113, 113, 0.85);
   animation: gagos-verify-dot-shimmer 1.2s ease-in-out infinite;
 }
+.gagos-verify-toast--leaving {
+  animation: gagos-verify-out 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 @keyframes gagos-verify-in {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gagos-verify-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
 }
 @keyframes gagos-verify-dot-pulse {
   0%, 100% { transform: scale(1); opacity: 0.9; }
@@ -997,6 +1004,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .gagos-verify-toast { animation: none; }
+  .gagos-verify-toast--leaving { animation: none; }
   .gagos-verify-toast--pass .gagos-verify-toast__dot,
   .gagos-verify-toast--fail .gagos-verify-toast__dot { animation: none; }
 }

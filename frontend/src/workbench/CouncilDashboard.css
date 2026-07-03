@@ -161,6 +161,18 @@
   border-color: rgba(123, 245, 251, 0.3);
 }
 
+/* Spin only fires for a MANUAL refresh click (is-refreshing is set purely by
+   the button's own onClick wrapper) — the 15s background poll never toggles
+   this class, so it must never spin the icon. */
+.council-dashboard__icon-btn.is-refreshing svg {
+  animation: council-refresh-spin 900ms linear infinite;
+}
+
+@keyframes council-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .council-dashboard__icon-btn:focus-visible,
 .council-dashboard__mission:focus-visible {
   outline: 2px solid rgba(123, 245, 251, 0.72);
@@ -244,6 +256,10 @@
   height: 7px;
   margin-top: 4px;
   border-radius: 50%;
+  /* Luminance settle only — never a delay. A RED escalation must snap in
+     immediately (no fade-in that could read as missable); this only softens
+     the shift between tones on an already-mounted node. */
+  transition: background 220ms var(--ease-out-expo), border-color 220ms var(--ease-out-expo);
 }
 
 .council-dashboard__risk-dot.is-ok,
@@ -281,6 +297,15 @@
   padding: 13px 14px 15px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  /* The React key on this section is the missionId, so switching selection
+     forces a fresh mount and cross-fades in (also fires once on the initial
+     async mission arrival). */
+  animation: council-detail-in 220ms var(--ease-out-expo) both;
+}
+
+@keyframes council-detail-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .council-dashboard__mission-title {
@@ -308,6 +333,10 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  /* Luminance settle only — never a delay. A RED escalation must snap in
+     immediately (no fade-in that could read as missable); this only softens
+     the shift between tones on an already-mounted node. */
+  transition: background 220ms var(--ease-out-expo), border-color 220ms var(--ease-out-expo);
 }
 
 .council-dashboard__grid {
@@ -527,6 +556,9 @@
   .council-dashboard__originate input {
     transition: none;
   }
+
+  .council-dashboard__icon-btn.is-refreshing svg { animation: none; }
+  .council-dashboard__detail { animation: none; }
 }
 
 @media (max-width: 1160px) {

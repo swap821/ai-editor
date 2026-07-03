@@ -34,7 +34,16 @@ function authHeaders(): Record<string, string> {
 }
 
 const FETCH_CREDENTIALS: RequestCredentials = 'include';
-const BACKEND_REDACTION_MARKER_RE =
+// Backend redaction markers (secret scanner / privacy filter) arrive as literal
+// "[SENSITIVE: <id>]" (and sibling "[... REDACTED]") tokens. This is the ONE
+// shared source pattern — GagosChrome's chip renderer imports it directly
+// rather than keeping its own copy. It carries the /g flag, which is safe for
+// String.prototype.split()/.replace() (today's two call sites; neither touches
+// lastIndex) but NOT safe to share across a future .test()/.exec() caller in a
+// loop — a stateful /g regex's lastIndex persists on the object between calls.
+// Any future consumer needing test()/exec() semantics must clone this constant
+// via `new RegExp(...)` first rather than calling test()/exec() on it directly.
+export const BACKEND_REDACTION_MARKER_RE =
   /\[(?:SENSITIVE:\s*[^\]]*|CREDENTIAL REDACTED|PATH REDACTED|FILE CONTENT REDACTED[^\]]*)\]/g;
 
 function humanizeRedactionMarkers(value: unknown): string {

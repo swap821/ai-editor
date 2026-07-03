@@ -75,6 +75,7 @@ export default function CouncilDashboard() {
   const [detail, setDetail] = useState(EMPTY_DETAIL);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState(false);
   const [decisionError, setDecisionError] = useState('');
   const [rollbackBusy, setRollbackBusy] = useState(false);
@@ -259,8 +260,11 @@ export default function CouncilDashboard() {
         </div>
         <button
           type="button"
-          className="council-dashboard__icon-btn"
-          onClick={() => loadMissions()}
+          className={`council-dashboard__icon-btn${manualRefreshing ? ' is-refreshing' : ''}`}
+          onClick={() => {
+            setManualRefreshing(true);
+            loadMissions().finally(() => setManualRefreshing(false));
+          }}
           aria-label="Refresh council reports"
           title="Refresh"
         >
@@ -323,7 +327,11 @@ export default function CouncilDashboard() {
         </div>
 
         {selectedSummary ? (
-          <section className="council-dashboard__detail" aria-label="Selected King Report">
+          <section
+            key={selectedSummary.missionId}
+            className="council-dashboard__detail"
+            aria-label="Selected King Report"
+          >
             <div className="council-dashboard__mission-title">
               <span className={`council-dashboard__badge is-${riskTone(risk)}`}>{risk}</span>
               <strong>{report.mission || selectedSummary.mission}</strong>

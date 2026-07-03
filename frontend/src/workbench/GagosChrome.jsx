@@ -18,7 +18,7 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, getPendingApproval, subscribePendingApproval, previewIntent, fetchOnboardingState } from '../superbrain/lib/aiosAdapter';
+import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, getPendingApproval, subscribePendingApproval, previewIntent, fetchOnboardingState, BACKEND_REDACTION_MARKER_RE } from '../superbrain/lib/aiosAdapter';
 import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
@@ -167,14 +167,6 @@ export function extractStreamingCode(text) {
   return { code, language: open[1] || 'text' };
 }
 
-// Backend redaction markers (secret scanner / privacy filter) arrive as literal
-// "[SENSITIVE: <id>]" (and sibling "[... REDACTED]") tokens inside step notes and
-// replies. The withheld value never reaches the client — this is presentation
-// only: each token renders as a calm chip instead of a raw bracket-hash string.
-// Runs AFTER sanitizeToText, building safe React elements (never raw HTML).
-const REDACTION_TOKEN =
-  /\[(?:SENSITIVE:\s*[^\]]*|CREDENTIAL REDACTED|PATH REDACTED|FILE CONTENT REDACTED[^\]]*)\]/g;
-
 function formatActiveBrainChip(brain) {
   const model = String(brain.model || '').trim();
   const provider = String(brain.provider || '').trim();
@@ -187,9 +179,17 @@ function formatActiveBrainChip(brain) {
   return { name, meta };
 }
 
+// Backend redaction markers (secret scanner / privacy filter) arrive as literal
+// "[SENSITIVE: <id>]" (and sibling "[... REDACTED]") tokens inside step notes and
+// replies. The withheld value never reaches the client — this is presentation
+// only: each token renders as a calm chip instead of a raw bracket-hash string.
+// Runs AFTER sanitizeToText, building safe React elements (never raw HTML).
+// Shared with aiosAdapter's humanizeRedactionMarkers (same source pattern, one
+// constant) — split() does not touch the shared /g regex's lastIndex, so this
+// is safe to reuse as-is; see the constant's own doc comment for the caveat.
 function renderWithRedactionChips(text) {
   const value = String(text ?? '');
-  const parts = value.split(REDACTION_TOKEN);
+  const parts = value.split(BACKEND_REDACTION_MARKER_RE);
   if (parts.length === 1) return value;
   const out = [];
   parts.forEach((part, i) => {
@@ -338,12 +338,19 @@ export default function GagosChrome() {
   );
 
   // Verify celebration / failure: a transient badge that celebrates a PASS or
-  // surfaces a FAIL without parsing tool chatter.
+  // surfaces a FAIL without parsing tool chatter. Exit is a two-phase timer:
+  // after the hold, the toast enters a 'leaving' sub-state (mirrored exit
+  // keyframe) for ~250ms before unmounting — reduced-motion skips the delay
+  // and unmounts immediately (the delay is JS-timed, not CSS-timed, so a pure
+  // `animation: none` override alone would not skip it). Each toast instance
+  // is tagged with its own token so a second verify event arriving mid-exit
+  // can never have its (newer) toast nulled by the first toast's stale timers.
   useEffect(
     () =>
       subscribeCognition((event) => {
         if (event.type === 'verify' && event.data?.verdict) {
-          setVerifyToast({ verdict: event.data.verdict, detail: event.detail || '' });
+          const toastToken = {};
+          setVerifyToast({ verdict: event.data.verdict, detail: event.detail || '', leaving: false, token: toastToken });
           // PREVIEW (#2): attach the run/verify RESULT to the matching slab so the
           // focused surface shows what the code DID, not just what it says. Match by
           // filename; fall back to the focused content slab when unattributed.
@@ -360,11 +367,26 @@ export default function GagosChrome() {
               content: { ...match.content, verifyVerdict: verdict, verifyOutput: output },
             });
           }
-          const id = window.setTimeout(() => setVerifyToast(null), 2600);
-          return () => window.clearTimeout(id);
+          if (reducedMotion) {
+            const id = window.setTimeout(() => {
+              setVerifyToast((current) => (current?.token === toastToken ? null : current));
+            }, 2600);
+            return () => window.clearTimeout(id);
+          }
+          // Timer ids in a closure array (NOT a property on the leave-timer id:
+          // setTimeout returns a number in the browser — a Timeout object only
+          // in jsdom — so `.unmountId =` throws a strict-mode TypeError live).
+          const timers = [];
+          timers.push(window.setTimeout(() => {
+            setVerifyToast((current) => (current?.token === toastToken ? { ...current, leaving: true } : current));
+            timers.push(window.setTimeout(() => {
+              setVerifyToast((current) => (current?.token === toastToken ? null : current));
+            }, 250));
+          }, 2600));
+          return () => timers.forEach((t) => window.clearTimeout(t));
         }
       }),
-    [],
+    [reducedMotion],
   );
 
   // Keep the newest message in view as the thread grows / streams.
@@ -851,7 +873,7 @@ export default function GagosChrome() {
 
       {verifyToast ? (
         <div
-          className={`gagos-verify-toast gagos-verify-toast--${verifyToast.verdict}`}
+          className={`gagos-verify-toast gagos-verify-toast--${verifyToast.verdict}${verifyToast.leaving ? ' gagos-verify-toast--leaving' : ''}`}
           role="status"
           aria-live="polite"
         >
