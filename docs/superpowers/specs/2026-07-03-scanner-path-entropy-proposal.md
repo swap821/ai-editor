@@ -88,3 +88,73 @@ formats that matter most.
 `build_auto_verify_command` relativizes against the scope root so production
 sandbox commands stay short. The witnessed-path FP band is currently avoided
 in practice; the audit-trail cosmetic mangling persists until the real fix.
+
+## 6. COMPOSITE SPEC v1 — the attack target (not yet ratified)
+
+Implementable pseudocode against `secret_scanner.py` as it stands; the same
+helper is exported and reused by `privacy_filter._redact_high_entropy`.
+
+```python
+_PATH_SEP = re.compile(r"[\/]")
+#: Elevated merged-token threshold for path-shaped tokens. Empirical basis
+#: (§1): merged word-paths score 3.6-4.1 bits/char; real random secrets in
+#: base64/url-safe alphabets score 5.0+. 4.7 leaves margin on both sides.
+_PATH_MERGED_ENTROPY_THRESHOLD = 4.7
+
+def _entropy_token_is_credential(token: str) -> tuple[bool, str]:
+    """Score one Pass-2 token. Returns (redact?, finding_label)."""
+    if not _PATH_SEP.search(token):
+        # NON-path tokens: byte-identical to today's rule. No behavior change.
+        hit = (len(token) >= _credential_like_min_len(token)
+               and shannon_entropy(token) >= _ENTROPY_THRESHOLD)
+        return hit, "HIGH_ENTROPY"
+    # Path-shaped tokens (contain a separator) get THREE channels:
+    # (a) NEW DETECTION: named patterns on the separator-stripped reassembly —
+    #     catches credentials split across separators, which today EVADE Pass-1
+    #     (the contiguous run is restored before the regexes see it).
+    #     AWS_SECRET_KEY keeps its _has_aws_context() requirement, evaluated at
+    #     the token's position in the ORIGINAL payload, exactly as today.
+    stripped = _PATH_SEP.sub("", token)
+    for name, pattern in _NAMED_PATTERNS:
+        if pattern.search(stripped):
+            return True, f"PATH_REASSEMBLED_{name}"
+    # (b) per-segment scoring under the EXISTING rule — a genuinely random
+    #     segment (>=20 chars, >=4.0 bits/char) still redacts.
+    for seg in _PATH_SEP.split(token):
+        if seg and len(seg) >= _credential_like_min_len(seg) \
+                and shannon_entropy(seg) >= _ENTROPY_THRESHOLD:
+            return True, "HIGH_ENTROPY"
+    # (c) merged-token scoring at the ELEVATED threshold — catches a generic
+    #     secret spread thin across segments while releasing the 4.0-4.7
+    #     word-path false-positive band.
+    if len(token) >= _credential_like_min_len(token) \
+            and shannon_entropy(token) >= _PATH_MERGED_ENTROPY_THRESHOLD:
+        return True, "HIGH_ENTROPY"
+    return False, ""
+```
+
+- Pass-2's replace callback delegates to this helper; Pass-1, Pass-3, the
+  gateway ordering, and every caller are otherwise untouched. No masking
+  anywhere. No grammar exemptions.
+- `privacy_filter._redact_high_entropy` imports and applies the same helper
+  (one truth; its `[SENSITIVE: hash]` placeholder format unchanged).
+
+**Honest deltas vs today** (the attack round probes exactly these):
+1. RELEASED: forward-slash-merged tokens whose merged entropy is 4.0–4.7 AND
+   no segment is individually credential-like AND no named pattern
+   reassembles. By construction this is the witnessed false-positive band.
+   The attack round must hunt REAL credential formats living here.
+2. GAINED: split-credential reassembly detection (today's confirmed A-kill
+   payloads are all caught by channel (a)).
+3. UNCHANGED (pre-existing limit, documented): Windows backslash paths never
+   form merged tokens (the tokenizer excludes `\`), so they are per-segment
+   today and per-segment under this spec; backslash-split credentials evade
+   today and still would. Channel (a) does not extend across separate tokens.
+   A future Pass-3-style window could; out of scope for v1.
+
+**Acceptance corpora (committed as tests when ratified):**
+- FP corpus must pass clean: both witnessed manifestations, mkdtemp/GUID tmp
+  dirs, pytest tmp paths, the full build_auto_verify_command shapes.
+- Smuggling corpus must ALL be caught: every §2 kill payload, AKIA/ghp_/sk-/
+  JWT/PEM split across `/` at every offset, high-entropy 40-char base64
+  secrets as single path segments, and the same embedded in runner commands.
