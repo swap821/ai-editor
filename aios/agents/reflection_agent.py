@@ -15,6 +15,7 @@ Safeguards (Blueprint Q6):
 from __future__ import annotations
 
 import json
+import logging
 import re
 import uuid
 from dataclasses import dataclass
@@ -25,6 +26,8 @@ from aios import config
 from aios.core.llm import LLMClient
 from aios.core.verification_strength import VerificationStrength
 from aios.memory.mistake import MistakeMemory
+
+logger = logging.getLogger(__name__)
 
 REFLECT_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
 Analyse the failed action, identify the root cause, and formulate a generalised lesson so
@@ -112,7 +115,7 @@ class ReflectionAgent:
         error_output: str,
         *,
         task_id: Optional[str] = None,
-    ) -> Reflection:
+    ) -> Optional[Reflection]:
         """Analyse one failure and persist a structured lesson.
 
         Args:
@@ -128,6 +131,9 @@ class ReflectionAgent:
         Raises:
             ReflectionError: If the LLM output is unparseable or incomplete.
         """
+        if config.OFFLINE_MODE:
+            logger.info("reflection skipped: offline mode")
+            return None
         task_id = task_id or uuid.uuid4().hex
         prompt = REFLECT_USER_TEMPLATE.format(
             command=command, error_output=error_output[:2000]

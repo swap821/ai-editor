@@ -364,9 +364,9 @@ observability/           # Prometheus, Grafana, Alertmanager config
 | Phase | Status | What it delivers |
 |-------|--------|-----------------|
 | **S1 — Cerebellum** | ✅ Landed | Verified skills compile into deterministic playbooks. LLM-free execution for practiced tasks. |
-| **S2 — Knowledge Graph** | 🔨 Building | Confidence-weighted graph traversal over verified facts. Multi-hop inference without LLM. Cross-store ingestion from skills, mistakes, development outcomes. |
-| **S3 — Native Planner** | 📋 Spec'd | Known task shapes plan from compiled templates. Falls through to LLM for novel tasks. |
-| **S4 — Offline Mode** | 📋 Spec'd | Meaningful operation with all LLMs offline. `prove_sovereignty.py` end-to-end proof. |
+| **S2 — Knowledge Graph** | ✅ Landed | Confidence-weighted graph traversal over verified facts. Multi-hop inference without LLM. Cross-store ingestion from skills, mistakes, development outcomes. |
+| **S3 — Native Planner** | ✅ Landed | Known task shapes plan from compiled templates. Falls through to LLM for novel tasks. |
+| **S4 — Offline Mode** | ✅ Landed | Meaningful operation with all LLMs offline. `prove_sovereignty.py` end-to-end proof. |
 
 Design specs: `docs/superpowers/specs/2026-07-03-sovereignty-engine-design.md`
 

@@ -244,6 +244,7 @@ LLM_NUM_CTX: Final[int] = _env_int("AIOS_LLM_NUM_CTX", 4096)
 INDEX_CHAT: Final[bool] = _env_bool("AIOS_INDEX_CHAT", True)
 REFLECT_ON_FAILURE: Final[bool] = _env_bool("AIOS_REFLECT_ON_FAILURE", True)
 INTERPRET_ALIGNMENT: Final[bool] = _env_bool("AIOS_INTERPRET_ALIGNMENT", True)
+OFFLINE_MODE: Final[bool] = _env_bool("AIOS_OFFLINE_MODE", False)
 
 BEDROCK_REGION: Final[str] = _env_str("AIOS_BEDROCK_REGION", "")
 BEDROCK_MODEL: Final[str] = _env_str("AIOS_BEDROCK_MODEL", "amazon.nova-lite-v1:0")
@@ -401,6 +402,7 @@ def startup_banner() -> dict[str, object]:
         "council_runtime_dir": str(COUNCIL_RUNTIME_DIR),
         "council_reasoning": COUNCIL_REASONING,
         "scope_roots": [str(p) for p in SCOPE_ROOTS],
+        "offline_mode": OFFLINE_MODE,
     }
 
 
@@ -437,7 +439,7 @@ __all__ = [
     "CONTAINER_CPUS", "CONTAINER_PIDS_LIMIT", "MAX_COMMAND_CHARS",
     "MAX_COMMAND_OUTPUT_BYTES", "OLLAMA_HOST", "LLM_MODEL",
     "LLM_REQUEST_TIMEOUT_S", "LLM_TEMPERATURE", "LLM_NUM_CTX",
-    "INDEX_CHAT", "REFLECT_ON_FAILURE", "INTERPRET_ALIGNMENT",
+    "INDEX_CHAT", "REFLECT_ON_FAILURE", "INTERPRET_ALIGNMENT", "OFFLINE_MODE",
     "BEDROCK_REGION", "BEDROCK_MODEL", "BEDROCK_MAX_TOKENS", "BEDROCK_ENABLED",
     "GEMINI_PROJECT", "GEMINI_LOCATION", "GEMINI_MODEL", "GEMINI_MAX_TOKENS",
     "GEMINI_THINKING_BUDGET", "GEMINI_ENABLED",

@@ -868,6 +868,17 @@ class ToolAgent:
                     return
                 # Aborted — fall through to the LLM loop below.
 
+        # -- Offline guard (sovereignty S4) ----------------------------------------
+        if config.OFFLINE_MODE:
+            yield from self._finish(
+                "I'm running in offline mode — no LLM is available. "
+                "I matched no compiled playbook for this request, so I "
+                "can't handle it natively yet. I need either a model to "
+                "be available, or to have completed this type of task "
+                "successfully before so I can replay from experience."
+            )
+            return
+
         required_tools = _explicit_tool_requests(messages)
         nudged_tools: set[str] = set()
 
