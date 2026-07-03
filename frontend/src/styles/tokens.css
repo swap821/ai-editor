@@ -43,6 +43,10 @@
   --accent-dim:    rgba(123, 245, 251, 0.12);
   --accent-glow:   rgba(123, 245, 251, 0.28);
   --accent-grad:   linear-gradient(135deg, #7bf5fb 0%, #b06eff 100%);
+  --neon-cyan:   #7bf5fb;
+  --neon-purple: #b06eff;
+  --neon-green:  #54f0a0;
+  --neon-orange: #ff7e40;
 
   /* ── Color · Semantic status (each has fg + dim bg) ─────────────────── */
   --success:     #34d399;

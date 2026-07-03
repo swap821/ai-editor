@@ -29,6 +29,7 @@ SCOPE — the SUPERBRAIN RENOVATION surfaces only:
   frontend/src/styles/*.css
   frontend/src/*.css
   frontend/src/components/*.css
+  frontend/src/superbrain/components/**/*.css
   (frontend/src/superbrain/superbrain.css is FROZEN and is never scanned.)
 
 Canon governs the SUPERBRAIN renovation, NOT the classic ?ui=classic fallback nor
@@ -63,6 +64,7 @@ RENOVATABLE_GLOBS = (
     "frontend/src/styles/*.css",
     "frontend/src/*.css",
     "frontend/src/components/*.css",
+    "frontend/src/superbrain/components/**/*.css",
 )
 FROZEN_NEVER_SCAN = (ROOT / "frontend" / "src" / "superbrain" / "superbrain.css").resolve()
 
