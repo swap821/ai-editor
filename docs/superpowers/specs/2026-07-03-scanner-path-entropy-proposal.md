@@ -158,3 +158,57 @@ def _entropy_token_is_credential(token: str) -> tuple[bool, str]:
 - Smuggling corpus must ALL be caught: every §2 kill payload, AKIA/ghp_/sk-/
   JWT/PEM split across `/` at every offset, high-entropy 40-char base64
   secrets as single path segments, and the same embedded in runner commands.
+
+## 7. ATTACK ROUND 2 VERDICT — SPEC v1 DIES. Effort CLOSED; spine NOT changed.
+
+**Status change: this proposal is REJECTED. No `aios/security/**` edit will be
+made.** Full round-2 transcript kept OUT of the repo (its synthetic attack payloads
+contain credential-shaped strings that GitHub push-protection correctly blocks —
+the very hygiene this analysis defends); it lives in the session scratchpad. The
+verdict, findings, and decision below ARE the durable record.
+
+Two independent adversarial lenses, attacking a faithful shadow that imported
+the REAL scanner helpers (zero drift), both returned **SPEC_DIES** on verified,
+reproducible **regressions** — cases today's scanner CATCHES that spec v1
+RELEASES:
+1. **N-way dilution across every named family** (Stripe/GitHub/GCP/OpenAI):
+   `webhook_configs/sk_live_/OhbV.../VgRV.../Bcbf.../deploy.py` — today
+   HIGH_ENTROPY-caught on the merged token (H≈4.6); spec v1 evades all three
+   channels (segments under the 20-char floor, merged under 4.7, reassembly
+   broken by the interposed directory word). Real-credential regression.
+2. **AWS family, 16/16 reproducible** via doubled-separator + short glue char
+   (`ke//ys/AKIA//IOSFODNN7EXAMPLE/x.py`): today caught, spec v1 evades every time.
+3. **Hex secret in a word-path** (`logs/<32-hex>/readme.py`, a Django
+   SECRET_KEY shape): today caught at the 4.0 merged bar; spec v1's channel (b)
+   hex floor (32) + channel (c) elevated 4.7 both miss it.
+4. **A NEW false-positive spec v1 introduces**: a 2-char dir `sk`/`gh` reassembles
+   into a fake PATH_REASSEMBLED_OPENAI/GITHUB hit on innocent paths.
+5. `_PATH_SEP` as written is forward-slash-only (backslash + mixed-separator
+   paths bypass the whole scheme).
+
+The amendments the verdict lists (strip short/dictionary segments before
+reassembly; boundary-trim retries; backslash in the class; hex-aware channel
+(c)) each patch one leak while the underlying trade stands: **any path-aware
+relaxation of the merged-token entropy rule reopens dilution room that the
+current crude rule covers.** The scanner's bluntness is load-bearing.
+
+### The decision (CEO call, honest)
+- **Keep the frozen spine unchanged.** The disease is milder than every
+  proposed cure: the OPERATIONAL manifestation (RED-blocked forced verify) is
+  ALREADY neutralized in production by `build_auto_verify_command`
+  relativizing to the scope root (short paths, live since ecf743e). The
+  remaining AUDIT-COSMETIC manifestation (a plain filename mangled mid-path in
+  the tamper trail) is a genuine but minor honesty blemish, not a security or
+  correctness hole.
+- **Accepted residual, documented:** long absolute paths with mixed-case/high-
+  diversity segments may be cosmetically redacted in audit payloads. Mitigation
+  is behavioral (keep sandbox paths short/relative), never a spine relaxation.
+- **If ever revisited:** a spec v2 must NOT relax the merged threshold and must
+  NOT rely on separator splitting — the only direction round 2 leaves open is a
+  filesystem-truth exemption (redact-suppress ONLY tokens that resolve to an
+  actually-existing in-scope path), evaluated at a layer with disk access and
+  AFTER Pass-1 named patterns run on the raw token — and even that must survive
+  its own attack round before ratification. Not scheduled.
+
+This is the analysis-first RED-zone discipline working as designed: two
+adversarial rounds, and the spine stays frozen because no proposal survived.
