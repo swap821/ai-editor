@@ -36,6 +36,15 @@ _SSE_TO_COGNITION: dict[str, EventType] = {
     "alignment": EventType.AGENT_DISPATCH,
     "caste_end": EventType.AGENT_DISPATCH,
     "caste_start": EventType.AGENT_DISPATCH,
+    # Cerebellum (sovereignty engine S1) — compiled experience replay.
+    # Match and step events use AGENT_DISPATCH (reflex phase — orange).
+    # Done uses SYNTHESIS (narrative phase — green settle).
+    # Abort uses HESITATION (emotion phase — the replay couldn't complete).
+    "cerebellum_match": EventType.AGENT_DISPATCH,
+    "cerebellum_step": EventType.AGENT_DISPATCH,
+    "cerebellum_step_done": EventType.KNOWLEDGE_ACQUIRED,
+    "cerebellum_done": EventType.SYNTHESIS,
+    "cerebellum_abort": EventType.HESITATION,
     "cloud_route": EventType.ROUTE,
     # Confidence gating is the EMOTION layer (uncertainty/hesitation), NOT
     # reflex approval — it shares no permission token with human_required.

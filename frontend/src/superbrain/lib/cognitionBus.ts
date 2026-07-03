@@ -43,7 +43,11 @@ export type CognitionEventType =
   /** The mind is not confident enough to proceed and asks for clarity — the
    *  emotion layer's honest pause (backend `confidence.gated`). Distinct from
    *  approval-required: there is no permission token, only uncertainty. */
-  | 'hesitation';
+  | 'hesitation'
+  /** Sovereignty S1: the cerebellum matched a compiled playbook and is replaying
+   *  from muscle memory — no LLM consultation.  The body enters reflex phase
+   *  (orange, low metabolism, quiet brain cloud, fast spine firing). */
+  | 'reflex-recall';
 
 export interface CognitionEvent {
   type: CognitionEventType;
