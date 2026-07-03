@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS semantic_facts (
     predicate   TEXT NOT NULL,
     object      TEXT NOT NULL,
     approved_by TEXT,
+    confidence  REAL NOT NULL DEFAULT 1.0,
     status      TEXT NOT NULL DEFAULT 'active'
                 CHECK (status IN ('active','superseded'))
 );
