@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from aios import config
+
 from aios.core.verification_strength import (
     VerificationStrength,
     derive_strength,
@@ -91,7 +93,13 @@ class RunLedgerStore:
     """Persist one run ledger per mission under the runtime root."""
 
     def __init__(self, runtime_root: str | Path) -> None:
-        self.runtime_root = Path(runtime_root).resolve()
+        base_root = Path(config.RUNTIME_ROOT).resolve()
+        candidate_root = Path(runtime_root).resolve()
+        try:
+            candidate_root.relative_to(base_root)
+        except ValueError as exc:
+            raise ValueError("runtime_root must be within configured runtime root") from exc
+        self.runtime_root = candidate_root
 
     def path_for(self, mission_id: str) -> Path:
         return self.runtime_root / "missions" / mission_id / "run_ledger.json"
