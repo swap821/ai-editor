@@ -781,6 +781,64 @@ def get_cerebellum() -> Cerebellum:
     return cb
 
 
+def _cerebellum_dispatch(
+    tool_name: str,
+    args: dict,
+    session_id: str,
+    scope_roots: tuple[Path, ...],
+) -> tuple[str, str, bool]:
+    """Dispatch a cerebellum replay step through the security gateway.
+
+    Returns ``(output, status, failed)`` matching the DispatchFn signature.
+    Security: every replayed step flows through classify() + scope_lock,
+    so the cerebellum is a tool-call SOURCE, not a gateway bypass.
+    """
+    from aios.security.scope_lock import is_path_in_scope
+
+    if tool_name == "read_file":
+        filepath = args.get("filepath", "")
+        scope_result = is_path_in_scope(filepath)
+        if not scope_result.in_scope:
+            return (f"BLOCKED: {scope_result.reason}", "blocked", False)
+        try:
+            content = Path(scope_result.resolved).read_text(errors="replace")[:8000]
+            return (content, "ok", False)
+        except Exception as exc:
+            return (str(exc), "ok", True)
+
+    if tool_name == "read_directory":
+        dirpath = args.get("path", "")
+        scope_result = is_path_in_scope(dirpath)
+        if not scope_result.in_scope:
+            return (f"BLOCKED: {scope_result.reason}", "blocked", False)
+        try:
+            entries = sorted(str(p.name) for p in Path(scope_result.resolved).iterdir())[:100]
+            return ("\n".join(entries), "ok", False)
+        except Exception as exc:
+            return (str(exc), "ok", True)
+
+    if tool_name in ("execute_terminal", "verify"):
+        command = args.get("command", "")
+        zone = classify(command)
+        if zone == Zone.RED:
+            return (f"BLOCKED: {command} classified RED", "blocked", False)
+        import subprocess
+        try:
+            result = subprocess.run(
+                command, shell=True, capture_output=True, text=True,
+                timeout=30, cwd=str(scope_roots[0]) if scope_roots else None,
+            )
+            output = (result.stdout + result.stderr).strip()[:4000]
+            failed = result.returncode != 0
+            return (output, "ok", failed)
+        except subprocess.TimeoutExpired:
+            return ("Command timed out (30s)", "ok", True)
+        except Exception as exc:
+            return (str(exc), "ok", True)
+
+    return (f"Unknown tool: {tool_name}", "blocked", False)
+
+
 def get_curriculum_manager() -> CurriculumManager:
     """Provide the non-autonomous curriculum evidence store."""
     return CurriculumManager()
@@ -3462,6 +3520,41 @@ def generate(
                 yield sse("text_chunk", {"text": question})
                 yield sse("done", {})
                 return
+
+            # ── Sovereignty S1: cerebellum pre-check ──────────────────
+            # If a compiled playbook matches the user message, skip
+            # confidence gating and LLM consultation entirely — the
+            # organism acts from compiled experience.
+            _cb_match = cerebellum.match(user_text) if user_text else None
+            if _cb_match is not None:
+                yield sse("cerebellum_match", {
+                    "goal": _cb_match.goal_pattern,
+                    "playbook_id": _cb_match.id,
+                    "step_count": len(_cb_match.steps),
+                })
+                _replay_ok = True
+                for _ev in cerebellum.replay(
+                    _cb_match,
+                    dispatch_fn=lambda name, args: _cerebellum_dispatch(
+                        name, args, session_id, config.SCOPE_ROOTS,
+                    ),
+                ):
+                    yield sse(_ev["type"], _ev)
+                    if _ev.get("type") == "cerebellum_abort":
+                        _replay_ok = False
+                if _replay_ok:
+                    summary = f"Completed from compiled experience: {_cb_match.goal_pattern}"
+                    _record_episode(session_id, "user", user_text)
+                    _record_episode(session_id, "assistant", summary)
+                    yield sse("cerebellum_done", {
+                        "goal": _cb_match.goal_pattern,
+                        "playbook_id": _cb_match.id,
+                        "replay_count": _cb_match.replay_count,
+                    })
+                    yield sse("text_chunk", {"text": summary})
+                    yield sse("done", {})
+                    return
+                # Replay aborted — fall through to normal LLM path.
 
             confidence, confidence_calibration = _calibrate_default_confidence(
                 " ".join(part for part in (user_text, alignment.goal, alignment.intent) if part),
