@@ -128,7 +128,12 @@ export function sanitizeHtml(dirty) {
   let clean = dirty;
 
   // 1. Remove ALL <script> tags and their content entirely
-  clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, '');
+  const scriptBlockPattern = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi;
+  let previous;
+  do {
+    previous = clean;
+    clean = clean.replace(scriptBlockPattern, '');
+  } while (clean !== previous);
 
   // 2. Remove other dangerous tags entirely
   clean = clean.replace(getDangerousTagPattern(), '');
