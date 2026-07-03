@@ -896,7 +896,13 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
 
             if sabotage == "learning":
                 # Point the checklist at a DB path with no rows to prove honesty.
-                os.environ["AIOS_DATA_DIR"] = str(tmp_dir / "empty_data_dir_sabotage")
+                # Patch the RESOLVED config value: the LEARNING checker reads
+                # aios_config.MEMORY_DB_PATH, which was resolved when aios.config
+                # loaded — flipping AIOS_DATA_DIR here would be inert. (This
+                # sabotage was masked until the workflow_steps fix made LEARNING
+                # genuinely pass; its own self-test then exposed the inert env flip.)
+                from aios import config as _sab_config
+                _sab_config.MEMORY_DB_PATH = tmp_dir / "empty_data_dir_sabotage" / "aios_memory.db"
 
             _finish_common(checklist, all_frames, scope_root)
             return 0 if checklist.all_proved else 1

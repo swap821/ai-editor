@@ -1062,7 +1062,11 @@ def test_agent_pre_applies_granted_edit_and_skips_when_landed(sandbox) -> None:
     assert f.read_text(encoding="utf-8") == "value = 2\n"
     assert any(str(e.get("id", "")).startswith("grant-edit") for e in events)
 
-    # Second replay with the same grant: the edit already landed — stay quiet.
+    # Second replay with the same grant: the edit already landed — no re-apply
+    # (no grant-edit tool_result) and no block; but the RECIPE still carries
+    # the write (exactly one tool_call), the workflow-steps analog of the
+    # noop-verify queueing: the final done-replay's workflow_steps — and any
+    # skill it mints — must include every write of the approval chain.
     chat2 = ScriptedChat([
         {"role": "assistant", "content": "Confirmed."},
     ])
@@ -1071,7 +1075,11 @@ def test_agent_pre_applies_granted_edit_and_skips_when_landed(sandbox) -> None:
     ).run([{"role": "user", "content": "bump the value"}]))
 
     assert f.read_text(encoding="utf-8") == "value = 2\n"
-    assert not any(str(e.get("id", "")).startswith("grant-edit") for e in events2)
+    grant_frames = [e for e in events2 if str(e.get("id", "")).startswith("grant-edit")]
+    assert [e["type"] for e in grant_frames] == ["tool_call"], (
+        f"a landed grant replays as one recipe tool_call, nothing else; got "
+        f"{[e['type'] for e in grant_frames]}"
+    )
     assert not any(e["type"] == "tool_blocked" for e in events2)
 
 

@@ -995,13 +995,23 @@ class ToolAgent:
         applied: list[tuple[int, str, str]] = []  # (index, filepath, action_type)
         for index, (filepath, content) in enumerate(self.approved_creations.items()):
             output, status, _ = self._create_file(filepath, content)
+            call_id = f"grant-create-{index}"
+            if status in ("ok", "noop"):
+                # The applied (or previously-landed) grant IS a step of this
+                # workflow. Without a tool_call frame the resume turn's
+                # workflow_steps stays empty and record_outcome never calls
+                # skills.record_attempt -- the clean supervised path (pause ->
+                # approve -> grant applies -> STRONG verify) could never mint
+                # a skill. noop replays yield it too so the FINAL (done)
+                # replay's recipe carries every write of the approval chain.
+                yield {"type": "tool_call", "tool": "create_file",
+                       "input": {"filepath": filepath}, "id": call_id}
             if status == "noop":
                 # Already landed on an earlier replay -- STILL queue it for verify so
                 # the FINAL (done) replay carries the verdict. Skipping it loses the
                 # evidence recorded on the apply-replay and the turn reads 'unverified'.
                 applied.append((index, filepath, "create_file"))
                 continue
-            call_id = f"grant-create-{index}"
             if status == "ok":
                 yield {"type": "tool_result", "tool": "create_file",
                        "output": output[:_PREVIEW_LIMIT], "id": call_id}
@@ -1014,10 +1024,14 @@ class ToolAgent:
         for index, (filepath, _grant) in enumerate(self.approved_edits.items()):
             # _edit_file substitutes the approved (old, new) pair itself.
             output, status, _ = self._edit_file(filepath, "", "")
+            call_id = f"grant-edit-{index}"
+            if status in ("ok", "noop"):
+                # Same workflow-step accounting as granted creations above.
+                yield {"type": "tool_call", "tool": "edit_file",
+                       "input": {"filepath": filepath}, "id": call_id}
             if status == "noop":
                 applied.append((index, filepath, "edit_file"))  # verify on the done-replay too
                 continue
-            call_id = f"grant-edit-{index}"
             if status == "ok":
                 yield {"type": "tool_result", "tool": "edit_file",
                        "output": output[:_PREVIEW_LIMIT], "id": call_id}
