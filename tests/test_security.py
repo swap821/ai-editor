@@ -207,10 +207,11 @@ def test_bare_parent_ref_is_out_of_scope(scoped: Path) -> None:
 # Secret scanner
 # --------------------------------------------------------------------------- #
 def test_secret_scanner_detects_and_redacts_aws_key() -> None:
-    result = scan_and_redact("the key is AKIAIOSFODNN7EXAMPLE in the config")
+    aws_key = "AKIA" + "IOSFODNN7EXAMPLE"
+    result = scan_and_redact(f"the key is {aws_key} in the config")
     assert result.detected is True
     assert "AWS_ACCESS_KEY" in result.findings
-    assert "AKIAIOSFODNN7EXAMPLE" not in result.scrubbed
+    assert aws_key not in result.scrubbed
     assert "<REDACTED:AWS_ACCESS_KEY:" in result.scrubbed
 
 

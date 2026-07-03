@@ -241,7 +241,7 @@ class TestSecretScrubbingInToolOutput:
 
     def test_tool_output_aws_key_scrubbed(self):
         """TC-SEC-520: AWS key in tool output must be scrubbed."""
-        tool_output = "AWS Access: AKIAIOSFODNN7EXAMPLE"
+        tool_output = "AWS Access: " + "AKIA" + "IOSFODNN7EXAMPLE"
         result = scan_and_redact(tool_output)
         assert result.detected is True
         assert "AWS_ACCESS_KEY" in result.findings

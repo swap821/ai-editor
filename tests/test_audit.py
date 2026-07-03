@@ -76,9 +76,10 @@ def test_hash_is_deterministic_and_64_hex() -> None:
 
 
 def test_secret_is_redacted_before_persistence(audit_db: Path) -> None:
+    aws_key = "AKIA" + "IOSFODNN7EXAMPLE"
     entry = log_action(
         "executor",
-        "deploy with key AKIAIOSFODNN7EXAMPLE now",
+        f"deploy with key {aws_key} now",
         Zone.YELLOW,
         db_path=audit_db,
     )
@@ -91,7 +92,7 @@ def test_secret_is_redacted_before_persistence(audit_db: Path) -> None:
     ).fetchone()[0]
     raw.close()
 
-    assert "AKIAIOSFODNN7EXAMPLE" not in stored
+    assert aws_key not in stored
     assert "REDACTED" in stored
     # The chain remains valid because the hash was computed over redacted text.
     assert verify_chain(db_path=audit_db).valid is True

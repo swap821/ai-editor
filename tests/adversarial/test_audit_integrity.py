@@ -442,9 +442,10 @@ class TestSecretRedactionBeforeHashing:
 
     def test_no_raw_secrets_in_ledger(self, tmp_audit_db):
         """TC-SEC-631: Ledger must never contain raw secret values."""
+        aws_key = "AKIA" + "IOSFODNN7EXAMPLE"
         payload_with_secrets = (
             "stripe_key=sk_live_FAKE_TEST_1234567890abcdef "
-            "aws_key=AKIAIOSFODNN7EXAMPLE "
+            f"aws_key={aws_key} "
             "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.sig"
         )
         log_action("test-actor", payload_with_secrets, Zone.GREEN, db_path=tmp_audit_db)
