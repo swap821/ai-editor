@@ -1,8 +1,8 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-03T00:50Z (marathon session closeout: witnessed demo,
-prove-it path shipped, two verify-chain defects root-caused, Codex W0-W1
-reviewed-approved and AWAITING THE OPERATOR'S LANDING WORD)
+Last updated: 2026-07-03T01:25Z (post-landing addendum: W0-W1 LANDED
+f359102; learning seam FIXED cfd40cf — prove_it 7/7 ALL STEPS PROVED;
+CI green end to end; wave 2 routed to Codex as frontend-beautification-w2)
 
 ## Current Goal
 The product thesis was WITNESSED live (operator's browser, his approvals) and
@@ -12,12 +12,18 @@ are open: the operator's W0-W1 landing word, and the workflow_steps seam
 (task_a4019017) that keeps the prover's LEARNING step honestly red.
 
 ## FIRST ACTIONS FOR THE NEW SESSION
-1. **W0-W1 landing (operator's word pending):** Codex's beautification slice
+0. DONE since this manifest's first draft: W0-W1 landed (f359102) on the
+   operator's word; the workflow_steps seam fixed+pushed (cfd40cf, prover
+   7/7); wave 2 routed to Codex (msg 152). Items 1-2 below are RESOLVED,
+   kept for context. NEW next: review Codex's wave-2 handoff when it lands
+   (gates on the operator's live eye at :5173); scanner path-entropy RED
+   false-positive chip (task_0d074242) awaits an analysis-first session.
+1. **W0-W1 landing (RESOLVED — landed f359102):** Codex's beautification slice
    is reviewed + APPROVED by Claude (inbox msg 150, snapshot 66bc378e, all 7
    files verified byte-unchanged; formal verdict blocked only by unrelated
    tree churn from the concurrent prove-it builder). On "land it": commit
    Codex's 7 files + its test as one commit, push, then waves 2-4 unlock.
-2. **workflow_steps seam (task chip task_a4019017):** granted writes on a
+2. **workflow_steps seam (RESOLVED — cfd40cf, task chip consumed):** granted writes on a
    resume turn emit only tool_result frames; main.py:3823 counts only
    tool_call into workflow_steps -> record_attempt never fires on the clean
    supervised path. Acceptance test: `prove_it.py --scripted` prints 7/7.
