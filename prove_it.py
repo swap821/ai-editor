@@ -210,6 +210,30 @@ def restore_training_ground(scope_root: Path, before: set[str]) -> list[str]:
     return deleted
 
 
+def sweep_stale_demo_artifacts(scope_root: Path) -> None:
+    """Remove the prover's OWN demo files if a prior interrupted run left them.
+
+    The snapshot/restore pair only cleans up files the run itself ADDS on top
+    of the pre-run state. But a sabotage run (or any prover invocation that
+    exits before its restore) can leave ``prove_it_reverse_string.py`` behind;
+    the NEXT run then snapshots that residue as "pre-existing," and — worse —
+    create_file refuses to overwrite it, so the SUPERVISION pause never fires
+    and the whole run fails on a stale artifact rather than a real defect.
+    Sweeping our own two demo paths BEFORE the snapshot makes every run start
+    from a clean slate regardless of how a previous one ended. Only ever
+    touches the prover's own uniquely-named files, never the training_ground
+    fixtures or anything else.
+    """
+    del scope_root  # signature kept symmetric with snapshot/restore; paths are absolute
+    for rel in (DEMO_FILE_REL, DEMO_TEST_REL):
+        target = REPO_ROOT / rel
+        try:
+            if target.exists():
+                target.unlink()
+        except OSError:
+            pass
+
+
 # --------------------------------------------------------------------------
 # Networking helpers
 # --------------------------------------------------------------------------
@@ -360,6 +384,7 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
     model_id = f"ollama.{model_name}"
     server = LiveServer(host, port)
     scope_root = REPO_ROOT / "training_ground"
+    sweep_stale_demo_artifacts(scope_root)  # clean slate vs a prior interrupted run
     before_files = snapshot_training_ground(scope_root)
     session_id = f"prove-it-live-{uuid.uuid4().hex[:12]}"
 
@@ -773,6 +798,7 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
     # copy. Snapshot it now and restore it in `finally` so this run leaves no
     # trace on the repo tree, matching the live-mode cleanup contract.
     scope_root = REPO_ROOT / "training_ground"
+    sweep_stale_demo_artifacts(scope_root)  # clean slate vs a prior interrupted run
     before_files = snapshot_training_ground(scope_root)
 
     session_id = f"prove-it-scripted-{uuid.uuid4().hex[:12]}"
