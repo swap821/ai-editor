@@ -59,7 +59,7 @@ const PINS: PinDef[] = [
     key: 'tools',
     name: 'TOOLS',
     anchor: new THREE.Vector3(0, 0.61, 0.11),
-    // Short reach: the crown label must stay BELOW the SUPERMIND title
+    // Short reach: the crown label must stay BELOW the GAGOS title
     // through the full sway/drift envelope.
     reach: 0.13,
     nudge: new THREE.Vector3(0.16, 0.0, 0),

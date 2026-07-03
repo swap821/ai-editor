@@ -1,4 +1,4 @@
-"""Prometheus-format observability metrics for the AI-OS.
+"""Prometheus-format observability metrics for GAGOS.
 
 All metrics live in a dedicated :class:`CollectorRegistry` so tests stay isolated
 and no other library can accidentally pollute the scrape output.
@@ -18,7 +18,7 @@ from aios.security.audit_logger import verify_chain
 
 
 class MetricsCollector:
-    """Collect and expose AI-OS operational metrics in Prometheus text format."""
+    """Collect and expose GAGOS operational metrics in Prometheus text format."""
 
     def __init__(self) -> None:
         self._build_metrics()

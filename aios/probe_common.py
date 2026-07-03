@@ -10,7 +10,7 @@ import re
 
 from aios.config import PROBE_BASE
 
-#: Base URL for the AI-OS HTTP API, configurable via ``AIOS_PROBE_BASE``.
+#: Base URL for the GAGOS HTTP API, configurable via ``AIOS_PROBE_BASE``.
 BASE = PROBE_BASE
 
 #: Only bare .py files directly inside training_ground/ may be written.

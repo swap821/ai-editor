@@ -3,7 +3,7 @@
 Implements the same ``chat(messages, *, tools, model) -> message-dict`` contract
 as :class:`aios.core.llm.OllamaClient` and :class:`aios.core.bedrock.BedrockClient`,
 backed by **Gemini via Vertex AI** (the ``google-genai`` SDK). This gives the
-AI-OS a Google frontier model alongside local + Bedrock — *without* changing the
+GAGOS a Google frontier model alongside local + Bedrock — *without* changing the
 tool loop, memory, reflection, or the security gateway. The chosen model is still
 only a proposer; the cage verifies regardless (RED stays hard-blocked).
 

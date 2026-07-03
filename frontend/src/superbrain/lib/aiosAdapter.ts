@@ -1,5 +1,5 @@
 /**
- * aiosAdapter — binds the superbrain's nervous system to the REAL AI-OS.
+ * aiosAdapter — binds the superbrain's nervous system to the REAL GAGOS backend.
  *
  * Everything the demo used to fake now has a true source:
  *   - the command bar streams a real supervised turn (POST /api/generate,
@@ -621,7 +621,7 @@ async function streamTurn(
     publishCognition({
       type: 'synthesis',
       label: 'LINK OFFLINE',
-      detail: 'AI-OS backend unreachable — directive handled by imagination only.',
+      detail: 'GAGOS backend unreachable — directive handled by imagination only.',
       intensity: 0.3,
       source: 'aios',
     });
@@ -640,7 +640,7 @@ function spineOf(data: Record<string, unknown>): { phase?: string; seq?: number 
   return out;
 }
 
-/** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
+/** Stream one REAL supervised turn through GAGOS and narrate it on the bus. */
 export async function sendDirective(
   text: string,
   signal?: AbortSignal,
@@ -652,7 +652,7 @@ export async function sendDirective(
   return streamTurn(text, [], signal, onChunk, onCodeChunk);
 }
 
-/** Stream one CONVERSATIONAL turn through the Jarvis voice mind (POST
+/** Stream one CONVERSATIONAL turn through the GAGOS voice mind (POST
  *  /api/v1/chat) and narrate it on the bus. This is the spoken channel: it is a
  *  DIRECTIVE/conversation, never consent — the endpoint runs NO tools and has NO
  *  approval mechanism, so a spoken word can never redeem an approval token (a
@@ -1013,7 +1013,7 @@ export async function pollOnce(): Promise<void> {
       setMetricLink(true);
       publishCognition({
         type: 'synthesis',
-        label: 'AI-OS LINK ESTABLISHED',
+        label: 'GAGOS LINK ESTABLISHED',
         detail: `live cognition: ${trails.length} trail(s) on the pheromone map`,
         intensity: 0.7,
         source: 'aios',
@@ -1175,7 +1175,7 @@ export async function pollOnce(): Promise<void> {
       lastTelemetry = lastTelemetry ? { ...lastTelemetry, link: false } : null;
       publishCognition({
         type: 'synthesis',
-        label: 'AI-OS LINK LOST',
+        label: 'GAGOS LINK LOST',
         detail: 'pheromone map unreachable — cognition running on imagination.',
         intensity: 0.3,
         source: 'aios',
