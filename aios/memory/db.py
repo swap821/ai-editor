@@ -169,6 +169,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     fact_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_facts)")}
     if fact_cols and "approved_by" not in fact_cols:
         conn.execute("ALTER TABLE semantic_facts ADD COLUMN approved_by TEXT")
+    # S2: confidence column on semantic_facts (default 1.0 for existing rows).
+    if fact_cols and "confidence" not in fact_cols:
+        conn.execute(
+            "ALTER TABLE semantic_facts ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0"
+        )
 
     # Procedural skills: trail mechanics (arc-level signature_v2 + reuse
     # pheromone columns), backfill, and consolidation of fragmented trails.

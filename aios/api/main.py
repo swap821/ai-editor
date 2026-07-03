@@ -778,15 +778,24 @@ def get_cerebellum() -> Cerebellum:
 
 def get_skill_memory(
     cerebellum: Cerebellum = Depends(get_cerebellum),
+    facts: SemanticFacts = Depends(get_semantic_facts),
 ) -> SkillMemory:
     """Provide verification-backed procedural skill memory.
 
     Wired to the same request-scoped cerebellum instance so that a skill's
     promotion to 'verified' (or demotion back to 'candidate') during this
     request immediately compiles (or decompiles) the matching playbook —
-    the sovereignty engine stays in sync with skill trust status.
+    the sovereignty engine stays in sync with skill trust status. The facts
+    store enables S2 cross-store ingestion on skill promotion.
     """
-    return SkillMemory(cerebellum=cerebellum)
+    return SkillMemory(cerebellum=cerebellum, facts=facts)
+
+
+def get_mistake_memory(
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> MistakeMemory:
+    """Provide mistake memory with knowledge graph ingestion wiring."""
+    return MistakeMemory(facts=facts)
 
 
 def get_curriculum_manager() -> CurriculumManager:
@@ -1655,6 +1664,50 @@ def memory_facts_graph(
         for r in rows
     ]
     return {"start": start.strip(), "depth": max(1, min(int(depth), 4)), "edges": edges}
+
+
+@app.get("/api/v1/knowledge/query")
+def knowledge_query(
+    entity: str,
+    max_depth: int = 3,
+    min_confidence: float = 0.3,
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> dict[str, Any]:
+    """Query the knowledge graph with confidence-weighted traversal.
+
+    Read-only diagnostic/observability endpoint. Returns the weighted
+    traversal and composed inference from the starting entity.
+    """
+    if not entity.strip():
+        raise HTTPException(status_code=422, detail="entity is required")
+    edges = facts.traverse_weighted(
+        entity, max_depth=max_depth, min_path_confidence=min_confidence
+    )
+    from aios.core.inference import infer
+
+    result = infer(entity, edges, min_confidence=min_confidence)
+    return {
+        "entity": entity.strip(),
+        "edges": [
+            {
+                "subject": e.subject,
+                "predicate": e.predicate,
+                "object": e.object,
+                "depth": e.depth,
+                "confidence": round(e.confidence, 4),
+                "path_confidence": round(e.path_confidence, 4),
+            }
+            for e in edges
+        ],
+        "inference": {
+            "answer": result.answer,
+            "confidence": round(result.combined_confidence, 4),
+            "chain_length": len(result.chain),
+            "reached_horizon": result.reached_horizon,
+        }
+        if result
+        else None,
+    }
 
 
 @app.get("/api/v1/development/metrics")
@@ -2848,10 +2901,35 @@ def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
     triples = "\n".join(
         f"- {s} {p} {o}" for s, p, o in sorted(expanded)
     )
+
+    # S2: if any matched entity has deeper associations, include the
+    # highest-confidence inference chain as structured context.
+    inferences: list[str] = []
+    for node in list(nodes)[:5]:
+        try:
+            edges = facts.traverse_weighted(node, max_depth=3, min_path_confidence=0.3)
+            if edges:
+                from aios.core.inference import infer
+
+                result = infer(user_text, edges, min_confidence=0.3)
+                if result is not None and result.answer:
+                    inferences.append(
+                        f"  Inference ({result.combined_confidence:.0%} confidence): "
+                        f"{result.answer}"
+                    )
+        except Exception:
+            logger.warning("traverse_weighted failed for %s", node, exc_info=True)
+
+    if inferences:
+        triples += "\n\nINFERRED ASSOCIATIONS (confidence-weighted, use cautiously):\n"
+        triples += "\n".join(inferences[:3])
+
     return (
         "RELEVANT APPROVED FACTS (use these; do not invent beyond this graph):\n"
         + triples
     )
+
+
 def _latest_user(chat_messages: list[dict[str, Any]]) -> str:
     """Return the most recent user message text (already flattened to a string)."""
     for msg in reversed(chat_messages):

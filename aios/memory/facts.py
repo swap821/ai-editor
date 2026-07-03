@@ -34,6 +34,19 @@ class FactWriteResult:
 
 
 @dataclass(frozen=True)
+class WeightedEdge:
+    """One edge in a confidence-weighted traversal."""
+
+    subject: str
+    predicate: str
+    object: str
+    depth: int
+    confidence: float
+    path_confidence: float
+    path: str
+
+
+@dataclass(frozen=True)
 class ProposalResult:
     """Outcome of proposing an auto-extracted fact for human review."""
 
@@ -60,7 +73,13 @@ class SemanticFacts:
             ).fetchone()
 
     def add_fact(
-        self, subject: str, predicate: str, obj: str, *, approved_by: Optional[str] = None
+        self,
+        subject: str,
+        predicate: str,
+        obj: str,
+        *,
+        approved_by: Optional[str] = None,
+        confidence: float = 1.0,
     ) -> FactWriteResult:
         """Commit a fact unless it contradicts an existing active fact.
 
@@ -105,15 +124,18 @@ class SemanticFacts:
             if existing is not None:
                 if approved_by is not None:
                     conn.execute(
-                        "UPDATE semantic_facts SET approved_by = COALESCE(approved_by, ?) "
+                        "UPDATE semantic_facts "
+                        "SET approved_by = COALESCE(approved_by, ?), "
+                        "    confidence = MAX(confidence, ?) "
                         "WHERE id = ?",
-                        (approved_by, int(existing["id"])),
+                        (approved_by, max(0.0, min(1.0, confidence)), int(existing["id"])),
                     )
                 return FactWriteResult(True, int(existing["id"]), "already present")
             cur = conn.execute(
-                "INSERT INTO semantic_facts (subject, predicate, object, approved_by) "
-                "VALUES (?, ?, ?, ?)",
-                (subject, predicate, obj, approved_by),
+                "INSERT INTO semantic_facts "
+                "(subject, predicate, object, approved_by, confidence) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (subject, predicate, obj, approved_by, max(0.0, min(1.0, confidence))),
             )
             return FactWriteResult(True, int(cur.lastrowid), "committed")
 
@@ -238,6 +260,78 @@ class SemanticFacts:
                 sql,
                 {"start": start, "max_depth": depth, "row_limit": _TRAVERSE_ROW_LIMIT},
             ).fetchall()
+
+    def traverse_weighted(
+        self,
+        start: str,
+        max_depth: int = 3,
+        *,
+        min_path_confidence: float = 0.1,
+        decay: float = 0.85,
+    ) -> list[WeightedEdge]:
+        """Walk the ACTIVE fact graph with confidence decay per hop.
+
+        Like traverse(), but each hop's contribution decays by *decay*
+        starting at depth 2. A direct fact (depth 1) at confidence 1.0
+        stays 1.0. A 2-hop path decays to 0.85. A 3-hop path to ~0.72.
+        Paths below *min_path_confidence* are pruned.
+        """
+        start = (start or "").strip()
+        if not start:
+            return []
+        depth = max(1, min(int(max_depth), 4))
+        sql = """
+        WITH RECURSIVE graph(
+            subject, predicate, object, depth, path,
+            edge_confidence, path_confidence
+        ) AS (
+            SELECT subject, predicate, object, 1,
+                   '→' || subject || '→' || object || '→',
+                   COALESCE(confidence, 1.0),
+                   COALESCE(confidence, 1.0)
+            FROM semantic_facts
+            WHERE subject = :start AND status = 'active'
+            UNION ALL
+            SELECT f.subject, f.predicate, f.object, g.depth + 1,
+                   g.path || f.object || '→',
+                   COALESCE(f.confidence, 1.0),
+                   g.path_confidence * COALESCE(f.confidence, 1.0) * :decay
+            FROM semantic_facts f
+            JOIN graph g ON f.subject = g.object
+            WHERE g.depth < :max_depth
+              AND f.status = 'active'
+              AND g.path NOT LIKE '%→' || f.object || '→%'
+              AND g.path_confidence * COALESCE(f.confidence, 1.0) * :decay >= :min_conf
+        )
+        SELECT subject, predicate, object, depth, path,
+               edge_confidence, path_confidence
+        FROM graph
+        ORDER BY path_confidence DESC, depth ASC
+        LIMIT :row_limit
+        """
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                sql,
+                {
+                    "start": start,
+                    "max_depth": depth,
+                    "decay": decay,
+                    "min_conf": min_path_confidence,
+                    "row_limit": _TRAVERSE_ROW_LIMIT,
+                },
+            ).fetchall()
+        return [
+            WeightedEdge(
+                subject=str(row["subject"]),
+                predicate=str(row["predicate"]),
+                object=str(row["object"]),
+                depth=int(row["depth"]),
+                confidence=float(row["edge_confidence"]),
+                path_confidence=float(row["path_confidence"]),
+                path=str(row["path"]),
+            )
+            for row in rows
+        ]
 
     def search(self, query: str) -> list[sqlite3.Row]:
         """Return ACTIVE facts whose subject or object contains a token from *query*.
