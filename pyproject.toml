@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gagos"
+dynamic = ["version"]
+description = "Sovereign Intelligence Agentic AI-OS — local-first, memory-driven, security-gated, human-supervised."
+requires-python = ">=3.11"
+license = "Apache-2.0"
+readme = "README.md"
+authors = [
+    { name = "Kumar Swapnil" },
+]
+keywords = ["ai", "os", "agents", "memory", "security", "supervised"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "beautifulsoup4>=4.12",
+    "boto3>=1.28",
+    "cryptography>=41.0",
+    "faiss-cpu>=1.7",
+    "fastapi>=0.100",
+    "GitPython>=3.1",
+    "httpx>=0.24",
+    "networkx>=3.0",
+    "numpy>=1.24",
+    "prometheus-client>=0.20",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+    "rank-bm25>=0.2",
+    "requests>=2.28",
+    "scikit-learn>=1.0",
+    "sentence-transformers>=2.0",
+    "structlog>=23.0",
+    "typer>=0.9",
+    "uvicorn[standard]>=0.20",
+]
+
+[project.optional-dependencies]
+test = [
+    "coverage>=7.0",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "radon>=6.0",
+]
+gemini = [
+    "google-genai>=1.0",
+]
+
+[project.scripts]
+aios = "aios.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/swap821/ai-editor"
+
+[tool.setuptools.dynamic]
+version = { attr = "aios.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["aios*"]

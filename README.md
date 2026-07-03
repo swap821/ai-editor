@@ -149,13 +149,18 @@ the precise definition and `prove_sovereignty.py` for the falsifiable proof.
 git clone https://github.com/swap821/ai-editor.git
 cd ai-editor
 python -m venv .venv
-.venv/bin/pip install -r requirements.txt    # Linux/Mac
-# or: .venv\Scripts\pip install -r requirements.txt  # Windows
+source .venv/bin/activate              # Linux/Mac
+# or: .venv\Scripts\activate           # Windows
 
-# Run
-.venv/bin/python -m aios
-# Binds to 127.0.0.1:8000 by default
+pip install -e .                       # editable install
+# or: pip install -e ".[test]"         # with test dependencies
+
+aios                                   # starts the server on 127.0.0.1:8000
+# or: python -m aios                   # equivalent
 ```
+
+> **Reproducible installs:** `pip install -r requirements.txt` pins every
+> dependency to its exact tested version. Use it for CI or production.
 
 ### Frontend
 
@@ -169,14 +174,9 @@ npm run dev
 ### Prove it works
 
 ```bash
-# Supervised loop proof — plan → approve → execute → verify → learn
-.venv/bin/python prove_it.py
-
-# Cerebellum proof — verified skills compile and replay without LLM
-.venv/bin/python prove_cerebellum.py
-
-# Full sovereignty proof — all three organs + offline mode (18 assertions)
-.venv/bin/python prove_sovereignty.py
+python prove_it.py                     # supervised loop proof
+python prove_cerebellum.py             # cerebellum compile + replay
+python prove_sovereignty.py            # full sovereignty proof (18 assertions)
 ```
 
 All three scripts print `[PASS]` / `[FAIL]` per step with real evidence. No faked green bars.
