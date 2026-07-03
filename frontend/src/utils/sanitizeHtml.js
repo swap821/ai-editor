@@ -153,7 +153,12 @@ export function sanitizeHtml(dirty) {
   clean = clean.replace(/<\/script\s*>/gi, '');
 
   // 9. Catch HTML comment-based attacks
-  clean = clean.replace(/<!--[\s\S]*?-->/g, '');
+  // Repeat until stable to avoid incomplete multi-character sanitization.
+  let previous;
+  do {
+    previous = clean;
+    clean = clean.replace(/<!--[\s\S]*?-->/g, '');
+  } while (clean !== previous);
 
   return clean;
 }
