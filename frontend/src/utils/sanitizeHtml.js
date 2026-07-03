@@ -127,14 +127,22 @@ export function sanitizeHtml(dirty) {
 
   let clean = dirty;
 
-  // 1. Remove ALL <script> tags and their content entirely
-  clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, '');
+  // 1. Remove ALL <script> tags and their content entirely (fixed-point loop
+  //    to handle nested/obfuscated fragments that a single pass would miss).
+  {
+    const scriptBlock = /<script\b[^<]*(?:(?!<\/script[^>]*>)<[^<]*)*<\/script[^>]*>/gi;
+    let prev;
+    do { prev = clean; clean = clean.replace(scriptBlock, ''); } while (clean !== prev);
+  }
 
   // 2. Remove other dangerous tags entirely
   clean = clean.replace(getDangerousTagPattern(), '');
 
-  // 3. Strip ALL event handler attributes (onerror, onclick, onload, etc.)
-  clean = clean.replace(EVENT_HANDLER_PATTERN, '');
+  // 3. Strip ALL event handler attributes (fixed-point loop).
+  {
+    let prev;
+    do { prev = clean; clean = clean.replace(EVENT_HANDLER_PATTERN, ''); } while (clean !== prev);
+  }
 
   // 4. Strip dangerous URL schemes in attributes
   clean = clean.replace(DANGEROUS_URL_PATTERN, '');
@@ -148,12 +156,21 @@ export function sanitizeHtml(dirty) {
   // 7. Filter to allowed tag whitelist + sanitize attributes
   clean = filterAllowedTags(clean);
 
-  // 8. Defense-in-depth: catch any remaining <script...> patterns
-  clean = clean.replace(/<script\b[^>]*>/gi, '');
-  clean = clean.replace(/<\/script\s*>/gi, '');
+  // 8. Defense-in-depth: catch any remaining <script...> patterns (fixed-point loop).
+  {
+    const scriptTag = /<\/?script\b[^>]*>/gi;
+    while (scriptTag.test(clean)) {
+      scriptTag.lastIndex = 0;
+      clean = clean.replace(scriptTag, '');
+    }
+  }
 
-  // 9. Catch HTML comment-based attacks
-  clean = clean.replace(/<!--[\s\S]*?-->/g, '');
+  // 9. Catch HTML comment-based attacks (fixed-point loop).
+  {
+    const commentPat = /<!--[\s\S]*?-->/g;
+    let prev;
+    do { prev = clean; clean = clean.replace(commentPat, ''); } while (clean !== prev);
+  }
 
   return clean;
 }

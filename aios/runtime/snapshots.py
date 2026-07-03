@@ -24,7 +24,8 @@ class SnapshotManager:
     """
 
     def __init__(self, runtime_root: str | Path) -> None:
-        self.runtime_root = Path(runtime_root).resolve()
+        from aios.runtime import _safe_resolve
+        self.runtime_root = _safe_resolve(runtime_root)
         self.snapshot_dir = self.runtime_root / "snapshots"
 
     def create_snapshot(self, contract: MissionContract) -> str:

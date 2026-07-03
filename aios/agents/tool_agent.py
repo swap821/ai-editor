@@ -478,11 +478,19 @@ def _validate_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _parse_structured_tool_payload(payload: str) -> object:
-    """Parse a model-emitted tool payload without executing code."""
+    """Parse a model-emitted tool payload without executing code.
+
+    Only dicts/lists are accepted from the ast.literal_eval fallback —
+    scalar literals (strings, ints) would pass literal_eval but are not
+    valid tool-call payloads and could mask injection attempts.
+    """
     try:
         return json.loads(payload)
     except json.JSONDecodeError:
-        return ast.literal_eval(payload)
+        result = ast.literal_eval(payload)
+        if not isinstance(result, (dict, list)):
+            raise ValueError(f"unexpected literal type: {type(result).__name__}")
+        return result
 
 
 def _validated_from_structured_payload(payload: str) -> list[dict[str, Any]]:

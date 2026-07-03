@@ -65,7 +65,8 @@ class WorkerSpawner:
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
     ) -> None:
-        self.runtime_root = Path(runtime_root).resolve()
+        from aios.runtime import _safe_resolve
+        self.runtime_root = _safe_resolve(runtime_root)
         self.backend = backend or ControlledSubprocessBackend(self.runtime_root)
         self.snapshot_manager = snapshot_manager or SnapshotManager(self.runtime_root)
         self.ledger_store = ledger_store or RunLedgerStore(self.runtime_root)

@@ -72,7 +72,8 @@ class ControlledSubprocessBackend(WorkerBackend):
         python_executable: str | None = None,
         worker_module: str = "aios.runtime.worker_entry",
     ) -> None:
-        self.runtime_root = Path(runtime_root).resolve()
+        from aios.runtime import _safe_resolve
+        self.runtime_root = _safe_resolve(runtime_root)
         self.python_executable = python_executable or sys.executable
         self.worker_module = worker_module
         self.project_root = Path(__file__).resolve().parents[2]
@@ -222,6 +223,8 @@ class ControlledSubprocessBackend(WorkerBackend):
             "AIOS_CONTAINER_MEMORY_MB",
             "AIOS_CONTAINER_CPUS",
             "AIOS_CONTAINER_PIDS_LIMIT",
+            "AIOS_DATA_DIR",
+            "AIOS_COUNCIL_RUNTIME_DIR",
         }
         env = {
             name: value

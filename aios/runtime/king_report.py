@@ -171,7 +171,8 @@ class KingReportStore:
     """Persist one KingReport per mission under the runtime root."""
 
     def __init__(self, runtime_root: str | Path) -> None:
-        self.runtime_root = Path(runtime_root).resolve()
+        from aios.runtime import _safe_resolve
+        self.runtime_root = _safe_resolve(runtime_root)
 
     def path_for(self, mission_id: str) -> Path:
         return self.runtime_root / "missions" / mission_id / "king_report.json"

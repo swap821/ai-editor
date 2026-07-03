@@ -70,8 +70,9 @@ class WorkerRuntime:
         #: in tests to force a backend or assert fail-closed behavior.
         self._command_runner = command_runner
         self.worker_id = worker_id
-        self.runtime_root = Path(runtime_root).resolve()
-        self.result_path = Path(result_path).resolve()
+        from aios.runtime import _safe_resolve
+        self.runtime_root = _safe_resolve(runtime_root)
+        self.result_path = _safe_resolve(result_path)
         self.workspace_root = Path(contract.workspace_root).resolve()
         self.mission_dir = self.runtime_root / "missions" / contract.mission_id
         self.worker_dir = self.mission_dir / "workers" / worker_id

@@ -137,7 +137,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     }
     for name, ddl in semantic_additions.items():
         if semantic_cols and name not in semantic_cols:
-            conn.execute(f"ALTER TABLE semantic_memory ADD COLUMN {name} {ddl}")
+            if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
+                raise ValueError(f"invalid column name: {name}")
+            conn.execute(f"ALTER TABLE semantic_memory ADD COLUMN {name} {ddl}")  # noqa: S608
 
     semantic_rows = conn.execute(
         "SELECT id, text_content, occurrence_count FROM semantic_memory "
@@ -191,7 +193,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     }
     for name, ddl in skill_additions.items():
         if skill_cols and name not in skill_cols:
-            conn.execute(f"ALTER TABLE procedural_skills ADD COLUMN {name} {ddl}")
+            if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
+                raise ValueError(f"invalid column name: {name}")
+            conn.execute(f"ALTER TABLE procedural_skills ADD COLUMN {name} {ddl}")  # noqa: S608
 
     # Swarm patterns: verification-strength taxonomy (roadmap Phase 1 extension) —
     # a below-floor green is recorded but ineligible to promote a pattern.
@@ -202,7 +206,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     }
     for name, ddl in swarm_additions.items():
         if swarm_cols and name not in swarm_cols:
-            conn.execute(f"ALTER TABLE swarm_patterns ADD COLUMN {name} {ddl}")
+            if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
+                raise ValueError(f"invalid column name: {name}")
+            conn.execute(f"ALTER TABLE swarm_patterns ADD COLUMN {name} {ddl}")  # noqa: S608
 
     # Backfill arc identities (NULL-only => idempotent; pure function of stored
     # data, no clock).

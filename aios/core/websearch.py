@@ -22,14 +22,29 @@ logger = get_logger(__name__)
 Fetch = Callable[[str, dict[str, Any], str], dict[str, Any]]
 
 
+def _validate_endpoint(endpoint: str) -> None:
+    """Reject endpoints that could exfiltrate credentials to non-HTTPS or private hosts."""
+    import urllib.parse
+    parsed = urllib.parse.urlparse(endpoint)
+    if parsed.scheme != "https":
+        raise ValueError(f"CRAG search endpoint must use HTTPS, got: {parsed.scheme}")
+    if not parsed.hostname:
+        raise ValueError("CRAG search endpoint has no hostname")
+    hostname = parsed.hostname.lower()
+    if hostname in ("localhost", "127.0.0.1", "::1") or hostname.endswith(".local"):
+        raise ValueError(f"CRAG search endpoint must not target local host: {hostname}")
+
+
 def _default_fetch(endpoint: str, payload: dict[str, Any], api_key: str) -> dict[str, Any]:
     import requests
 
+    _validate_endpoint(endpoint)
     resp = requests.post(
         endpoint,
         json={**payload, "api_key": api_key},
         headers={"Authorization": f"Bearer {api_key}"},
         timeout=10,
+        allow_redirects=False,
     )
     resp.raise_for_status()
     return resp.json()

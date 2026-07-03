@@ -508,7 +508,10 @@ def browse_url(
             url,
             timeout=15,
             headers={"User-Agent": "GAGOS browse tool"},
+            allow_redirects=False,
         )
+        if resp.is_redirect or resp.is_permanent_redirect:
+            return ("[BLOCKED] URL attempted redirect — potential SSRF.", "blocked", False)
         resp.raise_for_status()
         content_type = resp.headers.get("Content-Type", "")
         if "text/html" in content_type:
