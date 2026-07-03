@@ -147,6 +147,7 @@
 .swarm-hud {
   top: 86px;
   right: 30px;
+  animation: hud-enter 400ms var(--ease-out-expo) 0ms both;
 }
 
 /* Backend redaction tokens render as a calm withheld-content chip — the value
@@ -654,7 +655,7 @@
   .gagos-msg--gagos.is-latest .gagos-msg__node { animation: none; }
   .gagos-typing i { animation: none; }
   .gagos-mic.is-listening, .gagos-mic.is-listening::after { animation: none; }
-  .gagos-send.is-busy svg { animation: none; }
+  .swarm-hud { animation: none; }
   .gagos-welcome { animation: none; }
   .gagos-starter, .gagos-starter__arrow { transition: none; }
   .gagos-lockup, .gagos-status, .gagos-bar { animation: none; }
