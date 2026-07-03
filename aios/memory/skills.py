@@ -11,13 +11,16 @@ import json
 import math
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 from aios import config
 from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, skill_signature_v2, tokens
 from aios.security.secret_scanner import scan_and_redact
+
+if TYPE_CHECKING:
+    from aios.core.cerebellum import Cerebellum
 
 #: SQLite ``CURRENT_TIMESTAMP`` formats emitted for ``updated_at``. Parsed
 #: locally rather than importing the twin helper in retrieval.py so this module
@@ -54,10 +57,12 @@ class SkillMemory:
         *,
         min_successes: int = 3,
         min_success_rate: float = 0.8,
+        cerebellum: Optional["Cerebellum"] = None,
     ) -> None:
         self.db_path = db_path
         self.min_successes = max(min_successes, 1)
         self.min_success_rate = max(0.0, min(1.0, min_success_rate))
+        self._cerebellum = cerebellum
 
     @staticmethod
     def _signature(goal: str, steps: list[str]) -> str:
@@ -163,7 +168,22 @@ class SkillMemory:
                 "WHERE id = ?",
                 (status, skill_id),
             )
-            return skill_id
+
+        # Sovereignty S1: keep the compiled-experience engine in sync with this
+        # skill's trust status. Promotion attempts compilation into a
+        # replayable playbook; demotion (a later verified failure dropping the
+        # trail back to 'candidate') decompiles any existing playbook so the
+        # cerebellum never replays a skill that lost verification. Deliberately
+        # OUTSIDE the `with get_connection(...)` block above: the cerebellum
+        # opens its own connection, and calling it while this method's own
+        # BEGIN IMMEDIATE transaction is still open would self-deadlock against
+        # SQLite's single-writer lock (this transaction has already committed
+        # by this point, so there is no locking conflict).
+        if status == "verified" and self._cerebellum is not None:
+            self._cerebellum.try_compile_skill(skill_id)
+        elif status == "candidate" and self._cerebellum is not None:
+            self._cerebellum.invalidate_for_skill(skill_id)
+        return skill_id
 
     @staticmethod
     def _reuse_factor(reuse_successes: int, reuse_failures: int) -> float:
