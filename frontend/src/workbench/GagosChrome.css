@@ -106,21 +106,69 @@
   align-items: flex-end;
   gap: 7px;
 }
-/* Step 1B — de-pilled: NOT floating HUD pills. A quiet status whisper (a tiny
-   signal dot + low-key text) so the model / supervised / offline TRUST facts stay
-   legible (a safety/data signal — kept readable rather than debug-only), without
-   the boxed-pill chrome the "brain + panels" critique flagged. The richer move —
-   supervised/auto/error as in-scene BODY marks — is the next step. */
 .gagos-pill {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  /* no box: no padding/background/border/blur/shadow — just dot + whisper text */
+  max-width: 220px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.06em;
-  color: rgba(228, 236, 250, 0.5);
   white-space: nowrap;
+  overflow: hidden;
+  color: rgba(228, 236, 250, 0.78);
+  background: rgba(6, 4, 15, 0.58);
+  border: 1px solid rgba(123, 245, 251, 0.16);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+}
+.gagos-pill__copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+}
+.gagos-pill__main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gagos-pill__meta {
+  flex: none;
+  opacity: 0.6;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.gagos-pill--model {
+  color: var(--neon-purple);
+  background: rgba(176, 110, 255, 0.1);
+  border-color: rgba(176, 110, 255, 0.32);
+  box-shadow:
+    0 0 18px rgba(176, 110, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.gagos-pill--supervised {
+  color: var(--neon-green);
+  background: rgba(84, 240, 160, 0.1);
+  border-color: rgba(84, 240, 160, 0.3);
+  box-shadow:
+    0 0 18px rgba(84, 240, 160, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.gagos-pill--offline {
+  color: rgba(255, 210, 210, 0.92);
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.32);
+  box-shadow:
+    0 0 18px rgba(248, 113, 113, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .gagos-dot {
   width: 6px;
@@ -184,10 +232,6 @@
 }
 .gagos-retry:hover { background: var(--phase-accent-dim); border-color: rgba(123, 245, 251, 0.5); }
 .gagos-retry:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
-.gagos-pill--supervised {
-  color: rgba(200, 250, 228, 0.5);
-}
-
 /* ── Bottom-left chat (history thread + input) ───────────────────────────
    Docked left so the conversation never overlaps the centered being / spine;
    history grows upward, newest message sits at the bottom by the input. */
@@ -335,6 +379,30 @@
 @keyframes gagos-typing {
   0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
   30% { opacity: 1; transform: translateY(-3px); }
+}
+
+.gagos-thinking-echo {
+  pointer-events: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 -3px 22px;
+  padding: 2px 0;
+  color: var(--neon-cyan);
+  font-size: 12px;
+  font-weight: 450;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  opacity: 0.86;
+  text-shadow: 0 0 14px rgba(123, 245, 251, 0.26);
+}
+.gagos-thinking-echo .gagos-typing {
+  padding: 0;
+}
+.gagos-thinking-echo .gagos-typing i {
+  width: 4px;
+  height: 4px;
 }
 
 /* Streaming caret — the reply types itself out with a living cyan cursor. */
@@ -675,7 +743,7 @@
   .gagos-wordmark { font-size: 18px; letter-spacing: 0.34em; margin-right: -0.34em; }
   .gagos-subtitle { font-size: 8.5px; letter-spacing: 0.34em; margin-right: -0.34em; }
   .gagos-status { top: 16px; right: 14px; gap: 6px; }
-  .gagos-pill { padding: 6px 11px 6px 10px; font-size: 11px; }
+  .gagos-pill { max-width: min(220px, calc(100vw - 28px)); font-size: 11px; }
   .gagos-chat { left: 14px; right: 14px; width: auto; bottom: 16px; gap: 11px; }
   .gagos-thread { max-height: 42vh; }
   .gagos-welcome__greeting { font-size: 15px; max-width: none; }

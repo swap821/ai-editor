@@ -119,6 +119,21 @@ describe('B1 — typed event spine reaches the cognition bus', () => {
     expect(mastery?.phase).toBe('narrative');
   });
 
+  it('humanizes backend redaction markers before publishing body-facing detail', async () => {
+    stubBackend([
+      'event: step\ndata: {"type":"tool_result","tool":"write_file","output":"wrote training_ground/test_[SENSITIVE: dd53bbede2b1].py"}\n\n',
+      'event: step\ndata: {"type":"tool_blocked","tool":"browse","reason":"blocked [PATH REDACTED]"}\n\n',
+      'event: done\ndata: {}\n\n',
+    ]);
+    await sendDirective('write sensitive path');
+
+    const details = seen.map((event) => event.detail ?? '').join('\n');
+    expect(details).not.toContain('[SENSITIVE');
+    expect(details).not.toContain('dd53bbede2b1');
+    expect(details).not.toContain('[PATH REDACTED]');
+    expect(details).toContain('(a sensitive value was withheld)');
+  });
+
   it('stays backward compatible: frames without spine fields publish phase-free', async () => {
     stubBackend([
       'event: route\ndata: {"provider":"ollama","model":"qwen","privacy":"local"}\n\n',

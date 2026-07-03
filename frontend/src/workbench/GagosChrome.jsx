@@ -31,7 +31,6 @@ import { useTabStore, updateMaterializedTab, getTabStoreSnapshot, focusMateriali
 import { API_BASE } from '../config';
 import { sanitizeToText } from '../utils/sanitizeHtml';
 import {
-  formatActiveBrainLine,
   getActiveBrain,
   setActiveBrain,
   subscribeActiveBrain,
@@ -176,6 +175,18 @@ export function extractStreamingCode(text) {
 const REDACTION_TOKEN =
   /\[(?:SENSITIVE:\s*[^\]]*|CREDENTIAL REDACTED|PATH REDACTED|FILE CONTENT REDACTED[^\]]*)\]/g;
 
+function formatActiveBrainChip(brain) {
+  const model = String(brain.model || '').trim();
+  const provider = String(brain.provider || '').trim();
+  const privacy = String(brain.privacy || '').trim().toLowerCase();
+  const name = model || provider || 'auto';
+  const meta = [
+    model && provider && provider.toLowerCase() !== model.toLowerCase() ? provider : '',
+    privacy,
+  ].filter(Boolean).join(' · ');
+  return { name, meta };
+}
+
 function renderWithRedactionChips(text) {
   const value = String(text ?? '');
   const parts = value.split(REDACTION_TOKEN);
@@ -263,7 +274,7 @@ export default function GagosChrome() {
   const [voiceSupported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
   );
-  const [modelLine, setModelLine] = useState(() => formatActiveBrainLine(getActiveBrain()));
+  const [brainChip, setBrainChip] = useState(() => formatActiveBrainChip(getActiveBrain()));
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [online, setOnline] = useState(true); // honest backend reachability (polled)
   const [onboarded, setOnboarded] = useState(true); // first-run coach dismissed?
@@ -297,7 +308,7 @@ export default function GagosChrome() {
   const isHoldingMicRef = useRef(false);
 
   // Live active-LLM line from the router's `route` cognition events.
-  useEffect(() => subscribeActiveBrain(() => setModelLine(formatActiveBrainLine(getActiveBrain()))), []);
+  useEffect(() => subscribeActiveBrain(() => setBrainChip(formatActiveBrainChip(getActiveBrain()))), []);
   // Bind the DOM approval gate to the persisted pending-approval truth (fires
   // immediately with the current value + on every change). Returns the unsub.
   useEffect(() => subscribePendingApproval(setPendingApproval), []);
@@ -802,6 +813,7 @@ export default function GagosChrome() {
   // Single first-run hint: appears after the multi-step coach is dismissed so the
   // two onboarding surfaces never stack on a brand-new operator.
   const showHint = !hintDismissed && onboarded && messages.length === 0 && !busy;
+  const showThinkingEcho = busy && (convPhase === 'thinking' || convPhase === 'awakening' || convPhase === 'streaming');
 
   return (
     <div className="gagos-chrome" aria-label="GAGOS conversation">
@@ -818,9 +830,12 @@ export default function GagosChrome() {
           below ("I'm GAGOS…"). No detached branding chrome. */}
 
       <header className="gagos-status" aria-label="GAGOS status">
-        <span className="gagos-pill">
+        <span className={`gagos-pill ${online ? 'gagos-pill--model' : 'gagos-pill--offline'}`}>
           <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} aria-hidden="true" />
-          {online ? modelLine : 'offline'}
+          <span className="gagos-pill__copy">
+            <span className="gagos-pill__main">{online ? brainChip.name : 'offline'}</span>
+            {online && brainChip.meta ? <span className="gagos-pill__meta">{brainChip.meta}</span> : null}
+          </span>
         </span>
         {/* SP2 (voice-into-body): the lifecycle STATE pill is retired — the being's
             posture colour/pulse now carries the live phase (status read OFF THE BODY).
@@ -830,7 +845,7 @@ export default function GagosChrome() {
           aria-label="Supervised: a human approval gate guards risky actions"
         >
           <span className="gagos-dot gagos-dot--supervised" aria-hidden="true" />
-          supervised
+          <span className="gagos-pill__main">supervised</span>
         </span>
       </header>
 
@@ -958,6 +973,13 @@ export default function GagosChrome() {
             );
           })}
         </div>
+
+        {showThinkingEcho ? (
+          <div className="gagos-thinking-echo" aria-hidden="true">
+            <span className="gagos-thinking-echo__label">thinking…</span>
+            <span className="gagos-typing"><i /><i /><i /></span>
+          </div>
+        ) : null}
 
         <div
           className={`gagos-bar intent-${intentHint}${dock.active ? ' is-active' : ''}${dock.minimized ? ' is-minimized' : ''}`}

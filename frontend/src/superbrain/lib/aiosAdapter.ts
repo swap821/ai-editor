@@ -34,6 +34,12 @@ function authHeaders(): Record<string, string> {
 }
 
 const FETCH_CREDENTIALS: RequestCredentials = 'include';
+const BACKEND_REDACTION_MARKER_RE =
+  /\[(?:SENSITIVE:\s*[^\]]*|CREDENTIAL REDACTED|PATH REDACTED|FILE CONTENT REDACTED[^\]]*)\]/g;
+
+function humanizeRedactionMarkers(value: unknown): string {
+  return String(value ?? '').replace(BACKEND_REDACTION_MARKER_RE, '(a sensitive value was withheld)');
+}
 
 async function sessionBodyFields(): Promise<Record<string, string>> {
   const session = await ensureSession();
@@ -95,7 +101,9 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
 function publishStep(data: Record<string, unknown>): void {
   const kind = String(data.type ?? '');
   const tool = String(data.tool ?? '');
-  const output = String(data.output ?? '');
+  const rawOutput = String(data.output ?? '');
+  const output = humanizeRedactionMarkers(data.output);
+  const reason = humanizeRedactionMarkers(data.reason);
   if (kind === 'tool_call') {
     publishCognition({
       type: 'agent-dispatch',
@@ -110,17 +118,17 @@ function publishStep(data: Record<string, unknown>): void {
     publishCognition({
       type: 'agent-dispatch',
       label: `${tool.toUpperCase()} BLOCKED`,
-      detail: String(data.reason ?? '').slice(0, 140),
+      detail: reason.slice(0, 140),
       intensity: 0.4,
       source: 'aios',
     });
     return;
   }
   if (kind !== 'tool_result') return;
-  if (output.startsWith('[VERIFY PASS]') || output.startsWith('[VERIFY FAIL]')) {
+  if (rawOutput.startsWith('[VERIFY PASS]') || rawOutput.startsWith('[VERIFY FAIL]')) {
     publishCognition({
       type: 'knowledge-acquired',
-      label: output.startsWith('[VERIFY PASS]') ? 'VERIFICATION GREEN' : 'VERIFICATION RED',
+      label: rawOutput.startsWith('[VERIFY PASS]') ? 'VERIFICATION GREEN' : 'VERIFICATION RED',
       detail: output.slice(0, 140),
       intensity: 1,
       source: 'aios',
