@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,9 @@ from aios.security.secret_scanner import scan_and_redact
 
 if TYPE_CHECKING:
     from aios.core.cerebellum import Cerebellum
+    from aios.memory.facts import SemanticFacts
+
+logger = logging.getLogger(__name__)
 
 #: SQLite ``CURRENT_TIMESTAMP`` formats emitted for ``updated_at``. Parsed
 #: locally rather than importing the twin helper in retrieval.py so this module
@@ -58,11 +62,13 @@ class SkillMemory:
         min_successes: int = 3,
         min_success_rate: float = 0.8,
         cerebellum: Optional["Cerebellum"] = None,
+        facts: Optional["SemanticFacts"] = None,
     ) -> None:
         self.db_path = db_path
         self.min_successes = max(min_successes, 1)
         self.min_success_rate = max(0.0, min(1.0, min_success_rate))
         self._cerebellum = cerebellum
+        self._facts = facts
 
     @staticmethod
     def _signature(goal: str, steps: list[str]) -> str:
@@ -183,6 +189,18 @@ class SkillMemory:
             self._cerebellum.try_compile_skill(skill_id)
         elif status == "candidate" and self._cerebellum is not None:
             self._cerebellum.invalidate_for_skill(skill_id)
+
+        # S2: ingest verified skill edges into the knowledge graph.
+        if status == "verified" and self._facts is not None:
+            try:
+                from aios.core.graph_ingestion import edges_from_skill
+
+                rate = successes / max(successes + failures, 1)
+                for s, p, o, conf in edges_from_skill(goal, clean_steps, success_rate=rate):
+                    self._facts.add_fact(s, p, o, confidence=conf)
+            except Exception:
+                logger.warning("graph ingestion from skill failed (swallowed)", exc_info=True)
+
         return skill_id
 
     @staticmethod

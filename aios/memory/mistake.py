@@ -9,9 +9,10 @@ are promoted to ``verified`` only after a fix proves itself, or marked
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from aios import config
 from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
@@ -19,12 +20,23 @@ from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
 
+if TYPE_CHECKING:
+    from aios.memory.facts import SemanticFacts
+
+logger = logging.getLogger(__name__)
+
 
 class MistakeMemory:
     """CRUD + lifecycle facade over the ``mistake_pool`` table."""
 
-    def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
+    def __init__(
+        self,
+        db_path: Path = config.MEMORY_DB_PATH,
+        *,
+        facts: Optional["SemanticFacts"] = None,
+    ) -> None:
         self.db_path = db_path
+        self._facts = facts
 
     def recurring(self, *, limit: int = 5) -> list[dict]:
         """Return VERIFIED lessons that have recurred (``occurrence_count > 1``).
@@ -253,6 +265,26 @@ class MistakeMemory:
                 "WHERE id = ? AND verification_status = 'pending'",
                 (mistake_id,),
             )
+            row = conn.execute(
+                "SELECT error_type, root_cause, lesson_text FROM mistake_pool WHERE id = ?",
+                (mistake_id,),
+            ).fetchone()
+
+        # S2: ingest verified mistake edges into the knowledge graph.
+        # OUTSIDE the `with` block — same SQLite deadlock avoidance as
+        # SkillMemory's cerebellum/ingestion triggers.
+        if row is not None and self._facts is not None:
+            try:
+                from aios.core.graph_ingestion import edges_from_mistake
+
+                for s, p, o, conf in edges_from_mistake(
+                    str(row["error_type"]),
+                    str(row["root_cause"]),
+                    str(row["lesson_text"]),
+                ):
+                    self._facts.add_fact(s, p, o, confidence=conf)
+            except Exception:
+                logger.warning("graph ingestion from mistake failed (swallowed)", exc_info=True)
 
     def supersede(self, old_id: int, new_id: int) -> None:
         """Mark *old_id* as superseded by *new_id*."""

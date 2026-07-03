@@ -45,6 +45,9 @@ _SSE_TO_COGNITION: dict[str, EventType] = {
     "cerebellum_step_done": EventType.KNOWLEDGE_ACQUIRED,
     "cerebellum_done": EventType.SYNTHESIS,
     "cerebellum_abort": EventType.HESITATION,
+    # Sovereignty S2: Knowledge graph — associative recall events.
+    "graph_inference": EventType.KNOWLEDGE_ACQUIRED,
+    "graph_horizon": EventType.HESITATION,
     "cloud_route": EventType.ROUTE,
     # Confidence gating is the EMOTION layer (uncertainty/hesitation), NOT
     # reflex approval — it shares no permission token with human_required.

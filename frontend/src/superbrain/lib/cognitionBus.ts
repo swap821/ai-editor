@@ -47,7 +47,10 @@ export type CognitionEventType =
   /** Sovereignty S1: the cerebellum matched a compiled playbook and is replaying
    *  from muscle memory — no LLM consultation.  The body enters reflex phase
    *  (orange, low metabolism, quiet brain cloud, fast spine firing). */
-  | 'reflex-recall';
+  | 'reflex-recall'
+  /** Sovereignty S2: the knowledge graph produced an inference chain from
+   *  confidence-weighted traversal — associative recall from stored facts. */
+  | 'graph-recall';
 
 export interface CognitionEvent {
   type: CognitionEventType;

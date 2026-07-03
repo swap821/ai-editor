@@ -561,6 +561,35 @@ async function streamTurn(
           });
           break;
         }
+        // ── Sovereignty S2: Knowledge graph — associative recall ─────────
+        case 'graph_inference': {
+          publishCognition({
+            type: 'graph-recall',
+            label: 'ASSOCIATIVE RECALL',
+            detail: `${frame.data.chain?.length ?? '?'}-hop inference · ` +
+                    `confidence ${typeof frame.data.combined_confidence === 'number'
+                      ? (frame.data.combined_confidence * 100).toFixed(0) + '%' : '?'}`,
+            intensity: 0.7,
+            source: 'aios',
+            phase: 'narrative',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
+        case 'graph_horizon': {
+          publishCognition({
+            type: 'hesitation',
+            label: 'KNOWLEDGE BOUNDARY',
+            detail: `boundary reached for ${String(frame.data.entity ?? '?')}`,
+            intensity: 0.5,
+            source: 'aios',
+            phase: 'emotion',
+            data: { sovereign: true, ...(frame.data ?? {}) },
+            ...spine,
+          });
+          break;
+        }
         default:
           break; // alignment and future frames are advisory to the scene
       }
