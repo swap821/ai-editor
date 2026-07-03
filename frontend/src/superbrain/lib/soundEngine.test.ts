@@ -289,24 +289,24 @@ describe('onCognition event mapping', () => {
     expect(freqs).toContain(587.3);
   });
 
-  it('AI-OS LINK LOST plays a falling fifth A3→E3', () => {
+  it('GAGOS LINK LOST plays a falling fifth A3→E3', () => {
     const mock = createMockAudioContext();
     boot(mock);
     const before = oscillatorNodes(mock).length;
 
-    emitCognition({ type: 'synthesis', label: 'AI-OS LINK LOST', intensity: 1 });
+    emitCognition({ type: 'synthesis', label: 'GAGOS LINK LOST', intensity: 1 });
 
     const freqs = lastOscillatorFrequencies(mock).slice(before);
     expect(freqs).toContain(220);
     expect(freqs).toContain(164.8);
   });
 
-  it('AI-OS LINK ESTABLISHED plays a rising fifth E3→A3', () => {
+  it('GAGOS LINK ESTABLISHED plays a rising fifth E3→A3', () => {
     const mock = createMockAudioContext();
     boot(mock);
     const before = oscillatorNodes(mock).length;
 
-    emitCognition({ type: 'synthesis', label: 'AI-OS LINK ESTABLISHED', intensity: 1 });
+    emitCognition({ type: 'synthesis', label: 'GAGOS LINK ESTABLISHED', intensity: 1 });
 
     const freqs = lastOscillatorFrequencies(mock).slice(before);
     expect(freqs).toContain(164.8);

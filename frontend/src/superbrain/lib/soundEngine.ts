@@ -12,7 +12,7 @@
  *   sus chord  approval-required (the unresolved hang IS the meaning)
  *   resolve    approval approved (the suspension resolves) / low thud reject
  *   ebb        TRAIL WEAKENED — the dark side of stigmergy, the tick inverted
- *   fifth      AI-OS LINK lost / re-established (the brain goes blind / sees)
+ *   fifth      GAGOS LINK lost / re-established (the brain goes blind / sees)
  *   tritone    AUDIT CHAIN BROKEN — the tamper alarm; the only sustained dread
  *
  * Volume discipline: master 0.5 into a safety limiter, every element
@@ -146,11 +146,11 @@ function onCognition(event: CognitionEvent): void {
       }
       return;
     case 'synthesis':
-      if (label === 'AI-OS LINK LOST') {
+      if (label === 'GAGOS LINK LOST') {
         // Falling fifth — the brain goes blind, runs on imagination.
         blip(220, 0.4, 0.03);
         blip(164.8, 0.7, 0.03, 'sine', 0.2); // A3 -> E3
-      } else if (label === 'AI-OS LINK ESTABLISHED') {
+      } else if (label === 'GAGOS LINK ESTABLISHED') {
         // Its mirror — sight returns.
         blip(164.8, 0.3, 0.026);
         blip(220, 0.45, 0.026, 'sine', 0.12); // E3 -> A3

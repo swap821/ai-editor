@@ -1,4 +1,4 @@
-"""aios — a local-first, memory-driven, security-gated, human-supervised AI OS.
+"""GAGOS — a local-first, memory-driven, security-gated, human-supervised AI operating system.
 
 Package layout
 --------------

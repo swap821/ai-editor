@@ -31,7 +31,7 @@ from git import Actor, Repo  # GitPython
 from aios import config
 
 #: Identity stamped on snapshot commits (avoids needing global git config).
-_AUTHOR = Actor("AI-OS Rollback", "rollback@aios.local")
+_AUTHOR = Actor("GAGOS Rollback", "rollback@aios.local")
 
 
 class RollbackError(RuntimeError):
