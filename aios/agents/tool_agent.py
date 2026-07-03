@@ -596,6 +596,26 @@ def _explicit_tool_requests(messages: list[dict[str, Any]]) -> set[str]:
     return requested
 
 
+def build_auto_verify_command(test_arg: str) -> str:
+    """The forced auto-verify command for one sandbox test file.
+
+    Shared by :meth:`ToolAgent._auto_verify` and the real-subprocess
+    regression test so the tested command can never drift from the one
+    production runs.
+
+    ``-o addopts=`` is load-bearing: pytest discovers ini config upward
+    from its cwd, and this repo's own pytest.ini addopts contribute a
+    second ``-q`` (stacking into ``-qq``, which suppresses the "N passed"
+    summary line the Verifier's count parser requires for STRONG) plus
+    ``--cov=aios`` (coverage of an unrelated tree slowing a sandbox-scoped
+    run). Emptying inherited addopts keeps the verify scoped to the
+    artifact and keeps a genuine pass STRONG-parseable. The flag sits
+    AFTER the runner tokens, so the strength taxonomy's program-position
+    anchoring is unaffected. (Found live by prove_it.py, 2026-07-03.)
+    """
+    return f'{config.VERIFY_RUNNER} -o addopts= "{test_arg}" -q'
+
+
 class ToolAgent:
     """Bounded, security-gated reason -> act -> observe loop over a local model."""
 
@@ -1087,7 +1107,7 @@ class ToolAgent:
             test_arg = test_abs.relative_to(cwd).as_posix()
         except ValueError:
             test_arg = str(test_abs)
-        command = f'{config.VERIFY_RUNNER} "{test_arg}" -q'
+        command = build_auto_verify_command(test_arg)
 
         output, status, _failed = self._verify(command, approved=True)
         if status == "blocked":
