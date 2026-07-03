@@ -44,7 +44,7 @@ export function routeMetric(label: string): MetricKey | null {
 type Snapshot = Record<MetricKey, number>;
 
 /** Live base values the ticker drifts around. Defaults to the demo lore
- *  numbers; the AI-OS adapter overwrites them with REAL series so the same
+ *  numbers; the GAGOS adapter overwrites them with REAL series so the same
  *  drift/bump animation suddenly tells the truth. */
 const bases: Snapshot = { ...METRIC_BASES };
 

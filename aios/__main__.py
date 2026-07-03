@@ -15,7 +15,7 @@ Launch with ``python -m aios`` (optionally ``--reload`` for dev via the flag bel
 P0-4 addition: ``--proxy-headers`` tells uvicorn to trust ``X-Forwarded-For`` /
 ``X-Forwarded-Proto`` from a reverse proxy, and disables the unauthenticated
 loopback exemption because the direct peer is now a proxy. Use only when a
-trusted proxy sits in front of AI-OS and always pair it with ``AIOS_API_TOKEN``.
+trusted proxy sits in front of GAGOS and always pair it with ``AIOS_API_TOKEN``.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from aios import config
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="python -m aios", description="Serve the AI-OS API.")
+    parser = argparse.ArgumentParser(prog="python -m aios", description="Serve the GAGOS API.")
     parser.add_argument(
         "--reload",
         action="store_true",
@@ -44,7 +44,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     # The trust flag may come from the env var (AIOS_TRUST_PROXY_HEADERS) or the
-    # CLI flag. Both the AI-OS policy (lifespan/middleware) and uvicorn must see
+    # CLI flag. Both the GAGOS policy (lifespan/middleware) and uvicorn must see
     # the SAME value, otherwise we could enforce proxy semantics while uvicorn
     # still reports the direct peer, or vice versa.
     trust_proxy_headers = bool(args.proxy_headers or config.TRUST_PROXY_HEADERS)
