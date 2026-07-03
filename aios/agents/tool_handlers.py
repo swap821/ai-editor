@@ -507,7 +507,7 @@ def browse_url(
         resp = requests.get(
             url,
             timeout=15,
-            headers={"User-Agent": "AI-OS browse tool"},
+            headers={"User-Agent": "GAGOS browse tool"},
         )
         resp.raise_for_status()
         content_type = resp.headers.get("Content-Type", "")

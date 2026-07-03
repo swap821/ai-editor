@@ -1,5 +1,5 @@
 /**
- * SuperbrainReactiveEffects — product-only 3D reactions to the AI-OS agent loop.
+ * SuperbrainReactiveEffects — product-only 3D reactions to the GAGOS agent loop.
  *
  * This component is injected into <WorkspaceCanvas> from SuperbrainApp.jsx, so it
  * shares the same R3F context as the being but lives outside the ported lab files.
