@@ -134,7 +134,12 @@ export function sanitizeHtml(dirty) {
   clean = clean.replace(getDangerousTagPattern(), '');
 
   // 3. Strip ALL event handler attributes (onerror, onclick, onload, etc.)
-  clean = clean.replace(EVENT_HANDLER_PATTERN, '');
+  // Repeat until stable to prevent incomplete multi-character sanitization bypasses.
+  let prev;
+  do {
+    prev = clean;
+    clean = clean.replace(EVENT_HANDLER_PATTERN, '');
+  } while (clean !== prev);
 
   // 4. Strip dangerous URL schemes in attributes
   clean = clean.replace(DANGEROUS_URL_PATTERN, '');
