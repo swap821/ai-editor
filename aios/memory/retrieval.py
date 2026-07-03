@@ -112,12 +112,12 @@ def hybrid_search(
             return []
         faiss_by_id = {cid: score for cid, score in candidates}
         candidate_ids = list(faiss_by_id.keys())
-        placeholders = ",".join("?" * len(candidate_ids))
+        placeholders = ",".join("?" for _ in candidate_ids)
         with get_connection(db_path) as conn:
             rows = conn.execute(
-                f"SELECT id, text_content, timestamp, memory_type, verification_status "
-                f"FROM semantic_memory WHERE id IN ({placeholders}) "
-                f"AND verification_status != 'superseded'",
+                "SELECT id, text_content, timestamp, memory_type, verification_status "
+                "FROM semantic_memory WHERE id IN (" + placeholders + ") "
+                "AND verification_status != 'superseded'",
                 candidate_ids,
             ).fetchall()
         if len(rows) >= top_k or candidate_count >= index.size:

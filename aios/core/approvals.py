@@ -116,14 +116,17 @@ class ApprovalStore:
                     ON approval_grants(session_id, expires_at);
                 """
             )
+            _KNOWN_TABLES = {"approval_pending", "approval_grants"}
             for table in ("approval_pending", "approval_grants"):
-                rows = conn.execute(f"SELECT DISTINCT session_id FROM {table}").fetchall()
+                if table not in _KNOWN_TABLES:
+                    raise ValueError(f"unexpected table: {table}")
+                rows = conn.execute(f"SELECT DISTINCT session_id FROM {table}").fetchall()  # noqa: S608
                 for row in rows:
                     session_id = str(row["session_id"])
                     digest = self._session_digest(session_id)
                     if not re.fullmatch(r"[0-9a-f]{64}", session_id):
                         conn.execute(
-                            f"UPDATE {table} SET session_id = ? WHERE session_id = ?",
+                            f"UPDATE {table} SET session_id = ? WHERE session_id = ?",  # noqa: S608
                             (digest, session_id),
                         )
 

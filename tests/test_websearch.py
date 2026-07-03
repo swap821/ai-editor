@@ -74,7 +74,7 @@ def test_default_fetch_builds_request_correctly(monkeypatch) -> None:
         def json(self) -> dict:
             return {"results": [{"content": "net doc"}]}
 
-    def fake_post(url, *, json, headers, timeout):
+    def fake_post(url, *, json, headers, timeout, **kwargs):
         captured.update(url=url, json=json, headers=headers, timeout=timeout)
         return FakeResp()
 

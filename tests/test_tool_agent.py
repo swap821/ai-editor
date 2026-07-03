@@ -1602,6 +1602,8 @@ class FakeResponse:
         self.text = text
         self.headers = headers or {"Content-Type": "text/html"}
         self.status_code = status_code
+        self.is_redirect = False
+        self.is_permanent_redirect = False
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -1636,7 +1638,7 @@ def test_browse_blocks_local_and_private_urls() -> None:
 
 
 def test_browse_fetches_and_extracts_text(monkeypatch) -> None:
-    def fake_get(url, *, timeout, headers):
+    def fake_get(url, *, timeout, headers, **kwargs):
         return FakeResponse("<html><body><p>Hello world</p></body></html>")
 
     monkeypatch.setattr("requests.get", fake_get)
