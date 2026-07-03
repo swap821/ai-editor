@@ -252,6 +252,13 @@ class Planner:
                     native_source=native_result,
                 )
 
+        # -- Offline guard (sovereignty S4) -----------------------------------
+        if config.OFFLINE_MODE:
+            raise PlannerError(
+                "Offline mode: no native plan matched this goal. "
+                "LLM planning is unavailable."
+            )
+
         prompt = PLAN_USER_TEMPLATE.format(goal=goal.strip())
         raw = self.llm.complete(prompt, system=PLAN_SYSTEM_PROMPT)
         raw_steps = _parse_steps(raw)
