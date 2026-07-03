@@ -247,6 +247,14 @@ def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
     assert argv[-5:] == ["python", "-m", "pytest", "test_greeter.py", "-q"]
     assert kwargs["shell"] is False
     assert kwargs["timeout"] == 9
+    # --mount requires EVERY comma-separated field to be key=value: a bare
+    # "rw" (the -v shorthand) makes modern Docker refuse the run with exit
+    # 125, fail-closing every container-backed verify (live, 2026-07-03).
+    mount = argv[argv.index("--mount") + 1]
+    assert all("=" in field for field in mount.split(",")), (
+        f"--mount fields must all be key=value; got {mount!r}"
+    )
+    assert mount.startswith("type=bind,src=") and ",dst=/workspace" in mount
 
 
 def test_default_execution_backend_is_container() -> None:

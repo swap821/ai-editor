@@ -240,7 +240,13 @@ class DockerRunner:
             raise ValueError(
                 "working directory path contains characters not permitted in Docker mount spec"
             )
-        mount = f"type=bind,src={resolved_cwd},dst=/workspace,rw"
+        # --mount requires every field to be key=value: a bare "rw" (the -v
+        # volume shorthand) is rejected by modern Docker with exit 125
+        # ("invalid field 'rw' must be a key=value pair"), which fail-closed
+        # every container-backed verify the moment a real daemon was present
+        # (first observed live 2026-07-03). Bind mounts are read-write by
+        # default, so simply omit the field.
+        mount = f"type=bind,src={resolved_cwd},dst=/workspace"
         docker_argv = [
             self.runtime,
             "run",
