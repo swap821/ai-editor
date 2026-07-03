@@ -45,23 +45,31 @@ body tells the truth about its cognitive state.
 
 The system earns native intelligence through accumulated verified experience:
 
-- **Cerebellum (Phase S1 — LANDED ✓):** Verified skill arcs compile into deterministic
-  playbooks that replay without any LLM call, through the full security gateway. Like muscle
-  memory — a pianist who's practiced a piece a thousand times doesn't read the sheet music
-  anymore, but still follows the rules of music.
+- **Cerebellum (S1 ✅):** Verified skill arcs compile into deterministic playbooks that
+  replay without any LLM call, through the full security gateway. Like muscle memory — a
+  pianist who's practiced a piece a thousand times doesn't read the sheet music anymore,
+  but still follows the rules of music.
 
-- **Knowledge Graph (Phase S2 — IN PROGRESS):** The system's verified facts form a
-  confidence-weighted graph it can traverse to answer questions and make inferences without
-  consulting an LLM. Like a doctor's diagnostic intuition — cough + fever + rash → measles?
-  → check vaccination history. Graph traversal, not text generation.
+- **Knowledge Graph (S2 ✅):** The system's verified facts form a confidence-weighted graph
+  it can traverse to answer questions and make inferences without consulting an LLM.
+  Cross-store ingestion feeds verified skills, mistakes, and outcomes into the graph
+  automatically. Like a doctor's diagnostic intuition — cough + fever + rash → measles?
+  → check vaccination history. Graph traversal with confidence decay, not text generation.
 
-- **Native Planner (Phase S3 — SPEC'D):** Known task shapes plan deterministically from
-  compiled templates. Like a chess engine's opening book — the first 15 moves are recalled
-  instantly; creative play starts when the position leaves the book.
+- **Native Planner (S3 ✅):** Known task shapes plan deterministically from verified skill
+  arcs and swarm decomposition patterns. Like a chess engine's opening book — the first
+  15 moves are recalled instantly; creative play starts when the position leaves the book.
 
-When all three are wired, LLMs become **turbochargers, not the engine**. The system handles
-every task shape it's verified before. Novel tasks fall through to the LLM. Cold start (no
-experience) behaves identically to today. Sovereignty is earned, never declared.
+- **Offline Mode (S4 ✅):** The system operates meaningfully with all LLMs offline. Novel
+  tasks get honest refusal ("I haven't learned this yet"), not crashes. Like airplane
+  mode on your phone — the alarm clock, calculator, and offline maps still work. The phone
+  isn't broken; it's operating on local capability.
+
+All four phases are landed and proved. LLMs are **turbochargers, not the engine**. The
+system handles every task shape it's verified before. Novel tasks fall through to the LLM.
+Cold start (no experience) behaves identically to a standard LLM agent. Sovereignty is
+earned through accumulated verified experience, never declared. See `HONEST_STATE.md` for
+the precise definition and `prove_sovereignty.py` for the falsifiable proof.
 
 ---
 
@@ -84,11 +92,19 @@ experience) behaves identically to today. Sovereignty is earned, never declared.
 ┌────────────────────────────▼────────────────────────────────────┐
 │                      FastAPI BACKEND                            │
 │                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │            SOVEREIGNTY ENGINE (S1-S4)                    │  │
+│  │  Cerebellum: compiled playbook replay (muscle memory)    │  │
+│  │  Knowledge Graph: confidence-weighted inference (recall) │  │
+│  │  Native Planner: template planning (opening book)        │  │
+│  │  Offline Mode: graceful degradation (airplane mode)      │  │
+│  └──────────────────────┬───────────────────────────────────┘  │
+│                         ↓ miss? fall through                    │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │ CEREBELLUM  │  │  TOOL AGENT  │  │     COUNCIL RUNTIME    │ │
-│  │ compiled    │→ │ reason→act→  │  │ Queens (Plan/Security/ │ │
-│  │ playbook    │  │ observe loop │  │ Memory/Test/Critique)  │ │
-│  │ replay      │  │ + reflection │  │ → King Report          │ │
+│  │  TOOL AGENT │  │   PLANNER    │  │     COUNCIL RUNTIME    │ │
+│  │ reason→act→ │  │ LLM decomp   │  │ Queens (Plan/Security/ │ │
+│  │ observe loop│  │ + calibrate  │  │ Memory/Test/Critique)  │ │
+│  │ + reflection│  │ + gate 0.72  │  │ → King Report          │ │
 │  └──────┬──────┘  └──────┬───────┘  └────────────────────────┘ │
 │         │                │                                      │
 │         ▼                ▼                                      │
@@ -153,14 +169,19 @@ npm run dev
 ### Prove it works
 
 ```bash
-# Scripted end-to-end proof — no LLM required
+# Supervised loop proof — plan → approve → execute → verify → learn
 .venv/bin/python prove_it.py
 
-# Sovereignty proof — cerebellum compiles and replays without LLM
+# Cerebellum proof — verified skills compile and replay without LLM
 .venv/bin/python prove_cerebellum.py
+
+# Full sovereignty proof — all three organs + offline mode (18 assertions)
+.venv/bin/python prove_sovereignty.py
 ```
 
-Both scripts print `[PASS]` / `[FAIL]` per step with real evidence. No faked green bars.
+All three scripts print `[PASS]` / `[FAIL]` per step with real evidence. No faked green bars.
+`prove_sovereignty.py` is the definitive proof — it demonstrates that the system can plan,
+recall, and execute practiced tasks with every LLM unplugged.
 
 ---
 
@@ -287,14 +308,17 @@ The graph is a catalog of what the system *knows*, not what it *guesses*.
 
 | Metric | Value |
 |--------|-------|
-| Python backend | ~57K lines across 87 modules |
-| Frontend (TS/TSX/JSX) | ~34K lines across 110 source files |
-| Backend test files | 109 (including 7 adversarial suites) |
+| Python backend | ~59K lines across 90 modules |
+| Frontend (TS/TSX/JSX) | ~35K lines across 113 source files |
+| Sovereignty engine | ~2,660 lines across 4 new modules (S1-S4) |
+| Backend test files | 114 (including 7 adversarial suites) |
 | Frontend test files | 69 |
-| Total test functions | 1,538 |
+| Total test functions | 1,605 |
+| Sovereignty engine tests | 125 (unit + adversarial + integration + proof) |
 | Test:code ratio (backend) | ~1:1 |
-| Commits | 710 (solo) |
+| Commits | 715 (solo) |
 | Project age | 33 days (June 1 – July 3, 2026) |
+| Proof scripts | 3 (`prove_it.py`, `prove_cerebellum.py`, `prove_sovereignty.py`) |
 | CI | GitHub Actions — pytest 85% coverage gate + pip-audit + npm audit + typecheck + production build |
 | Dependencies | Fully pinned in `requirements.txt` |
 
@@ -333,7 +357,8 @@ GitHub Actions CI
 aios/                    # Python backend
   api/main.py            # FastAPI orchestration (SSE streaming)
   agents/                # Tool agent, reflection, rollback, swarm, self-analysis
-  core/                  # Router, planner, executor, verifier, cerebellum, confidence
+  core/                  # Router, planner, executor, verifier, cerebellum, inference,
+                         # native_planner, graph_ingestion, confidence, sovereignty
   council/               # Queens (planner/security/memory/testing/critique) + King
   memory/                # Episodic, semantic, facts, skills, mistakes, CRAG, curriculum
   runtime/               # Worker spawner, cortex bus, contracts, backends
@@ -359,16 +384,32 @@ observability/           # Prometheus, Grafana, Alertmanager config
 
 ---
 
-## Sovereignty roadmap
+## Sovereignty engine — complete
 
-| Phase | Status | What it delivers |
-|-------|--------|-----------------|
-| **S1 — Cerebellum** | ✅ Landed | Verified skills compile into deterministic playbooks. LLM-free execution for practiced tasks. |
-| **S2 — Knowledge Graph** | ✅ Landed | Confidence-weighted graph traversal over verified facts. Multi-hop inference without LLM. Cross-store ingestion from skills, mistakes, development outcomes. |
-| **S3 — Native Planner** | ✅ Landed | Known task shapes plan from compiled templates. Falls through to LLM for novel tasks. |
-| **S4 — Offline Mode** | ✅ Landed | Meaningful operation with all LLMs offline. `prove_sovereignty.py` end-to-end proof. |
+All four phases of the sovereignty engine are landed and proved:
 
+| Phase | What it does | Analogy |
+|-------|-------------|---------|
+| **S1 — Cerebellum** ✅ | Verified skill arcs compile into deterministic playbooks that replay through `_dispatch` without any LLM call | Muscle memory — a pianist who's practiced a piece a thousand times |
+| **S2 — Knowledge Graph** ✅ | Confidence-weighted graph traversal over verified facts with cross-store ingestion from skills, mistakes, and outcomes | A doctor's diagnostic intuition from accumulated experience |
+| **S3 — Native Planner** ✅ | Known task shapes plan from verified skill arcs and swarm patterns without LLM. Falls through for novel tasks | A chess engine's opening book — recalled instantly, creative play starts when the position leaves the book |
+| **S4 — Offline Mode** ✅ | Graceful degradation with all LLMs offline. Honest refusal for novel tasks. 18-assertion proof script | Airplane mode — the phone still works, it just can't make calls |
+
+The sovereignty engine adds ~2,660 lines and 125 tests to the codebase.
 Design specs: `docs/superpowers/specs/2026-07-03-sovereignty-engine-design.md`
+Sovereignty definition: `HONEST_STATE.md`
+
+### What's next — proof of life
+
+The engine is built and tested with synthetic data. The next milestone is **organic
+experience accumulation**: running the system on real tasks with a real LLM, watching
+skills promote to `verified`, watching the cerebellum compile its first organic playbook,
+and documenting the moment a practiced task replays without an LLM call. The sovereignty
+engine runs on accumulated verified experience — the proof of life is the first real fuel.
+
+Think of it like a car that just passed factory inspection. The odometer reads zero. The
+engine has been tested on a dynamometer. Now it needs miles on real roads, in real weather,
+burning real fuel. The logbook is `PROOF_OF_LIFE.md`.
 
 ---
 
@@ -405,4 +446,4 @@ Contact the maintainer for licensing inquiries.
 
 ---
 
-<sub>Built solo. 710 commits in 33 days. The hard things are done. The engine is being installed.</sub>
+<sub>Built solo. 715 commits in 33 days. The sovereignty engine is complete. The organism needs miles.</sub>
