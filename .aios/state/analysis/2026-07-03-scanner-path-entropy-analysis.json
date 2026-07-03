@@ -101,7 +101,7 @@
         },
         {
           "option": "C. SCOPE_ROOTS allowlist anchoring (as literally specified: mask whole command, then call scan_and_redact on masked text)",
-          "attack": "python -m pytest C:\\Users\\kumar\\ai-editor\\training_ground\\AKIAIOSFODNN7EXAMPLE.py -q -- real AWS-format key used as a filename, placed inside the sandbox's own SCOPE_ROOTS directory (agent-writable, no special access needed)",
+          "attack": "python -m pytest C:\\Users\\kumar\\ai-editor\\training_ground\\AKIA_EXAMPLE_KEY.py -q -- real AWS-format key used as a filename, placed inside the sandbox's own SCOPE_ROOTS directory (agent-writable, no special access needed)",
           "outcome": "EVADED. detected=False. Masking runs BEFORE Pass 1 (named regexes), so the in-scope substring is replaced with null placeholders before the AWS_ACCESS_KEY regex ever sees it -- defeats the HIGHEST-CONFIDENCE detector class, not just the entropy heuristic. This is exactly the residual risk the option's own author flagged as making the naive form unsafe to adopt."
         },
         {

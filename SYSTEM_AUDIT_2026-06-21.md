@@ -164,7 +164,7 @@ so these are for you to run, not me.
    `.claude/` (125 files), `.aios/` (53), `aios/` (51, the real package), `.agents/`, `.claude-flow`,
    `.superpowers`. The `.aios/` (notebook) vs `aios/` (code) split is genuinely confusing to a newcomer.
 
-**Clean, credit due:** no secrets in tracked code (only the `AKIAIOSFODNN7EXAMPLE` placeholder + test
+**Clean, credit due:** no secrets in tracked code (only the `AKIA…EXAMPLE` placeholder + test
 fixtures), no committed DBs/FAISS (gitignore is thorough), `requirements.txt` fully pinned,
 `package-lock.json` committed, `.mcp.json` holds no secrets.
 
