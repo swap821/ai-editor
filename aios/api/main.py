@@ -235,6 +235,14 @@ async def lifespan(app: FastAPI):
             _cortex_bus = None
             _cortex_dispatcher = None
             _self_model_handler = None
+    # Boot attestation: hash the security spine and log integrity.
+    try:
+        from aios.boot_attestation import attest_boot
+        attestation = attest_boot(Path(config.PROJECT_ROOT))
+        logger.info("boot_attestation", integrity=attestation["integrity"],
+                    spine_hash=attestation["hash"][:16])
+    except Exception as exc:  # noqa: BLE001 - never block startup
+        logger.warning("boot_attestation_failed", exc_info=exc)
     yield
     # Shutdown: stop the dispatcher cleanly if it was started.
     if _cortex_dispatcher is not None:
@@ -1808,6 +1816,71 @@ def development_trails(
     return skills.trail_map()
 
 
+@app.get("/api/v1/development/harness")
+def development_harness() -> dict[str, Any]:
+    """Aggregate status from automated experience harnesses (read-only).
+
+    Reads the JSONL audit logs produced by the three harness tools and returns
+    summary metrics: last run timestamps, cumulative success rates, and green/red
+    status for each harness.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    audit_dir = _Path(config.PROJECT_ROOT) / ".aios" / "audit"
+    result: dict[str, Any] = {}
+
+    for name, filename, summary_kind in [
+        ("experience", "experience-accumulator.jsonl", "run-summary"),
+        ("golden", "golden-mission-runs.jsonl", "batch-summary"),
+        ("endurance", "endurance-test.jsonl", "endurance-summary"),
+    ]:
+        log_path = audit_dir / filename
+        if not log_path.exists():
+            result[name] = {"runs": 0, "status": "no_data"}
+            continue
+        summaries: list[dict[str, Any]] = []
+        try:
+            with log_path.open() as fh:
+                for line in fh:
+                    record = _json.loads(line)
+                    if record.get("kind") == summary_kind:
+                        summaries.append(record)
+        except (OSError, _json.JSONDecodeError):
+            result[name] = {"runs": 0, "status": "error"}
+            continue
+
+        if not summaries:
+            result[name] = {"runs": 0, "status": "no_data"}
+            continue
+
+        latest = summaries[-1]
+        if name == "experience":
+            result[name] = {
+                "runs": len(summaries),
+                "latest_success_rate": latest.get("success_rate", 0),
+                "total_sessions": sum(s.get("total", 0) for s in summaries),
+                "status": "green" if latest.get("success_rate", 0) >= 0.7 else "needs_attention",
+            }
+        elif name == "golden":
+            result[name] = {
+                "runs": len(summaries),
+                "latest_pass_rate": latest.get("rate", 0),
+                "total_missions": latest.get("total", 0),
+                "status": "green" if latest.get("rate", 0) >= 0.8 else "needs_attention",
+            }
+        elif name == "endurance":
+            result[name] = {
+                "runs": len(summaries),
+                "latest_green": latest.get("green", False),
+                "latest_success_rate": latest.get("success_rate", 0),
+                "latency_p95_s": latest.get("latency_p95_s", 0),
+                "status": "green" if latest.get("green", False) else "needs_attention",
+            }
+
+    return {"harnesses": result}
+
+
 @app.get("/api/v1/development/workspace")
 def development_workspace() -> dict[str, Any]:
     """The agent's manufacturing workspace: the text files currently in
@@ -1894,6 +1967,53 @@ def add_curriculum_task(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"id": task_id, "executed": False}
+
+
+@app.get("/api/v1/development/curriculum/proposals")
+def curriculum_proposals(
+    max_proposals: int = 10,
+    curriculum: CurriculumManager = Depends(get_curriculum_manager),
+) -> dict[str, Any]:
+    """List auto-generated curriculum proposals from audit evidence."""
+    from aios.memory.curriculum_miner import CurriculumMiner
+    miner = CurriculumMiner()
+    proposals = miner.list_proposals(max_proposals=max_proposals)
+    return {
+        "proposals": [
+            {
+                "fingerprint": p.fingerprint,
+                "skill_name": p.skill_name,
+                "level": p.level,
+                "prompt": p.prompt,
+                "rationale": p.rationale,
+                "source_pattern": p.source_pattern,
+                "difficulty_delta": p.difficulty_delta,
+            }
+            for p in proposals
+        ]
+    }
+
+
+@app.post("/api/v1/development/curriculum/proposals/accept")
+def accept_curriculum_proposal(
+    req: dict[str, Any],
+    curriculum: CurriculumManager = Depends(get_curriculum_manager),
+) -> dict[str, Any]:
+    """Accept a mined proposal, adding it to the live curriculum."""
+    fingerprint = req.get("fingerprint")
+    if not fingerprint:
+        raise HTTPException(status_code=422, detail="fingerprint required")
+    from aios.memory.curriculum_miner import CurriculumMiner
+    miner = CurriculumMiner()
+    proposals = miner.list_proposals(max_proposals=50)
+    match = next((p for p in proposals if p.fingerprint == fingerprint), None)
+    if not match:
+        raise HTTPException(status_code=404, detail="proposal not found")
+    try:
+        task_id = curriculum.add_task(match.skill_name, match.level, match.prompt)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"id": task_id, "accepted": True, "prompt": match.prompt}
 
 
 def _validate_council_mission_id(mission_id: str) -> str:

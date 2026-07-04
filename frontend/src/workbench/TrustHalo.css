@@ -1,0 +1,81 @@
+/* TrustHalo — glanceable ambient visual indicator of system trustworthiness.
+   A small ring with a coloured glow that pulses or steadies based on the
+   current trust level (unknown / healthy / attention / critical). */
+
+.trust-halo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 32px;
+}
+
+.trust-halo__ring {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  box-sizing: border-box;
+}
+
+.trust-halo__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Unknown (gray) ───────────────────────────────────────────────────────── */
+.trust-halo--unknown {
+  color: #555;
+}
+.trust-halo--unknown .trust-halo__ring {
+  box-shadow: 0 0 6px rgba(85, 85, 85, 0.4);
+}
+
+/* ── Healthy (green) — subtle pulse glow ──────────────────────────────────── */
+.trust-halo--healthy {
+  color: #22c55e;
+}
+.trust-halo--healthy .trust-halo__ring {
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6), 0 0 16px rgba(34, 197, 94, 0.25);
+  animation: trust-halo-pulse-green 3s ease-in-out infinite;
+}
+
+@keyframes trust-halo-pulse-green {
+  0%, 100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.6), 0 0 16px rgba(34, 197, 94, 0.25); }
+  50%      { box-shadow: 0 0 12px rgba(34, 197, 94, 0.8), 0 0 24px rgba(34, 197, 94, 0.4); }
+}
+
+/* ── Attention (amber) — steady glow ──────────────────────────────────────── */
+.trust-halo--attention {
+  color: #f59e0b;
+}
+.trust-halo--attention .trust-halo__ring {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.65), 0 0 20px rgba(245, 158, 11, 0.3);
+}
+
+/* ── Critical (red) — faster pulse ────────────────────────────────────────── */
+.trust-halo--critical {
+  color: #ef4444;
+}
+.trust-halo--critical .trust-halo__ring {
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.35);
+  animation: trust-halo-pulse-red 1.5s ease-in-out infinite;
+}
+
+@keyframes trust-halo-pulse-red {
+  0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.35); }
+  50%      { box-shadow: 0 0 16px rgba(239, 68, 68, 0.9), 0 0 30px rgba(239, 68, 68, 0.55); }
+}
+
+/* ── Reduced motion — no animation ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .trust-halo--healthy .trust-halo__ring,
+  .trust-halo--critical .trust-halo__ring {
+    animation: none;
+  }
+}

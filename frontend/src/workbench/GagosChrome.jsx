@@ -55,6 +55,7 @@ import {
 import SwarmHUD from '../superbrain/components/ui/SwarmHUD';
 import CouncilDashboard from './CouncilDashboard';
 import OperatorProfileCard from './OperatorProfileCard';
+import TrustHalo from './TrustHalo';
 import './GagosChrome.css';
 
 const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
@@ -976,6 +977,7 @@ export default function GagosChrome() {
       <SwarmHUD />
       <CouncilDashboard />
       <OperatorProfileCard />
+      <TrustHalo />
 
       {/* The supervised decision surface — a dependable DOM gate that appears
           whenever the mind pauses on a write/command/fetch, even if the 3D scene
