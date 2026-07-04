@@ -396,6 +396,26 @@ VOICE_TTS_MODEL: Final[str] = _env_str("AIOS_VOICE_TTS_MODEL", "en_US-lessac-med
 VOICE_MODELS_DIR: Final[Path] = _env_path("AIOS_VOICE_MODELS_DIR", DATA_DIR / "voice_models")
 VOICE_MAX_AUDIO_BYTES: Final[int] = _env_int("AIOS_VOICE_MAX_AUDIO_BYTES", 10_485_760)
 
+# ── Sovereign Roadmap: Phases 3B–7 ──────────────────────────────────────────
+QUEEN_SERVICES: Final[bool] = _env_bool("AIOS_QUEEN_SERVICES", False)
+QUEEN_SERVICE_QUEUE_DEPTH: Final[int] = _env_int("AIOS_QUEEN_SERVICE_QUEUE_DEPTH", 16)
+PHEROMONE_ENABLED: Final[bool] = _env_bool("AIOS_PHEROMONE_ENABLED", False)
+PHEROMONE_DB: Final[Path] = DATA_DIR / "pheromones.db"
+PHEROMONE_LAMBDA_DECAY: Final[float] = _env_float("AIOS_PHEROMONE_LAMBDA_DECAY", 0.02)
+PHEROMONE_FLOOR: Final[float] = _env_float("AIOS_PHEROMONE_FLOOR", 0.01)
+LIVE_SURFACE: Final[bool] = _env_bool("AIOS_LIVE_SURFACE", False)
+LIVE_SURFACE_DB: Final[Path] = DATA_DIR / "live_surface.db"
+WORKTREE_BACKEND: Final[bool] = _env_bool("AIOS_WORKTREE_BACKEND", False)
+WORKTREE_ROOT: Final[Path] = _env_path("AIOS_WORKTREE_ROOT", DATA_DIR / "worktrees")
+ROLLBACK_REGISTRY: Final[bool] = _env_bool("AIOS_ROLLBACK_REGISTRY", False)
+ROLLBACK_REGISTRY_DB: Final[Path] = DATA_DIR / "rollback_registry.db"
+ROLLBACK_RETENTION_DAYS: Final[int] = _env_int("AIOS_ROLLBACK_RETENTION_DAYS", 30)
+AUDIT_ANCHOR_API: Final[bool] = _env_bool("AIOS_AUDIT_ANCHOR_API", False)
+SELF_CONSISTENCY: Final[bool] = _env_bool("AIOS_SELF_CONSISTENCY", False)
+SELF_CONSISTENCY_N: Final[int] = max(3, _env_int("AIOS_SELF_CONSISTENCY_N", 3))
+POLICY_ENGINE: Final[bool] = _env_bool("AIOS_POLICY_ENGINE", False)
+POLICY_DB: Final[Path] = DATA_DIR / "policy.db"
+
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
@@ -481,6 +501,14 @@ __all__ = [
     "FACTS_AUTO_EXTRACT", "FACTS_AUTO_EXTRACT_MAX_PER_TURN",
     "CORTEX_BUS", "CORTEX_BUS_DB", "CORTEX_BUS_RETENTION_MAX",
     "CORTEX_BUS_RETENTION_DAYS",
+    "QUEEN_SERVICES", "QUEEN_SERVICE_QUEUE_DEPTH",
+    "PHEROMONE_ENABLED", "PHEROMONE_DB", "PHEROMONE_LAMBDA_DECAY", "PHEROMONE_FLOOR",
+    "LIVE_SURFACE", "LIVE_SURFACE_DB",
+    "WORKTREE_BACKEND", "WORKTREE_ROOT",
+    "ROLLBACK_REGISTRY", "ROLLBACK_REGISTRY_DB", "ROLLBACK_RETENTION_DAYS",
+    "AUDIT_ANCHOR_API",
+    "SELF_CONSISTENCY", "SELF_CONSISTENCY_N",
+    "POLICY_ENGINE", "POLICY_DB",
     "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",
