@@ -39,7 +39,6 @@ pydantic==2.13.4
 pydantic_core==2.46.4
 Pygments==2.20.0
 pytest==9.0.3
-pytest-asyncio==0.25.3
 pytest-cov==7.1.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
