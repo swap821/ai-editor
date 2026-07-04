@@ -5,6 +5,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Any
 
+from aios import config
 from aios.runtime.contracts import MissionContract, QueenVerdict
 
 
@@ -92,7 +93,7 @@ class QueenService(ABC):
 
 
 class SecurityQueenService(QueenService):
-    def __init__(self, queue_depth: int = 16):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
         super().__init__("security", queue_depth)
         from aios.council.queens.security import SecurityQueen
 

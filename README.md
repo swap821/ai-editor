@@ -308,15 +308,14 @@ The graph is a catalog of what the system *knows*, not what it *guesses*.
 
 | Metric | Value |
 |--------|-------|
-| Python backend | ~59K lines across 90 modules |
+| Python backend | ~32K lines across 121 modules |
 | Frontend (TS/TSX/JSX) | ~35K lines across 113 source files |
 | Sovereignty engine | ~2,660 lines across 4 new modules (S1-S4) |
-| Backend test files | 114 (including 7 adversarial suites) |
-| Frontend test files | 69 |
+| Backend test files | 134 (including 7 adversarial suites) |
+| Frontend test files | 72 |
 | Total test functions | 1,605 |
 | Sovereignty engine tests | 125 (unit + adversarial + integration + proof) |
 | Test:code ratio (backend) | ~1:1 |
-| Commits | 715 (solo) |
 | Project age | 33 days (June 1 – July 3, 2026) |
 | Proof scripts | 3 (`prove_it.py`, `prove_cerebellum.py`, `prove_sovereignty.py`) |
 | CI | GitHub Actions — pytest 85% coverage gate + pip-audit + npm audit + typecheck + production build |
@@ -344,7 +343,7 @@ AIOS_API_TOKEN=<32-char-token> docker compose up --build
 GitPython · cryptography (Ed25519) · boto3 (Bedrock) · structlog · Prometheus client
 
 **Frontend:** React 19 · Three.js / React Three Fiber · Tailwind CSS v4 · Monaco Editor ·
-Framer Motion · Vitest · TypeScript
+Motion (v12) · Vitest · TypeScript
 
 **Infrastructure:** Docker · Docker Compose · Prometheus · Grafana · Alertmanager ·
 GitHub Actions CI
@@ -396,7 +395,7 @@ All four phases of the sovereignty engine are landed and proved:
 | **S4 — Offline Mode** ✅ | Graceful degradation with all LLMs offline. Honest refusal for novel tasks. 18-assertion proof script | Airplane mode — the phone still works, it just can't make calls |
 
 The sovereignty engine adds ~2,660 lines and 125 tests to the codebase.
-Design specs: `docs/superpowers/specs/2026-07-03-sovereignty-engine-design.md`
+Design specs: `docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`
 Sovereignty definition: `HONEST_STATE.md`
 
 ### What's next — proof of life
@@ -409,7 +408,7 @@ engine runs on accumulated verified experience — the proof of life is the firs
 
 Think of it like a car that just passed factory inspection. The odometer reads zero. The
 engine has been tested on a dynamometer. Now it needs miles on real roads, in real weather,
-burning real fuel. The logbook is `PROOF_OF_LIFE.md`.
+burning real fuel. The logbook will be `PROOF_OF_LIFE.md` once the first organic run completes.
 
 ---
 
@@ -441,9 +440,8 @@ coordination protocol.
 
 ## License
 
-This project is not currently under an open-source license. All rights reserved.
-Contact the maintainer for licensing inquiries.
+Licensed under Apache 2.0 — see `LICENSE`.
 
 ---
 
-<sub>Built solo. 715 commits in 33 days. The sovereignty engine is complete. The organism needs miles.</sub>
+<sub>Built solo. The sovereignty engine is complete. The organism needs miles.</sub>
