@@ -158,14 +158,12 @@ _SESSION_MANAGER = SessionManager(
 #: checked per request so setting changes take effect without editing this module.
 _bedrock_client: Optional[BedrockClient] = None
 _gemini_client: Optional[GeminiClient] = None
+_openai_client: Optional[Any] = None
+_anthropic_client: Optional[Any] = None
 _bedrock_lock = threading.Lock()
 _gemini_lock = threading.Lock()
-
-#: Voice service singletons — built lazily on first voice request.
-_stt_service: Optional[Any] = None
-_tts_service: Optional[Any] = None
-_stt_lock = threading.Lock()
-_tts_lock = threading.Lock()
+_openai_lock = threading.Lock()
+_anthropic_lock = threading.Lock()
 
 # ── Cortex bus W2 — singletons (None when CORTEX_BUS is off) ─────────────────
 # The bus and its dispatcher are module-level so the lifespan can start/stop
@@ -334,6 +332,15 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 app.add_middleware(MetricsMiddleware)
+
+# ── Sub-routers extracted from this module ────────────────────────────────────
+from aios.api.routes.voice import router as _voice_router
+from aios.api.routes.sovereignty import router as _sovereignty_router
+from aios.api.routes.council import router as _council_router
+
+app.include_router(_voice_router)
+app.include_router(_sovereignty_router)
+app.include_router(_council_router)
 
 
 @app.middleware("http")
@@ -664,6 +671,36 @@ def get_gemini_client() -> Optional[GeminiClient]:
     return _gemini_client
 
 
+def get_openai_client() -> Optional[Any]:
+    """Provide the OpenAI-compatible chat client, or ``None`` when unconfigured."""
+    global _openai_client
+    if not config.OPENAI_ENABLED:
+        return None
+    if _openai_client is not None:
+        return _openai_client
+    with _openai_lock:
+        if _openai_client is not None:
+            return _openai_client
+        from aios.core.openai_compat import OpenAICompatClient
+        _openai_client = OpenAICompatClient()
+    return _openai_client
+
+
+def get_anthropic_client() -> Optional[Any]:
+    """Provide the Anthropic direct chat client, or ``None`` when unconfigured."""
+    global _anthropic_client
+    if not config.ANTHROPIC_ENABLED:
+        return None
+    if _anthropic_client is not None:
+        return _anthropic_client
+    with _anthropic_lock:
+        if _anthropic_client is not None:
+            return _anthropic_client
+        from aios.core.anthropic_direct import AnthropicDirectClient
+        _anthropic_client = AnthropicDirectClient()
+    return _anthropic_client
+
+
 def get_executor() -> Executor:
     """Provide the default scope-constrained executor. Overridden in tests."""
     return Executor(
@@ -878,12 +915,6 @@ def get_alignment_evaluation_store() -> AlignmentEvaluationStore:
     return AlignmentEvaluationStore()
 
 
-def get_council_runtime_root() -> Path:
-    """Runtime artifact root for Council missions."""
-    config.COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-    return config.COUNCIL_RUNTIME_DIR
-
-
 def get_alignment_interpreter(
     llm: LLMClient = Depends(get_llm_client),
 ) -> Optional[AlignmentInterpreter]:
@@ -1079,49 +1110,6 @@ class CurriculumTaskRequest(BaseModel):
     level: int = Field(..., ge=1)
     prompt: str
     held_out: bool = Field(False, alias="heldOut")
-
-    model_config = {"populate_by_name": True}
-
-
-class CouncilDecisionRequest(BaseModel):
-    """King decision for a Council mission or pending worker approval request."""
-
-    mission_id: str = Field(..., alias="missionId")
-    request_id: str | None = Field(None, alias="requestId")
-    reason: str = ""
-
-    model_config = {"populate_by_name": True}
-
-
-class CouncilRollbackRequest(BaseModel):
-    """Approval-gated restore of a Council mission workspace."""
-
-    snapshot_id: Optional[str] = Field(None, alias="snapshotId")
-    approval_token: Optional[str] = Field(None, alias="approvalToken")
-    session_id: Optional[str] = Field(None, alias="sessionId")
-
-    model_config = {"populate_by_name": True}
-
-
-class CouncilMissionOriginationRequest(BaseModel):
-    """Body for ``POST /api/v1/council/missions`` — originate a council mission.
-
-    Scope is EXPLICIT and operator-provided (never LLM-inferred): allowedFiles is
-    required and validated to stay inside the council workspace.
-    """
-
-    goal: str = Field(..., min_length=1, max_length=2000)
-    allowed_files: list[str] = Field(..., alias="allowedFiles", min_length=1)
-    workspace_root: Optional[str] = Field(None, alias="workspaceRoot")
-    forbidden_files: list[str] = Field(
-        default_factory=lambda: ["backend/", ".env", "aios/security/"],
-        alias="forbiddenFiles",
-    )
-    verification_commands: list[str] = Field(
-        default_factory=list, alias="verificationCommands"
-    )
-    risk_level: str = Field("YELLOW", alias="riskLevel")
-    session_id: str = Field("council-session", alias="sessionId")
 
     model_config = {"populate_by_name": True}
 
@@ -2027,592 +2015,6 @@ def accept_curriculum_proposal(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"id": task_id, "accepted": True, "prompt": match.prompt}
 
-
-def _validate_council_mission_id(mission_id: str) -> str:
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", mission_id):
-        raise HTTPException(status_code=422, detail="invalid mission id")
-    # The charset above admits "." and "..", which the path layer would treat
-    # as traversal out of the missions/ tree. Reject them explicitly.
-    if mission_id in {".", ".."} or ".." in mission_id:
-        raise HTTPException(status_code=422, detail="invalid mission id")
-    return mission_id
-
-
-def _validate_council_request_id(request_id: str) -> str:
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", request_id):
-        raise HTTPException(status_code=422, detail="invalid approval request id")
-    if request_id in {".", ".."} or ".." in request_id:
-        raise HTTPException(status_code=422, detail="invalid approval request id")
-    return request_id
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-def _latest_intelligence_for_dashboard(report: KingReport) -> dict[str, Any]:
-    model_routing = report.council_summary.get("model_routing", {})
-    return model_routing if isinstance(model_routing, dict) else {}
-
-
-def _mission_dir(runtime_root: Path, mission_id: str) -> Path:
-    # Defense in depth alongside _validate_council_mission_id: resolve the
-    # candidate and confirm it stays strictly inside the missions/ tree, so no
-    # mission_id can ever address a sibling or parent directory.
-    base = (runtime_root / "missions").resolve()
-    candidate = (base / mission_id).resolve()
-    if base not in candidate.parents:
-        raise HTTPException(status_code=422, detail="invalid mission id")
-    return candidate
-
-
-def _read_council_json(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("council_dashboard_json_skipped", path=str(path), exc_info=exc)
-        return None
-    return value if isinstance(value, dict) else None
-
-
-def _king_decision(runtime_root: Path, mission_id: str) -> dict[str, Any] | None:
-    return _read_council_json(_mission_dir(runtime_root, mission_id) / "king_decision.json")
-
-
-def _pending_approvals_for_dashboard(runtime_root: Path, mission_id: str) -> list[dict[str, Any]]:
-    approvals_dir = _mission_dir(runtime_root, mission_id) / "approvals"
-    if not approvals_dir.is_dir():
-        return []
-    pending: list[dict[str, Any]] = []
-    for request_path in sorted(approvals_dir.glob("*.request.json"), key=lambda path: path.stat().st_mtime):
-        request_id = request_path.name.removesuffix(".request.json")
-        response_path = approvals_dir / f"{request_id}.response.json"
-        if response_path.exists():
-            continue
-        payload = _read_council_json(request_path)
-        if payload is None:
-            continue
-        pending.append(
-            {
-                "requestId": request_id,
-                "workerId": payload.get("worker_id"),
-                "action": payload.get("action"),
-                "reason": payload.get("reason"),
-                "createdAt": payload.get("created_at"),
-            }
-        )
-    return pending
-
-
-def _council_summary_from_artifacts(
-    *,
-    runtime_root: Path,
-    mission_id: str,
-    report: KingReport,
-    ledger: RunLedger | None,
-    updated_at: float,
-) -> dict[str, Any]:
-    verification = report.verification_result if isinstance(report.verification_result, dict) else {}
-    commands = []
-    raw_commands = verification.get("commands", [])
-    if isinstance(raw_commands, list):
-        commands = raw_commands
-    return {
-        # The TYPED verification the King approves on (Slice A1/A2): strength, whether
-        # it meets the promotion floor, and the caution when a positive recommendation
-        # rests on below-floor evidence. None when no strength was recorded.
-        "verificationStrength": verification.get("strength"),
-        "verificationMeetsFloor": verification.get("meets_floor"),
-        "verificationBelowFloorWarning": verification.get("below_floor_warning"),
-        "missionId": mission_id,
-        "mission": report.mission,
-        "status": report.status,
-        "recommendation": report.recommendation,
-        "risk": report.risk,
-        "approvalNeeded": report.approval_needed,
-        "rollbackAvailable": report.rollback_available,
-        "rollbackId": report.rollback_id,
-        "filesTouched": list(report.files),
-        "blockedAttempts": (
-            len(ledger.blocked_attempts)
-            if ledger is not None
-            else int(report.council_summary.get("blocked_attempts", 0) or 0)
-        ),
-        "verificationPassed": all(
-            isinstance(command, dict) and command.get("returncode") == 0
-            for command in commands
-        ) if commands else None,
-        "councilVerdicts": report.council_summary.get("council_verdicts", []),
-        "modelRouting": _latest_intelligence_for_dashboard(report),
-        "pendingApprovals": _pending_approvals_for_dashboard(runtime_root, mission_id),
-        "kingDecision": _king_decision(runtime_root, mission_id),
-        "updatedAt": updated_at,
-    }
-
-
-def _write_council_decision(
-    *,
-    runtime_root: Path,
-    req: CouncilDecisionRequest,
-    approved: bool,
-) -> dict[str, Any]:
-    safe_id = _validate_council_mission_id(req.mission_id)
-    mission_dir = _mission_dir(runtime_root, safe_id)
-    if not mission_dir.is_dir():
-        raise HTTPException(status_code=404, detail="council mission not found")
-
-    request_id = _validate_council_request_id(req.request_id) if req.request_id else None
-    # One-shot mission-level decision under origination: an atomic mkdir lock makes
-    # the King decision final and single. This closes the double-execute race (two
-    # concurrent approves: only one wins the lock) and makes reject terminal (a
-    # later approve cannot claim the lock, so it cannot execute).
-    if config.COUNCIL_ORIGINATION and request_id is None:
-        try:
-            (mission_dir / "decision.lock").mkdir(exist_ok=False)
-        except FileExistsError as exc:
-            raise HTTPException(
-                status_code=409, detail="council mission already decided"
-            ) from exc
-    decided_at = _utc_now_iso()
-    response_written = False
-    if request_id:
-        approvals_dir = mission_dir / "approvals"
-        request_path = approvals_dir / f"{request_id}.request.json"
-        response_path = approvals_dir / f"{request_id}.response.json"
-        if not request_path.exists():
-            raise HTTPException(status_code=404, detail="approval request not found")
-        if response_path.exists():
-            raise HTTPException(status_code=409, detail="approval request already decided")
-        response_path.write_text(
-            json.dumps(
-                {
-                    "request_id": request_id,
-                    "mission_id": safe_id,
-                    "approved": approved,
-                    "reason": req.reason,
-                    "decided_at": decided_at,
-                    "decided_by": "king_dashboard",
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        response_written = True
-
-    decision = {
-        "mission_id": safe_id,
-        "request_id": request_id,
-        "decision": "approve" if approved else "reject",
-        "approved": approved,
-        "reason": req.reason,
-        "decided_at": decided_at,
-        "decided_by": "king_dashboard",
-    }
-    (mission_dir / "king_decision.json").write_text(
-        json.dumps(decision, indent=2),
-        encoding="utf-8",
-    )
-    return {
-        "missionId": safe_id,
-        "decision": decision,
-        "approvalResponseWritten": response_written,
-    }
-
-
-def _resolve_council_workspace(raw: Optional[str]) -> Path:
-    """Return a writable workspace confined to config.COUNCIL_WORKSPACE_ROOT."""
-    base = config.COUNCIL_WORKSPACE_ROOT.resolve()
-    if raw is None:
-        base.mkdir(parents=True, exist_ok=True)
-        return base
-    candidate = Path(raw).resolve()
-    if candidate != base and base not in candidate.parents:
-        raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
-    candidate.mkdir(parents=True, exist_ok=True)
-    return candidate
-
-
-def _validate_mission_scope(allowed_files: list[str], workspace_root: Path) -> list[str]:
-    """Confine allowed_files to workspace_root — explicit, fail-closed, no traversal."""
-    base = workspace_root.resolve()
-    safe: list[str] = []
-    for raw in allowed_files:
-        if not isinstance(raw, str) or not raw.strip():
-            raise HTTPException(status_code=422, detail="allowedFiles entries must be non-empty")
-        if any(ch in raw for ch in "*?[]"):
-            # Origination scope must be concrete operator files; a glob like "*"
-            # would let the approved worker touch every file under the workspace.
-            raise HTTPException(status_code=422, detail=f"glob not allowed in scope: {raw}")
-        candidate = Path(raw)
-        if candidate.is_absolute() or ".." in candidate.parts:
-            raise HTTPException(status_code=422, detail=f"unsafe allowed file: {raw}")
-        resolved = (base / candidate).resolve()
-        if resolved != base and base not in resolved.parents:
-            raise HTTPException(status_code=422, detail=f"allowed file escapes workspace: {raw}")
-        safe.append(candidate.as_posix())
-    return safe
-
-
-def _write_failed_council_report(runtime_root: Path, mission_id: str, reason: str) -> None:
-    """Persist a minimal failed report so a background failure is visible to the poll."""
-    try:
-        KingReportStore(runtime_root).write(
-            KingReport(
-                mission_id=mission_id,
-                mission=mission_id,
-                status="failed",
-                recommendation="revise",
-                risk="YELLOW",
-                approval_needed=True,
-                rollback_available=False,
-                human_summary=f"Council mission failed: {reason}",
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 - best-effort failure surface
-        logger.warning("council_failed_report_write_failed", mission_id=mission_id, exc_info=exc)
-
-
-def _run_council_deliberation(runtime_root: Path, request: CouncilMissionRequest) -> None:
-    """Background: deliberate only (no worker). Failures surface as a failed report."""
-    try:
-        CouncilOrchestrator(
-            runtime_root=runtime_root,
-            council_state=CouncilState(db_path=runtime_root / "council_state.db"),
-        ).deliberate(request)
-    except Exception as exc:  # noqa: BLE001 - background task must not crash the server
-        logger.warning("council_deliberation_failed", mission_id=request.mission_id, exc_info=exc)
-        _write_failed_council_report(runtime_root, request.mission_id, str(exc))
-
-
-def _run_council_execution(runtime_root: Path, mission_id: str) -> None:
-    """Background: run the approved worker — reads the deliberated ledger for the
-    contract + verdicts, executes (worker acts), and writes the final report."""
-    try:
-        ledger = RunLedgerStore(runtime_root).read(mission_id)
-        # Defense in depth: never execute a ledger that carries a blocking verdict
-        # (guards against an on-disk ledger tampered between deliberate and approve).
-        if has_blocking_verdict(list(ledger.council_verdicts)):
-            raise RuntimeError("ledger carries a blocking verdict; refusing to execute")
-        orchestrator = CouncilOrchestrator(
-            runtime_root=runtime_root,
-            council_state=CouncilState(db_path=runtime_root / "council_state.db"),
-        )
-        asyncio.run(orchestrator.execute(ledger.contract, list(ledger.council_verdicts)))
-    except Exception as exc:  # noqa: BLE001 - background task must not crash the server
-        logger.warning("council_execution_failed", mission_id=mission_id, exc_info=exc)
-        _write_failed_council_report(runtime_root, mission_id, str(exc))
-
-
-def _council_rollback_target(ledger: RunLedger, report: KingReport) -> str:
-    if report.status == "rolled_back":
-        raise HTTPException(status_code=409, detail="council mission already rolled back")
-    snapshot_id = ledger.rollback_id or report.rollback_id or ledger.snapshot_id
-    if not snapshot_id:
-        raise HTTPException(
-            status_code=409,
-            detail="council mission has no rollback snapshot",
-        )
-    return snapshot_id
-
-
-def _write_council_rollback_artifacts(
-    *,
-    runtime_root: Path,
-    ledger: RunLedger,
-    report: KingReport,
-    snapshot_id: str,
-    result: Any,
-) -> KingReport:
-    restored_at = _utc_now_iso()
-    rollback_evidence = {
-        "snapshot_id": snapshot_id,
-        "restored": bool(result.restored),
-        "head_sha": result.head_sha,
-        "reason": result.reason,
-        "restored_at": restored_at,
-    }
-    ledger_evidence = dict(ledger.evidence)
-    ledger_evidence["rollback"] = rollback_evidence
-    updated_ledger = ledger.model_copy(
-        update={
-            "status": "rolled_back",
-            "completed_at": restored_at,
-            "evidence": ledger_evidence,
-        }
-    )
-    RunLedgerStore(runtime_root).write(updated_ledger)
-
-    report_evidence = dict(report.evidence)
-    report_evidence["rollback"] = rollback_evidence
-    updated_report = report.model_copy(
-        update={
-            "status": "rolled_back",
-            "recommendation": "observe",
-            "rollback_available": False,
-            "rollback_id": snapshot_id,
-            "evidence": report_evidence,
-            "human_summary": (
-                "Council rollback restored the workspace to snapshot "
-                f"{snapshot_id[:12]}."
-            ),
-        }
-    )
-    KingReportStore(runtime_root).write(updated_report)
-    return updated_report
-
-
-@app.post("/api/v1/council/missions")
-def council_originate(
-    req: CouncilMissionOriginationRequest,
-    background: BackgroundTasks,
-    runtime_root: Path = Depends(get_council_runtime_root),
-) -> dict[str, Any]:
-    """Originate a Council mission from a goal: deliberate, then await King approval.
-
-    The worker does NOT act here — origination runs only the Queen deliberation in
-    the background and produces an ``awaiting_approval`` (or ``blocked``) report.
-    Approving the mission later triggers execution. Scope is explicit + confined.
-    """
-    if not config.COUNCIL_ORIGINATION:
-        raise HTTPException(status_code=404, detail="council origination is disabled")
-    _enforce_conversation_rate_limit(req.session_id)
-    if (injection_reason := _check_prompt_injection(req.goal)):
-        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
-    workspace_root = _resolve_council_workspace(req.workspace_root)
-    safe_allowed = _validate_mission_scope(req.allowed_files, workspace_root)
-    mission_id = f"mission-{uuid.uuid4().hex[:12]}"
-    allowed_tools = ["read_file", "write_file", "run_command"]
-    mission_metadata: dict[str, Any] = {}
-    if config.WORKER_REASONING:
-        allowed_tools.append("request_change")
-        mission_metadata["model_policy"] = {"mode": "local", "allow_cloud": False}
-    mission_request = CouncilMissionRequest(
-        mission_id=mission_id,
-        goal=req.goal,
-        workspace_root=str(workspace_root),
-        allowed_files=safe_allowed,
-        forbidden_files=list(req.forbidden_files),
-        # The worker's reasoning is governed by WORKER_REASONING (the LLM worker
-        # uses request_change, not request_plan), so the origination default omits
-        # request_plan: the deterministic worker needs no model when reasoning is off.
-        allowed_tools=allowed_tools,
-        verification_commands=list(req.verification_commands),
-        risk_level=req.risk_level,  # type: ignore[arg-type]
-        metadata=mission_metadata,
-    )
-    background.add_task(_run_council_deliberation, runtime_root, mission_request)
-    return {"missionId": mission_id, "status": "deliberating"}
-
-
-@app.get("/api/v1/council/missions")
-def council_missions(
-    limit: int = 20,
-    runtime_root: Path = Depends(get_council_runtime_root),
-) -> dict[str, Any]:
-    """List stored Council mission reports for the operator dashboard."""
-    mission_root = runtime_root / "missions"
-    if not mission_root.is_dir():
-        return {"missions": [], "count": 0}
-
-    reports = KingReportStore(runtime_root)
-    ledgers = RunLedgerStore(runtime_root)
-    items: list[dict[str, Any]] = []
-    for mission_dir in mission_root.iterdir():
-        if not mission_dir.is_dir():
-            continue
-        mission_id = mission_dir.name
-        report_path = reports.path_for(mission_id)
-        if not report_path.exists():
-            continue
-        try:
-            report = reports.read(mission_id)
-            ledger = ledgers.read(mission_id) if ledgers.path_for(mission_id).exists() else None
-        except Exception as exc:  # noqa: BLE001 - one corrupt artifact must not kill the dashboard
-            logger.warning("council_dashboard_artifact_skipped", mission_id=mission_id, exc_info=exc)
-            continue
-        items.append(
-            _council_summary_from_artifacts(
-                runtime_root=runtime_root,
-                mission_id=mission_id,
-                report=report,
-                ledger=ledger,
-                updated_at=report_path.stat().st_mtime,
-            )
-        )
-
-    items.sort(key=lambda item: item["updatedAt"], reverse=True)
-    bounded_limit = max(1, min(int(limit), 100))
-    return {"missions": items[:bounded_limit], "count": len(items)}
-
-
-@app.get("/api/v1/council/missions/{mission_id}")
-def council_mission_detail(
-    mission_id: str,
-    runtime_root: Path = Depends(get_council_runtime_root),
-) -> dict[str, Any]:
-    """Return the stored RunLedger and KingReport for one Council mission."""
-    safe_id = _validate_council_mission_id(mission_id)
-    reports = KingReportStore(runtime_root)
-    ledgers = RunLedgerStore(runtime_root)
-    report_path = reports.path_for(safe_id)
-    if not report_path.exists():
-        raise HTTPException(status_code=404, detail="council mission not found")
-    try:
-        report = reports.read(safe_id)
-        ledger = ledgers.read(safe_id) if ledgers.path_for(safe_id).exists() else None
-    except Exception as exc:  # noqa: BLE001 - a corrupt artifact is a 422, not a 500
-        logger.warning("council_dashboard_artifact_corrupt", mission_id=safe_id, exc_info=exc)
-        raise HTTPException(status_code=422, detail="council artifact is corrupt") from exc
-    return {
-        "missionId": safe_id,
-        "summary": _council_summary_from_artifacts(
-            runtime_root=runtime_root,
-            mission_id=safe_id,
-            report=report,
-            ledger=ledger,
-            updated_at=report_path.stat().st_mtime,
-        ),
-        "report": report.model_dump(),
-        "ledger": ledger.model_dump() if ledger is not None else None,
-        "pendingApprovals": _pending_approvals_for_dashboard(runtime_root, safe_id),
-        "kingDecision": _king_decision(runtime_root, safe_id),
-    }
-
-
-@app.get("/api/v1/council/reports/{mission_id}")
-def council_report(
-    mission_id: str,
-    runtime_root: Path = Depends(get_council_runtime_root),
-) -> dict[str, Any]:
-    """Return only the human-facing KingReport for one Council mission."""
-    safe_id = _validate_council_mission_id(mission_id)
-    store = KingReportStore(runtime_root)
-    if not store.path_for(safe_id).exists():
-        raise HTTPException(status_code=404, detail="council report not found")
-    try:
-        report = store.read(safe_id)
-    except Exception as exc:  # noqa: BLE001 - a corrupt artifact is a 422, not a 500
-        logger.warning("council_report_artifact_corrupt", mission_id=safe_id, exc_info=exc)
-        raise HTTPException(status_code=422, detail="council report is corrupt") from exc
-    return {"missionId": safe_id, "report": report.model_dump()}
-
-
-@app.post("/api/v1/council/missions/{mission_id}/rollback")
-def council_mission_rollback(
-    mission_id: str,
-    req: CouncilRollbackRequest,
-    request: Request,
-    runtime_root: Path = Depends(get_council_runtime_root),
-    approvals: ApprovalStore = Depends(get_approval_store),
-) -> dict[str, Any]:
-    """Restore one Council mission workspace to its pre-worker snapshot."""
-    safe_id = _validate_council_mission_id(mission_id)
-    reports = KingReportStore(runtime_root)
-    ledgers = RunLedgerStore(runtime_root)
-    if not reports.path_for(safe_id).exists() or not ledgers.path_for(safe_id).exists():
-        raise HTTPException(status_code=404, detail="council mission not found")
-    try:
-        report = reports.read(safe_id)
-        ledger = ledgers.read(safe_id)
-    except Exception as exc:  # noqa: BLE001 - corrupt artifacts are caller-visible
-        logger.warning("council_rollback_artifact_corrupt", mission_id=safe_id, exc_info=exc)
-        raise HTTPException(status_code=422, detail="council artifact is corrupt") from exc
-
-    snapshot_id = _council_rollback_target(ledger, report)
-    if req.snapshot_id and req.snapshot_id != snapshot_id:
-        raise HTTPException(
-            status_code=403,
-            detail="requested snapshot does not match council mission rollback target",
-        )
-    session_id = _session_id_from_request(request, req.session_id)
-    if not session_id:
-        raise HTTPException(status_code=422, detail="sessionId or session cookie is required")
-
-    payload = {"mission_id": safe_id, "snapshot_id": snapshot_id}
-    if not req.approval_token:
-        token = approvals.issue("rollback", payload, session_id)
-        return {
-            "requiresApproval": True,
-            "approvalToken": token,
-            "actionType": "rollback",
-            "missionId": safe_id,
-            "snapshotId": snapshot_id,
-            "executed": False,
-        }
-    try:
-        action = approvals.consume(req.approval_token, session_id)
-    except ApprovalError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    if action.action_type != "rollback":
-        raise HTTPException(status_code=400, detail="approval token is not for rollback")
-    if action.payload != payload:
-        raise HTTPException(
-            status_code=403,
-            detail="approval token does not match council mission rollback target",
-        )
-    try:
-        result = SnapshotManager(runtime_root).rollback_snapshot(
-            ledger.contract.workspace_root,
-            snapshot_id,
-        )
-    except RollbackError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    if not result.restored:
-        raise HTTPException(status_code=500, detail=result.reason)
-    updated_report = _write_council_rollback_artifacts(
-        runtime_root=runtime_root,
-        ledger=ledger,
-        report=report,
-        snapshot_id=snapshot_id,
-        result=result,
-    )
-    return {
-        "requiresApproval": False,
-        "missionId": safe_id,
-        "snapshotId": snapshot_id,
-        "executed": True,
-        "result": asdict(result),
-        "report": updated_report.model_dump(),
-    }
-
-
-@app.post("/api/v1/council/approve")
-def council_approve(
-    req: CouncilDecisionRequest,
-    background: BackgroundTasks,
-    runtime_root: Path = Depends(get_council_runtime_root),
-) -> dict[str, Any]:
-    """Record King approval; if the mission is awaiting execution, run the worker.
-
-    A mission-level approval (no requestId) of a mission whose report is
-    ``awaiting_approval`` schedules execute() in the background — this is the gate
-    where a human authorizes the worker to act.
-    """
-    result = _write_council_decision(runtime_root=runtime_root, req=req, approved=True)
-    if config.COUNCIL_ORIGINATION and req.request_id is None:
-        safe_id = result["missionId"]
-        store = KingReportStore(runtime_root)
-        try:
-            awaiting = store.path_for(safe_id).exists() and (
-                store.read(safe_id).status == "awaiting_approval"
-            )
-        except Exception:  # noqa: BLE001 - a read failure simply means "don't execute"
-            awaiting = False
-        if awaiting:
-            background.add_task(_run_council_execution, runtime_root, safe_id)
-            result["execution"] = "scheduled"
-    return result
-
-
-@app.post("/api/v1/council/reject")
-def council_reject(
-    req: CouncilDecisionRequest,
-    runtime_root: Path = Depends(get_council_runtime_root),
-) -> dict[str, Any]:
-    """Record King rejection for a Council mission or pending worker request."""
-    return _write_council_decision(runtime_root=runtime_root, req=req, approved=False)
 
 
 @app.post("/api/v1/security/classify")
@@ -3594,6 +2996,8 @@ def generate(
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+    openai_client: Optional[Any] = Depends(get_openai_client),
+    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
     executor: Executor = Depends(get_executor),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
@@ -3643,17 +3047,20 @@ def generate(
     # keeps the loop on a tool-capable model regardless of the inferred task).
     task = infer_task(user_text)
     chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini, task=task,
+        req.model_id, client, bedrock, gemini=gemini,
+        openai=openai_client, anthropic=anthropic_client, task=task,
         metrics=_route_metrics(development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
     )
     # The serving model is announced lazily from inside the stream (see
     # `_route_frame`); here we only normalise `model` to the route's view of it.
-    _, model = _active_route(chat_client, bedrock, gemini, model)
+    _, model = _active_route(chat_client, bedrock, gemini, model,
+                             openai=openai_client, anthropic=anthropic_client)
 
     def _route_meta() -> dict[str, Any]:
         """Development metadata for the model that ACTUALLY served (post-failover)."""
-        p, m = _active_route(chat_client, bedrock, gemini, model)
+        p, m = _active_route(chat_client, bedrock, gemini, model,
+                             openai=openai_client, anthropic=anthropic_client)
         return {"provider": p, "model": m, "task": task}
 
     compactor.touch_working_session(session_id)
@@ -3711,7 +3118,8 @@ def generate(
 
         def _route_frame() -> Optional[str]:
             nonlocal announced_route
-            p, m = _active_route(chat_client, bedrock, gemini, model)
+            p, m = _active_route(chat_client, bedrock, gemini, model,
+                                 openai=openai_client, anthropic=anthropic_client)
             if (p, m) == announced_route:
                 return None  # unchanged since the last announcement — don't repeat
             announced_route = (p, m)
@@ -4565,6 +3973,8 @@ def chat(
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+    openai_client: Optional[Any] = Depends(get_openai_client),
+    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     facts: SemanticFacts = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
@@ -4598,9 +4008,11 @@ def chat(
     # default empty ROUTER_CLOUD_TASKS, `auto` stays local-only. Never force cloud.
     task = infer_task(user_text)
     chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini, task=task,
+        req.model_id, client, bedrock, gemini=gemini,
+        openai=openai_client, anthropic=anthropic_client, task=task,
     )
-    _, model = _active_route(chat_client, bedrock, gemini, model)
+    _, model = _active_route(chat_client, bedrock, gemini, model,
+                             openai=openai_client, anthropic=anthropic_client)
 
     def event_stream() -> Iterator[str]:
         sse = _sse_writer(session_id)
@@ -4645,7 +4057,8 @@ def chat(
 
         def route_payload() -> dict[str, Any]:
             active_provider, active_model = _active_route(
-                chat_client, bedrock, gemini, model
+                chat_client, bedrock, gemini, model,
+                openai=openai_client, anthropic=anthropic_client,
             )
             return {
                 "provider": active_provider,
@@ -4741,522 +4154,6 @@ def terminal(
     return {"output": f"[{result.status}] {result.reason}", "isError": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Voice endpoints — local/private STT (faster-whisper) + TTS (piper)
-# ══════════════════════════════════════════════════════════════════════════════
-
-
-def _get_stt_service():
-    """Provide the local STT service, or None when disabled."""
-    if not config.VOICE_STT_ENABLED:
-        return None
-    global _stt_service
-    if _stt_service is None:
-        with _stt_lock:
-            if _stt_service is None:
-                from aios.core.voice import STTService
-                _stt_service = STTService(
-                    model_size=config.VOICE_STT_MODEL,
-                    device=config.VOICE_STT_DEVICE,
-                    compute_type=config.VOICE_STT_COMPUTE_TYPE,
-                )
-    return _stt_service
-
-
-def _get_tts_service():
-    """Provide the local TTS service, or None when disabled."""
-    if not config.VOICE_TTS_ENABLED:
-        return None
-    global _tts_service
-    if _tts_service is None:
-        with _tts_lock:
-            if _tts_service is None:
-                from aios.core.voice import TTSService
-                _tts_service = TTSService(
-                    model_name=config.VOICE_TTS_MODEL,
-                    models_dir=config.VOICE_MODELS_DIR,
-                )
-    return _tts_service
-
-
-class VoiceSpeakRequest(BaseModel):
-    text: str = Field(..., max_length=5000)
-    voice: Optional[str] = Field(None, description="Piper voice model name override.")
-    format: str = Field("wav", description="'wav' for binary stream, 'json' for base64.")
-
-
-@app.post("/api/v1/voice/transcribe")
-async def voice_transcribe(
-    request: Request,
-    file: UploadFile = File(...),
-    stt=Depends(_get_stt_service),
-) -> JSONResponse:
-    """Transcribe uploaded audio to text using local faster-whisper."""
-    if stt is None:
-        raise HTTPException(status_code=501, detail="STT not enabled (set AIOS_VOICE_STT=true)")
-    audio_bytes = await file.read()
-    if len(audio_bytes) > config.VOICE_MAX_AUDIO_BYTES:
-        raise HTTPException(status_code=413, detail="Audio file too large")
-    from aios.core.voice import VoiceError
-    try:
-        result = stt.transcribe(audio_bytes)
-    except VoiceError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    return JSONResponse(content={
-        "text": result.text,
-        "language": result.language,
-        "confidence": result.confidence,
-    })
-
-
-@app.post("/api/v1/voice/speak")
-def voice_speak(
-    req: VoiceSpeakRequest,
-    tts=Depends(_get_tts_service),
-) -> Response:
-    """Synthesize text to audio using local piper TTS."""
-    if tts is None:
-        raise HTTPException(status_code=501, detail="TTS not enabled (set AIOS_VOICE_TTS=true)")
-    from aios.core.voice import VoiceError
-    try:
-        result = tts.speak(req.text)
-    except VoiceError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    if req.format == "json":
-        import base64
-        return JSONResponse(content={
-            "audio": base64.b64encode(result.audio).decode(),
-            "sample_rate": result.sample_rate,
-            "duration_ms": result.duration_ms,
-        })
-    return Response(content=result.audio, media_type="audio/wav")
-
-
-@app.get("/api/v1/voice/models")
-def voice_models(
-    stt=Depends(_get_stt_service),
-    tts=Depends(_get_tts_service),
-) -> dict:
-    """List available and configured voice models."""
-    return {
-        "stt": {
-            "enabled": config.VOICE_STT_ENABLED,
-            "model": config.VOICE_STT_MODEL,
-            "loaded": stt is not None and stt._model is not None,
-            "available_sizes": ["tiny", "base", "small", "medium", "large-v3"],
-        },
-        "tts": {
-            "enabled": config.VOICE_TTS_ENABLED,
-            "model": config.VOICE_TTS_MODEL,
-            "loaded": tts is not None and tts._voice is not None,
-            "available_voices": tts.available_voices() if tts else [],
-        },
-    }
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Sovereign Roadmap Phase 3B–8: Queen Services, Pheromones, Live Surface,
-# Rollback Registry, Audit Anchor, Policy Engine
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-@app.get("/api/v1/council/services")
-def council_services() -> dict:
-    """Queen service health/status for all registered services."""
-    if not config.QUEEN_SERVICES:
-        raise HTTPException(status_code=404, detail="queen services not enabled")
-    from aios.council.queen_service import QUEEN_SERVICES
-    return {"services": {name: svc.health() for name, svc in QUEEN_SERVICES.items()}}
-
-
-@app.get("/api/v1/pheromones/surface")
-def pheromone_surface(resource: str | None = None, ptype: str | None = None) -> dict:
-    """Query the pheromone store."""
-    if not config.PHEROMONE_ENABLED:
-        raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore, PheromoneType
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
-    ptype_enum = PheromoneType(ptype) if ptype else None
-    results = store.query(resource=resource, ptype=ptype_enum)
-    return {"pheromones": [
-        {"id": p.pheromone_id, "type": p.ptype.value, "resource": p.resource,
-         "depositor": p.depositor, "strength": round(p.strength, 4),
-         "payload": p.payload, "created_at": p.created_at}
-        for p in results
-    ]}
-
-
-@app.get("/api/v1/runtime/surface")
-def live_surface_snapshot() -> dict:
-    """Live pheromone surface snapshot."""
-    if not config.LIVE_SURFACE:
-        raise HTTPException(status_code=404, detail="live surface not enabled")
-    from aios.runtime.live_surface import LiveSurface
-    surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
-    return surface.snapshot()
-
-
-@app.get("/api/v1/runtime/rollbacks")
-def rollback_registry_query(
-    mission_id: str | None = None,
-    file_pattern: str | None = None,
-    workspace_root: str | None = None,
-) -> dict:
-    """Query the rollback registry."""
-    if not config.ROLLBACK_REGISTRY:
-        raise HTTPException(status_code=404, detail="rollback registry not enabled")
-    from aios.runtime.rollback_registry import RollbackRegistry
-    registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
-    entries = registry.query(
-        mission_id=mission_id, file_pattern=file_pattern, workspace_root=workspace_root
-    )
-    return {"entries": [
-        {"snapshot_id": e.snapshot_id, "mission_id": e.mission_id,
-         "workspace_root": e.workspace_root, "created_at": e.created_at,
-         "files_covered": e.files_covered, "metadata": e.metadata}
-        for e in entries
-    ]}
-
-
-@app.get("/api/v1/runtime/rollbacks/health")
-def rollback_registry_health() -> dict:
-    """Rollback registry coverage report."""
-    if not config.ROLLBACK_REGISTRY:
-        raise HTTPException(status_code=404, detail="rollback registry not enabled")
-    from aios.runtime.rollback_registry import RollbackRegistry
-    registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
-    return registry.health()
-
-
-class AuditAnchorVerifyRequest(BaseModel):
-    expected_hash: str = Field(..., alias="expectedHash")
-    model_config = {"populate_by_name": True}
-
-
-@app.get("/api/v1/audit/anchor")
-def audit_anchor() -> dict:
-    """Get the current audit chain anchor for external publication."""
-    if not config.AUDIT_ANCHOR_API:
-        raise HTTPException(status_code=404, detail="audit anchor API not enabled")
-    from aios.audit_anchor import get_external_anchor
-    return get_external_anchor()
-
-
-@app.post("/api/v1/audit/anchor/verify")
-def audit_anchor_verify(req: AuditAnchorVerifyRequest) -> dict:
-    """Verify the current chain tip matches a previously published anchor hash."""
-    if not config.AUDIT_ANCHOR_API:
-        raise HTTPException(status_code=404, detail="audit anchor API not enabled")
-    from aios.audit_anchor import verify_anchor
-    return verify_anchor(req.expected_hash)
-
-
-@app.get("/api/v1/policy/current")
-def policy_current() -> dict:
-    """Return all enacted (non-suspended) policies."""
-    if not config.POLICY_ENGINE:
-        raise HTTPException(status_code=404, detail="policy engine not enabled")
-    from aios.policy.engine import PolicyEngine
-    engine = PolicyEngine(db_path=config.POLICY_DB)
-    policies = engine.current_policies()
-    return {"policies": [
-        {"policy_id": p.policy_id, "version": p.version, "constraint": p.constraint,
-         "status": p.status.value, "proposed_by": p.proposed_by,
-         "enacted_at": p.enacted_at}
-        for p in policies
-    ]}
-
-
-class PolicyProposeRequest(BaseModel):
-    constraint: str
-    proposed_by: str = Field(..., alias="proposedBy")
-    model_config = {"populate_by_name": True}
-
-
-@app.post("/api/v1/policy/propose")
-def policy_propose(req: PolicyProposeRequest) -> dict:
-    """Propose a new additive-only policy constraint."""
-    if not config.POLICY_ENGINE:
-        raise HTTPException(status_code=404, detail="policy engine not enabled")
-    from aios.policy.engine import PolicyEngine
-    engine = PolicyEngine(db_path=config.POLICY_DB)
-    if not engine.validate_additive(req.constraint):
-        raise HTTPException(status_code=400, detail="constraint must be additive-only")
-    policy_id = engine.propose(req.constraint, proposed_by=req.proposed_by)
-    return {"policy_id": policy_id}
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Sovereign Roadmap — Write/Mutation Endpoints (Wave 2B)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-# --- Pheromone write endpoints ---
-
-
-class PheromoneDepositRequest(BaseModel):
-    ptype: str
-    resource: str
-    depositor: str
-    strength: float = 1.0
-    payload: dict = Field(default_factory=dict)
-
-
-@app.post("/api/v1/pheromones/deposit")
-def pheromone_deposit(req: PheromoneDepositRequest) -> dict:
-    """Deposit a new pheromone signal."""
-    if not config.PHEROMONE_ENABLED:
-        raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore, PheromoneType
-    try:
-        ptype_enum = PheromoneType(req.ptype)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"invalid pheromone type: {req.ptype}")
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
-    pid = store.deposit(
-        ptype=ptype_enum, resource=req.resource,
-        depositor=req.depositor, strength=req.strength, payload=req.payload,
-    )
-    return {"pheromone_id": pid}
-
-
-class PheromoneReinforceRequest(BaseModel):
-    pheromone_id: int = Field(..., alias="pheromoneId")
-    boost: float = 0.2
-    model_config = {"populate_by_name": True}
-
-
-@app.post("/api/v1/pheromones/reinforce")
-def pheromone_reinforce(req: PheromoneReinforceRequest) -> dict:
-    """Reinforce an existing pheromone signal."""
-    if not config.PHEROMONE_ENABLED:
-        raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
-    store.reinforce(req.pheromone_id, boost=req.boost)
-    return {"reinforced": True}
-
-
-@app.post("/api/v1/pheromones/decay")
-def pheromone_decay() -> dict:
-    """Run decay sweep — prune signals below floor strength."""
-    if not config.PHEROMONE_ENABLED:
-        raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
-    pruned = store.decay_all()
-    return {"pruned": pruned}
-
-
-# --- Live Surface write endpoints ---
-
-
-class LiveSurfaceEmitRequest(BaseModel):
-    stype: str
-    resource: str
-    worker_id: str = Field(..., alias="workerId")
-    ttl_seconds: int = Field(30, alias="ttlSeconds")
-    payload: dict = Field(default_factory=dict)
-    model_config = {"populate_by_name": True}
-
-
-@app.post("/api/v1/runtime/surface/emit")
-def live_surface_emit(req: LiveSurfaceEmitRequest) -> dict:
-    """Emit an ephemeral coordination signal."""
-    if not config.LIVE_SURFACE:
-        raise HTTPException(status_code=404, detail="live surface not enabled")
-    from aios.runtime.live_surface import LiveSurface, SignalType
-    try:
-        stype_enum = SignalType(req.stype)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"invalid signal type: {req.stype}")
-    surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
-    signal_id = surface.emit(
-        stype=stype_enum, resource=req.resource,
-        worker_id=req.worker_id, ttl_seconds=req.ttl_seconds, payload=req.payload,
-    )
-    return {"signal_id": signal_id}
-
-
-@app.delete("/api/v1/runtime/surface/{signal_id}")
-def live_surface_revoke(signal_id: int) -> dict:
-    """Revoke a live surface signal."""
-    if not config.LIVE_SURFACE:
-        raise HTTPException(status_code=404, detail="live surface not enabled")
-    from aios.runtime.live_surface import LiveSurface
-    surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
-    revoked = surface.revoke(signal_id)
-    if not revoked:
-        raise HTTPException(status_code=404, detail=f"signal {signal_id} not found")
-    return {"revoked": True}
-
-
-@app.post("/api/v1/runtime/surface/sweep")
-def live_surface_sweep() -> dict:
-    """Sweep expired signals from the live surface."""
-    if not config.LIVE_SURFACE:
-        raise HTTPException(status_code=404, detail="live surface not enabled")
-    from aios.runtime.live_surface import LiveSurface
-    surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
-    swept = surface.sweep_expired()
-    return {"swept": swept}
-
-
-# --- Rollback Registry write endpoints ---
-
-
-class RollbackRegisterRequest(BaseModel):
-    snapshot_id: str = Field(..., alias="snapshotId")
-    mission_id: str = Field(..., alias="missionId")
-    workspace_root: str = Field(..., alias="workspaceRoot")
-    files_covered: list[str] = Field(default_factory=list, alias="filesCovered")
-    metadata: dict = Field(default_factory=dict)
-    model_config = {"populate_by_name": True}
-
-
-@app.post("/api/v1/runtime/rollbacks/register")
-def rollback_register(req: RollbackRegisterRequest) -> dict:
-    """Register a new snapshot point in the rollback registry."""
-    if not config.ROLLBACK_REGISTRY:
-        raise HTTPException(status_code=404, detail="rollback registry not enabled")
-    from aios.runtime.rollback_registry import RollbackRegistry
-    registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
-    registry.register(
-        snapshot_id=req.snapshot_id, mission_id=req.mission_id,
-        workspace_root=req.workspace_root,
-        files_covered=req.files_covered, metadata=req.metadata,
-    )
-    return {"registered": True, "snapshot_id": req.snapshot_id}
-
-
-@app.post("/api/v1/runtime/rollbacks/prune")
-def rollback_prune() -> dict:
-    """Prune rollback entries past the retention window."""
-    if not config.ROLLBACK_REGISTRY:
-        raise HTTPException(status_code=404, detail="rollback registry not enabled")
-    from aios.runtime.rollback_registry import RollbackRegistry
-    registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
-    pruned = registry.prune()
-    return {"pruned": pruned}
-
-
-# --- Audit Anchor write endpoints ---
-
-
-@app.get("/api/v1/audit/anchor/history")
-def audit_anchor_history(limit: int = 10) -> dict:
-    """Retrieve anchor publication history."""
-    if not config.AUDIT_ANCHOR_API:
-        raise HTTPException(status_code=404, detail="audit anchor API not enabled")
-    from aios.audit_anchor import anchor_history
-    entries = anchor_history(limit=limit)
-    return {"entries": entries, "count": len(entries)}
-
-
-# --- Policy Engine write endpoints ---
-
-
-class PolicyVoteRequest(BaseModel):
-    queen: str
-    approve: bool
-    reason: str = ""
-
-
-@app.post("/api/v1/policy/{policy_id}/vote")
-def policy_vote(policy_id: str, req: PolicyVoteRequest) -> dict:
-    """Cast a queen's vote on a proposed policy."""
-    if not config.POLICY_ENGINE:
-        raise HTTPException(status_code=404, detail="policy engine not enabled")
-    from aios.policy.engine import PolicyEngine
-    engine = PolicyEngine(db_path=config.POLICY_DB)
-    try:
-        engine.vote(policy_id, queen=req.queen, approve=req.approve, reason=req.reason)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    return {"voted": True}
-
-
-class PolicyEnactRequest(BaseModel):
-    required_approvals: int = Field(3, alias="requiredApprovals")
-    model_config = {"populate_by_name": True}
-
-
-@app.post("/api/v1/policy/{policy_id}/enact")
-def policy_enact(policy_id: str, req: PolicyEnactRequest) -> dict:
-    """Enact a proposed policy if it has enough approvals."""
-    if not config.POLICY_ENGINE:
-        raise HTTPException(status_code=404, detail="policy engine not enabled")
-    from aios.policy.engine import PolicyEngine
-    engine = PolicyEngine(db_path=config.POLICY_DB)
-    try:
-        policy = engine.enact(policy_id, required_approvals=req.required_approvals)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    return {
-        "enacted": True, "policy_id": policy.policy_id,
-        "version": policy.version, "enacted_at": policy.enacted_at,
-    }
-
-
-class PolicySuspendRequest(BaseModel):
-    suspended_by: str = Field(..., alias="suspendedBy")
-    model_config = {"populate_by_name": True}
-
-
-@app.post("/api/v1/policy/{policy_id}/suspend")
-def policy_suspend(policy_id: str, req: PolicySuspendRequest) -> dict:
-    """Suspend an enacted policy."""
-    if not config.POLICY_ENGINE:
-        raise HTTPException(status_code=404, detail="policy engine not enabled")
-    from aios.policy.engine import PolicyEngine
-    engine = PolicyEngine(db_path=config.POLICY_DB)
-    try:
-        policy = engine.suspend(policy_id, suspended_by=req.suspended_by)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    return {"suspended": True, "policy_id": policy.policy_id}
-
-
-@app.get("/api/v1/policy/chain")
-def policy_chain() -> dict:
-    """Full version history of all policies (proposed, enacted, suspended)."""
-    if not config.POLICY_ENGINE:
-        raise HTTPException(status_code=404, detail="policy engine not enabled")
-    from aios.policy.engine import PolicyEngine
-    engine = PolicyEngine(db_path=config.POLICY_DB)
-    chain = engine.policy_chain()
-    return {"policies": [
-        {"policy_id": p.policy_id, "version": p.version, "constraint": p.constraint,
-         "status": p.status.value, "proposed_by": p.proposed_by,
-         "enacted_at": p.enacted_at}
-        for p in chain
-    ]}
-
-
-# --- Queen Services management endpoints ---
-
-
-@app.post("/api/v1/council/services/{name}/start")
-async def council_service_start(name: str) -> dict:
-    """Start a registered queen service."""
-    if not config.QUEEN_SERVICES:
-        raise HTTPException(status_code=404, detail="queen services not enabled")
-    from aios.council.queen_service import QUEEN_SERVICES
-    service = QUEEN_SERVICES.get(name)
-    if service is None:
-        raise HTTPException(status_code=404, detail=f"service '{name}' not registered")
-    await service.start()
-    return {"started": True, "name": name}
-
-
-@app.post("/api/v1/council/services/{name}/stop")
-async def council_service_stop(name: str) -> dict:
-    """Stop a registered queen service."""
-    if not config.QUEEN_SERVICES:
-        raise HTTPException(status_code=404, detail="queen services not enabled")
-    from aios.council.queen_service import QUEEN_SERVICES
-    service = QUEEN_SERVICES.get(name)
-    if service is None:
-        raise HTTPException(status_code=404, detail=f"service '{name}' not registered")
-    await service.stop()
-    return {"stopped": True, "name": name}
+# Re-exports for backward compat — tests import these from aios.api.main
+from aios.api.routes.voice import _get_stt_service, _get_tts_service  # noqa: F401, E402
+from aios.api.routes.council import get_council_runtime_root  # noqa: F401, E402
