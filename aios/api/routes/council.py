@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -317,35 +318,34 @@ def _write_council_decision(
 
 def _resolve_council_workspace(raw: Optional[str]) -> Path:
     """Return a writable workspace confined to config.COUNCIL_WORKSPACE_ROOT."""
-    base = config.COUNCIL_WORKSPACE_ROOT.resolve()
+    base = str(config.COUNCIL_WORKSPACE_ROOT.resolve())
     if raw is None:
-        base.mkdir(parents=True, exist_ok=True)
-        return base
-    candidate = Path(raw).resolve()
-    if candidate != base and base not in candidate.parents:
+        Path(base).mkdir(parents=True, exist_ok=True)
+        return Path(base)
+    if os.path.isabs(raw) or ".." in PurePosixPath(raw).parts:
         raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
-    candidate.mkdir(parents=True, exist_ok=True)
-    return candidate
+    joined = os.path.normpath(os.path.join(base, raw))
+    if not (joined == base or joined.startswith(base + os.sep)):
+        raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
+    Path(joined).mkdir(parents=True, exist_ok=True)
+    return Path(joined)
 
 
 def _validate_mission_scope(allowed_files: list[str], workspace_root: Path) -> list[str]:
     """Confine allowed_files to workspace_root — explicit, fail-closed, no traversal."""
-    base = workspace_root.resolve()
+    base = str(workspace_root.resolve())
     safe: list[str] = []
     for raw in allowed_files:
         if not isinstance(raw, str) or not raw.strip():
             raise HTTPException(status_code=422, detail="allowedFiles entries must be non-empty")
         if any(ch in raw for ch in "*?[]"):
-            # Origination scope must be concrete operator files; a glob like "*"
-            # would let the approved worker touch every file under the workspace.
             raise HTTPException(status_code=422, detail=f"glob not allowed in scope: {raw}")
-        candidate = Path(raw)
-        if candidate.is_absolute() or ".." in candidate.parts:
+        if os.path.isabs(raw) or ".." in PurePosixPath(raw).parts:
             raise HTTPException(status_code=422, detail=f"unsafe allowed file: {raw}")
-        resolved = (base / candidate).resolve()
-        if resolved != base and base not in resolved.parents:
+        joined = os.path.normpath(os.path.join(base, raw))
+        if not (joined == base or joined.startswith(base + os.sep)):
             raise HTTPException(status_code=422, detail=f"allowed file escapes workspace: {raw}")
-        safe.append(candidate.as_posix())
+        safe.append(PurePosixPath(raw).as_posix())
     return safe
 
 
