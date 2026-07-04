@@ -18,12 +18,12 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, getPendingApproval, subscribePendingApproval, previewIntent, fetchOnboardingState, BACKEND_REDACTION_MARKER_RE } from '../superbrain/lib/aiosAdapter';
+import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, getPendingApproval, subscribePendingApproval, previewIntent, fetchOnboardingState, BACKEND_REDACTION_MARKER_RE, transcribeAudio, speakText, AIOS_BASE } from '../superbrain/lib/aiosAdapter';
 import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
 import { triggerSpineFlash } from './spineFlashBridge';
-import { useVoiceSpeak, setVoiceSpeakMuted } from './voiceSpeak';
+import { useVoiceSpeak, setVoiceSpeakMuted, setBackendTTS } from './voiceSpeak';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
@@ -274,6 +274,7 @@ export default function GagosChrome() {
   const [voiceSupported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
   );
+  const [backendVoice, setBackendVoice] = useState({ stt: false, tts: false });
   const [brainChip, setBrainChip] = useState(() => formatActiveBrainChip(getActiveBrain()));
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [online, setOnline] = useState(true); // honest backend reachability (polled)
@@ -322,6 +323,17 @@ export default function GagosChrome() {
       unsub();
       window.clearInterval(id);
     };
+  }, []);
+  useEffect(() => {
+    fetch(`${AIOS_BASE}/api/v1/voice/models`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) {
+          setBackendVoice({ stt: !!d.stt?.enabled, tts: !!d.tts?.enabled });
+          setBackendTTS(!!d.tts?.enabled);
+        }
+      })
+      .catch(() => {});
   }, []);
   useEffect(
     () =>
@@ -733,8 +745,15 @@ export default function GagosChrome() {
     }
   }, [pushMessage, updateMessage]);
 
-  // Web Speech voice input (mic button). Graceful when unsupported.
+  // Voice input: backend STT (MediaRecorder → faster-whisper) when available,
+  // otherwise browser-native SpeechRecognition. Graceful when unsupported.
+  const mediaRecorderRef = useRef(null);
   useEffect(() => {
+    if (backendVoice.stt) {
+      // Backend STT path — no SpeechRecognition needed.
+      recognitionRef.current = null;
+      return undefined;
+    }
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!SR) return undefined;
     const rec = new SR();
@@ -760,20 +779,44 @@ export default function GagosChrome() {
       recognitionRef.current = null;
       try { rec.abort(); } catch { /* already closed */ }
     };
-  }, [submit]);
+  }, [submit, backendVoice.stt]);
 
   const startMic = useCallback(() => {
     if (busyRef.current || isHoldingMicRef.current) return;
     isHoldingMicRef.current = true;
     setDraft('');
-    try { recognitionRef.current?.start(); } catch { /* already started */ }
-  }, []);
+    if (backendVoice.stt) {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+        const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        const chunks = [];
+        mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+        mr.onstop = () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          setListening(false);
+          transcribeAudio(blob)
+            .then((r) => { setDraft(r.text); if (r.text.trim()) void submit(r.text); })
+            .catch(() => setDraft(''));
+        };
+        mediaRecorderRef.current = mr;
+        mr.start();
+        setListening(true);
+      }).catch(() => { isHoldingMicRef.current = false; });
+    } else {
+      try { recognitionRef.current?.start(); } catch { /* already started */ }
+    }
+  }, [backendVoice.stt, submit]);
 
   const stopMic = useCallback(() => {
     if (!isHoldingMicRef.current) return;
     isHoldingMicRef.current = false;
-    try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
-  }, []);
+    if (backendVoice.stt && mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    } else {
+      try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+    }
+  }, [backendVoice.stt]);
 
   const canSend = draft.trim().length > 0 && !busy;
 

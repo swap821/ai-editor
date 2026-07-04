@@ -725,6 +725,40 @@ export async function sendVoiceTurn(
   }
 }
 
+/** POST audio to local STT backend. Returns transcribed text. */
+export async function transcribeAudio(
+  audioBlob: Blob,
+  opts: { signal?: AbortSignal } = {},
+): Promise<{ text: string; language: string; confidence: number }> {
+  const form = new FormData();
+  form.append('file', audioBlob, 'recording.wav');
+  const response = await fetch(`${AIOS_BASE}/api/v1/voice/transcribe`, {
+    method: 'POST',
+    signal: opts.signal,
+    credentials: FETCH_CREDENTIALS,
+    headers: authHeaders(),
+    body: form,
+  });
+  if (!response.ok) throw new Error(`STT backend responded ${response.status}`);
+  return response.json();
+}
+
+/** POST text to local TTS backend. Returns audio ArrayBuffer (WAV). */
+export async function speakText(
+  text: string,
+  opts: { voice?: string; signal?: AbortSignal } = {},
+): Promise<ArrayBuffer> {
+  const response = await fetch(`${AIOS_BASE}/api/v1/voice/speak`, {
+    method: 'POST',
+    signal: opts.signal,
+    credentials: FETCH_CREDENTIALS,
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ text, voice: opts.voice }),
+  });
+  if (!response.ok) throw new Error(`TTS backend responded ${response.status}`);
+  return response.arrayBuffer();
+}
+
 /** The operator authorizes: redeem the capability by replaying the turn with
  *  the server-issued token. The replay may pause again on the NEXT caution
  *  action — a fresh PendingApproval is captured and the panel continues. */

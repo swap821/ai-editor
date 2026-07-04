@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -160,6 +160,12 @@ _bedrock_client: Optional[BedrockClient] = None
 _gemini_client: Optional[GeminiClient] = None
 _bedrock_lock = threading.Lock()
 _gemini_lock = threading.Lock()
+
+#: Voice service singletons — built lazily on first voice request.
+_stt_service: Optional[Any] = None
+_tts_service: Optional[Any] = None
+_stt_lock = threading.Lock()
+_tts_lock = threading.Lock()
 
 # ── Cortex bus W2 — singletons (None when CORTEX_BUS is off) ─────────────────
 # The bus and its dispatcher are module-level so the lifespan can start/stop
@@ -485,6 +491,8 @@ _RATE_LIMIT_ENDPOINTS: dict[str, int] = {
     "/api/v1/council/missions": 20,
     "/api/v1/council/approve": 30,
     "/api/v1/council/reject": 30,
+    "/api/v1/voice/transcribe": 30,
+    "/api/v1/voice/speak": 60,
 }
 _RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -4506,3 +4514,116 @@ def terminal(
         }
     # BLOCKED / TIMEOUT / ERROR
     return {"output": f"[{result.status}] {result.reason}", "isError": True}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Voice endpoints — local/private STT (faster-whisper) + TTS (piper)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _get_stt_service():
+    """Provide the local STT service, or None when disabled."""
+    if not config.VOICE_STT_ENABLED:
+        return None
+    global _stt_service
+    if _stt_service is None:
+        with _stt_lock:
+            if _stt_service is None:
+                from aios.core.voice import STTService
+                _stt_service = STTService(
+                    model_size=config.VOICE_STT_MODEL,
+                    device=config.VOICE_STT_DEVICE,
+                    compute_type=config.VOICE_STT_COMPUTE_TYPE,
+                )
+    return _stt_service
+
+
+def _get_tts_service():
+    """Provide the local TTS service, or None when disabled."""
+    if not config.VOICE_TTS_ENABLED:
+        return None
+    global _tts_service
+    if _tts_service is None:
+        with _tts_lock:
+            if _tts_service is None:
+                from aios.core.voice import TTSService
+                _tts_service = TTSService(
+                    model_name=config.VOICE_TTS_MODEL,
+                    models_dir=config.VOICE_MODELS_DIR,
+                )
+    return _tts_service
+
+
+class VoiceSpeakRequest(BaseModel):
+    text: str = Field(..., max_length=5000)
+    voice: Optional[str] = Field(None, description="Piper voice model name override.")
+    format: str = Field("wav", description="'wav' for binary stream, 'json' for base64.")
+
+
+@app.post("/api/v1/voice/transcribe")
+async def voice_transcribe(
+    request: Request,
+    file: UploadFile = File(...),
+    stt=Depends(_get_stt_service),
+) -> JSONResponse:
+    """Transcribe uploaded audio to text using local faster-whisper."""
+    if stt is None:
+        raise HTTPException(status_code=501, detail="STT not enabled (set AIOS_VOICE_STT=true)")
+    audio_bytes = await file.read()
+    if len(audio_bytes) > config.VOICE_MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Audio file too large")
+    from aios.core.voice import VoiceError
+    try:
+        result = stt.transcribe(audio_bytes)
+    except VoiceError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return JSONResponse(content={
+        "text": result.text,
+        "language": result.language,
+        "confidence": result.confidence,
+    })
+
+
+@app.post("/api/v1/voice/speak")
+def voice_speak(
+    req: VoiceSpeakRequest,
+    tts=Depends(_get_tts_service),
+) -> Response:
+    """Synthesize text to audio using local piper TTS."""
+    if tts is None:
+        raise HTTPException(status_code=501, detail="TTS not enabled (set AIOS_VOICE_TTS=true)")
+    from aios.core.voice import VoiceError
+    try:
+        result = tts.speak(req.text)
+    except VoiceError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    if req.format == "json":
+        import base64
+        return JSONResponse(content={
+            "audio": base64.b64encode(result.audio).decode(),
+            "sample_rate": result.sample_rate,
+            "duration_ms": result.duration_ms,
+        })
+    return Response(content=result.audio, media_type="audio/wav")
+
+
+@app.get("/api/v1/voice/models")
+def voice_models(
+    stt=Depends(_get_stt_service),
+    tts=Depends(_get_tts_service),
+) -> dict:
+    """List available and configured voice models."""
+    return {
+        "stt": {
+            "enabled": config.VOICE_STT_ENABLED,
+            "model": config.VOICE_STT_MODEL,
+            "loaded": stt is not None and stt._model is not None,
+            "available_sizes": ["tiny", "base", "small", "medium", "large-v3"],
+        },
+        "tts": {
+            "enabled": config.VOICE_TTS_ENABLED,
+            "model": config.VOICE_TTS_MODEL,
+            "loaded": tts is not None and tts._voice is not None,
+            "available_voices": tts.available_voices() if tts else [],
+        },
+    }
