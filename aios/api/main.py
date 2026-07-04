@@ -1808,6 +1808,71 @@ def development_trails(
     return skills.trail_map()
 
 
+@app.get("/api/v1/development/harness")
+def development_harness() -> dict[str, Any]:
+    """Aggregate status from automated experience harnesses (read-only).
+
+    Reads the JSONL audit logs produced by the three harness tools and returns
+    summary metrics: last run timestamps, cumulative success rates, and green/red
+    status for each harness.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    audit_dir = _Path(config.PROJECT_ROOT) / ".aios" / "audit"
+    result: dict[str, Any] = {}
+
+    for name, filename, summary_kind in [
+        ("experience", "experience-accumulator.jsonl", "run-summary"),
+        ("golden", "golden-mission-runs.jsonl", "batch-summary"),
+        ("endurance", "endurance-test.jsonl", "endurance-summary"),
+    ]:
+        log_path = audit_dir / filename
+        if not log_path.exists():
+            result[name] = {"runs": 0, "status": "no_data"}
+            continue
+        summaries: list[dict[str, Any]] = []
+        try:
+            with log_path.open() as fh:
+                for line in fh:
+                    record = _json.loads(line)
+                    if record.get("kind") == summary_kind:
+                        summaries.append(record)
+        except (OSError, _json.JSONDecodeError):
+            result[name] = {"runs": 0, "status": "error"}
+            continue
+
+        if not summaries:
+            result[name] = {"runs": 0, "status": "no_data"}
+            continue
+
+        latest = summaries[-1]
+        if name == "experience":
+            result[name] = {
+                "runs": len(summaries),
+                "latest_success_rate": latest.get("success_rate", 0),
+                "total_sessions": sum(s.get("total", 0) for s in summaries),
+                "status": "green" if latest.get("success_rate", 0) >= 0.7 else "needs_attention",
+            }
+        elif name == "golden":
+            result[name] = {
+                "runs": len(summaries),
+                "latest_pass_rate": latest.get("rate", 0),
+                "total_missions": latest.get("total", 0),
+                "status": "green" if latest.get("rate", 0) >= 0.8 else "needs_attention",
+            }
+        elif name == "endurance":
+            result[name] = {
+                "runs": len(summaries),
+                "latest_green": latest.get("green", False),
+                "latest_success_rate": latest.get("success_rate", 0),
+                "latency_p95_s": latest.get("latency_p95_s", 0),
+                "status": "green" if latest.get("green", False) else "needs_attention",
+            }
+
+    return {"harnesses": result}
+
+
 @app.get("/api/v1/development/workspace")
 def development_workspace() -> dict[str, Any]:
     """The agent's manufacturing workspace: the text files currently in
