@@ -29,7 +29,9 @@ from aios.api.main import (
     get_semantic_indexer,
     get_skill_memory,
     get_approval_store,
+    get_cerebellum,
 )
+from aios.core.cerebellum import Cerebellum
 from aios.core.executor import Executor
 from aios.memory.skills import SkillMemory
 from aios.runtime import turn_state
@@ -101,6 +103,9 @@ def client(monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = lambda: ScriptedOllama()
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_cerebellum] = lambda: Cerebellum(
+        db_path=sandbox / "cerebellum.db"
+    )
     _runner = lambda command, *, cwd, env, timeout_s: ("1 passed", "", 0)  # noqa: E731
     app.dependency_overrides[get_executor] = lambda: Executor(
         runner=_runner,

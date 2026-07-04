@@ -3596,7 +3596,11 @@ def generate(
             # itself, so there is no parallel security path.
             _cerebellum_matched = False
             if user_text:
-                _cb_match = cerebellum.match(user_text)
+                try:
+                    _cb_match = cerebellum.match(user_text)
+                except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal
+                    logger.warning("Cerebellum match failed", exc_info=exc)
+                    _cb_match = None
                 if _cb_match is not None:
                     _cerebellum_matched = True
                     yield sse("cerebellum_match", {
