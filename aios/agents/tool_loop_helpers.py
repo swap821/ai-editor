@@ -72,6 +72,31 @@ def finish_stream(
     yield {"type": "done"}
 
 
+def finish_code_only(
+    content: str,
+    *,
+    code_fence: re.Pattern,
+) -> Iterator[dict[str, Any]]:
+    """Emit code blocks and ``done`` — text was already streamed in real-time.
+
+    Used by the streaming tool loop path (C4): text tokens were yielded as they
+    arrived from the provider, so only code-block extraction and ``done`` remain.
+    """
+    text = content.strip()
+    if not text:
+        yield {"type": "done"}
+        return
+    match = code_fence.search(text)
+    if match:
+        code = match.group(2).rstrip("\n")
+        if code.strip():
+            language = match.group(1) or "text"
+            for partial in chunk_code(code):
+                yield {"type": "code_chunk", "code": partial, "language": language}
+            yield {"type": "code", "code": code, "language": language}
+    yield {"type": "done"}
+
+
 def format_human_required_event(
     name: str,
     args: dict[str, Any],

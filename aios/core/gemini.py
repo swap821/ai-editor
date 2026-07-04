@@ -35,6 +35,7 @@ from typing import Any, Iterator, Optional
 from aios import config
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
+from aios.core.stream_protocol import StreamFinished
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,48 @@ def _stream_text_from_gemini(chunks: Any) -> Iterator[str]:
         content = parsed.get("content")
         if content:
             yield str(content)
+
+
+def _stream_from_gemini(chunks: Any) -> Iterator[str | StreamFinished]:
+    """Yield text deltas then a :class:`StreamFinished` with any tool_calls.
+
+    Each streaming chunk may contain text parts or function_call parts. Text
+    is yielded immediately; function_calls are accumulated and returned in the
+    final :class:`StreamFinished`.
+    """
+    text_parts: list[str] = []
+    tool_calls: list[dict[str, Any]] = []
+
+    for chunk in chunks or []:
+        text = getattr(chunk, "text", None)
+        if text:
+            text_parts.append(str(text))
+            yield str(text)
+            continue
+        # Parse full chunk for both text and function_calls
+        candidates = getattr(chunk, "candidates", None) or []
+        if not candidates:
+            continue
+        content = getattr(candidates[0], "content", None)
+        parts = (getattr(content, "parts", None) or []) if content is not None else []
+        for part in parts:
+            t = getattr(part, "text", None)
+            if t:
+                text_parts.append(str(t))
+                yield str(t)
+            fc = getattr(part, "function_call", None)
+            if fc is not None and getattr(fc, "name", None):
+                tool_calls.append(
+                    {
+                        "id": None,
+                        "function": {
+                            "name": str(fc.name),
+                            "arguments": _coerce_args(getattr(fc, "args", None)),
+                        },
+                    }
+                )
+
+    yield StreamFinished(tool_calls=tool_calls, content="".join(text_parts))
 
 
 class GeminiClient:
@@ -328,6 +371,55 @@ class GeminiClient:
             )
             raise LLMError(
                 f"Gemini generate_content_stream failed for '{model or self.model}': {scrubbed}"
+            ) from exc
+
+    def stream_chat_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+    ) -> Iterator[str | StreamFinished]:
+        """Stream text chunks then a :class:`StreamFinished` with tool_calls.
+
+        Same privacy/error contract as :meth:`stream_chat`, but the final
+        yielded item is always a :class:`StreamFinished` carrying any tool_calls
+        the model produced during the stream.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Gemini privacy filter applied", extra=audit)
+
+        system_text, contents = _to_gemini(safe_messages)
+        gen_config: dict[str, Any] = {
+            "temperature": self.temperature,
+            "max_output_tokens": self.max_tokens,
+        }
+        if system_text.strip():
+            gen_config["system_instruction"] = system_text
+        if self.thinking_budget >= 0:
+            gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
+        tool_decls = _to_tools(tools)
+        if tool_decls:
+            gen_config["tools"] = tool_decls
+
+        try:
+            stream = self._client.models.generate_content_stream(
+                model=model or self.model,
+                contents=contents,
+                config=gen_config,
+            )
+            yield from _stream_from_gemini(stream)
+        except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Gemini stream_chat_with_tools failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,
+            )
+            raise LLMError(
+                f"Gemini stream_chat_with_tools failed for '{model or self.model}': {scrubbed}"
             ) from exc
 
     def list_models(self) -> list[dict[str, str]]:
