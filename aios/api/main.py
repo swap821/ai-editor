@@ -3903,19 +3903,22 @@ def generate(
             except Exception as exc:  # noqa: BLE001 - metrics must never break chat
                 logger.warning("Development metrics recording failed", exc_info=exc)
             if config.FACTS_AUTO_EXTRACT:
-                # Supervised memory formation runs on EVERY turn — an operator
-                # statement ("I prefer dark mode") is true regardless of whether
-                # the turn's code verified; its gate is the quarantined proposal
-                # queue plus a named human approval, not the verification floor.
-                # (Sat below the unverified early-return until the organism
-                # conformance test caught ordinary conversation never proposing
-                # anything, 2026-07-02.)
                 try:
+                    proposed_count = 0
                     for fact_subject, fact_predicate, fact_object in extract_candidates(
                         user_text,
                         max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
                     ):
-                        facts.propose(fact_subject, fact_predicate, fact_object)
+                        r = facts.strengthen_or_propose(
+                            fact_subject, fact_predicate, fact_object,
+                        )
+                        if r.proposed or r.reason == "strengthened":
+                            proposed_count += 1
+                    if proposed_count and _cortex_bus:
+                        _cortex_bus.append(
+                            "facts.proposed", session_id,
+                            {"count": proposed_count, "source": "generate"},
+                        )
                 except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
                     logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
             if outcome not in {"verified_success", "verified_failure"}:
@@ -4468,6 +4471,23 @@ def chat(
 
         _record_episode(session_id, "assistant", text)
         _index_turn(indexer, user_text, text)
+        if config.FACTS_AUTO_EXTRACT:
+            try:
+                proposed_count = 0
+                for s, p, o in extract_candidates(
+                    user_text,
+                    max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
+                ):
+                    result = facts.strengthen_or_propose(s, p, o)
+                    if result.proposed or result.reason == "strengthened":
+                        proposed_count += 1
+                if proposed_count and _cortex_bus:
+                    _cortex_bus.append(
+                        "facts.proposed", session_id,
+                        {"count": proposed_count, "source": "chat"},
+                    )
+            except Exception:
+                logger.warning("Chat fact extraction failed", exc_info=True)
         yield sse("done", {})
 
     return StreamingResponse(
