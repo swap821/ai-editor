@@ -17,10 +17,10 @@ def render_operator_model(facts: SemanticFacts) -> dict[str, Any]:
     """Produce a structured snapshot grouped by subject category."""
     from aios.memory.db import get_connection, init_memory_db
 
+    init_memory_db(facts.db_path)
     operator_facts = facts.facts_for("operator")
     project_facts = facts.facts_for("project")
 
-    init_memory_db(facts.db_path)
     with get_connection(facts.db_path) as conn:
         attr_rows = conn.execute(
             "SELECT * FROM semantic_facts "

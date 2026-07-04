@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS semantic_memory (
     timestamp     DATETIME DEFAULT CURRENT_TIMESTAMP,
     content_hash  TEXT,
     memory_type   TEXT NOT NULL DEFAULT 'chat'
-                  CHECK (memory_type IN ('chat','lesson','fact','preference','procedure')),
+                  CHECK (memory_type IN ('chat','lesson','fact','preference','procedure','document')),
     verification_status TEXT NOT NULL DEFAULT 'unverified'
                   CHECK (verification_status IN ('unverified','verified','superseded')),
     occurrence_count INTEGER NOT NULL DEFAULT 1,
@@ -264,6 +264,25 @@ CREATE TABLE IF NOT EXISTS curriculum_tasks (
     successes       INTEGER NOT NULL DEFAULT 0,
     UNIQUE(skill_name, level, prompt)
 );
+
+-- == Knowledge sources (user-uploaded documents for RAG grounding) ===========
+CREATE TABLE IF NOT EXISTS knowledge_sources (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename      TEXT NOT NULL,
+    mime_type     TEXT NOT NULL,
+    content_hash  TEXT NOT NULL UNIQUE,
+    chunk_count   INTEGER NOT NULL DEFAULT 0,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id     INTEGER NOT NULL REFERENCES knowledge_sources(id) ON DELETE CASCADE,
+    chunk_index   INTEGER NOT NULL,
+    text_content  TEXT NOT NULL,
+    source_offset INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source ON knowledge_chunks(source_id);
 
 -- == Indexes =================================================================
 CREATE INDEX IF NOT EXISTS idx_episodic_session ON episodic_memory(session_id);

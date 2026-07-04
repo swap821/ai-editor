@@ -54,6 +54,7 @@ import {
 } from '../superbrain/lib/materializedSurfaceAnchors';
 import SwarmHUD from '../superbrain/components/ui/SwarmHUD';
 import CouncilDashboard from './CouncilDashboard';
+import OperatorProfileCard from './OperatorProfileCard';
 import './GagosChrome.css';
 
 const MAX_MESSAGES = 40; // cap the kept history (thread scrolls)
@@ -974,6 +975,7 @@ export default function GagosChrome() {
 
       <SwarmHUD />
       <CouncilDashboard />
+      <OperatorProfileCard />
 
       {/* The supervised decision surface — a dependable DOM gate that appears
           whenever the mind pauses on a write/command/fetch, even if the 3D scene
@@ -1044,9 +1046,23 @@ export default function GagosChrome() {
               I'm <span className="gagos-welcome__name">GAGOS</span>, a supervised mind that
               remembers. Where shall we begin?
             </p>
-            {/* SP3 (voice-into-body): the starter-prompt chips are retired — they were
-                detached overlay clutter. The greeting invites you to type into the one
-                thin input below; the being's body carries everything else. */}
+            <div className="gagos-starters" role="list" aria-label="Suggested prompts">
+              {[
+                'What can you help me with?',
+                'Summarise this project',
+                'Find bugs in my code',
+                'Explain how this works',
+              ].map((text) => (
+                <button
+                  key={text}
+                  className="gagos-starter"
+                  role="listitem"
+                  onClick={() => { setDraft(text); inputRef.current?.focus(); }}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
         {/* Memory trail (not a chat thread): each turn is a luminous node on a

@@ -259,6 +259,19 @@ GEMINI_MAX_TOKENS: Final[int] = _env_int("AIOS_GEMINI_MAX_TOKENS", 1024)
 GEMINI_THINKING_BUDGET: Final[int] = _env_int("AIOS_GEMINI_THINKING_BUDGET", 0)
 GEMINI_ENABLED: Final[bool] = bool(GEMINI_PROJECT and GEMINI_MODEL)
 
+# OpenAI-compatible providers (OpenAI, Groq, Together, vLLM, LM Studio)
+OPENAI_API_KEY: Final[str] = _env_str("AIOS_OPENAI_API_KEY", "")
+OPENAI_BASE_URL: Final[str] = _env_str("AIOS_OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_MODEL: Final[str] = _env_str("AIOS_OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MAX_TOKENS: Final[int] = _env_int("AIOS_OPENAI_MAX_TOKENS", 1024)
+OPENAI_ENABLED: Final[bool] = bool(OPENAI_API_KEY)
+
+# Anthropic direct API
+ANTHROPIC_API_KEY: Final[str] = _env_str("AIOS_ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL: Final[str] = _env_str("AIOS_ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+ANTHROPIC_MAX_TOKENS: Final[int] = _env_int("AIOS_ANTHROPIC_MAX_TOKENS", 1024)
+ANTHROPIC_ENABLED: Final[bool] = bool(ANTHROPIC_API_KEY)
+
 CLOUD_HISTORY_WINDOW: Final[int] = _env_int("AIOS_CLOUD_HISTORY_WINDOW", 2)
 CLOUD_CODING_HISTORY_WINDOW: Final[int] = _env_int("AIOS_CLOUD_CODING_HISTORY_WINDOW", 4)
 
@@ -322,6 +335,13 @@ CRAG_LLM_JUDGE: Final[bool] = _env_bool("AIOS_CRAG_LLM_JUDGE", False)
 CRAG_WEBSEARCH: Final[bool] = _env_bool("AIOS_CRAG_WEBSEARCH", False)
 CRAG_SEARCH_ENDPOINT: Final[str] = _env_str("AIOS_CRAG_SEARCH_ENDPOINT", "")
 CRAG_SEARCH_API_KEY: Final[str] = _env_str("AIOS_CRAG_SEARCH_API_KEY", "")
+CRAG_DOCUMENTS: Final[bool] = _env_bool("AIOS_CRAG_DOCUMENTS", True)
+
+# ── Knowledge ingestion ─────────────────────────────────────────────────────
+KNOWLEDGE_MAX_UPLOAD_BYTES: Final[int] = _env_int("AIOS_KNOWLEDGE_MAX_UPLOAD_BYTES", 10_000_000)
+KNOWLEDGE_CHUNK_MAX_TOKENS: Final[int] = _env_int("AIOS_KNOWLEDGE_CHUNK_MAX_TOKENS", 300)
+KNOWLEDGE_CHUNK_OVERLAP_TOKENS: Final[int] = _env_int("AIOS_KNOWLEDGE_CHUNK_OVERLAP_TOKENS", 40)
+
 ROUTER_CALIBRATION_WEIGHT: Final[float] = max(
     0.0, min(1.0, _env_float("AIOS_ROUTER_CALIBRATION_WEIGHT", 0.4))
 )

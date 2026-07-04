@@ -8,10 +8,12 @@ defined declaratively in ``schema.sql`` and applied idempotently by
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -21,6 +23,32 @@ from aios.memory.relevance import content_hash, skill_signature_v2
 
 #: Location of the declarative DDL applied by :func:`init_memory_db`.
 _SCHEMA_PATH: Path = Path(__file__).resolve().parent / "schema.sql"
+
+
+def retry_on_locked(max_retries: int = 3, base_delay: float = 0.1):
+    """Retry a function on sqlite3.OperationalError with 'locked' in message.
+
+    Exponential backoff: base_delay * 2^attempt (0.1s, 0.2s, 0.4s).
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_err = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except sqlite3.OperationalError as e:
+                    if "locked" not in str(e).lower():
+                        raise
+                    last_err = e
+                    if attempt < max_retries:
+                        time.sleep(base_delay * (2**attempt))
+            raise last_err  # type: ignore[misc]
+
+        return wrapper
+
+    return decorator
 
 
 def connect(db_path: Path = config.MEMORY_DB_PATH) -> sqlite3.Connection:
@@ -58,12 +86,34 @@ def get_connection(
     conn = connect(db_path)
     try:
         yield conn
-        conn.commit()
+        _commit_with_retry(conn)
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+
+
+def _commit_with_retry(
+    conn: sqlite3.Connection, max_retries: int = 3, base_delay: float = 0.1
+) -> None:
+    """Commit with exponential backoff on database-locked errors.
+
+    Even with WAL mode, a writer can still collide with another writer holding
+    the single write lock under heavy concurrent load. Retrying the commit a
+    few times with backoff (0.1s, 0.2s, 0.4s) lets that transient contention
+    clear instead of surfacing a spurious failure to the caller.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            conn.commit()
+            return
+        except sqlite3.OperationalError as e:
+            if "locked" not in str(e).lower():
+                raise
+            if attempt == max_retries:
+                raise
+            time.sleep(base_delay * (2**attempt))
 
 
 def init_memory_db(db_path: Path = config.MEMORY_DB_PATH) -> None:

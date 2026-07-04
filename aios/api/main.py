@@ -1730,12 +1730,63 @@ def knowledge_query(
     }
 
 
+def get_doc_ingestor():
+    """Provide the document ingestion pipeline."""
+    from aios.memory.doc_ingest import DocumentIngestor
+
+    return DocumentIngestor()
+
+
+@app.post("/api/v1/knowledge/ingest")
+async def knowledge_ingest(
+    file: UploadFile = File(...),
+    ingestor=Depends(get_doc_ingestor),
+) -> dict[str, Any]:
+    """Ingest a document for RAG grounding."""
+    raw = await file.read()
+    mime = file.content_type or "application/octet-stream"
+    filename = file.filename or "unnamed"
+    try:
+        return ingestor.ingest(filename, raw, mime)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/knowledge/sources")
+def knowledge_sources(
+    ingestor=Depends(get_doc_ingestor),
+) -> dict[str, Any]:
+    """List all ingested knowledge sources."""
+    return {"sources": ingestor.list_sources()}
+
+
+@app.delete("/api/v1/knowledge/sources/{source_id}")
+def knowledge_delete_source(
+    source_id: int,
+    ingestor=Depends(get_doc_ingestor),
+) -> dict[str, Any]:
+    """Delete a knowledge source and its chunks."""
+    if not ingestor.delete_source(source_id):
+        raise HTTPException(status_code=404, detail="Source not found")
+    return {"deleted": True}
+
+
 @app.get("/api/v1/development/metrics")
 def development_metrics(
     tracker: DevelopmentTracker = Depends(get_development_tracker),
 ) -> dict[str, Any]:
     """Return measured behavior-change and verification coverage metrics."""
     return tracker.summary()
+
+
+@app.get("/api/v1/operator/model")
+def operator_model(
+    facts: SemanticFacts = Depends(get_semantic_facts),
+) -> dict[str, Any]:
+    """Structured snapshot of what the system knows about the operator."""
+    from aios.memory.operator_model import render_operator_model
+
+    return render_operator_model(facts)
 
 
 @app.get("/api/v1/development/skills")
@@ -3027,9 +3078,19 @@ def _crag_web_source(query: str) -> list[str]:
     )
 
 
+def _crag_document_source(query: str) -> list[str]:
+    """Retrieve relevant chunks from user-uploaded knowledge documents."""
+    from aios.memory.doc_ingest import DocumentIngestor
+
+    ingestor = DocumentIngestor()
+    return ingestor.search_chunks(query, limit=5)
+
+
 def _crag_external_sources() -> list:
     """The enabled external corrective sources (each independently opt-in)."""
     sources: list = []
+    if config.CRAG_DOCUMENTS:
+        sources.append(_crag_document_source)
     if config.CRAG_CLOUD:
         sources.append(_crag_cloud_source)
     if config.CRAG_WEBSEARCH:
@@ -4415,17 +4476,29 @@ def chat(
             yield sse("error", {"text": "No transcript provided."})
             return
 
-        # Build the conversational system prompt: the Hinglish persona + REAL
-        # operator facts (dormant when none) + relevant prior memory.
-        system_parts: list[str] = [CHAT_SYSTEM_PROMPT]
-        persona = _operator_facts_block(facts)
-        if persona:
-            system_parts.append(persona)
-        recall = _recall_memory(user_text)
-        if recall:
-            system_parts.append(recall)
+        # Build the conversational system prompt via PromptWriter: prioritized,
+        # budgeted sections assembled declaratively.
+        from aios.core.prompt_writer import PromptSection, PromptWriter
+
+        prompt_sections = [
+            PromptSection(
+                name="operator_facts",
+                priority=90,
+                render=lambda: _operator_facts_block(facts),
+                max_tokens=800,
+            ),
+            PromptSection(
+                name="recall",
+                priority=70,
+                render=lambda: _recall_memory(user_text),
+                max_tokens=1500,
+            ),
+        ]
+        system_prompt = PromptWriter(
+            CHAT_SYSTEM_PROMPT, prompt_sections, total_budget=4000
+        ).assemble(user_text)
         messages = [
-            {"role": "system", "content": "\n\n".join(system_parts)},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text},
         ]
 
