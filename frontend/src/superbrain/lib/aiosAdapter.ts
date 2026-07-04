@@ -728,10 +728,11 @@ export async function sendVoiceTurn(
 /** POST audio to local STT backend. Returns transcribed text. */
 export async function transcribeAudio(
   audioBlob: Blob,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; language?: string } = {},
 ): Promise<{ text: string; language: string; confidence: number }> {
   const form = new FormData();
   form.append('file', audioBlob, 'recording.wav');
+  if (opts.language) form.append('language', opts.language);
   const response = await fetch(`${AIOS_BASE}/api/v1/voice/transcribe`, {
     method: 'POST',
     signal: opts.signal,

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetVoiceSpeakForTests,
   getVoiceSpeakState,
+  interruptSpeech,
   isVoiceSpeakMuted,
   setVoiceSpeakMuted,
   startVoiceSpeak,
@@ -166,5 +167,45 @@ describe('voiceSpeak', () => {
     const utter = mocks.getLastUtterance();
     expect(utter?.voice?.lang).toBe('hi-IN');
     stop();
+  });
+
+  describe('interruptSpeech', () => {
+    it('stops active speech and sets speaking to false', () => {
+      const mocks = installSpeechMocks();
+      const stop = startVoiceSpeak();
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Long text' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      expect(getVoiceSpeakState().speaking).toBe(true);
+
+      interruptSpeech();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(mocks.cancel).toHaveBeenCalled();
+      stop();
+    });
+
+    it('does nothing when not speaking', () => {
+      const mocks = installSpeechMocks();
+      const stop = startVoiceSpeak();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+
+      interruptSpeech();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(mocks.cancel).not.toHaveBeenCalled();
+      stop();
+    });
+
+    it('does not toggle mute state', () => {
+      installSpeechMocks();
+      const stop = startVoiceSpeak();
+      expect(getVoiceSpeakState().muted).toBe(false);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Hi' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      interruptSpeech();
+
+      expect(getVoiceSpeakState().muted).toBe(false);
+      stop();
+    });
   });
 });
