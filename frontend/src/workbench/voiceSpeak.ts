@@ -22,6 +22,7 @@ let pendingText = '';
 let currentUtterance: SpeechSynthesisUtterance | null = null;
 let backendTTSEnabled = false;
 let audioCtx: AudioContext | null = null;
+let currentSource: AudioBufferSourceNode | null = null;
 
 function set(next: Partial<VoiceSpeakState>): void {
   state = { ...state, ...next };
@@ -71,11 +72,12 @@ function selectVoice(): SpeechSynthesisVoice | undefined {
 }
 
 function cancelSpeech(): void {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
-  try {
-    window.speechSynthesis.cancel();
-  } catch {
-    // ignore
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+  }
+  if (currentSource) {
+    try { currentSource.stop(); } catch { /* already stopped */ }
+    currentSource = null;
   }
   currentUtterance = null;
 }
@@ -137,9 +139,11 @@ function speakViaBackend(trimmed: string): void {
     })
     .then((decoded) => {
       const src = audioCtx!.createBufferSource();
+      currentSource = src;
       src.buffer = decoded;
       src.connect(audioCtx!.destination);
       src.onended = () => {
+        if (currentSource === src) currentSource = null;
         set({ speaking: false });
         publishSpeakingComplete();
       };
@@ -218,6 +222,13 @@ export function setBackendTTS(enabled: boolean): void {
   backendTTSEnabled = enabled;
 }
 
+export function interruptSpeech(): void {
+  if (!state.speaking) return;
+  cancelSpeech();
+  set({ speaking: false });
+  publishSpeakingComplete();
+}
+
 export function isVoiceSpeakMuted(): boolean {
   return state.muted;
 }
@@ -258,6 +269,7 @@ export function __resetVoiceSpeakForTests(): void {
   startCount = 0;
   pendingText = '';
   currentUtterance = null;
+  currentSource = null;
   try {
     window.localStorage.removeItem(MUTE_KEY);
   } catch {

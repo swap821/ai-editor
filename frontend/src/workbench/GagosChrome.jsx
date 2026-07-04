@@ -23,7 +23,7 @@ import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
 import { triggerSpineFlash } from './spineFlashBridge';
-import { useVoiceSpeak, setVoiceSpeakMuted, setBackendTTS } from './voiceSpeak';
+import { useVoiceSpeak, setVoiceSpeakMuted, setBackendTTS, interruptSpeech } from './voiceSpeak';
 import { isWorkIntent } from '../superbrain/lib/intentRouting';
 import { deriveCommandDockState } from '../superbrain/lib/commandDockState';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
@@ -270,6 +270,7 @@ export default function GagosChrome() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [transcriptPending, setTranscriptPending] = useState(false);
   const [focused, setFocused] = useState(false); // NeuralCommandDock: input focus → dock engages
   const [voiceSupported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
@@ -291,6 +292,16 @@ export default function GagosChrome() {
   // un-actionable. Authoritative decision surface for the supervised loop.
   const [pendingApproval, setPendingApproval] = useState(() => getPendingApproval());
   const voice = useVoiceSpeak();
+  const [voiceLang, setVoiceLang] = useState(() => {
+    try { return localStorage.getItem('gagos-voice-lang') || 'en-IN'; } catch { return 'en-IN'; }
+  });
+  const cycleVoiceLang = useCallback(() => {
+    setVoiceLang((prev) => {
+      const next = prev === 'en-IN' ? 'hi-IN' : 'en-IN';
+      try { localStorage.setItem('gagos-voice-lang', next); } catch { /* blocked */ }
+      return next;
+    });
+  }, []);
   const reducedMotion = useReducedMotion();
   // NeuralCommandDock working-dim: the dock yields while the being orchestrates work
   // (content surfaces present) — unless the operator is actively engaging it.
@@ -307,6 +318,9 @@ export default function GagosChrome() {
   const workTabIdsRef = useRef([]); // accumulated work tabs (orchestration); newest = center focus
   const writingTabIdRef = useRef(null); // the slab THIS turn is writing into (filled/retracted on resolve)
   const isHoldingMicRef = useRef(false);
+  const [micLevel, setMicLevel] = useState(0);
+  const analyserCleanupRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
 
   // Live active-LLM line from the router's `route` cognition events.
   useEffect(() => subscribeActiveBrain(() => setBrainChip(formatActiveBrainChip(getActiveBrain()))), []);
@@ -747,7 +761,6 @@ export default function GagosChrome() {
 
   // Voice input: backend STT (MediaRecorder → faster-whisper) when available,
   // otherwise browser-native SpeechRecognition. Graceful when unsupported.
-  const mediaRecorderRef = useRef(null);
   useEffect(() => {
     if (backendVoice.stt) {
       // Backend STT path — no SpeechRecognition needed.
@@ -759,7 +772,7 @@ export default function GagosChrome() {
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
-    rec.lang = 'en-IN';
+    rec.lang = voiceLang;
     rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
@@ -772,14 +785,17 @@ export default function GagosChrome() {
         else interim += r[0].transcript;
       }
       setDraft(cleanText(finalText || interim, 200));
-      if (finalText.trim()) void submit(finalText);
+      if (finalText.trim()) {
+        setTranscriptPending(true);
+        inputRef.current?.focus();
+      }
     };
     recognitionRef.current = rec;
     return () => {
       recognitionRef.current = null;
       try { rec.abort(); } catch { /* already closed */ }
     };
-  }, [submit, backendVoice.stt]);
+  }, [backendVoice.stt, voiceLang]);
 
   const startMic = useCallback(() => {
     if (busyRef.current || isHoldingMicRef.current) return;
@@ -794,22 +810,53 @@ export default function GagosChrome() {
           stream.getTracks().forEach((t) => t.stop());
           const blob = new Blob(chunks, { type: 'audio/webm' });
           setListening(false);
-          transcribeAudio(blob)
-            .then((r) => { setDraft(r.text); if (r.text.trim()) void submit(r.text); })
+          transcribeAudio(blob, { language: voiceLang })
+            .then((r) => { setDraft(r.text); if (r.text.trim()) { setTranscriptPending(true); inputRef.current?.focus(); } })
             .catch(() => setDraft(''));
         };
         mediaRecorderRef.current = mr;
         mr.start();
         setListening(true);
+        // Audio level analyser for mic glow intensity
+        try {
+          const actx = new AudioContext();
+          const src = actx.createMediaStreamSource(stream);
+          const analyser = actx.createAnalyser();
+          analyser.fftSize = 256;
+          src.connect(analyser);
+          const buf = new Uint8Array(analyser.frequencyBinCount);
+          let raf;
+          const tick = () => {
+            analyser.getByteTimeDomainData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) {
+              const v = (buf[i] - 128) / 128;
+              sum += v * v;
+            }
+            const rms = Math.sqrt(sum / buf.length);
+            setMicLevel(Math.min(1, rms * 3));
+            raf = requestAnimationFrame(tick);
+          };
+          raf = requestAnimationFrame(tick);
+          analyserCleanupRef.current = () => {
+            cancelAnimationFrame(raf);
+            try { actx.close(); } catch { /* already closed */ }
+            setMicLevel(0);
+          };
+        } catch { /* AudioContext unavailable — graceful fallback */ }
       }).catch(() => { isHoldingMicRef.current = false; });
     } else {
       try { recognitionRef.current?.start(); } catch { /* already started */ }
     }
-  }, [backendVoice.stt, submit]);
+  }, [backendVoice.stt, voiceLang]);
 
   const stopMic = useCallback(() => {
     if (!isHoldingMicRef.current) return;
     isHoldingMicRef.current = false;
+    if (analyserCleanupRef.current) {
+      analyserCleanupRef.current();
+      analyserCleanupRef.current = null;
+    }
     if (backendVoice.stt && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
@@ -1058,18 +1105,19 @@ export default function GagosChrome() {
           </span>
           <input
             ref={inputRef}
-            className="gagos-input"
+            className={`gagos-input${transcriptPending ? ' has-transcript' : ''}`}
             type="text"
             value={draft}
             placeholder={listening ? 'listening…' : showHint ? EXAMPLE_DIRECTIVE : 'talk to GAGOS…'}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => { setDraft(e.target.value); setTranscriptPending(false); }}
+            onAnimationEnd={() => setTranscriptPending(false)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); void submit(draft); }
+              if (e.key === 'Enter') { e.preventDefault(); setTranscriptPending(false); void submit(draft); }
               else if (e.key === 'Escape') {
                 if (listening) { recognitionRef.current?.stop(); }
-                else if (draft) { setDraft(''); }
+                else if (draft) { setDraft(''); setTranscriptPending(false); }
                 else { inputRef.current?.blur(); }
               }
             }}
@@ -1079,6 +1127,7 @@ export default function GagosChrome() {
             <button
               type="button"
               className={`gagos-btn gagos-mic ${listening ? 'is-listening' : ''}`}
+              style={{ '--mic-level': micLevel }}
               disabled={busy}
               aria-disabled={busy}
               aria-pressed={listening}
@@ -1108,12 +1157,26 @@ export default function GagosChrome() {
             <button
               type="button"
               className={`gagos-btn gagos-speaker ${voice.muted ? 'is-muted' : ''} ${voice.speaking ? 'is-speaking' : ''}`}
-              onClick={() => setVoiceSpeakMuted(!voice.muted)}
+              onClick={() => {
+                if (voice.speaking) interruptSpeech();
+                else setVoiceSpeakMuted(!voice.muted);
+              }}
               aria-pressed={voice.muted}
-              aria-label={voice.muted ? 'Unmute GAGOS voice' : 'Mute GAGOS voice'}
-              title={voice.muted ? 'Unmute voice' : 'Mute voice'}
+              aria-label={voice.speaking ? 'Interrupt speech' : voice.muted ? 'Unmute GAGOS voice' : 'Mute GAGOS voice'}
+              title={voice.speaking ? 'Tap to interrupt' : voice.muted ? 'Unmute voice' : 'Mute voice'}
             >
               <SpeakerIcon muted={voice.muted} />
+            </button>
+          ) : null}
+          {voiceSupported ? (
+            <button
+              type="button"
+              className="gagos-btn gagos-lang"
+              onClick={cycleVoiceLang}
+              aria-label={`Voice language: ${voiceLang === 'en-IN' ? 'English' : 'Hindi'}. Click to switch.`}
+              title={voiceLang === 'en-IN' ? 'Switch to Hindi' : 'Switch to English'}
+            >
+              {voiceLang === 'en-IN' ? 'EN' : 'HI'}
             </button>
           ) : null}
           <button
