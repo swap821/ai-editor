@@ -73,9 +73,4 @@ urllib3==2.7.0
 uvicorn==0.48.0
 watchfiles==1.2.0
 
-# Optional cloud provider — Google Gemini via Vertex AI. Lazy-imported only when
-# AIOS_GEMINI_PROJECT is set, so it is not in the locked install. One-time setup
-# before the first live Gemini turn:
-#   pip install google-genai
-#   gcloud auth application-default login   # ADC; no key on disk
-# google-genai
+# Optional cloud providers: see requirements-optional.txt
