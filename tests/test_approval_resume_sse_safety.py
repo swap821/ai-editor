@@ -30,9 +30,29 @@ from aios.api.main import (
     get_skill_memory,
     get_approval_store,
     get_cerebellum,
+    get_development_tracker,
+    get_swarm_pattern_memory,
+    get_autonomy,
+    get_curriculum_manager,
+    get_memory_consolidator,
+    get_conversation_state_store,
+    get_alignment_evaluation_store,
+    get_semantic_facts,
+    get_compactor,
+    get_native_planner,
 )
+from aios.agents.swarm_patterns import SwarmPatternMemory
+from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
 from aios.core.executor import Executor
+from aios.core.native_planner import NativePlanner
+from aios.memory.alignment_evaluation import AlignmentEvaluationStore
+from aios.memory.compaction import MemoryCompactor
+from aios.memory.consolidation import MemoryConsolidator
+from aios.memory.conversation import ConversationStateStore
+from aios.memory.curriculum import CurriculumManager
+from aios.memory.development import DevelopmentTracker
+from aios.memory.facts import SemanticFacts
 from aios.memory.skills import SkillMemory
 from aios.runtime import turn_state
 from aios.security import scope_lock
@@ -93,18 +113,46 @@ class ScriptedOllama:
 
 @pytest.fixture()
 def client(monkeypatch) -> Iterator[TestClient]:
-    sandbox = Path(tempfile.mkdtemp(prefix="ss"))
+    sandbox = Path(tempfile.mkdtemp(prefix="ss")).resolve()
     monkeypatch.setattr(config, "PROJECT_ROOT", sandbox)
     monkeypatch.setattr(config, "CORTEX_BUS", False)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([sandbox])
+    db = sandbox / "test.db"
     skills = SkillMemory(db_path=sandbox / "sse_skills.db")
+    facts = SemanticFacts(db_path=db)
     app.dependency_overrides[get_llm_client] = FakeLLM
     app.dependency_overrides[get_ollama_client] = lambda: ScriptedOllama()
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_skill_memory] = lambda: skills
     app.dependency_overrides[get_cerebellum] = lambda: Cerebellum(
         db_path=sandbox / "cerebellum.db"
+    )
+    app.dependency_overrides[get_semantic_facts] = lambda: facts
+    app.dependency_overrides[get_development_tracker] = lambda: DevelopmentTracker(
+        db_path=db, facts=facts
+    )
+    app.dependency_overrides[get_swarm_pattern_memory] = lambda: SwarmPatternMemory(
+        db_path=db
+    )
+    app.dependency_overrides[get_autonomy] = lambda: AutonomyLedger(db_path=db)
+    app.dependency_overrides[get_curriculum_manager] = lambda: CurriculumManager(
+        db_path=db
+    )
+    app.dependency_overrides[get_memory_consolidator] = lambda: MemoryConsolidator(
+        db_path=db
+    )
+    app.dependency_overrides[get_conversation_state_store] = (
+        lambda: ConversationStateStore(db_path=db)
+    )
+    app.dependency_overrides[get_alignment_evaluation_store] = (
+        lambda: AlignmentEvaluationStore(db_path=db)
+    )
+    app.dependency_overrides[get_compactor] = lambda: MemoryCompactor(
+        db_path=db, audit_db_path=db
+    )
+    app.dependency_overrides[get_native_planner] = lambda: NativePlanner(
+        skills=skills, patterns=SwarmPatternMemory(db_path=db), facts=facts
     )
     _runner = lambda command, *, cwd, env, timeout_s: ("1 passed", "", 0)  # noqa: E731
     app.dependency_overrides[get_executor] = lambda: Executor(
@@ -210,7 +258,11 @@ def test_stale_pause_then_tokenless_directive_does_not_inherit_tail(
         "modelId": "ollama.llama3.2:3b",
         "sessionId": session_id,
     })
-    assert "event: human_required" in resp1.text
+    assert "event: human_required" in resp1.text, (
+        f"expected human_required in SSE body; got events: "
+        f"{[l.split('data:')[0].strip() for l in resp1.text.splitlines() if l.startswith('event:')]}"
+        f"\n\nFull response (first 800 chars):\n{resp1.text[:800]}"
+    )
     # Confirm something WAS stashed (the pause happened).
     assert turn_state._TURN_STATE._store.get(session_id) is not None
 
