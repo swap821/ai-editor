@@ -28,6 +28,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.core.llm import LLMError
+from aios.core.stream_protocol import StreamFinished
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,74 @@ def _stream_text_from_converse(response: dict[str, Any]) -> Iterator[str]:
         text = delta.get("text")
         if text:
             yield str(text)
+
+
+def _stream_from_converse(response: dict[str, Any]) -> Iterator[str | StreamFinished]:
+    """Yield text deltas then a :class:`StreamFinished` with any tool_calls.
+
+    Unlike :func:`_stream_text_from_converse`, this captures tool_use blocks
+    from the stream so the caller can detect tool_calls after streaming text.
+    """
+    stream = response.get("stream") if isinstance(response, dict) else response
+    text_parts: list[str] = []
+    tool_calls: list[dict[str, Any]] = []
+    current_tool: dict[str, Any] | None = None
+    current_tool_input: list[str] = []
+
+    for event in stream or []:
+        if not isinstance(event, dict):
+            continue
+        # Text deltas
+        delta_block = (event.get("contentBlockDelta") or {}).get("delta") or {}
+        text = delta_block.get("text")
+        if text:
+            text_parts.append(str(text))
+            yield str(text)
+            continue
+        # Tool use input deltas (JSON fragments)
+        tool_delta = delta_block.get("toolUse")
+        if tool_delta and "input" in tool_delta:
+            current_tool_input.append(str(tool_delta["input"]))
+            continue
+        # Tool use block start
+        start = (event.get("contentBlockStart") or {}).get("start") or {}
+        tool_start = start.get("toolUse")
+        if tool_start:
+            if current_tool is not None:
+                _finish_tool(current_tool, current_tool_input, tool_calls)
+            current_tool = tool_start
+            current_tool_input = []
+            continue
+        # Block stop — finalize any in-progress tool
+        if "contentBlockStop" in event and current_tool is not None:
+            _finish_tool(current_tool, current_tool_input, tool_calls)
+            current_tool = None
+            current_tool_input = []
+
+    # Finalize any trailing tool block (defensive)
+    if current_tool is not None:
+        _finish_tool(current_tool, current_tool_input, tool_calls)
+
+    yield StreamFinished(tool_calls=tool_calls, content="".join(text_parts))
+
+
+def _finish_tool(
+    tool_start: dict[str, Any],
+    input_fragments: list[str],
+    out: list[dict[str, Any]],
+) -> None:
+    """Assemble a tool_call dict from accumulated stream fragments."""
+    raw = "".join(input_fragments)
+    try:
+        args = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        args = {}
+    out.append(
+        {
+            "id": tool_start.get("toolUseId"),
+            "function": {"name": str(tool_start.get("name", "")), "arguments": args},
+        }
+    )
 
 
 class BedrockClient:
@@ -293,6 +362,51 @@ class BedrockClient:
             )
             raise LLMError(
                 f"Bedrock ConverseStream failed for '{model or self.model}': {scrubbed}"
+            ) from exc
+
+    def stream_chat_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+    ) -> Iterator[str | StreamFinished]:
+        """Stream text chunks then a :class:`StreamFinished` with tool_calls.
+
+        Same privacy/error contract as :meth:`stream_chat`, but the final
+        yielded item is always a :class:`StreamFinished` carrying any tool_calls
+        the model produced during the stream. This allows the tool loop to
+        stream tokens in real-time while still processing tool_calls.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Bedrock privacy filter applied", extra=audit)
+
+        system, converse_messages = _to_converse(safe_messages)
+        kwargs: dict[str, Any] = {
+            "modelId": model or self.model,
+            "messages": converse_messages,
+            "inferenceConfig": {"maxTokens": self.max_tokens, "temperature": self.temperature},
+        }
+        if system:
+            kwargs["system"] = system
+        tool_config = _to_tool_config(tools)
+        if tool_config:
+            kwargs["toolConfig"] = tool_config
+
+        try:
+            response = self._client.converse_stream(**kwargs)
+            yield from _stream_from_converse(response)
+        except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Bedrock stream_chat_with_tools failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,
+            )
+            raise LLMError(
+                f"Bedrock stream_chat_with_tools failed for '{model or self.model}': {scrubbed}"
             ) from exc
 
     def list_models(self) -> list[dict[str, str]]:

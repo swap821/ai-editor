@@ -92,6 +92,7 @@ from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
 from aios.core.executor import Executor
 from aios.core.llm import LLMClient, LLMError
+from aios.core.stream_protocol import StreamFinished
 from aios.core.planner import Planner
 from aios.core.verification_strength import (
     VerificationStrength,
@@ -653,8 +654,10 @@ class ToolAgent:
         resume_tail: Optional[list[dict[str, Any]]] = None,
         cerebellum: Optional[Cerebellum] = None,
         native_planner: Optional[Any] = None,
+        stream_fn: Optional[Callable[..., Iterator[Any]]] = None,
     ) -> None:
         self.llm = llm
+        self.stream_fn = stream_fn
         #: Caste view (role-pass): an alternative system prompt and a hard tool
         #: subset. ``allowed_tools`` is enforced mechanically -- the specs
         #: advertised to the model are filtered AND ``_dispatch`` denies any
@@ -896,11 +899,23 @@ class ToolAgent:
         pending_lessons: list[tuple[int, str]] = []
 
         for _ in range(self.max_iters):
-            try:
-                msg: dict[str, Any] = self.llm.chat(convo, tools=specs, model=self.model)
-            except LLMError as exc:
-                yield {"type": "error", "text": f"Local inference error: {exc}"}
-                return
+            # --- C4: streaming path (real-time cloud tokens) ---
+            streamed_text: bool = False
+            if self.stream_fn is not None:
+                try:
+                    msg, streamed_text = yield from self._stream_iteration(
+                        convo, specs
+                    )
+                except LLMError as exc:
+                    yield {"type": "error", "text": f"Local inference error: {exc}"}
+                    return
+            else:
+                try:
+                    msg = self.llm.chat(convo, tools=specs, model=self.model)
+                except LLMError as exc:
+                    yield {"type": "error", "text": f"Local inference error: {exc}"}
+                    return
+
             tool_calls: list[dict[str, Any]] = msg.get("tool_calls") or []
             if not tool_calls:
                 tool_calls = _extract_text_tool_calls(
@@ -949,7 +964,10 @@ class ToolAgent:
                         }
                     )
                     continue
-                yield from self._finish(str(msg.get("content", "")))
+                if streamed_text:
+                    yield from self._finish_streamed(str(msg.get("content", "")))
+                else:
+                    yield from self._finish(str(msg.get("content", "")))
                 return
 
             for index, call in enumerate(tool_calls):
@@ -1269,6 +1287,54 @@ class ToolAgent:
             code_fence=_CODE_FENCE,
             preview_limit=_PREVIEW_LIMIT,
         )
+
+    def _finish_streamed(self, content: str) -> Iterator[dict[str, Any]]:
+        """Emit code blocks and done — text was already streamed in real-time."""
+        yield from tool_loop_helpers.finish_code_only(
+            content,
+            code_fence=_CODE_FENCE,
+        )
+
+    def _stream_iteration(
+        self,
+        convo: list[dict[str, Any]],
+        specs: list[dict[str, Any]],
+    ) -> Iterator[dict[str, Any]]:
+        """Run one streaming LLM iteration, yielding text events in real-time.
+
+        Text tokens are buffered during the stream. Only if the response has
+        NO tool_calls (i.e. this is the final answer) are the buffered tokens
+        flushed as ``text`` events. This prevents intermediate reasoning from
+        leaking into the client's answer accumulator.
+
+        Returns ``(msg_dict, streamed_text_bool)`` via generator return value.
+        The caller uses ``msg, streamed = yield from self._stream_iteration(...)``
+        to both forward events AND receive the structured result.
+        """
+        assert self.stream_fn is not None
+        content_parts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+
+        for chunk in self.stream_fn(convo, tools=specs, model=self.model):
+            if isinstance(chunk, StreamFinished):
+                tool_calls = chunk.tool_calls
+                if not content_parts:
+                    content_parts.append(chunk.content)
+                break
+            text = str(chunk)
+            if text:
+                content_parts.append(text)
+
+        content = "".join(content_parts)
+        msg: dict[str, Any] = {"role": "assistant", "content": content}
+        if tool_calls:
+            msg["tool_calls"] = tool_calls
+            return msg, False  # type: ignore[return-value]
+
+        # Final answer — flush buffered tokens as real-time text events
+        for part in content_parts:
+            yield {"type": "text", "text": part}
+        return msg, bool(content_parts)  # type: ignore[return-value]
 
     # --------------------------------------------------------------- dispatch
     def _dispatch(self, name: str, args: dict[str, Any]) -> tuple[str, str, bool]:

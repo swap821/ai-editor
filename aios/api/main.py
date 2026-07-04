@@ -3751,6 +3751,9 @@ def generate(
         #    `chat_client` is local Ollama or cloud Bedrock per the selected model.
         #    The factory exists so the role-pass castes can stamp out per-role
         #    views (system prompt + tool subset) over the SAME gated wiring.
+        # C4: streaming function for real-time cloud token delivery.
+        _stream_fn = getattr(chat_client, "stream_chat_with_tools", None)
+
         def make_agent(**overrides: Any) -> ToolAgent:
             return ToolAgent(
                 chat_client,
@@ -3786,6 +3789,8 @@ def generate(
                 # Sovereignty S3: native symbolic planner. Plans known task
                 # shapes from verified experience without an LLM call.
                 native_planner=native_planner,
+                # C4: stream tokens in real-time when the cloud client supports it.
+                stream_fn=_stream_fn if callable(_stream_fn) else None,
                 **overrides,
             )
 
