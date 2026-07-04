@@ -13,7 +13,9 @@ sliding-window entropy for Base64 evasion, and contextual filtering.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import math
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -149,6 +151,12 @@ _ENTROPY_TOKEN = re.compile(r"[A-Za-z0-9+/\-_]{%d,}" % _ENTROPY_MIN_LEN)
 #: Base64 alphabet (used by the sliding-window pass).
 _BASE64_ALPHABET: set[str] = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
 
+# Keyed fingerprint secret for redaction correlation tokens.
+# In production, set AIOS_SECRET_FINGERPRINT_KEY to a strong random value.
+_FINGERPRINT_KEY: bytes = os.environ.get(
+    "AIOS_SECRET_FINGERPRINT_KEY", "aios-dev-secret-fingerprint-key"
+).encode("utf-8")
+
 
 @dataclass(frozen=True)
 class ScanResult:
@@ -160,8 +168,8 @@ class ScanResult:
 
 
 def _fingerprint(value: str) -> str:
-    """Return a short, non-reversible SHA-256 fingerprint of *value*."""
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:8]
+    """Return a short, keyed, non-reversible fingerprint of *value*."""
+    return hmac.new(_FINGERPRINT_KEY, value.encode("utf-8"), hashlib.sha256).hexdigest()[:8]
 
 
 def shannon_entropy(token: str) -> float:
