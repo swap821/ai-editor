@@ -235,6 +235,14 @@ async def lifespan(app: FastAPI):
             _cortex_bus = None
             _cortex_dispatcher = None
             _self_model_handler = None
+    # Boot attestation: hash the security spine and log integrity.
+    try:
+        from aios.boot_attestation import attest_boot
+        attestation = attest_boot(Path(config.PROJECT_ROOT))
+        logger.info("boot_attestation", integrity=attestation["integrity"],
+                    spine_hash=attestation["hash"][:16])
+    except Exception as exc:  # noqa: BLE001 - never block startup
+        logger.warning("boot_attestation_failed", exc_info=exc)
     yield
     # Shutdown: stop the dispatcher cleanly if it was started.
     if _cortex_dispatcher is not None:
@@ -1959,6 +1967,53 @@ def add_curriculum_task(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"id": task_id, "executed": False}
+
+
+@app.get("/api/v1/development/curriculum/proposals")
+def curriculum_proposals(
+    max_proposals: int = 10,
+    curriculum: CurriculumManager = Depends(get_curriculum_manager),
+) -> dict[str, Any]:
+    """List auto-generated curriculum proposals from audit evidence."""
+    from aios.memory.curriculum_miner import CurriculumMiner
+    miner = CurriculumMiner()
+    proposals = miner.list_proposals(max_proposals=max_proposals)
+    return {
+        "proposals": [
+            {
+                "fingerprint": p.fingerprint,
+                "skill_name": p.skill_name,
+                "level": p.level,
+                "prompt": p.prompt,
+                "rationale": p.rationale,
+                "source_pattern": p.source_pattern,
+                "difficulty_delta": p.difficulty_delta,
+            }
+            for p in proposals
+        ]
+    }
+
+
+@app.post("/api/v1/development/curriculum/proposals/accept")
+def accept_curriculum_proposal(
+    req: dict[str, Any],
+    curriculum: CurriculumManager = Depends(get_curriculum_manager),
+) -> dict[str, Any]:
+    """Accept a mined proposal, adding it to the live curriculum."""
+    fingerprint = req.get("fingerprint")
+    if not fingerprint:
+        raise HTTPException(status_code=422, detail="fingerprint required")
+    from aios.memory.curriculum_miner import CurriculumMiner
+    miner = CurriculumMiner()
+    proposals = miner.list_proposals(max_proposals=50)
+    match = next((p for p in proposals if p.fingerprint == fingerprint), None)
+    if not match:
+        raise HTTPException(status_code=404, detail="proposal not found")
+    try:
+        task_id = curriculum.add_task(match.skill_name, match.level, match.prompt)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"id": task_id, "accepted": True, "prompt": match.prompt}
 
 
 def _validate_council_mission_id(mission_id: str) -> str:
