@@ -48,6 +48,7 @@ dependencies = [
 test = [
     "coverage>=7.0",
     "pytest>=7.0",
+    "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
     "radon>=6.0",
 ]

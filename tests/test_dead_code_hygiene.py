@@ -9,8 +9,6 @@ REMOVED_PRODUCT_DEAD_CODE = (
     "aios/agents/swarm_conflict.py",
     "aios/agents/swarm_parallel.py",
     "aios/agents/swarm_scout.py",
-    "aios/memory/pheromones.py",
-    "aios/policy/__init__.py",
     "aios/policy/constitution.py",
     "aios/policy/policy_evolution.py",
     "aios/runtime/leases.py",

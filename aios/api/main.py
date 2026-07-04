@@ -501,6 +501,8 @@ _RATE_LIMIT_ENDPOINTS: dict[str, int] = {
     "/api/v1/council/reject": 30,
     "/api/v1/voice/transcribe": 30,
     "/api/v1/voice/speak": 60,
+    "/api/v1/policy/propose": 10,
+    "/api/v1/audit/anchor/verify": 20,
 }
 _RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -4840,3 +4842,135 @@ def voice_models(
             "available_voices": tts.available_voices() if tts else [],
         },
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sovereign Roadmap Phase 3B–8: Queen Services, Pheromones, Live Surface,
+# Rollback Registry, Audit Anchor, Policy Engine
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.get("/api/v1/council/services")
+def council_services() -> dict:
+    """Queen service health/status for all registered services."""
+    if not config.QUEEN_SERVICES:
+        raise HTTPException(status_code=404, detail="queen services not enabled")
+    from aios.council.queen_service import QUEEN_SERVICES
+    return {"services": {name: svc.health() for name, svc in QUEEN_SERVICES.items()}}
+
+
+@app.get("/api/v1/pheromones/surface")
+def pheromone_surface(resource: str | None = None, ptype: str | None = None) -> dict:
+    """Query the pheromone store."""
+    if not config.PHEROMONE_ENABLED:
+        raise HTTPException(status_code=404, detail="pheromone store not enabled")
+    from aios.memory.pheromones import PheromoneStore, PheromoneType
+    store = PheromoneStore(db_path=config.PHEROMONE_DB)
+    ptype_enum = PheromoneType(ptype) if ptype else None
+    results = store.query(resource=resource, ptype=ptype_enum)
+    return {"pheromones": [
+        {"id": p.pheromone_id, "type": p.ptype.value, "resource": p.resource,
+         "depositor": p.depositor, "strength": round(p.strength, 4),
+         "payload": p.payload, "created_at": p.created_at}
+        for p in results
+    ]}
+
+
+@app.get("/api/v1/runtime/surface")
+def live_surface_snapshot() -> dict:
+    """Live pheromone surface snapshot."""
+    if not config.LIVE_SURFACE:
+        raise HTTPException(status_code=404, detail="live surface not enabled")
+    from aios.runtime.live_surface import LiveSurface
+    surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
+    return surface.snapshot()
+
+
+@app.get("/api/v1/runtime/rollbacks")
+def rollback_registry_query(
+    mission_id: str | None = None,
+    file_pattern: str | None = None,
+    workspace_root: str | None = None,
+) -> dict:
+    """Query the rollback registry."""
+    if not config.ROLLBACK_REGISTRY:
+        raise HTTPException(status_code=404, detail="rollback registry not enabled")
+    from aios.runtime.rollback_registry import RollbackRegistry
+    registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
+    entries = registry.query(
+        mission_id=mission_id, file_pattern=file_pattern, workspace_root=workspace_root
+    )
+    return {"entries": [
+        {"snapshot_id": e.snapshot_id, "mission_id": e.mission_id,
+         "workspace_root": e.workspace_root, "created_at": e.created_at,
+         "files_covered": e.files_covered, "metadata": e.metadata}
+        for e in entries
+    ]}
+
+
+@app.get("/api/v1/runtime/rollbacks/health")
+def rollback_registry_health() -> dict:
+    """Rollback registry coverage report."""
+    if not config.ROLLBACK_REGISTRY:
+        raise HTTPException(status_code=404, detail="rollback registry not enabled")
+    from aios.runtime.rollback_registry import RollbackRegistry
+    registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
+    return registry.health()
+
+
+class AuditAnchorVerifyRequest(BaseModel):
+    expected_hash: str = Field(..., alias="expectedHash")
+    model_config = {"populate_by_name": True}
+
+
+@app.get("/api/v1/audit/anchor")
+def audit_anchor() -> dict:
+    """Get the current audit chain anchor for external publication."""
+    if not config.AUDIT_ANCHOR_API:
+        raise HTTPException(status_code=404, detail="audit anchor API not enabled")
+    from aios.audit_anchor import get_external_anchor
+    return get_external_anchor()
+
+
+@app.post("/api/v1/audit/anchor/verify")
+def audit_anchor_verify(req: AuditAnchorVerifyRequest) -> dict:
+    """Verify the current chain tip matches a previously published anchor hash."""
+    if not config.AUDIT_ANCHOR_API:
+        raise HTTPException(status_code=404, detail="audit anchor API not enabled")
+    from aios.audit_anchor import verify_anchor
+    return verify_anchor(req.expected_hash)
+
+
+@app.get("/api/v1/policy/current")
+def policy_current() -> dict:
+    """Return all enacted (non-suspended) policies."""
+    if not config.POLICY_ENGINE:
+        raise HTTPException(status_code=404, detail="policy engine not enabled")
+    from aios.policy.engine import PolicyEngine
+    engine = PolicyEngine(db_path=config.POLICY_DB)
+    policies = engine.current_policies()
+    return {"policies": [
+        {"policy_id": p.policy_id, "version": p.version, "constraint": p.constraint,
+         "status": p.status.value, "proposed_by": p.proposed_by,
+         "enacted_at": p.enacted_at}
+        for p in policies
+    ]}
+
+
+class PolicyProposeRequest(BaseModel):
+    constraint: str
+    proposed_by: str = Field(..., alias="proposedBy")
+    model_config = {"populate_by_name": True}
+
+
+@app.post("/api/v1/policy/propose")
+def policy_propose(req: PolicyProposeRequest) -> dict:
+    """Propose a new additive-only policy constraint."""
+    if not config.POLICY_ENGINE:
+        raise HTTPException(status_code=404, detail="policy engine not enabled")
+    from aios.policy.engine import PolicyEngine
+    engine = PolicyEngine(db_path=config.POLICY_DB)
+    if not engine.validate_additive(req.constraint):
+        raise HTTPException(status_code=400, detail="constraint must be additive-only")
+    policy_id = engine.propose(req.constraint, proposed_by=req.proposed_by)
+    return {"policy_id": policy_id}
