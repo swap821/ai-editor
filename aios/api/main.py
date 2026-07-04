@@ -158,8 +158,12 @@ _SESSION_MANAGER = SessionManager(
 #: checked per request so setting changes take effect without editing this module.
 _bedrock_client: Optional[BedrockClient] = None
 _gemini_client: Optional[GeminiClient] = None
+_openai_client: Optional[Any] = None
+_anthropic_client: Optional[Any] = None
 _bedrock_lock = threading.Lock()
 _gemini_lock = threading.Lock()
+_openai_lock = threading.Lock()
+_anthropic_lock = threading.Lock()
 
 # ── Cortex bus W2 — singletons (None when CORTEX_BUS is off) ─────────────────
 # The bus and its dispatcher are module-level so the lifespan can start/stop
@@ -665,6 +669,36 @@ def get_gemini_client() -> Optional[GeminiClient]:
         except LLMError:
             return None
     return _gemini_client
+
+
+def get_openai_client() -> Optional[Any]:
+    """Provide the OpenAI-compatible chat client, or ``None`` when unconfigured."""
+    global _openai_client
+    if not config.OPENAI_ENABLED:
+        return None
+    if _openai_client is not None:
+        return _openai_client
+    with _openai_lock:
+        if _openai_client is not None:
+            return _openai_client
+        from aios.core.openai_compat import OpenAICompatClient
+        _openai_client = OpenAICompatClient()
+    return _openai_client
+
+
+def get_anthropic_client() -> Optional[Any]:
+    """Provide the Anthropic direct chat client, or ``None`` when unconfigured."""
+    global _anthropic_client
+    if not config.ANTHROPIC_ENABLED:
+        return None
+    if _anthropic_client is not None:
+        return _anthropic_client
+    with _anthropic_lock:
+        if _anthropic_client is not None:
+            return _anthropic_client
+        from aios.core.anthropic_direct import AnthropicDirectClient
+        _anthropic_client = AnthropicDirectClient()
+    return _anthropic_client
 
 
 def get_executor() -> Executor:
@@ -2962,6 +2996,8 @@ def generate(
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+    openai_client: Optional[Any] = Depends(get_openai_client),
+    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
     executor: Executor = Depends(get_executor),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
@@ -3011,17 +3047,20 @@ def generate(
     # keeps the loop on a tool-capable model regardless of the inferred task).
     task = infer_task(user_text)
     chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini, task=task,
+        req.model_id, client, bedrock, gemini=gemini,
+        openai=openai_client, anthropic=anthropic_client, task=task,
         metrics=_route_metrics(development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
     )
     # The serving model is announced lazily from inside the stream (see
     # `_route_frame`); here we only normalise `model` to the route's view of it.
-    _, model = _active_route(chat_client, bedrock, gemini, model)
+    _, model = _active_route(chat_client, bedrock, gemini, model,
+                             openai=openai_client, anthropic=anthropic_client)
 
     def _route_meta() -> dict[str, Any]:
         """Development metadata for the model that ACTUALLY served (post-failover)."""
-        p, m = _active_route(chat_client, bedrock, gemini, model)
+        p, m = _active_route(chat_client, bedrock, gemini, model,
+                             openai=openai_client, anthropic=anthropic_client)
         return {"provider": p, "model": m, "task": task}
 
     compactor.touch_working_session(session_id)
@@ -3079,7 +3118,8 @@ def generate(
 
         def _route_frame() -> Optional[str]:
             nonlocal announced_route
-            p, m = _active_route(chat_client, bedrock, gemini, model)
+            p, m = _active_route(chat_client, bedrock, gemini, model,
+                                 openai=openai_client, anthropic=anthropic_client)
             if (p, m) == announced_route:
                 return None  # unchanged since the last announcement — don't repeat
             announced_route = (p, m)
@@ -3933,6 +3973,8 @@ def chat(
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+    openai_client: Optional[Any] = Depends(get_openai_client),
+    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     facts: SemanticFacts = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
@@ -3966,9 +4008,11 @@ def chat(
     # default empty ROUTER_CLOUD_TASKS, `auto` stays local-only. Never force cloud.
     task = infer_task(user_text)
     chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini, task=task,
+        req.model_id, client, bedrock, gemini=gemini,
+        openai=openai_client, anthropic=anthropic_client, task=task,
     )
-    _, model = _active_route(chat_client, bedrock, gemini, model)
+    _, model = _active_route(chat_client, bedrock, gemini, model,
+                             openai=openai_client, anthropic=anthropic_client)
 
     def event_stream() -> Iterator[str]:
         sse = _sse_writer(session_id)
@@ -4013,7 +4057,8 @@ def chat(
 
         def route_payload() -> dict[str, Any]:
             active_provider, active_model = _active_route(
-                chat_client, bedrock, gemini, model
+                chat_client, bedrock, gemini, model,
+                openai=openai_client, anthropic=anthropic_client,
             )
             return {
                 "provider": active_provider,

@@ -60,7 +60,12 @@ def _router_policy() -> router.Policy:
 
 
 def _build_providers(
-    ollama: Any, bedrock: Optional[Any], gemini: Optional[Any]
+    ollama: Any,
+    bedrock: Optional[Any],
+    gemini: Optional[Any],
+    *,
+    openai: Optional[Any] = None,
+    anthropic: Optional[Any] = None,
 ) -> list[router.Provider]:
     """Describe the live providers as router :class:`~aios.core.router.Provider` rows.
 
@@ -104,15 +109,46 @@ def _build_providers(
                     capability=cap,
                 )
             )
+    # OpenAI-compatible and Anthropic direct — no multi-model catalog discovery;
+    # each registers its configured default model only.
+    for client, name, default, cost in (
+        (openai, router.PROVIDER_OPENAI, config.OPENAI_MODEL, router.COST_LOW),
+        (anthropic, router.PROVIDER_ANTHROPIC, config.ANTHROPIC_MODEL, router.COST_HIGH),
+    ):
+        if client is None:
+            continue
+        cap = catalog.cloud_capability(default) + catalog.DEFAULT_BONUS
+        providers.append(
+            router.Provider(
+                name=name,
+                privacy=router.PRIVACY_CLOUD,
+                cost=cost,
+                available=True,
+                models=(default,),
+                capability=cap,
+            )
+        )
     return providers
 
 
-def _client_for(provider: str, ollama: Any, bedrock: Optional[Any], gemini: Optional[Any]) -> Optional[Any]:
+def _client_for(
+    provider: str,
+    ollama: Any,
+    bedrock: Optional[Any],
+    gemini: Optional[Any],
+    *,
+    openai: Optional[Any] = None,
+    anthropic: Optional[Any] = None,
+) -> Optional[Any]:
     """Map a router provider name back to its live chat client."""
     if provider == router.PROVIDER_BEDROCK:
         return bedrock
     if provider == router.PROVIDER_GEMINI:
         return gemini
+    if provider == router.PROVIDER_OPENAI:
+        return openai
+    if provider == router.PROVIDER_ANTHROPIC:
+        return anthropic
     return ollama
 
 
@@ -161,17 +197,34 @@ def _maybe_llm_picker(
     return picker
 
 
-def _provider_name(chat_client: Any, bedrock: Optional[Any], gemini: Optional[Any]) -> str:
+def _provider_name(
+    chat_client: Any,
+    bedrock: Optional[Any],
+    gemini: Optional[Any],
+    *,
+    openai: Optional[Any] = None,
+    anthropic: Optional[Any] = None,
+) -> str:
     """The router provider name for the selected *chat_client* (for evidence + UI)."""
     if bedrock is not None and chat_client is bedrock:
         return router.PROVIDER_BEDROCK
     if gemini is not None and chat_client is gemini:
         return router.PROVIDER_GEMINI
+    if openai is not None and chat_client is openai:
+        return router.PROVIDER_OPENAI
+    if anthropic is not None and chat_client is anthropic:
+        return router.PROVIDER_ANTHROPIC
     return router.PROVIDER_OLLAMA
 
 
 def _active_route(
-    chat_client: Any, bedrock: Optional[Any], gemini: Optional[Any], model: str
+    chat_client: Any,
+    bedrock: Optional[Any],
+    gemini: Optional[Any],
+    model: str,
+    *,
+    openai: Optional[Any] = None,
+    anthropic: Optional[Any] = None,
 ) -> tuple[str, str]:
     """The ``(provider, model)`` that ACTUALLY served — truthful under failover.
 
@@ -181,7 +234,7 @@ def _active_route(
     """
     if isinstance(chat_client, FailoverChatClient):
         return chat_client.active_provider, chat_client.active_model
-    return _provider_name(chat_client, bedrock, gemini), model
+    return _provider_name(chat_client, bedrock, gemini, openai=openai, anthropic=anthropic), model
 
 
 def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
@@ -210,6 +263,8 @@ def _select_chat_client(
     bedrock: Optional[Any],
     *,
     gemini: Optional[Any] = None,
+    openai: Optional[Any] = None,
+    anthropic: Optional[Any] = None,
     task: str = "coding",
     metrics: Optional[dict] = None,
     calibration_weight: float = 0.0,
@@ -221,43 +276,30 @@ def _select_chat_client(
     is deterministic and operator-owned (:func:`_router_policy`) — with the default
     empty ``ROUTER_CLOUD_TASKS`` no task ever leaves the machine, so ``auto`` stays
     local-only exactly as before. ``ollama.x`` always runs locally on ``x``. A
-    ``gemini.x`` id routes to Google Gemini; any other explicit id routes to
+    ``gemini.x`` id routes to Google Gemini; ``openai.x`` to the OpenAI-compatible
+    endpoint; ``anthropic.x`` to Anthropic direct; any other explicit id routes to
     Bedrock. Each explicit cloud pick fails clearly when that provider is
-    unavailable and never silently changes providers. No id means the local default.
+    unavailable. No id means the local default.
     """
     if model_id in _AUTO_IDS:
-        # Cross-provider auto-route, gated by the operator privacy/cost policy. The
-        # agentic loop requires tool-calling, so local candidates must be tool-capable.
-        # When the policy permits a real choice (2+ candidates), a local model makes
-        # the hybrid pick among them; otherwise routing is purely deterministic.
-        providers = _build_providers(ollama, bedrock, gemini)
+        providers = _build_providers(ollama, bedrock, gemini, openai=openai, anthropic=anthropic)
         policy = _router_policy()
-        # Compute the policy-allowed candidates ONCE (ranked, optionally calibrated
-        # by measured per-(provider,model,task) success), then run the (optional)
-        # hybrid pick over them — no redundant gate+scoring recomputation.
         cands = router.candidates(
             task, providers, policy=policy, require_tools=True,
             metrics=metrics, calibration_weight=calibration_weight,
         )
         chosen = router.pick_from(cands, picker=_maybe_llm_picker(ollama, providers, cands, task))
         if chosen is not None:
-            # FAILOVER cascade: the picked route first, then the rest of the allowed
-            # candidates by rank. If the primary errors mid-turn, FailoverChatClient
-            # rides the next automatically — one model's outage never blocks the work.
             ordered = [chosen] + [r for r in cands if r is not chosen]
             cascade = []
             for r in ordered:
-                client = _client_for(r.provider, ollama, bedrock, gemini)
+                client = _client_for(r.provider, ollama, bedrock, gemini, openai=openai, anthropic=anthropic)
                 if client is not None:
                     cascade.append((client, r.model, r.provider))
             if len(cascade) == 1:
-                # Only one allowed candidate -> the raw client (nothing to ride).
                 return cascade[0][0], cascade[0][1]
             if cascade:
                 return FailoverChatClient(cascade), cascade[0][1]
-        # Nothing the policy allows is usable (e.g. no local model + cloud not
-        # opted in). Fail-soft to the local default — NEVER silently to cloud, so
-        # the privacy boundary holds even on the fallback path.
         return ollama, config.LLM_MODEL
     if model_id and model_id.startswith("ollama."):
         local_model = _resolve_local_model(model_id)
@@ -268,18 +310,27 @@ def _select_chat_client(
             )
         return ollama, local_model
     if model_id and model_id.startswith("gemini."):
-        # Explicit Gemini pick (``gemini.<model>``) -> the Vertex client, with the
-        # provider prefix stripped to the bare model id. Fails clearly (never falls
-        # through to another provider) when Gemini isn't configured.
         if gemini is not None:
             return gemini, model_id[len("gemini.") :]
         raise HTTPException(
             status_code=503,
             detail="Gemini model selected but Google Gemini is not configured",
         )
+    if model_id and model_id.startswith("openai."):
+        if openai is not None:
+            return openai, model_id[len("openai.") :]
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI model selected but OpenAI-compatible provider is not configured",
+        )
+    if model_id and model_id.startswith("anthropic."):
+        if anthropic is not None:
+            return anthropic, model_id[len("anthropic.") :]
+        raise HTTPException(
+            status_code=503,
+            detail="Anthropic model selected but Anthropic direct is not configured",
+        )
     if model_id and bedrock is not None:
-        # Pass the selected Bedrock model id straight through (so each dropdown
-        # choice runs that actual model).
         return bedrock, model_id
     if model_id:
         raise HTTPException(
