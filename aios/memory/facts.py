@@ -487,3 +487,48 @@ class SemanticFacts:
                 (resolver, int(proposal_id)),
             )
             return cur.rowcount == 1
+
+    def strengthen_or_propose(
+        self, subject: str, predicate: str, obj: str, *, source: str = "auto-extract"
+    ) -> ProposalResult:
+        """Propose a fact OR strengthen confidence if already approved.
+
+        - Already-approved exact match: bump confidence by 0.05 (cap 1.0),
+          return ``ProposalResult(False, None, 'strengthened')``.
+        - Already pending: no-op, return 'already proposed'.
+        - Novel: insert a new proposal for human review.
+        """
+        subject_clean = scan_and_redact(subject.strip()).scrubbed
+        predicate_clean = scan_and_redact(predicate.strip()).scrubbed
+        obj_clean = scan_and_redact(obj.strip()).scrubbed
+        if not (subject_clean and predicate_clean and obj_clean):
+            return ProposalResult(False, None, "empty subject/predicate/object")
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            active = conn.execute(
+                "SELECT id, confidence FROM semantic_facts "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'active'",
+                (subject_clean, predicate_clean, obj_clean),
+            ).fetchone()
+            if active is not None:
+                new_conf = min(1.0, float(active["confidence"]) + 0.05)
+                conn.execute(
+                    "UPDATE semantic_facts SET confidence = ? WHERE id = ?",
+                    (round(new_conf, 3), int(active["id"])),
+                )
+                return ProposalResult(False, None, "strengthened")
+            pending = conn.execute(
+                "SELECT id FROM fact_proposals "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'pending'",
+                (subject_clean, predicate_clean, obj_clean),
+            ).fetchone()
+            if pending is not None:
+                return ProposalResult(False, int(pending["id"]), "already proposed")
+            cur = conn.execute(
+                "INSERT INTO fact_proposals (subject, predicate, object, source) "
+                "VALUES (?, ?, ?, ?)",
+                (subject_clean, predicate_clean, obj_clean,
+                 scan_and_redact((source or "").strip()).scrubbed or "auto-extract"),
+            )
+            return ProposalResult(True, int(cur.lastrowid), "proposed")
