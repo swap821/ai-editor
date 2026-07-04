@@ -232,3 +232,70 @@ def test_provider_name_maps_client_to_provider() -> None:
     assert _provider_name(gem, bed, gem) == "gemini"
     assert _provider_name(oll, bed, gem) == "ollama"
     assert _provider_name(oll, None, None) == "ollama"
+
+
+# --- OpenAI-compat and Anthropic-direct provider wiring -----------------------
+def test_explicit_openai_pick_routes_and_strips_prefix() -> None:
+    oai = object()
+    client, model = _select_chat_client("openai.gpt-4o", FakeOllama([]), None, openai=oai)
+    assert client is oai and model == "gpt-4o"
+
+
+def test_explicit_openai_unconfigured_raises_503() -> None:
+    with pytest.raises(Exception) as exc_info:
+        _select_chat_client("openai.gpt-4o", FakeOllama([]), None, openai=None)
+    assert exc_info.value.status_code == 503
+
+
+def test_explicit_anthropic_pick_routes_and_strips_prefix() -> None:
+    anth = object()
+    client, model = _select_chat_client(
+        "anthropic.claude-sonnet-4-20250514", FakeOllama([]), None, anthropic=anth
+    )
+    assert client is anth and model == "claude-sonnet-4-20250514"
+
+
+def test_explicit_anthropic_unconfigured_raises_503() -> None:
+    with pytest.raises(Exception) as exc_info:
+        _select_chat_client("anthropic.claude-sonnet-4-20250514", FakeOllama([]), None, anthropic=None)
+    assert exc_info.value.status_code == 503
+
+
+def test_provider_name_detects_openai_and_anthropic() -> None:
+    oai, anth, bed, gem = object(), object(), object(), object()
+    assert _provider_name(oai, bed, gem, openai=oai) == "openai"
+    assert _provider_name(anth, bed, gem, anthropic=anth) == "anthropic"
+    assert _provider_name(oai, bed, gem, openai=oai, anthropic=anth) == "openai"
+
+
+def test_build_providers_includes_openai_and_anthropic() -> None:
+    oai, anth = object(), object()
+    provs = _build_providers(FakeOllama([]), None, None, openai=oai, anthropic=anth)
+    oai_provs = [p for p in provs if p.name == "openai"]
+    anth_provs = [p for p in provs if p.name == "anthropic"]
+    assert len(oai_provs) == 1
+    assert len(anth_provs) == 1
+    assert oai_provs[0].privacy == "cloud"
+    assert anth_provs[0].privacy == "cloud"
+    assert config.OPENAI_MODEL in oai_provs[0].models
+    assert config.ANTHROPIC_MODEL in anth_provs[0].models
+
+
+def test_auto_routes_to_openai_when_task_opted_in(monkeypatch) -> None:
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("coding",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
+    oai = object()
+    client, model = _select_chat_client(
+        "auto", FakeOllama([]), None, openai=oai, task="coding"
+    )
+    assert model == config.OPENAI_MODEL
+
+
+def test_auto_never_routes_to_openai_for_unopted_task(monkeypatch) -> None:
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ())
+    oai = object()
+    client, model = _select_chat_client(
+        "auto", FakeOllama(["qwen2.5-coder:7b"]), None, openai=oai, task="coding"
+    )
+    assert client is not oai
+    assert model == "qwen2.5-coder:7b"
