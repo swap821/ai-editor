@@ -354,23 +354,17 @@ class TestW3Guard:
 
 # ── default-off guard (belt-and-suspenders) ───────────────────────────────────
 
-def test_cortex_bus_is_off_by_default() -> None:
-    """AIOS_CORTEX_BUS defaults False — the W2 path is invisible when off."""
+def test_cortex_bus_is_on_by_default() -> None:
+    """AIOS_CORTEX_BUS defaults True — the W2 cold-path dispatcher is active."""
     from aios import config
-    assert config.CORTEX_BUS is False
+    assert config.CORTEX_BUS is True
 
 
-def test_cortex_bus_default_off_pinned_by_aliveness_suite() -> None:
-    """Verify the aliveness suite's wonder-organ list covers CORTEX_BUS."""
-    # This is a meta-assertion: if someone removes CORTEX_BUS from the
-    # test_aliveness_defaults.py wonder list and also flips the default on,
-    # they have to consciously update THIS test too.
-    import ast, pathlib
+def test_cortex_bus_pinned_by_aliveness_suite() -> None:
+    """Verify the aliveness suite covers CORTEX_BUS."""
+    import pathlib
     src = pathlib.Path(__file__).parent / "test_aliveness_defaults.py"
     source = src.read_text(encoding="utf-8")
-    # The attribute access `config.CORTEX_BUS` appears as an Attribute node
-    # whose `attr` field is "CORTEX_BUS" — check raw source as the simplest
-    # and most robust check.
     assert "CORTEX_BUS" in source, (
-        "test_aliveness_defaults.py must pin CORTEX_BUS as a wonder-phase organ"
+        "test_aliveness_defaults.py must pin CORTEX_BUS"
     )

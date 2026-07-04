@@ -115,10 +115,10 @@ COUNCIL_RUNTIME_DIR: Final[Path] = _env_path(
 COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 # Phase 3A durable Council deliberation store (queen verdicts + events).
 COUNCIL_STATE_DB: Final[Path] = COUNCIL_RUNTIME_DIR / "council_state.db"
-# Phase 3 "thinking Queens": opt-in real LLM/memory-backed Queen reasoning.
-# Off by default → Queens stay deterministic (matches the gated, opt-in pattern
-# used for AIOS_EARNED_AUTONOMY / AIOS_SWARM_*; keeps CI deterministic).
-COUNCIL_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_REASONING", False)
+# Phase 3 "thinking Queens": LLM/memory-backed Queen reasoning. Gracefully
+# degrades to deterministic when no LLM client is injected (the Queens check
+# both this flag AND whether self._llm is not None before reasoning).
+COUNCIL_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_REASONING", True)
 # Phase: the Critique Queen — a deterministic second-order check that a PASSING
 # verification was actually SUFFICIENT (strong + exercised the change). Off by
 # default (opt-in); strengthen-only — it can only add caution, never relax a block.
@@ -138,8 +138,9 @@ WORKER_REASONING: Final[bool] = _env_bool("AIOS_WORKER_REASONING", False)
 WORKER_MAX_REPAIRS: Final[int] = _env_int("AIOS_WORKER_MAX_REPAIRS", 2)
 # Max bytes of LLM-proposed content the worker will write per edit (DoS guard).
 WORKER_MAX_FILE_BYTES: Final[int] = _env_int("AIOS_WORKER_MAX_FILE_BYTES", 1_000_000)
-# Mission origination over HTTP (chat -> council). Off by default (endpoint 404s).
-COUNCIL_ORIGINATION: Final[bool] = _env_bool("AIOS_COUNCIL_ORIGINATION", False)
+# Mission origination over HTTP (chat -> council). When enabled, the
+# /api/v1/council/originate endpoint accepts mission requests from the chat UI.
+COUNCIL_ORIGINATION: Final[bool] = _env_bool("AIOS_COUNCIL_ORIGINATION", True)
 # Sandboxed root that chat-originated missions must edit inside (scope is confined here).
 COUNCIL_WORKSPACE_ROOT: Final[Path] = _env_path(
     "AIOS_COUNCIL_WORKSPACE_ROOT", DATA_DIR / "council_workspace"
@@ -178,7 +179,7 @@ SKILL_REUSE_FAILURE_K: Final[float] = _env_float("AIOS_SKILL_REUSE_FAILURE_K", 1
 SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.25)
 SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
 
-EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", False)
+EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", True)
 EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5)
 
 # Narrative self: inject a grounded, verified-only autobiographical self-model
@@ -190,7 +191,7 @@ NARRATIVE_SELF_ENABLED: Final[bool] = _env_bool("AIOS_NARRATIVE_SELF", True)
 SWARM_MAX_WORKERS: Final[int] = _env_int("AIOS_SWARM_MAX_WORKERS", 4)
 SWARM_WORKER_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_WORKER_CONCURRENCY", 1)
 SWARM_REDUNDANCY: Final[int] = _env_int("AIOS_SWARM_REDUNDANCY", 1)
-SWARM_CLOUD_BURST_ENABLED: Final[bool] = _env_bool("AIOS_SWARM_CLOUD_BURST", False)
+SWARM_CLOUD_BURST_ENABLED: Final[bool] = _env_bool("AIOS_SWARM_CLOUD_BURST", True)
 SWARM_WORKER_BACKEND: Final[str] = _env_str("AIOS_SWARM_WORKER_BACKEND", "auto")
 SWARM_PHEROMONE_FIDELITY: Final[str] = _env_str("AIOS_SWARM_PHEROMONE_FIDELITY", "fast")
 SWARM_CONFLICT_STRATEGY: Final[str] = _env_str("AIOS_SWARM_CONFLICT_STRATEGY", "merge")
@@ -354,10 +355,9 @@ FACTS_AUTO_EXTRACT_MAX_PER_TURN: Final[int] = max(
 # ── Cortex bus (durable cold-path observation tier) ─────────────────────────
 # The event tier for cold, re-derivable observers (self-model rebuild, future
 # council triggers). Carries OBSERVATIONS, never authority — a decision stays
-# synchronous on the verifier's return value. Default off; W1 is pure infra
-# with no producers/consumers. See
-# docs/superpowers/specs/2026-07-02-wonder-epoch-cortex-bus-design.md.
-CORTEX_BUS: Final[bool] = _env_bool("AIOS_CORTEX_BUS", False)
+# synchronous on the verifier's return value. W2 moves self-model rebuild off
+# the hot path; W3 conformance guard proves authority never touches the bus.
+CORTEX_BUS: Final[bool] = _env_bool("AIOS_CORTEX_BUS", True)
 CORTEX_BUS_DB: Final[Path] = DATA_DIR / "cortex_bus.db"
 CORTEX_BUS_RETENTION_MAX: Final[int] = max(
     100, _env_int("AIOS_CORTEX_BUS_RETENTION", 10_000)

@@ -856,7 +856,10 @@ class ToolAgent:
                  if m.get("role") == "user"),
                 "",
             )
-            _playbook = self.cerebellum.match(_user_text) if _user_text else None
+            try:
+                _playbook = self.cerebellum.match(_user_text) if _user_text else None
+            except Exception:
+                _playbook = None
             if _playbook is not None:
                 _replay_ok = True
                 for _ev in self.cerebellum.replay(

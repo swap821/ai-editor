@@ -20,9 +20,9 @@ def _bus(tmp_path: Path) -> CortexBus:
 
 # --- Task 1: config -----------------------------------------------------------
 
-def test_cortex_bus_defaults_are_off_and_bounded() -> None:
-    # W1 must change no behavior: the bus is opt-in.
-    assert config.CORTEX_BUS is False
+def test_cortex_bus_defaults_are_on_and_bounded() -> None:
+    # Wonder phase: the bus is on by default (W2 cold-path dispatcher active).
+    assert config.CORTEX_BUS is True
     assert str(config.CORTEX_BUS_DB).endswith("cortex_bus.db")
     assert config.CORTEX_BUS_RETENTION_MAX > 0
     assert config.CORTEX_BUS_RETENTION_DAYS > 0

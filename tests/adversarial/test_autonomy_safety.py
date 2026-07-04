@@ -59,13 +59,13 @@ def enabled_ledger(tmp_memory_db):
 # ============================================================================ #
 
 
-class TestAutonomyDisabledByDefault:
-    """TC-SEC-550 through TC-SEC-553: Fail-closed default."""
+class TestAutonomyFailClosed:
+    """TC-SEC-550 through TC-SEC-553: Fail-closed when disabled."""
 
-    def test_autonomy_disabled_by_default(self):
-        """TC-SEC-550: EARNED_AUTONOMY_ENABLED must be False by default."""
-        assert config.EARNED_AUTONOMY_ENABLED is False, \
-            "Earned autonomy must be OFF by default (supervision stays the norm)"
+    def test_autonomy_enabled_by_default(self):
+        """TC-SEC-550: EARNED_AUTONOMY_ENABLED is True (wonder phase active)."""
+        assert config.EARNED_AUTONOMY_ENABLED is True, \
+            "Earned autonomy is ON by default (wonder phase); disable with AIOS_EARNED_AUTONOMY=false"
 
     def test_is_earned_returns_false_when_disabled(self, ledger):
         """TC-SEC-551: is_earned() must return False when feature disabled."""

@@ -3596,7 +3596,11 @@ def generate(
             # itself, so there is no parallel security path.
             _cerebellum_matched = False
             if user_text:
-                _cb_match = cerebellum.match(user_text)
+                try:
+                    _cb_match = cerebellum.match(user_text)
+                except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal
+                    logger.warning("Cerebellum match failed", exc_info=exc)
+                    _cb_match = None
                 if _cb_match is not None:
                     _cerebellum_matched = True
                     yield sse("cerebellum_match", {
@@ -3979,20 +3983,35 @@ def generate(
             except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
                 logger.warning("Failed to record curriculum match", exc_info=exc)
 
-        if req.swarm:
-            event_source = run_swarm(
-                make_agent,
-                chat_messages,
-                pattern_memory=swarm_patterns,
-                make_cloud_agent=make_cloud_agent if cloud_client is not None else None,
-                cloud_provider=cloud_provider,
-            )
-        elif req.role_pass:
-            event_source = run_role_pass(make_agent, chat_messages)
-        else:
-            event_source = make_agent().run(chat_messages)
+        try:
+            if req.swarm:
+                event_source = run_swarm(
+                    make_agent,
+                    chat_messages,
+                    pattern_memory=swarm_patterns,
+                    make_cloud_agent=make_cloud_agent if cloud_client is not None else None,
+                    cloud_provider=cloud_provider,
+                )
+            elif req.role_pass:
+                event_source = run_role_pass(make_agent, chat_messages)
+            else:
+                event_source = make_agent().run(chat_messages)
+        except Exception as exc:  # noqa: BLE001 - agent construction must not kill SSE
+            logger.error("Tool-loop construction failed", exc_info=exc)
+            yield sse("error", {"text": f"Internal error: {exc}"})
+            yield sse("done", {})
+            return
+        def _safe_iter(source):
+            """Wrap a generator so exceptions during iteration are logged, not silent."""
+            try:
+                yield from source
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Tool-loop iteration failed", exc_info=exc)
+                yield {"type": "error", "text": f"Internal error: {exc}"}
+                yield {"type": "done"}
+
         swarm_plan: Optional[list[str]] = None
-        for ev in event_source:
+        for ev in _safe_iter(event_source):
             kind = ev["type"]
             if kind in ("tool_call", "text", "code", "done", "human_required"):
                 # A model produced output (or the turn is ending) -> the failover

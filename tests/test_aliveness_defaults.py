@@ -1,9 +1,14 @@
-"""Contract test: the four foundation layers ship awake; wonder stays gated.
+"""Contract test: all five layers ship awake; only boundary-crossing arms stay gated.
 
-Operator directive (2026-07-02): chemotaxis + reflex + emotion + narrative at
-100% — every foundation organ on by default on the hot path — while the
-wonder-phase organs (council, swarm, earned autonomy, cloud burst, CRAG's
-external/cloud arms) remain explicitly opt-in until their phase begins.
+Operator directive (2026-07-04): the wonder phase begins. Earned autonomy,
+council reasoning/origination, cloud burst, and the cortex bus join the
+foundation layers as default-on. They are fail-closed by design: each checks
+for its runtime dependency (LLM client, cloud credentials, earned evidence)
+before acting, so flipping the flag on is safe — it enables the *capability*,
+not the *action*.
+
+Only CRAG's external/cloud arms (which cross the privacy boundary to external
+services) remain explicitly opt-in — they require operator-configured endpoints.
 
 These assertions pin that posture so a stray default flip in either direction
 is caught by the gate, not discovered in production. They read the config
@@ -34,17 +39,22 @@ def test_foundation_layers_default_awake() -> None:
     assert config.INDEX_CHAT is True
 
 
-def test_wonder_phase_organs_stay_opt_in() -> None:
-    # CRAG's boundary-crossing arms never ride along with the local default
+def test_wonder_phase_organs_default_awake() -> None:
+    # earned autonomy: after N verified successes, auto-approve without pausing
+    assert config.EARNED_AUTONOMY_ENABLED is True
+    # council reasoning: LLM-backed Queen planning (degrades to deterministic)
+    assert config.COUNCIL_REASONING is True
+    # council origination: chat -> council mission pipeline
+    assert config.COUNCIL_ORIGINATION is True
+    # cloud burst: swarm subtasks can burst to cloud providers
+    assert config.SWARM_CLOUD_BURST_ENABLED is True
+    # cortex bus: cold-path dispatcher for non-authority observations
+    assert config.CORTEX_BUS is True
+
+
+def test_boundary_crossing_arms_stay_opt_in() -> None:
+    # CRAG's external arms cross the privacy boundary — require explicit config
     assert config.CRAG_EXTERNAL is False
     assert config.CRAG_CLOUD is False
     assert config.CRAG_WEBSEARCH is False
     assert config.CRAG_LLM_JUDGE is False
-    # autonomy is earned, never default
-    assert config.EARNED_AUTONOMY_ENABLED is False
-    # council reasoning/origination and cloud burst await the wonder phase
-    assert config.COUNCIL_REASONING is False
-    assert config.COUNCIL_ORIGINATION is False
-    assert config.SWARM_CLOUD_BURST_ENABLED is False
-    # cortex bus W2: the cold-path dispatcher is opt-in (wonder-phase infra)
-    assert config.CORTEX_BUS is False
