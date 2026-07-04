@@ -93,6 +93,7 @@ class ScriptedOllama:
 def client(monkeypatch) -> Iterator[TestClient]:
     sandbox = Path(tempfile.mkdtemp(prefix="ss"))
     monkeypatch.setattr(config, "PROJECT_ROOT", sandbox)
+    monkeypatch.setattr(config, "CORTEX_BUS", False)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([sandbox])
     skills = SkillMemory(db_path=sandbox / "sse_skills.db")
