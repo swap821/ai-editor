@@ -4,6 +4,7 @@
 // SSR-safe: no window access until startVoiceSpeak() is called.
 import { useEffect, useState } from 'react';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { speakText } from '../superbrain/lib/aiosAdapter';
 
 export interface VoiceSpeakState {
   supported: boolean;
@@ -19,6 +20,8 @@ let cognitionUnsub: (() => void) | null = null;
 let startCount = 0;
 let pendingText = '';
 let currentUtterance: SpeechSynthesisUtterance | null = null;
+let backendTTSEnabled = false;
+let audioCtx: AudioContext | null = null;
 
 function set(next: Partial<VoiceSpeakState>): void {
   state = { ...state, ...next };
@@ -95,10 +98,7 @@ function publishSpeakingComplete(): void {
   });
 }
 
-function speak(text: string): void {
-  if (!state.supported || state.muted || !text.trim()) return;
-  cancelSpeech();
-  const trimmed = text.trim();
+function speakViaBrowser(trimmed: string): void {
   const utter = new window.SpeechSynthesisUtterance(trimmed);
   const voice = selectVoice();
   if (voice) utter.voice = voice;
@@ -125,6 +125,41 @@ function speak(text: string): void {
     });
   };
   window.speechSynthesis.speak(utter);
+}
+
+function speakViaBackend(trimmed: string): void {
+  set({ speaking: true });
+  publishSpeaking(trimmed);
+  speakText(trimmed)
+    .then((buf) => {
+      if (!audioCtx) audioCtx = new AudioContext();
+      return audioCtx.decodeAudioData(buf);
+    })
+    .then((decoded) => {
+      const src = audioCtx!.createBufferSource();
+      src.buffer = decoded;
+      src.connect(audioCtx!.destination);
+      src.onended = () => {
+        set({ speaking: false });
+        publishSpeakingComplete();
+      };
+      src.start();
+    })
+    .catch(() => {
+      set({ speaking: false });
+      speakViaBrowser(trimmed);
+    });
+}
+
+function speak(text: string): void {
+  if (!state.supported || state.muted || !text.trim()) return;
+  cancelSpeech();
+  const trimmed = text.trim();
+  if (backendTTSEnabled) {
+    speakViaBackend(trimmed);
+  } else {
+    speakViaBrowser(trimmed);
+  }
 }
 
 function ingest(event: { type: string; source?: string; data?: { phase?: string; reply?: string; text?: string } }): void {
@@ -177,6 +212,10 @@ export function setVoiceSpeakMuted(muted: boolean): void {
   writeMute(muted);
   set({ muted });
   if (muted) cancelSpeech();
+}
+
+export function setBackendTTS(enabled: boolean): void {
+  backendTTSEnabled = enabled;
 }
 
 export function isVoiceSpeakMuted(): boolean {

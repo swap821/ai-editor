@@ -366,6 +366,16 @@ CORTEX_BUS_RETENTION_DAYS: Final[int] = max(
     1, _env_int("AIOS_CORTEX_BUS_RETENTION_DAYS", 7)
 )
 
+# ── Voice (local/private STT + TTS) ──────────────────────────────────────────
+VOICE_STT_ENABLED: Final[bool] = _env_bool("AIOS_VOICE_STT", False)
+VOICE_TTS_ENABLED: Final[bool] = _env_bool("AIOS_VOICE_TTS", False)
+VOICE_STT_MODEL: Final[str] = _env_str("AIOS_VOICE_STT_MODEL", "base")
+VOICE_STT_DEVICE: Final[str] = _env_str("AIOS_VOICE_STT_DEVICE", "auto")
+VOICE_STT_COMPUTE_TYPE: Final[str] = _env_str("AIOS_VOICE_STT_COMPUTE_TYPE", "int8")
+VOICE_TTS_MODEL: Final[str] = _env_str("AIOS_VOICE_TTS_MODEL", "en_US-lessac-medium")
+VOICE_MODELS_DIR: Final[Path] = _env_path("AIOS_VOICE_MODELS_DIR", DATA_DIR / "voice_models")
+VOICE_MAX_AUDIO_BYTES: Final[int] = _env_int("AIOS_VOICE_MAX_AUDIO_BYTES", 10_485_760)
+
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
