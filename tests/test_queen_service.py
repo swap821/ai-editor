@@ -62,63 +62,67 @@ def _clean_registry():
     QUEEN_SERVICES.clear()
 
 
-@pytest.mark.asyncio
-async def test_start_stop_lifecycle() -> None:
-    service = DummyQueenService()
-    assert service.health()["alive"] is False
-
-    await service.start()
-    assert service.health()["alive"] is True
-
-    await service.stop()
-    assert service.health()["alive"] is False
-
-
-@pytest.mark.asyncio
-async def test_submit_returns_verdict_successfully() -> None:
-    service = DummyQueenService(verdict="allow", risk="GREEN")
-    await service.start()
-    try:
-        verdict = await service.submit(_contract())
-        assert verdict.queen == "dummy"
-        assert verdict.verdict == "allow"
-        assert verdict.risk == "GREEN"
-    finally:
+def test_start_stop_lifecycle() -> None:
+    async def _run():
+        service = DummyQueenService()
+        assert service.health()["alive"] is False
+        await service.start()
+        assert service.health()["alive"] is True
         await service.stop()
+        assert service.health()["alive"] is False
+
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_backpressure_returns_defer_when_queue_full() -> None:
-    service = DummyQueenService(queue_depth=1)
-    # Occupy the only queue slot directly so no drain loop is required to
-    # observe QueueFull deterministically.
-    placeholder: asyncio.Future[QueenVerdict] = asyncio.get_event_loop().create_future()
-    service._inbox.put_nowait((_contract(), placeholder))
+def test_submit_returns_verdict_successfully() -> None:
+    async def _run():
+        service = DummyQueenService(verdict="allow", risk="GREEN")
+        await service.start()
+        try:
+            verdict = await service.submit(_contract())
+            assert verdict.queen == "dummy"
+            assert verdict.verdict == "allow"
+            assert verdict.risk == "GREEN"
+        finally:
+            await service.stop()
 
-    verdict = await service.submit(_contract())
-
-    assert verdict.verdict == "defer"
-    assert verdict.risk == "YELLOW"
-    assert "backpressure" in verdict.reason
-    placeholder.cancel()
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_health_reporting_tracks_processed_and_errors() -> None:
-    service = ExplodingQueenService()
-    await service.start()
-    try:
+def test_backpressure_returns_defer_when_queue_full() -> None:
+    async def _run():
+        service = DummyQueenService(queue_depth=1)
+        placeholder: asyncio.Future[QueenVerdict] = asyncio.get_event_loop().create_future()
+        service._inbox.put_nowait((_contract(), placeholder))
+
         verdict = await service.submit(_contract())
-        assert verdict.verdict == "deny"
-        assert verdict.risk == "RED"
 
-        health = service.health()
-        assert health["name"] == "exploding"
-        assert health["processed"] == 1
-        assert health["errors"] == 1
-        assert health["queue_depth"] == 0
-    finally:
-        await service.stop()
+        assert verdict.verdict == "defer"
+        assert verdict.risk == "YELLOW"
+        assert "backpressure" in verdict.reason
+        placeholder.cancel()
+
+    asyncio.run(_run())
+
+
+def test_health_reporting_tracks_processed_and_errors() -> None:
+    async def _run():
+        service = ExplodingQueenService()
+        await service.start()
+        try:
+            verdict = await service.submit(_contract())
+            assert verdict.verdict == "deny"
+            assert verdict.risk == "RED"
+
+            health = service.health()
+            assert health["name"] == "exploding"
+            assert health["processed"] == 1
+            assert health["errors"] == 1
+            assert health["queue_depth"] == 0
+        finally:
+            await service.stop()
+
+    asyncio.run(_run())
 
 
 def test_register_and_unregister_service() -> None:
@@ -130,8 +134,7 @@ def test_register_and_unregister_service() -> None:
     assert "dummy" not in QUEEN_SERVICES
 
 
-@pytest.mark.asyncio
-async def test_security_queen_service_integration(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_security_queen_service_integration(monkeypatch: pytest.MonkeyPatch) -> None:
     expected = QueenVerdict(
         queen="security", verdict="allow", risk="GREEN", reason="mocked review"
     )
@@ -143,10 +146,13 @@ async def test_security_queen_service_integration(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(SecurityQueen, "review", _fake_review)
 
-    service = SecurityQueenService()
-    await service.start()
-    try:
-        verdict = await service.submit(_contract())
-        assert verdict is expected
-    finally:
-        await service.stop()
+    async def _run():
+        service = SecurityQueenService()
+        await service.start()
+        try:
+            verdict = await service.submit(_contract())
+            assert verdict is expected
+        finally:
+            await service.stop()
+
+    asyncio.run(_run())
