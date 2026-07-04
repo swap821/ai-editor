@@ -20,6 +20,7 @@ from aios.security.secret_scanner import scan_and_redact
 
 
 _TRAVERSE_ROW_LIMIT = 256
+_MAX_FANOUT = 32
 
 
 @dataclass(frozen=True)
@@ -231,16 +232,18 @@ class SemanticFacts:
         start = (start or "").strip()
         if not start:
             return []
-        depth = max(1, min(int(max_depth), 4))
-        # Recursive CTE. ``path`` is bounded by the marker char so the cycle
-        # guard matches whole nodes (not substrings): '→a→b→' contains '→a→'
-        # but not '→ab→'.
+        depth = max(1, min(int(max_depth), 3))
         sql = """
         WITH RECURSIVE graph(subject, predicate, object, depth, path) AS (
             SELECT subject, predicate, object, 1,
                    '→' || subject || '→' || object || '→'
             FROM semantic_facts
             WHERE subject = :start AND status = 'active'
+              AND rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = :start AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
             UNION ALL
             SELECT f.subject, f.predicate, f.object, g.depth + 1,
                    g.path || f.object || '→'
@@ -249,6 +252,11 @@ class SemanticFacts:
             WHERE g.depth < :max_depth
               AND f.status = 'active'
               AND g.path NOT LIKE '%→' || f.object || '→%'
+              AND f.rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = g.object AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
         )
         SELECT subject, predicate, object, depth, path
         FROM graph
@@ -258,7 +266,12 @@ class SemanticFacts:
         with get_connection(self.db_path) as conn:
             return conn.execute(
                 sql,
-                {"start": start, "max_depth": depth, "row_limit": _TRAVERSE_ROW_LIMIT},
+                {
+                    "start": start,
+                    "max_depth": depth,
+                    "row_limit": _TRAVERSE_ROW_LIMIT,
+                    "max_fanout": _MAX_FANOUT,
+                },
             ).fetchall()
 
     def traverse_weighted(
@@ -279,7 +292,7 @@ class SemanticFacts:
         start = (start or "").strip()
         if not start:
             return []
-        depth = max(1, min(int(max_depth), 4))
+        depth = max(1, min(int(max_depth), 3))
         sql = """
         WITH RECURSIVE graph(
             subject, predicate, object, depth, path,
@@ -291,6 +304,11 @@ class SemanticFacts:
                    COALESCE(confidence, 1.0)
             FROM semantic_facts
             WHERE subject = :start AND status = 'active'
+              AND rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = :start AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
             UNION ALL
             SELECT f.subject, f.predicate, f.object, g.depth + 1,
                    g.path || f.object || '→',
@@ -302,6 +320,11 @@ class SemanticFacts:
               AND f.status = 'active'
               AND g.path NOT LIKE '%→' || f.object || '→%'
               AND g.path_confidence * COALESCE(f.confidence, 1.0) * :decay >= :min_conf
+              AND f.rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = g.object AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
         )
         SELECT subject, predicate, object, depth, path,
                edge_confidence, path_confidence
@@ -318,6 +341,7 @@ class SemanticFacts:
                     "decay": decay,
                     "min_conf": min_path_confidence,
                     "row_limit": _TRAVERSE_ROW_LIMIT,
+                    "max_fanout": _MAX_FANOUT,
                 },
             ).fetchall()
         return [

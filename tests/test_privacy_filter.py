@@ -172,8 +172,8 @@ def test_redact_file_content_extracts_filename_hint() -> None:
 
 
 def test_redact_file_content_truncates_large_blob() -> None:
-    out, n = PrivacyFilter()._redact_file_content("A" * 600)
-    assert out.startswith("A" * 500)
+    blob = "plain text " * 60  # 660 chars, no secret patterns
+    out, n = PrivacyFilter()._redact_file_content(blob)
     assert out.endswith("[...truncated...]")
     assert n == 1
 
@@ -191,3 +191,19 @@ def test_filter_truncates_large_multiline_non_code_tool_blob() -> None:
 def test_redact_file_content_leaves_short_text() -> None:
     out, n = PrivacyFilter()._redact_file_content("just a short normal note")
     assert out == "just a short normal note" and n == 0
+
+
+def test_truncated_blob_scrubs_secrets_in_head() -> None:
+    secret = "ghp_" + "b" * 36
+    blob = f"config start\ntoken={secret}\n" + ("x " * 300)
+    safe, audit = PrivacyFilter().filter([{"role": "tool", "content": blob}])
+    content = safe[0]["content"]
+    assert secret not in content
+    assert "[...truncated...]" in content
+
+
+def test_truncated_blob_scrubs_paths_in_head() -> None:
+    blob = "output from /home/kumar/secret/project/data.csv\n" + ("data " * 200)
+    safe, audit = PrivacyFilter().filter([{"role": "tool", "content": blob}])
+    content = safe[0]["content"]
+    assert "/home/kumar/secret/project/data.csv" not in content

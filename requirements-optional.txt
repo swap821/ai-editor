@@ -1,0 +1,6 @@
+# Optional dependencies — not required for core local operation.
+# Install with: pip install -r requirements-optional.txt
+
+# Google Gemini via Vertex AI (only needed when AIOS_GEMINI_PROJECT is set):
+# Setup: gcloud auth application-default login (ADC; no key on disk)
+google-genai>=1.0.0

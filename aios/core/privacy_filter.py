@@ -339,6 +339,9 @@ class PrivacyFilter:
         head = "\n".join(lines[:_LARGE_BLOB_LINE_LIMIT])
         if len(head) > _LARGE_BLOB_CHAR_LIMIT:
             head = head[:_LARGE_BLOB_CHAR_LIMIT].rstrip()
+        head, _ = _redact_credentials(head)
+        head, _ = _redact_high_entropy(head)
+        head, _ = _redact_paths(head)
         return f"{head}\n{_LARGE_BLOB_TRUNCATION_MARKER}"
 
     def _extract_filename_hint(self, text: str) -> str:
