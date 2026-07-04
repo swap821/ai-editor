@@ -318,22 +318,24 @@ def _write_council_decision(
 
 def _resolve_council_workspace(raw: Optional[str]) -> Path:
     """Return a writable workspace confined to config.COUNCIL_WORKSPACE_ROOT."""
-    base = str(config.COUNCIL_WORKSPACE_ROOT.resolve())
+    base = config.COUNCIL_WORKSPACE_ROOT.resolve()
     if raw is None:
-        Path(base).mkdir(parents=True, exist_ok=True)
-        return Path(base)
+        base.mkdir(parents=True, exist_ok=True)
+        return base
     if os.path.isabs(raw) or ".." in PurePosixPath(raw).parts:
         raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
-    joined = os.path.normpath(os.path.join(base, raw))
-    if not (joined == base or joined.startswith(base + os.sep)):
+    candidate = (base / raw).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError:
         raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
-    Path(joined).mkdir(parents=True, exist_ok=True)
-    return Path(joined)
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
 
 
 def _validate_mission_scope(allowed_files: list[str], workspace_root: Path) -> list[str]:
     """Confine allowed_files to workspace_root — explicit, fail-closed, no traversal."""
-    base = str(workspace_root.resolve())
+    base = workspace_root.resolve()
     safe: list[str] = []
     for raw in allowed_files:
         if not isinstance(raw, str) or not raw.strip():
@@ -342,8 +344,10 @@ def _validate_mission_scope(allowed_files: list[str], workspace_root: Path) -> l
             raise HTTPException(status_code=422, detail=f"glob not allowed in scope: {raw}")
         if os.path.isabs(raw) or ".." in PurePosixPath(raw).parts:
             raise HTTPException(status_code=422, detail=f"unsafe allowed file: {raw}")
-        joined = os.path.normpath(os.path.join(base, raw))
-        if not (joined == base or joined.startswith(base + os.sep)):
+        resolved = (base / raw).resolve()
+        try:
+            resolved.relative_to(base)
+        except ValueError:
             raise HTTPException(status_code=422, detail=f"allowed file escapes workspace: {raw}")
         safe.append(PurePosixPath(raw).as_posix())
     return safe
