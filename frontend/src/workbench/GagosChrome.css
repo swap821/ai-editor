@@ -666,61 +666,37 @@
   letter-spacing: 0.02em;
   text-shadow: 0 0 18px rgba(123, 245, 251, 0.5);
 }
-.gagos-welcome__prompts {
+.gagos-starters {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 2px;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  justify-content: center;
 }
 .gagos-starter {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
-  border-radius: 13px;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(123, 245, 251, 0.12);
-  color: rgba(228, 236, 250, 0.84);
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 360;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  padding: 0.4rem 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.82rem;
   cursor: pointer;
-  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
-  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
-  /* Paint-safe: only transform is transitioned on a backdrop-filter element. */
-  transition: transform 0.16s ease;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 .gagos-starter:hover {
-  background: rgba(123, 245, 251, 0.07);
-  border-color: rgba(123, 245, 251, 0.34);
-  box-shadow: 0 6px 26px -12px rgba(123, 245, 251, 0.4), inset 0 0 0 1px rgba(123, 245, 251, 0.06);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.95);
+}
+.gagos-starter:active {
+  background: rgba(255, 255, 255, 0.12);
 }
 .gagos-starter:focus-visible {
   outline: 2px solid rgba(123, 245, 251, 0.6);
   outline-offset: 2px;
 }
-.gagos-starter:active { transform: translateY(0) scale(0.99); }
-.gagos-starter__icon {
-  flex: none;
-  display: inline-flex;
-  width: 26px; height: 26px;
-  align-items: center; justify-content: center;
-  border-radius: 8px;
-  color: var(--neon-cyan);
-  background: rgba(123, 245, 251, 0.08);
-}
-.gagos-starter__label { flex: 1; min-width: 0; line-height: 1.35; }
-.gagos-starter__arrow {
-  flex: none;
-  color: rgba(123, 245, 251, 0.5);
-  font-size: 14px;
-  transition: transform 0.2s ease, color 0.2s ease;
-}
-.gagos-starter:hover .gagos-starter__arrow { transform: translateX(3px); color: rgba(123, 245, 251, 0.9); }
 
 @keyframes gagos-welcome-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -751,7 +727,7 @@
   .gagos-input.has-transcript { animation: none; }
   .swarm-hud { animation: none; }
   .gagos-welcome { animation: none; }
-  .gagos-starter, .gagos-starter__arrow { transition: none; }
+  .gagos-starter { transition: none; }
   .gagos-lockup, .gagos-status, .gagos-bar { animation: none; }
   .gagos-pill--state.is-active .gagos-dot { animation: none; }
   .gagos-caret { animation: none; }

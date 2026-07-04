@@ -153,3 +153,38 @@ def test_repeated_extraction_does_not_double_propose(tmp_facts: SemanticFacts) -
     assert r2.reason == "already proposed"
     proposals = tmp_facts.pending_proposals()
     assert len(proposals) == 1
+
+
+# ── Tests: /api/v1/operator/model ────────────────────────────────────────────
+
+@pytest.fixture()
+def operator_model_client(tmp_facts: SemanticFacts) -> Iterator[TestClient]:
+    """Operator model endpoint wired with real SemanticFacts on a temp DB."""
+    app.dependency_overrides[get_semantic_facts] = lambda: tmp_facts
+    with TestClient(app, client=("127.0.0.1", 12345)) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+def test_operator_model_empty_shape(operator_model_client: TestClient) -> None:
+    resp = operator_model_client.get("/api/v1/operator/model")
+    assert resp.status_code == 200
+    assert resp.json() == {"preferences": [], "attributes": {}, "project_context": []}
+
+
+def test_operator_model_returns_approved_facts(
+    operator_model_client: TestClient, tmp_facts: SemanticFacts
+) -> None:
+    from aios.memory.db import init_memory_db
+
+    init_memory_db(tmp_facts.db_path)
+    tmp_facts.add_fact("operator", "prefers", "dark mode", approved_by="human", confidence=0.9)
+    tmp_facts.add_fact("operator.role", "is", "engineer", approved_by="human", confidence=0.9)
+    tmp_facts.add_fact("project", "uses", "FastAPI", approved_by="human", confidence=0.9)
+
+    resp = operator_model_client.get("/api/v1/operator/model")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert {"predicate": "prefers", "object": "dark mode"} in body["preferences"]
+    assert body["attributes"] == {"role": "engineer"}
+    assert {"predicate": "uses", "object": "FastAPI"} in body["project_context"]

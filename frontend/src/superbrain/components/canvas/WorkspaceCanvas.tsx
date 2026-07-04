@@ -5,6 +5,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
+import { FallbackScene } from './FallbackScene';
 import SuperbrainScene, { type BrainSurface, type SkyMode } from './SuperbrainScene';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import {
@@ -78,7 +79,17 @@ function readStoredSurface(): BrainSurface | null {
   }
 }
 
+function isWebGLAvailable(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
 function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: boolean }) {
+  const [webglAvailable] = useState(() => isWebGLAvailable());
   const { tier, perfTier } = useQualityTier();
   const mode: CognitiveMode = 'orchestrate';
   const activity = 0.72;
@@ -174,6 +185,17 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
       window.clearInterval(heartbeat);
     };
   }, []);
+
+  if (!webglAvailable) {
+    return (
+      <div className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
+        <div className="scene-layer" aria-hidden="true">
+          <FallbackScene posture="idle" />
+        </div>
+        {children}
+      </div>
+    );
+  }
 
   return (
       <div className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>

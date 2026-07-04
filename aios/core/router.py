@@ -51,6 +51,8 @@ from aios.core.model_selector import (
 PROVIDER_OLLAMA = "ollama"
 PROVIDER_BEDROCK = "bedrock"
 PROVIDER_GEMINI = "gemini"
+PROVIDER_OPENAI = "openai"
+PROVIDER_ANTHROPIC = "anthropic"
 
 #: UI model-id prefixes (``ollama.qwen2.5-coder:7b`` etc.). The router's chosen
 #: model is a BARE id/tag; :func:`route_model_id` re-attaches the prefix for the
@@ -59,6 +61,8 @@ _PREFIX = {
     PROVIDER_OLLAMA: "ollama.",
     PROVIDER_BEDROCK: "bedrock.",
     PROVIDER_GEMINI: "gemini.",
+    PROVIDER_OPENAI: "openai.",
+    PROVIDER_ANTHROPIC: "anthropic.",
 }
 
 # --- Privacy + cost tags -----------------------------------------------------
@@ -77,6 +81,8 @@ _DEFAULT_CAPABILITY = {
     PROVIDER_OLLAMA: 100,
     PROVIDER_BEDROCK: 300,
     PROVIDER_GEMINI: 300,
+    PROVIDER_OPENAI: 300,
+    PROVIDER_ANTHROPIC: 300,
 }
 #: Tie-bias that makes a local provider win over an equally-capable cloud one when
 #: the policy allows both (local-first preference). Small on purpose: genuine
@@ -97,7 +103,7 @@ def default_capability(provider: str) -> int:
 class Provider:
     """A routable LLM provider expressed as **data** (no client — keeps it pure).
 
-    * ``name`` — ``ollama`` | ``bedrock`` | ``gemini``.
+    * ``name`` — ``ollama`` | ``bedrock`` | ``gemini`` | ``openai`` | ``anthropic``.
     * ``privacy`` — :data:`PRIVACY_LOCAL` or :data:`PRIVACY_CLOUD`; the privacy
       gate keys off this.
     * ``cost`` — :data:`COST_FREE` / ``COST_LOW`` / ``COST_HIGH`` (coarse).
@@ -151,7 +157,7 @@ LOCAL_FIRST = Policy()
 class Route:
     """A concrete routing decision: run *model* on *provider* for the task."""
 
-    provider: str  # PROVIDER_OLLAMA | PROVIDER_BEDROCK | PROVIDER_GEMINI
+    provider: str  # PROVIDER_OLLAMA | PROVIDER_BEDROCK | PROVIDER_GEMINI | PROVIDER_OPENAI | PROVIDER_ANTHROPIC
     model: str  # the bare model id/tag (no provider prefix)
     privacy: str
     cost: str

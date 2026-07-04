@@ -1002,6 +1002,37 @@ export async function fetchOnboardingState(): Promise<OnboardingState> {
   }
 }
 
+export interface OperatorModel {
+  preferences: Array<{ predicate: string; object: string }>;
+  attributes: Record<string, string>;
+  projectContext: Array<{ predicate: string; object: string }>;
+}
+
+/** Read the structured snapshot of what the system knows about the operator.
+ *  Returns all-empty sections if the backend is unreachable. */
+export async function fetchOperatorModel(): Promise<OperatorModel> {
+  const empty: OperatorModel = { preferences: [], attributes: {}, projectContext: [] };
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/operator/model`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return empty;
+    const data = (await res.json()) as Record<string, unknown>;
+    return {
+      preferences: Array.isArray(data.preferences) ? (data.preferences as OperatorModel['preferences']) : [],
+      attributes: (data.attributes && typeof data.attributes === 'object'
+        ? (data.attributes as Record<string, string>)
+        : {}),
+      projectContext: Array.isArray(data.project_context)
+        ? (data.project_context as OperatorModel['projectContext'])
+        : [],
+    };
+  } catch {
+    return empty;
+  }
+}
+
 /** Test seam: clear the module's poll memory between test cases. */
 export function __resetAiosAdapterForTests(): void {
   __resetSessionForTests();
