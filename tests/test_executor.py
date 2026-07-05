@@ -81,6 +81,25 @@ def test_green_command_runs_in_sandbox() -> None:
     assert runner.calls[0]["command"] == "echo hello"
 
 
+def test_scope_cwd_is_the_repo_root_not_the_scope_root(monkeypatch, tmp_path) -> None:
+    # training_ground.X imports (and probe_common's training_ground/-relative
+    # allowlist regexes) only resolve if commands run from the repo root that
+    # training_ground/ lives under -- not from training_ground/ itself.
+    scope_root = tmp_path / "training_ground"
+    scope_root.mkdir()
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [scope_root])
+    assert _executor()._scope_cwd() == tmp_path
+
+
+def test_green_command_runs_from_the_repo_root(monkeypatch, tmp_path) -> None:
+    scope_root = tmp_path / "training_ground"
+    scope_root.mkdir()
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [scope_root])
+    runner = RecordingRunner()
+    _executor(runner).execute("echo hi")
+    assert runner.calls[0]["cwd"] == str(tmp_path)
+
+
 def test_default_runner_handles_safe_builtin_without_a_shell(tmp_path) -> None:
     result = _default_runner("echo hello world", cwd=str(tmp_path), env={}, timeout_s=1)
     assert result == ("hello world\n", "", 0)

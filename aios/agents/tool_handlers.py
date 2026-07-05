@@ -8,7 +8,6 @@ from __future__ import annotations
 import difflib
 import ipaddress
 import os
-import re
 import socket
 import tempfile
 import urllib.parse
@@ -348,29 +347,6 @@ def create_file(
 
 # --------------------------------------------------------------------------- verify
 
-def _normalise_sandbox_paths(command: str) -> str:
-    """Strip a redundant sandbox-root prefix from path tokens in *command*.
-
-    Verify commands run FROM the sandbox cwd (``SCOPE_ROOTS[0]``), so a path the
-    model wrote repo-relative — e.g. ``pytest training_ground/test_x.py`` — would
-    double-nest (``training_ground/training_ground/...``), collect 0 tests, and
-    exit 4, surfacing a spurious ``[VERIFY FAIL]`` that wastes a model turn. The
-    forced auto-verify already expresses its path sandbox-relative; do the same
-    for the model's OWN command so its check actually runs.
-
-    Conservative by construction: only the EXACT sandbox-root basename used as a
-    leading path segment (after whitespace, a quote, or string start) is removed,
-    so unrelated tokens are left byte-for-byte. Idempotent — a no-op on the
-    already-correct forced command and on a plain ``pytest -q``.
-    """
-    roots = config.SCOPE_ROOTS
-    name = roots[0].name if roots else ""
-    if not name or name not in command:
-        return command
-    pattern = re.compile(rf"(?<![\w./])(?:\./)?{re.escape(name)}/")
-    return pattern.sub("", command)
-
-
 def verify_command(
     command: str,
     *,
@@ -390,7 +366,6 @@ def verify_command(
     """
     from aios.core.verifier import VerifierResult  # local to avoid import cycles
 
-    command = _normalise_sandbox_paths(command)
     is_approved = approved or command in approved_commands
     result = verifier.verify(
         command,

@@ -447,9 +447,18 @@ class Executor:
         self._audit: Callable[..., object] = audit_log or log_action
 
     def _scope_cwd(self) -> Path:
-        """The working directory for child processes (primary scope root)."""
+        """The working directory for child processes.
+
+        This is the repo root that the primary scope root (``training_ground``)
+        lives under, NOT the scope root itself — so ``training_ground`` is
+        importable as a package (``from training_ground.x import y``) rather
+        than being mounted/spawned as if it were the root itself. The
+        scope-lock security boundary (``aios/security/scope_lock.py``) resolves
+        path tokens against ``config.SCOPE_ROOTS`` independently of this cwd, so
+        this is safe to change without touching containment.
+        """
         roots = config.SCOPE_ROOTS
-        cwd = roots[0] if roots else Path.cwd()
+        cwd = roots[0].resolve().parent if roots else Path.cwd()
         cwd.mkdir(parents=True, exist_ok=True)
         return cwd
 
