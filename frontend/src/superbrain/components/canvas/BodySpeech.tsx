@@ -8,14 +8,19 @@ import { useFrame } from '@react-three/fiber';
 import { Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { getReplyVoice } from '@/lib/replyVoiceBus';
-import { deriveBodySpeech } from '@/lib/bodySpeech';
+import { deriveBodySpeech, decideBodySpeechSync } from '@/lib/bodySpeech';
 import { useReducedMotion } from '@/lib/reducedMotion';
 
 interface TroikaText {
   text: string;
   fillOpacity: number;
   outlineOpacity: number;
-  sync: () => void;
+  sync: (callback?: () => void) => void;
+  // Internal troika-three-text bookkeeping (not in its public typings) — only
+  // touched defensively on the force-resync path, see the comment below.
+  _isSyncing?: boolean;
+  _needsSync?: boolean;
+  _queuedSyncs?: unknown[] | null;
 }
 
 export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
@@ -23,6 +28,10 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
   const textRef = useRef<TroikaText | null>(null);
   const col = useMemo(() => new THREE.Color(color), [color]);
   const lastText = useRef<string>('');
+  // Watchdog bookkeeping for the troika sync-stall recovery below (real defect,
+  // 2026-07-05 — see decideBodySpeechSync's doc comment in bodySpeech.ts).
+  const syncPending = useRef(false);
+  const syncPendingSinceMs = useRef(0);
   // REACTIVE reduced-motion (was a once-at-import module const) — the useFrame
   // closure re-reads it on the re-render when the OS setting flips.
   const reduced = useReducedMotion();
@@ -40,11 +49,48 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
     });
     g.visible = o.active;
     if (!o.active) return;
-    if (o.visibleText !== lastText.current) {
+
+    const nowMs = performance.now();
+    const action = decideBodySpeechSync(
+      o.visibleText,
+      lastText.current,
+      syncPending.current,
+      syncPendingSinceMs.current,
+      nowMs,
+    );
+    if (action !== 'skip') {
+      if (action === 'force-resync') {
+        // troika-three-text's sync() has no error handling anywhere in its async
+        // chain (font load + SDF glyph generation) — if that chain never settles
+        // (a transient WebGL hiccup during first-time glyph-atlas creation is the
+        // realistic trigger), its internal `_isSyncing` flag is stuck `true`
+        // forever and every later `.sync()` call just silently queues behind the
+        // dead one: nothing throws, nothing logs, the glyph geometry is simply
+        // never rebuilt again — the reply becomes permanently invisible even
+        // though the cognition bus reports a perfectly healthy phase and full
+        // text (confirmed live via a controlled repro). Rather than trust a
+        // stuck in-flight sync to ever resolve, force troika's internal guards
+        // back to a clean state so the next sync() call actually runs.
+        t._isSyncing = false;
+        t._needsSync = true;
+        t._queuedSyncs = null;
+      }
       t.text = o.visibleText;
-      t.sync();
+      if (!syncPending.current) {
+        syncPendingSinceMs.current = nowMs;
+      }
+      syncPending.current = true;
+      try {
+        t.sync(() => {
+          syncPending.current = false;
+        });
+      } catch {
+        // A synchronous throw here means this attempt never truly started;
+        // let the watchdog's stall timeout retry on a later frame.
+      }
       lastText.current = o.visibleText;
     }
+
     const op = (1 - o.fade) * (0.5 + 0.5 * o.glow);
     t.fillOpacity = op;
     t.outlineOpacity = op * 0.6;
