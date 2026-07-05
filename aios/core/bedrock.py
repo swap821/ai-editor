@@ -61,6 +61,13 @@ def _to_converse(
     system: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
     pending_ids: list[str] = []
+    #: The in-progress merged toolResult message for the current assistant
+    #: tool-call turn. Converse requires every toolResult for a multi-tool-call
+    #: turn to land in a SINGLE following user message (consecutive user-role
+    #: messages are rejected) -- each ``role: "tool"`` entry below appends to
+    #: this same message instead of starting a new one, reset whenever a real
+    #: user/assistant message breaks the run.
+    tool_result_msg: Optional[dict[str, Any]] = None
 
     for msg in messages:
         role = msg.get("role")
@@ -70,6 +77,7 @@ def _to_converse(
                 system.append({"text": str(content)})
         elif role == "user":
             out.append({"role": "user", "content": [{"text": str(content)}]})
+            tool_result_msg = None
         elif role == "assistant":
             blocks: list[dict[str, Any]] = []
             text = str(content).strip()
@@ -92,16 +100,15 @@ def _to_converse(
             if not blocks:
                 blocks.append({"text": ""})  # Converse rejects empty content
             out.append({"role": "assistant", "content": blocks})
+            tool_result_msg = None
         elif role == "tool":
             tid = pending_ids.pop(0) if pending_ids else f"tool_orphan_{len(out)}"
-            out.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
-                    ],
-                }
-            )
+            block = {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
+            if tool_result_msg is not None:
+                tool_result_msg["content"].append(block)
+            else:
+                tool_result_msg = {"role": "user", "content": [block]}
+                out.append(tool_result_msg)
     return system, out
 
 
