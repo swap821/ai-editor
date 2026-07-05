@@ -133,7 +133,24 @@ def _to_converse(
                     {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
                 )
             else:
-                pending_results.append({"text": str(content)})
+                # An orphaned tool-role message (no pending toolUse to pair with --
+                # e.g. ToolAgent's forced post-write _auto_verify check, which the
+                # harness injects and the model never asked for) must never share a
+                # user turn with a genuine toolResult: Bedrock's Converse API rejects
+                # ANY user turn that mixes toolResult blocks with plain text/
+                # conversation blocks ("Conversation blocks and tool result blocks
+                # cannot be provided in the same turn"). Fold it into the content of
+                # the most recently buffered toolResult instead of adding a sibling
+                # top-level text block, so the turn stays pure-toolResult; fall back
+                # to a bare text block only when no toolResult is buffered to attach
+                # to (then there is nothing to mix with).
+                for prior in reversed(pending_results):
+                    tool_result = prior.get("toolResult")
+                    if tool_result is not None:
+                        tool_result["content"].append({"text": str(content)})
+                        break
+                else:
+                    pending_results.append({"text": str(content)})
     flush_tool_results()
     return system, out
 

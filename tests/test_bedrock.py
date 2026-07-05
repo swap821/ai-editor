@@ -108,6 +108,40 @@ def test_to_converse_orphans_extra_tool_result_when_unpaired() -> None:
     )
 
 
+def test_to_converse_never_mixes_toolresult_and_text_in_one_user_turn() -> None:
+    """Bedrock's Converse API rejects a user turn that mixes a toolResult block
+    with a plain text block: "Conversation blocks and tool result blocks cannot
+    be provided in the same turn" (confirmed live: a ValidationException at
+    messages.N.content, e.g. https://github.com/browser-use/browser-use/issues/710).
+
+    tool_agent.py's _pre_apply_grants appends a REAL create/edit toolResult on
+    turn-resume, then _auto_verify appends its forced post-write check
+    IMMEDIATELY after with no assistant/user message in between (e.g.
+    "[VERIFY SKIPPED] no sibling test for pipeline.py" when the file has no
+    sibling test yet -- true for the first file of any create-then-test
+    mission). Defect 1's fix folds that orphan in as plain {"text": ...}, but
+    it lands in the SAME buffered pending_results as the genuine toolResult,
+    so _to_converse flushes both into ONE user turn -- reproducing the live
+    ValidationException at messages.2 (right after the first assistant toolUse
+    block) even with Defects 1 and 2 already fixed.
+    """
+    _, conv = _to_converse([
+        {"role": "user", "content": "create pipeline.py"},
+        {"role": "assistant", "content": "",
+         "tool_calls": [{"function": {"name": "create_file",
+                                       "arguments": {"filepath": "pipeline.py"}}}]},
+        {"role": "tool", "content": "Created pipeline.py (120 bytes, 5 line(s))"},
+        {"role": "tool", "content": "[VERIFY SKIPPED] no sibling test for pipeline.py"},
+    ])
+    result_msg = conv[-1]
+    assert result_msg["role"] == "user"
+    kinds = {tuple(block.keys())[0] for block in result_msg["content"]}
+    assert kinds == {"toolResult"}, (
+        f"user turn mixes block kinds {kinds} -- Bedrock rejects a turn combining "
+        "toolResult blocks with plain text/conversation blocks in messages.N.content"
+    )
+
+
 def test_to_converse_drops_toolresult_for_dangling_tooluse() -> None:
     """When an assistant turn issues MULTIPLE tool calls and only SOME of them
     ever get a `role: tool` result appended (e.g. tool_agent.py's approval-pause
