@@ -50,6 +50,25 @@ def test_to_converse_splits_system_and_pairs_tools() -> None:
     assert tool_result["content"] == [{"text": "ran: ls"}]
 
 
+def test_to_converse_merges_multi_tool_call_results_into_one_user_message() -> None:
+    # Converse rejects consecutive user-role messages -- when an assistant turn
+    # makes N tool calls, all N toolResults must land in a SINGLE following user
+    # message, not N separate ones (a real ValidationException seen live against
+    # amazon.nova-pro-v1:0: "Expected toolResult blocks at messages.2.content").
+    _, conv = _to_converse([
+        {"role": "user", "content": "do two things"},
+        {"role": "assistant", "content": "", "tool_calls": [
+            {"id": "call-0", "function": {"name": "create_file", "arguments": "{}"}},
+            {"id": "call-1", "function": {"name": "create_file", "arguments": "{}"}},
+        ]},
+        {"role": "tool", "content": "result A"},
+        {"role": "tool", "content": "result B"},
+    ])
+    assert [m["role"] for m in conv] == ["user", "assistant", "user"]
+    result_ids = [b["toolResult"]["toolUseId"] for b in conv[2]["content"]]
+    assert result_ids == ["call-0", "call-1"]
+
+
 def test_to_converse_coerces_stringified_arguments() -> None:
     _, conv = _to_converse([
         {"role": "assistant", "content": "",
