@@ -5,8 +5,9 @@ import { __resetActiveBrainForTests } from '../superbrain/lib/activeBrain';
 import { __resetTabStoreForTests } from '../superbrain/lib/tabStore';
 import { __resetVoiceSpeakForTests } from './voiceSpeak';
 
-const { sendDirective, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio } = vi.hoisted(() => ({
+const { sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, isWorkIntent } = vi.hoisted(() => ({
   sendDirective: vi.fn().mockResolvedValue({ paused: false, answer: 'ok' }),
+  sendVoiceTurn: vi.fn().mockResolvedValue('ok'),
   getLastEmittedCode: vi.fn(() => null),
   previewIntent: vi.fn().mockResolvedValue({ intent: 'code', confidence: 0.9, tool: 'create_file' }),
   fetchOnboardingState: vi.fn().mockResolvedValue({
@@ -17,6 +18,7 @@ const { sendDirective, getLastEmittedCode, previewIntent, fetchOnboardingState, 
     firstAutonomy: true,
   }),
   transcribeAudio: vi.fn().mockResolvedValue({ text: 'hello world', language: 'en', confidence: 0.95 }),
+  isWorkIntent: vi.fn(() => true),
 }));
 
 vi.mock('../superbrain/SuperbrainApp', () => ({
@@ -27,14 +29,14 @@ vi.mock('../superbrain/lib/intentRouting', async () => {
   const actual = await vi.importActual<typeof import('../superbrain/lib/intentRouting')>(
     '../superbrain/lib/intentRouting',
   );
-  return { ...actual, isWorkIntent: () => true };
+  return { ...actual, isWorkIntent };
 });
 
 vi.mock('../superbrain/lib/aiosAdapter', async () => {
   const actual = await vi.importActual<typeof import('../superbrain/lib/aiosAdapter')>(
     '../superbrain/lib/aiosAdapter',
   );
-  return { ...actual, sendDirective, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio };
+  return { ...actual, sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio };
 });
 
 describe('GagosChrome voice UX', () => {
@@ -43,7 +45,9 @@ describe('GagosChrome voice UX', () => {
     __resetTabStoreForTests();
     __resetVoiceSpeakForTests();
     sendDirective.mockClear();
+    sendVoiceTurn.mockClear().mockResolvedValue('ok');
     transcribeAudio.mockClear();
+    isWorkIntent.mockReset().mockReturnValue(true);
     localStorage.clear();
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -180,5 +184,76 @@ describe('GagosChrome voice UX', () => {
     const micBtn = screen.getByRole('button', { name: /hold to speak/i });
     // The CSS variable is set via inline style; default level is 0
     expect(micBtn.style.getPropertyValue('--mic-level')).toBe('0');
+  });
+
+  it('renders the chat model toggle showing LOCAL by default', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const modelBtn = screen.getByRole('button', { name: /chat model/i });
+    expect(modelBtn).toBeInTheDocument();
+    expect(modelBtn.textContent).toBe('LOCAL');
+  });
+
+  it('cycles the chat model from LOCAL to GEMINI on click and persists to localStorage', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const modelBtn = screen.getByRole('button', { name: /chat model/i });
+    await act(async () => {
+      fireEvent.click(modelBtn);
+    });
+
+    expect(modelBtn.textContent).toBe('GEMINI');
+    expect(localStorage.getItem('gagos-chat-model')).toBe('gemini.gemini-2.5-flash');
+
+    await act(async () => {
+      fireEvent.click(modelBtn);
+    });
+
+    expect(modelBtn.textContent).toBe('LOCAL');
+    expect(localStorage.getItem('gagos-chat-model')).toBeNull();
+  });
+
+  it('threads the selected chat model into sendVoiceTurn for a CHAT turn', async () => {
+    isWorkIntent.mockReturnValue(false);
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const modelBtn = screen.getByRole('button', { name: /chat model/i });
+    await act(async () => {
+      fireEvent.click(modelBtn);
+    });
+    expect(modelBtn.textContent).toBe('GEMINI');
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'what is the weather like' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+
+    await waitFor(() => expect(sendVoiceTurn).toHaveBeenCalled());
+    const [, opts] = sendVoiceTurn.mock.calls[0];
+    expect(opts.modelId).toBe('gemini.gemini-2.5-flash');
+  });
+
+  it('omits modelId from sendVoiceTurn for a CHAT turn when Local is selected', async () => {
+    isWorkIntent.mockReturnValue(false);
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'what is the weather like' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+
+    await waitFor(() => expect(sendVoiceTurn).toHaveBeenCalled());
+    const [, opts] = sendVoiceTurn.mock.calls[0];
+    expect(opts.modelId).toBeUndefined();
   });
 });
