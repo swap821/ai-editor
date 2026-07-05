@@ -75,4 +75,42 @@ describe('aiosAdapter session request shape', () => {
     expect(typeof body.sessionId).toBe('string');
     expect(body.sessionId).not.toBe(FALLBACK_SESSION_ID);
   });
+
+  it('includes an explicit modelId in the chat POST body when requested', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ authenticated: false }))
+      .mockResolvedValueOnce(jsonResponse({ authenticated: true }))
+      .mockResolvedValueOnce(jsonResponse({ authenticated: true }))
+      .mockResolvedValueOnce(sseResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    const { sendVoiceTurn } = await import('./aiosAdapter');
+
+    await sendVoiceTurn('hello there', { modelId: 'gemini.gemini-2.5-flash' });
+
+    const chat = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/api/v1/chat'));
+    expect(chat).toBeTruthy();
+    const init = chat?.[1] as RequestInit;
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body.modelId).toBe('gemini.gemini-2.5-flash');
+  });
+
+  it('omits modelId from the chat POST body when not requested', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ authenticated: false }))
+      .mockResolvedValueOnce(jsonResponse({ authenticated: true }))
+      .mockResolvedValueOnce(jsonResponse({ authenticated: true }))
+      .mockResolvedValueOnce(sseResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    const { sendVoiceTurn } = await import('./aiosAdapter');
+
+    await sendVoiceTurn('hello there');
+
+    const chat = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/api/v1/chat'));
+    expect(chat).toBeTruthy();
+    const init = chat?.[1] as RequestInit;
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body.modelId).toBeUndefined();
+  });
 });

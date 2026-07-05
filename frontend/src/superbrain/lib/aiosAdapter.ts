@@ -665,13 +665,13 @@ export async function sendDirective(
  *  transport/backend error (callers surface it honestly, never a fake reply). */
 export async function sendVoiceTurn(
   transcript: string,
-  opts: { onChunk?: (reply: string) => void; signal?: AbortSignal } = {},
+  opts: { onChunk?: (reply: string) => void; signal?: AbortSignal; modelId?: string } = {},
 ): Promise<string> {
   const text = transcript.trim();
   if (!text) return '';
   publishCognition({ type: 'directive', label: text.slice(0, 80), intensity: 1, source: 'voice' });
   let reply = '';
-  const { signal } = opts;
+  const { signal, modelId } = opts;
   try {
     const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/v1/chat`, {
@@ -679,7 +679,7 @@ export async function sendVoiceTurn(
       signal,
       credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ transcript: text, ...sessionFields }),
+      body: JSON.stringify({ transcript: text, modelId, ...sessionFields }),
     });
     if (!response.ok || !response.body) {
       throw new Error(`voice backend responded ${response.status}`);
