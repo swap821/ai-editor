@@ -15,6 +15,7 @@
  * is required for the visual; setters are module-singleton + SSR-safe.
  */
 import type { OrganismLifecyclePhase } from './organismLifecycle';
+import { getOrganismPhase } from './organismPhaseBus';
 
 export type ConversationPhase = 'idle' | 'awakening' | 'thinking' | 'streaming' | 'complete' | 'error';
 
@@ -77,6 +78,18 @@ export function conversationToOrganismPhase(phase: ConversationPhase): OrganismL
     default:
       return null;
   }
+}
+
+/** The ONE effective phase every scene-level, phase-driven visual should key off.
+ *  An active CHAT turn (GagosChrome) drives the conversation posture with PRIORITY
+ *  — thinking/streaming/complete/error — then falls back to the idle organism
+ *  phase. This is a single source specifically so a new consumer can never forget
+ *  the override the way the intake command-nerve did: SuperbrainScene wired the
+ *  nerve's phase-drive straight off getOrganismPhase(), which never leaves 'rest'
+ *  during a pure chat turn (no materialized work surface), so the nerve silently
+ *  never reacted to (or resolved after) an entire conversation. */
+export function getEffectiveOrganismPhase(): OrganismLifecyclePhase {
+  return conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase();
 }
 
 export function __resetConversationPhaseForTests(): void {

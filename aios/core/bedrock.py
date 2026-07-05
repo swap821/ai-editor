@@ -56,11 +56,21 @@ def _to_converse(
     Converse takes the system prompt separately and represents tool activity as
     ``toolUse`` (assistant) / ``toolResult`` (user) content blocks paired by id.
     The agent's messages carry no ids, so we mint one per call and pair the
-    following ``role: "tool"`` results to them in order.
+    following ``role: "tool"`` results to them in order. Converse requires ALL
+    toolResult blocks for one assistant turn in a SINGLE following user turn
+    (a turn with N toolUse blocks split across N separate user messages is
+    rejected with a ValidationException), so consecutive ``role: "tool"``
+    messages are buffered and flushed as one user message.
     """
     system: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
     pending_ids: list[str] = []
+    pending_results: list[dict[str, Any]] = []
+
+    def flush_tool_results() -> None:
+        if pending_results:
+            out.append({"role": "user", "content": list(pending_results)})
+            pending_results.clear()
 
     for msg in messages:
         role = msg.get("role")
@@ -69,8 +79,10 @@ def _to_converse(
             if str(content).strip():
                 system.append({"text": str(content)})
         elif role == "user":
+            flush_tool_results()
             out.append({"role": "user", "content": [{"text": str(content)}]})
         elif role == "assistant":
+            flush_tool_results()
             blocks: list[dict[str, Any]] = []
             text = str(content).strip()
             if text:
@@ -94,14 +106,10 @@ def _to_converse(
             out.append({"role": "assistant", "content": blocks})
         elif role == "tool":
             tid = pending_ids.pop(0) if pending_ids else f"tool_orphan_{len(out)}"
-            out.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
-                    ],
-                }
+            pending_results.append(
+                {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
             )
+    flush_tool_results()
     return system, out
 
 

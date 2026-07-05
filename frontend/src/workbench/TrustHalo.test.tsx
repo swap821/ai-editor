@@ -1,10 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import TrustHalo, { computeTrustLevel } from './TrustHalo';
+import { AIOS_BASE } from '../superbrain/lib/aiosAdapter';
 
 describe('TrustHalo', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('fetches metrics from the backend base URL, not a bare relative path', async () => {
+    // Regression test: a bare '/api/v1/development/metrics' fetch hits the
+    // Vite dev server (which has no /api proxy) instead of the real backend
+    // at AIOS_BASE, silently returning index.html and leaving trust stuck
+    // at "unknown" forever.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 200 }),
+    );
+    render(<TrustHalo />);
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(`${AIOS_BASE}/api/v1/development/metrics`);
   });
 
   it('renders without crashing', () => {

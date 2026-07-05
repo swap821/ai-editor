@@ -50,6 +50,33 @@ def test_to_converse_splits_system_and_pairs_tools() -> None:
     assert tool_result["content"] == [{"text": "ran: ls"}]
 
 
+def test_to_converse_merges_multiple_tool_results_into_one_user_turn() -> None:
+    """Bedrock's Converse API rejects a toolUse turn whose results are split across
+    multiple user turns -- it expects every toolResult for one assistant turn in a
+    SINGLE following user message (reproduces a live ValidationException: "Expected
+    toolResult blocks at messages.N.content for the following Ids: [...]").
+    """
+    _, conv = _to_converse([
+        {"role": "user", "content": "do two things"},
+        {"role": "assistant", "content": "",
+         "tool_calls": [
+             {"function": {"name": "create_file", "arguments": {"filepath": "a.py"}}},
+             {"function": {"name": "run_command", "arguments": {"command": "pytest"}}},
+         ]},
+        {"role": "tool", "content": "created a.py"},
+        {"role": "tool", "content": "pytest: 2 passed"},
+    ])
+    assert len(conv) == 3  # user, assistant(2 toolUse), ONE user(2 toolResult)
+    tool_use_ids = [b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b]
+    result_msg = conv[2]
+    assert result_msg["role"] == "user"
+    result_ids = [b["toolResult"]["toolUseId"] for b in result_msg["content"]]
+    assert result_ids == tool_use_ids
+    assert [b["toolResult"]["content"] for b in result_msg["content"]] == [
+        [{"text": "created a.py"}], [{"text": "pytest: 2 passed"}],
+    ]
+
+
 def test_to_converse_coerces_stringified_arguments() -> None:
     _, conv = _to_converse([
         {"role": "assistant", "content": "",

@@ -3,7 +3,17 @@
    current trust level (unknown / healthy / attention / critical). */
 
 .trust-halo {
-  position: relative;
+  /* Overlay-positioned like its sibling HUD panels (OperatorProfileCard,
+     CouncilDashboard) — without this it falls into normal document flow
+     and renders pinned to the raw top-left corner of the viewport.
+     Bottom-right mirrors .gagos-chat's bottom-left dock and stays clear
+     of the right-hand stack (gagos-status/verify-toast/CouncilDashboard)
+     and the left-hand OperatorProfileCard. */
+  position: absolute;
+  bottom: 34px;
+  right: 30px;
+  z-index: 24;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   align-items: center;

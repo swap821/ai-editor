@@ -285,4 +285,40 @@ describe('CouncilDashboard', () => {
       });
     });
   });
+
+  it('keeps Mission goal and Allowed files as independent fields while typing keystroke-by-keystroke', async () => {
+    render(<CouncilDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Mission goal')).toBeInTheDocument();
+    });
+
+    const goalField = screen.getByLabelText('Mission goal') as HTMLTextAreaElement;
+    const filesField = screen.getByLabelText('Allowed files') as HTMLInputElement;
+
+    // Simulate real sequential typing (one fireEvent.change per keystroke,
+    // reading back the field's own current DOM value each time) rather than
+    // a single fireEvent.change with the whole final string — this is what
+    // actually exercises a per-keystroke re-render and would surface a
+    // handler wired to the wrong setter.
+    const type = (el: HTMLInputElement | HTMLTextAreaElement, text: string) => {
+      for (const char of text) {
+        fireEvent.change(el, { target: { value: el.value + char } });
+      }
+    };
+
+    // 1. Click + type into Mission goal (matches the reported repro).
+    fireEvent.click(goalField);
+    type(goalField, 'add a docstring to a training_ground helper function');
+
+    // 2. Click + type into Allowed files.
+    fireEvent.click(filesField);
+    type(filesField, 'training_ground/test_calculator.py');
+
+    // Allowed files must contain ONLY what was typed into it, and Mission
+    // goal must be untouched by the second round of typing — each field's
+    // onChange must update only its own state.
+    expect(filesField.value).toBe('training_ground/test_calculator.py');
+    expect(goalField.value).toBe('add a docstring to a training_ground helper function');
+  });
 });

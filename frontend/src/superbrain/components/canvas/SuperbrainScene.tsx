@@ -39,7 +39,7 @@ import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMe
 import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { intakeNerveDrive } from '@/lib/intakeNerveDrive';
-import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
+import { getConversationPhase, getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 import { setBrainDockScale } from '@/lib/spineFusionBus';
@@ -973,7 +973,11 @@ function BrainModel({
           // PHASE-AWARE channel: the intake nerve blazes while the being receives you
           // and recedes as it tucks its tail to work (mirrors uSprayHide). reduced
           // motion zeroes the bead flow (the only travelling motion in the nerve).
-          const nerveDrive = intakeNerveDrive(getOrganismPhase());
+          // A pure CHAT turn never touches the organism-lifecycle phase (no
+          // materialized work surface), so this MUST read the same conversation-
+          // priority override the body posture uses below — otherwise the nerve
+          // never blazes for a chat turn and never resolves afterward either.
+          const nerveDrive = intakeNerveDrive(getEffectiveOrganismPhase());
           setFunnelAnchor({
             x: (FUNNEL_SCRATCH.x * 0.5 + 0.5) * state.size.width,
             y: (1 - (FUNNEL_SCRATCH.y * 0.5 + 0.5)) * state.size.height,
@@ -1949,7 +1953,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     // An active CHAT turn (GagosChrome) drives the conversation posture with
     // PRIORITY so the being visibly comes alive — thinking purple → streaming
     // cyan → complete green — then falls back to the idle organism phase.
-    const livePhase = conversationToOrganismPhase(getConversationPhase()) ?? getOrganismPhase();
+    const livePhase = getEffectiveOrganismPhase();
     const bodyPosture = deriveBodyPosture({ phase: livePhase });
     const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
     POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);

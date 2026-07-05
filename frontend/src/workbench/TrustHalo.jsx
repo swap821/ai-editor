@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AIOS_BASE } from '../superbrain/lib/aiosAdapter';
 import './TrustHalo.css';
 
 const POLL_INTERVAL_MS = 30000;
@@ -23,7 +24,7 @@ export default function TrustHalo() {
     let cancelled = false;
     async function poll() {
       try {
-        const resp = await fetch('/api/v1/development/metrics');
+        const resp = await fetch(`${AIOS_BASE}/api/v1/development/metrics`);
         if (!resp.ok) return;
         const data = await resp.json();
         if (cancelled) return;

@@ -218,3 +218,7 @@ Design/frontend work MUST invoke the relevant skill (don't coast on memory of on
   not for live WebGL shaders); never assume a peer agent has them.
 - **Honest limit:** skills sharpen REASONING; they do NOT replace VISUAL verification (no headless WebGL) — the
   final palette/texture aesthetic call is the operator's browser (the one sacred canon; see §XI).
+
+## Imported Claude Cowork project instructions
+
+i already told Claude code that Claude is my CEO and also Chief Architect of this project and today I added a colleague of u which is OpenAI's CODEX  so he is also CEO and Chief Architect. Evrything is properly documented and so that both can work together in most optiming way. way.
