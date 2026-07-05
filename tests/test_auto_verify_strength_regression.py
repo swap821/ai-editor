@@ -39,19 +39,22 @@ def test_also_true():
 
 def test_real_pytest_auto_verify_reaches_strong(tmp_path_factory) -> None:
     scope_root = config.SCOPE_ROOTS[0].resolve()
+    repo_root = scope_root.parent  # the executor's actual cwd (see Executor._scope_cwd)
     # A unique sibling-test filename inside the REAL sandbox scope root — the
     # defect only reproduces under this repo's own pytest.ini inheritance, so a
     # tmp_path sandbox would not exercise the true chain.
     test_file = scope_root / f"test_w4_strength_regress_{uuid.uuid4().hex[:8]}.py"
     test_file.write_text(_TRIVIAL_TEST, encoding="utf-8")
     try:
-        command = build_auto_verify_command(test_file.name)
+        test_arg = f"{scope_root.name}/{test_file.name}"
+        command = build_auto_verify_command(test_arg)
 
         # Execute the EXACT command production would run, from the executor's
-        # cwd. Only the program token is pinned to this interpreter at exec
-        # time (PATH-independence for the test harness); the command STRING —
-        # what the gateway classifies and derive_strength anchors on — is the
-        # untouched production artifact.
+        # cwd (the repo root, not the sandbox scope root -- training_ground.X
+        # imports must resolve). Only the program token is pinned to this
+        # interpreter at exec time (PATH-independence for the test harness);
+        # the command STRING — what the gateway classifies and derive_strength
+        # anchors on — is the untouched production artifact.
         tokens = shlex.split(command)
         assert tokens[:3] == ["python", "-m", "pytest"], (
             f"auto-verify no longer fronts the recognized runner: {command!r}"
@@ -59,7 +62,7 @@ def test_real_pytest_auto_verify_reaches_strong(tmp_path_factory) -> None:
         exec_tokens = [sys.executable] + tokens[1:]
         proc = subprocess.run(
             exec_tokens,
-            cwd=scope_root,
+            cwd=repo_root,
             capture_output=True,
             text=True,
             timeout=120,
