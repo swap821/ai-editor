@@ -304,6 +304,19 @@ export default function GagosChrome() {
       return next;
     });
   }, []);
+  const [chatModelId, setChatModelId] = useState(() => {
+    try { return localStorage.getItem('gagos-chat-model') || undefined; } catch { return undefined; }
+  });
+  const cycleChatModel = useCallback(() => {
+    setChatModelId((prev) => {
+      const next = prev === 'gemini.gemini-2.5-flash' ? undefined : 'gemini.gemini-2.5-flash';
+      try {
+        if (next) localStorage.setItem('gagos-chat-model', next);
+        else localStorage.removeItem('gagos-chat-model');
+      } catch { /* blocked */ }
+      return next;
+    });
+  }, []);
   const reducedMotion = useReducedMotion();
   // NeuralCommandDock working-dim: the dock yields while the being orchestrates work
   // (content surfaces present) — unless the operator is actively engaging it.
@@ -705,6 +718,7 @@ export default function GagosChrome() {
         // posture; we just don't render a thread bubble for it.
         const reply = await sendVoiceTurn(text, {
           signal: abortRef.current?.signal,
+          modelId: chatModelId,
           onChunk: (partial) => {
             if (turnTokenRef.current !== token) return;
             const chunk = cleanText(partial);
@@ -759,7 +773,7 @@ export default function GagosChrome() {
         inputRef.current?.focus();
       }
     }
-  }, [pushMessage, updateMessage]);
+  }, [pushMessage, updateMessage, chatModelId]);
 
   // Voice input: backend STT (MediaRecorder → faster-whisper) when available,
   // otherwise browser-native SpeechRecognition. Graceful when unsupported.
@@ -1197,6 +1211,15 @@ export default function GagosChrome() {
               {voiceLang === 'en-IN' ? 'EN' : 'HI'}
             </button>
           ) : null}
+          <button
+            type="button"
+            className="gagos-btn gagos-model"
+            onClick={cycleChatModel}
+            aria-label={`Chat model: ${chatModelId ? 'Gemini' : 'Local (Ollama)'}. Click to switch to ${chatModelId ? 'Local (Ollama)' : 'Gemini'}.`}
+            title={chatModelId ? 'Switch to Local (Ollama)' : 'Switch to Gemini'}
+          >
+            {chatModelId ? 'GEMINI' : 'LOCAL'}
+          </button>
           <button
             type="button"
             className={`gagos-btn gagos-send ${busy ? 'is-busy' : ''}`}

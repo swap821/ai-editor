@@ -1239,35 +1239,11 @@ def test_agent_verify_reports_pass_and_does_not_reflect() -> None:
     assert events[-1]["type"] == "done"
 
 
-@pytest.mark.parametrize(
-    "raw, expected",
-    [
-        # repo-relative path the model commonly writes -> stripped to sandbox-relative
-        ("pytest training_ground/test_x.py", "pytest test_x.py"),
-        ('pytest "training_ground/test_x.py" -q', 'pytest "test_x.py" -q'),
-        ("python -m pytest ./training_ground/test_x.py", "python -m pytest test_x.py"),
-        ("pytest training_ground/sub/test_x.py", "pytest sub/test_x.py"),
-        # already-correct / unrelated commands are untouched (idempotent no-ops)
-        ("pytest test_x.py", "pytest test_x.py"),
-        ("pytest -q", "pytest -q"),
-        ('pytest "test_x.py" -q', 'pytest "test_x.py" -q'),
-        # a token that merely CONTAINS the name but is not a path segment is left alone
-        ("pytest mytraining_ground/test_x.py", "pytest mytraining_ground/test_x.py"),
-    ],
-)
-def test_normalise_sandbox_paths_strips_redundant_root_prefix(raw, expected) -> None:
-    # The verify tool runs FROM the sandbox cwd, so a repo-relative path would
-    # double-nest and collect 0 tests (exit 4 -> spurious FAIL). The normaliser
-    # strips ONLY the exact sandbox-root segment, leaving everything else intact.
-    assert config.SCOPE_ROOTS[0].name == "training_ground"  # guards the fixtures above
-    agent = ToolAgent(ScriptedChat([]), _executor(), max_iters=1)
-    assert agent._normalise_sandbox_paths(raw) == expected
-
-
-def test_verify_runs_mispathed_model_command_after_normalisation() -> None:
-    # End-to-end: the model verifies with a repo-relative path; the normaliser
-    # makes it sandbox-relative so the check actually runs (PASS), instead of a
-    # spurious FAIL from a 0-tests-collected double-nest.
+def test_verify_runs_repo_relative_model_command_unmodified() -> None:
+    # End-to-end: the verify cwd is now the repo root (see Executor._scope_cwd),
+    # so a model-issued repo-relative path like "training_ground/test_x.py" is
+    # already correct and must pass through unchanged -- no stripping/rewriting.
+    assert config.SCOPE_ROOTS[0].name == "training_ground"  # guards the fixture below
     chat = ScriptedChat([
         _tool_call("verify", {"command": "pytest training_ground/test_x.py"}),
         {"role": "assistant", "content": "Verified — all green."},
@@ -1275,7 +1251,7 @@ def test_verify_runs_mispathed_model_command_after_normalisation() -> None:
     events = list(
         ToolAgent(
             chat, _passing_executor(), max_iters=3,
-            approved_commands=["pytest test_x.py"],  # the NORMALISED form is what runs
+            approved_commands=["pytest training_ground/test_x.py"],  # unmodified form
         ).run([{"role": "user", "content": "verify it"}])
     )
     results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "verify"]

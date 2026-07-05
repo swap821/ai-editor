@@ -1247,12 +1247,14 @@ class ToolAgent:
             convo.append({"role": "tool", "content": note})
             return
 
-        # Express the test path relative to the executor's sandbox cwd
-        # (SCOPE_ROOTS[0]) so the command carries no out-of-scope absolute path;
-        # fall back to the absolute path only if it lies outside that root (then
-        # the gateway's scope check judges it -- still fail-closed).
-        roots = config.SCOPE_ROOTS
-        cwd = roots[0].resolve() if roots else self.read_root
+        # Express the test path relative to the executor's actual sandbox cwd
+        # (the repo root -- see Executor._scope_cwd) so it naturally comes out
+        # as "training_ground/test_x.py", matching the import style sandbox
+        # files use (`from training_ground.x import y`) and the path shape
+        # probe_common's allowlist regexes expect. Fall back to the absolute
+        # path only if it lies outside that root (then the gateway's scope
+        # check judges it -- still fail-closed).
+        cwd = self.executor._scope_cwd()
         try:
             test_arg = test_abs.relative_to(cwd).as_posix()
         except ValueError:
@@ -1417,14 +1419,6 @@ class ToolAgent:
             snapshot=self.snapshot,
             audit=self._audit,
         )
-
-    def _normalise_sandbox_paths(self, command: str) -> str:
-        """Thin wrapper around :func:`tool_handlers._normalise_sandbox_paths`.
-
-        Kept as a method because existing tests exercise it directly on the
-        agent instance; the implementation itself lives in ``tool_handlers``.
-        """
-        return tool_handlers._normalise_sandbox_paths(command)
 
     def _verify(self, command: str, *, approved: bool = False) -> tuple[str, str, bool]:
         """Thin wrapper around :func:`tool_handlers.verify_command`."""
