@@ -77,6 +77,69 @@ def test_to_converse_merges_multiple_tool_results_into_one_user_turn() -> None:
     ]
 
 
+def test_to_converse_orphans_extra_tool_result_when_unpaired() -> None:
+    """A `role: tool` message with NO preceding matching toolUse (e.g.
+    ToolAgent._auto_verify's forced post-write check, which the harness injects
+    into history and which the model never asked for) currently falls back to a
+    synthetic `tool_orphan_*` id (bedrock.py `_to_converse`:
+    `tid = pending_ids.pop(0) if pending_ids else f"tool_orphan_{len(out)}"`).
+    Because the buffering fix merges consecutive tool-role messages into ONE
+    user turn, this manufactures an EXTRA toolResult block riding along with the
+    genuine one -- 2 toolResult blocks for an assistant turn that only had 1
+    toolUse block. Reproduces the live ValidationException: "The number of
+    toolResult blocks at messages.N.content exceeds the number of toolUse
+    blocks of previous turn."
+    """
+    _, conv = _to_converse([
+        {"role": "user", "content": "edit and verify a.py"},
+        {"role": "assistant", "content": "",
+         "tool_calls": [
+             {"function": {"name": "edit_file", "arguments": {"filepath": "a.py"}}},
+         ]},
+        {"role": "tool", "content": "edit applied"},            # paired to the real toolUse
+        {"role": "tool", "content": "[VERIFY PASS] 2 passed"},   # auto-verify's unpaired append
+    ])
+    tool_use_ids = [b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b]
+    result_msg = conv[2]
+    result_ids = [b["toolResult"]["toolUseId"] for b in result_msg.get("content", []) if "toolResult" in b]
+    assert len(result_ids) == len(tool_use_ids), (
+        f"{len(result_ids)} toolResult blocks for only {len(tool_use_ids)} toolUse id(s) -- "
+        "Bedrock rejects this with 'number of toolResult blocks exceeds toolUse blocks'"
+    )
+
+
+def test_to_converse_drops_toolresult_for_dangling_tooluse() -> None:
+    """When an assistant turn issues MULTIPLE tool calls and only SOME of them
+    ever get a `role: tool` result appended (e.g. tool_agent.py's approval-pause
+    path returns immediately once one call in the batch needs human approval,
+    abandoning any LATER call in that same batch -- it is never dispatched,
+    never surfaced to the user, and `_pre_apply_grants` on resume only re-applies
+    what was actually approved), `_to_converse` silently resets `pending_ids` at
+    the next assistant/user message instead of surfacing the gap, so the
+    dangling toolUse is submitted to Bedrock with no matching toolResult ever.
+    Reproduces the live ValidationException: "Expected toolResult blocks at
+    messages.N.content for the following Ids: [...]."
+    """
+    _, conv = _to_converse([
+        {"role": "user", "content": "edit two files"},
+        {"role": "assistant", "content": "",
+         "tool_calls": [
+             {"id": "callB", "function": {"name": "edit_file", "arguments": {"filepath": "x.py"}}},
+             {"id": "callC", "function": {"name": "edit_file", "arguments": {"filepath": "y.py"}}},
+         ]},
+        # Only callB ever gets a result (approved+applied on resume); callC was
+        # never dispatched -- its toolUse is left permanently dangling.
+        {"role": "tool", "content": "edit x.py applied"},
+        {"role": "user", "content": "continue"},
+    ])
+    tool_use_ids = [b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b]
+    result_ids = [b["toolResult"]["toolUseId"] for b in conv[2]["content"] if "toolResult" in b]
+    assert set(result_ids) == set(tool_use_ids), (
+        f"toolUse ids {tool_use_ids} vs answered ids {result_ids} -- Bedrock rejects this "
+        "with 'Expected toolResult blocks ... for the following Ids'"
+    )
+
+
 def test_to_converse_coerces_stringified_arguments() -> None:
     _, conv = _to_converse([
         {"role": "assistant", "content": "",

@@ -61,6 +61,20 @@ def _to_converse(
     (a turn with N toolUse blocks split across N separate user messages is
     rejected with a ValidationException), so consecutive ``role: "tool"``
     messages are buffered and flushed as one user message.
+
+    Two additional Bedrock-only invariants this also repairs (found via live
+    golden-mission runs, 2026-07-05): (1) a ``role: tool`` message with no
+    preceding pending toolUse id (e.g. ToolAgent's forced post-write
+    ``_auto_verify`` check, which the harness injects and the model never
+    asked for) is folded in as plain text instead of a synthetic
+    ``tool_orphan_*`` toolResult -- the old fallback manufactured an EXTRA
+    toolResult with no matching toolUse, which Converse also hard-rejects.
+    (2) any toolUse id that never receives a matching ``tool`` message before
+    the turn closes (e.g. a tool call in a multi-call batch abandoned when an
+    earlier call in the same batch pauses for approval) is answered with a
+    placeholder toolResult instead of being silently dropped -- Converse
+    requires EVERY toolUse in one assistant turn to be answered in the very
+    next user turn, with no exceptions.
     """
     system: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
@@ -68,6 +82,14 @@ def _to_converse(
     pending_results: list[dict[str, Any]] = []
 
     def flush_tool_results() -> None:
+        for orphan_id in pending_ids:
+            pending_results.append(
+                {"toolResult": {
+                    "toolUseId": orphan_id,
+                    "content": [{"text": "[no result recorded for this tool call]"}],
+                }}
+            )
+        pending_ids.clear()
         if pending_results:
             out.append({"role": "user", "content": list(pending_results)})
             pending_results.clear()
@@ -105,10 +127,13 @@ def _to_converse(
                 blocks.append({"text": ""})  # Converse rejects empty content
             out.append({"role": "assistant", "content": blocks})
         elif role == "tool":
-            tid = pending_ids.pop(0) if pending_ids else f"tool_orphan_{len(out)}"
-            pending_results.append(
-                {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
-            )
+            if pending_ids:
+                tid = pending_ids.pop(0)
+                pending_results.append(
+                    {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
+                )
+            else:
+                pending_results.append({"text": str(content)})
     flush_tool_results()
     return system, out
 
