@@ -182,6 +182,13 @@ SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_
 EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", True)
 EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5)
 
+# Mandatory plan stage (Product-Phase-1 close-out): run the deterministic
+# Planner unconditionally on every non-reflex /api/generate turn and surface
+# the confidence-partitioned plan as a `plan` SSE event + advisory context.
+# Ships default-OFF; the default flips ON only after the learning-loop prover
+# is green with the stage enabled (the gate the v1.0 plan commits to).
+PLAN_STAGE_ENABLED: Final[bool] = _env_bool("AIOS_PLAN_STAGE", False)
+
 # Narrative self: inject a grounded, verified-only autobiographical self-model
 # into the agent's recalled context. Local SQLite reads only — no model calls.
 # Default on per the operator's 2026-07-02 four-layer directive (narrative

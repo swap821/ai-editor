@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Optional, TYPE_CHECKING
 
 from aios import config
@@ -68,6 +68,53 @@ class Plan:
     def requires_human(self) -> bool:
         """True if any step fell below the confidence threshold."""
         return len(self.escalate) > 0
+
+
+def serialize_plan(plan: "Plan") -> dict[str, Any]:
+    """Flatten a :class:`Plan` (with TaskStep dataclasses) into JSON-safe primitives.
+
+    Shared by the standalone ``POST /api/v1/plan`` endpoint and the in-loop
+    plan stage's ``plan`` SSE event, so both surfaces speak ONE shape —
+    including the ``native`` flag (the raw ``native_source`` template object
+    stays internal; the boolean is the serializable fact callers need).
+    """
+    return {
+        "goal": plan.goal,
+        "requires_human": plan.requires_human,
+        "native": plan.native_source is not None,
+        "steps": [asdict(s) for s in plan.steps],
+        "approved": [asdict(s) for s in plan.approved],
+        "escalate": [
+            {"step": asdict(e["step"]), "reason": e["reason"], "action": e["action"]}
+            for e in plan.escalate
+        ],
+        "calibrations": [asdict(c) for c in plan.calibrations],
+    }
+
+
+def plan_to_prompt_block(plan: "Plan") -> str:
+    """Render a :class:`Plan` as the advisory context block the agent reads.
+
+    Lives next to :func:`serialize_plan` for the same reason: the escalate
+    entries' internal shape is encapsulated here, not at each consumer. The
+    block states its own authority honestly (advisory; approval still happens
+    per-action at execution time) and tells the model NOT to re-plan the same
+    goal with the ``plan`` tool — the stage already paid that consultation.
+    """
+    lines = [
+        f"{step.step_id}. {step.description} (confidence {step.confidence:.2f})"
+        for step in plan.steps
+    ]
+    if plan.escalate:
+        lines.append(
+            "Steps requiring human sign-off before risky execution: "
+            + ", ".join(str(e["step"].step_id) for e in plan.escalate)
+        )
+    return (
+        "TASK PLAN (advisory, confidence-gated; escalated steps pause for "
+        "approval at execution time; already computed — do not call the plan "
+        "tool again for this same goal):\n" + "\n".join(lines)
+    )
 
 
 @dataclass(frozen=True)

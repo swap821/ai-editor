@@ -31,7 +31,7 @@ from aios.core.approvals import ApprovalError, ApprovalStore
 from aios.core.executor import Executor
 from aios.core.llm import LLMClient
 from aios.core.native_planner import NativePlanner
-from aios.core.planner import Planner, PlannerError
+from aios.core.planner import Planner, PlannerError, serialize_plan
 from aios.core.self_apply import SelfApplyEngine
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.audit_logger import log_action
@@ -123,21 +123,6 @@ def reflect(req: ReflectRequest, llm: LLMClient = Depends(get_llm_client)) -> di
     return asdict(reflection)
 
 
-def _serialize_plan(plan: Any) -> dict[str, Any]:
-    """Flatten a Plan (with TaskStep dataclasses) into JSON-safe primitives."""
-    return {
-        "goal": plan.goal,
-        "requires_human": plan.requires_human,
-        "steps": [asdict(s) for s in plan.steps],
-        "approved": [asdict(s) for s in plan.approved],
-        "escalate": [
-            {"step": asdict(e["step"]), "reason": e["reason"], "action": e["action"]}
-            for e in plan.escalate
-        ],
-        "calibrations": [asdict(c) for c in plan.calibrations],
-    }
-
-
 @router.post("/api/v1/plan")
 def plan(
     req: PlanRequest,
@@ -150,7 +135,7 @@ def plan(
         result = planner.plan(req.goal)
     except PlannerError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return _serialize_plan(result)
+    return serialize_plan(result)
 
 
 # --------------------------------------------------------------------------- #
