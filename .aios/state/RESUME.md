@@ -21,9 +21,15 @@ LANDED (`ed15f1c`, CI green): NEW `aios/api/deps.py` (21 providers, override
 identity preserved, proxy-trap killed by construction) + routers
 memory(16)/development(12)/models(4); main.py 4,252 -> ~3,350 lines,
 54 -> 22 inline routes; byte-equivalence adversarially reviewed (3 lenses,
-0 findings above LOW). Remaining candidates, none urgent:
-1. Monolith tranche 2: generate/chat/terminal giants + approvals/security/
-   auth/onboarding/intent groups (entangled with main-owned singletons).
+0 findings above LOW). TRANCHE 2 ALSO LANDED (`95ebe4e`, CI green): stateful providers
+(approvals/rate-limiter/session/executor/rollback/self-apply) to deps.py +
+routers system(6)/auth(3)/actions(8); main.py now ~2,650 lines / 4 inline
+routes (memory/compact + the generate/chat/terminal giants). Security-parity
+adversarially verified; review caught + fixed a dropped populate_by_name on
+SessionStatusResponse. Remaining candidates, none urgent:
+1. Monolith endgame (optional, diminishing returns): the generate/chat/
+   terminal giants — ~1,900 lines of closures over main-owned memory
+   singletons/telemetry/turn-state; a dedicated arc if ever.
 2. Two surviving product seams: swarm `stopped` branches unreachable via
    approval pause; no subprocess-coverage wiring. (The council proxy-trap
    seam is structurally addressed by deps.py for new routers; council.py's
