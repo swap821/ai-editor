@@ -6,6 +6,7 @@ producers or consumers; these tests exercise the substrate directly.
 """
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,20 @@ from aios.runtime.cortex_bus import BusEvent, CortexBus
 
 def _bus(tmp_path: Path) -> CortexBus:
     return CortexBus(db_path=tmp_path / "bus.db")
+
+
+def test_connect_closes_the_underlying_connection_after_the_with_block(
+    tmp_path: Path,
+) -> None:
+    # Regression: ``with self._connect() as conn:`` only commits-or-rolls-back
+    # -- it never closes the connection, leaking one open sqlite3 connection
+    # per call. After the fix, the connection must be closed by the time the
+    # ``with`` block exits.
+    bus = _bus(tmp_path)
+    with bus._connect() as conn:
+        pass
+    with pytest.raises(sqlite3.ProgrammingError):
+        conn.execute("SELECT 1")
 
 
 # --- Task 1: config -----------------------------------------------------------

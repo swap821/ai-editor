@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from aios import config
 from aios.runtime.contracts import QueenVerdict
@@ -58,11 +59,27 @@ class CouncilState:
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a connection scoped to one ``with`` block.
+
+        Mirrors ``sqlite3.Connection``'s own context-manager semantics
+        (commit on success, rollback on exception) but ALSO closes the
+        connection on exit — plain ``sqlite3.Connection.__exit__`` only
+        commits/rolls back the transaction, it never closes the connection,
+        which otherwise leaks one open connection/file handle per call.
+        """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def record_verdict(self, mission_id: str, verdict: QueenVerdict) -> int:
         """Persist one Queen verdict; returns its row id."""

@@ -15,9 +15,10 @@ import secrets
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterator, Optional
 
 from aios import config
 from aios.security.secret_scanner import scan_and_redact
@@ -83,14 +84,30 @@ class ApprovalStore:
                 scan_payload["mission_id"] = "<council-mission-id>"
         return json.dumps(scan_payload, separators=(",", ":"), sort_keys=True)
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a connection scoped to one ``with`` block.
+
+        Mirrors ``sqlite3.Connection``'s own context-manager semantics
+        (commit on success, rollback on exception) but ALSO closes the
+        connection on exit — plain ``sqlite3.Connection.__exit__`` only
+        commits/rolls back the transaction, it never closes the connection,
+        which otherwise leaks one open connection/file handle per call.
+        """
         assert self.db_path is not None
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self.db_path), timeout=30.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = FULL")
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._connect() as conn:
