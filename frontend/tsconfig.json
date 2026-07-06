@@ -23,8 +23,7 @@
 
     "paths": {
       "@/*": ["./src/superbrain/*"]
-    },
-    "baseUrl": "."
+    }
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "demo"]
