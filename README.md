@@ -6,7 +6,7 @@
 
 GAGOS is a local-first, cloud-capable, human-supervised intelligence layer that sits *above* Windows, Linux, or macOS. It connects local project knowledge, LLMs (local and cloud), memory, tools, approvals, verification, and — on the roadmap — open-internet navigation into one governed system. It is not a kernel, a driver layer, or a chatbot wrapper. It is a control plane in which language models act as **untrusted workers inside a trusted system**.
 
-`alpha` · Python/FastAPI backend · React/TypeScript frontend · fail-closed by default · green test suite at ~92% *branch* coverage
+`phase 2 complete · Phase 1 integration 70% · Python/FastAPI backend · React/TypeScript 3D superbrain frontend · fail-closed by default · 654 backend tests + 326 frontend tests passing · ~92% branch coverage`
 
 ---
 
@@ -27,14 +27,17 @@ The honest framing: **GAGOS is the landlord of the governance and a tenant of th
 
 Not aspiration — this is in the repo and under test:
 
-- **Fail-closed security gateway.** Actions are classified before execution (`GREEN` = safe/read-only · `YELLOW` = needs explicit approval · `RED` = blocked). When uncertain, it denies.
+- **Fail-closed security gateway.** Actions are classified before execution (`GREEN` = safe/read-only · `YELLOW` = needs explicit approval · `RED` = blocked). When uncertain, it denies. Prompt-injection shield via vector blocklist.
 - **Tamper-evident audit ledger.** An Ed25519-signed hash-chain records important actions, with boot attestation — designed so that altering history breaks the chain.
-- **Sandboxed executor with rollback.** Commands and edits run in a constrained executor backed by a rollback engine, so actions are recoverable.
-- **Deterministic, operator-owned model router.** Routes across local **Ollama** and **Anthropic / Bedrock / Gemini / OpenAI-compatible** providers behind a failover wrapper. Selection is a transparent heuristic, not an LLM guessing about itself.
-- **Quarantined memory pipeline.** Facts are *proposed*, then human-*approved*, then *active*, with contradiction detection. Auto-extraction reads **only the operator's own statements** — never file contents or model output, both of which are memory-poisoning surfaces. FAISS-backed retrieval underneath.
-- **Council Runtime (v0.1).** A deterministic planner producing evidence-derived confidence (not LLM-reported), plus a **King** approval surface the operator signs off on.
-- **Cerebellum.** A playbook layer that caches verified routines for reuse.
-- **Verification discipline in the tooling itself.** The suite is green, and the project deliberately reports the *lower, truer* branch-coverage number (~92%) rather than the flattering line number. `prove_sovereignty.py` gates core invariants.
+- **Sandboxed executor with rollback.** Commands and edits run in a constrained executor backed by a rollback engine, so actions are recoverable. File-edit tool with unified diff approval tested live on AWS Bedrock (2026-07-07).
+- **Deterministic, operator-owned model router.** Routes across local **Ollama** and **Anthropic / Bedrock / Gemini / OpenAI-compatible** providers behind a failover wrapper. Selection is a transparent heuristic, not an LLM guessing about itself. Cloud routes detected and visualized in the UI (real-time lightning bolts on the superbrain spine).
+- **Quarantined memory pipeline.** Facts are *proposed*, then human-*approved*, then *active*, with contradiction detection (L3 entity facts). Auto-extraction reads **only the operator's own statements** — never file contents or model output. FAISS + BM25 hybrid retrieval with decay-weighted freshness.
+- **Council Runtime (v0.1).** A deterministic planner producing evidence-derived confidence (not LLM-reported), plus a **King** approval surface the operator signs off on. Full deliberation → proposer → king veto wired into the live loop.
+- **Cerebellum.** A playbook layer that caches verified routines for reuse. Stigmergic skill trails (success/failure counts, strength, status) embedded in the live tool-agent loop.
+- **Reflection engine.** Structured failure post-mortems → Mistake DB. Lessons learned persist and inform future attempts.
+- **Multi-agent orchestration.** Role-pass swarm patterns, worker agents spawned for one job, required to return evidence, then dissolved.
+- **Living 3D superbrain frontend.** Real-time visualization of cognition events (knowledge-acquired, verification verdicts, agent dispatch, cloud routing). Honest: goes dormant when there is no data.
+- **Verification discipline in the tooling itself.** The suite is green: 654 backend tests + 326 frontend tests. The project deliberately reports the *lower, truer* branch-coverage number (~92%) rather than the flattering line number.
 
 ---
 
@@ -45,7 +48,7 @@ Not aspiration — this is in the repo and under test:
 - an unrestricted autonomous agent, or a system where the AI has final authority
 - a production-ready commercial platform
 
-It is an **alpha-stage prototype** exploring what a human-owned AI operating layer can become — experimental, but intentionally serious. The goal is not to fake autonomy. It is to build autonomy that is supervised, permissioned, auditable, recoverable, and explainable.
+It is a **working governance layer** — experimental, but shipping real workflows. The goal is not to fake autonomy. It is to build autonomy that is supervised, permissioned, auditable, recoverable, and explainable.
 
 ---
 
@@ -67,17 +70,18 @@ GAGOS is organized as a colony under a human sovereign.
 
 **The Queen Council** — the permanent *organs* of the system. Most are **deterministic and operator-owned** rather than free-running LLM agents; they are instruments and policy, not chatbots:
 
-| Organ | Status | Role |
-|---|---|---|
-| Memory | built | proposal → approval → active, with contradiction detection |
-| Security | built | classifies and gates every action, fail-closed |
-| Planner | built | deterministic plans with evidence-derived confidence |
-| Router | built | picks local/cloud model transparently, with failover |
-| Verifier | built | runs checks; success means *verified*, not *returned* |
-| Reflection | built | turns failures into recorded lessons |
-| Project Knowledge | designed | scans repos into a Project Passport *(roadmap)* |
-| Web Navigation | designed | controlled, cited internet research *(roadmap)* |
-| Taste Alignment | designed | learns how the operator likes things done *(roadmap)* |
+| Organ | Status | Role | Live in loop? |
+|---|---|---|---|
+| Memory | ✅ built | proposal → approval → active, with contradiction detection | ✅ yes |
+| Security | ✅ built | classifies and gates every action, fail-closed | ✅ yes |
+| Planner | ✅ built | deterministic plans with evidence-derived confidence | ⚠️ wired, not fully integrated |
+| Router | ✅ built | picks local/cloud model transparently, with failover | ✅ yes |
+| Verifier | ✅ built | runs checks; success means *verified*, not *returned* | ⚠️ ready, not wired |
+| Reflection | ✅ built | turns failures into recorded lessons | ✅ yes |
+| Cerebellum | ✅ built | stigmergic skill trails, playbook replay | ✅ yes |
+| Project Knowledge | ❌ designed | scans repos into a Project Passport *(roadmap)* | — |
+| Web Navigation | ❌ designed | controlled, cited internet research *(roadmap)* | — |
+| Taste Alignment | ❌ designed | learns how the operator likes things done *(roadmap)* | — |
 
 **The King** — a caution-only ratchet. A human-facing approval surface that can hold or escalate a risky step for the operator to sign off on, but **never silently proceeds**. This is the veto, and it is the most sovereignty-relevant organ in the system.
 
@@ -135,17 +139,43 @@ Capability is not asserted. It is *done, verified, and remembered safely.*
 
 ---
 
-## Feature map: built vs designed
+## Current Phase: What's shipping vs. what's next
 
-**Built** — security gateway · audit ledger · sandboxed executor + rollback · multi-provider router · quarantined memory + FAISS retrieval · Council Runtime v0.1 · cerebellum playbooks.
+### **Phase 0 — Foundation (LOCKED)** ✅
 
-**Designed (roadmap):**
+Core control plane, security spine, executor, memory, audit ledger, all functional and under continuous test.
 
-- **Project Knowledge Harvester** — scans an existing project into a **Project Passport** (purpose, stack, folder map, install/run/build/test commands, env vars, safe vs risky actions, known issues, goals, suggested improvements). This is GAGOS's *local perception* — closer to literacy than to a live camera: it studies a project deliberately rather than watching it in real time. Scans enter memory as proposals, never as trusted facts.
-- **Sovereign Web Navigator** — the system's *external navigation*, not its eyes. Search → source-backed claim → cross-verified claim (corrective-RAG style) → human-approved memory. Critically, the open web is **non-stationary and adversarial**: a learned route can rot or be poisoned overnight, so cached web routes carry an expiry and re-verify. The web may *inform* the system; it must never *poison* it.
-- **Human Taste Memory** — preferred tone, explanation depth, design and coding style, naming conventions, career goals, feedback patterns. Purpose is alignment, not manipulation: adapt AI to the human, not the human to the AI.
-- **Verified Experience & Skill Replay** — repeated, verified workflows become reusable skills, so the next similar task runs faster and safer.
-- **Living-being interface** — a real-time, embodied AI-OS visualization (event stream, approval UI, memory/project dashboard) rather than a static console.
+### **Phase 1 — Integration (70% complete)** ⚠️
+
+**Wired and live:**
+- Tool agent loop (read, edit, execute) with approval gates.
+- Reflection post-mortems from failed tasks.
+- Skill trails (stigmergy) learning from verified outcomes.
+- Multi-agent orchestration (role-pass, swarm patterns).
+
+**Built but not yet wired:**
+- **Planner integration:** The deterministic planner component exists and passes tests. It produces evidence-derived confidence scores. Next step: wire it into the main `/api/v1/generate` orchestration so every task runs with a structured plan stage before execution.
+- **Verifier integration:** The verification engine is complete (stage 8) and has its own endpoint (`/api/v1/verify`). Next step: integrate verdict verdicts into the tool-agent loop so verified outcomes feed directly into the Cerebellum.
+
+### **Phase 2 — Verification & Reflection (90% complete)** ✅
+
+The full feedback loop exists in code. Missing: an end-to-end demo showing task failure → reflection → system recall → re-attempt → success → trail promoted → reflex replay. (This is a demo burden, not a code burden.)
+
+### **Phase 3 — Project Knowledge (Roadmap)** ❌
+
+**Project Passport Harvester** — scans a project into purpose, stack, folder map, install/run/build/test commands, env vars, safe vs risky actions, known issues, goals, suggested improvements. This is the crux: everything downstream (taste learning, web navigation, earned autonomy) depends on accurate project understanding.
+
+### **Phase 4 — Sovereign Web Navigator (Roadmap)** ❌
+
+Controlled internet research with cited sources, cross-verification, quarantine, freshness tracking, and re-verification on use.
+
+### **Phase 5 — Human Taste Memory (Roadmap)** ❌
+
+Operator-editable preference memory: tone, explanation depth, naming conventions, design patterns, career goals, feedback patterns.
+
+### **Phase 6 — Public Product (Roadmap)** ❌
+
+Student / Developer / Professional / Creator modes, onboarding, demo videos, case studies.
 
 ---
 
@@ -161,17 +191,6 @@ A serious system names its limits:
 
 ---
 
-## Roadmap
-
-1. **Foundation** *(current)* — backend, frontend, control loop, tool execution, approval gates, memory proposal/approval, routing.
-2. **Project Awareness** — Harvester, Project Passport, safe-command detection, project-scoped memory.
-3. **Verified Experience** — verification logs, outcome tracking, skill attempts, workflow replay.
-4. **Human Taste Layer** — editable preference memory, tone/style/convention learning, feedback loop.
-5. **Sovereign Web Navigator** — cited web search, trust ranking, quarantine, internet-to-project reasoning.
-6. **Public Product** — Student / Developer / Professional / Creator modes, onboarding, demo videos, case studies.
-
----
-
 ## Security principles
 
 Deny dangerous actions by default · require approval for risky operations · keep audit logs · separate observation from memory · separate AI suggestion from trusted fact · never auto-trust model output or web content · keep memory editable and reversible · prefer local execution · **fail closed when uncertain.**
@@ -180,29 +199,49 @@ Deny dangerous actions by default · require approval for risky operations · ke
 
 ## Proof, not claims
 
-A GAGOS demo is judged by a real workflow, end to end:
+A GAGOS workflow, end to end, looks like:
 
-1. Operator selects an existing project.
-2. GAGOS scans it → builds a Project Passport.
-3. It identifies weak areas and proposes improvements.
-4. Operator approves any risky edits.
-5. GAGOS applies changes → runs verification → reports evidence.
-6. Approved lessons are saved; the workflow is reused, faster and safer, next time.
+1. Operator issues a directive (goal or task).
+2. GAGOS classifies the scope (which actions are GREEN/YELLOW/RED).
+3. For YELLOW actions, operator approves. RED actions are refused.
+4. Tool agent executes approved actions with memory context.
+5. Verification checks run; results recorded.
+6. Failures trigger structured reflection; lessons enter the Mistake DB.
+7. Successes reinforce skill trails; strength increases.
+8. The next time a similar task appears, GAGOS can (a) reflex-recall from memory, (b) replay a learned playbook, or (c) route to the planner for a new plan.
+9. Operator can inspect memory, edit facts, reject skills, and audit the entire hash-chained history.
 
-That loop — context, permission, verification, memory — is the line between a chatbot and a governed AI-OS layer.
+That loop — context, permission, verification, memory, introspection — is the line between a chatbot and a governed AI-OS layer.
 
 ---
 
 ## Positioning
 
-**One line:** An AI layer that learns your projects, your style, and your workflow — and keeps *you* in control.
+**One line:** A working AI layer that learns your projects, your style, and your workflow — supervised by you, accountable to you, always.
 
 **Technical:** A local-first, cloud-capable, human-supervised agentic control plane where LLMs act as untrusted workers inside a trusted system of memory, permissions, routing, verification, and auditability.
+
+**Honest:** Phase 2 complete, Phase 1 integration underway. Not production-ready. But the core governance layer is real and passes 650+ tests.
+
+---
+
+## Getting started
+
+See [`START_HERE.md`](./START_HERE.md) for setup, environment configuration, and backend/frontend launch.
+
+For the architecture deep-dive, see:
+- **`.aios/state/PLAN.md`** — Blueprint vs. Reality, system context, what's next.
+- **`.aios/state/AUDIT.md`** — Component status, test evidence, integration gaps.
+- **`.aios/coordination/README.md`** — How the builder agents coordinate (Claude / Codex / Kimi).
+- **`docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`** — Current 24-week Phase 1→v1.0 execution plan.
+
+For the frontend:
+- **`frontend/README.md`** — The 3D superbrain UI, real-time cognition visualization, how it reads from the backend.
 
 ---
 
 ## Disclaimer
 
-Experimental, alpha-stage prototype. Not a production security system, enterprise automation platform, or autonomous OS. Review actions before execution. Do not grant unrestricted access to sensitive files, credentials, or destructive commands.
+Experimental, working prototype. Not a production security system, enterprise automation platform, or autonomous OS. Review actions before execution. Do not grant unrestricted access to sensitive files, credentials, or destructive commands.
 
-**Human-owned. System-trusted. AI-assisted.**
+**Human-owned. System-trusted. AI-assisted. Accountable.**
