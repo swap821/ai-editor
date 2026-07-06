@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Cloud, FileText, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
 import { API_BASE, API_HEADERS } from '../config';
 import { ensureSession } from '../superbrain/lib/sessionId';
+import SovereignStatePanel from './SovereignStatePanel';
 import './CouncilDashboard.css';
 
 const EMPTY_DETAIL = { summary: null, report: null, ledger: null };
@@ -69,7 +70,107 @@ async function postJson(path, body) {
   return response.json();
 }
 
+/** Self-Analysis findings review (T2 propose → HUMAN approve → T3 apply).
+ *  The three endpoints existed with zero UI; this panel is the human-review
+ *  surface the tier flow was built for. Apply is deliberately heavy: it is a
+ *  gated write into aios/ (snapshot → verify → auto-rollback backend-side),
+ *  so it confirms like the rollback button does. */
+function SelfAnalysisProposals() {
+  const [proposals, setProposals] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState('');
+
+  const load = useCallback(async (signal) => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await fetchJson('/api/v1/self-analysis/proposals', signal);
+      setProposals(asArray(data.proposals));
+    } catch (err) {
+      if (err?.name !== 'AbortError') setError('Self-Analysis link offline');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    void load(ctrl.signal);
+    return () => ctrl.abort();
+  }, [load]);
+
+  const act = useCallback(
+    async (id, action) => {
+      if (
+        action === 'apply' &&
+        !window.confirm(`Apply proposal #${id} to aios/? (gated, verified, auto-rollback)`)
+      ) {
+        return;
+      }
+      setBusyId(id);
+      setActionError('');
+      try {
+        await postJson(
+          `/api/v1/self-analysis/proposals/${id}/${action}`,
+          action === 'apply' ? { approvedBy: 'operator' } : {},
+        );
+        void load();
+      } catch {
+        setActionError(`Could not ${action} proposal #${id}`);
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [load],
+  );
+
+  return (
+    <div className="council-dashboard__body" aria-label="Self-Analysis proposals">
+      {proposals.length === 0 ? (
+        <div className="council-dashboard__empty">
+          {loading ? 'Syncing proposals' : error || 'No proposed findings'}
+        </div>
+      ) : (
+        <div className="council-dashboard__detail">
+          {proposals.map((p) => (
+            <section key={p.id} className="council-dashboard__section" aria-label={`Proposal ${p.id}`}>
+              <h3>
+                <FileText size={14} aria-hidden="true" /> #{p.id} · {p.target_path}
+              </h3>
+              <p>
+                <span className={`council-dashboard__badge is-${riskTone(p.proposed_zone)}`}>
+                  {p.proposed_zone || 'YELLOW'}
+                </span>{' '}
+                {titleCase(p.finding_type)} · {titleCase(p.status)}
+                {p.approved_by ? ` · approved by ${p.approved_by}` : ''}
+              </p>
+              {p.evidence ? <p>{String(p.evidence).slice(0, 240)}</p> : null}
+              {p.proposed_diff ? (
+                <pre className="council-dashboard__diff">{String(p.proposed_diff).slice(0, 1200)}</pre>
+              ) : null}
+              {p.status === 'proposed' ? (
+                <div className="council-dashboard__decision-actions">
+                  <button type="button" disabled={busyId === p.id} onClick={() => act(p.id, 'apply')}>
+                    {busyId === p.id ? 'Working…' : 'Approve & apply'}
+                  </button>
+                  <button type="button" disabled={busyId === p.id} onClick={() => act(p.id, 'reject')}>
+                    Reject
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          ))}
+          {actionError ? <p className="council-dashboard__error">{actionError}</p> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CouncilDashboard() {
+  const [view, setView] = useState('missions');
   const [missions, setMissions] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState(EMPTY_DETAIL);
@@ -272,6 +373,29 @@ export default function CouncilDashboard() {
         </button>
       </div>
 
+      <div className="council-dashboard__tabs" role="tablist" aria-label="Dashboard views">
+        {[
+          ['missions', 'Missions'],
+          ['proposals', 'Self-Analysis'],
+          ['sovereign', 'Sovereign State'],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={view === key}
+            className={`council-dashboard__tab${view === key ? ' is-active' : ''}`}
+            onClick={() => setView(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'proposals' ? <SelfAnalysisProposals /> : null}
+      {view === 'sovereign' ? <SovereignStatePanel /> : null}
+      {view !== 'missions' ? null : (
+      <>
       <form
         className="council-dashboard__originate"
         onSubmit={(event) => {
@@ -458,6 +582,8 @@ export default function CouncilDashboard() {
           </section>
         ) : null}
       </div>
+      </>
+      )}
     </aside>
   );
 }

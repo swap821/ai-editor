@@ -1010,3 +1010,26 @@
   .gagos-verify-toast--pass .gagos-verify-toast__dot,
   .gagos-verify-toast--fail .gagos-verify-toast__dot { animation: none; }
 }
+
+/* Swarm opt-in chip — the next directive runs as an ephemeral worker colony.
+   Sizing mirrors .gagos-lang; the ON state reuses the speaker's live-cyan
+   treatment (existing palette values only). */
+.gagos-swarm {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(220, 230, 248, 0.75);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.gagos-swarm:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eaf0fb;
+}
+.gagos-swarm.is-on {
+  background: rgba(123, 245, 251, 0.12);
+  color: #7bf5fb;
+  box-shadow: 0 0 0 1px rgba(123, 245, 251, 0.35), 0 0 18px rgba(123, 245, 251, 0.25);
+}

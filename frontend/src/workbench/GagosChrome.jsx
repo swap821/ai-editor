@@ -18,7 +18,8 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, getPendingApproval, subscribePendingApproval, previewIntent, fetchOnboardingState, BACKEND_REDACTION_MARKER_RE, transcribeAudio, speakText, AIOS_BASE } from '../superbrain/lib/aiosAdapter';
+import { sendDirective, sendVoiceTurn, getLastEmittedCode, cancelPendingApproval, getPendingApproval, subscribePendingApproval, previewIntent, fetchOnboardingState, BACKEND_REDACTION_MARKER_RE, transcribeAudio, speakText, setSwarmMode, getSwarmMode, AIOS_BASE } from '../superbrain/lib/aiosAdapter';
+import { initSwarmCognitionBridge } from './swarmCognitionBridge';
 import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
@@ -279,6 +280,11 @@ export default function GagosChrome() {
   );
   const [backendVoice, setBackendVoice] = useState({ stt: false, tts: false });
   const [brainChip, setBrainChip] = useState(() => formatActiveBrainChip(getActiveBrain()));
+  // Swarm opt-in: the next directive decomposes across an ephemeral worker
+  // colony (backend `swarm: true`). Mirrored into the adapter singleton so
+  // approval replays inherit the choice; SEEDED from the singleton so a
+  // chrome remount (HMR, error-boundary reset) cannot desync chip vs truth.
+  const [swarmOn, setSwarmOn] = useState(() => getSwarmMode());
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [online, setOnline] = useState(true); // honest backend reachability (polled)
   const [onboarded, setOnboarded] = useState(true); // first-run coach dismissed?
@@ -494,6 +500,11 @@ export default function GagosChrome() {
     void load();
     return () => { alive = false; };
   }, []);
+
+  // The being feels its swarm: bridge colony lifecycle transitions onto the
+  // cognition bus (agent-dispatch events, source 'swarm') for the body,
+  // terminal, and intake organs. Mounted once for the chrome's lifetime.
+  useEffect(() => initSwarmCognitionBridge(), []);
 
   // First-cloud-route hint: when a subtask is first routed to the cloud factory,
   // fire a one-shot travelling flash down the spine. Guarded by a per-session ref
@@ -1219,6 +1230,26 @@ export default function GagosChrome() {
             title={chatModelId ? 'Switch to Local (Ollama)' : 'Switch to Gemini'}
           >
             {chatModelId ? 'GEMINI' : 'LOCAL'}
+          </button>
+          <button
+            type="button"
+            className={`gagos-btn gagos-swarm ${swarmOn ? 'is-on' : ''}`}
+            onClick={() => {
+              setSwarmOn((prev) => {
+                const next = !prev;
+                setSwarmMode(next);
+                return next;
+              });
+            }}
+            aria-pressed={swarmOn}
+            aria-label={
+              swarmOn
+                ? 'Swarm mode on: directives decompose across an ephemeral worker colony. Click to disable.'
+                : 'Swarm mode off. Click to run directives as an ephemeral worker swarm.'
+            }
+            title={swarmOn ? 'Swarm mode ON' : 'Run as swarm'}
+          >
+            SWARM
           </button>
           <button
             type="button"
