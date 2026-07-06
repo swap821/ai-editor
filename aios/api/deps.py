@@ -20,20 +20,26 @@ self-apply, edit snapshots, the memory compactor's singleton cluster) stay in
 from __future__ import annotations
 
 import threading
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent
+from aios.agents.rollback_engine import RollbackEngine
 from aios.agents.swarm_patterns import SwarmPatternMemory
+from aios.core.approvals import ApprovalStore
 from aios.core.autonomy import AutonomyLedger
 from aios.core.alignment import AlignmentInterpreter
 from aios.core.bedrock import BedrockClient
 from aios.core.cerebellum import Cerebellum
+from aios.core.executor import Executor, approved_runner_from_config
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.native_planner import NativePlanner
+from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
+from aios.core.session_manager import SessionManager
+from aios.core.verifier import Verifier
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
@@ -43,6 +49,7 @@ from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
+from aios.security.gateway import RateLimiter
 
 #: Lazy cloud-client singletons — built on first use, reused across requests.
 _bedrock_client: Optional[BedrockClient] = None
@@ -270,6 +277,132 @@ def get_alignment_interpreter(
     return AlignmentInterpreter(llm) if config.INTERPRET_ALIGNMENT else None
 
 
+# --------------------------------------------------------------------------- #
+# Stateful / security-adjacent providers (tranche 2)
+# _APPROVALS and _RATE_LIMITER are DB-backed (durable, multi-process safe by
+# design); _SESSION_MANAGER holds the process's session state. They live here
+# so route modules can Depends() on them without importing main.
+# --------------------------------------------------------------------------- #
+_APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
+_RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
+
+#: Server-side session manager with httpOnly cookie support.
+#: Sessions are stored by SHA-256 hash only; the raw ID never leaves the server
+#: except inside the httpOnly cookie response, and is never persisted.
+_SESSION_MANAGER = SessionManager(
+    max_age=3600,
+    cleanup_interval=300,
+    store_path=config.SESSION_DB_PATH,
+)
+
+
+def get_session_manager() -> SessionManager:
+    """Provide the server-side session manager singleton."""
+    return _SESSION_MANAGER
+
+
+def _session_id_from_request(request: Request, fallback: Optional[str] = None) -> str:
+    """Prefer the validated httpOnly session cookie, then body fallback.
+
+    Cookie-based browser clients should not expose a session id in JavaScript.
+    The fallback keeps older local callers working when cookies are unavailable.
+    """
+    cookie_hash = request.cookies.get("session_id")
+    if cookie_hash:
+        session = get_session_manager().validate_session(cookie_hash)
+        if session is not None:
+            return session.session_hash
+    return fallback or ""
+
+
+def get_executor() -> Executor:
+    """Provide the default scope-constrained executor. Overridden in tests."""
+    return Executor(
+        approved_runner=approved_runner_from_config(),
+        rate_limiter=_RATE_LIMITER,
+    )
+
+
+def get_approval_store() -> ApprovalStore:
+    """Provide the durable local multi-worker approval capability store."""
+    return _APPROVALS
+
+
+def get_rollback_engine() -> RollbackEngine:
+    """Provide the default sandbox rollback engine. Overridden in tests."""
+    return RollbackEngine()
+
+
+def get_self_apply_engine(
+    executor: Executor = Depends(get_executor),
+) -> SelfApplyEngine:
+    """Provide the Self-Analysis T3 apply engine (verifies via the gated Executor).
+
+    The engine is the ONLY way an approved proposal reaches the real ``aios/`` source
+    — there is deliberately no agent tool that applies. Overridden in tests with a
+    fake verifier + temp project root so no real shell/suite runs.
+    """
+    isolated_runner = approved_runner_from_config()
+
+    def project_root_runner(
+        command: str, *, cwd: str, env: dict[str, str], timeout_s: int
+    ) -> tuple[str, str, int]:
+        """Run self-apply verification from the project root, after gateway approval.
+
+        ``SelfApplyEngine`` verifies changes to ``aios/`` with ``pytest tests/``.
+        The ordinary agent executor intentionally runs in ``training_ground/``;
+        using that cwd would look for ``training_ground/tests`` and roll back good
+        proposals. The command still passes through the same Executor gateway and
+        audit path before this runner is invoked.
+
+        Phase 2 — self-apply is CONTAINER-ONLY. It is the single path by which an
+        approved proposal reaches real ``aios/`` source, so it must never verify (and
+        thus never apply) on the bare host. In host mode (``isolated_runner is None``)
+        it REFUSES; the proposal is rolled back. The verify suite runs INSIDE the
+        container with a container-appropriate interpreter (the host ``.venv`` path
+        in ``DEFAULT_VERIFY_COMMAND`` does not exist in the image), with the real
+        project root bind-mounted so it tests the proposed change.
+        """
+        if command != DEFAULT_VERIFY_COMMAND:
+            raise ValueError("self-apply verifier accepts only the fixed project test command")
+        if isolated_runner is None:
+            raise RuntimeError(
+                "self-apply requires the container execution boundary; host mode "
+                "refuses (set AIOS_APPROVED_EXECUTION_BACKEND=container and start the "
+                "container runtime to apply proposals)"
+            )
+        return isolated_runner(
+            "python -m pytest tests/ -q",
+            cwd=str(config.PROJECT_ROOT),
+            env=env,
+            timeout_s=timeout_s,
+        )
+
+    verify_executor = Executor(
+        runner=project_root_runner,
+        timeout_s=120,
+        actor="self-apply-verifier",
+    )
+    return SelfApplyEngine(verifier=Verifier(verify_executor))
+
+
+def get_edit_snapshot() -> Callable[..., object]:
+    """Provide the pre-edit snapshot hook for the agent's ``edit_file`` tool.
+
+    Returns a callable that lazily constructs a sandbox :class:`RollbackEngine`
+    and snapshots it — only when an approved edit is actually applied, so read /
+    command turns pay nothing. Fail-closed: a snapshot failure propagates so the
+    agent refuses the edit (no unprotected write). Overridden in tests with a recorder.
+    """
+    def snapshot(message: str = "pre-edit snapshot") -> None:
+        # Let failures propagate: the agent treats a snapshot error as fail-closed
+        # and refuses the edit, so a write is never applied without a captured
+        # pre-edit state to roll back to.
+        RollbackEngine().create_snapshot(message)
+
+    return snapshot
+
+
 __all__ = [
     "get_llm_client",
     "get_ollama_client",
@@ -292,4 +425,10 @@ __all__ = [
     "get_conversation_state_store",
     "get_alignment_evaluation_store",
     "get_alignment_interpreter",
+    "get_session_manager",
+    "get_executor",
+    "get_approval_store",
+    "get_rollback_engine",
+    "get_self_apply_engine",
+    "get_edit_snapshot",
 ]

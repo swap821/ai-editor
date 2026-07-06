@@ -20,17 +20,19 @@ from fastapi.testclient import TestClient
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
+from aios.api.routes.system import (  # moved in the monolith split (tranche 2)
+    _classify_intent,
+    _has_any_approval_grant,
+)
 from aios.api.main import (
     app,
     _APPROVALS,
     _EPISODIC,
     _check_prompt_injection,
-    _classify_intent,
     _crag_cloud_source,
     _crag_document_source,
     _crag_external_sources,
     _crag_web_source,
-    _has_any_approval_grant,
     _index_turn,
     _is_private_ip,
     _make_confirm_hook,
@@ -340,7 +342,11 @@ def test_get_edit_snapshot_returns_callable_that_snapshots(tmp_path, monkeypatch
         def create_snapshot(self, message: str) -> None:
             created.append(message)
 
-    monkeypatch.setattr(main_mod, "RollbackEngine", FakeRollbackEngine)
+    # get_edit_snapshot lives in aios.api.deps since the monolith split;
+    # patch RollbackEngine where the provider actually resolves it.
+    import aios.api.deps as deps_mod
+
+    monkeypatch.setattr(deps_mod, "RollbackEngine", FakeRollbackEngine)
     snapshot_fn = get_edit_snapshot()
     snapshot_fn("custom message")
     assert created == ["custom message"]

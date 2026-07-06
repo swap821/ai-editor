@@ -20,7 +20,8 @@ from fastapi.testclient import TestClient
 
 from aios import logging_config
 from aios.api import main as api_main
-from aios.api.main import app, audit_verify
+from aios.api.main import app
+from aios.api.routes.system import audit_verify  # moved in the monolith split (tranche 2)
 from aios.security import audit_logger as audit_mod
 from aios.security.audit_logger import init_audit_db, log_action
 from aios.security.gateway import Zone
@@ -88,12 +89,15 @@ def test_middleware_hashes_session_id_before_logging(
     expected_hash = logging_config.session_log_key(raw_session)
     probe_logger = logging_config.get_logger("tests.logging")
 
-    def _classify_with_log(text: str) -> api_main.IntentPreviewResponse:
+    from aios.api.routes.system import IntentPreviewResponse
+
+    def _classify_with_log(text: str) -> IntentPreviewResponse:
         probe_logger.warning("session context probe")
-        return api_main.IntentPreviewResponse(intent="chat", confidence=1.0, tool=None)
+        return IntentPreviewResponse(intent="chat", confidence=1.0, tool=None)
 
     caplog.set_level(logging.WARNING)
-    monkeypatch.setattr(api_main, "_classify_intent", _classify_with_log)
+    import aios.api.routes.system as system_routes
+    monkeypatch.setattr(system_routes, "_classify_intent", _classify_with_log)
 
     response = client.post(
         "/api/v1/intent/preview",
@@ -117,7 +121,8 @@ def test_audit_verify_logs_critical_when_chain_tampered(
     def _verify_with_temp_db(*, from_id: int, to_id: int | None) -> audit_mod.ChainStatus:
         return original_verify(from_id=from_id, to_id=to_id, db_path=tampered_audit_db)
 
-    monkeypatch.setattr("aios.api.main.verify_chain", _verify_with_temp_db)
+    # audit_verify lives in aios.api.routes.system since the monolith split
+    monkeypatch.setattr("aios.api.routes.system.verify_chain", _verify_with_temp_db)
     result = audit_verify(from_entry=1, to_entry=None)
 
     assert result["valid"] is False

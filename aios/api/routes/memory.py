@@ -5,10 +5,11 @@ APIRouter module. Dependency providers come from ``aios.api.deps`` — the SAME
 function objects ``main`` re-exports, so ``app.dependency_overrides`` keyed on
 either import path keep working (no council-style local-proxy trap).
 
-Two sibling routes deliberately stay in ``main.py`` because they read process
+One sibling route deliberately stays in ``main.py`` because it reads process
 singletons owned there: ``POST /api/v1/memory/compact`` (the compactor's
-working/semantic/episodic singleton cluster) and
-``POST /api/v1/conversation/session`` (the episodic store singleton).
+working/semantic/episodic singleton cluster). ``POST /api/v1/conversation/
+session`` moved HERE in tranche 2, with a module-local stateless
+``EpisodicMemory()`` over the same DB.
 """
 from __future__ import annotations
 
@@ -33,12 +34,17 @@ from aios.logging_config import get_logger
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
+from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.retrieval import hybrid_search
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+#: Stateless DB wrapper over the shared episodic store (same DB as main's
+#: ``_EPISODIC``; every call opens a fresh connection).
+_EPISODIC = EpisodicMemory()
 
 
 # --------------------------------------------------------------------------- #
@@ -119,8 +125,29 @@ def memory_consolidate(
 
 
 # --------------------------------------------------------------------------- #
-# Conversation alignment corrections + diagnostic evaluation
+# Conversation session restore + alignment corrections + diagnostic evaluation
 # --------------------------------------------------------------------------- #
+@router.post("/api/v1/conversation/session")
+def restore_conversation_session(
+    req: ConversationSessionRequest,
+    state: ConversationStateStore = Depends(get_conversation_state_store),
+) -> dict[str, Any]:
+    """Restore recent dialogue and the latest unverified alignment frame."""
+    rows = _EPISODIC.recent(req.session_id, req.limit)
+    messages = [
+        {"role": str(row["role"]), "content": [{"text": str(row["content"])}]}
+        for row in rows
+        if row["role"] in {"user", "assistant"}
+    ]
+    return {
+        "alignment": state.get(req.session_id),
+        "activeCorrection": state.active_correction(req.session_id),
+        "correctionHistory": state.correction_history(req.session_id),
+        "messages": messages,
+    }
+
+
+
 @router.post("/api/v1/conversation/correction")
 def correct_conversation_alignment(
     req: ConversationCorrectionRequest,

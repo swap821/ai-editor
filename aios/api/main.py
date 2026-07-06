@@ -44,9 +44,8 @@ from pydantic import BaseModel, Field
 import aios
 from aios import config
 from aios.logging_config import configure_logging, get_logger, session_log_key
-from aios.core.metrics import CONTENT_TYPE_LATEST, MetricsCollector, MetricsMiddleware, generate_latest, get_collector
+from aios.core.metrics import MetricsMiddleware
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
-from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.agents.role_pass import run_role_pass
 from aios.agents.swarm import run_swarm
 from aios.agents.swarm_patterns import SwarmPatternMemory
@@ -55,7 +54,6 @@ from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
 from aios.core.executor import (
     Executor,
-    approved_runner_from_config,
     validate_approved_execution_backend,
 )
 from aios.core.confidence_filter import gate as confidence_gate
@@ -82,6 +80,16 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_semantic_indexer,
     get_skill_memory,
     get_swarm_pattern_memory,
+    get_session_manager,
+    get_executor,
+    get_approval_store,
+    get_rollback_engine,
+    get_self_apply_engine,
+    get_edit_snapshot,
+    _session_id_from_request,
+    _APPROVALS,
+    _RATE_LIMITER,
+    _SESSION_MANAGER,
 )
 from aios.core import catalog, router, telemetry
 from aios.core.bedrock import BedrockClient
@@ -109,10 +117,6 @@ from aios.core.alignment import (
     frame_from_state,
 )
 from aios.core.native_planner import NativePlanner
-from aios.core.planner import Planner, PlannerError
-from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
-from aios.core.session_manager import SessionManager
-from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.compaction import MemoryCompactor
@@ -153,21 +157,11 @@ from aios.core.verification_strength import (
     meets_promotion_floor,
     strength_from_text,
 )
-from aios.security.audit_logger import init_audit_db, log_action, verify_chain
-from aios.security.gateway import RateLimiter, Zone, classify
+from aios.security.audit_logger import init_audit_db, log_action
+from aios.security.gateway import Zone, classify
 from aios.security.secret_scanner import scan_and_redact
 
-_APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
-_RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
-
-#: Server-side session manager with httpOnly cookie support.
-#: Sessions are stored by SHA-256 hash only; the raw ID never leaves the server
-#: except inside the httpOnly cookie response, and is never persisted.
-_SESSION_MANAGER = SessionManager(
-    max_age=3600,
-    cleanup_interval=300,
-    store_path=config.SESSION_DB_PATH,
-)
+# Approval/rate-limit/session singletons moved to aios.api.deps (tranche 2).
 
 #: Cloud chat-client singletons. Built lazily and reused across requests so we do
 #: not re-run boto3/gcloud credential discovery on every turn. Enablement is still
@@ -184,7 +178,6 @@ _cortex_dispatcher: Optional[CortexBusDispatcher] = None
 _self_model_handler: Optional[SelfModelHandler] = None
 
 logger = get_logger(__name__)
-_METRICS = get_collector()
 
 
 @asynccontextmanager
@@ -350,10 +343,16 @@ from aios.api.routes.memory import (  # noqa: E402 — mounted after app + deps 
 )
 from aios.api.routes.development import router as _development_router  # noqa: E402
 from aios.api.routes.models import router as _models_router  # noqa: E402
+from aios.api.routes.system import router as _system_router  # noqa: E402
+from aios.api.routes.auth import router as _auth_router  # noqa: E402
+from aios.api.routes.actions import router as _actions_router  # noqa: E402
 from aios.api.routes.voice import router as _voice_router
 from aios.api.routes.sovereignty import router as _sovereignty_router
 from aios.api.routes.council import router as _council_router
 
+app.include_router(_system_router)
+app.include_router(_auth_router)
+app.include_router(_actions_router)
 app.include_router(_memory_router)
 app.include_router(_development_router)
 app.include_router(_models_router)
@@ -590,125 +589,6 @@ async def endpoint_rate_limit(request: Request, call_next):
     return await call_next(request)
 
 
-def get_session_manager() -> SessionManager:
-    """Provide the server-side session manager singleton."""
-    return _SESSION_MANAGER
-
-
-def _session_id_from_request(request: Request, fallback: Optional[str] = None) -> str:
-    """Prefer the validated httpOnly session cookie, then body fallback.
-
-    Cookie-based browser clients should not expose a session id in JavaScript.
-    The fallback keeps older local callers working when cookies are unavailable.
-    """
-    cookie_hash = request.cookies.get("session_id")
-    if cookie_hash:
-        session = get_session_manager().validate_session(cookie_hash)
-        if session is not None:
-            return session.session_hash
-    return fallback or ""
-
-
-def _effective_rollback_snapshot(
-    engine: RollbackEngine, requested: Optional[str]
-) -> str:
-    """Resolve the rollback target before approval so the token binds a SHA."""
-    if requested:
-        return requested
-    snapshots = engine.list_snapshots(limit=2)
-    if len(snapshots) < 2:
-        raise HTTPException(
-            status_code=409,
-            detail="No previous snapshot to roll back to.",
-        )
-    return snapshots[1].sha
-
-
-def get_executor() -> Executor:
-    """Provide the default scope-constrained executor. Overridden in tests."""
-    return Executor(
-        approved_runner=approved_runner_from_config(),
-        rate_limiter=_RATE_LIMITER,
-    )
-
-def get_approval_store() -> ApprovalStore:
-    """Provide the durable local multi-worker approval capability store."""
-    return _APPROVALS
-
-
-def get_rollback_engine() -> RollbackEngine:
-    """Provide the default sandbox rollback engine. Overridden in tests."""
-    return RollbackEngine()
-
-
-def get_self_apply_engine(
-    executor: Executor = Depends(get_executor),
-) -> SelfApplyEngine:
-    """Provide the Self-Analysis T3 apply engine (verifies via the gated Executor).
-
-    The engine is the ONLY way an approved proposal reaches the real ``aios/`` source
-    — there is deliberately no agent tool that applies. Overridden in tests with a
-    fake verifier + temp project root so no real shell/suite runs.
-    """
-    isolated_runner = approved_runner_from_config()
-
-    def project_root_runner(
-        command: str, *, cwd: str, env: dict[str, str], timeout_s: int
-    ) -> tuple[str, str, int]:
-        """Run self-apply verification from the project root, after gateway approval.
-
-        ``SelfApplyEngine`` verifies changes to ``aios/`` with ``pytest tests/``.
-        The ordinary agent executor intentionally runs in ``training_ground/``;
-        using that cwd would look for ``training_ground/tests`` and roll back good
-        proposals. The command still passes through the same Executor gateway and
-        audit path before this runner is invoked.
-
-        Phase 2 — self-apply is CONTAINER-ONLY. It is the single path by which an
-        approved proposal reaches real ``aios/`` source, so it must never verify (and
-        thus never apply) on the bare host. In host mode (``isolated_runner is None``)
-        it REFUSES; the proposal is rolled back. The verify suite runs INSIDE the
-        container with a container-appropriate interpreter (the host ``.venv`` path
-        in ``DEFAULT_VERIFY_COMMAND`` does not exist in the image), with the real
-        project root bind-mounted so it tests the proposed change.
-        """
-        if command != DEFAULT_VERIFY_COMMAND:
-            raise ValueError("self-apply verifier accepts only the fixed project test command")
-        if isolated_runner is None:
-            raise RuntimeError(
-                "self-apply requires the container execution boundary; host mode "
-                "refuses (set AIOS_APPROVED_EXECUTION_BACKEND=container and start the "
-                "container runtime to apply proposals)"
-            )
-        return isolated_runner(
-            "python -m pytest tests/ -q",
-            cwd=str(config.PROJECT_ROOT),
-            env=env,
-            timeout_s=timeout_s,
-        )
-
-    verify_executor = Executor(
-        runner=project_root_runner,
-        timeout_s=120,
-        actor="self-apply-verifier",
-    )
-    return SelfApplyEngine(verifier=Verifier(verify_executor))
-
-
-def get_edit_snapshot() -> Callable[..., object]:
-    """Provide the pre-edit snapshot hook for the agent's ``edit_file`` tool.
-
-    Returns a callable that lazily constructs a sandbox :class:`RollbackEngine`
-    and snapshots it — only when an approved edit is actually applied, so read /
-    command turns pay nothing. Fail-closed: a snapshot failure propagates so the
-    agent refuses the edit (no unprotected write). Overridden in tests with a recorder.
-    """
-    def snapshot(message: str = "pre-edit snapshot") -> None:
-        # Let failures propagate: the agent treats a snapshot error as fail-closed
-        # and refuses the edit, so a write is never applied without a captured
-        # pre-edit state to roll back to.
-        RollbackEngine().create_snapshot(message)
-
-    return snapshot
 
 
 def get_compactor() -> MemoryCompactor:
@@ -741,78 +621,6 @@ class MemoryCompactRequest(BaseModel):
         True,
         description="When True, preview what would be removed. False performs the sweep.",
     )
-
-
-class ClassifyRequest(BaseModel):
-    """Body for ``/security/classify``."""
-
-    command: str = Field(..., description="Action payload to classify.")
-
-
-class ReflectRequest(BaseModel):
-    """Body for ``/reflect``."""
-
-    command: str = Field(..., description="The action/command that failed.")
-    error_output: str = Field(..., description="Captured error text.")
-    task_id: Optional[str] = Field(None, description="Stable id for recurrence detection.")
-
-
-class PlanRequest(BaseModel):
-    """Body for ``/plan``."""
-
-    goal: str = Field(..., description="High-level goal to decompose into steps.")
-
-
-class ExecuteRequest(BaseModel):
-    """Body for ``/execute``."""
-
-    command: str = Field(..., description="Command to classify, gate, and run.")
-    session_id: Optional[str] = Field(
-        None,
-        alias="sessionId",
-        description="Required for a YELLOW command's server-issued approval capability.",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class ApprovalRequest(BaseModel):
-    """Body for ``/approval/req`` — a human's decision on an escalated action."""
-
-    approval_token: str = Field(..., alias="approvalToken")
-    session_id: Optional[str] = Field(
-        None,
-        alias="sessionId",
-        description="Fallback session id when the httpOnly session cookie is unavailable.",
-    )
-    approve: bool = Field(..., description="True to authorise execution, False to reject.")
-
-    model_config = {"populate_by_name": True}
-
-
-class RollbackRequest(BaseModel):
-    """Body for ``/rollback``."""
-
-    snapshot_id: Optional[str] = Field(
-        None, description="Target snapshot SHA; defaults to the previous snapshot."
-    )
-    approval_token: Optional[str] = Field(
-        None, alias="approvalToken",
-        description="Server-issued approval token authorising this destructive operation.",
-    )
-    session_id: Optional[str] = Field(
-        None, alias="sessionId", description="Session that requested rollback."
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class ApplyProposalRequest(BaseModel):
-    """Body for the Self-Analysis T3 apply endpoint — the HUMAN approver's id."""
-
-    approved_by: str = Field("", alias="approvedBy")
-
-    model_config = {"populate_by_name": True}
 
 
 class GenerateRequest(BaseModel):
@@ -881,67 +689,6 @@ class TerminalRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class IntentPreviewRequest(BaseModel):
-    """Body for ``/api/v1/intent/preview`` — a lightweight rule-based prediction
-    of what the operator is about to ask, so the UI can hint the dock before the
-    turn is even sent. No LLM call; deterministic and cheap."""
-
-    text: str = Field(..., max_length=2000, description="Operator's current draft.")
-
-
-class IntentPreviewResponse(BaseModel):
-    """Predicted intent class for the command dock."""
-
-    intent: str = Field(..., description="chat | code | browse | swarm | command")
-    confidence: float = Field(..., ge=0, le=1)
-    tool: Optional[str] = Field(None, description="Primary tool if intent is actionable.")
-
-
-class OnboardingStateResponse(BaseModel):
-    """Read-only view of which product milestones the operator has reached."""
-
-    firstDirective: bool
-    firstApproval: bool
-    firstVerify: bool
-    firstCloudRoute: bool
-    firstAutonomy: bool
-
-
-class SessionCreateResponse(BaseModel):
-    """Response from POST /api/v1/auth/session — session created."""
-
-    authenticated: bool = Field(
-        ..., description="True when the session is authenticated."
-    )
-    session_id: str = Field(
-        ..., alias="sessionId", description="The session identifier (for cookie-based clients)."
-    )
-    cookie_based: bool = Field(
-        True, alias="cookieBased",
-        description="True when session travels via httpOnly cookie.",
-    )
-    warning: Optional[str] = Field(
-        None,
-        description="Security warning when cookie-less fallback is in use.",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class SessionStatusResponse(BaseModel):
-    """Response from GET /api/v1/auth/session — current session status."""
-
-    authenticated: bool = Field(
-        ..., description="True when a valid session exists."
-    )
-    cookie_based: bool = Field(
-        True, alias="cookieBased",
-        description="True when session travels via httpOnly cookie.",
-    )
-    session_id: Optional[str] = Field(
-        None, alias="sessionId",
-        description="The session identifier (only when not cookie-based).",
-    )
 
     model_config = {"populate_by_name": True}
 
@@ -949,203 +696,8 @@ class SessionStatusResponse(BaseModel):
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
-@app.get("/health")
-def health() -> dict[str, Any]:
-    """Liveness probe."""
-    return {"status": "ok", "version": aios.__version__}
 
 
-@app.get("/metrics")
-def metrics(
-    tracker: DevelopmentTracker = Depends(get_development_tracker),
-    approvals: ApprovalStore = Depends(get_approval_store),
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> Response:
-    """Prometheus scrapable operational metrics."""
-    _METRICS.update(
-        tracker.summary(),
-        approvals.grant_count(),
-        autonomy.earned_count(),
-        audit_db_path=config.AUDIT_DB_PATH,
-    )
-    return Response(
-        content=generate_latest(_METRICS.registry),
-        media_type=CONTENT_TYPE_LATEST,
-    )
-
-
-def _classify_intent(text: str) -> IntentPreviewResponse:
-    """Rule-based intent preview for the command dock."""
-    t = text.lower().strip()
-    if not t:
-        return IntentPreviewResponse(intent="chat", confidence=1.0, tool=None)
-    if re.search(r"https?://|^(browse|search|look\s+up)\b", t):
-        return IntentPreviewResponse(intent="browse", confidence=0.92, tool="browse")
-    if re.search(r"\b(swarm|workers|plan\s+(out|it)|decompose|multi-agent)\b", t):
-        return IntentPreviewResponse(intent="swarm", confidence=0.9, tool="swarm")
-    if re.match(r"^(run|execute|install|pip|npm|git|python|bash|sh)\b", t):
-        return IntentPreviewResponse(intent="command", confidence=0.85, tool="execute")
-    if re.match(r"^(write|build|create|make|code|implement|fix|add|generate)\b", t):
-        return IntentPreviewResponse(intent="code", confidence=0.9, tool="edit_file")
-    return IntentPreviewResponse(intent="chat", confidence=0.8, tool=None)
-
-
-@app.post("/api/v1/intent/preview")
-def intent_preview(req: IntentPreviewRequest) -> IntentPreviewResponse:
-    """Return a cheap, deterministic intent preview for the current draft."""
-    return _classify_intent(req.text)
-
-
-def _has_any_approval_grant(store: ApprovalStore) -> bool:
-    """True if any approval has ever been redeemed (cross-session)."""
-    if store.db_path is not None:
-        with store._connect() as conn:
-            row = conn.execute("SELECT COUNT(*) AS n FROM approval_grants").fetchone()
-            return int(row["n"]) > 0
-    with store._lock:
-        return any(store._grants.values())
-
-
-def _has_verified_success() -> bool:
-    """True if any development event has outcome verified_success."""
-    with get_connection(config.MEMORY_DB_PATH) as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) AS n FROM development_events WHERE outcome = ?",
-            ("verified_success",),
-        ).fetchone()
-        return int(row["n"]) > 0
-
-
-def _has_cloud_route() -> bool:
-    """True if a cloud-route audit entry has been recorded."""
-    init_audit_db(config.AUDIT_DB_PATH)
-    conn = sqlite3.connect(str(config.AUDIT_DB_PATH), timeout=30.0)
-    try:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT COUNT(*) AS n FROM tamper_audit_trail WHERE actor = ?",
-            ("cloud-route",),
-        ).fetchone()
-        return int(row["n"]) > 0
-    finally:
-        conn.close()
-
-
-@app.get("/api/v1/onboarding/state")
-def onboarding_state(
-    approvals: ApprovalStore = Depends(get_approval_store),
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> OnboardingStateResponse:
-    """Return which first-run milestones have been reached."""
-    ledger = autonomy.ledger_map()
-    return OnboardingStateResponse(
-        firstDirective=_EPISODIC.count(None) > 0,
-        firstApproval=_has_any_approval_grant(approvals),
-        firstVerify=_has_verified_success(),
-        firstCloudRoute=_has_cloud_route(),
-        firstAutonomy=ledger["summary"]["earned"] > 0,
-    )
-
-
-# --------------------------------------------------------------------------- #
-# Session management — httpOnly Secure SameSite=Strict cookies (H2 hardening)
-# --------------------------------------------------------------------------- #
-# SECURITY: Session IDs are managed server-side and travel in httpOnly cookies
-# that are completely inaccessible to JavaScript. This prevents XSS-based
-# session theft (OWASP A07:2021). The raw session ID is never logged or exposed.
-# --------------------------------------------------------------------------- #
-
-def _set_session_cookie(response: Response, raw_session_id: str) -> str:
-    """Set the session_id cookie with httpOnly, Secure, SameSite=Strict flags.
-
-    Returns the cookie value (the SHA-256 hash) so it can be used as a
-    session identifier in logs (the raw ID is never logged).
-    """
-    cookie_value = hashlib.sha256(raw_session_id.encode()).hexdigest()
-    # In development (loopback) Secure=False so the cookie works over HTTP.
-    # In production behind HTTPS, Secure=True is enforced by config check.
-    secure = config.API_HOST not in {"127.0.0.1", "localhost", "::1"}
-    response.set_cookie(
-        key="session_id",
-        value=cookie_value,
-        httponly=True,          # NOT accessible to JavaScript — prevents XSS theft
-        secure=secure,          # HTTPS only in production; loopback allows HTTP
-        samesite="strict",      # NOT sent cross-origin — prevents CSRF
-        max_age=3600,           # 1 hour
-        path="/",             # Sent for all API paths
-    )
-    return cookie_value
-
-
-@app.post("/api/v1/auth/session")
-def create_session(
-    response: Response,
-    manager: SessionManager = Depends(get_session_manager),
-) -> SessionCreateResponse:
-    """Create a new server-side session and set the httpOnly session cookie.
-
-    The session ID is stored in an httpOnly, Secure, SameSite=Strict cookie.
-    JavaScript cannot read this cookie, preventing XSS-based session theft.
-
-    If cookies are blocked (e.g., privacy mode), the session ID is returned
-    in the response body with a security warning — the client should fall
-    back to sending it in the ``sessionId`` field of subsequent requests.
-    """
-    raw_id = manager.create_session()
-    cookie_hash = _set_session_cookie(response, raw_id)
-    return SessionCreateResponse(
-        authenticated=True,
-        session_id=cookie_hash,
-        cookie_based=True,
-    )
-
-
-@app.get("/api/v1/auth/session")
-def get_session_status(
-    request: Request,
-    manager: SessionManager = Depends(get_session_manager),
-) -> SessionStatusResponse:
-    """Check whether the current session is valid.
-
-    Returns ``authenticated: true`` when the request carries a valid
-    session cookie. The frontend calls this on load to determine whether
-    a session exists without needing to read the cookie directly
-    (httpOnly cookies are invisible to JavaScript).
-    """
-    cookie_hash = request.cookies.get("session_id")
-    session = manager.validate_session(cookie_hash)
-    if session is not None:
-        return SessionStatusResponse(
-            authenticated=True,
-            cookie_based=True,
-        )
-    return SessionStatusResponse(
-        authenticated=False,
-        cookie_based=True,
-    )
-
-
-@app.delete("/api/v1/auth/session")
-def destroy_session(
-    request: Request,
-    response: Response,
-    manager: SessionManager = Depends(get_session_manager),
-) -> dict[str, Any]:
-    """Invalidate the current session (logout).
-
-    Removes the session from server-side storage AND clears the cookie
-    so the browser stops sending it.
-    """
-    cookie_hash = request.cookies.get("session_id")
-    manager.invalidate_session(cookie_hash)
-    response.delete_cookie(
-        key="session_id",
-        path="/",
-        httponly=True,
-        secure=config.API_HOST not in {"127.0.0.1", "localhost", "::1"},
-        samesite="strict",
-    )
-    return {"authenticated": False}
 
 
 @app.post("/api/v1/memory/compact")
@@ -1165,260 +717,13 @@ def memory_compact(
     return JSONResponse(content=result, status_code=status_code)
 
 
-@app.post("/api/v1/conversation/session")
-def restore_conversation_session(
-    req: ConversationSessionRequest,
-    state: ConversationStateStore = Depends(get_conversation_state_store),
-) -> dict[str, Any]:
-    """Restore recent dialogue and the latest unverified alignment frame."""
-    rows = _EPISODIC.recent(req.session_id, req.limit)
-    messages = [
-        {"role": str(row["role"]), "content": [{"text": str(row["content"])}]}
-        for row in rows
-        if row["role"] in {"user", "assistant"}
-    ]
-    return {
-        "alignment": state.get(req.session_id),
-        "activeCorrection": state.active_correction(req.session_id),
-        "correctionHistory": state.correction_history(req.session_id),
-        "messages": messages,
-    }
 
 
 
-@app.post("/api/v1/security/classify")
-def security_classify(req: ClassifyRequest) -> dict[str, Any]:
-    """Deterministic, fail-closed security-zone classification."""
-    result = classify(req.command)
-    return {
-        "zone": result.zone.value,
-        "confidence": result.confidence,
-        "reason": result.reason,
-    }
 
 
-@app.get("/api/v1/audit/verify")
-def audit_verify(from_entry: int = 1, to_entry: Optional[int] = None) -> dict[str, Any]:
-    """Verify the tamper-evident audit hash chain over an optional id range."""
-    status = verify_chain(from_id=from_entry, to_id=to_entry)
-    if not status.valid:
-        logger.critical(
-            "Audit hash-chain verification failed",
-            broken_at=status.broken_at,
-            reason=status.reason,
-            total_entries=status.total_entries,
-        )
-        _METRICS.record_audit_verify_failure()
-    return asdict(status)
 
 
-@app.post("/api/v1/reflect")
-def reflect(req: ReflectRequest, llm: LLMClient = Depends(get_llm_client)) -> dict[str, Any]:
-    """Run the reflection agent on a failure and store a structured lesson."""
-    agent = ReflectionAgent(llm)
-    try:
-        reflection = agent.reflect(req.command, req.error_output, task_id=req.task_id)
-    except ReflectionError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return asdict(reflection)
-
-
-def _serialize_plan(plan: Any) -> dict[str, Any]:
-    """Flatten a Plan (with TaskStep dataclasses) into JSON-safe primitives."""
-    return {
-        "goal": plan.goal,
-        "requires_human": plan.requires_human,
-        "steps": [asdict(s) for s in plan.steps],
-        "approved": [asdict(s) for s in plan.approved],
-        "escalate": [
-            {"step": asdict(e["step"]), "reason": e["reason"], "action": e["action"]}
-            for e in plan.escalate
-        ],
-        "calibrations": [asdict(c) for c in plan.calibrations],
-    }
-
-
-@app.post("/api/v1/plan")
-def plan(
-    req: PlanRequest,
-    llm: LLMClient = Depends(get_llm_client),
-    native: NativePlanner = Depends(get_native_planner),
-) -> dict[str, Any]:
-    """Decompose a goal into a confidence-gated task tree."""
-    planner = Planner(llm, native=native)
-    try:
-        result = planner.plan(req.goal)
-    except PlannerError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return _serialize_plan(result)
-
-
-@app.post("/api/v1/execute")
-def execute(
-    req: ExecuteRequest,
-    executor: Executor = Depends(get_executor),
-    approvals: ApprovalStore = Depends(get_approval_store),
-) -> dict[str, Any]:
-    """Classify, gate, audit, and (if GREEN) run a command in the sandbox."""
-    result = executor.execute(req.command, session_id=req.session_id)
-    response = asdict(result)
-    if result.status == "REQUIRE_APPROVAL":
-        if not req.session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="sessionId is required to approve a YELLOW command",
-            )
-        response["approvalToken"] = approvals.issue(
-            "command", {"command": req.command}, req.session_id
-        )
-        response["sessionId"] = req.session_id
-    return response
-
-
-@app.post("/api/v1/approval/req")
-def approval_req(
-    req: ApprovalRequest,
-    request: Request,
-    executor: Executor = Depends(get_executor),
-    approvals: ApprovalStore = Depends(get_approval_store),
-) -> dict[str, Any]:
-    """Resolve a human decision on an escalated (YELLOW) action.
-
-    Approve -> run the command in the sandbox (RED is still refused). Reject ->
-    audit the rejection and return without running.
-    """
-    session_id = _session_id_from_request(request, req.session_id)
-    if not session_id:
-        raise HTTPException(status_code=422, detail="sessionId or session cookie is required")
-    try:
-        action = approvals.consume(req.approval_token, session_id)
-    except ApprovalError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    command = str(action.payload.get("command", ""))
-    if not req.approve:
-        if action.action_type == "command":
-            executor.reset_sensitive_actions(session_id)
-        target = command or str(action.payload.get("filepath", action.action_type))
-        log_action("human-approval", f"REJECTED {action.action_type}: {target}", Zone.YELLOW)
-        return {
-            "decision": "rejected",
-            "actionType": action.action_type,
-            "command": command,
-            "executed": False,
-        }
-    if action.action_type != "command":
-        raise HTTPException(status_code=400, detail="approval token is not for a command")
-    executor.reset_sensitive_actions(session_id)
-
-    result = executor.execute_approved(command)
-    return {
-        "decision": "approved",
-        "command": command,
-        "executed": result.status == "OK",
-        "result": asdict(result),
-    }
-
-
-@app.post("/api/v1/rollback")
-def rollback(
-    req: RollbackRequest,
-    request: Request,
-    engine: RollbackEngine = Depends(get_rollback_engine),
-    approvals: ApprovalStore = Depends(get_approval_store),
-) -> dict[str, Any]:
-    """Restore the sandbox working tree to a prior snapshot.
-
-    Rollback is a DESTRUCTIVE operation that requires a server-issued approval
-    token. When called without a token, one is issued and returned so the UI
-    can prompt the human approver; when called with a valid token, the token
-    is consumed and the rollback executes.
-    """
-    session_id = _session_id_from_request(request, req.session_id)
-    if not session_id:
-        raise HTTPException(status_code=422, detail="sessionId or session cookie is required")
-    try:
-        snapshot_id = _effective_rollback_snapshot(engine, req.snapshot_id)
-    except RollbackError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    if not req.approval_token:
-        token = approvals.issue(
-            "rollback", {"snapshot_id": snapshot_id}, session_id
-        )
-        return {
-            "requiresApproval": True,
-            "approvalToken": token,
-            "actionType": "rollback",
-            "snapshotId": snapshot_id,
-            "executed": False,
-        }
-    try:
-        action = approvals.consume(req.approval_token, session_id)
-    except ApprovalError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    if action.action_type != "rollback":
-        raise HTTPException(status_code=400, detail="approval token is not for rollback")
-    if action.payload.get("snapshot_id") != snapshot_id:
-        raise HTTPException(status_code=403, detail="approval token snapshot does not match request")
-    try:
-        result = engine.rollback(snapshot_id)
-    except RollbackError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return asdict(result)
-
-
-# --------------------------------------------------------------------------- #
-# Self-Analysis T3 — human-gated review + apply of fix proposals
-# The agent has NO tool to apply (see tool_agent); these human-called endpoints
-# are the ONLY path from a 'proposed' row to a real write in aios/.
-# --------------------------------------------------------------------------- #
-@app.get("/api/v1/self-analysis/proposals")
-def list_proposals(status: Optional[str] = "proposed") -> dict[str, Any]:
-    """List Self-Analysis findings (default the ``proposed`` ones) for the review UI."""
-    init_memory_db()
-    sql = (
-        "SELECT id, target_path, finding_type, evidence, proposed_zone, "
-        "proposed_diff, proposed_by, approved_by, status FROM self_analysis_report"
-    )
-    params: list[Any] = []
-    if status:
-        sql += " WHERE status = ?"
-        params.append(status)
-    sql += " ORDER BY id DESC LIMIT 200"
-    with get_connection() as conn:
-        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
-    return {"proposals": rows}
-
-
-@app.post("/api/v1/self-analysis/proposals/{proposal_id}/apply")
-def apply_proposal(
-    proposal_id: int,
-    req: ApplyProposalRequest,
-    engine: SelfApplyEngine = Depends(get_self_apply_engine),
-) -> dict[str, Any]:
-    """Apply an approved proposal to ``aios/`` — gated, verified, auto-rollback (T3)."""
-    result = engine.apply(proposal_id, approved_by=req.approved_by)
-    return asdict(result)
-
-
-@app.post("/api/v1/self-analysis/proposals/{proposal_id}/reject")
-def reject_proposal(proposal_id: int) -> dict[str, Any]:
-    """Reject a ``proposed`` finding (status -> ``rejected``); never applies anything."""
-    init_memory_db()
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT status FROM self_analysis_report WHERE id = ?", (proposal_id,)
-        ).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"no proposal with id {proposal_id}")
-        if row["status"] != "proposed":
-            raise HTTPException(
-                status_code=409,
-                detail=f"proposal {proposal_id} is '{row['status']}', not 'proposed'",
-            )
-        conn.execute(
-            "UPDATE self_analysis_report SET status = 'rejected' WHERE id = ?", (proposal_id,)
-        )
-    return {"id": proposal_id, "status": "rejected"}
 
 
 # --------------------------------------------------------------------------- #

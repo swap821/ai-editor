@@ -12,12 +12,16 @@ import aios
 import pytest
 from fastapi.testclient import TestClient
 
+# The process-wide collector: get_collector() returns the singleton the
+# /metrics route (now in routes/system.py) and middleware share.
+from aios.core.metrics import get_collector
+
+_METRICS = get_collector()
 from aios.api.main import (
     app,
     get_approval_store,
     get_autonomy,
     get_development_tracker,
-    _METRICS,
 )
 from aios.core.approvals import ApprovalStore
 from aios.core.autonomy import AutonomyLedger
@@ -115,7 +119,8 @@ def test_audit_verify_increments_failure_counter_and_sets_gauge(
     def _verify_with_temp_db(*, from_id: int = 1, to_id: int | None = None, db_path=None):
         return audit_mod.verify_chain(from_id=from_id, to_id=to_id, db_path=audit_db)
 
-    monkeypatch.setattr("aios.api.main.verify_chain", _verify_with_temp_db)
+    # audit_verify lives in aios.api.routes.system since the monolith split
+    monkeypatch.setattr("aios.api.routes.system.verify_chain", _verify_with_temp_db)
     monkeypatch.setattr("aios.core.metrics.verify_chain", _verify_with_temp_db)
 
     verify_resp = client.get("/api/v1/audit/verify")
