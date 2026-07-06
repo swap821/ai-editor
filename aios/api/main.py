@@ -57,6 +57,7 @@ from aios.core.executor import (
     validate_approved_execution_backend,
 )
 from aios.core.confidence_filter import gate as confidence_gate
+from aios.core.planner import Planner, PlannerError, plan_to_prompt_block, serialize_plan
 from aios.core.events import event_for_sse
 from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules import these from main
     get_alignment_evaluation_store,
@@ -1410,6 +1411,7 @@ def generate(
     snapshot: Callable[..., object] = Depends(get_edit_snapshot),
     planner_llm: LLMClient = Depends(get_llm_client),
     approvals: ApprovalStore = Depends(get_approval_store),
+    mistakes: MistakeMemory = Depends(get_mistake_memory),
     development: DevelopmentTracker = Depends(get_development_tracker),
     skills: SkillMemory = Depends(get_skill_memory),
     swarm_patterns: SwarmPatternMemory = Depends(get_swarm_pattern_memory),
@@ -1585,6 +1587,9 @@ def generate(
         #    skips interpretation entirely: no frame, observation, or ask-pause.
         context_parts: list[str] = []
         alignment = None
+        # Hoisted above the (conditional) alignment block: the plan stage below
+        # must be able to read it even when AIOS_INTERPRET_ALIGNMENT is off.
+        _cerebellum_matched = False
         if alignment_interpreter is not None:
             base_alignment = alignment_interpreter.understand(chat_messages)
             alignment = base_alignment
@@ -1642,66 +1647,120 @@ def generate(
                 yield sse("done", {})
                 return
 
-            # ── Sovereignty S1: cerebellum pre-check ──────────────────
-            # If a compiled playbook matches the user message, skip the
-            # confidence gate — the actual replay happens inside
-            # ToolAgent.run() (below), which dispatches every step through
-            # self._dispatch (the FULL security pipeline: classify(),
-            # scope_lock, audit_logger, verifier). This pre-check only
-            # matches and announces; it never dispatches a tool call
-            # itself, so there is no parallel security path.
-            _cerebellum_matched = False
-            if user_text:
-                try:
-                    _cb_match = cerebellum.match(user_text)
-                except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal
-                    logger.warning("Cerebellum match failed", exc_info=exc)
-                    _cb_match = None
-                if _cb_match is not None:
-                    _cerebellum_matched = True
-                    yield sse("cerebellum_match", {
-                        "goal": _cb_match.goal_pattern,
-                        "playbook_id": _cb_match.id,
-                        "step_count": len(_cb_match.steps),
-                    })
+        # ── Sovereignty S1: cerebellum pre-check ──────────────────
+        # If a compiled playbook matches the user message, skip the
+        # confidence gate — the actual replay happens inside
+        # ToolAgent.run() (below), which dispatches every step through
+        # self._dispatch (the FULL security pipeline: classify(),
+        # scope_lock, audit_logger, verifier). This pre-check only
+        # matches and announces; it never dispatches a tool call
+        # itself, so there is no parallel security path. Deliberately
+        # OUTSIDE the alignment block: ToolAgent replays a matched
+        # playbook regardless of AIOS_INTERPRET_ALIGNMENT, so the match
+        # announcement — and the plan stage's reflex-skip below — must
+        # not depend on the interpreter being enabled.
+        if user_text:
+            try:
+                _cb_match = cerebellum.match(user_text)
+            except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal
+                logger.warning("Cerebellum match failed", exc_info=exc)
+                _cb_match = None
+            if _cb_match is not None:
+                _cerebellum_matched = True
+                yield sse("cerebellum_match", {
+                    "goal": _cb_match.goal_pattern,
+                    "playbook_id": _cb_match.id,
+                    "step_count": len(_cb_match.steps),
+                })
 
-            if not _cerebellum_matched:
-                confidence, confidence_calibration = _calibrate_default_confidence(
-                    " ".join(part for part in (user_text, alignment.goal, alignment.intent) if part),
-                    alignment.confidence,
-                    reflector=reflector,
+        if alignment is not None and not _cerebellum_matched:
+            confidence, confidence_calibration = _calibrate_default_confidence(
+                " ".join(part for part in (user_text, alignment.goal, alignment.intent) if part),
+                alignment.confidence,
+                reflector=reflector,
+                development=development,
+                skills=skills,
+            )
+            confidence_result = confidence_gate(confidence)
+            if not confidence_result.passed:
+                question = (
+                    "I am not confident enough in my understanding to proceed. "
+                    "What should I clarify before continuing?"
+                )
+                if alignment.unknowns:
+                    question = (
+                        "I am not confident enough in my understanding to proceed. "
+                        f"Please clarify: {alignment.unknowns[0]}"
+                    )
+                payload = {
+                    "confidence": confidence,
+                    "threshold": config.CONFIDENCE_THRESHOLD,
+                    "reason": confidence_result.reason,
+                    "goal": alignment.goal,
+                    "intent": alignment.intent,
+                    "question": question,
+                    "calibration": confidence_calibration,
+                }
+                _record_episode(session_id, "user", user_text)
+                _record_episode(session_id, "assistant", question)
+                approvals.clear_session(session_id)
+                yield sse("confidence.gated", payload)
+                yield sse("text_chunk", {"text": question})
+                # A confidence-gated turn is still a real turn -- count it.
+                _record_telemetry(telemetry.OUTCOME_ABORTED)
+                yield sse("done", {})
+                return
+
+        # ── Mandatory plan stage (Product-Phase-1 close-out; AIOS_PLAN_STAGE) ──
+        # The SAME deterministic Planner behind POST /api/v1/plan, run
+        # unconditionally on every non-reflex FIRST turn: native-first
+        # (verified experience templates), LLM fallback. The plan is ADVISORY
+        # context — it has no execution or approval authority; escalated
+        # steps still pause at the gateway's per-action approval surface when
+        # they actually execute, and telemetry's dispatch_path is NOT
+        # upgraded here (the plan advises the turn; it does not serve it —
+        # see the invariant where _dispatch_path is initialized). Fail-open
+        # by design: any planner failure (including offline-mode native
+        # misses) logs, emits nothing, and the turn proceeds — the confidence
+        # gate and approval surface remain the safety layer. Skipped on
+        # reflex turns (a matched playbook exists precisely to avoid this
+        # consultation) and on approval-resume turns (the goal was already
+        # planned when the turn first ran; re-planning mid-approved-action
+        # would inject a second, possibly different plan).
+        if (
+            config.PLAN_STAGE_ENABLED
+            and user_text
+            and not _cerebellum_matched
+            and not req.approval_tokens
+        ):
+            # Announce BEFORE the (blocking) planner consultation so the
+            # stream is never silent for a full LLM completion — time-to-
+            # first-byte stays bounded and the UI can show the phase.
+            yield sse(
+                "step",
+                {
+                    "type": "tool_result",
+                    "tool": "plan",
+                    "output": "Plan stage: decomposing the goal into confidence-gated steps…",
+                    "id": "plan-stage",
+                },
+            )
+            try:
+                _stage_planner = Planner(
+                    planner_llm,
+                    native=native_planner,
+                    mistakes=mistakes,
                     development=development,
                     skills=skills,
                 )
-                confidence_result = confidence_gate(confidence)
-                if not confidence_result.passed:
-                    question = (
-                        "I am not confident enough in my understanding to proceed. "
-                        "What should I clarify before continuing?"
-                    )
-                    if alignment.unknowns:
-                        question = (
-                            "I am not confident enough in my understanding to proceed. "
-                            f"Please clarify: {alignment.unknowns[0]}"
-                        )
-                    payload = {
-                        "confidence": confidence,
-                        "threshold": config.CONFIDENCE_THRESHOLD,
-                        "reason": confidence_result.reason,
-                        "goal": alignment.goal,
-                        "intent": alignment.intent,
-                        "question": question,
-                        "calibration": confidence_calibration,
-                    }
-                    _record_episode(session_id, "user", user_text)
-                    _record_episode(session_id, "assistant", question)
-                    approvals.clear_session(session_id)
-                    yield sse("confidence.gated", payload)
-                    yield sse("text_chunk", {"text": question})
-                    # A confidence-gated turn is still a real turn -- count it.
-                    _record_telemetry(telemetry.OUTCOME_ABORTED)
-                    yield sse("done", {})
-                    return
+                _stage_plan = _stage_planner.plan(user_text)
+            except PlannerError as exc:
+                logger.warning("Plan stage failed open: %s", exc)
+            except Exception as exc:  # noqa: BLE001 - planning is advisory, never fatal
+                logger.warning("Plan stage failed open", exc_info=exc)
+            else:
+                yield sse("plan", serialize_plan(_stage_plan))
+                context_parts.append(plan_to_prompt_block(_stage_plan))
 
         semantic = _recall_memory(user_text)
         if semantic:
