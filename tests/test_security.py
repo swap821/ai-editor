@@ -345,6 +345,19 @@ def test_durable_rate_limiter_migrates_legacy_raw_session_id(tmp_path) -> None:
     assert b"legacy-session" not in db_path.read_bytes()
 
 
+def test_durable_rate_limiter_connect_closes_the_connection(tmp_path) -> None:
+    # Regression: ``with self._connect() as conn:`` only commits-or-rolls-back
+    # -- it never closes the connection, leaking one open sqlite3 connection
+    # per call. After the fix, the connection must be closed by the time the
+    # ``with`` block exits.
+    db_path = tmp_path / "security-state.db"
+    limiter = RateLimiter(db_path=db_path)
+    with limiter._connect() as conn:
+        pass
+    with pytest.raises(sqlite3.ProgrammingError):
+        conn.execute("SELECT 1")
+
+
 def test_green_allows_and_red_blocks() -> None:
     assert validate_command("cat readme").status == "BLOCK"
     assert validate_command("rm -rf /").status == "BLOCK"

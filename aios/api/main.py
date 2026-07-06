@@ -60,7 +60,7 @@ from aios.core.executor import (
 )
 from aios.core.confidence_filter import gate as confidence_gate
 from aios.core.events import event_for_sse
-from aios.core import catalog, router
+from aios.core import catalog, router, telemetry
 from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
@@ -106,6 +106,7 @@ from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
 from aios.memory.mistake import MistakeMemory
+from aios.memory.relevance import signature as task_signature
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.memory.embeddings import VectorIndex
 from aios.memory.episodic import EpisodicMemory
@@ -2804,9 +2805,10 @@ def _verify_target_keys(command: str) -> list[str]:
     """
     keys: list[str] = []
     seen: set[str] = set()
-    for token in command.replace('"', " ").replace("'", " ").split():
+    for raw in command.replace('"', " ").replace("'", " ").split():
+        token = raw.replace("\\", "/").lower()
         if token.endswith(".py"):
-            norm = token.replace("\\", "/").lower()
+            norm = token
             while norm.startswith("./"):
                 norm = norm[2:]
             if norm and norm not in seen:
@@ -3104,6 +3106,43 @@ def generate(
         if not user_text:
             yield sse("error", {"text": "No user message provided."})
             return
+
+        # Telemetry (Phase 1 lap-counter, roadmap SS1): observation-only, never
+        # gates or blocks a turn (record_run fails open). `_dispatch_path` starts
+        # at the worst-case honest default and is only ever UPGRADED to a more
+        # specific value once a real event proves it (playbook/native-plan
+        # replay) -- so a turn that never emits one of those events is
+        # correctly counted as `llm` (or `refused_offline` under the offline
+        # guard). `_max_zone` is a coarse approximation (see scoping notes):
+        # it starts GREEN and is only ever raised, never lowered, toward the
+        # worst zone actually observed this turn.
+        _turn_started = time.perf_counter()
+        _dispatch_path = (
+            telemetry.DISPATCH_REFUSED_OFFLINE if config.OFFLINE_MODE else telemetry.DISPATCH_LLM
+        )
+        _max_zone = Zone.GREEN.value
+        _ZONE_RANK = {Zone.GREEN.value: 0, Zone.YELLOW.value: 1, Zone.RED.value: 2}
+
+        def _bump_zone(new_zone: str) -> None:
+            nonlocal _max_zone
+            if _ZONE_RANK.get(new_zone, 0) > _ZONE_RANK.get(_max_zone, 0):
+                _max_zone = new_zone
+
+        def _record_telemetry(verified_outcome: str) -> None:
+            provider, served_model = _active_route(
+                chat_client, bedrock, gemini, model,
+                openai=openai_client, anthropic=anthropic_client,
+            )
+            telemetry.record_run(
+                session_id=session_id,
+                task_signature=task_signature(user_text),
+                dispatch_path=_dispatch_path,
+                provider=provider,
+                model=served_model,
+                verified_outcome=verified_outcome,
+                latency_ms=round((time.perf_counter() - _turn_started) * 1000),
+                max_zone=_max_zone,
+            )
 
         # The ACTIVE BRAIN for this turn: which provider/model served it + a privacy
         # indicator, so the UI can show the voyaging mind's current brain. Emitted
@@ -3641,6 +3680,15 @@ def generate(
                     workflow_steps.append(_workflow_step(ev))
                 elif kind == "tool_blocked":
                     blocked_actions += 1
+                    # Coarse max_zone approximation (scoping report SS5.2): a
+                    # blocked tool call is the strongest per-event signal
+                    # available today that this turn touched a RED-classified
+                    # action (the real per-call Zone is computed by the
+                    # security gateway but discarded before it reaches this
+                    # event dict). Known false positive: a caste-permission
+                    # block also yields status=="blocked" without a Zone.RED
+                    # verdict -- accepted until Zone is threaded through.
+                    _bump_zone(Zone.RED.value)
                 if kind == "tool_result":
                     output = str(ev.get("output", ""))
                     # Provenance gate: ONLY the verify tool (the model's `verify`
@@ -3692,6 +3740,8 @@ def generate(
                             )
                 yield sse("step", ev)
             elif kind == "native_plan":
+                if _dispatch_path != telemetry.DISPATCH_PLAYBOOK:
+                    _dispatch_path = telemetry.DISPATCH_NATIVE_PLAN
                 yield sse("native_plan", ev)
             elif kind == "text":
                 answer_parts.append(ev["text"])
@@ -3719,6 +3769,8 @@ def generate(
                     workflow_steps.append(
                         f"{ev.get('tool', '?')}: cerebellum replay"
                     )
+                elif kind == "cerebellum_done":
+                    _dispatch_path = telemetry.DISPATCH_PLAYBOOK
                 yield sse(kind, ev)
             elif kind == "swarm_plan":
                 # Plan event from the ant-colony; used internally for pattern
@@ -3745,6 +3797,7 @@ def generate(
                 # matched regex pattern (e.g. "\\bpip\\s+install\\b") and belongs
                 # in the audit log, not in a human approval prompt. Shape matches
                 # the frontend's pendingAction handler ({commands, explanation}).
+                _bump_zone(Zone.YELLOW.value)
                 cmd = ev["command"]
                 edit = ev.get("edit")
                 creation = ev.get("creation")
@@ -3830,6 +3883,10 @@ def generate(
                     )
                 except Exception as exc:  # noqa: BLE001 - metrics must never break approval
                     logger.warning("Development metrics recording failed for paused turn", exc_info=exc)
+                # A turn that pauses for approval and is never resumed must still
+                # be counted -- otherwise every YELLOW-gated turn (a large share
+                # of real traffic) silently vanishes from telemetry entirely.
+                _record_telemetry(telemetry.OUTCOME_ABORTED)
                 yield sse("human_required", payload)
             elif kind == "done":
                 # 4. Persist the answer (L2) and consolidate the turn into L3.
@@ -3846,14 +3903,17 @@ def generate(
                 # unresolved FAIL on another.
                 if not verification_evidence:
                     record_outcome("unverified")
+                    _record_telemetry(telemetry.OUTCOME_UNVERIFIED)
                 else:
                     # The FORCED auto-verify is authoritative; fall back to the
                     # model's own verify only when nothing was auto-verified.
                     authoritative = auto_verdicts or verify_verdicts
                     if any(v == "FAIL" for v in authoritative.values()):
                         record_outcome("verified_failure")
+                        _record_telemetry(telemetry.OUTCOME_FAIL)
                     else:
                         record_outcome("verified_success")
+                        _record_telemetry(telemetry.OUTCOME_PASS)
                 # B5 growth: announce curriculum mastery so the body's lattice
                 # can harden. Additive frame; fires only on the transition and
                 # only under the STRONG promotion floor (gated inside
@@ -4016,7 +4076,30 @@ def chat(
 
     def event_stream() -> Iterator[str]:
         sse = _sse_writer(session_id)
+        # Telemetry (Phase 1 lap-counter, roadmap SS1): this endpoint has no tool
+        # loop and never verifies anything, so dispatch_path is always `llm` and
+        # verified_outcome is always `unverified` -- except a turn that never
+        # reached the model (empty transcript / a transport failure), which is
+        # honestly counted as `aborted` rather than silently producing zero rows.
+        _turn_started = time.perf_counter()
+
+        def _record_chat_telemetry(verified_outcome: str) -> None:
+            provider, served_model = _active_route(
+                chat_client, bedrock, gemini, model,
+                openai=openai_client, anthropic=anthropic_client,
+            )
+            telemetry.record_run(
+                session_id=session_id,
+                task_signature=task_signature(user_text) if user_text else None,
+                dispatch_path=telemetry.DISPATCH_LLM,
+                provider=provider,
+                model=served_model,
+                verified_outcome=verified_outcome,
+                latency_ms=round((time.perf_counter() - _turn_started) * 1000),
+            )
+
         if not user_text:
+            _record_chat_telemetry(telemetry.OUTCOME_ABORTED)
             yield sse("error", {"text": "No transcript provided."})
             return
 
@@ -4077,6 +4160,7 @@ def chat(
                 text_parts.append(chunk)
                 yield sse("text_chunk", {"text": chunk})
         except LLMError as exc:
+            _record_chat_telemetry(telemetry.OUTCOME_ABORTED)
             yield sse("error", {"text": str(exc)})
             return
 
@@ -4106,6 +4190,7 @@ def chat(
                     )
             except Exception:
                 logger.warning("Chat fact extraction failed", exc_info=True)
+        _record_chat_telemetry(telemetry.OUTCOME_UNVERIFIED)
         yield sse("done", {})
 
     return StreamingResponse(
