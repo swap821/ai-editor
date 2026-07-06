@@ -1181,13 +1181,21 @@ def test_to_chat_messages_handles_non_dict_content_type() -> None:
 # _verify_target_keys / _verify_target_key (2788-2820)
 # --------------------------------------------------------------------------- #
 def test_verify_target_keys_extracts_normalized_py_tokens() -> None:
-    # NOTE (seam, not fixed here): the ".py" suffix check is case-sensitive
-    # (``token.endswith(".py")``) even though the surrounding token is later
-    # lower()'d — an uppercase ``.PY``/``.Py`` token is therefore NOT recognized
-    # as a per-file target and falls through to the whole-command fallback key
-    # instead. This test asserts the ACTUAL (lowercase-only) behavior.
     keys = _verify_target_keys('pytest "tests/test_a.py" tests\\test_b.py')
     assert keys == ["tests/test_a.py", "tests/test_b.py"]
+
+
+def test_verify_target_keys_uppercase_py_extension_attributed_per_file() -> None:
+    # Regression: the ".py" suffix check must run on the ALREADY-lowercased
+    # token, not before lowering — otherwise an uppercase/mixed-case ``.PY``
+    # token is not recognized as a per-file target at all and the whole call
+    # falls through to the whole-command fallback key, breaking per-file
+    # PASS/FAIL attribution for that file.
+    keys = _verify_target_keys("pytest tests/FOO.PY -q")
+    assert keys == ["tests/foo.py"]
+    assert _verify_target_keys("pytest tests/FOO.PY -q") == _verify_target_keys(
+        "pytest tests/foo.py -q"
+    )
 
 
 def test_verify_target_keys_strips_leading_dot_slash() -> None:
