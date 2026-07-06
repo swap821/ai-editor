@@ -38,6 +38,19 @@ def test_redeemed_grant_expires() -> None:
     assert store.grants("s1") == []
 
 
+def test_connect_closes_the_underlying_connection_after_the_with_block(tmp_path) -> None:
+    # Regression: ``with self._connect() as conn:`` only commits-or-rolls-back
+    # (that's all sqlite3.Connection.__enter__/__exit__ do) -- it never closes
+    # the connection. Every DB-backed call therefore leaked one open sqlite3
+    # connection/file handle. After the fix, the connection must be closed by
+    # the time the ``with`` block exits.
+    store = ApprovalStore(db_path=tmp_path / "approvals.db")
+    with store._connect() as conn:
+        pass
+    with pytest.raises(sqlite3.ProgrammingError):
+        conn.execute("SELECT 1")
+
+
 def test_durable_token_survives_store_restart_and_is_single_use(tmp_path) -> None:
     path = tmp_path / "approvals.sqlite"
     first = ApprovalStore(timeout_ms=1000, db_path=path)
