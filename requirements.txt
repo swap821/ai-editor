@@ -26,11 +26,11 @@ iniconfig==2.3.0
 Jinja2==3.1.6
 jmespath==1.1.0
 joblib==1.5.3
-mando==0.8.2
+mando==0.7.1
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
-mpmath==1.4.1
+mpmath==1.3.0
 networkx==3.6.1
 numpy==2.4.6
 packaging==26.2
@@ -63,7 +63,7 @@ smmap==5.0.3
 starlette==1.3.1
 sympy==1.14.0
 threadpoolctl==3.6.0
-tokenizers==0.23.1
+tokenizers==0.22.2
 torch==2.12.1
 tqdm==4.68.3
 transformers==5.13.0
