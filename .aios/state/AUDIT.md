@@ -1,110 +1,127 @@
-# AUDIT.md — Evidence-Based Backend Status (refreshed 2026-06-07)
+# AUDIT.md — Evidence-Based Status Ledger (refreshed 2026-07-06)
 
-> **2026-06-07 refresh** by Claude Code (acting CEO/Chief Architect). Supersedes the
-> 2026-06-03 Phase-1 audit (git history retains it). Rule unchanged: a component is
-> **BUILT** only if code exists **AND** tests exist **AND** they pass. Cross-referenced
-> against `blueprint_text.md` (v6) and the v6 Assessment companion
-> (`aiosv6_assessment_text.md`).
+> **2026-07-06 refresh** by Claude Code. Supersedes the 2026-06-07 audit (git history
+> retains it). This file is the **official evidence ledger** behind `README.md` — the
+> README states the thesis; THIS file carries the perishable facts. Rule unchanged: a
+> component is **BUILT** only if code exists **AND** tests exist **AND** they pass.
+> **Standing rule: a live run always outranks the numbers written here.**
 
-## 0. Ground truth
-- Full suite: **150 passed, 1 skipped** (`.venv\Scripts\python -m pytest -q`). The skip is the
-  Windows symlink-privilege case (environmental, not a failure).
-- Backend: 28 modules in `aios/{core,memory,security,agents,api}`. **Zero** TODO/FIXME/stub
-  markers found. Clean dependency-injection + centralized `config.py`.
+## 0. Ground truth (2026-07-06)
 
-## 1. What changed since the 2026-06-03 audit (111 → 150 tests)
-The Phase-2 slices in `PLAN.md` are DONE, closing most prior gaps:
-- ✅ Security scope hardening (Slice 1a) + API contract tests (1b)
-- ✅ **File-edit tool + unified diff + approval** (Slice 2/4); path-resolution bug fixed + **live
-  e2e verified on Bedrock 2026-06-07** (diff → Apply → write + pre-edit snapshot `dce2427`)
-- ✅ Frontend test harness — Vitest/RTL (Slice 3)
-- ✅ **Verifier component** `aios/core/verifier.py` (Slice 5)
-- ✅ Prompt-injection **vector blocklist** `aios/security/injection_shield.py` (Slice 6)
-- ✅ **L3 entity facts + contradiction detection** `aios/memory/facts.py` (Slice 7)
-- ✅ AWS Bedrock cloud provider + real model picker
+- **CI (the authoritative gate):** run `28794157393` (workflow "CI", master @ `4b2b695`,
+  2026-07-06, success).
+  - Backend job (windows-latest): full suite green; coverage gate output:
+    `Required test coverage of 85% reached. Total coverage: 92.28%`.
+    The repo's pytest config suppresses the "N passed" summary line **by design** —
+    judge the suite by exit code + the coverage floor, never by grepped output.
+  - Frontend job (ubuntu-latest): **72 test files / 468 tests passed**, type-check
+    green, production build green.
+- **Static census:** ~2,500 `def test_` functions under `tests/` (grep, 2026-07-06).
+  Last local live collect: 2,532 backend tests (2026-07-05/06 sessions). The old
+  README/PLAN figure "326 frontend tests" is stale — the suite has grown to 468.
+- Tree at refresh: master @ `4b2b695`, working tree clean, local == origin.
 
-The 06-03 "PARTIAL/MISSING" rows for Verifier, L3 facts/contradiction, injection-vector,
-file-edit-diff, and frontend-tests are now **BUILT**.
+## 1. What changed since the 2026-06-07 audit (150 → ~2,500 tests)
 
-## 2. Component status (2026-06-07)
-**BUILT + tested:** Security gateway (3-zone, fail-closed, rate limit) · scope-lock · secret
-scanner · audit hash-chain · L1/L2/L3/L4 memory · FAISS + hybrid BM25+FAISS+decay retrieval ·
-L3 facts + contradiction detection · Planner · Confidence filter · Executor (sandboxed) ·
-Reflection agent · Mistake pool · Rollback engine · Verifier · injection vector shield ·
-edit_file diff-approval · agentic tool-loop · Bedrock cloud · 8 v1 API contracts · frontend harness.
+The 06-07 audit predates most of the current system. Landed since, all test-backed:
+- **Verifier wired into the live loop** (the 06-07 audit's #1 recommendation — DONE; see §3).
+- **Reflection loop closed in-loop**: failure hook → Mistake DB → lesson recall → confirm-hook promotion.
+- **Skills → Cerebellum compiled-playbook layer**: verified-skill compile, reflex replay, demotion-invalidation.
+- **Verification-strength system**: strength tokens stamped by the Verifier; promotion floors on every skill/memory write (anti-laundering: provenance-gated evidence).
+- **Earned autonomy** (default-ON), **swarm + role-pass orchestration**, **CRAG-style gated retrieval on by default**.
+- **Cross-provider router** (Ollama + Bedrock + Gemini + Anthropic + OpenAI-compat) behind the operator-owned privacy boundary; per-turn `route` SSE.
+- **Council Runtime R0–R2 + Dashboard-lite** (KingReport API/panel, approve/reject artifacts).
+- **Self-Analysis module T0–T3 surface**: proposals list/apply/reject endpoints (T4 core-edit stays RED/frozen).
+- **Telemetry wired** into `/generate` + `/chat` (including aborted-turn rows); observability stack (Prometheus/Grafana/Alertmanager) in docker compose.
+- **Voice** (STT/TTS routes + UI), **monolith split tranches 1–2** (`aios/api/deps.py` + 9 routers; `main.py` 4,252 → ~2,650 lines), Python 3.12 alignment, Docker hardening.
+- **Single-frontend collapse**: GAGOS points-being at `/` is the only UI.
 
-## 3. 🔑 KEY FINDING — the integration gap
-The live path `/api/generate → ToolAgent` does: **recall → security-gated tools (read/edit/exec)
-→ reflect-on-failure → audit.** Solid. But three finished components are **islands**:
+## 2. Component status (2026-07-06)
 
-| Component | Built & tested | In the live loop? |
+**BUILT + tested + in the live loop:** security gateway (3-zone, fail-closed, rate limit) ·
+scope-lock · secret scanner · audit hash-chain (Ed25519, boot attestation) · injection
+vector shield · L1/L2/L3/L4 memory + facts/contradiction quarantine · hybrid
+BM25+FAISS+decay retrieval · confidence gate (every turn) · sandboxed executor +
+rollback engine · file-edit diff-approval · agentic tool loop · **Verifier (in-loop)** ·
+reflection agent + mistake pool · skills/trails + cerebellum replay · knowledge-graph
+ingestion + inference · router + privacy filter + failover · earned autonomy ·
+swarm/role-pass castes · telemetry · council runtime (R0–R2) · self-analysis T0–T3 ·
+voice · session/auth · API routers (memory/development/models/system/auth/actions).
+
+**BUILT, not in the live loop:** Planner as a *mandatory* stage (see §3).
+
+**DESIGNED, not built:** Project Passport (P3) · Web Navigator (P4) · Taste Memory (P5).
+
+## 3. 🔑 Integration reality (corrects the 06-07 gap table)
+
+| Component | Built & tested | In the live `/api/generate` loop? |
 |---|---|---|
-| Planner (+0.72 gate) | ✅ | ❌ only standalone `/api/v1/plan` |
-| Verifier (stage 8) | ✅ | ❌ **wired to nothing** — no endpoint, not in the loop |
-| Confidence filter | ✅ | ❌ only via Planner → `/plan` |
+| Planner (+0.72 gate) | ✅ | ⚠️ **partial — the real remaining gap.** Runs as the model-discretionary `plan` tool (`aios/agents/tool_agent.py:1384-1445`) and standalone `POST /api/v1/plan` (`routes/actions.py:141`). The scalar confidence gate DOES run every turn (`main.py:~1669-1701`); the unconditional plan *stage* does not exist yet. |
+| Verifier | ✅ | ✅ **WIRED — the 06-07 "wired to nothing" row is CLOSED.** Only trusted verify-tool output counts as evidence (provenance gate, `main.py:~2104-2119`); strength floors gate every skill/memory promotion (`main.py:~1998-2007`); verified skill → cerebellum compile (`aios/memory/skills.py:188-189`). |
+| Reflection loop | ✅ | ✅ wired (failure hook `main.py:~1267` → Mistake DB → `_recall_lessons` `main.py:~1164`). Missing only the end-to-end **demo artifact** — a harness gap, not a code gap. |
+| Earned autonomy | ✅ | ✅ wired, **default-ON** (`config.py:182`), ≥5 consecutive verified successes per action class (`config.py:183`), streak reset on failure, revoke via `POST /api/v1/development/autonomy/revoke`, RED never earnable. |
 
-⇒ The blueprint's pipeline (plan → retrieve → classify → approve → execute → **verify** → reflect →
-audit) exists as *parts, not one flow*. **Highest-ROI next work is integration, not new features.**
+## 4. Open gaps — the thesis→v1.0 work plan
 
-## 4. Structural debt (found 2026-06-07)
-1. **RollbackEngine inits a `.git` INSIDE the main-repo-tracked `training_ground/`** → embedded-repo
-   wrinkle; snapshots never reach origin. (Verified live today: `training_ground/.git` now exists.)
-2. **Tests share `DATA_DIR` with the live app** → a `hybrid_search` stub is needed to avoid a torch
-   segfault. Couples tests to on-disk state.
-3. **Self-edit scope:** scope roots = `training_ground` only, so the agent currently **cannot edit
-   its own `aios/` code at all**. The planned Self-Analysis module (T2/T3) needs scope to include
-   `aios/` with `aios/security/` excluded — a security-sensitive expansion to design carefully.
+1. **Learning-loop prover** (`tools/learning_loop_prover.py`, to be built): drives failure →
+   lesson → recall → promotion → compile → reflex replay end-to-end and records the
+   Phase-2 demo artifact under `.aios/audit/`.
+2. **Mandatory plan stage** in `generate()` behind `AIOS_PLAN_STAGE` (ship default-OFF;
+   flip after the prover is green with the stage enabled).
+3. **Continuous sovereignty surface** (UI): swarm→cognition bridge, swarm toggle,
+   Self-Analysis proposals panel, read-only Sovereign State tab (trails · autonomy
+   ledger + revoke · pending facts · curriculum proposals — all endpoints live today).
+4. **Two genuinely open hard problems** (design docs due at v1.0, systems later):
+   verification confidence (are the checks the right checks — mutation-probe design)
+   and staleness/drift (freshness windows, re-verify-on-use).
+5. Product seams (report-only, from RESUME): swarm caste `stopped` branches unreachable
+   via approval pause; `council.py` local `get_approval_store` proxy (test trap); no
+   subprocess-coverage wiring.
 
-## 5. Genuinely missing — build targets
-**Marquee (from the v6 Assessment doc) — the capability the operator most wants:**
-- **Self-Analysis & Self-Improvement Module** `aios/agents/self_analysis_agent.py` — tiers T0
-  index/explain → T1 diagnose → T2 propose-diff (YELLOW) → T3 apply (snapshot→verify→audit→auto-
-  rollback) → T4 core edit (RED, frozen). Scoped to **code, not cognition**. Reuses gateway +
-  rollback + audit unchanged. Prereqs (mostly met now): real tests ✅, wired Verifier (TODO),
-  solid rollback (fix the nesting), static tooling (coverage+radon), golden tests, documented
-  frozen core, stronger analysis model ✅ (16GB unlock).
+## 5. Phase crosswalk — README Product Phases (P) ↔ roadmap-spec Runtime Phases (R)
 
-**Blueprint P3/P4 (deferred):** Project Knowledge Graph (Neo4j — L3 facts are a seed) · Voice
-(Whisper+Piper) · Observability + Deployment (Docker, Prometheus/Grafana/OTel) · chaos/perf/
-adversarial test tiers.
+The README tells the **product** story (P0–P6). The spec
+(`docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`) tracks **runtime
+architecture** phases (R0–R10, with a 30-day MVP scoped inside). Different axes — a
+"Phase 2" on one is not a "Phase 2" on the other.
 
-## 6. Assessment-doc framing corrections (adopt)
-- Target **90%+ working MVP**, not "100% built" (pursue completeness; *report* it as 90%+).
-- Self-analysis = reads/improves its own **code** under approval — not "understands its cognition."
-- Security framing: "**deterministic routing** + a probabilistic 2nd layer, both feeding a **human
-  gate**." The human gate is the guarantee; don't oversell the classifier.
+| Runtime phase (spec) | Status (evidence) |
+|---|---|
+| R0 Schema Lock + Skeleton | ✅ implemented (PLAN.md banner, 2026-06-27) |
+| R1A Deterministic Worker Birth | ✅ implemented |
+| R1B Hybrid Intelligence Worker Birth | ✅ implemented |
+| R2 Simulated Council Loop | ✅ implemented |
+| — Dashboard-lite (KingReport API/panel) | ✅ implemented |
+| R3A/R3B Queen wrappers/services | ⬜ not claimed complete; council/queen surface partially live — verify before claiming |
+| R4 Pheromone Memory | ⬜ seeded (skill trails + reuse pheromone live) — full phase not claimed |
+| R5–R9 (worktree swarm · healing · policy evolution · mature dashboard · isolation) | ⬜ not started |
+| R10 Sovereign AI-OS v1.0 | ⬜ target |
 
-## 7. RAM upgrade (2026-06-07): 8 → 16 GB
-Unlocks local mid-size models (`qwen2.5-coder:7b`, `llama3.1:8b`) — the Assessment doc's hard
-requirement for trustworthy reflection/self-analysis (3B is too weak). Bedrock is now optional, not
-mandatory. Self-analysis readiness (was 5/10: "needs tests + a stronger model") — both now satisfied.
+Product-side mapping, roughly: P0 ≈ R0 foundations (LOCKED) · P1 ≈ R1A/R1B + the plan-stage
+close-out · P2 ≈ R2 + the R4 seed (demo artifact pending) · P3–P6 sit beyond the
+implemented runtime frontier (largely R4–R10 territory).
 
-## 8. Recommended build order
-**Tier 1 — integrate what exists (highest ROI):**
-1. Wire the **Verifier** into the live loop (execute→verify→reflect). ← prereq for self-improvement.
-   *(ultracode prompt drafted 2026-06-07.)*
-2. Wire the **Planner + confidence gate** for multi-step goals.
+## 6. Structural debt — status of the 06-07 findings
 
-**Tier 2 — fix the cracks:**
-3. Relocate the rollback snapshot repo out of tracked `training_ground/` (into gitignored `data/`).
-4. Isolate tests from live `DATA_DIR` (retire the stub workaround).
+1. Rollback snapshots inside tracked `training_ground/` → **RESOLVED**: rollback now
+   lives under the data dir (`config.py:111` `ROLLBACK_DIR = DATA_DIR / "rollback"`,
+   registry DB `config.py:411`).
+2. Tests sharing `DATA_DIR` with the live app → **not re-verified this refresh**;
+   carried forward for a future session to confirm or close.
+3. Self-edit scope (`SCOPE_ROOTS` = `training_ground/` only, `config.py:220`) → still
+   true and now **deliberate**: the security spine is frozen (RED, §VIII flow), and the
+   Self-Analysis module proposes diffs for human review instead of widening scope.
 
-**Tier 3 — self-analysis runway:**
-5. Static tooling (`coverage.py` + `radon`) + a golden-regression harness; document the frozen core
-   in CLAUDE.md; pull a stronger local model (`qwen2.5-coder:7b`).
+## 7. Honest completion estimate (2026-07-06)
 
-**Tier 4 — the marquee feature:**
-6. Self-Analysis Module — T0/T1 (read-only diagnose) first → T2/T3 → T4 last (frozen-core, RED).
-
-**Tier 5 — blueprint expansion:** Knowledge Graph → Voice → Observability/Docker → chaos/perf.
-
-## 9. Honest completion estimate (2026-06-07)
-- Backend P0–P1 core: **≈90%** built + test-backed (up from ~80% on 06-03).
-- Live agentic pipeline *integration*: **≈75%** (Planner/Verifier not yet in the loop).
-- Full v6 vision (incl. self-analysis + voice + KG + observability): **≈55–60%**.
-
-Not 100% — and reported as such. A strong, test-backed core; the next leverage is integrating it
-into one pipeline, then building the self-analysis capability on that foundation.
+- Backend core: built + test-backed at scale (CI-gated ≥85% coverage, currently 92.28%).
+- Live pipeline integration: **≈85%** — the mandatory planner stage is the one
+  remaining organ-level gap; everything else in the README organ table is in-loop.
+- Full spec vision (R10 sovereign runtime + P3–P6 product arcs): the runtime frontier
+  is at R2 of R10; the product frontier at P2 of P6. Substantial, real, not finished —
+  and reported as such.
 
 ---
-_Refreshed 2026-06-07 by Claude Code. Next action: Tier-1 #1 (wire the Verifier) via ultracode._
+_Refreshed 2026-07-06 by Claude Code. Next actions, in order: learning-loop prover
+(P2 demo artifact) → mandatory plan stage (`AIOS_PLAN_STAGE`) → sovereignty surface →
+the two hard-problem design docs. Trust `RESUME.md` for session-level state._
