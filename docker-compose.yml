@@ -11,6 +11,12 @@ name: aios
 services:
   aios:
     build: .
+    restart: unless-stopped
+    # Conservative caps for a process that loads torch/sentence-transformers/
+    # faiss-cpu: an unbounded OOM here can otherwise take down the whole host.
+    # Tune from observed usage (`docker stats`) rather than raising blindly.
+    mem_limit: 4g
+    cpus: 2.0
     ports:
       - "${AIOS_API_PORT:-8000}:${AIOS_API_PORT:-8000}"
     environment:
@@ -32,6 +38,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.0.1
+    restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -52,6 +59,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.3.1
+    restart: unless-stopped
     ports:
       - "${AIOS_GRAFANA_PORT:-3000}:3000"
     environment:
@@ -69,6 +77,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
     ports:

@@ -1,10 +1,27 @@
 """Tests for Phase 3A durable Council deliberation state."""
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
+
+import pytest
 
 from aios.council.council_state import CouncilState
 from aios.runtime.contracts import QueenVerdict
+
+
+def test_connect_closes_the_underlying_connection_after_the_with_block(
+    tmp_path: Path,
+) -> None:
+    # Regression: ``with self._connect() as conn:`` only commits-or-rolls-back
+    # -- it never closes the connection, leaking one open sqlite3 connection
+    # per call. After the fix, the connection must be closed by the time the
+    # ``with`` block exits.
+    state = CouncilState(db_path=tmp_path / "council_state.db")
+    with state._connect() as conn:
+        pass
+    with pytest.raises(sqlite3.ProgrammingError):
+        conn.execute("SELECT 1")
 
 
 def test_records_and_replays_verdicts_per_mission(tmp_path: Path) -> None:

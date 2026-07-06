@@ -31,7 +31,9 @@ def _split_command(command: str) -> list[str]:
 
 def _default_forbidden_probe(contract: MissionContract) -> str:
     for rule in contract.forbidden_files:
-        clean = rule.replace("\\", "/").strip().lstrip("./")
+        clean = rule.replace("\\", "/").strip()
+        while clean.startswith("./"):
+            clean = clean[2:]
         if not clean:
             continue
         if clean.endswith("/") or "." not in Path(clean).name:

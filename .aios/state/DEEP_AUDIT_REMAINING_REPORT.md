@@ -1,3 +1,9 @@
+<!-- ============================================================= -->
+<!-- 2026-07-02 ADDENDUM appended below the original 2026-07-01 run -->
+<!-- (per doc-currency convention: add, never rewrite dated evidence) -->
+<!-- Jump to the addendum: search "PER-FILE + CROSS-SEAM PASS"       -->
+<!-- ============================================================= -->
+
 # Deep Audit — Remaining Dimensions (run on cloud 32B via ruflo)
 
 **Date:** 2026-07-01
@@ -26,3 +32,45 @@
 
 ## Provenance
 Cloud 32B via ruflo proven operational this session (`agent_execute` → `RUFLO_CLOUD_32B_OK`). Setup + management commands in ruflo memory (`gagos-cloud-gpu`).
+
+---
+
+# PER-FILE + CROSS-SEAM PASS (2026-07-02 addendum)
+
+**Date:** 2026-07-02
+**Baseline:** master `629d373`.
+**How:** the last two un-run parts of the exhaustive audit — the **per-file crawl** (all 82 `aios/**/*.py`, risk-ranked) and the **cross-seam pass** (8 subsystem boundaries) — were run on **qwen2.5-coder:32b** on the operator's GCP L4 VM (`gagos-ollama-l4`, recreated in **us-central1-c** after us-central1-a/b stocked out), driven through the SSH tunnel `:11435`. Claude did only file-glue + the final human review-gate; **all analysis reasoning ran on the operator's 32B / credits.** Pipeline: per-file review → seam review → 1-vote adversarial refutation → neutral tiebreak on every disputed CRITICAL/HIGH/seam finding → completeness critic → **Claude reads the actual code for every survivor.**
+
+## Result: 0 real new defects at per-file/seam depth
+
+| Stage | Count |
+|---|---|
+| Files audited (per-file) | 82 / 82 |
+| Seams audited | 8 / 8 |
+| Raw findings (per-file 115 + seam 23) | 138 |
+| Survived 32B adversarial refutation | 0 as REAL; 5 CRITICAL kept only as "disputed" |
+| Survived 32B neutral tiebreak (judge sided with finder) | 5 |
+| **Survived Claude's code-grounded review-gate** | **0** |
+
+**All 5 tiebreak-upheld "CRITICAL" findings are false positives** when read against the real code + system design:
+
+1. `memory/semantic.py:132` "data loss on persist failure" — **REFUTED.** The `DELETE` at line 138 is a deliberate *compensating* action (comment explains it): a failed vector persist removes the just-inserted DB row to prevent durable DB/index drift. That IS the rollback, not a loss. Consistent with prior note obs#6034 (double-lock intentional).
+2. `agents/tool_agent.py:1148` "command injection in `_execute`" — **REFUTED.** `execute_terminal` running a terminal command is the worker's *intended* execution surface, gated by the caste `allowed_tools` check (line 1132) and the frozen-RED security gateway/scope-lock in `tool_handlers`. The 32B saw `tool_agent.py` in isolation and mistook the designed, guarded exec path for an injection. (Matches obs#796 "tool agent loop is fully gated".)
+3. `core/failover.py:63` "`_is_cloud_provider` false positives" — **REFUTED.** The substring OR-check is *fail-safe*: an ambiguous name classified as cloud triggers MORE privacy protection, never less. The tiebreak judge even misdescribed the code ("any character" — it iterates provider *strings*).
+4. `core/model_selector.py:170` "`installed: object` type hint" — **REFUTED.** Pure style nit (explicitly excluded by the audit prompt); the code defensively filters non-strings via `isinstance(m, str)`.
+5. `memory/retrieval.py:147-165` "errors indistinguishable from empty" — **REFUTED.** The `[]` returns (lines 102/112/127) are all genuinely-empty cases; a real DB/embedder error *raises* (no swallowing try/except). Premise is factually wrong.
+
+## Seams checked (contract audit)
+api-council-origination · council-worker-birth · worker-rollback-snapshots · sse-event-spine · router-providers-privacy · memory-retrieval-generate · security-gate-executors · session-approvals-api — **no confirmed cross-boundary defect survived review.**
+
+## The real, honest finding: the 32B is a weak reviewer
+The headline is not "0 bugs" — it is **calibration**: a per-file + seam + adversarial-verify + neutral-tiebreak pipeline run *entirely on the 32B* still surfaced **138 raw → 5 "upheld critical" → 0 real**. Every survivor died on contact with the actual code + the system's security design (gateway, caste gate, compensating writes) that a single-file-context model cannot see. Two structural limits confirmed:
+- **False positives leak** even through self-adversarial verification when refuter + judge are the *same* weak model (it rubber-stamps its own plausible-but-wrong claims). The human review-gate was load-bearing.
+- **False negatives too:** this run did NOT resurface the known-real `retrieval.py` timestamp-parse recency bug (obs#5820/#5785) — so the 32B misses genuine defects while inventing fake ones.
+- **Method blind spot:** the seam pass used grep-windowed excerpts, so defects spanning >2 files or requiring runtime-state understanding are structurally invisible to this method.
+
+## Convergence
+Consistent with the paused thematic deep-audit (**no critical/high confirmed**, obs "Deep-audit PAUSED") and the prior 32B thematic run (dead code already removed; rollback wired). **At per-file + seam depth, the `aios` backend has no confirmed new defect.** The actionable debt remains what was already known and tracked: `api/main.py` monolith → router split (plan item B); `queen_verdict.py`/`tool_handlers.py` lack direct tests (plan item D).
+
+## Provenance
+Raw artifacts (gitignored `.aios/tmp/`): `audit_inventory.json`, `audit_perfile_findings.jsonl`, `audit_seam_findings.jsonl`, `audit_verified.jsonl`, `audit_second_opinion.jsonl`, `audit_critic.json`. Drivers: `audit_driver.py`, `seam_driver.py`, `verify_driver.py`, `second_opinion.py`, `critic_driver.py`. VM stopped post-run (credit guard).

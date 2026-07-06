@@ -174,6 +174,24 @@ class TestDefaultForbiddenProbe:
         probe = _default_forbidden_probe(contract)
         assert probe == "../outside-contract-probe.txt"
 
+    def test_bare_dotfile_rule_is_preserved_not_corrupted(self) -> None:
+        # Regression: ``.lstrip("./")`` strips a CHARACTER SET, not a literal
+        # prefix, so a bare dotfile rule like ".env" loses its leading "."
+        # (-> "env"), which then has no "." in its name and is (mis)treated as
+        # a directory -- probing "env/blocked_probe.txt" instead of the real
+        # forbidden file ".env" the rule was meant to guard.
+        contract = _contract(Path("."), forbidden_files=[".env"])
+        probe = _default_forbidden_probe(contract)
+        assert probe == ".env"
+
+    def test_dotfile_rule_nested_in_a_directory_is_unaffected(self) -> None:
+        # Sanity check: a dotfile that doesn't START with "." (nested under a
+        # directory) was never corrupted by the character-strip; this locks
+        # in that the fix doesn't change this already-correct case.
+        contract = _contract(Path("."), forbidden_files=["secrets/.env"])
+        probe = _default_forbidden_probe(contract)
+        assert probe == "secrets/.env"
+
 
 class TestStripCodeFences:
     """Lines 48-53: fence stripping when the model wraps its output."""
