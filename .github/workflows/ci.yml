@@ -25,7 +25,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          # Kept in lockstep with Dockerfile's `FROM python:3.12-slim` and the
+          # repo-root .python-version pin - the coverage-gated suite must run
+          # on the same interpreter the container ships (matters for the
+          # C-extension-heavy stack: torch/faiss-cpu/numpy).
+          python-version: "3.12"
           cache: pip
 
       - name: Install dependencies

@@ -1942,6 +1942,46 @@ def test_generate_records_verifier_backed_development_and_skill_evidence(
     assert curriculum.matches[-1][1] is True
 
 
+def test_generate_downgrades_weak_verified_success_to_unverified(
+    client: TestClient,
+) -> None:
+    # Same genuine verify-tool provenance as the STRONG case above, but the
+    # runner's output never reports "N passed" -- a recognized test runner
+    # (pytest) that asserted NOTHING is the hollow-run defense (roadmap Phase
+    # 1): exit 0 alone is only WEAK evidence. A WEAK verified_success turn
+    # must be recorded as 'unverified' so it can never calibrate development.
+    development = RecordingDevelopment()
+    skills = RecordingSkills()
+    curriculum = RecordingCurriculum()
+    app.dependency_overrides[get_ollama_client] = FakeOllamaVerify
+    app.dependency_overrides[get_executor] = lambda: Executor(
+        runner=lambda command, *, cwd, env, timeout_s: ("ran ok, no assertions", "", 0),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+    )
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
+    token = get_approval_store().issue(
+        "command", {"command": "pytest -q"}, "growth-verification-weak"
+    )
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "growth-verification-weak",
+            "approvalTokens": [token],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "[VERIFY PASS]" in response.text
+    assert "strength=WEAK" in response.text
+    assert development.records[-1][1] == "unverified"  # gated out of calibration
+
+
 class FakeOllamaForge:
     """Runs a GREEN execute_terminal whose stdout *forges* verifier evidence."""
 

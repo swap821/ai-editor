@@ -14,7 +14,8 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -97,12 +98,28 @@ class CortexBus:
         self._handlers: list[Callable[[BusEvent], None]] = []
         self._init()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a connection scoped to one ``with`` block.
+
+        Mirrors ``sqlite3.Connection``'s own context-manager semantics
+        (commit on success, rollback on exception) but ALSO closes the
+        connection on exit — plain ``sqlite3.Connection.__exit__`` only
+        commits/rolls back the transaction, it never closes the connection,
+        which otherwise leaks one open connection/file handle per call.
+        """
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init(self) -> None:
         with self._connect() as conn:
