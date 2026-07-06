@@ -144,7 +144,9 @@ class TestKnowledgeEndpoint:
     def test_ingest_endpoint_exists(self):
         from aios.api.main import app
 
-        routes = [r.path for r in app.routes]
+        # Starlette >=1.3 includes router objects without a .path (e.g.
+        # _IncludedRouter) in app.routes; only concrete routes carry one.
+        routes = [r.path for r in app.routes if hasattr(r, "path")]
         assert "/api/v1/knowledge/ingest" in routes
         assert "/api/v1/knowledge/sources" in routes
         assert "/api/v1/knowledge/sources/{source_id}" in routes
