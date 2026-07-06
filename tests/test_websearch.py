@@ -106,3 +106,24 @@ def test_web_search_scrubs_secret_from_query() -> None:
         fetch=fake_fetch,
     )
     assert "ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" not in captured["query"]
+
+
+def test_web_search_redacts_file_paths_before_egress() -> None:
+    """Local file paths must never leave the machine in the outbound query --
+    the cloud egress path redacts them (privacy_filter) and the web-search
+    egress must apply the same rule (deep-audit thematic finding #5)."""
+    sent: dict = {}
+
+    def fake_fetch(_e, payload, _k):
+        sent.update(payload)
+        return {"results": []}
+
+    web_search(
+        r"why does C:\Users\kumar\project\secret_notes.txt fail next to /home/kumar/aios/config.py",
+        endpoint="e",
+        api_key="k",
+        fetch=fake_fetch,
+    )
+    assert "kumar" not in sent["query"]
+    assert "secret_notes" not in sent["query"]
+    assert "[PATH REDACTED]" in sent["query"]

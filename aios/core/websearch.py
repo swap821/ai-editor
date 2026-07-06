@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Optional
 
+from aios.core.privacy_filter import redact_paths
 from aios.logging_config import get_logger
 from aios.security.secret_scanner import scan_and_redact
 
@@ -66,7 +67,10 @@ def web_search(
     """
     if not endpoint or not api_key:
         return []
-    safe_query = scan_and_redact(query).scrubbed
+    # Secrets AND local file paths are scrubbed before egress -- the cloud
+    # pipeline (privacy_filter) already redacts both; web search must not be
+    # the one surface that leaks the operator's filesystem layout.
+    safe_query = redact_paths(scan_and_redact(query).scrubbed)
     do_fetch = fetch or _default_fetch
     try:
         data = do_fetch(endpoint, {"query": safe_query, "max_results": max_results}, api_key)

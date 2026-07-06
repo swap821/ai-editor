@@ -20,6 +20,7 @@ from aios.runtime.intelligence_gateway import (
     IntelligenceRequest,
 )
 from aios.runtime.secret_policy import SecretPolicy
+from aios.security.gateway import Zone, classify
 
 # Captured command output is redacted and capped before it is persisted into the
 # durable evidence ledger, so a noisy or hostile command cannot bloat the ledger.
@@ -141,6 +142,43 @@ class WorkerRuntime:
             self._block(
                 "run_command",
                 "command is not in MissionContract.verification_commands",
+                {"command": command},
+            )
+        # Defense-in-depth: contract membership is not proof of operator intent
+        # (verification_commands can be LLM-proposed under COUNCIL_REASONING),
+        # so the RED gateway's hostile-CONTENT classes (destructive ops, network
+        # egress, env/secret mutation, injection, embedded credentials, shell
+        # escapes) are re-checked at the exec boundary — those are never
+        # executable, contract or no contract. Two chat-context stages are
+        # deliberately out of jurisdiction here, because the worker has its own
+        # containment (workspace root + container boundary + the contract
+        # allowlist above): the chat SCOPE_ROOTS check (verification commands
+        # legitimately run the absolute interpreter path) and the chat
+        # auto-execute allowlist default (contract-declared `python -c ...`
+        # is legitimate here). Reason drift in the gateway fails CLOSED: an
+        # unrecognized future RED reason blocks. argv[0] is reduced to its
+        # basename so the interpreter's location is not misread as content;
+        # every argument is still checked in full.
+        gateway_view = shlex.join([Path(command[0]).name, *command[1:]])
+        gateway_verdict = classify(gateway_view)
+        # "Shell composition" is also out of jurisdiction: run_command executes
+        # an argv list with shell=False, so `;|&<>` inside an argument (e.g. a
+        # `python -c "import sys; sys.exit(1)"` code string) is literal data --
+        # there is no shell to compose in. Spawning a shell IS still content
+        # ("Shell/interpreter escape" fires before composition and stays
+        # blocked), and hostile content inside -c strings still trips the
+        # destructive/network/env classes on their own patterns.
+        _out_of_jurisdiction = (
+            "Scope violation:",
+            "Unknown command is not on the auto-execute allowlist",
+            "Shell composition blocked:",
+        )
+        if gateway_verdict.zone is Zone.RED and not gateway_verdict.reason.startswith(
+            _out_of_jurisdiction
+        ):
+            self._block(
+                "run_command",
+                f"security gateway re-check: RED ({gateway_verdict.reason})",
                 {"command": command},
             )
         # Phase 2b — run the (already allowlisted) verification command through the

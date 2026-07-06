@@ -141,6 +141,13 @@ def _redact_paths(text: str) -> tuple[str, int]:
     return text, count
 
 
+def redact_paths(text: str) -> str:
+    """Public path-redaction for any egress surface outside the cloud pipeline
+    (e.g. web search): replace absolute file paths with ``[PATH REDACTED]``."""
+    redacted, _ = _redact_paths(text)
+    return redacted
+
+
 def scrub_exception(exc: BaseException | str) -> str:
     """Return a sanitized string from an exception or message, safe to log."""
     if isinstance(exc, BaseException):

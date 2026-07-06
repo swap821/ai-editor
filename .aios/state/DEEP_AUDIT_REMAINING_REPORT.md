@@ -74,3 +74,38 @@ Consistent with the paused thematic deep-audit (**no critical/high confirmed**, 
 
 ## Provenance
 Raw artifacts (gitignored `.aios/tmp/`): `audit_inventory.json`, `audit_perfile_findings.jsonl`, `audit_seam_findings.jsonl`, `audit_verified.jsonl`, `audit_second_opinion.jsonl`, `audit_critic.json`. Drivers: `audit_driver.py`, `seam_driver.py`, `verify_driver.py`, `second_opinion.py`, `critic_driver.py`. VM stopped post-run (credit guard).
+
+---
+
+# FINDINGS-REVIEW CLOSEOUT (2026-07-06 addendum)
+
+**Date:** 2026-07-06 · **Baseline:** master `63797ff` · **How:** every held finding re-verified against the CURRENT tree by an 18-agent workflow (9 mechanical verifiers + 9 adversarial refuters re-checking each verdict's cited evidence in both directions). Operator directive: review, then fix whatever survived as open.
+
+## Disposition of all held findings
+
+| Finding | Verdict | Evidence anchor |
+|---|---|---|
+| swarm_conflict.py / swarm_parallel.py / swarm_adaptive.py / swarm_scout.py orphaned | **FIXED** | deleted in `d151fc0` (2026-07-01) with regression guard `tests/test_dead_code_hygiene.py` |
+| policy/constitution.py, policy/policy_evolution.py, runtime/leases.py orphaned | **FIXED** | same commit + same regression guard |
+| swarm_patterns.py dead-code candidate | **STALE** | live production import (swarm.py:34, main.py:52) + real multi-file test coverage — do not delete |
+| memory/pheromones.py dead-code candidate | **STALE** | 4 live route imports in sovereignty.py; flag-gated (`AIOS_PHEROMONE_ENABLED`), not orphaned |
+| rollback_engine.py untested + "rollback theater" (rollback_id never populated) | **FIXED** | direct tests exist; rollback_id wired through the council worker path |
+| self_analysis_agent.py untested | **FIXED** | direct tests; 91% coverage in current CI table |
+| retrieval.py timestamp-parse recency bug (obs#5820) | **FIXED** | recency parse verified correct on current code |
+| consolidation.py / conversation.py untested | **FIXED** | direct coverage landed in the coverage arc |
+| reflection_agent / tool_handlers / confidence_filter "no direct test file" | **NAMING NIT** | real direct coverage exists under differently-named files (test_reflection.py, test_agents_pkg_gaps.py §567+, test_confidence.py) — no functional gap |
+| **queen_verdict.py zero test references** | **WAS OPEN → FIXED 2026-07-06** | `tests/test_queen_verdict.py` added (16 tests): fail-closed unknown-risk→RED, deny/defer blocking, metadata shape/isolation/JSON-safety |
+| **main.py monolith** | **STILL OPEN (only survivor)** | 4,252 lines, 54 inline routes; July-4 split (5,262→4,159) helped but it is growing again (+93). Needs a dedicated router-extraction arc (generate/chat, memory/*, approvals, development/*) following the voice/sovereignty/council pattern — architectural work, deliberately NOT attempted as an inline fix |
+
+## Residual items from the ORIGINAL 17 thematic findings (memory-tracked, not in this report's dimensions) — also closed 2026-07-06
+
+| # | Finding | Disposition |
+|---|---|---|
+| 5 | `websearch.py` egress scrubs secrets but NOT file paths | **FIXED**: outbound query now runs `privacy_filter.redact_paths()` after secret scrubbing (+ egress test capturing the wire payload) |
+| 6 | worker `run_command` no gateway re-check at exec boundary | **FIXED**: hostile-content RED classes (destructive/network/env-mutation/injection/credentials/shell-escape) re-checked fail-closed at the exec boundary; chat-context stages (SCOPE_ROOTS, auto-execute allowlist) deliberately out of jurisdiction — the worker's workspace+container+contract allowlist owns containment there (2 new tests: `rm -rf /` and `curl` exfil blocked even when contract-declared) |
+| 10 | verify-toast `setTimeout` leak (`GagosChrome.jsx`) | **ALREADY FIXED** on current master (cleanup handlers present at the toast effect) |
+| 4 | `.venv` broken cp314 extensions | **MOOT**: system Python canonical since 2026-07-02; env refreshed 2026-07-06 |
+| 16/17 | stale merged branch + redundant worktrees | **FIXED**: `council-runtime-v01` + 4 stale branches deleted, 4 stale worktrees removed (dirty ones inspected first — stale June-2 styling edits to the pre-superbrain App.jsx, zero value). Bonus recovered: unmerged `22833e8` (Windows MAX_PATH conftest fix, 28→9 failures in deep worktrees) cherry-picked to master before its branch was deleted |
+
+## Net position
+After adversarial re-verification, the deep audit closes with **one** surviving item (the monolith split — tracked, scoped, awaiting a dedicated arc) and zero untracked debt. The 32B-era findings are fully dispositioned; the dead-code regression guard makes the biggest class (orphan reintroduction) structurally impossible to regress silently.
