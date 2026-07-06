@@ -10,7 +10,8 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from aios.api.main import _select_chat_client, models_gemini
+from aios.api.main import _select_chat_client
+from aios.api.routes.models import models_gemini  # moved in the monolith split
 from aios.core.gemini import (
     CURATED_MODELS,
     GeminiClient,

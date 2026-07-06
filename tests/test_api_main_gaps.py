@@ -274,18 +274,20 @@ def test_get_bedrock_client_none_when_unconfigured(monkeypatch) -> None:
 
 
 def test_get_bedrock_client_none_on_llm_error(monkeypatch) -> None:
-    import aios.api.main as main_mod
+    # The lazy cloud-client singleton lives in aios.api.deps since the
+    # monolith split; main re-exports the provider (same function object).
+    import aios.api.deps as deps_mod
 
     monkeypatch.setattr(config, "BEDROCK_REGION", "us-east-1")
     monkeypatch.setattr(config, "BEDROCK_MODEL", "some-model")
-    monkeypatch.setattr(main_mod, "_bedrock_client", None)
+    monkeypatch.setattr(deps_mod, "_bedrock_client", None)
 
     def _boom(*a, **k):
         raise LLMError("no boto3")
 
-    monkeypatch.setattr(main_mod, "BedrockClient", _boom)
+    monkeypatch.setattr(deps_mod, "BedrockClient", _boom)
     assert get_bedrock_client() is None
-    monkeypatch.setattr(main_mod, "_bedrock_client", None)
+    monkeypatch.setattr(deps_mod, "_bedrock_client", None)
 
 
 def test_get_gemini_client_none_when_unconfigured(monkeypatch) -> None:
@@ -295,18 +297,18 @@ def test_get_gemini_client_none_when_unconfigured(monkeypatch) -> None:
 
 
 def test_get_gemini_client_none_on_llm_error(monkeypatch) -> None:
-    import aios.api.main as main_mod
+    import aios.api.deps as deps_mod
 
     monkeypatch.setattr(config, "GEMINI_PROJECT", "proj")
     monkeypatch.setattr(config, "GEMINI_MODEL", "gemini-x")
-    monkeypatch.setattr(main_mod, "_gemini_client", None)
+    monkeypatch.setattr(deps_mod, "_gemini_client", None)
 
     def _boom(*a, **k):
         raise LLMError("no google-genai")
 
-    monkeypatch.setattr(main_mod, "GeminiClient", _boom)
+    monkeypatch.setattr(deps_mod, "GeminiClient", _boom)
     assert get_gemini_client() is None
-    monkeypatch.setattr(main_mod, "_gemini_client", None)
+    monkeypatch.setattr(deps_mod, "_gemini_client", None)
 
 
 def test_get_openai_client_none_when_disabled(monkeypatch) -> None:

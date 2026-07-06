@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -60,20 +60,36 @@ from aios.core.executor import (
 )
 from aios.core.confidence_filter import gate as confidence_gate
 from aios.core.events import event_for_sse
+from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules import these from main
+    get_alignment_evaluation_store,
+    get_alignment_interpreter,
+    get_anthropic_client,
+    get_autonomy,
+    get_bedrock_client,
+    get_cerebellum,
+    get_conversation_state_store,
+    get_curriculum_manager,
+    get_development_tracker,
+    get_gemini_client,
+    get_llm_client,
+    get_memory_consolidator,
+    get_mistake_memory,
+    get_native_planner,
+    get_ollama_client,
+    get_openai_client,
+    get_reflection_agent,
+    get_semantic_facts,
+    get_semantic_indexer,
+    get_skill_memory,
+    get_swarm_pattern_memory,
+)
 from aios.core import catalog, router, telemetry
 from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.websearch import web_search
-from aios.core.model_selector import (
-    TASK_FAST,
-    TASKS,
-    describe_choice,
-    infer_task,
-    select_model,
-    supports_tool_protocol,
-)
+from aios.core.model_selector import TASK_FAST, infer_task
 from aios.core.router_wiring import (
     _AUTO_IDS,
     _active_route,
@@ -91,7 +107,6 @@ from aios.core.alignment import (
     AlignmentInterpreter,
     apply_user_corrections,
     frame_from_state,
-    validate_user_corrections,
 )
 from aios.core.native_planner import NativePlanner
 from aios.core.planner import Planner, PlannerError
@@ -157,14 +172,7 @@ _SESSION_MANAGER = SessionManager(
 #: Cloud chat-client singletons. Built lazily and reused across requests so we do
 #: not re-run boto3/gcloud credential discovery on every turn. Enablement is still
 #: checked per request so setting changes take effect without editing this module.
-_bedrock_client: Optional[BedrockClient] = None
-_gemini_client: Optional[GeminiClient] = None
-_openai_client: Optional[Any] = None
-_anthropic_client: Optional[Any] = None
-_bedrock_lock = threading.Lock()
-_gemini_lock = threading.Lock()
-_openai_lock = threading.Lock()
-_anthropic_lock = threading.Lock()
+# Lazy cloud-client singletons moved to aios.api.deps (monolith split).
 
 # ── Cortex bus W2 — singletons (None when CORTEX_BUS is off) ─────────────────
 # The bus and its dispatcher are module-level so the lifespan can start/stop
@@ -335,10 +343,20 @@ app.add_middleware(
 app.add_middleware(MetricsMiddleware)
 
 # ── Sub-routers extracted from this module ────────────────────────────────────
+from aios.api.routes.memory import (  # noqa: E402 — mounted after app + deps exist
+    ConversationSessionRequest,  # noqa: F401 — used by the conversation/session route below
+    get_doc_ingestor,  # noqa: F401 — re-exported: tests import this from main
+    router as _memory_router,
+)
+from aios.api.routes.development import router as _development_router  # noqa: E402
+from aios.api.routes.models import router as _models_router  # noqa: E402
 from aios.api.routes.voice import router as _voice_router
 from aios.api.routes.sovereignty import router as _sovereignty_router
 from aios.api.routes.council import router as _council_router
 
+app.include_router(_memory_router)
+app.include_router(_development_router)
+app.include_router(_models_router)
 app.include_router(_voice_router)
 app.include_router(_sovereignty_router)
 app.include_router(_council_router)
@@ -606,102 +624,6 @@ def _effective_rollback_snapshot(
     return snapshots[1].sha
 
 
-def get_llm_client() -> LLMClient:
-    """Provide the default local LLM client. Overridden in tests."""
-    return OllamaClient()
-
-
-def get_ollama_client() -> OllamaClient:
-    """Provide a concrete Ollama client for streaming + model discovery.
-
-    Distinct from :func:`get_llm_client` (which yields the minimal protocol) so
-    the chat/discovery endpoints can use streaming and ``/api/tags`` while
-    remaining overridable in tests.
-    """
-    return OllamaClient()
-
-
-def get_bedrock_client() -> Optional[BedrockClient]:
-    """Provide the AWS Bedrock cloud chat client, or ``None`` when unconfigured.
-
-    Returns ``None`` unless Bedrock is opted in (region + model set) *and* boto3
-    is importable — so the agent transparently stays on local inference when the
-    cloud isn't set up. Overridden in tests with a fake.
-
-    The client is built lazily and reused across requests; enablement is checked
-    fresh each call (mirrors :func:`_router_policy`).
-    """
-    global _bedrock_client
-    if not (config.BEDROCK_REGION and config.BEDROCK_MODEL):
-        return None
-    if _bedrock_client is not None:
-        return _bedrock_client
-    with _bedrock_lock:
-        if _bedrock_client is not None:
-            return _bedrock_client
-        try:
-            _bedrock_client = BedrockClient()
-        except LLMError:
-            return None
-    return _bedrock_client
-
-
-def get_gemini_client() -> Optional[GeminiClient]:
-    """Provide the Google Gemini (Vertex AI) chat client, or ``None`` when unset.
-
-    Returns ``None`` unless Gemini is opted in (a GCP project is set) *and* the
-    ``google-genai`` SDK is importable — so the agent transparently stays on
-    local/Bedrock inference when Gemini isn't configured. Auth is the laptop's
-    ``gcloud`` ADC; this never touches a key on disk. Overridden in tests.
-
-    The client is built lazily and reused across requests; enablement is checked
-    fresh each call (mirrors :func:`_router_policy`).
-    """
-    global _gemini_client
-    if not (config.GEMINI_PROJECT and config.GEMINI_MODEL):
-        return None
-    if _gemini_client is not None:
-        return _gemini_client
-    with _gemini_lock:
-        if _gemini_client is not None:
-            return _gemini_client
-        try:
-            _gemini_client = GeminiClient()
-        except LLMError:
-            return None
-    return _gemini_client
-
-
-def get_openai_client() -> Optional[Any]:
-    """Provide the OpenAI-compatible chat client, or ``None`` when unconfigured."""
-    global _openai_client
-    if not config.OPENAI_ENABLED:
-        return None
-    if _openai_client is not None:
-        return _openai_client
-    with _openai_lock:
-        if _openai_client is not None:
-            return _openai_client
-        from aios.core.openai_compat import OpenAICompatClient
-        _openai_client = OpenAICompatClient()
-    return _openai_client
-
-
-def get_anthropic_client() -> Optional[Any]:
-    """Provide the Anthropic direct chat client, or ``None`` when unconfigured."""
-    global _anthropic_client
-    if not config.ANTHROPIC_ENABLED:
-        return None
-    if _anthropic_client is not None:
-        return _anthropic_client
-    with _anthropic_lock:
-        if _anthropic_client is not None:
-            return _anthropic_client
-        from aios.core.anthropic_direct import AnthropicDirectClient
-        _anthropic_client = AnthropicDirectClient()
-    return _anthropic_client
-
-
 def get_executor() -> Executor:
     """Provide the default scope-constrained executor. Overridden in tests."""
     return Executor(
@@ -789,103 +711,6 @@ def get_edit_snapshot() -> Callable[..., object]:
     return snapshot
 
 
-def get_semantic_indexer() -> Optional[SemanticMemory]:
-    """Provide the L3 semantic writer used to index completed chat turns.
-
-    Returns ``None`` when :data:`aios.config.INDEX_CHAT` is disabled (so no
-    embedding model is loaded). Overridden in tests with a fake recorder so the
-    suite never loads the real embedder or mutates the on-disk vector index.
-    """
-    return SemanticMemory() if config.INDEX_CHAT else None
-
-
-def get_reflection_agent(
-    llm: LLMClient = Depends(get_llm_client),
-) -> Optional[ReflectionAgent]:
-    """Provide the reflection agent that turns a command failure into a lesson.
-
-    Returns ``None`` when :data:`aios.config.REFLECT_ON_FAILURE` is disabled.
-    Reuses the injected LLM client so it is fully overridable in tests.
-    """
-    return ReflectionAgent(llm) if config.REFLECT_ON_FAILURE else None
-
-
-def get_swarm_pattern_memory() -> SwarmPatternMemory:
-    """Provide the ant-colony swarm's decomposition-pattern memory."""
-    return SwarmPatternMemory()
-
-
-def get_semantic_facts() -> SemanticFacts:
-    """Provide the human-approved personalization facts store (REAL only).
-
-    Reads the ``semantic_facts`` table (human-gated writes); returns an empty
-    list when no facts exist, so the conversational endpoint stays honest —
-    personalization is dormant, never fabricated, when nothing is known. Cheap
-    and stateless (opens a fresh connection per call). Overridden in tests.
-    """
-    return SemanticFacts()
-
-
-def get_development_tracker(
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> DevelopmentTracker:
-    """Provide the evidence-backed developmental metrics store."""
-    return DevelopmentTracker(facts=facts)
-
-
-def get_autonomy() -> AutonomyLedger:
-    """Provide the earned-autonomy ledger (opt-in; off => never grants autonomy)."""
-    return AutonomyLedger()
-
-
-def get_cerebellum() -> Cerebellum:
-    """Provide the compiled-experience engine (sovereignty S1)."""
-    cb = Cerebellum()
-    cb.try_compile_all()
-    return cb
-
-
-def get_skill_memory(
-    cerebellum: Cerebellum = Depends(get_cerebellum),
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> SkillMemory:
-    """Provide verification-backed procedural skill memory.
-
-    Wired to the same request-scoped cerebellum instance so that a skill's
-    promotion to 'verified' (or demotion back to 'candidate') during this
-    request immediately compiles (or decompiles) the matching playbook —
-    the sovereignty engine stays in sync with skill trust status. The facts
-    store enables S2 cross-store ingestion on skill promotion.
-    """
-    return SkillMemory(cerebellum=cerebellum, facts=facts)
-
-
-def get_mistake_memory(
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> MistakeMemory:
-    """Provide mistake memory with knowledge graph ingestion wiring."""
-    return MistakeMemory(facts=facts)
-
-
-def get_native_planner(
-    skills: SkillMemory = Depends(get_skill_memory),
-    patterns: SwarmPatternMemory = Depends(get_swarm_pattern_memory),
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> NativePlanner:
-    """Provide the sovereignty S3 native symbolic planner."""
-    return NativePlanner(skills=skills, patterns=patterns, facts=facts)
-
-
-def get_curriculum_manager() -> CurriculumManager:
-    """Provide the non-autonomous curriculum evidence store."""
-    return CurriculumManager()
-
-
-def get_memory_consolidator() -> MemoryConsolidator:
-    """Provide the evidence-gated trusted-memory promotion service."""
-    return MemoryConsolidator()
-
-
 def get_compactor() -> MemoryCompactor:
     """Provide the audited memory-forgetting service backed by live stores.
 
@@ -906,38 +731,9 @@ def get_compactor() -> MemoryCompactor:
     return _COMPACTOR
 
 
-def get_conversation_state_store() -> ConversationStateStore:
-    """Provide durable, unverified shared-understanding state."""
-    return ConversationStateStore()
-
-
-def get_alignment_evaluation_store() -> AlignmentEvaluationStore:
-    """Provide diagnostic human-alignment evidence; it never changes policy."""
-    return AlignmentEvaluationStore()
-
-
-def get_alignment_interpreter(
-    llm: LLMClient = Depends(get_llm_client),
-) -> Optional[AlignmentInterpreter]:
-    """Provide the advisory per-turn alignment interpreter.
-
-    Returns ``None`` when :data:`aios.config.INTERPRET_ALIGNMENT` is disabled,
-    so a generated turn costs no extra local completion. Reuses the injected
-    LLM client so tests override it with fakes.
-    """
-    return AlignmentInterpreter(llm) if config.INTERPRET_ALIGNMENT else None
-
-
 # --------------------------------------------------------------------------- #
 # Request models
 # --------------------------------------------------------------------------- #
-class MemorySearchRequest(BaseModel):
-    """Body for ``/memory/search``."""
-
-    query: str = Field(..., description="Natural-language search query.")
-    top_k: int = Field(3, ge=1, le=50, description="Number of results to return.")
-
-
 class MemoryCompactRequest(BaseModel):
     """Body for ``/memory/compact``."""
 
@@ -1081,66 +877,6 @@ class TerminalRequest(BaseModel):
 
     command: str = Field(..., description="Command typed into the UI terminal.")
     session_id: Optional[str] = Field(None, alias="sessionId")
-
-    model_config = {"populate_by_name": True}
-
-
-class FactPromotionRequest(BaseModel):
-    """Body for human-approved contradiction-aware fact promotion."""
-
-    subject: str
-    predicate: str
-    object: str
-    approved_by: str = Field(..., alias="approvedBy")
-
-    model_config = {"populate_by_name": True}
-
-
-class FactProposalResolveRequest(BaseModel):
-    """Body for resolving one auto-extracted fact proposal (human-gated)."""
-
-    resolved_by: str = Field(..., alias="resolvedBy")
-
-    model_config = {"populate_by_name": True}
-
-
-class CurriculumTaskRequest(BaseModel):
-    """Body for defining a safe curriculum task; definitions never auto-run."""
-
-    skill_name: str = Field(..., alias="skillName")
-    level: int = Field(..., ge=1)
-    prompt: str
-    held_out: bool = Field(False, alias="heldOut")
-
-    model_config = {"populate_by_name": True}
-
-
-class ConversationSessionRequest(BaseModel):
-    """Request restoration of one durable conversation session."""
-
-    session_id: str = Field(..., min_length=1, alias="sessionId")
-    limit: int = Field(50, ge=1, le=100)
-
-    model_config = {"populate_by_name": True}
-
-
-class ConversationCorrectionRequest(BaseModel):
-    """User-authored corrections to the current advisory interpretation."""
-
-    session_id: str = Field(..., min_length=1, alias="sessionId")
-    corrections: dict[str, Any]
-
-    model_config = {"populate_by_name": True}
-
-
-class AlignmentFeedbackRequest(BaseModel):
-    """Explicit human evaluation of the latest visible understanding frame."""
-
-    session_id: str = Field(..., min_length=1, alias="sessionId")
-    observation_id: Optional[int] = Field(None, ge=1, alias="observationId")
-    outcome: str
-    issues: list[str] = Field(default_factory=list)
-    notes: str = Field("", max_length=2000)
 
     model_config = {"populate_by_name": True}
 
@@ -1412,21 +1148,6 @@ def destroy_session(
     return {"authenticated": False}
 
 
-@app.post("/api/v1/memory/search")
-def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
-    """Hybrid BM25 + FAISS + temporal-decay retrieval over semantic memory."""
-    results = hybrid_search(req.query, top_k=req.top_k)
-    return {"query": req.query, "results": [asdict(r) for r in results]}
-
-
-@app.post("/api/v1/memory/consolidate")
-def memory_consolidate(
-    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
-) -> dict[str, Any]:
-    """Idempotently index current verified lessons and active approved facts."""
-    return consolidator.run()
-
-
 @app.post("/api/v1/memory/compact")
 def memory_compact(
     req: MemoryCompactRequest,
@@ -1462,559 +1183,6 @@ def restore_conversation_session(
         "correctionHistory": state.correction_history(req.session_id),
         "messages": messages,
     }
-
-
-@app.post("/api/v1/conversation/correction")
-def correct_conversation_alignment(
-    req: ConversationCorrectionRequest,
-    state: ConversationStateStore = Depends(get_conversation_state_store),
-    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-) -> dict[str, Any]:
-    """Apply user-authored interpretation overrides; never grant authority."""
-    current_payload = state.get(req.session_id)
-    if current_payload is None:
-        raise HTTPException(status_code=404, detail="no alignment frame exists for session")
-    try:
-        incoming = validate_user_corrections(req.corrections)
-        active = state.active_correction(req.session_id)
-        merged = dict(active["corrections"]) if active is not None else {}
-        merged.update(incoming)
-        current = frame_from_state(current_payload)
-        corrected = apply_user_corrections(current, merged, revision=1)
-        corrected_payload = corrected.as_dict()
-        evaluation_payload = current_payload.get("evaluation")
-        if isinstance(evaluation_payload, dict):
-            corrected_payload["evaluation"] = evaluation_payload
-        revision, persisted = state.record_correction(
-            req.session_id,
-            before_frame=current_payload,
-            after_frame=corrected_payload,
-            corrections=merged,
-            corrected_fields=sorted(merged),
-            expected_revision=(int(active["revision"]) if active is not None else None),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    try:
-        observation_id = (
-            evaluation_payload.get("observation_id")
-            if isinstance(evaluation_payload, dict)
-            else None
-        )
-        evaluation.mark_latest_corrected(
-            req.session_id,
-            sorted(merged),
-            observation_id=int(observation_id) if observation_id else None,
-        )
-    except Exception as exc:  # noqa: BLE001 - diagnostic evidence must never break correction
-        logger.warning("Failed to mark alignment observation as corrected", exc_info=exc)
-    return {
-        "alignment": persisted,
-        "activeCorrection": {
-            "revision": revision,
-            "corrections": merged,
-            "fields": sorted(merged),
-        },
-        "correctionHistory": state.correction_history(req.session_id),
-    }
-
-
-@app.get("/api/v1/alignment/evaluation")
-def alignment_evaluation_summary(
-    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-) -> dict[str, Any]:
-    """Return diagnostic alignment evidence without changing policy."""
-    return evaluation.summary()
-
-
-@app.post("/api/v1/alignment/feedback")
-def record_alignment_feedback(
-    req: AlignmentFeedbackRequest,
-    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-) -> dict[str, Any]:
-    """Record explicit operator feedback on the latest session observation."""
-    try:
-        observation_id = evaluation.record_feedback(
-            req.session_id,
-            outcome=req.outcome,
-            issues=req.issues,
-            notes=req.notes,
-            observation_id=req.observation_id,
-        )
-    except ValueError as exc:
-        status = 404 if "no alignment observation" in str(exc) else 422
-        raise HTTPException(status_code=status, detail=str(exc)) from exc
-    return {
-        "observationId": observation_id,
-        "automaticPolicyUpdates": False,
-    }
-
-
-@app.post("/api/v1/conversation/correction/clear")
-def clear_conversation_alignment_correction(
-    req: ConversationSessionRequest,
-    state: ConversationStateStore = Depends(get_conversation_state_store),
-) -> dict[str, Any]:
-    """Clear active user corrections and restore the superseded base frame."""
-    try:
-        restored = state.clear_correction(req.session_id)
-        alignment = frame_from_state(restored).as_dict()
-        evaluation_payload = restored.get("evaluation")
-        if isinstance(evaluation_payload, dict):
-            alignment["evaluation"] = evaluation_payload
-        state.save(req.session_id, alignment)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {
-        "alignment": alignment,
-        "activeCorrection": None,
-        "correctionHistory": state.correction_history(req.session_id),
-    }
-
-
-@app.get("/api/v1/memory/facts/pending")
-def memory_facts_pending(
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> dict[str, Any]:
-    """Auto-extracted fact proposals awaiting human review.
-
-    Proposals are quarantined in their own table — no recall path reads them —
-    so this queue is the ONLY window through which they can become knowledge.
-    """
-    proposals = [
-        {
-            "id": int(row["id"]),
-            "subject": row["subject"],
-            "predicate": row["predicate"],
-            "object": row["object"],
-            "source": row["source"],
-            "timestamp": row["timestamp"],
-        }
-        for row in facts.pending_proposals()
-    ]
-    return {"proposals": proposals}
-
-
-@app.post("/api/v1/memory/facts/pending/{proposal_id}/approve")
-def approve_fact_proposal(
-    proposal_id: int,
-    req: FactProposalResolveRequest,
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> dict[str, Any]:
-    """Human approval promotes a proposal through the contradiction check."""
-    result = facts.approve_proposal(proposal_id, approved_by=req.resolved_by)
-    if result.reason == "contradiction":
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "reason": result.reason,
-                "conflictId": result.conflict_id,
-                "conflictObject": result.conflict_object,
-            },
-        )
-    if result.reason == "not pending":
-        raise HTTPException(status_code=404, detail=result.reason)
-    if not result.committed:
-        raise HTTPException(status_code=422, detail=result.reason)
-    return asdict(result)
-
-
-@app.post("/api/v1/memory/facts/pending/{proposal_id}/reject")
-def reject_fact_proposal(
-    proposal_id: int,
-    req: FactProposalResolveRequest,
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> dict[str, Any]:
-    """Human rejection resolves a proposal without it ever touching recall."""
-    if not facts.reject_proposal(proposal_id, rejected_by=req.resolved_by):
-        raise HTTPException(status_code=404, detail="not pending")
-    return {"rejected": True, "proposalId": proposal_id}
-
-
-@app.post("/api/v1/memory/facts")
-def promote_fact(
-    req: FactPromotionRequest,
-    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
-) -> dict[str, Any]:
-    """Promote one human-approved fact, refusing unresolved contradictions."""
-    result = consolidator.promote_fact(
-        req.subject, req.predicate, req.object, approved_by=req.approved_by
-    )
-    if result.reason == "contradiction":
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "reason": result.reason,
-                "conflictId": result.conflict_id,
-                "conflictObject": result.conflict_object,
-            },
-        )
-    if not result.committed:
-        raise HTTPException(status_code=422, detail=result.reason)
-    return asdict(result)
-
-
-@app.post("/api/v1/memory/facts/reconcile")
-def reconcile_fact(
-    req: FactPromotionRequest,
-    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
-) -> dict[str, Any]:
-    """Human-approved replacement of a contradictory fact and its vector."""
-    result = consolidator.reconcile_fact(
-        req.subject, req.predicate, req.object, approved_by=req.approved_by
-    )
-    if not result.committed:
-        raise HTTPException(status_code=422, detail=result.reason)
-    return asdict(result)
-
-
-@app.get("/api/v1/memory/facts/graph")
-def memory_facts_graph(
-    start: str,
-    depth: int = 2,
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> dict[str, Any]:
-    """Multi-hop fact-graph traversal from *start* — the transitive reasoning
-    single-hop ``facts_for`` cannot do (G1). Read-only: returns the active-fact
-    edges reachable within *depth* hops, each with its hop ``depth`` and a
-    ``path``, so the planner (or the lattice's fact view) can reason over
-    transitive knowledge. ``depth`` is clamped to [1, 4] in ``traverse``."""
-    if not start.strip():
-        raise HTTPException(status_code=422, detail="start is required")
-    rows = facts.traverse(start, max_depth=depth)
-    edges = [
-        {
-            "subject": r["subject"],
-            "predicate": r["predicate"],
-            "object": r["object"],
-            "depth": r["depth"],
-            "path": r["path"],
-        }
-        for r in rows
-    ]
-    return {"start": start.strip(), "depth": max(1, min(int(depth), 4)), "edges": edges}
-
-
-@app.get("/api/v1/knowledge/query")
-def knowledge_query(
-    entity: str,
-    max_depth: int = 3,
-    min_confidence: float = 0.3,
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> dict[str, Any]:
-    """Query the knowledge graph with confidence-weighted traversal.
-
-    Read-only diagnostic/observability endpoint. Returns the weighted
-    traversal and composed inference from the starting entity.
-    """
-    if not entity.strip():
-        raise HTTPException(status_code=422, detail="entity is required")
-    edges = facts.traverse_weighted(
-        entity, max_depth=max_depth, min_path_confidence=min_confidence
-    )
-    from aios.core.inference import infer
-
-    result = infer(entity, edges, min_confidence=min_confidence)
-    return {
-        "entity": entity.strip(),
-        "edges": [
-            {
-                "subject": e.subject,
-                "predicate": e.predicate,
-                "object": e.object,
-                "depth": e.depth,
-                "confidence": round(e.confidence, 4),
-                "path_confidence": round(e.path_confidence, 4),
-            }
-            for e in edges
-        ],
-        "inference": {
-            "answer": result.answer,
-            "confidence": round(result.combined_confidence, 4),
-            "chain_length": len(result.chain),
-            "reached_horizon": result.reached_horizon,
-        }
-        if result
-        else None,
-    }
-
-
-def get_doc_ingestor():
-    """Provide the document ingestion pipeline."""
-    from aios.memory.doc_ingest import DocumentIngestor
-
-    return DocumentIngestor()
-
-
-@app.post("/api/v1/knowledge/ingest")
-async def knowledge_ingest(
-    file: UploadFile = File(...),
-    ingestor=Depends(get_doc_ingestor),
-) -> dict[str, Any]:
-    """Ingest a document for RAG grounding."""
-    raw = await file.read()
-    mime = file.content_type or "application/octet-stream"
-    filename = file.filename or "unnamed"
-    try:
-        return ingestor.ingest(filename, raw, mime)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.get("/api/v1/knowledge/sources")
-def knowledge_sources(
-    ingestor=Depends(get_doc_ingestor),
-) -> dict[str, Any]:
-    """List all ingested knowledge sources."""
-    return {"sources": ingestor.list_sources()}
-
-
-@app.delete("/api/v1/knowledge/sources/{source_id}")
-def knowledge_delete_source(
-    source_id: int,
-    ingestor=Depends(get_doc_ingestor),
-) -> dict[str, Any]:
-    """Delete a knowledge source and its chunks."""
-    if not ingestor.delete_source(source_id):
-        raise HTTPException(status_code=404, detail="Source not found")
-    return {"deleted": True}
-
-
-@app.get("/api/v1/development/metrics")
-def development_metrics(
-    tracker: DevelopmentTracker = Depends(get_development_tracker),
-) -> dict[str, Any]:
-    """Return measured behavior-change and verification coverage metrics."""
-    return tracker.summary()
-
-
-@app.get("/api/v1/operator/model")
-def operator_model(
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> dict[str, Any]:
-    """Structured snapshot of what the system knows about the operator."""
-    from aios.memory.operator_model import render_operator_model
-
-    return render_operator_model(facts)
-
-
-@app.get("/api/v1/development/skills")
-def development_skills(
-    status: Optional[str] = None,
-    skills: SkillMemory = Depends(get_skill_memory),
-) -> dict[str, Any]:
-    """List candidate and verified procedural skills."""
-    return {"skills": skills.list(status=status)}
-
-
-@app.get("/api/v1/development/trails")
-def development_trails(
-    skills: SkillMemory = Depends(get_skill_memory),
-) -> dict[str, Any]:
-    """The pheromone map: every trail's computed strength, decay, and reuse
-    evidence as of now, plus superseded-fragment lineage and the constants in
-    effect — read-only observability and the tuning evidence base."""
-    return skills.trail_map()
-
-
-@app.get("/api/v1/development/harness")
-def development_harness() -> dict[str, Any]:
-    """Aggregate status from automated experience harnesses (read-only).
-
-    Reads the JSONL audit logs produced by the three harness tools and returns
-    summary metrics: last run timestamps, cumulative success rates, and green/red
-    status for each harness.
-    """
-    import json as _json
-    from pathlib import Path as _Path
-
-    audit_dir = _Path(config.PROJECT_ROOT) / ".aios" / "audit"
-    result: dict[str, Any] = {}
-
-    for name, filename, summary_kind in [
-        ("experience", "experience-accumulator.jsonl", "run-summary"),
-        ("golden", "golden-mission-runs.jsonl", "batch-summary"),
-        ("endurance", "endurance-test.jsonl", "endurance-summary"),
-    ]:
-        log_path = audit_dir / filename
-        if not log_path.exists():
-            result[name] = {"runs": 0, "status": "no_data"}
-            continue
-        summaries: list[dict[str, Any]] = []
-        try:
-            with log_path.open() as fh:
-                for line in fh:
-                    record = _json.loads(line)
-                    if record.get("kind") == summary_kind:
-                        summaries.append(record)
-        except (OSError, _json.JSONDecodeError):
-            result[name] = {"runs": 0, "status": "error"}
-            continue
-
-        if not summaries:
-            result[name] = {"runs": 0, "status": "no_data"}
-            continue
-
-        latest = summaries[-1]
-        if name == "experience":
-            result[name] = {
-                "runs": len(summaries),
-                "latest_success_rate": latest.get("success_rate", 0),
-                "total_sessions": sum(s.get("total", 0) for s in summaries),
-                "status": "green" if latest.get("success_rate", 0) >= 0.7 else "needs_attention",
-            }
-        elif name == "golden":
-            result[name] = {
-                "runs": len(summaries),
-                "latest_pass_rate": latest.get("rate", 0),
-                "total_missions": latest.get("total", 0),
-                "status": "green" if latest.get("rate", 0) >= 0.8 else "needs_attention",
-            }
-        elif name == "endurance":
-            result[name] = {
-                "runs": len(summaries),
-                "latest_green": latest.get("green", False),
-                "latest_success_rate": latest.get("success_rate", 0),
-                "latency_p95_s": latest.get("latency_p95_s", 0),
-                "status": "green" if latest.get("green", False) else "needs_attention",
-            }
-
-    return {"harnesses": result}
-
-
-@app.get("/api/v1/development/workspace")
-def development_workspace() -> dict[str, Any]:
-    """The agent's manufacturing workspace: the text files currently in
-    ``training_ground/`` (the agent's writable sandbox), most-recent first, with
-    contents. Read-only observability so a UI (the forge editor) can show the
-    mind's ACTUAL written files — independent of how the write landed (approval,
-    earned-autonomy, or edit). Strictly confined to ``training_ground/`` (no path
-    parameter, no traversal); skips caches/binaries and caps file count + size so
-    the response stays small."""
-    from pathlib import Path
-
-    root = Path(config.PROJECT_ROOT) / "training_ground"
-    text_exts = {
-        ".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".json",
-        ".md", ".txt", ".sh", ".yml", ".yaml", ".toml",
-    }
-    files: list[dict[str, str]] = []
-    if root.is_dir():
-        def _mtime(path: Path) -> float:
-            try:
-                return path.stat().st_mtime
-            except OSError:
-                return 0.0
-
-        candidates = [
-            p for p in root.rglob("*")
-            if p.is_file()
-            and "__pycache__" not in p.parts
-            and p.suffix.lower() in text_exts
-        ]
-        candidates.sort(key=_mtime, reverse=True)  # newest write first
-        for p in candidates:
-            try:
-                if p.stat().st_size > 200_000:
-                    continue
-                content = p.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            files.append({"path": p.relative_to(root).as_posix(), "content": content})
-            if len(files) >= 16:
-                break
-    return {"root": "training_ground", "files": files}
-
-
-@app.get("/api/v1/development/autonomy")
-def development_autonomy(
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> dict[str, Any]:
-    """The earned-autonomy ledger: which YELLOW action classes have graduated to
-    autonomous execution by verified-success evidence, which are revoked, and the
-    threshold + master switch in effect — read-only observability for the operator."""
-    return autonomy.ledger_map()
-
-
-@app.post("/api/v1/development/autonomy/revoke")
-def development_autonomy_revoke(
-    signature: str,
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> dict[str, Any]:
-    """Operator force-revoke of an earned signature — human authority over the
-    bridge stays absolute: any earned class can be pulled back to YELLOW at will."""
-    return {"revoked": autonomy.revoke(signature)}
-
-
-@app.get("/api/v1/development/curriculum")
-def development_curriculum(
-    skill_name: Optional[str] = None,
-    curriculum: CurriculumManager = Depends(get_curriculum_manager),
-) -> dict[str, Any]:
-    """List safe curriculum definitions and evidence state."""
-    return {"tasks": curriculum.list(skill_name)}
-
-
-@app.post("/api/v1/development/curriculum")
-def add_curriculum_task(
-    req: CurriculumTaskRequest,
-    curriculum: CurriculumManager = Depends(get_curriculum_manager),
-) -> dict[str, Any]:
-    """Define a curriculum task without executing it."""
-    try:
-        task_id = curriculum.add_task(
-            req.skill_name, req.level, req.prompt, held_out=req.held_out
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"id": task_id, "executed": False}
-
-
-@app.get("/api/v1/development/curriculum/proposals")
-def curriculum_proposals(
-    max_proposals: int = 10,
-    curriculum: CurriculumManager = Depends(get_curriculum_manager),
-) -> dict[str, Any]:
-    """List auto-generated curriculum proposals from audit evidence."""
-    from aios.memory.curriculum_miner import CurriculumMiner
-    miner = CurriculumMiner()
-    proposals = miner.list_proposals(max_proposals=max_proposals)
-    return {
-        "proposals": [
-            {
-                "fingerprint": p.fingerprint,
-                "skill_name": p.skill_name,
-                "level": p.level,
-                "prompt": p.prompt,
-                "rationale": p.rationale,
-                "source_pattern": p.source_pattern,
-                "difficulty_delta": p.difficulty_delta,
-            }
-            for p in proposals
-        ]
-    }
-
-
-@app.post("/api/v1/development/curriculum/proposals/accept")
-def accept_curriculum_proposal(
-    req: dict[str, Any],
-    curriculum: CurriculumManager = Depends(get_curriculum_manager),
-) -> dict[str, Any]:
-    """Accept a mined proposal, adding it to the live curriculum."""
-    fingerprint = req.get("fingerprint")
-    if not fingerprint:
-        raise HTTPException(status_code=422, detail="fingerprint required")
-    from aios.memory.curriculum_miner import CurriculumMiner
-    miner = CurriculumMiner()
-    proposals = miner.list_proposals(max_proposals=50)
-    match = next((p for p in proposals if p.fingerprint == fingerprint), None)
-    if not match:
-        raise HTTPException(status_code=404, detail="proposal not found")
-    try:
-        task_id = curriculum.add_task(match.skill_name, match.level, match.prompt)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"id": task_id, "accepted": True, "prompt": match.prompt}
 
 
 
@@ -2258,75 +1426,6 @@ def reject_proposal(proposal_id: int) -> dict[str, Any]:
 # These three endpoints back the React UI's main surfaces. The ``/api/v1/*``
 # routes above expose individual subsystems; these compose them for the UI.
 # --------------------------------------------------------------------------- #
-@app.get("/api/v1/models/local")
-def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict[str, Any]:
-    """List installed models policy-compatible with this conversational UI."""
-    info = client.list_models()
-    models = info.get("models") or []
-    chat_models = [
-        model
-        for model in models
-        if isinstance(model, str) and supports_tool_protocol(model)
-    ]
-    return {**info, "models": chat_models}
-
-
-@app.get("/api/v1/models/bedrock")
-def models_bedrock(
-    bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
-) -> dict[str, Any]:
-    """List invocable AWS Bedrock text models for the picker.
-
-    ``{"available": bool, "models": [{"id","name"}]}`` — empty when Bedrock isn't
-    configured or the credentials lack control-plane (discovery) access, in which
-    case the UI falls back to a curated cloud list.
-    """
-    if bedrock is None:
-        return {"configured": False, "available": False, "models": []}
-    models = bedrock.list_models()
-    return {"configured": True, "available": bool(models), "models": models}
-
-
-@app.get("/api/v1/models/gemini")
-def models_gemini(
-    gemini: Optional[GeminiClient] = Depends(get_gemini_client),
-) -> dict[str, Any]:
-    """List invocable Google Gemini models for the picker.
-
-    ``{"configured": bool, "available": bool, "models": [{"id","name"}]}`` — empty
-    when Gemini isn't configured (no GCP project). When configured, ``list_models``
-    already falls back to the curated Gemini set if live Vertex discovery is
-    unavailable, so the picker always has the well-known models to offer.
-    """
-    if gemini is None:
-        return {"configured": False, "available": False, "models": []}
-    models = gemini.list_models()
-    return {"configured": True, "available": bool(models), "models": models}
-
-
-@app.get("/api/v1/models/auto")
-def models_auto(
-    task: str = "coding",
-    client: OllamaClient = Depends(get_ollama_client),
-) -> dict[str, Any]:
-    """What the agent would auto-select, per task (drives the 'Auto' picker entry).
-
-    Choosing the best local model is the agent's job, not the user's. Returns the
-    pick for *task* plus a ``by_task`` map (coding/reasoning/general/fast) over the
-    LIVE installed set, so the UI can show "Auto · <model>" and surface how the
-    agent routes by purpose. Selection applies the live loop's tool-capability
-    requirement, so discovery never advertises a different Auto route than runtime.
-    """
-    models = client.list_models().get("models") or []
-    by_task = {t: select_model(models, task=t, require_tools=True) for t in TASKS}
-    chosen = select_model(models, task=task, require_tools=True)
-    if not chosen:
-        return {"available": False, "model": None, "task": task,
-                "reason": "no local chat model installed", "by_task": by_task}
-    return {"available": True, "model": chosen, "task": task,
-            "reason": describe_choice(chosen), "by_task": by_task}
-
-
 def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten the UI history (``content`` arrays) into Ollama chat messages."""
     out: list[dict[str, Any]] = []

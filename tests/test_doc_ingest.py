@@ -144,9 +144,17 @@ class TestKnowledgeEndpoint:
     def test_ingest_endpoint_exists(self):
         from aios.api.main import app
 
-        # Starlette >=1.3 includes router objects without a .path (e.g.
-        # _IncludedRouter) in app.routes; only concrete routes carry one.
-        routes = [r.path for r in app.routes if hasattr(r, "path")]
+        # Starlette >=1.3 mounts included routers as _IncludedRouter objects
+        # (no .path) whose concrete routes live one level down — and since the
+        # monolith split these endpoints live on the extracted memory router.
+        routes = []
+        for r in app.routes:
+            if hasattr(r, "path"):
+                routes.append(r.path)
+            original = getattr(r, "original_router", None)
+            for sub in getattr(original, "routes", []) or []:
+                if hasattr(sub, "path"):
+                    routes.append(sub.path)
         assert "/api/v1/knowledge/ingest" in routes
         assert "/api/v1/knowledge/sources" in routes
         assert "/api/v1/knowledge/sources/{source_id}" in routes
