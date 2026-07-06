@@ -154,10 +154,12 @@ resume yourself — say so if asked). Don't report a task done without evidence
   Gemini = `AIOS_GEMINI_PROJECT` (Vertex AI / gcloud ADC, `pip install google-genai`);
   Bedrock = `AIOS_BEDROCK_REGION` + `AWS_BEARER_TOKEN_BEDROCK` (backend env only).
   Each turn emits a `route` SSE frame → the UI "active brain" badge.
-- **Opt-in agent modes (off by default, always gated + audited):** `AIOS_EARNED_AUTONOMY`
-  (a YELLOW action class auto-applies after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES` consecutive
-  verifier-backed successes, revoked on one failure — RED is never earnable) and
-  `AIOS_SWARM_MAX_WORKERS` (ephemeral worker swarm: decompose → gated workers → synthesize).
+- **Gated agent modes (always gated + audited):** `AIOS_EARNED_AUTONOMY` — **enabled by
+  default** (`config.py` `_env_bool("AIOS_EARNED_AUTONOMY", True)`) but grants nothing until
+  earned: a YELLOW action class auto-applies only after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES`
+  consecutive verifier-backed successes, revoked on one failure — RED is never earnable. And
+  `AIOS_SWARM_MAX_WORKERS` (ephemeral worker swarm: decompose → gated workers → synthesize;
+  swarm runs are per-request opt-in).
 - **Frontend:** since the 2026-06-21 single-frontend collapse, the ONLY UI is **GAGOS — the
   points-being** at the clean root `/` (no `?ui=` params; the classic shell + all `?ui=` routes
   were deleted). Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced

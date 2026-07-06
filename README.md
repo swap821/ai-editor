@@ -6,7 +6,7 @@
 
 GAGOS is a local-first, cloud-capable, human-supervised intelligence layer that sits *above* Windows, Linux, or macOS. It connects local project knowledge, LLMs (local and cloud), memory, tools, approvals, verification, and — on the roadmap — open-internet navigation into one governed system. It is not a kernel, a driver layer, or a chatbot wrapper. It is a control plane in which language models act as **untrusted workers inside a trusted system**.
 
-`phase 2 complete · Phase 1 integration 70% · Python/FastAPI backend · React/TypeScript 3D superbrain frontend · fail-closed by default · 654 backend tests + 326 frontend tests passing · ~92% branch coverage`
+`Phase 2 complete in code, demo artifact pending · Phase 1 integration 85% · Python/FastAPI backend · React/TypeScript 3D superbrain frontend · fail-closed by default · 2,500+ backend tests · 468 frontend tests · ~92% branch coverage (as of 2026-07-06 — live evidence in .aios/state/AUDIT.md)`
 
 ---
 
@@ -29,7 +29,7 @@ Not aspiration — this is in the repo and under test:
 
 - **Fail-closed security gateway.** Actions are classified before execution (`GREEN` = safe/read-only · `YELLOW` = needs explicit approval · `RED` = blocked). When uncertain, it denies. Prompt-injection shield via vector blocklist.
 - **Tamper-evident audit ledger.** An Ed25519-signed hash-chain records important actions, with boot attestation — designed so that altering history breaks the chain.
-- **Sandboxed executor with rollback.** Commands and edits run in a constrained executor backed by a rollback engine, so actions are recoverable. File-edit tool with unified diff approval tested live on AWS Bedrock (2026-07-07).
+- **Sandboxed executor with rollback.** Commands and edits run in a constrained executor backed by a rollback engine, so actions are recoverable. File-edit tool with unified diff approval tested live on AWS Bedrock (2026-07-05).
 - **Deterministic, operator-owned model router.** Routes across local **Ollama** and **Anthropic / Bedrock / Gemini / OpenAI-compatible** providers behind a failover wrapper. Selection is a transparent heuristic, not an LLM guessing about itself. Cloud routes detected and visualized in the UI (real-time lightning bolts on the superbrain spine).
 - **Quarantined memory pipeline.** Facts are *proposed*, then human-*approved*, then *active*, with contradiction detection (L3 entity facts). Auto-extraction reads **only the operator's own statements** — never file contents or model output. FAISS + BM25 hybrid retrieval with decay-weighted freshness.
 - **Council Runtime (v0.1).** A deterministic planner producing evidence-derived confidence (not LLM-reported), plus a **King** approval surface the operator signs off on. Full deliberation → proposer → king veto wired into the live loop.
@@ -37,7 +37,7 @@ Not aspiration — this is in the repo and under test:
 - **Reflection engine.** Structured failure post-mortems → Mistake DB. Lessons learned persist and inform future attempts.
 - **Multi-agent orchestration.** Role-pass swarm patterns, worker agents spawned for one job, required to return evidence, then dissolved.
 - **Living 3D superbrain frontend.** Real-time visualization of cognition events (knowledge-acquired, verification verdicts, agent dispatch, cloud routing). Honest: goes dormant when there is no data.
-- **Verification discipline in the tooling itself.** The suite is green: 654 backend tests + 326 frontend tests. The project deliberately reports the *lower, truer* branch-coverage number (~92%) rather than the flattering line number.
+- **Verification discipline in the tooling itself.** The suite is green in CI on every commit; live counts and run evidence live in the audit ledger (`.aios/state/AUDIT.md`). The project deliberately reports the *lower, truer* branch-coverage number (~92%) rather than the flattering line number.
 
 ---
 
@@ -74,9 +74,9 @@ GAGOS is organized as a colony under a human sovereign.
 |---|---|---|---|
 | Memory | ✅ built | proposal → approval → active, with contradiction detection | ✅ yes |
 | Security | ✅ built | classifies and gates every action, fail-closed | ✅ yes |
-| Planner | ✅ built | deterministic plans with evidence-derived confidence | ⚠️ wired, not fully integrated |
+| Planner | ✅ built | deterministic plans with evidence-derived confidence | ⚠️ optional tool + standalone endpoint; the mandatory per-task plan stage is the Phase-1 close-out |
 | Router | ✅ built | picks local/cloud model transparently, with failover | ✅ yes |
-| Verifier | ✅ built | runs checks; success means *verified*, not *returned* | ⚠️ ready, not wired |
+| Verifier | ✅ built | runs checks; success means *verified*, not *returned* | ✅ wired in-loop (provenance-gated evidence; strength gates every promotion) |
 | Reflection | ✅ built | turns failures into recorded lessons | ✅ yes |
 | Cerebellum | ✅ built | stigmergic skill trails, playbook replay | ✅ yes |
 | Project Knowledge | ❌ designed | scans repos into a Project Passport *(roadmap)* | — |
@@ -84,6 +84,8 @@ GAGOS is organized as a colony under a human sovereign.
 | Taste Alignment | ❌ designed | learns how the operator likes things done *(roadmap)* | — |
 
 **The King** — a caution-only ratchet. A human-facing approval surface that can hold or escalate a risky step for the operator to sign off on, but **never silently proceeds**. This is the veto, and it is the most sovereignty-relevant organ in the system.
+
+**Earned autonomy** — the ratchet's honest counterpart, and it must be disclosed plainly: the mechanism ships **enabled by default**, but it grants nothing until earned. A narrow action class may skip its approval pause only after **at least 5 consecutive verifier-backed successes** for that exact class; a single failure resets the streak to zero; the operator can revoke any earned class in one click; every autonomous act still passes the security gateway and lands in the audit ledger; and RED actions can never be earned. Autonomy here is proof-of-work, not a setting.
 
 **Worker agents** — ephemeral. Spawned for one job (inspect a file, write a component, run a test, research a topic), required to **return evidence**, then dissolved. They serve the colony; they don't own it. Only *verified* outcomes are eligible to become memory.
 
@@ -141,39 +143,41 @@ Capability is not asserted. It is *done, verified, and remembered safely.*
 
 ## Current Phase: What's shipping vs. what's next
 
-### **Phase 0 — Foundation (LOCKED)** ✅
+These are the **Product Phases (P0–P6)** — how the product story advances. The runtime roadmap spec tracks its own **Runtime Phases (R0–R10)** on a different axis; the crosswalk between the two lives in [`.aios/state/AUDIT.md`](./.aios/state/AUDIT.md).
+
+### **P0 — Foundation (LOCKED)** ✅
 
 Core control plane, security spine, executor, memory, audit ledger, all functional and under continuous test.
 
-### **Phase 1 — Integration (70% complete)** ⚠️
+### **P1 — Integration (85% complete)** ⚠️
 
 **Wired and live:**
 - Tool agent loop (read, edit, execute) with approval gates.
 - Reflection post-mortems from failed tasks.
 - Skill trails (stigmergy) learning from verified outcomes.
 - Multi-agent orchestration (role-pass, swarm patterns).
+- **Verifier integration:** verification runs *inside* the live loop — only trusted verify-tool output counts as evidence (provenance-gated, so a model cannot forge a passing verdict), and verification strength gates every skill and memory promotion, feeding verified outcomes directly into the Cerebellum.
 
 **Built but not yet wired:**
-- **Planner integration:** The deterministic planner component exists and passes tests. It produces evidence-derived confidence scores. Next step: wire it into the main `/api/v1/generate` orchestration so every task runs with a structured plan stage before execution.
-- **Verifier integration:** The verification engine is complete (stage 8) and has its own endpoint (`/api/v1/verify`). Next step: integrate verdict verdicts into the tool-agent loop so verified outcomes feed directly into the Cerebellum.
+- **Planner integration:** The deterministic planner component exists and passes tests. It produces evidence-derived confidence scores. Today it runs as an optional agent tool and a standalone `/api/v1/plan` endpoint; the close-out is wiring it into the main `/api/generate` orchestration so every task runs a structured plan stage before execution.
 
-### **Phase 2 — Verification & Reflection (90% complete)** ✅
+### **P2 — Verification & Reflection (complete in code · demo artifact pending)** ✅
 
-The full feedback loop exists in code. Missing: an end-to-end demo showing task failure → reflection → system recall → re-attempt → success → trail promoted → reflex replay. (This is a demo burden, not a code burden.)
+The full feedback loop exists in code. Missing: an end-to-end demo artifact showing task failure → reflection → system recall → re-attempt → success → trail promoted → reflex replay. (This is a demo burden, not a code burden.)
 
-### **Phase 3 — Project Knowledge (Roadmap)** ❌
+### **P3 — Project Knowledge (Roadmap)** ❌
 
 **Project Passport Harvester** — scans a project into purpose, stack, folder map, install/run/build/test commands, env vars, safe vs risky actions, known issues, goals, suggested improvements. This is the crux: everything downstream (taste learning, web navigation, earned autonomy) depends on accurate project understanding.
 
-### **Phase 4 — Sovereign Web Navigator (Roadmap)** ❌
+### **P4 — Sovereign Web Navigator (Roadmap)** ❌
 
 Controlled internet research with cited sources, cross-verification, quarantine, freshness tracking, and re-verification on use.
 
-### **Phase 5 — Human Taste Memory (Roadmap)** ❌
+### **P5 — Human Taste Memory (Roadmap)** ❌
 
 Operator-editable preference memory: tone, explanation depth, naming conventions, design patterns, career goals, feedback patterns.
 
-### **Phase 6 — Public Product (Roadmap)** ❌
+### **P6 — Public Product (Roadmap)** ❌
 
 Student / Developer / Professional / Creator modes, onboarding, demo videos, case studies.
 
@@ -194,6 +198,8 @@ A serious system names its limits:
 ## Security principles
 
 Deny dangerous actions by default · require approval for risky operations · keep audit logs · separate observation from memory · separate AI suggestion from trusted fact · never auto-trust model output or web content · keep memory editable and reversible · prefer local execution · **fail closed when uncertain.**
+
+Two distinctions reviewers often miss. First, fail-closed governs **actions**: an uncertain classification denies execution. A contradiction in **knowledge** is handled differently — the fact refuses activation and the system asks the sovereign; that pause is the design working, not a failure mode. Second, local-first governs **egress**: a cloud route requires per-task-class operator opt-in (`AIOS_ROUTER_CLOUD_TASKS`, empty by default = local-only), and anything that does leave passes the privacy filter with paths and secrets redacted.
 
 ---
 
@@ -221,7 +227,7 @@ That loop — context, permission, verification, memory, introspection — is th
 
 **Technical:** A local-first, cloud-capable, human-supervised agentic control plane where LLMs act as untrusted workers inside a trusted system of memory, permissions, routing, verification, and auditability.
 
-**Honest:** Phase 2 complete, Phase 1 integration underway. Not production-ready. But the core governance layer is real and passes 650+ tests.
+**Honest:** Phase 2 complete in code, Phase 1 integration underway. Not production-ready. But the core governance layer is real and its full suite is green in CI on every commit (live evidence: `.aios/state/AUDIT.md`).
 
 ---
 
@@ -233,7 +239,7 @@ For the architecture deep-dive, see:
 - **`.aios/state/PLAN.md`** — Blueprint vs. Reality, system context, what's next.
 - **`.aios/state/AUDIT.md`** — Component status, test evidence, integration gaps.
 - **`.aios/coordination/README.md`** — How the builder agents coordinate (Claude / Codex / Kimi).
-- **`docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`** — Current 24-week Phase 1→v1.0 execution plan.
+- **`docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`** — The runtime roadmap: Runtime Phases R0→R10 to Sovereign AI-OS v1.0, with a 30-day MVP scoped inside it.
 
 For the frontend:
 - **`frontend/README.md`** — The 3D superbrain UI, real-time cognition visualization, how it reads from the backend.
