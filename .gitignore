@@ -72,3 +72,15 @@ agentdb.rvf.lock
 .aios/state/proof_*.jpg
 .gstack/
 coverage.xml
+
+# --- Agent-runtime generated local state (2026-07-06 triage) ---
+# Claude-flow/ruflo generated skill mirrors: ~60 dirs stamped by `ruflo init`.
+# The four hand-authored skills committed before this rule stay tracked
+# (gitignore never drops tracked files); `git add -f` any new deliberate skill.
+.agents/skills/
+# Codex co-agent scratch tree.
+.codex/
+# Session coverage/probe scratch logs at the .aios root.
+.aios/cov_agent_*
+.aios/fable_*
+.aios/tmp_shots/
