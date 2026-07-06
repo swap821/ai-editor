@@ -27,8 +27,8 @@ function installSpeechMocks(voices: SpeechSynthesisVoice[] = []) {
     if (u.onstart) u.onstart();
   });
   const cancel = vi.fn(() => {
-    if (last?.onend) {
-      const l = last;
+    const l = last;
+    if (l?.onend) {
       last = null;
       l.onend();
     }
