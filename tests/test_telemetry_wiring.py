@@ -16,18 +16,29 @@ from typing import Iterator, Optional
 import pytest
 from fastapi.testclient import TestClient
 
+import aios.api.main as api_main
 from aios.api.main import (
     app,
     get_approval_store,
+    get_autonomy,
     get_bedrock_client,
+    get_cerebellum,
+    get_development_tracker,
     get_executor,
     get_gemini_client,
     get_ollama_client,
+    get_reflection_agent,
     get_semantic_facts,
     get_semantic_indexer,
+    get_skill_memory,
 )
 from aios.core import telemetry
+from aios.core.autonomy import AutonomyLedger
+from aios.core.cerebellum import Cerebellum
+from aios.core.confidence_filter import GateResult
 from aios.core.executor import Executor
+from aios.memory.development import DevelopmentTracker
+from aios.memory.skills import SkillMemory
 from aios.security.gateway import RateLimiter
 
 
@@ -61,6 +72,26 @@ def _fake_executor() -> Executor:
 def _rows_for(session_id: str) -> list:
     """Telemetry rows for one session, from the real (test-isolated) DB."""
     return [r for r in telemetry.fetch_rows() if r["session_id"] == session_id]
+
+
+def _isolate_turn_memory(tmp_path) -> None:
+    """Pin the advisory turn gates to a fresh, empty state.
+
+    The confidence gate calibrates against development/skill/lesson history,
+    the cerebellum pre-check consults compiled playbooks, and the YELLOW pause
+    consults the earned-autonomy ledger -- all in the session-shared test DB.
+    ~1,800 earlier suite tests accumulate state there, which can (marginally,
+    environment-dependently -- seen on CI, not locally) flip a turn into the
+    confidence-gated early exit or an autonomous YELLOW write. These tests
+    assert the WIRING of specific dispatch paths, so they must not inherit
+    cross-test state.
+    """
+    db = tmp_path / "turn_memory.db"
+    app.dependency_overrides[get_development_tracker] = lambda: DevelopmentTracker(db)
+    app.dependency_overrides[get_skill_memory] = lambda: SkillMemory(db)
+    app.dependency_overrides[get_autonomy] = lambda: AutonomyLedger(db)
+    app.dependency_overrides[get_cerebellum] = lambda: Cerebellum(db)
+    app.dependency_overrides[get_reflection_agent] = lambda: None
 
 
 class PlainOllama:
@@ -107,12 +138,13 @@ class YellowOllama:
 
 
 @pytest.fixture()
-def generate_client() -> Iterator[TestClient]:
+def generate_client(tmp_path) -> Iterator[TestClient]:
     ollama = PlainOllama()
     fake_indexer = FakeIndexer()
     app.dependency_overrides[get_ollama_client] = lambda: ollama
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
+    _isolate_turn_memory(tmp_path)
     get_approval_store().clear()
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client
@@ -145,7 +177,7 @@ def test_generate_plain_llm_turn_records_telemetry_row(generate_client: TestClie
     assert isinstance(row["latency_ms"], int) and row["latency_ms"] >= 0
 
 
-def test_generate_paused_turn_records_aborted_telemetry_row() -> None:
+def test_generate_paused_turn_records_aborted_telemetry_row(tmp_path) -> None:
     """A turn that pauses for YELLOW approval and is never resumed must still
     land ONE telemetry row -- pre-wiring, this (very common) case left ZERO
     rows, silently undercounting real traffic."""
@@ -154,6 +186,7 @@ def test_generate_paused_turn_records_aborted_telemetry_row() -> None:
     app.dependency_overrides[get_ollama_client] = lambda: ollama
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
+    _isolate_turn_memory(tmp_path)
     get_approval_store().clear()
     session_id = "telemetry-wiring-paused"
     try:
@@ -179,6 +212,52 @@ def test_generate_paused_turn_records_aborted_telemetry_row() -> None:
     # The pause is a YELLOW-classified command -- the coarse max_zone
     # approximation must reflect that (see scoping report SS5.2).
     assert rows[0]["max_zone"] == "YELLOW"
+
+
+def test_confidence_gated_turn_records_aborted_telemetry_row(
+    tmp_path, monkeypatch
+) -> None:
+    """A turn stopped by the confidence gate never reaches the tool loop but
+    must still land ONE telemetry row -- pre-fix, all three advisory early
+    exits (clarify-ask, confidence gate, tool-loop construction failure)
+    ended with `done` and ZERO rows. This is exactly the shape that made the
+    suite's two /generate wiring tests fail on CI: accumulated cross-test
+    calibration state tipped real turns into this uncounted exit."""
+    monkeypatch.setattr(
+        api_main,
+        "confidence_gate",
+        lambda confidence: GateResult(False, "forced below threshold for test"),
+    )
+    ollama = PlainOllama()
+    app.dependency_overrides[get_ollama_client] = lambda: ollama
+    app.dependency_overrides[get_executor] = _fake_executor
+    app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
+    _isolate_turn_memory(tmp_path)
+    get_approval_store().clear()
+    session_id = "telemetry-wiring-gated"
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.post(
+                "/api/generate",
+                json={
+                    "messages": [
+                        {"role": "user", "content": [{"text": "gated turn probe xyzzy"}]}
+                    ],
+                    "modelId": "ollama.llama3.2:3b",
+                    "sessionId": session_id,
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert "event: confidence.gated" in response.text
+    assert "event: done" in response.text
+
+    rows = _rows_for(session_id)
+    assert len(rows) == 1
+    assert rows[0]["verified_outcome"] == telemetry.OUTCOME_ABORTED
+    assert rows[0]["dispatch_path"] == telemetry.DISPATCH_LLM
 
 
 class CapturingChatOllama:

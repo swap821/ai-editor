@@ -3231,6 +3231,10 @@ def generate(
                 _record_episode(session_id, "assistant", question)
                 approvals.clear_session(session_id)
                 yield sse("text_chunk", {"text": question})
+                # An advisory early exit is still a real turn -- count it
+                # (aborted), or every clarification-asked turn silently
+                # vanishes from telemetry.
+                _record_telemetry(telemetry.OUTCOME_ABORTED)
                 yield sse("done", {})
                 return
 
@@ -3290,6 +3294,8 @@ def generate(
                     approvals.clear_session(session_id)
                     yield sse("confidence.gated", payload)
                     yield sse("text_chunk", {"text": question})
+                    # A confidence-gated turn is still a real turn -- count it.
+                    _record_telemetry(telemetry.OUTCOME_ABORTED)
                     yield sse("done", {})
                     return
 
@@ -3650,6 +3656,8 @@ def generate(
         except Exception as exc:  # noqa: BLE001 - agent construction must not kill SSE
             logger.error("Tool-loop construction failed", exc_info=exc)
             yield sse("error", {"text": f"Internal error: {exc}"})
+            # A turn killed by construction failure is still a real turn -- count it.
+            _record_telemetry(telemetry.OUTCOME_ABORTED)
             yield sse("done", {})
             return
         def _safe_iter(source):
