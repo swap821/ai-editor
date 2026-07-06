@@ -84,3 +84,8 @@ coverage.xml
 .aios/cov_agent_*
 .aios/fable_*
 .aios/tmp_shots/
+# Curriculum/mission runs generate arbitrary artifacts inside the sandbox
+# work-tree (email_validator.py, test_string_reverser.py, ...). The curated
+# sandbox files committed before this rule stay tracked (gitignore never
+# affects tracked files); add a new deliberate sandbox file with `git add -f`.
+training_ground/*
