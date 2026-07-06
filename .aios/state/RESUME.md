@@ -13,15 +13,22 @@ remaining issues", cleanup) is DONE and verified. V1.0-ready bars remain
 cleared (see 2026-07-05 entry in git history for evidence paths).
 
 ## SINGLE NEXT ACTION
-Operator's call on the next directive. Nothing is blocking. Small known
-candidates, none urgent:
-1. Three surviving product seams from the coverage arc (see below: swarm
-   `stopped` branches, council's local `get_approval_store` proxy test-trap,
-   no subprocess-coverage wiring).
-2. Deep-audit remains PAUSED with 17 low/medium findings held for operator
-   review (memory: `deep-audit-paused`).
-3. Optional: Bedrock Nova-Lite model-capability quirk on complex multi-file
-   missions (NOT a harness bug; low leverage).
+Operator's call on the next directive. Nothing is blocking.
+
+SUPERSEDED SAME-DAY (2026-07-06 afternoon): the deep audit was CLOSED (review
++ fixes shipped, `156220d`) and the monolith split's FIRST MAJOR TRANCHE
+LANDED (`ed15f1c`, CI green): NEW `aios/api/deps.py` (21 providers, override
+identity preserved, proxy-trap killed by construction) + routers
+memory(16)/development(12)/models(4); main.py 4,252 -> ~3,350 lines,
+54 -> 22 inline routes; byte-equivalence adversarially reviewed (3 lenses,
+0 findings above LOW). Remaining candidates, none urgent:
+1. Monolith tranche 2: generate/chat/terminal giants + approvals/security/
+   auth/onboarding/intent groups (entangled with main-owned singletons).
+2. Two surviving product seams: swarm `stopped` branches unreachable via
+   approval pause; no subprocess-coverage wiring. (The council proxy-trap
+   seam is structurally addressed by deps.py for new routers; council.py's
+   own local proxy still exists.)
+3. Optional: Bedrock Nova-Lite model-capability quirk (NOT a harness bug).
 
 ## What landed this session (all pushed, master @ `7837b6c`, CI green)
 - **`b0d18f2`** — the 2026-07-05 session backlog, finally committed (~2,770
