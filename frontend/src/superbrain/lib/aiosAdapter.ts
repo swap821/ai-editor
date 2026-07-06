@@ -283,6 +283,21 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
   });
 }
 
+/** Swarm opt-in (the command bar's toggle). Module singleton — like the
+ *  pending-approval state — so approval REPLAYS (streamTurn with tokens)
+ *  inherit the operator's current choice instead of silently dropping the
+ *  colony mid-turn. LAB-SYNC: this block + the `swarm` body field + the
+ *  `plan` SSE case below must be mirrored into the lab before `npm run port`. */
+let swarmMode = false;
+
+export function setSwarmMode(enabled: boolean): void {
+  swarmMode = enabled;
+}
+
+export function getSwarmMode(): boolean {
+  return swarmMode;
+}
+
 async function streamTurn(
   text: string,
   tokens: string[],
@@ -304,6 +319,7 @@ async function streamTurn(
         modelId: 'auto',
         ...sessionFields,
         approvalTokens: tokens,
+        ...(swarmMode ? { swarm: true } : {}),
       }),
     });
     if (!response.ok || !response.body) {
@@ -428,6 +444,25 @@ async function streamTurn(
             intensity: 0.3,
             source: 'aios',
             data: d,
+            ...spine,
+          });
+          break;
+        }
+        case 'plan': {
+          // The mandatory plan stage's confidence-partitioned task plan
+          // (AIOS_PLAN_STAGE). Advisory by design — narrate it on the bus;
+          // approvals still happen per-action at execution time.
+          const planSteps = Array.isArray(frame.data.steps) ? frame.data.steps : [];
+          const escalated = Array.isArray(frame.data.escalate) ? frame.data.escalate : [];
+          publishCognition({
+            type: 'agent-dispatch',
+            label: 'TASK PLAN',
+            detail:
+              `${planSteps.length} step(s) · ${escalated.length} awaiting human sign-off` +
+              (frame.data.native ? ' · from verified experience' : ''),
+            intensity: 0.5,
+            source: 'aios',
+            data: frame.data,
             ...spine,
           });
           break;

@@ -588,3 +588,47 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Dashboard view tabs (Missions | Self-Analysis | Sovereign State) — reuses
+   the panel's existing border/glow values only. */
+.council-dashboard__tabs {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 10px;
+}
+
+.council-dashboard__tab {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid rgba(180, 210, 240, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(225, 237, 252, 0.86);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.council-dashboard__tab:hover {
+  background: rgba(123, 245, 251, 0.08);
+}
+
+.council-dashboard__tab.is-active {
+  background: rgba(123, 245, 251, 0.12);
+  border-color: rgba(123, 245, 251, 0.32);
+  color: rgba(235, 244, 255, 0.92);
+}
+
+/* Proposed-diff preview inside a Self-Analysis proposal card. */
+.council-dashboard__diff {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid rgba(180, 210, 240, 0.16);
+  border-radius: 8px;
+  background: rgba(4, 7, 16, 0.84);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

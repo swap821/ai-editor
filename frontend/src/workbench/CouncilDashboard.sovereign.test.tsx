@@ -1,0 +1,170 @@
+/**
+ * B3 sovereignty-surface tests: the CouncilDashboard's new Self-Analysis and
+ * Sovereign State views against mocked live endpoints.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import CouncilDashboard from './CouncilDashboard';
+
+const PROPOSAL = {
+  id: 7,
+  target_path: 'aios/core/example.py',
+  finding_type: 'complexity_hotspot',
+  evidence: 'radon rank D on example()',
+  proposed_zone: 'YELLOW',
+  proposed_diff: '--- a/aios/core/example.py\n+++ b/aios/core/example.py',
+  proposed_by: 'self-analysis',
+  approved_by: null,
+  status: 'proposed',
+};
+
+const AUTONOMY = {
+  enabled: true,
+  min_successes: 5,
+  entries: [
+    {
+      signature: 'execute:pytest-training',
+      action_type: 'execute_terminal',
+      target_shape: 'pytest training_ground/*.py',
+      success_count: 6,
+      failure_count: 0,
+      streak: 6,
+      status: 'earned',
+      earned_at: '2026-07-05',
+      revoked_at: null,
+      last_outcome_at: '2026-07-06',
+    },
+  ],
+  summary: { earned: 1, probation: 0, revoked: 0 },
+};
+
+const FACTS = {
+  proposals: [
+    { id: 3, subject: 'operator', predicate: 'prefers', object: 'dark mode', source: 'chat', timestamp: 't' },
+  ],
+};
+
+// Real trail_map() row shape (aios/memory/skills.py): skill_id + goal_pattern,
+// NOT id/goal — the mock must exercise the live branch of the panel's fields.
+const TRAILS = {
+  trails: [
+    {
+      skill_id: 1,
+      goal_pattern: 'verify sandbox tests',
+      status: 'verified',
+      strength: 0.91,
+      quarantined: false,
+    },
+  ],
+  fragments: [],
+  summary: { verified: 1, candidate: 0 },
+};
+
+const CURRICULUM = {
+  proposals: [
+    {
+      fingerprint: 'fp-1',
+      skill_name: 'refactoring',
+      level: 2,
+      prompt: 'extract a helper from…',
+      rationale: 'repeated failures',
+      source_pattern: 'x',
+      difficulty_delta: 1,
+    },
+  ],
+};
+
+let posts: Array<{ url: string; body: string }> = [];
+
+function mockFetch() {
+  posts = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if ((init?.method || 'GET') === 'POST') {
+        posts.push({ url: u, body: String(init?.body ?? '') });
+        return { ok: true, status: 200, json: async () => ({}) } as unknown as Response;
+      }
+      const payload = u.includes('/self-analysis/proposals')
+        ? { proposals: [PROPOSAL] }
+        : u.includes('/development/autonomy')
+          ? AUTONOMY
+          : u.includes('/memory/facts/pending')
+            ? FACTS
+            : u.includes('/development/trails')
+              ? TRAILS
+              : u.includes('/curriculum/proposals')
+                ? CURRICULUM
+                : { missions: [] };
+      return { ok: true, status: 200, json: async () => payload } as unknown as Response;
+    }),
+  );
+}
+
+describe('CouncilDashboard sovereignty views', () => {
+  beforeEach(() => {
+    mockFetch();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('defaults to the Missions view with the three tabs visible', async () => {
+    render(<CouncilDashboard />);
+    expect(await screen.findByRole('tab', { name: 'Missions' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: 'Self-Analysis' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Sovereign State' })).toBeInTheDocument();
+  });
+
+  it('lists Self-Analysis proposals and rejects one via the live endpoint', async () => {
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Self-Analysis' }));
+    // The card's h3 mixes an svg icon with text nodes (breaks the default RTL
+    // text matcher), so assert via the section's accessible name + the
+    // single-text-node evidence line instead.
+    expect(await screen.findByRole('region', { name: 'Proposal 7' })).toBeInTheDocument();
+    expect(screen.getByText('radon rank D on example()')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    await waitFor(() =>
+      expect(posts.some((p) => p.url.includes('/self-analysis/proposals/7/reject'))).toBe(true),
+    );
+  });
+
+  it('renders all four sovereign sections and revokes an earned signature', async () => {
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    expect(await screen.findByText(/Earned Autonomy/)).toBeInTheDocument();
+    expect(screen.getByText(/execute_terminal/)).toBeInTheDocument();
+    expect(screen.getByText(/operator — prefers — dark mode/)).toBeInTheDocument();
+    expect(screen.getByText(/verify sandbox tests/)).toBeInTheDocument();
+    expect(screen.getByText(/refactoring L2/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await waitFor(() =>
+      expect(
+        posts.some((p) =>
+          p.url.includes('/development/autonomy/revoke?signature=execute%3Apytest-training'),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it('approves a pending fact through the quarantine endpoint', async () => {
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    await screen.findByText(/operator — prefers — dark mode/);
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    // resolvedBy is REQUIRED by the backend's FactProposalResolveRequest —
+    // assert the body carries it, not just that a POST fired.
+    await waitFor(() => {
+      const call = posts.find((p) => p.url.includes('/memory/facts/pending/3/approve'));
+      expect(call).toBeDefined();
+      expect(JSON.parse(call!.body)).toMatchObject({ resolvedBy: 'operator' });
+    });
+  });
+});

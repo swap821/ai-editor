@@ -123,9 +123,22 @@ def test_w4_4_mission_detail_cross_fades_on_selection_change() -> None:
     css = COUNCIL_CSS.read_text(encoding="utf-8")
 
     assert 'key={selectedSummary.missionId}' in jsx
-    detail_idx = jsx.index('className="council-dashboard__detail"')
-    detail_open = jsx[max(0, detail_idx - 200) : detail_idx]
-    assert "key={selectedSummary.missionId}" in detail_open
+    # B3 added sibling dashboard views (Self-Analysis / Sovereign State) that
+    # legitimately reuse the council-dashboard__detail class for the same
+    # cross-fade treatment; the mission-key invariant applies to the MISSION
+    # detail specifically, so check every occurrence for one carrying the key
+    # instead of pinning the first occurrence in file order.
+    detail_needle = 'className="council-dashboard__detail"'
+    detail_starts = []
+    cursor = jsx.find(detail_needle)
+    while cursor != -1:
+        detail_starts.append(cursor)
+        cursor = jsx.find(detail_needle, cursor + 1)
+    assert detail_starts
+    assert any(
+        "key={selectedSummary.missionId}" in jsx[max(0, idx - 200) : idx]
+        for idx in detail_starts
+    )
 
     assert "@keyframes council-detail-in" in css
     kf = _balanced_block(css, "@keyframes council-detail-in")
