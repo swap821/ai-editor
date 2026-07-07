@@ -109,11 +109,41 @@ def _hash_placeholder(value: str) -> str:
     return f"[SENSITIVE: {h}]"
 
 
+#: A slash-joined run of file-name-safe segments (no base64 ``+``/``=``).
+_PATH_SHAPED = re.compile(r"[A-Za-z0-9_\-]+(?:[/\\][A-Za-z0-9_\-]+)+")
+
+#: A dot-extension immediately following a token (``.py``, ``.md``, ...).
+_EXT_AFTER = re.compile(r"\.[A-Za-z0-9]{1,5}(?![A-Za-z0-9])")
+
+
+def _in_filename_context(text: str, start: int, end: int, token: str) -> bool:
+    """True when the matched token is a file path or path component.
+
+    Egress fix (2026-07-07, operator-approved): the entropy heuristic used to
+    glue slash-separated path segments into one long "token" and redact it as
+    a secret — blinding cloud models to the very filename they were asked to
+    work on (the learning-loop prover recorded models echoing the redaction
+    hash back as a filename). A token is exempt when it is path-shaped, sits
+    directly after a path separator, or is directly followed by a
+    dot-extension. Scope note: this is the PRIVACY egress layer (protecting
+    operator data leaving the machine); the security scanner's entropy
+    backstop — which deliberately catches path-DISGUISED credentials — is
+    separate and unchanged.
+    """
+    if _PATH_SHAPED.fullmatch(token):
+        return True
+    if start > 0 and text[start - 1] in "/\\":
+        return True
+    return bool(_EXT_AFTER.match(text, end))
+
+
 def _redact_high_entropy(text: str) -> tuple[str, int]:
     """Replace high-entropy strings in *text* with hashed placeholders."""
     count = 0
     for match in re.finditer(r"[A-Za-z0-9_+/=\-]{20,}", text):
         token = match.group(0)
+        if _in_filename_context(text, match.start(), match.end(), token):
+            continue
         if _looks_like_secret(token):
             placeholder = _hash_placeholder(token)
             text = text[: match.start()] + placeholder + text[match.end() :]

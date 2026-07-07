@@ -275,7 +275,16 @@ class DockerRunner:
             "--env",
             "PYTHONDONTWRITEBYTECODE=1",
             "--env",
-            "PYTEST_ADDOPTS=-p no:cacheprovider",
+            # Sandbox verification runs a single sandbox-local pytest file. The
+            # repo's pytest.ini addopts (--cov=aios --cov-report=term-missing)
+            # are meaningless here (the sandbox test does not import aios, so
+            # coverage collects nothing) AND actively harmful: in the container's
+            # non-TTY output the coverage report DISPLACES pytest's "N passed"
+            # summary line, so the Verifier's count parser reads 0 passed and
+            # downgrades a real green to WEAK strength (below the STRONG
+            # promotion floor). `-o addopts=` clears the ini addopts for the
+            # sandbox run so the summary line is present and counts parse.
+            "PYTEST_ADDOPTS=-p no:cacheprovider -o addopts=",
             self.image,
             *argv,
         ]

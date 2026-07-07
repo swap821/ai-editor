@@ -1270,8 +1270,9 @@ def test_agent_verify_requires_human_approval() -> None:
 
 def test_agent_verify_reports_fail_and_reflects_once() -> None:
     # A failing verification reports FAIL AND fires the on_failure reflection hook
-    # (the Verifier fires it) — but the dispatch path must NOT double-reflect, so
-    # no separate 'reflect' step is surfaced from the verify path.
+    # EXACTLY ONCE (the Verifier fires it internally) — the verify dispatch path
+    # then SURFACES that already-recorded lesson as a reflect-* step without
+    # ever calling the hook a second time (no double-recording).
     chat = ScriptedChat([
         _tool_call("verify", {"command": "pytest"}),
         {"role": "assistant", "content": "Verification failed; noted."},
@@ -1294,11 +1295,15 @@ def test_agent_verify_reports_fail_and_reflects_once() -> None:
 
     results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "verify"]
     assert results and "VERIFY FAIL" in results[0]["output"]
-    # The SAME reflection hook fired, once, with the failed command + its output.
-    assert reflected and reflected[0][0] == "pytest"
+    # The SAME reflection hook fired, EXACTLY once, with the failed command + output.
+    assert len(reflected) == 1 and reflected[0][0] == "pytest"
     assert "boom" in reflected[0][1]
-    # ...and the verify path did not also emit a 'reflect' step (no double-reflect).
-    assert not any(e.get("tool") == "reflect" for e in events)
+    # ...and the verify path DOES surface it as a reflect-* step (FIX 1) —
+    # but the hook itself was not called again to produce it.
+    reflect_events = [e for e in events if e.get("tool") == "reflect"]
+    assert len(reflect_events) == 1
+    assert reflect_events[0]["id"].startswith("reflect-")
+    assert "fix the broken case" in reflect_events[0]["output"]
     assert events[-1]["type"] == "done"
 
 
@@ -1324,6 +1329,82 @@ def test_agent_verify_red_command_is_refused_by_gateway_not_run() -> None:
     assert "BLOCK" in blocked[0]["reason"].upper()
     assert runner.calls == [], "a blocked verify command must never reach the runner"
     assert reflected == [], "a security block is correct behaviour, not a mistake to reflect on"
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_verify_success_confirms_pending_lesson() -> None:
+    # FIX 2: after a verify-tool FAILURE recorded a lesson (FIX 1), a LATER
+    # verify-tool SUCCESS on the EXACT same command must promote it -- a
+    # reflect-tool step with a verify-* id (has_confirm_step's shape), gated
+    # by the STRONG promotion floor (same strength derivation as execute_terminal).
+    cmd = "pytest tests/test_x.py -q"
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": cmd}),
+        _tool_call("verify", {"command": cmd}),
+        {"role": "assistant", "content": "Fixed and verified."},
+    ])
+
+    def hook(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "boom",
+                "recurrence": False, "mistake_id": 42}
+
+    confirmed: list[int] = []
+    events = list(
+        ToolAgent(
+            chat, _flaky_executor(), max_iters=4,
+            approved_commands=[cmd], on_failure=hook,
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify the fix"}])
+    )
+
+    reflect_events = [e for e in events if e.get("tool") == "reflect"]
+    # First: the failure surfaces as reflect-*; second: the success confirms
+    # via a reflect-tool step whose id starts with "verify-".
+    assert any(e["id"].startswith("reflect-") for e in reflect_events)
+    confirm_events = [e for e in reflect_events if e["id"].startswith("verify-")]
+    assert confirm_events, "a verify-tool success on the exact failed command must confirm it"
+    assert confirmed == [42]
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_verify_success_does_not_confirm_a_different_command() -> None:
+    # The confirm path must only promote the EXACT failed command's lesson --
+    # a verify success on an unrelated command must not spuriously confirm.
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": "pytest tests/test_a.py -q"}),
+        _tool_call("verify", {"command": "pytest tests/test_b.py -q"}),
+        {"role": "assistant", "content": "done"},
+    ])
+
+    def hook(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "boom",
+                "recurrence": False, "mistake_id": 7}
+
+    confirmed: list[int] = []
+
+    class TwoCommandRunner:
+        def __call__(self, command, *, cwd, env, timeout_s):
+            if "test_a" in command:
+                return "", "boom: assertion failed", 1
+            return "3 passed in 0.2s", "", 0
+
+    ex = Executor(
+        runner=TwoCommandRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
+    events = list(
+        ToolAgent(
+            chat, ex, max_iters=4,
+            approved_commands=["pytest tests/test_a.py -q", "pytest tests/test_b.py -q"],
+            on_failure=hook,
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify both"}])
+    )
+
+    confirm_events = [
+        e for e in events if e.get("tool") == "reflect" and str(e.get("id", "")).startswith("verify-")
+    ]
+    assert not confirm_events, "a success on a DIFFERENT command must not confirm the pending lesson"
+    assert confirmed == []
     assert events[-1]["type"] == "done"
 
 

@@ -224,7 +224,7 @@ INJECTION_VECTOR_SHIELD: Final[bool] = _env_bool("AIOS_INJECTION_VECTOR_SHIELD",
 INJECTION_VECTOR_THRESHOLD: Final[float] = _env_float("AIOS_INJECTION_VECTOR_THRESHOLD", 0.6)
 
 SCOPE_ROOTS: Final[tuple[Path, ...]] = _env_scope_roots(
-    "AIOS_SCOPE_ROOTS", (PROJECT_ROOT / "training_ground",)
+    "AIOS_SCOPE_ROOTS", (PROJECT_ROOT / "training_ground", PROJECT_ROOT / "lab")
 )
 
 VERIFY_RUNNER: Final[str] = _env_str("AIOS_VERIFY_RUNNER", "python -m pytest")

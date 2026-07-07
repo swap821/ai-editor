@@ -38,15 +38,31 @@ def test_derived_paths_live_under_the_temp_data_dir() -> None:
     assert config.FAISS_INDEX_PATH != real_data / "vector_index.faiss"
 
 
-def test_hybrid_search_short_circuits_empty_without_loading_embedder(monkeypatch) -> None:
+def test_hybrid_search_short_circuits_empty_without_loading_embedder(
+    monkeypatch, tmp_path
+) -> None:
     # The contract that lets the API tests drop their hybrid_search stub: on an
     # empty (isolated) index, recall returns [] WITHOUT constructing the embedding
     # model. We make EmbeddingModel.instance() explode so any load fails loudly.
+    #
+    # We pass an explicit `index=` pointed at a FAISS path that does not exist,
+    # so VectorIndex._load_or_create() builds a genuinely empty in-memory index
+    # regardless of what other tests have written into the *shared* session
+    # FAISS_INDEX_PATH (config.FAISS_INDEX_PATH lives under the one temp
+    # DATA_DIR for the whole test run — see test_derived_paths_live_under_the_
+    # temp_data_dir above — so by full-suite collection order it may already
+    # be non-empty by the time this test runs). This keeps the assertion
+    # hermetic without weakening what it proves: an empty index must short-
+    # circuit before the embedder is ever touched.
     from aios.memory import retrieval
-    from aios.memory.embeddings import EmbeddingModel
+    from aios.memory.embeddings import EmbeddingModel, VectorIndex
 
     def _boom() -> object:
         raise AssertionError("the embedder must not load for an empty index")
 
     monkeypatch.setattr(EmbeddingModel, "instance", staticmethod(_boom))
-    assert retrieval.hybrid_search("anything at all", top_k=3) == []
+    empty_index = VectorIndex(path=tmp_path / "empty_isolation_check.faiss")
+    assert empty_index.size == 0
+    assert (
+        retrieval.hybrid_search("anything at all", top_k=3, index=empty_index) == []
+    )

@@ -764,6 +764,14 @@ class ToolAgent:
         self._repeated_tool_threshold = 3
         #: Enable validated ReAct prose recovery for local models.
         self._enable_react_recovery = True
+        #: The (mistake_id, lesson_summary) the Verifier recorded on the MOST
+        #: RECENT ``_verify()`` call, if any -- ``None`` when that call passed
+        #: or recorded nothing. Set fresh by every ``_verify()`` call and read
+        #: (then cleared) immediately afterwards by the run() loop's ``verify``
+        #: tool-call handling, so it never leaks across calls. This SURFACES
+        #: the lesson the Verifier already recorded -- it must never trigger a
+        #: second recording.
+        self._last_verify_lesson: Optional[tuple[int, str]] = None
 
     def _detect_agent_loop(self, tool_calls: list[dict[str, Any]]) -> bool:
         """Detect if the agent is stuck in a repetitive loop.
@@ -863,7 +871,7 @@ class ToolAgent:
             if _playbook is not None:
                 _replay_ok = True
                 for _ev in self.cerebellum.replay(
-                    _playbook, dispatch_fn=self._dispatch,
+                    _playbook, dispatch_fn=self._dispatch_approved,
                 ):
                     yield _ev
                     if _ev.get("type") == "cerebellum_abort":
@@ -1084,6 +1092,21 @@ class ToolAgent:
                         yield from self._confirm(
                             pending_lessons, str(args.get("command", "")), output, index
                         )
+                elif name == "verify":
+                    if failed and status == "ok":
+                        # The Verifier ALREADY recorded this lesson internally
+                        # (Verifier._maybe_reflect, fired from inside verify()) --
+                        # this only SURFACES it as a reflect-* step and tracks it
+                        # in pending_lessons. Must NOT call on_failure again.
+                        yield from self._surface_verify_lesson(
+                            str(args.get("command", "")), index, pending_lessons
+                        )
+                    elif not failed and status == "ok" and pending_lessons:
+                        # A verify tool call is just as valid evidence a lesson
+                        # proved itself as an execute_terminal retry.
+                        yield from self._confirm(
+                            pending_lessons, str(args.get("command", "")), output, index
+                        )
                 elif name in ("edit_file", "create_file") and status == "ok":
                     # A write actually landed. Force a verification so the
                     # AUTHORITATIVE PASS/FAIL -- not the model's narration -- is the
@@ -1197,6 +1220,38 @@ class ToolAgent:
             self.on_failure,
             preview_limit=_PREVIEW_LIMIT,
         )
+
+    def _surface_verify_lesson(
+        self,
+        command: str,
+        index: int,
+        pending_lessons: list[tuple[int, str]],
+    ) -> Iterator[dict[str, Any]]:
+        """Surface the lesson the Verifier already recorded on a verify failure.
+
+        ``Verifier.verify()`` fires its own reflection hook internally (see
+        ``Verifier._maybe_reflect``) and returns the recorded lesson through
+        ``VerifierResult.mistake_id``/``lesson_summary``, which ``_verify()``
+        stashes on ``self._last_verify_lesson``. This method only SURFACES that
+        already-recorded lesson as a ``reflect-*`` step and tracks it in
+        ``pending_lessons`` so a later exact-command verify success can confirm
+        it -- it never calls ``on_failure`` itself, so the lesson is recorded
+        exactly once (by the Verifier).
+        """
+        lesson = self._last_verify_lesson
+        self._last_verify_lesson = None
+        if lesson is None:
+            return
+        mistake_id, summary = lesson
+        pending_lessons.append((mistake_id, command))
+        yield {
+            "type": "tool_result",
+            "tool": "reflect",
+            "output": (summary or "Recorded a lesson from this verification failure.")[
+                :_PREVIEW_LIMIT
+            ],
+            "id": f"reflect-{index}",
+        }
 
     def _confirm(
         self,
@@ -1389,6 +1444,48 @@ class ToolAgent:
             return self._propose_fixes(args.get("limit", 25))
         return (f"Unknown tool '{name}'.", "blocked", False)
 
+    def _dispatch_approved(self, name: str, args: dict[str, Any]) -> tuple[str, str, bool]:
+        """Dispatch a step as PRE-APPROVED. Used ONLY by cerebellum replay.
+
+        A compiled playbook is built exclusively from a skill that already
+        earned >=3 STRONG verified successes and was promoted (see
+        ``cerebellum.py``'s compilation guards) BEFORE it was ever compiled --
+        the human-in-the-loop trust was already established while the skill
+        was learned, not granted here. Replaying it should not re-pause for a
+        YELLOW approval the organism has already earned.
+
+        RED IS STILL REFUSED: both paths below route through
+        ``execute_approved`` / ``verify(approved=True)``, which the gateway
+        blocks for RED regardless of the approved flag (see
+        ``Executor.execute_approved``: "RED commands are still refused").
+        Only ``execute_terminal`` and ``verify`` are compilable (see
+        ``cerebellum._COMPILABLE_TOOLS``), so those are the only two tools
+        that need an approved variant here; reads have no approval gate and
+        fall through to the normal dispatcher unchanged.
+
+        This method is used by NOTHING else. Every LLM-proposed tool call in
+        run()'s normal loop still goes through ``self._dispatch`` with
+        approved=False and still pauses for YELLOW human approval.
+        """
+        if self.allowed_tools is not None and name not in self.allowed_tools:
+            return self._dispatch(name, args)
+        if name == "verify":
+            return self._verify(str(args.get("command", "")), approved=True)
+        if name == "execute_terminal":
+            command = str(args.get("command", ""))
+            # A one-off approval set scoped to THIS call only -- never touches
+            # self.approved_commands, so nothing here leaks into the LLM loop
+            # that runs afterwards if the replay aborts partway through.
+            return tool_handlers.execute_terminal(
+                command,
+                approved_commands={command},
+                executor=self.executor,
+                session_id=self.session_id,
+            )
+        # read_file / read_directory (the only other compilable tools) have no
+        # approval gate; dispatch normally.
+        return self._dispatch(name, args)
+
     def _read_file(self, filepath: str) -> tuple[str, str, bool]:
         return tool_handlers.read_file(
             filepath,
@@ -1421,14 +1518,28 @@ class ToolAgent:
         )
 
     def _verify(self, command: str, *, approved: bool = False) -> tuple[str, str, bool]:
-        """Thin wrapper around :func:`tool_handlers.verify_command`."""
-        return tool_handlers.verify_command(
+        """Thin wrapper around :func:`tool_handlers.verify_command`.
+
+        Also stashes any lesson the Verifier recorded on ``_last_verify_lesson``
+        (see its docstring) -- ``None`` when the verification passed, was
+        blocked/required approval, or recorded nothing.
+        """
+        lesson_sink: dict[str, Any] = {}
+        output = tool_handlers.verify_command(
             command,
             approved=approved,
             approved_commands=self.approved_commands,
             verifier=self._verifier,
             session_id=self.session_id,
+            lesson_sink=lesson_sink,
         )
+        mistake_id = lesson_sink.get("mistake_id")
+        self._last_verify_lesson = (
+            (mistake_id, str(lesson_sink.get("lesson_summary", "")))
+            if isinstance(mistake_id, int)
+            else None
+        )
+        return output
 
     def _browse(self, url: str) -> tuple[str, str, bool]:
         """Thin wrapper around :func:`tool_handlers.browse_url`."""

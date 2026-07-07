@@ -89,3 +89,8 @@ coverage.xml
 # sandbox files committed before this rule stay tracked (gitignore never
 # affects tracked files); add a new deliberate sandbox file with `git add -f`.
 training_ground/*
+# lab/ is the short-name sandbox scope root (same posture as training_ground/,
+# see aios/config.py SCOPE_ROOTS + aios/probe_common.py). Runtime seed
+# fixtures from the learning-loop prover are ignored; lab/__init__.py and
+# lab/conftest.py are force-added.
+lab/*

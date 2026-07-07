@@ -6,7 +6,13 @@ from typing import Optional
 
 import pytest
 
-from aios.core.planner import Planner, PlannerError
+from aios.core.planner import (
+    Plan,
+    Planner,
+    PlannerError,
+    plan_to_prompt_block,
+    serialize_plan,
+)
 
 
 class StepLLM:
@@ -68,3 +74,59 @@ def test_malformed_llm_output_raises() -> None:
 def test_empty_steps_array_raises() -> None:
     with pytest.raises(PlannerError):
         Planner(StepLLM(json.dumps({"steps": []}))).plan("goal")
+
+
+# ── serialize_plan / plan_to_prompt_block — pure-unit coverage ──────────────
+# The B2 close-out flagged these two shared helpers (used by both the standalone
+# /api/v1/plan endpoint and the in-loop plan-stage SSE) as untested in isolation.
+
+
+def test_serialize_plan_is_json_safe_and_complete() -> None:
+    plan = Planner(StepLLM(_steps_json(0.95, 0.4))).plan("ship a feature")
+    data = serialize_plan(plan)
+    # Round-trips through JSON with no dataclass leaking through.
+    assert json.loads(json.dumps(data)) == data
+    assert data["goal"] == "ship a feature"
+    assert data["requires_human"] is True
+    assert data["native"] is False
+    assert len(data["steps"]) == 2
+    # Escalate entries carry the flattened step plus reason/action.
+    assert len(data["escalate"]) == 1
+    esc = data["escalate"][0]
+    assert set(esc) == {"step", "reason", "action"}
+    assert isinstance(esc["step"], dict)
+    assert esc["step"]["confidence"] == 0.4
+
+
+def test_serialize_plan_native_flag_reflects_native_source() -> None:
+    native = Plan(
+        goal="g",
+        steps=[],
+        approved=[],
+        escalate=[],
+        calibrations=[],
+        native_source=object(),
+    )
+    assert serialize_plan(native)["native"] is True
+    plain = Plan(goal="g", steps=[], approved=[], escalate=[], calibrations=[])
+    assert serialize_plan(plain)["native"] is False
+
+
+def test_plan_to_prompt_block_renders_steps_and_escalations() -> None:
+    plan = Planner(StepLLM(_steps_json(0.95, 0.4))).plan("do the thing")
+    block = plan_to_prompt_block(plan)
+    assert block.startswith("TASK PLAN (advisory")
+    # Every step's description and 2-dp confidence is present.
+    assert "step 1" in block and "0.95" in block
+    assert "step 2" in block and "0.40" in block
+    # The below-threshold step is called out for sign-off.
+    assert "human sign-off" in block
+    # And the model is told not to re-plan the same goal.
+    assert "do not call the plan" in block
+
+
+def test_plan_to_prompt_block_omits_escalation_line_when_all_confident() -> None:
+    plan = Planner(StepLLM(_steps_json(0.9, 0.88))).plan("all good")
+    block = plan_to_prompt_block(plan)
+    assert "human sign-off" not in block
+    assert "step 1" in block and "step 2" in block

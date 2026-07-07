@@ -354,6 +354,7 @@ def verify_command(
     approved_commands: set[str],
     verifier: Any,
     session_id: Optional[str],
+    lesson_sink: Optional[dict[str, Any]] = None,
 ) -> tuple[str, str, bool]:
     """Run *command* as a verification through the Verifier; map its verdict.
 
@@ -363,6 +364,11 @@ def verify_command(
     we do NOT bypass it — and judges pass/fail by exit code + parsed counts,
     fail-closed. The Verifier fires the reflection hook itself on a genuine
     failure, so this dispatch path must NOT reflect again.
+
+    If *lesson_sink* is given, it is populated with ``mistake_id``/
+    ``lesson_summary`` from the ``VerifierResult`` (``None``/``""`` when the
+    Verifier recorded no lesson) so the caller can SURFACE an already-recorded
+    lesson as a tool-loop step without recording it a second time.
     """
     from aios.core.verifier import VerifierResult  # local to avoid import cycles
 
@@ -372,6 +378,10 @@ def verify_command(
         session_id=session_id,
         approved=is_approved,
     )
+
+    if lesson_sink is not None:
+        lesson_sink["mistake_id"] = getattr(result, "mistake_id", None)
+        lesson_sink["lesson_summary"] = getattr(result, "lesson_summary", "") or ""
 
     if result.status == "REQUIRE_APPROVAL":
         return (result.summary, "approval", False)

@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import string
 import subprocess
 import sys
 import time
@@ -268,13 +269,34 @@ def _unlink(rel: str) -> None:
         target.unlink()
 
 
+#: 3-letter lowercase-only slug alphabet (scanner-clean: no base64-alphabet
+#: HIGH_ENTROPY run can form from letters-only fixture names this short).
+_SLUG_ALPHABET = string.ascii_lowercase
+
+
+def _slug(run_id: str) -> str:
+    """Deterministic 3-letter lowercase slug derived from the run_id timestamp.
+
+    run_id is a UTC ``%Y%m%dT%H%M%S`` stamp; filenames need to stay short and
+    scanner-clean, so the digits are folded into a 3-letter slug instead of
+    embedding the raw timestamp in the sandbox filename.
+    """
+    n = int(run_id.replace("T", ""))
+    return (
+        _SLUG_ALPHABET[n // 676 % 26]
+        + _SLUG_ALPHABET[n // 26 % 26]
+        + _SLUG_ALPHABET[n % 26]
+    )
+
+
 def fixture_paths(run_id: str) -> dict[str, str]:
     """Pure fixture-name scheme (unit-testable against the sandbox allowlist)."""
+    slug = _slug(run_id)
     return {
-        "buggy": f"training_ground/llp_buggy_{run_id}.py",
-        "buggy_test": f"training_ground/test_llp_buggy_{run_id}.py",
-        "reflex_test": f"training_ground/test_llp_reflex_{run_id}.py",
-        "probe_test": f"training_ground/test_llp_probe_{run_id}.py",
+        "buggy": f"lab/llp_buggy_{slug}.py",
+        "buggy_test": f"lab/test_llp_buggy_{slug}.py",
+        "reflex_test": f"lab/test_llp_reflex_{slug}.py",
+        "probe_test": f"lab/test_llp_probe_{slug}.py",
     }
 
 
@@ -285,6 +307,7 @@ def verify_command(rel: str) -> str:
 
 def seed_files(run_id: str) -> dict[str, str]:
     """Write the deterministic fixtures and return name -> relpath."""
+    slug = _slug(run_id)
     files = fixture_paths(run_id)
     buggy = files["buggy"]
     buggy_test = files["buggy_test"]
@@ -297,7 +320,7 @@ def seed_files(run_id: str) -> dict[str, str]:
         "    return a - b\n"
     ))
     _seed(buggy_test, (
-        f"from training_ground.llp_buggy_{run_id} import add\n\n\n"
+        f"from lab.llp_buggy_{slug} import add\n\n\n"
         "def test_add_positive():\n"
         "    assert add(2, 3) == 5\n\n\n"
         "def test_add_zero():\n"
@@ -465,7 +488,7 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             check.hard(f"reflex.rep{rep}-no-early-replay", False,
                        "cerebellum matched BEFORE promotion completed")
 
-    promoted = skill_promoted(f"llp_reflex_{run_id}")
+    promoted = skill_promoted(f"llp_reflex_{_slug(run_id)}")
     check.hard("reflex.skill-verified", promoted,
                "a verified skill row for this goal exists in /development/skills")
 
@@ -576,7 +599,7 @@ def main() -> int:
     run_p.add_argument("--allow-stale", action="store_true",
                        help="Proceed even if the backend provably serves pre-HEAD code")
     run_p.add_argument("--keep-seeds", action="store_true",
-                       help="Keep the training_ground fixtures after a green run")
+                       help="Keep the lab fixtures after a green run")
     run_p.set_defaults(func=cmd_run)
 
     report_p = sub.add_parser("report", help="Summarize recorded prover runs")

@@ -121,6 +121,48 @@ implemented runtime frontier (largely R4–R10 territory).
   is at R2 of R10; the product frontier at P2 of P6. Substantial, real, not finished —
   and reported as such.
 
+## 8. Learning-loop prover — first live runs (2026-07-07)
+
+The Phase-2 runtime proof (`tools/learning_loop_prover.py`) was run live for the first
+time (Gemini `gemini-2.5-flash` driver, fresh backend, `lab/` sandbox). **Result: 16/19
+checks green, stable across 3 runs.** Per the close-out plan's fail-closed rule the
+prover is NOT green, so **`AIOS_PLAN_STAGE` was left default-OFF** (unchanged). The core
+learning loop is proven end-to-end (fail→fix→confirm→recall; 3× STRONG→promote→compile;
+mutation-probe soundness). The 3 remaining checks are now fully root-caused:
+
+- **`lesson.reflect-step` + `lesson.confirm-step`** — the emission plumbing is CORRECT and
+  was proven live (the probe-phase verify failure DID surface a structured lesson,
+  `mistake_id=84`). These fail only when the reflection LLM returns no parseable lesson
+  for the lesson-phase failure — i.e. **best-effort reflection variance**, by design: the
+  failure hook defensively swallows `ReflectionError` so a bad reflection never breaks
+  chat. Confirm depends on a pending reflect, so the two flake together. Not a code
+  defect; making them deterministic needs reflection-reliability work (retry / stronger
+  reflect model), a scoped follow-up.
+- **`reflex.cerebellum-done`** — a REAL compilation bug: `_workflow_step` (main.py)
+  serializes tool calls as `verify: command=<cmd>`, and cerebellum's `_parse_step` kept
+  the `command=` prefix, so every compiled playbook command was malformed and classified
+  Zone.RED ("not on the auto-execute allowlist") on replay. Fixing the prefix makes the
+  replay complete — **but that then exposed a deeper soundness bug**: the compiled
+  playbook's `goal_pattern` is a generic prefix ("verify exactly this command:") that
+  lexically matches DIFFERENT-command requests, so a passing reflex playbook would replay
+  its stale command for the broken probe and FABRICATE a green verdict (the mutation probe
+  correctly caught this). A naive "only match when the command is named in the request"
+  guard breaks the existing paraphrase-tolerant matching (3 unit tests). This is a genuine
+  cerebellum **matching-soundness redesign**, not a one-line fix — reverted to the
+  known-sound HEAD state pending a dedicated arc.
+
+Infra fixes that took the prover 3→16 (all sound, tests green): cloud-egress privacy
+filter over-redaction (path-shaped tokens no longer scrubbed); `lab/` sandbox scope root
+(so prover fixtures pass the security scanner — **note: this widens `SCOPE_ROOTS` beyond
+`training_ground/`; §6.3 above is now superseded — `lab/` is a gitignored scratch space,
+operator-approved**); container `PYTEST_ADDOPTS` coverage-summary clearing; verify-tool is
+now a first-class learning-loop citizen (surfaces reflect/confirm on the verify path);
+suite-order test-isolation flake fixed.
+
+_Recorded 2026-07-07 by Claude Code (Fable). Prover artifact:
+`.aios/audit/learning-loop-runs.jsonl`. STOP-for-review per fail-closed plan; flag NOT
+flipped; cerebellum reverted to sound state._
+
 ---
 _Refreshed 2026-07-06 by Claude Code. Next actions, in order: learning-loop prover
 (P2 demo artifact) → mandatory plan stage (`AIOS_PLAN_STAGE`) → sovereignty surface →

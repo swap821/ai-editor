@@ -207,3 +207,62 @@ def test_truncated_blob_scrubs_paths_in_head() -> None:
     safe, audit = PrivacyFilter().filter([{"role": "tool", "content": blob}])
     content = safe[0]["content"]
     assert "/home/kumar/secret/project/data.csv" not in content
+
+
+class TestPathShapedTokensAreNotSecrets:
+    """Egress fix 2026-07-07: sandbox/file paths must survive cloud egress.
+
+    The entropy heuristic used to glue slash-separated path segments into one
+    long "token" and redact it as [SENSITIVE: ...] -- blinding cloud models to
+    the very filename they were asked to test (learning-loop prover runs
+    20260707T035636/041713 recorded this live; the model echoed the redaction
+    hash back as a filename). Scope: the PRIVACY egress filter only -- the
+    security scanner's entropy backstop (which deliberately catches
+    path-DISGUISED credentials) is contested-spec territory and is untouched.
+    """
+
+    def test_sandbox_path_survives_in_message_content(self) -> None:
+        pf = PrivacyFilter()
+        cmd = "run pytest training_ground/test_llp_buggy_20260707T035636.py -q"
+        messages = [{"role": "user", "content": cmd}]
+        safe, audit = pf.filter(messages)
+        assert safe[0]["content"] == cmd
+        assert audit["redacted_secrets"] == 0
+
+    def test_deep_relative_path_is_never_secret_redacted(self) -> None:
+        """Multi-slash paths may still hit the separate, intentional PATH
+        redaction (machine-layout privacy) -- but never the SECRET one."""
+        pf = PrivacyFilter()
+        cmd = "open src/deeply/nested/module_with_a_rather_long_name.py"
+        safe, audit = pf.filter([{"role": "user", "content": cmd}])
+        assert audit["redacted_secrets"] == 0
+        assert "[SENSITIVE" not in str(safe[0]["content"])
+
+    def test_windows_separator_path_survives(self) -> None:
+        pf = PrivacyFilter()
+        cmd = r"run pytest training_ground\test_llp_reflex_20260707T035636.py"
+        safe, _ = pf.filter([{"role": "user", "content": cmd}])
+        assert safe[0]["content"] == cmd
+
+    def test_base64_with_plus_still_redacts(self) -> None:
+        pf = PrivacyFilter()
+        secret = "ab12/cd34+ef56gh78ij90kl12mn34op56"
+        safe, audit = pf.filter([{"role": "user", "content": f"token {secret} end"}])
+        assert secret not in str(safe[0]["content"])
+
+    def test_slashless_high_entropy_still_redacts(self) -> None:
+        pf = PrivacyFilter()
+        secret = "q7Zx9Kf2Lm8Rp4Tv6Wy1Bn3Cd5Gh0JkQ"
+        safe, _ = pf.filter([{"role": "user", "content": f"key {secret} end"}])
+        assert secret not in str(safe[0]["content"])
+
+    def test_absolute_paths_still_redacted_as_paths(self) -> None:
+        """The PATH redaction (absolute paths reveal machine layout) is separate
+        and intentionally unchanged -- only the false SECRET classification of
+        relative path tokens is fixed."""
+        pf = PrivacyFilter()
+        safe, _ = pf.filter(
+            [{"role": "user", "content": r"see C:\Users\kumar\secret_project\notes.txt"}]
+        )
+        assert r"C:\Users\kumar" not in str(safe[0]["content"])
+        assert "[PATH REDACTED]" in str(safe[0]["content"])
