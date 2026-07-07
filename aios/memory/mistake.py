@@ -199,11 +199,22 @@ class MistakeMemory:
         fix_applied: str,
         lesson_text: str,
         confidence_delta: float,
+        failed_command: str = "",
     ) -> tuple[int, bool]:
         """Atomically record a lesson or increment its active recurrence.
 
         Returns ``(mistake_id, recurrence)``. The immediate transaction prevents
         concurrent reflection workers from inserting duplicate active lessons.
+
+        *failed_command* is the exact command whose failure produced the lesson,
+        stored so a later turn can rebuild the fail->confirm tracker. It is
+        scrubbed like every other stored field (a failing command can embed a
+        credential, e.g. ``curl -H "Authorization: Bearer ..."``, and this row is
+        the same secrets-at-rest surface as the rest of the pool — the audit
+        ledger itself redacts, so this must too). Scrubbing is a no-op for the
+        ordinary secret-free verify command (``pytest ... -q``), so the exact
+        byte-match against the live command still holds; a secret-bearing command
+        simply won't confirm across a boundary (safe — no false promotion).
         """
         clamped_delta = max(-1.0, min(0.0, float(confidence_delta)))
         task_id = scan_and_redact(task_id).scrubbed
@@ -211,6 +222,7 @@ class MistakeMemory:
         root_cause = scan_and_redact(root_cause).scrubbed
         fix_applied = scan_and_redact(fix_applied).scrubbed
         lesson_text = scan_and_redact(lesson_text).scrubbed
+        failed_command = scan_and_redact(failed_command).scrubbed
         with get_connection(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
@@ -222,17 +234,23 @@ class MistakeMemory:
             ).fetchone()
             if existing is not None:
                 mistake_id = int(existing["id"])
+                # Refresh failed_command to the MOST RECENT recurrence so the
+                # command the tracker can confirm is the one last observed failing
+                # (a stale first command would never match the eventual fix).
                 conn.execute(
-                    "UPDATE mistake_pool SET occurrence_count = occurrence_count + 1 "
+                    "UPDATE mistake_pool "
+                    "SET occurrence_count = occurrence_count + 1, failed_command = ? "
                     "WHERE id = ?",
-                    (mistake_id,),
+                    (failed_command, mistake_id),
                 )
                 return mistake_id, True
             cur = conn.execute(
                 "INSERT INTO mistake_pool "
-                "(task_id, error_type, root_cause, fix_applied, lesson_text, confidence_delta) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (task_id, error_type, root_cause, fix_applied, lesson_text, clamped_delta),
+                "(task_id, error_type, root_cause, fix_applied, lesson_text, "
+                " confidence_delta, failed_command) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (task_id, error_type, root_cause, fix_applied, lesson_text,
+                 clamped_delta, failed_command),
             )
             return int(cur.lastrowid), False
 
@@ -244,6 +262,26 @@ class MistakeMemory:
                 "WHERE id = ?",
                 (mistake_id,),
             )
+
+    def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
+        """Return ``(mistake_id, failed_command)`` for this task's still-pending
+        lessons that carry a command.
+
+        Lets a later turn (or an approval-replayed continuation) rebuild the
+        fail->confirm tracking that the agent's per-run() in-memory list loses
+        across an approval pause, so the lesson is promoted when its exact
+        command finally succeeds. Verified lessons are excluded — they are
+        already promoted and must not be re-confirmed.
+        """
+        task_id = scan_and_redact(task_id).scrubbed
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, failed_command FROM mistake_pool "
+                "WHERE task_id = ? AND verification_status = 'pending' "
+                "AND failed_command != '' ORDER BY id",
+                (task_id,),
+            ).fetchall()
+        return [(int(row["id"]), str(row["failed_command"])) for row in rows]
 
     def promote(
         self,

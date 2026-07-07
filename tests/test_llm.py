@@ -55,6 +55,25 @@ def test_complete_sends_options_and_system(monkeypatch) -> None:
     }
 
 
+def test_json_mode_requests_ollama_format_constraint(monkeypatch) -> None:
+    seen = {}
+
+    def urlopen(request, timeout):
+        seen.update(request=request)
+        return FakeResponse(b'{"response":"{}"}')
+
+    monkeypatch.setattr("aios.core.llm.urllib.request.urlopen", urlopen)
+    client = OllamaClient("qwen", host="http://ollama")
+
+    # json_mode=True constrains decoding to a valid JSON object...
+    client.complete("reflect", system="schema", json_mode=True)
+    assert _payload(seen["request"]).get("format") == "json"
+
+    # ...and is absent by default so ordinary completions stream free text.
+    client.complete("chat")
+    assert "format" not in _payload(seen["request"])
+
+
 def test_complete_surfaces_http_transport_and_decode_errors(monkeypatch) -> None:
     client = OllamaClient("qwen", host="http://ollama")
 

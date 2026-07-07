@@ -1367,6 +1367,60 @@ def test_agent_verify_success_confirms_pending_lesson() -> None:
     assert events[-1]["type"] == "done"
 
 
+def test_agent_confirms_recalled_pending_lesson_across_run_boundary() -> None:
+    # Confirm-across-approval-boundary: a lesson recorded in an EARLIER run()
+    # (before an approval pause) is seeded via recalled_pending. When its EXACT
+    # command succeeds in this run -- with NO failure this run -- it is promoted,
+    # so the fail->confirm chain survives the replayed continuation.
+    cmd = "pytest tests/test_x.py -q"
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": cmd}),
+        {"role": "assistant", "content": "Verified."},
+    ])
+    ex = Executor(
+        runner=PassRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
+    confirmed: list[int] = []
+    events = list(
+        ToolAgent(
+            chat, ex, max_iters=3,
+            approved_commands=[cmd],
+            recalled_pending=[(99, cmd)],
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify the fix"}])
+    )
+    confirm_events = [
+        e for e in events
+        if e.get("tool") == "reflect" and str(e.get("id", "")).startswith("verify-")
+    ]
+    assert confirm_events, "a seeded recalled lesson must confirm when its exact command succeeds"
+    assert confirmed == [99]
+
+
+def test_agent_recalled_pending_not_confirmed_by_unrelated_command() -> None:
+    # The seed must preserve the exact-command invariant: an unrelated command's
+    # success must NOT promote a recalled lesson.
+    cmd_failed = "pytest tests/test_x.py -q"
+    cmd_other = "pytest tests/test_y.py -q"
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": cmd_other}),
+        {"role": "assistant", "content": "done"},
+    ])
+    ex = Executor(
+        runner=PassRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
+    confirmed: list[int] = []
+    list(
+        ToolAgent(
+            chat, ex, max_iters=3,
+            approved_commands=[cmd_other],
+            recalled_pending=[(99, cmd_failed)],
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify"}])
+    )
+    assert confirmed == [], "an unrelated command's success must not confirm a recalled lesson"
+
+
 def test_agent_verify_success_does_not_confirm_a_different_command() -> None:
     # The confirm path must only promote the EXACT failed command's lesson --
     # a verify success on an unrelated command must not spuriously confirm.

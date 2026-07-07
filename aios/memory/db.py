@@ -136,6 +136,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
     added to ``schema.sql`` after a DB was first created must be applied with
     ``ALTER TABLE`` here. Runs inside the caller's transaction (after the script).
     """
+    # mistake_pool.failed_command (added to persist fail->confirm tracking across
+    # approval-replay boundaries; see schema.sql). Nullable-by-default, no backfill.
+    mistake_cols = {row[1] for row in conn.execute("PRAGMA table_info(mistake_pool)")}
+    if mistake_cols and "failed_command" not in mistake_cols:
+        conn.execute(
+            "ALTER TABLE mistake_pool ADD COLUMN failed_command TEXT NOT NULL DEFAULT ''"
+        )
+
     # self_analysis_report.fingerprint (added post-PR#4 for finding reconcile).
     cols = {row[1] for row in conn.execute("PRAGMA table_info(self_analysis_report)")}
     if cols and "fingerprint" not in cols:

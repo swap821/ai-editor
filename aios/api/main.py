@@ -1182,6 +1182,23 @@ def _recall_lessons(
         return []
 
 
+def _recall_pending_commands(
+    reflector: Optional[ReflectionAgent], session_id: str
+) -> list[tuple[int, str]]:
+    """Best-effort ``(mistake_id, failed_command)`` for this session's pending
+    lessons, used to seed the agent's fail->confirm tracker so a lesson recorded
+    before an approval pause is promoted when its exact command later succeeds in
+    the replayed continuation. Never fatal."""
+    if reflector is None:
+        return []
+    try:
+        pairs = getattr(reflector, "pending_command_pairs", None)
+        return pairs(session_id) if callable(pairs) else []
+    except Exception as exc:  # noqa: BLE001 - a tracking seed is an enhancement, never fatal
+        logger.warning("Failed to recall pending lesson commands", exc_info=exc)
+        return []
+
+
 def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict[str, Any]]:
     """Best-effort recall of reusable workflows backed by repeated verification."""
     try:
@@ -1865,6 +1882,12 @@ def generate(
 
         memory_context = "\n\n".join(context_parts) or None
 
+        # Seed for the fail->confirm tracker (see _recall_pending_commands): this
+        # session's still-pending lessons + their failed commands, so a lesson
+        # recorded before an approval pause is promoted when its exact command
+        # finally succeeds in the replayed continuation of the turn.
+        recalled_pending = _recall_pending_commands(reflector, session_id)
+
         # 2. Persist the user turn.
         _record_episode(session_id, "user", user_text)
 
@@ -1884,6 +1907,10 @@ def generate(
                 memory_context=memory_context,
                 on_failure=_make_failure_hook(reflector, session_id),
                 confirm_lesson=_make_confirm_hook(reflector, consolidator),
+                # Confirm-across-approval-boundary: seed the fail->confirm tracker
+                # so a lesson recorded before an approval pause is still promoted
+                # when its exact command later succeeds in the replayed turn.
+                recalled_pending=recalled_pending,
                 approved_commands=approved_commands,
                 approved_edits=approved_edits,
                 approved_creations=approved_creations,
@@ -1943,6 +1970,10 @@ def generate(
                 memory_context=memory_context,
                 on_failure=_make_failure_hook(reflector, session_id),
                 confirm_lesson=_make_confirm_hook(reflector, consolidator),
+                # Confirm-across-approval-boundary: seed the fail->confirm tracker
+                # so a lesson recorded before an approval pause is still promoted
+                # when its exact command later succeeds in the replayed turn.
+                recalled_pending=recalled_pending,
                 approved_commands=approved_commands,
                 approved_edits=approved_edits,
                 approved_creations=approved_creations,
