@@ -379,6 +379,147 @@ def test_match_respects_custom_threshold(db_path: Path) -> None:
     assert strict.match("pytest") is None
 
 
+def test_match_rejects_request_for_a_different_concrete_file(db_path: Path) -> None:
+    # A compiled playbook that verifies one specific file must NOT match a
+    # request explicitly naming a DIFFERENT file, even when the generic goal
+    # prefix scores highly — else it would replay a stale command and fabricate
+    # a verdict (the mutation-probe verification-confidence violation).
+    _insert_verified_skill(
+        db_path,
+        goal="use the verify tool to run exactly this command",
+        steps=["verify: pytest lab/test_reflex.py -q"],
+    )
+    cerebellum = Cerebellum(db_path, match_threshold=0.0)
+    cerebellum.try_compile_all()
+
+    assert (
+        cerebellum.match(
+            "use the verify tool to run exactly this command: "
+            "pytest lab/test_probe.py -q"
+        )
+        is None
+    )
+    # ...but it DOES match a request naming the SAME file it would replay.
+    same = cerebellum.match(
+        "use the verify tool to run exactly this command: pytest lab/test_reflex.py -q"
+    )
+    assert same is not None
+
+
+def test_match_concrete_target_guard_ignores_paraphrases(db_path: Path) -> None:
+    # When the request names no concrete file, the guard is inert and lexical
+    # goal-matching stands (paraphrase-tolerant recall is preserved).
+    _insert_verified_skill(
+        db_path,
+        goal="run the pytest test suite",
+        steps=["verify: pytest lab/test_reflex.py -q"],
+    )
+    cerebellum = Cerebellum(db_path, match_threshold=0.0)
+    cerebellum.try_compile_all()
+    assert cerebellum.match("please run the pytest test suite") is not None
+
+
+def test_compiled_command_strips_workflow_step_key_prefix(db_path: Path) -> None:
+    # _workflow_step (aios/api/main.py) serializes tool calls as
+    # 'verify: command=<cmd>'; the compiled playbook must replay the BARE
+    # command, else the gateway classifies 'command=pytest ...' RED on replay.
+    _insert_verified_skill(
+        db_path,
+        goal="use the verify tool to run exactly this command",
+        steps=["verify: command=pytest lab/test_reflex.py -q"],
+    )
+    cerebellum = Cerebellum(db_path, match_threshold=0.0)
+    cerebellum.try_compile_all()
+    pb = cerebellum.match(
+        "use the verify tool to run exactly this command: pytest lab/test_reflex.py -q"
+    )
+    assert pb is not None
+    assert pb.steps[0].args["command"] == "pytest lab/test_reflex.py -q"
+
+
+def test_target_extraction_regression_cases() -> None:
+    # Cases surfaced by the adversarial-verification pass — each was a
+    # false-negative (missed real target) in the first regex-only extractor.
+    from aios.core.cerebellum import _target_files
+
+    assert ".env" in _target_files("check .env for the db url")
+    assert ".gitignore" in _target_files("update .gitignore please")
+    assert "backup.7z" in _target_files("extract backup.7z now")  # digit-leading ext
+    assert "dockerfile" in _target_files("rebuild using Dockerfile")  # extensionless
+    assert "readme" in _target_files("fix the README wording")
+    # ...but bare decimals / plain prose are NOT targets (would be noise).
+    assert _target_files("bump confidence to 0.85") == set()
+    assert _target_files("please run the pytest test suite") == set()
+
+
+def test_conflicting_targets_refuses_dotfile_against_test_playbook() -> None:
+    from aios.core.cerebellum import _conflicting_targets
+
+    steps = [PlaybookStep("verify", {"command": "pytest tests/test_foo.py -q"})]
+    # A request about .env must NOT replay an unrelated test-file playbook.
+    assert _conflicting_targets("check .env for the database url", steps) is True
+    # A request naming the playbook's own file is fine.
+    assert _conflicting_targets("rerun pytest tests/test_foo.py", steps) is False
+    # A pure paraphrase (no concrete file) leaves the guard inert.
+    assert _conflicting_targets("please run the tests again", steps) is False
+
+
+def test_conflicting_targets_normalizes_path_spelling() -> None:
+    # Adversarial round 2: the SAME file spelled Windows-native or dot-relative
+    # must still match its playbook (else a required replay is wrongly refused).
+    from aios.core.cerebellum import _conflicting_targets
+
+    steps = [PlaybookStep("verify", {"command": "pytest tests/test_cortex_bus.py -q"})]
+    assert _conflicting_targets(
+        "run exactly this command: pytest tests\\test_cortex_bus.py -q", steps
+    ) is False
+    assert _conflicting_targets(
+        "run exactly this command: pytest ./tests/test_cortex_bus.py -q", steps
+    ) is False
+    # ...but a genuinely different file is still a conflict.
+    assert _conflicting_targets(
+        "run exactly this command: pytest tests/test_other.py -q", steps
+    ) is True
+
+
+def test_step_targets_are_clean_predicate() -> None:
+    # Belt-and-suspenders compile guard: clean relative ASCII targets compile;
+    # spaced / non-ASCII / quoted / absolute targets do not.
+    from aios.core.cerebellum import _step_targets_are_clean
+
+    assert _step_targets_are_clean(
+        PlaybookStep("verify", {"command": "pytest lab/test_x.py -q"})
+    ) is True
+    assert _step_targets_are_clean(
+        PlaybookStep("read_file", {"filepath": "lab/notes.md"})
+    ) is True
+    assert _step_targets_are_clean(
+        PlaybookStep("read_file", {"filepath": "sales report.xlsx"})
+    ) is False  # space
+    assert _step_targets_are_clean(
+        PlaybookStep("verify", {"command": "pytest 报告.py -q"})
+    ) is False  # non-ASCII
+    assert _step_targets_are_clean(
+        PlaybookStep("verify", {"command": 'mv "Q1 report.pdf" out/'})
+    ) is False  # quoted spaced filename
+    assert _step_targets_are_clean(
+        PlaybookStep("verify", {"command": "pytest /abs/root/x.py -q"})
+    ) is False  # absolute
+
+
+def test_compile_skips_skill_with_unclean_target(db_path: Path) -> None:
+    # A verified skill operating on a spaced filename must NOT compile — the
+    # conflict guard cannot disambiguate such a target, so we never replay it.
+    _insert_verified_skill(
+        db_path,
+        goal="read the quarterly report",
+        steps=["read_file: filepath=sales report.xlsx"],
+    )
+    cerebellum = Cerebellum(db_path)
+    assert cerebellum.try_compile_all() == 0
+    assert cerebellum.compiled_count() == 0
+
+
 # --------------------------------------------------------------------------- #
 # D. Replay
 # --------------------------------------------------------------------------- #
