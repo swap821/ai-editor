@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from aios import config
-from aios.core.llm import LLMClient
+from aios.core.llm import LLMClient, OllamaClient
 from aios.core.verification_strength import VerificationStrength
 from aios.memory.mistake import MistakeMemory
 
@@ -109,6 +109,40 @@ class ReflectionAgent:
         self.llm = llm
         self.mistakes = mistakes or MistakeMemory(db_path)
 
+    #: How many times to ask the model for a parseable lesson before giving up.
+    #: ``json_mode`` makes a valid JSON object the norm, but a small local model
+    #: can still occasionally emit a field-incomplete one; one cheap retry (the
+    #: sampler varies at temperature > 0) recovers the rare miss.
+    _MAX_REFLECT_ATTEMPTS = 2
+
+    def _complete_reflection(self, prompt: str) -> str:
+        """Ask the LLM for a lesson, requesting JSON-constrained decoding when the
+        backing client is a local Ollama model.
+
+        A small local model (``llama3.2:3b``) reliably starts a JSON object but
+        trails off into prose, so the greedy extractor finds no complete object
+        and the whole reflection is lost. Ollama's ``format: "json"`` grammar
+        constraint fixes this at the source (measured 0/5 -> 5/5 parseable on the
+        real multi-failure verify output). Cloud clients keep the plain path.
+        """
+        if isinstance(self.llm, OllamaClient):
+            return self.llm.complete(
+                prompt, system=REFLECT_SYSTEM_PROMPT, json_mode=True
+            )
+        return self.llm.complete(prompt, system=REFLECT_SYSTEM_PROMPT)
+
+    def _reflect_parsed(self, prompt: str) -> dict:
+        """Complete and parse a lesson, retrying a bounded number of times on an
+        unparseable response before surfacing the :class:`ReflectionError`."""
+        last_error: Optional[ReflectionError] = None
+        for _ in range(self._MAX_REFLECT_ATTEMPTS):
+            raw = self._complete_reflection(prompt)
+            try:
+                return _parse_reflection(raw)
+            except ReflectionError as exc:
+                last_error = exc
+        raise last_error or ReflectionError("Reflection produced no output.")
+
     def reflect(
         self,
         command: str,
@@ -138,8 +172,7 @@ class ReflectionAgent:
         prompt = REFLECT_USER_TEMPLATE.format(
             command=command, error_output=error_output[:2000]
         )
-        raw = self.llm.complete(prompt, system=REFLECT_SYSTEM_PROMPT)
-        data = _parse_reflection(raw)
+        data = self._reflect_parsed(prompt)
 
         try:
             confidence_delta = float(data.get("confidence_delta", -0.1))
@@ -158,6 +191,7 @@ class ReflectionAgent:
             fix_applied=fix_applied,
             lesson_text=lesson_text,
             confidence_delta=confidence_delta,
+            failed_command=command,
         )
 
         # Re-read the stored (clamped) delta so the return value is accurate.
@@ -183,6 +217,14 @@ class ReflectionAgent:
     ) -> None:
         """Promote a lesson after it proves itself with strong enough evidence."""
         self.mistakes.promote(mistake_id, strength=strength)
+
+    def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
+        """``(mistake_id, failed_command)`` for this task's pending lessons.
+
+        Used to seed the tool loop's fail->confirm tracker at the start of a turn
+        so a lesson recorded before an approval pause is still promoted when its
+        exact command later succeeds (the in-memory tracker is per-run())."""
+        return self.mistakes.pending_command_pairs(task_id)
 
     def recall_pending(self, task_id: str, limit: int = 5) -> list[dict[str, Any]]:
         """Return this task's pending lessons as plain dicts for injection.

@@ -59,6 +59,13 @@ def _parse_counts(output: str) -> tuple[int, int]:
     return (int(passed.group(1)) if passed else 0, int(failed.group(1)) if failed else 0)
 
 
+#: Executor statuses that are GATE DECISIONS, not run failures — a RED security
+#: block and a YELLOW approval pause are correct policy outcomes, never mistakes,
+#: so they must not feed reflection (else the mistake pool fills with spurious
+#: "ApprovalRequired" lessons and the genuine test-failure reflection is masked).
+_GATE_STATUSES = frozenset({"BLOCKED", "REQUIRE_APPROVAL"})
+
+
 class Verifier:
     """Runs a verification command and judges pass/fail (Blueprint stage 8)."""
 
@@ -89,12 +96,14 @@ class Verifier:
         output = ((result.stdout or "") + (result.stderr or "")).strip()
 
         if result.status != "OK":
-            # Could not even run to completion (blocked / timeout / launch error):
-            # cannot prove success, so fail-closed. A security BLOCK is correct
-            # behaviour, not a mistake — only genuine run failures feed reflection.
+            # Could not even run to completion (blocked / awaiting approval /
+            # timeout / launch error): cannot prove success, so fail-closed. A
+            # security BLOCK (RED) and a REQUIRE_APPROVAL pause (YELLOW) are gate
+            # DECISIONS, not mistakes — only a genuine run failure (ran and the
+            # tests failed, or it timed out / errored mid-run) feeds reflection.
             summary = f"[{result.status}] {result.reason}".strip()
             lesson = None
-            if result.status != "BLOCKED":
+            if result.status not in _GATE_STATUSES:
                 lesson = self._maybe_reflect(command, summary or result.status)
             return VerifierResult(
                 passed=False,

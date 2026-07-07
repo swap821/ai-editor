@@ -108,7 +108,14 @@ CREATE TABLE IF NOT EXISTS mistake_pool (
     verification_status TEXT NOT NULL DEFAULT 'pending'
                         CHECK (verification_status IN ('pending','verified','superseded')),
     superseded_by       INTEGER REFERENCES mistake_pool(id),
-    occurrence_count    INTEGER NOT NULL DEFAULT 1
+    occurrence_count    INTEGER NOT NULL DEFAULT 1,
+    -- The exact command whose failure produced this lesson. Stored so a later
+    -- turn (or an approval-replayed continuation of the same turn) can rebuild
+    -- the fail->confirm tracking from the DB and promote the lesson when that
+    -- exact command finally succeeds -- the in-memory tracker is per-run() and
+    -- does not survive an approval pause. Empty for lessons recorded without a
+    -- command (e.g. legacy rows).
+    failed_command      TEXT NOT NULL DEFAULT ''
 );
 
 -- == L3b: Semantic facts (entity-relation triples) ===========================
