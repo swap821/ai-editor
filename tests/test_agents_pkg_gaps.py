@@ -439,6 +439,162 @@ class TestCerebellumShortCircuit:
         assert events[-1]["type"] == "done"
 
 
+class TestCerebellumApprovedReplay:
+    """FIX 3: cerebellum replay dispatches steps as PRE-APPROVED (a compiled
+    playbook only ever comes from a skill already promoted at >=3 STRONG
+    verified successes), so a YELLOW step runs directly instead of pausing.
+
+    The hard security invariant this must NOT weaken: RED is still refused
+    even on replay -- approval (earned or human) can never authorise RED.
+    """
+
+    @staticmethod
+    def _replaying_cerebellum(playbook: "CompiledPlaybook", captured: list) -> Any:
+        class ReplayingCerebellum:
+            def match(self, user_text):
+                return playbook
+
+            def replay(self, pb, *, dispatch_fn):
+                for step in pb.steps:
+                    result = dispatch_fn(step.tool_name, step.args)
+                    captured.append(result)
+                    output, status, failed = result
+                    if status in ("blocked", "approval") or failed:
+                        yield {"type": "cerebellum_abort", "reason": status}
+                        return
+
+        return ReplayingCerebellum()
+
+    def test_replay_runs_yellow_execute_step_without_pausing_for_approval(self) -> None:
+        # "git commit" is a YELLOW caution operation that normally pauses for a
+        # human. A compiled playbook step is pre-approved evidence, so replay
+        # must run it directly -- pausing (status=="approval") would abort.
+        playbook = CompiledPlaybook(
+            id=101, skill_id=101, goal_pattern="commit the change",
+            signature_v2="sig-yellow-exec", compiled_at="",
+            steps=[PlaybookStep(tool_name="execute_terminal",
+                                 args={"command": "git commit -m done"})],
+            replay_count=0, consecutive_failures=0, status="compiled",
+        )
+        captured: list[tuple[str, str, bool]] = []
+        chat = ScriptedChat([])  # must not be consulted on a clean replay
+
+        events = list(
+            ToolAgent(
+                chat, _executor(), max_iters=2,
+                cerebellum=self._replaying_cerebellum(playbook, captured),
+            ).run([{"role": "user", "content": "commit the change"}])
+        )
+
+        assert captured, "dispatch_fn must have been called"
+        output, status, failed = captured[0]
+        assert status == "ok", f"a replayed YELLOW step must RUN, not pause (status={status!r})"
+        assert output.startswith("ran:"), "the command must have actually executed"
+        assert "cerebellum_done" in [e["type"] for e in events]
+        assert len(chat.calls) == 0, "a clean pre-approved replay must never consult the LLM"
+
+    def test_replay_still_refuses_red_step_despite_pre_approval(self) -> None:
+        # A RED step (destructive) is refused EVEN when replayed from a
+        # compiled (pre-approved) playbook. This is the invariant FIX 3 must
+        # never weaken: approval cannot authorise RED.
+        playbook = CompiledPlaybook(
+            id=102, skill_id=102, goal_pattern="wipe everything",
+            signature_v2="sig-red-exec", compiled_at="",
+            steps=[PlaybookStep(tool_name="execute_terminal",
+                                 args={"command": "rm -rf /"})],
+            replay_count=0, consecutive_failures=0, status="compiled",
+        )
+        captured: list[tuple[str, str, bool]] = []
+
+        class RecordingRunner:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def __call__(self, command, *, cwd, env, timeout_s):
+                self.calls.append(command)
+                return "should-not-run", "", 0
+
+        runner = RecordingRunner()
+        ex = Executor(runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None)
+        chat = ScriptedChat([{"role": "assistant", "content": "could not do that"}])
+
+        events = list(
+            ToolAgent(
+                chat, ex, max_iters=2,
+                cerebellum=self._replaying_cerebellum(playbook, captured),
+            ).run([{"role": "user", "content": "wipe everything"}])
+        )
+
+        assert captured
+        output, status, failed = captured[0]
+        assert status == "blocked", "a RED step must still be refused even on pre-approved replay"
+        assert "RED" in output.upper() or "BLOCK" in output.upper()
+        assert runner.calls == [], "a blocked RED command must never reach the runner"
+        assert "cerebellum_done" not in [e["type"] for e in events]
+        assert events[-1]["type"] == "done"
+
+    def test_replay_runs_yellow_verify_step_without_pausing_for_approval(self) -> None:
+        # verify is also a compilable tool; a YELLOW pytest verify command must
+        # likewise run directly on replay instead of pausing for approval.
+        cmd = "python -m pytest -o addopts= tests -q"
+        playbook = CompiledPlaybook(
+            id=103, skill_id=103, goal_pattern="run the tests",
+            signature_v2="sig-yellow-verify", compiled_at="",
+            steps=[PlaybookStep(tool_name="verify", args={"command": cmd})],
+            replay_count=0, consecutive_failures=0, status="compiled",
+        )
+        captured: list[tuple[str, str, bool]] = []
+        chat = ScriptedChat([])
+
+        events = list(
+            ToolAgent(
+                chat, _passing_executor(), max_iters=2,
+                cerebellum=self._replaying_cerebellum(playbook, captured),
+            ).run([{"role": "user", "content": "run the tests"}])
+        )
+
+        assert captured
+        output, status, failed = captured[0]
+        assert status != "approval", f"a replayed YELLOW verify step must not pause (status={status!r})"
+        assert "cerebellum_done" in [e["type"] for e in events]
+
+    def test_replay_still_refuses_red_verify_step_despite_pre_approval(self) -> None:
+        # A RED command routed through the verify tool must ALSO still be
+        # refused on replay -- the invariant is tool-agnostic.
+        playbook = CompiledPlaybook(
+            id=104, skill_id=104, goal_pattern="verify by wiping the disk",
+            signature_v2="sig-red-verify", compiled_at="",
+            steps=[PlaybookStep(tool_name="verify", args={"command": "rm -rf /"})],
+            replay_count=0, consecutive_failures=0, status="compiled",
+        )
+        captured: list[tuple[str, str, bool]] = []
+
+        class RecordingRunner:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def __call__(self, command, *, cwd, env, timeout_s):
+                self.calls.append(command)
+                return "should-not-run", "", 0
+
+        runner = RecordingRunner()
+        ex = Executor(runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None)
+        chat = ScriptedChat([{"role": "assistant", "content": "could not verify that"}])
+
+        events = list(
+            ToolAgent(
+                chat, ex, max_iters=2,
+                cerebellum=self._replaying_cerebellum(playbook, captured),
+            ).run([{"role": "user", "content": "verify by wiping the disk"}])
+        )
+
+        assert captured
+        output, status, failed = captured[0]
+        assert status == "blocked", "a RED verify command must still be refused on pre-approved replay"
+        assert runner.calls == [], "a blocked RED verify command must never reach the runner"
+        assert "cerebellum_done" not in [e["type"] for e in events]
+
+
 class TestOfflineModeGuard:
     def test_offline_mode_short_circuits_with_a_clear_message(self, monkeypatch) -> None:
         # Lines 886-894: OFFLINE_MODE True -> immediate _finish, no LLM call.

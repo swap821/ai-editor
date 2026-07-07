@@ -28,7 +28,7 @@ class TestProbeBase:
 
 
 class TestAllowedFileRe:
-    """Only bare .py files directly inside training_ground/ are writable."""
+    """Only bare .py files directly inside training_ground/ or lab/ are writable."""
 
     @pytest.mark.parametrize(
         "path",
@@ -56,9 +56,32 @@ class TestAllowedFileRe:
     def test_rejects_non_conforming_paths(self, path):
         assert probe_common.ALLOWED_FILE_RE.match(path) is None
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "lab/foo.py",
+            "lab/foo-bar.py",
+            "lab/foo_bar.py",
+        ],
+    )
+    def test_accepts_valid_lab_py(self, path):
+        assert probe_common.ALLOWED_FILE_RE.match(path)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "lab/subdir/foo.py",
+            "lab/foo.txt",
+            "lab/.hidden.py",
+            "lab/foo bar.py",
+        ],
+    )
+    def test_rejects_non_conforming_lab_paths(self, path):
+        assert probe_common.ALLOWED_FILE_RE.match(path) is None
+
 
 class TestAllowedCmdRe:
-    """Only pytest on a single training_ground .py file is runnable."""
+    """Only pytest on a single training_ground/ or lab/ .py file is runnable."""
 
     @pytest.mark.parametrize(
         "cmd",
@@ -87,4 +110,29 @@ class TestAllowedCmdRe:
         ],
     )
     def test_rejects_non_pytest_or_outside_sandbox(self, cmd):
+        assert probe_common.ALLOWED_CMD_RE.match(cmd) is None
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "pytest lab/foo.py",
+            'pytest "lab/foo.py"',
+            "pytest -q lab/foo.py",
+            "python -m pytest lab/foo.py",
+            "python -m pytest -q lab/foo.py",
+            "pytest lab/foo.py -q",
+        ],
+    )
+    def test_accepts_valid_lab_pytest_commands(self, cmd):
+        assert probe_common.ALLOWED_CMD_RE.match(cmd)
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "python lab/foo.py",
+            "pytest lab/foo.txt",
+            "pytest lab/subdir/foo.py",
+        ],
+    )
+    def test_rejects_non_pytest_or_outside_sandbox_lab(self, cmd):
         assert probe_common.ALLOWED_CMD_RE.match(cmd) is None

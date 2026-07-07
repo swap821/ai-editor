@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE
+from aios.security.secret_scanner import scan_and_redact
 from tools.learning_loop_prover import (
     REFLEX_REPS,
     Check,
@@ -22,7 +23,25 @@ from tools.learning_loop_prover import (
     used_write_tools,
     verify_command,
     _seed,
+    _slug,
 )
+
+
+class TestSlug:
+    """3-letter lowercase slug: deterministic, and short enough to stay
+    scanner-clean (unlike the raw 15-char run_id timestamp)."""
+
+    def test_deterministic_for_same_run_id(self):
+        assert _slug("20260706T120000") == _slug("20260706T120000")
+
+    def test_differs_for_different_run_ids(self):
+        assert _slug("20260706T120000") != _slug("20260706T120001")
+
+    def test_is_three_lowercase_letters(self):
+        slug = _slug("20260706T120000")
+        assert len(slug) == 3
+        assert slug.isalpha()
+        assert slug.islower()
 
 
 class TestSandboxCompliance:
@@ -30,13 +49,32 @@ class TestSandboxCompliance:
         for rel in fixture_paths("20260706T120000").values():
             assert ALLOWED_FILE_RE.match(rel), rel
 
+    def test_fixture_paths_use_lab_and_a_three_letter_slug_stem(self):
+        slug = _slug("20260706T120000")
+        for rel in fixture_paths("20260706T120000").values():
+            assert rel.startswith("lab/"), rel
+            stem = rel.rsplit("/", 1)[-1][: -len(".py")]
+            assert stem.endswith(slug), rel
+            # The raw 15-char run_id must NOT appear in the filename — that
+            # long a base64-alphabet run is exactly what trips the scanner.
+            assert "20260706T120000" not in rel
+
     def test_all_verify_commands_inside_allowlist(self):
         for rel in fixture_paths("20260706T120000").values():
             assert ALLOWED_CMD_RE.match(verify_command(rel)), verify_command(rel)
 
+    def test_verify_commands_are_scanner_clean(self):
+        """Locks the scanner-clean property: a future rename can't silently
+        regress fixture filenames back into HIGH_ENTROPY territory."""
+        for run_id in ("20260706T120000", "20260707T091234", "20261231T235959"):
+            for rel in fixture_paths(run_id).values():
+                cmd = verify_command(rel)
+                result = scan_and_redact(cmd)
+                assert result.detected is False, (run_id, cmd, result)
+
     def test_fixture_paths_are_unique_per_run(self):
-        a = set(fixture_paths("runA").values())
-        b = set(fixture_paths("runB").values())
+        a = set(fixture_paths("20260706T120000").values())
+        b = set(fixture_paths("20260706T120001").values())
         assert not (a & b)
 
     def test_seed_refuses_paths_outside_sandbox(self, tmp_path):
@@ -44,6 +82,8 @@ class TestSandboxCompliance:
             _seed("aios/evil.py", "boom")
         with pytest.raises(ValueError):
             _seed("training_ground/nested/evil.py", "boom")
+        with pytest.raises(ValueError):
+            _seed("lab/nested/evil.py", "boom")
 
     def test_reflex_reps_meet_the_promotion_floor(self):
         # SkillMemory promotes at min_successes=3; fewer reps can never compile.
