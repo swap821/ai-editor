@@ -27,6 +27,7 @@ The cerebellum is a tool-call SOURCE, not a gateway bypass.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
@@ -98,14 +99,160 @@ def _parse_step(step_desc: str) -> Optional[PlaybookStep]:
         return None
 
     if tool_name == "read_file":
-        return PlaybookStep(tool_name="read_file", args={"filepath": arg})
+        return PlaybookStep(tool_name="read_file", args={"filepath": _arg_value(arg, "filepath")})
     if tool_name == "read_directory":
-        return PlaybookStep(tool_name="read_directory", args={"path": arg})
+        return PlaybookStep(tool_name="read_directory", args={"path": _arg_value(arg, "path")})
     if tool_name == "execute_terminal":
-        return PlaybookStep(tool_name="execute_terminal", args={"command": arg})
+        return PlaybookStep(tool_name="execute_terminal", args={"command": _arg_value(arg, "command")})
     if tool_name == "verify":
-        return PlaybookStep(tool_name="verify", args={"command": arg})
+        return PlaybookStep(tool_name="verify", args={"command": _arg_value(arg, "command")})
     return None
+
+
+def _arg_value(arg: str, key: str) -> str:
+    """Extract the bare value from a ``_workflow_step``-style ``key=value`` detail.
+
+    ``_workflow_step`` (aios/api/main.py) serializes each tool call for skill
+    recording as ``tool: key=value`` (e.g. ``verify: command=pytest x.py -q``).
+    A compiled playbook must replay the BARE value; if the ``key=`` prefix is
+    left on, the gateway classifies ``command=pytest ...`` as an unknown command
+    (Zone.RED, "not on the auto-execute allowlist") and every replay aborts.
+    Split on the first ``=`` so values that themselves contain ``=`` survive;
+    tolerate the legacy bare-value form.
+    """
+    prefix = f"{key}="
+    return arg[len(prefix):].strip() if arg.startswith(prefix) else arg
+
+
+#: A word-ish run that may name a file — path separators, dots and hyphens
+#: included. Candidates are classified by :func:`_target_files`.
+_TARGET_TOKEN = re.compile(r"[A-Za-z0-9_.\-][A-Za-z0-9_.\-/\\]*")
+
+#: Well-known extensionless filenames — real concrete targets that carry no dot
+#: or separator. Deliberately excludes word-like names (``notice``, ``authors``)
+#: whose bare-word use would over-trigger the guard.
+_BARE_FILENAMES = frozenset({
+    "dockerfile", "makefile", "rakefile", "gemfile", "procfile",
+    "jenkinsfile", "vagrantfile", "readme", "license", "changelog",
+})
+
+
+def _target_files(text: str) -> set[str]:
+    """Extract concrete file references from *text*, normalised for comparison.
+
+    This is a DOMAIN HEURISTIC for the cerebellum's actual playbooks (ASCII,
+    forward-slash, relative ``pytest``/``read`` paths — the shape skills record),
+    NOT a general free-text path parser. It is verified end-to-end by the
+    learning-loop prover (the mutation probe stays red-on-broken while the reflex
+    replay fires).
+
+    **Biased toward soundness on purpose.** The two failure modes are NOT
+    symmetric: under-extracting a real target lets a stale playbook replay and
+    FABRICATE a verdict (the failure this guard exists to stop), whereas
+    over-extracting merely makes the cerebellum fall through to the LLM, which
+    still answers correctly (a missed shortcut, never a wrong verdict). So a
+    token counts as a file when it bears a path separator, OR a dotted extension
+    (``.env`` and ``backup.7z`` included; bare decimals like ``0.85`` excluded),
+    OR is a well-known extensionless filename. Tokens are normalised — lowercased,
+    ``\\``→``/``, a leading ``./`` stripped — so a Windows-native or dot-relative
+    spelling of the SAME file still matches its playbook.
+
+    Documented residuals (adversarially found; all bounded by the goal-relevance
+    threshold that gates matching, and by downstream defense-in-depth — RED
+    classification, approval, the verifier re-running):
+      * Over-rejects (SAFE, fall through to LLM): a technology name like
+        ``Node.js``; an absolute path vs the playbook's relative path.
+      * Under-extracts (residual soundness gap, out of the ASCII/relative domain):
+        a filename whose disambiguating prefix is split off by a space or a
+        non-ASCII character (``budget report.xlsx``, ``报告.py``, ``café.py``) can
+        collapse to a shared trailing segment. Free-text filename parsing cannot
+        resolve this unambiguously; the realistic cerebellum domain does not
+        produce such playbooks.
+    """
+    targets: set[str] = set()
+    for raw in _TARGET_TOKEN.findall(text):
+        low = raw.lower().rstrip(".,;:!?)").replace("\\", "/")
+        while low.startswith("./"):
+            low = low[2:]
+        if not low or low == ".":
+            continue
+        if "/" in low:
+            targets.add(low)
+        elif "." in low and not all(c in "0123456789." for c in low):
+            targets.add(low)
+        elif low in _BARE_FILENAMES:
+            targets.add(low)
+    return targets
+
+
+def _conflicting_targets(user_message: str, steps: list["PlaybookStep"]) -> bool:
+    """True when the request names concrete target(s) the playbook does NOT touch.
+
+    A compiled playbook replays a FIXED command sequence, but its ``goal_pattern``
+    can be a generic prefix (e.g. "run exactly this command:") that lexically
+    matches requests asking for a DIFFERENT concrete file. Replaying the stale
+    command for such a request would FABRICATE a verdict — a passing reflex
+    playbook would "verify" a broken probe (verification-confidence violation).
+
+    So: if the request names concrete file target(s) AND the playbook's commands
+    name concrete target(s) AND the two sets are DISJOINT, the request is about a
+    different file — refuse the match. When the request names no concrete target
+    (a paraphrase like "run the tests"), there is no conflict and lexical
+    goal-matching stands unchanged (preserving paraphrase-tolerant recall).
+    """
+    request_targets = _target_files(user_message)
+    if not request_targets:
+        return False
+    playbook_targets: set[str] = set()
+    for step in steps:
+        for value in step.args.values():
+            playbook_targets |= _target_files(str(value))
+    if not playbook_targets:
+        return False
+    return request_targets.isdisjoint(playbook_targets)
+
+
+#: A clean, unambiguous target: ASCII path characters only, no whitespace.
+_CLEAN_PATH = re.compile(r"^[A-Za-z0-9_.\-/\\]+$")
+
+
+def _is_clean_target(value: str) -> bool:
+    """True when *value* is a clean RELATIVE ASCII path — no spaces, quotes,
+    non-ASCII, or absolute root. Anything else tokenises ambiguously in
+    :func:`_target_files` (see its residual note) and must not become a
+    replayable playbook target."""
+    if not value or not value.isascii() or not _CLEAN_PATH.fullmatch(value):
+        return False
+    norm = value.replace("\\", "/")
+    if norm.startswith("/") or re.match(r"^[A-Za-z]:", value):  # absolute path
+        return False
+    return True
+
+
+def _step_targets_are_clean(step: "PlaybookStep") -> bool:
+    """Compile guard (belt-and-suspenders): every file a step names must be a
+    clean relative ASCII path.
+
+    This closes the replay-time conflict guard's residual at the SOURCE: a skill
+    that operates on a spaced / non-ASCII / quoted / absolute-path filename is
+    never compiled into a playbook, so such a target can never replay a stale
+    verdict for a different file. Refusing to compile is safe — that skill simply
+    keeps running through the LLM instead of the reflex fast-path.
+    """
+    if step.tool_name in ("read_file", "read_directory"):
+        value = str(step.args.get("filepath") or step.args.get("path") or "")
+        return _is_clean_target(value)
+    if step.tool_name in ("execute_terminal", "verify"):
+        command = str(step.args.get("command", ""))
+        if not command.isascii() or '"' in command or "'" in command:
+            return False
+        for tok in command.split():
+            low = tok.replace("\\", "/")
+            pathish = "/" in low or ("." in low and not all(c in "0123456789." for c in low))
+            if pathish and not _is_clean_target(tok):
+                return False
+        return True
+    return True
 
 
 class Cerebellum:
@@ -217,6 +364,14 @@ class Cerebellum:
                 return None
             parsed.append(step)
 
+        # Compile guard (soundness belt-and-suspenders): only compile a playbook
+        # whose every file target is a clean relative ASCII path, so the
+        # replay-time conflict guard's free-text residual (a spaced / non-ASCII
+        # filename that tokenises ambiguously) can never produce a playbook that
+        # replays a stale verdict for a different file.
+        if not all(_step_targets_are_clean(step) for step in parsed):
+            return None
+
         steps_data = json.dumps([s.to_dict() for s in parsed], separators=(",", ":"))
         cur = conn.execute(
             """INSERT INTO compiled_playbooks
@@ -259,7 +414,11 @@ class Cerebellum:
             if pb.status != "compiled":
                 continue
             score = relevance(user_message, pb.goal_pattern)
-            if score >= self.match_threshold and score > best_score:
+            if (
+                score >= self.match_threshold
+                and score > best_score
+                and not _conflicting_targets(user_message, pb.steps)
+            ):
                 best = pb
                 best_score = score
 
