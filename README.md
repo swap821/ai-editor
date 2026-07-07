@@ -6,7 +6,7 @@
 
 GAGOS is a local-first, cloud-capable, human-supervised intelligence layer that sits *above* Windows, Linux, or macOS. It connects local project knowledge, LLMs (local and cloud), memory, tools, approvals, verification, and — on the roadmap — open-internet navigation into one governed system. It is not a kernel, a driver layer, or a chatbot wrapper. It is a control plane in which language models act as **untrusted workers inside a trusted system**.
 
-`Phase 2 complete in code, demo artifact pending · Phase 1 integration 85% · Python/FastAPI backend · React/TypeScript 3D superbrain frontend · fail-closed by default · 2,500+ backend tests · 468 frontend tests · ~92% branch coverage (as of 2026-07-06 — live evidence in .aios/state/AUDIT.md)`
+`Phase 2 complete in code, runtime prover 16/19 · core loop proven live · Phase 1 integration 85% · Python/FastAPI backend · React/TypeScript 3D superbrain frontend · fail-closed by default · 2,500+ backend tests · 468 frontend tests · ~92% branch coverage (as of 2026-07-06 — live evidence in .aios/state/AUDIT.md)`
 
 ---
 
@@ -74,7 +74,7 @@ GAGOS is organized as a colony under a human sovereign.
 |---|---|---|---|
 | Memory | ✅ built | proposal → approval → active, with contradiction detection | ✅ yes |
 | Security | ✅ built | classifies and gates every action, fail-closed | ✅ yes |
-| Planner | ✅ built | deterministic plans with evidence-derived confidence | ⚠️ optional tool + standalone endpoint; the mandatory per-task plan stage is the Phase-1 close-out |
+| Planner | ✅ built | deterministic plans with evidence-derived confidence | ⚠️ optional tool + standalone endpoint; the mandatory per-task plan stage is built behind `AIOS_PLAN_STAGE` (default-OFF until the runtime prover is green — fail-closed) |
 | Router | ✅ built | picks local/cloud model transparently, with failover | ✅ yes |
 | Verifier | ✅ built | runs checks; success means *verified*, not *returned* | ✅ wired in-loop (provenance-gated evidence; strength gates every promotion) |
 | Reflection | ✅ built | turns failures into recorded lessons | ✅ yes |
@@ -158,12 +158,12 @@ Core control plane, security spine, executor, memory, audit ledger, all function
 - Multi-agent orchestration (role-pass, swarm patterns).
 - **Verifier integration:** verification runs *inside* the live loop — only trusted verify-tool output counts as evidence (provenance-gated, so a model cannot forge a passing verdict), and verification strength gates every skill and memory promotion, feeding verified outcomes directly into the Cerebellum.
 
-**Built but not yet wired:**
-- **Planner integration:** The deterministic planner component exists and passes tests. It produces evidence-derived confidence scores. Today it runs as an optional agent tool and a standalone `/api/v1/plan` endpoint; the close-out is wiring it into the main `/api/generate` orchestration so every task runs a structured plan stage before execution.
+**Built, wired behind a fail-closed flag:**
+- **Planner integration:** The deterministic planner exists, passes tests, and produces evidence-derived confidence. The mandatory in-loop plan stage is built and wired into `/api/generate` behind `AIOS_PLAN_STAGE`, held **default-OFF until the runtime prover is green** (fail-closed). It also runs as an optional agent tool and the standalone `/api/v1/plan` endpoint.
 
-### **P2 — Verification & Reflection (complete in code · demo artifact pending)** ✅
+### **P2 — Verification & Reflection (complete in code · runtime prover 16/19)** ✅
 
-The full feedback loop exists in code. Missing: an end-to-end demo artifact showing task failure → reflection → system recall → re-attempt → success → trail promoted → reflex replay. (This is a demo burden, not a code burden.)
+The full feedback loop exists in code and the learning-loop prover (`tools/learning_loop_prover.py`) now runs it live: task failure → reflection → recall → re-attempt → success → trail promoted → reflex replay → cerebellum compile/replay, plus a deliberately-broken mutation probe. **16/19 checks green with the core loop proven end-to-end**; the 3 remaining are best-effort reflection-LLM variance and a cerebellum matching-soundness redesign (honest breakdown in AUDIT §8). Artifact: `.aios/audit/learning-loop-runs.jsonl`.
 
 ### **P3 — Project Knowledge (Roadmap)** ❌
 
