@@ -74,7 +74,7 @@ GAGOS is organized as a colony under a human sovereign.
 |---|---|---|---|
 | Memory | ✅ built | proposal → approval → active, with contradiction detection | ✅ yes |
 | Security | ✅ built | classifies and gates every action, fail-closed | ✅ yes |
-| Planner | ✅ built | deterministic plans with evidence-derived confidence | ⚠️ optional tool + standalone endpoint; the mandatory per-task plan stage is built behind `AIOS_PLAN_STAGE` (default-OFF until the runtime prover is green — fail-closed) |
+| Planner | ✅ built | deterministic plans with evidence-derived confidence | ✅ yes — the mandatory per-task plan stage runs by default (`AIOS_PLAN_STAGE`, flipped default-ON 2026-07-07 once the learning-loop prover was green at 19/19 with the stage enabled; advisory/fail-open; `AIOS_PLAN_STAGE=0` opts out). Also an optional tool + standalone endpoint. |
 | Router | ✅ built | picks local/cloud model transparently, with failover | ✅ yes |
 | Verifier | ✅ built | runs checks; success means *verified*, not *returned* | ✅ wired in-loop (provenance-gated evidence; strength gates every promotion) |
 | Reflection | ✅ built | turns failures into recorded lessons | ✅ yes |
@@ -158,12 +158,12 @@ Core control plane, security spine, executor, memory, audit ledger, all function
 - Multi-agent orchestration (role-pass, swarm patterns).
 - **Verifier integration:** verification runs *inside* the live loop — only trusted verify-tool output counts as evidence (provenance-gated, so a model cannot forge a passing verdict), and verification strength gates every skill and memory promotion, feeding verified outcomes directly into the Cerebellum.
 
-**Built, wired behind a fail-closed flag:**
-- **Planner integration:** The deterministic planner exists, passes tests, and produces evidence-derived confidence. The mandatory in-loop plan stage is built and wired into `/api/generate` behind `AIOS_PLAN_STAGE`, held **default-OFF until the runtime prover is green** (fail-closed). It also runs as an optional agent tool and the standalone `/api/v1/plan` endpoint.
+**Built and default-on (opt-out flag):**
+- **Planner integration:** The deterministic planner exists, passes tests, and produces evidence-derived confidence. The mandatory in-loop plan stage is wired into `/api/generate` behind `AIOS_PLAN_STAGE`, **default-ON since 2026-07-07** — flipped once the runtime prover was green at 19/19 with the stage enabled. It is advisory (fail-open) and emits a `plan` SSE event per non-reflex turn; `AIOS_PLAN_STAGE=0` opts out. It also runs as an optional agent tool and the standalone `/api/v1/plan` endpoint.
 
-### **P2 — Verification & Reflection (complete in code · runtime prover 16/19)** ✅
+### **P2 — Verification & Reflection (complete in code · runtime prover 19/19)** ✅
 
-The full feedback loop exists in code and the learning-loop prover (`tools/learning_loop_prover.py`) now runs it live: task failure → reflection → recall → re-attempt → success → trail promoted → reflex replay → cerebellum compile/replay, plus a deliberately-broken mutation probe. **16/19 checks green with the core loop proven end-to-end**; the 3 remaining are best-effort reflection-LLM variance and a cerebellum matching-soundness redesign (honest breakdown in AUDIT §8). Artifact: `.aios/audit/learning-loop-runs.jsonl`.
+The full feedback loop exists in code and the learning-loop prover (`tools/learning_loop_prover.py`) runs it live: task failure → reflection → recall → re-attempt → success → trail promoted → reflex replay → cerebellum compile/replay, plus a deliberately-broken mutation probe. **All 19/19 checks green** (stable across repeated runs, stage-on and stage-off), with the core loop proven end-to-end — the two follow-up arcs (cerebellum matching-soundness; reflection reliability + confirm-across-approval-boundary) shipped 2026-07-07 (AUDIT §8). Artifact: `.aios/audit/learning-loop-runs.jsonl`.
 
 ### **P3 — Project Knowledge (Roadmap)** ❌
 
