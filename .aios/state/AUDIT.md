@@ -159,9 +159,41 @@ operator-approved**); container `PYTEST_ADDOPTS` coverage-summary clearing; veri
 now a first-class learning-loop citizen (surfaces reflect/confirm on the verify path);
 suite-order test-isolation flake fixed.
 
+**Phase-A flip probe (2026-07-07).** Before deciding the `AIOS_PLAN_STAGE` default flip,
+the plan stage was measured live on an isolated stage-ON backend (`:8100`, own data dir)
+vs a matched stage-OFF twin (`:8101`), 3 runs each under identical conditions:
+
+| config | runs | ceiling |
+|---|---|---|
+| stage-ON | 16 / 16 / 16 | 16/19 |
+| stage-OFF | 13 / 16 / 16 | 16/19 |
+
+Conclusion: **the plan stage does NOT regress the loop.** The reflex phase is byte-identical
+on/off, the mutation probe passes both, chat answers with the stage on (the `plan` SSE event
+fires and does not block the reply), and both configs share the same 16/19 ceiling — the
+lesson-phase misses are Gemini variance present in BOTH (stage-OFF actually threw the only
+13). So the eventual flip is de-risked. **Operator decision (2026-07-07): HOLD STRICT** — do
+not flip on the pragmatic non-regression gate; wait for a true 19/19, i.e. until the two
+structural arcs (cerebellum matching-soundness, reflection reliability) land. Real cost noted
+for when the flip happens: every turn then pays a plan-stage LLM call + latency.
+
 _Recorded 2026-07-07 by Claude Code (Fable). Prover artifact:
 `.aios/audit/learning-loop-runs.jsonl`. STOP-for-review per fail-closed plan; flag NOT
-flipped; cerebellum reverted to sound state._
+flipped (operator held strict); cerebellum reverted to sound state._
+
+**Flag flipped — `AIOS_PLAN_STAGE` default-ON (2026-07-07, later same day).** The HOLD-STRICT
+condition above is now met: both structural arcs landed (Arc 1 cerebellum matching-soundness,
+merged #123; Arc 2 reflection reliability + confirm-across-approval-boundary, #124), and the
+prover scores a **true 19/19 stable across repeated runs, stage-OFF (139/109/152s) and
+stage-ON (`AIOS_PLAN_STAGE=1`, 211s)**. The stage-ON run additionally confirmed live that the
+`plan` SSE event fires and the turn still completes (advisory / fail-open). On that evidence
+the `config.PLAN_STAGE_ENABLED` default was flipped `False → True`; the contract test was
+renamed (`…_off_by_default` → `…_suppressed_when_disabled`) and a `…_on_by_default` test added
+(env-guarded). Real cost now paid: one planner LLM call + latency per non-reflex turn.
+`AIOS_PLAN_STAGE=0` opts out. Root-cause note: the reflect/confirm misses above were NOT mere
+"Gemini variance" — reflection runs on the local 3B model, which needed Ollama's `format:"json"`
+grammar constraint to stay parseable (0/5 → 5/5), and confirm needed the fail→confirm tracker
+persisted across approval replays. _Recorded 2026-07-07 by Claude Code (Opus 4.8)._
 
 ---
 _Refreshed 2026-07-06 by Claude Code. Next actions, in order: learning-loop prover
