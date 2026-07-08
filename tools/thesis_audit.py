@@ -23,8 +23,15 @@ DEFAULT_DOCS: tuple[str, ...] = (
     "README.md",
     "AGENTS.md",
     ".aios/state/PLAN.md",
+    ".aios/state/SYSTEM_TRUE_PICTURE.md",
     "aios/core/router_wiring.py",
     "tests/adversarial/test_cloud_privacy.py",
+)
+
+POST_V7_DOCS: tuple[str, ...] = (
+    "README.md",
+    ".aios/state/AUDIT.md",
+    ".aios/state/GAGOS_ULTRA_PLAN.md",
 )
 
 CANONICAL_CLOUD_DOCS: frozenset[str] = frozenset(
@@ -48,6 +55,46 @@ class Finding:
     path: str
     code: str
     message: str
+
+
+@dataclass(frozen=True)
+class FeatureDocRule:
+    code: str
+    name: str
+    evidence_paths: tuple[str, ...]
+    stale_patterns: tuple[re.Pattern[str], ...]
+
+
+POST_V7_FEATURE_RULES: tuple[FeatureDocRule, ...] = (
+    FeatureDocRule(
+        code="post-v7-project-passport-drift",
+        name="Project Passport / Project Knowledge",
+        evidence_paths=(
+            "aios/memory/project_passport.py",
+            "tests/test_project_passport.py",
+        ),
+        stale_patterns=(
+            re.compile(r"Project Knowledge\s*\|[^\n]*designed[^\n]*Project Passport[^\n]*roadmap", re.IGNORECASE),
+            re.compile(r"P3\s*[-\u2013\u2014]\s*Project Knowledge\s*\(Roadmap\)", re.IGNORECASE),
+            re.compile(r"\*{0,2}DESIGNED,\s*not built:\*{0,2}\s*Project Passport", re.IGNORECASE),
+            re.compile(r"Project Passport harvester\s*\(P3,\s*XL,\s*local-only enforced\)", re.IGNORECASE),
+        ),
+    ),
+    FeatureDocRule(
+        code="post-v7-pheromone-contract-drift",
+        name="Pheromone contract wiring",
+        evidence_paths=(
+            "aios/memory/pheromones.py",
+            "tests/test_pheromones.py",
+        ),
+        stale_patterns=(
+            re.compile(
+                r"wire or remove the orphaned\s+`?PheromoneStore\.for_contract`?\s+hook",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+)
 
 
 def _compact(text: str) -> str:
@@ -120,18 +167,49 @@ def audit_cloud_routing_docs(
     return findings
 
 
+def audit_post_v7_feature_docs(
+    docs: Mapping[str, str],
+    *,
+    root: Path,
+    rules: Sequence[FeatureDocRule] = POST_V7_FEATURE_RULES,
+) -> list[Finding]:
+    """Return findings when docs say a post-v7 built feature is still missing."""
+    findings: list[Finding] = []
+    for rule in rules:
+        if not all((root / rel).exists() for rel in rule.evidence_paths):
+            continue
+        for path, text in docs.items():
+            for pattern in rule.stale_patterns:
+                if pattern.search(text):
+                    findings.append(
+                        Finding(
+                            path=path,
+                            code=rule.code,
+                            message=(
+                                f"stale docs describe {rule.name} as missing "
+                                "even though code/test evidence exists"
+                            ),
+                        )
+                    )
+                    break
+    return findings
+
+
 def audit_repo(root: Path) -> list[Finding]:
     """Audit the current repository for load-bearing thesis/config drift."""
     docs: dict[str, str] = {}
-    for rel in DEFAULT_DOCS:
+    for rel in tuple(dict.fromkeys((*DEFAULT_DOCS, *POST_V7_DOCS))):
         path = root / rel
         try:
             docs[rel] = path.read_text(encoding="utf-8")
         except FileNotFoundError:
             docs[rel] = ""
-    return audit_cloud_routing_docs(
-        docs,
-        cloud_tasks_default=config._ROUTER_CLOUD_TASKS_DEFAULT,
+    return (
+        audit_cloud_routing_docs(
+            docs,
+            cloud_tasks_default=config._ROUTER_CLOUD_TASKS_DEFAULT,
+        )
+        + audit_post_v7_feature_docs(docs, root=root)
     )
 
 

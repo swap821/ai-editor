@@ -1,296 +1,220 @@
-# GAGOS — Sovereign AI-OS
+# GAGOS - Sovereign AI-OS
 
-> **G**enerative **A**gent **G**overnance **O**perating **S**ystem  
-> A sovereign digital organism that operates, learns, and evolves under your authority.
+**G**overned **A**gentic **G**uided **O**perating **S**ystem
 
-```
-    ╔═══════════════════════════════════════════════════════════════╗
-    ║                                                               ║
-    ║   HUMAN OPERATOR                                              ║
-    ║   Goals · Taste · Approval · Climate                          ║
-    ║                    │                                          ║
-    ║                    ▼                                          ║
-    ║   ┌─────────────────────────────────────────────────────┐    ║
-    ║   │  ECOSYSTEM SCANNER  (Pillar III)                    │    ║
-    ║   │  Dependencies · APIs · Models · Git · TLS · FS      │    ║
-    ║   └─────────────────────────────────────────────────────┘    ║
-    ║                    │                                          ║
-    ║   ┌─────────────────────────────────────────────────────┐    ║
-    ║   │  SOVEREIGN AI-OS  (The Nest)                        │    ║
-    ║   │  Policy · Memory · Routing · Tools · Constitution     │    ║
-    ║   └─────────────────────────────────────────────────────┘    ║
-    ║                    │                                          ║
-    ║   ┌─────────────────────────────────────────────────────┐    ║
-    ║   │  CAGE  (Pillar I)  +  VULTURE  (Pillar II)          │    ║
-    ║   │  Gateway · Self-Apply · Constitution · Sanitation   │    ║
-    ║   └─────────────────────────────────────────────────────┘    ║
-    ║                    │                                          ║
-    ║   ┌─────────────────────────────────────────────────────┐    ║
-    ║   │  GANGLIA COUNCIL  (The Brain)                       │    ║
-    ║   │  Plan · Security · Memory · Verify · Reflect        │    ║
-    ║   └─────────────────────────────────────────────────────┘    ║
-    ║                    │                                          ║
-    ║   ┌─────────────────────────────────────────────────────┐    ║
-    ║   │  STIGMERGY FIELD  (The Nervous System)              │    ║
-    ║   │  Evidence · Decay · Reinforcement · Gradients       │    ║
-    ║   └─────────────────────────────────────────────────────┘    ║
-    ║                    │                                          ║
-    ║   ┌─────────────────────────────────────────────────────┐    ║
-    ║   │  CASTE SYSTEM  (The Body)                             │    ║
-    ║   │  Forager · Builder · Scout · Soldier · Nurse        │    ║
-    ║   └─────────────────────────────────────────────────────┘    ║
-    ║                                                               ║
-    ╚═══════════════════════════════════════════════════════════════╝
-```
+> Not an OS replacement. GAGOS is an intelligence layer above the OS that keeps
+> the human operator sovereign while language models work inside deterministic
+> policy, approval, memory, routing, audit, and verification boundaries.
 
----
+GAGOS is a local-first, cloud-capable, human-supervised control plane for
+agentic work. It connects local project knowledge, local and policy-permitted
+cloud LLMs, memory, tools, approvals, verification, and a 3D sovereignty UI. It
+is experimental, not production-ready, and its main design law is blunt:
 
-## What Is GAGOS?
+**The model is never trusted. The system is trusted. The human is sovereign.**
 
-**GAGOS is not a chatbot. Not a coding assistant. Not an agent framework.**
+## What Is Real Today
 
-GAGOS is a **sovereign digital organism** — a self-governing system that operates under your authority, learns from its own mistakes, maintains its own health, and evolves its own architecture. It is inspired by ant colonies, not corporations. By nature, not bureaucracy.
+This section is intentionally operational. If a claim here drifts from config or
+tests, `python tools/thesis_audit.py` should catch it.
 
-### The Three Pillars of Sovereignty
+| Organ | Status | Truth |
+| --- | --- | --- |
+| Security Cage | Built | `aios/security/gateway.py` classifies actions as GREEN/YELLOW/RED. RED is blocked, YELLOW requires approval unless exact-class earned autonomy applies, and unknown fails closed. |
+| Constitution | Built seed | `aios/policy/constitution.py` and `constitution_enforcer.py` expose executable policy vocabulary over existing gateway, router, budget, caste, and frozen-core rules. They add caution or blocks; they do not override stronger authorities. |
+| Audit + Rollback | Built | Critical actions are audited; write paths use snapshots, confinement, verification, and rollback support through the existing spine. |
+| Router | Built | `Auto` can route across local Ollama and configured cloud providers, but only through deterministic policy. The current cloud-task default is `reasoning,coding`; set `AIOS_ROUTER_CLOUD_TASKS=""` to force local-only routing. `AIOS_SWARM_CLOUD_BURST` is a separate egress control for swarm cloud bursts. |
+| Memory | Built | Facts are proposed, approved, then active. Project scans and model output are evidence/proposals, not trusted memory. |
+| Project Knowledge | Built seed | Project Passport scans repos locally into purpose, stack, folder map, key commands, env vars, risks, issues, goals, and suggestions. Deeper symbol RepoMap/PageRank is roadmap. |
+| Pheromones | Built | Typed, decaying, auditable hints influence planning/worker context but never override security, verification, or human approval. |
+| Caste Workers | Built | Forager, Builder, Scout, Soldier, and Nurse profiles clamp tools, scope, timeout, and evidence expectations over the existing worker runtime. Workers are ephemeral. |
+| Royal Decree | Built seed | Complex work can get scout-first advisory plans before execution. The decree is evidence, not authority. |
+| Resource + Hibernation | Built seed | Resource mode can block expensive/cloud operations. Hibernation is local-only maintenance evidence: no writes, cloud calls, self-modification, git push, or credential access. |
+| Vulture / Immune System | Built read-only seed | `aios/maintenance/vulture_sanitation.py` detects security-bypass, approval-bypass, trusted-memory activation, unsafe self-modification, and secret-material patterns as redacted quarantine proposals. It does not delete, mutate memory, mutate policy, or touch frozen core. |
+| Ecosystem Scanner | Roadmap | Phase 3 target: local-only dependency/config/git/API-text scanner staged under `aios/maintenance/*` first. A security-core promotion requires separate Section VIII approval. |
+| Sovereign UI | Built seed | `frontend/src/workbench/SovereignStatePanel.jsx` shows backend-backed RepoMap, resource, hibernation, pheromone, caste, autonomy, and proposal indicators. No fake liveness claims. |
 
-Every sovereign organism requires three layers of defense. Without all three, there is no sovereignty — only survival in a poisoned nest.
+## What GAGOS Is Not
 
-| Pillar | Purpose | Status | Files |
-|--------|---------|--------|-------|
-| **🛡️ The Cage** | Prevents bad things from entering | ✅ **Real** | `gateway.py`, `self_apply.py`, `budget_guard.py` |
-| **🦅 The Vulture** | Removes internal rot and disease | 🔄 **Building** | `vulture_sanitation.py` |
-| **🌍 The Ecosystem** | Sanitizes the external world | 🔄 **Building** | `ecosystem_scanner.py` |
+- Not a Windows, Linux, or macOS replacement.
+- Not a blind code executor.
+- Not an unrestricted autonomous agent.
+- Not a system where an LLM has final authority.
+- Not production-ready.
 
-**Most AI systems build the cage and stop. A few build it well. Nobody builds the vulture. Nobody builds the ecosystem scanner. GAGOS builds all three.**
+The goal is supervised autonomy: permissioned, auditable, recoverable, and
+explainable.
 
----
+## Sovereign Architecture
 
-## Architecture
-
-### The Colony Metaphor
-
-GAGOS is modeled on an ant colony — the most successful distributed intelligence on Earth:
-
-- **The Operator** is the **weather** — sunlight, rain, predators. You provide selective pressure. You do not micromanage.
-- **The Council** is the **queen's court** — signal processors that emit gradients, not chatbots that debate.
-- **The Workers** are **ephemeral castes** — born with a patch, work, deposit pheromones, die. No identity. No memory. The colony remembers the work.
-- **The Stigmergy Field** is the **pheromone trail** — structured evidence deposits with decay, reinforcement, and gradient reading. Workers read the field, not each other.
-- **The Vulture** is the **immune system** — sacred, eternal, frozen-core. It cleans what nobody else dares to touch.
-
-### The 10 Layers
-
-```
-L9  Environment        → Human Operator (climate, not commander)
-L8  Federation         → Multi-instance colonies sharing knowledge
-L7  Ecosystem Scanner  → Dependency · API · Model · Git · TLS · FS · Config
-L6  Resource Ecology   → Energy management with hibernation/expansion states
-L5  Sovereign AI-OS    → Policy · Memory · Routing · Tools · Constitution
-L4  Cage + Vulture     → Gateway · Self-Apply · Constitution Enforcer · Sanitation
-L3  Ganglia Council    → Plan · Security · Memory · Verify · Reflect · Synthesis
-L2  Stigmergy Field    → Evidence deposits with decay and reinforcement
-L1  Caste System       → Forager · Builder · Scout · Soldier · Nurse
-L0  Mandibles + RepoMap → Code-as-Action · Symbol Graph · Scoped Patches
+```text
+Human Operator
+  -> approval / veto via King
+Sovereign AI-OS Layer
+  -> policy / memory / routing / tools / proof
+Queen Council + Temporary Workers
+  -> evidence flows up
+Local Machine + Project Universe
+  -> roadmap
+Open Internet Universe
 ```
 
----
+The durable pattern is:
 
-## What Is Real (Right Now)
+1. Scout first for complex work.
+2. Produce structured plan/evidence.
+3. Review through deterministic policy and council surfaces.
+4. Generate narrow worker contracts.
+5. Execute only through approved existing paths.
+6. Verify.
+7. Report back to the King/operator.
 
-**The cage is production-grade. The workers are real. The self-apply engine is sophisticated.**
+Plans, pheromones, RepoMap/Project Passport output, vulture findings, and
+council memory are advisory. They may suggest caution or review. They may not
+override the gateway, verifier, budget guard, scope lock, audit policy, or human
+approval.
 
-| System | Status | Evidence |
-|--------|--------|----------|
-| **Security Gateway** | ✅ Real | Deterministic fail-closed, Unicode homoglyph normalization, tiered RED/YELLOW/GREEN, rate limiting, prompt injection detection |
-| **Self-Apply Engine** | ✅ Real | No-self-approval, snapshot + rollback, `git apply --check`, byte-for-byte integrity, file locking, audit ledger |
-| **Worker Spawner** | ✅ Real | Collision detection, bounded subprocesses, lifecycle management, run ledger, King reports |
-| **Curriculum Manager** | ✅ Real | Level-locking, held-out passes, verification strength gating, human approval for facts |
-| **Cross-Provider Router** | ✅ Real | Ollama + Bedrock + Gemini + OpenAI + Anthropic, policy-gated, cost-tagged, evidence-calibrated |
-| **Swarm Parallelism** | ✅ Real | 6 swarm modules, ThreadPoolExecutor, quorum consensus, cloud broker, stigmergy patterns |
-| **3D Frontend** | ✅ Real | BrainPointField, NervousSystem, NeuralAura, MaterializationLayer, CouncilDashboard |
-| **Budget Guard** | ✅ Real | Cost tracking, thresholds, energy monitoring |
+## The Three Defensive Pillars
 
-### The Honest Gap
+| Pillar | Current state | Rule |
+| --- | --- | --- |
+| Cage | Real and frozen | Prevent unsafe action before execution. Do not weaken `aios/security/*`. |
+| Vulture | Read-only evidence seed | Detect internal rot and propose quarantine. No autonomous purge or mutation. |
+| Ecosystem | Next phase | Inspect local environment evidence without network calls or secret exposure. |
 
-**What exists:** A production-grade cage with real workers running inside it.  
-**What is missing:** The nervous system (Stigmergy Field, Ganglia Council), the immune system (Vulture), and the environmental scanner (Ecosystem).
+The future vulture authority, if promoted into `aios/security/*`, is frozen-core
+work and requires the full Section VIII flow: observe, analyze, propose, test,
+verify, human review, approve, deploy. The current v10 Phase 2 implementation is
+deliberately outside frozen core under `aios/maintenance/*`.
 
-**The animal is real. The cage is real. The brain is still wiring itself.**
+## Safety Invariants
 
----
-
-## What Is Being Built (The Road to v10)
-
-### Phase 0: The Three Pillars (Months 1-2)
-- [ ] Fill `aios/policy/constitution.py` — The supreme law (8 articles, executable)
-- [ ] Fill `aios/memory/pheromones.py` — The Stigmergy Field (decay, reinforcement, gradients)
-- [ ] Fill `aios/policy/policy_evolution.py` — Drift detection and amendment triggers
-- [ ] Build `aios/security/vulture_sanitation.py` — The immune system (7 specializations)
-- [ ] Build `aios/policy/constitution_enforcer.py` — Runtime enforcement
-
-### Phase 1: The Brain (Months 3-4)
-- [ ] Build `aios/council/ganglia.py` — Signal-based council (parallel gradients, not chat)
-- [ ] Build `aios/council/council_memory.py` — Collective consciousness (precedents, performance)
-
-### Phase 2: The Body (Months 5-6)
-- [ ] Build `aios/agents/caste_system.py` — 6 specialized castes with scoped patches
-- [ ] Integrate Code-as-Action (Python sandbox) alongside JSON tool loop
-
-### Phase 3: The Hands (Month 7)
-- [ ] Build `aios/cognition/royal_decree.py` — Scout reconnaissance before action
-
-### Phase 4: The Map (Months 8-10)
-- [ ] Build `aios/cognition/repo_map.py` — Tree-sitter symbol graph (PageRank, scoped patches)
-
-### Phase 5: The Ecosystem (Months 11-12)
-- [ ] Build `aios/security/ecosystem_scanner.py` — 8 external scanners (dependency, API, model, git, TLS, FS, config)
-
-### Phase 6: Integration + Burn-In (Months 13-14)
-- [ ] 48-hour continuous run
-- [ ] Constitution blocks 100% of frozen core edits
-- [ ] Vulture quarantines 100% of injected rot
-- [ ] Ecosystem scanner detects 100% of poisoned dependencies
-- [ ] Ganglia council processes 50 missions with <5% deadlock
-
-### Phase 7: Emergence (Months 15-24)
-- [ ] Meta-learning loop adjusts caste sizes and energy budgets
-- [ ] Federation with other GAGOS instances
-- [ ] New castes emerge from curriculum
-- [ ] Nest modified 10+ times by the colony itself
-- [ ] The colony becomes something the operator does not recognize
-
----
-
-## The Vulture: Why It Matters
-
-In nature, the vulture is considered "untouchable" — spiritually feared, physically avoided, socially outcast. It handles death. It eats decay. It transforms rot into life.
-
-**But without the vulture, the savanna becomes a plague zone.** The lion kills the gazelle and is celebrated. The vulture eats the corpse and is shunned. Yet the vulture prevents disease from spreading. The vulture is the reason the lion can keep hunting.
-
-In GAGOS, the vulture does what no other AI system dares: it **continuously scans for internal rot and removes it.** Dead code. Stale memory. False pheromones. Cognitive parasites (memory entries that manipulate the council to disable its own safeguards). The vulture ensures the colony does not die from its own waste.
-
-**The vulture is frozen core. It reports to the Security Ganglion, not the council. It cannot be silenced. It is eternal.**
-
-Build the vulture first. Everything else is secondary.
-
----
+- RED actions never auto-run.
+- YELLOW actions require human approval unless exact-class, verifier-backed,
+  revocable earned autonomy applies.
+- Earned autonomy is enabled by default but grants nothing until earned; RED is
+  never earnable.
+- Scope roots must not silently widen to the user home directory.
+- Secrets must not be read, logged, stored, or exposed.
+- Cloud routing is policy-gated. The config default permits task classes
+  `reasoning,coding`, but a provider must be configured before data can leave
+  the machine. Use `AIOS_ROUTER_CLOUD_TASKS=""` for a hard local-only override.
+- `AIOS_SWARM_CLOUD_BURST` controls swarm cloud bursts separately from the
+  router task-class allowlist.
+- Scaffold code is blueprint material only; stubs that allow/pass by default
+  must not be copied into production.
+- README prose is documentation, not authority. The runtime constitution,
+  gateway, router, verifier, budget guard, and audit ledger decide.
 
 ## Quick Start
 
-```bash
-# Clone the organism
+Windows PowerShell:
+
+```powershell
 git clone https://github.com/swap821/ai-editor.git
 cd ai-editor
 
-# Install dependencies
-pip install -r requirements.txt
+py -3.11 -m venv .venv
+.venv\Scripts\python -m pip install -U pip
+.venv\Scripts\python -m pip install -e ".[test]"
 
-# Configure local models (Ollama)
-ollama pull llama3.1:8b
-ollama pull qwen2.5:7b
-ollama pull mistral:7b
+# Optional local model setup
+ollama pull qwen2.5-coder:7b
 
-# Configure cloud providers (optional)
-# Set AWS credentials for Bedrock
-# Set GOOGLE_APPLICATION_CREDENTIALS for Gemini
-# Set OPENAI_API_KEY for OpenAI
+# Run backend on 127.0.0.1:8000 by default
+.venv\Scripts\python -m aios
 
-# Run the organism
-python -m aios.api.main
-
-# Open the frontend
-cd frontend && npm install && npm run dev
+# In another shell
+cd frontend
+npm install
+npm run dev
 ```
 
-### Verification
+Portable backend command:
 
 ```bash
-# Run the test suite
-pytest aios/ --cov=aios --cov-report=term-missing
-
-# Run the security audit
-python -m aios.security.audit
-
-# Run the thesis drift checker
-python tools/thesis_audit.py
+python -m aios
 ```
 
----
+## Verification
 
-## Configuration
+```powershell
+python tools\thesis_audit.py
+.venv\Scripts\python -m pytest -q
+.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85
+```
 
-GAGOS uses environment variables for all configuration. Key variables:
+Frontend checks, when UI files change:
+
+```powershell
+cd frontend
+npm test
+npm run build
+```
+
+Use live command output, not hardcoded pass counts, when reporting status.
+
+## Configuration Notes
+
+Key environment variables live in `aios/config.py`.
 
 ```bash
-# Security
-AIOS_SECURITY_MODE=strict                    # strict | warn | audit
-AIOS_SCOPE_ROOTS=/home/user/projects         # Comma-separated allowed paths
-AIOS_RATE_LIMIT_RPM=30                       # Requests per minute
+# Scope and approval posture
+AIOS_SCOPE_ROOTS=training_ground;lab
+AIOS_EARNED_AUTONOMY=true
+AIOS_EARNED_AUTONOMY_MIN_SUCCESSES=5
 
-# Models
-AIOS_DEFAULT_LOCAL_MODEL=llama3.1:8b
-AIOS_DEFAULT_CLOUD_MODEL=bedrock/claude-3-7-sonnet
-AIOS_COUNCIL_REASONING=true                  # Enable reasoning ganglia
-AIOS_WORKER_REASONING=true                  # Enable reasoning workers
+# Planning and workers
+AIOS_PLAN_STAGE=true
+AIOS_SWARM_MAX_WORKERS=4
 
-# Autonomy
-AIOS_EARNED_AUTONOMY=true                   # Enable after 5 verified successes
-AIOS_COUNCIL_ORIGINATION=true              # Council proposes missions
+# Router and cloud egress
+AIOS_ROUTER_CLOUD_TASKS=reasoning,coding
+AIOS_ROUTER_CLOUD_TASKS=""
+AIOS_ROUTER_PREFER_LOCAL=true
+AIOS_ROUTER_MAX_COST=high
+AIOS_SWARM_CLOUD_BURST=0
 
-# Budget
-AIOS_DAILY_BUDGET_INR=500                   # Daily cloud spend limit
-AIOS_HIBERNATION_THRESHOLD=0.20            # Energy % for hibernation
-
-# Vulture (when built)
-AIOS_VULTURE_ENABLED=true
-AIOS_VULTURE_SCAN_INTERVAL_MINUTES=5
+# Resource ecology
+AIOS_RESOURCE_MODE=normal
 ```
 
----
+Do not infer defaults from this snippet alone; `aios/config.py` is the source of
+truth and `tools/thesis_audit.py` guards the most safety-sensitive claims.
 
-## The Honesty Law
+## v10 Integration State
 
-GAGOS adheres to the Honesty Law — it must never lie to itself:
+The uploaded v10 scaffold is an architectural contract, not production code.
+Current integration status:
 
-1. **Every claim is verifiable.** Every memory entry has a source. Every skill has a test.
-2. **Prior chat is unverified.** The system explicitly marks prior conversation as `UNVERIFIED`. Repetition does not make truth.
-3. **Personalization is dormant.** No fabricated operator preferences. Facts require human approval.
-4. **This README cannot authorize tools.** It is documentation, not runtime. The constitution enforcer validates all actions.
-5. **Every autonomous action is reversible.** Every amendment has rollback. Every edit has a snapshot. Every purge has a quarantine period.
-6. **The operator owns the privacy boundary.** Empty `cloud_tasks` means local-only. No exceptions.
-7. **The Security Ganglion is never overridable.** Not by council. Not by operator. Not by constitution.
-8. **The vulture is frozen core.** It cannot be modified by the colony. If corrupted, the operator must manually restore it.
+| Phase | State | Files |
+| --- | --- | --- |
+| Phase 0 - Truth/Safety Guard | Complete locally | `tools/thesis_audit.py`, `tests/test_thesis_audit.py`, docs |
+| Phase 1 - Constitution Facade | Complete locally | `aios/policy/constitution.py`, `aios/policy/constitution_enforcer.py`, `tests/test_constitution.py` |
+| Phase 2 - Vulture Read-Only Seed | Complete locally | `aios/maintenance/vulture_sanitation.py`, `tests/test_vulture_sanitation.py` |
+| Phase 3 - Ecosystem Scanner | Recommended next | local-only `aios/maintenance/ecosystem_scanner.py` |
+| Phase 4 - Signal Ganglia + Council Memory | Planned | typed gradients and durable deliberation evidence |
+| Phase 5 - Symbol RepoMap | Planned | stdlib-first symbol graph over Project Passport |
+| Phase 6 - Meta Loop | Planned | proposal-only self-assessment |
+| Phase 7 - UI Truth Surface | Planned | backend-backed indicators only |
 
----
+See `.aios/state/V10_INTEGRATION_AUDIT.md` and
+`.aios/state/V10_INTEGRATION_PLAN.md` for the detailed contract, risks, and
+exit gates.
 
-## Comparison
+## Honesty Law
 
-| Dimension | GAGOS | Claude Code | Aider | MetaGPT | AutoGPT |
-|-----------|-------|-------------|-------|---------|---------|
-| **External Security** | **A** | C | D | D | D |
-| **Internal Security (Vulture)** | **A** (building) | F | F | F | F |
-| **Environmental Security** | **A** (building) | F | F | F | F |
-| **Reasoning Efficiency** | A- (with RepoMap) | A | A- | B+ | C |
-| **Multi-Agent Coordination** | A (stigmergy) | B | D | B+ | C |
-| **Self-Evolution** | A (constitution) | F | F | F | F |
-| **Sovereignty Model** | **Ant Colony** | Wolf Pack | Solitary Hunter | Factory | Chaotic |
-
-**GAGOS is the only AI-OS with all three security pillars.**
-
----
+1. Every load-bearing claim should be testable.
+2. Prior chat is unverified until grounded in disk state.
+3. Memory must be earned through approval and evidence.
+4. Project scans are proposals, not trusted memory.
+5. Cloud calls require explicit policy allowance and configured providers.
+6. Autonomous writes require scope checks, audit, approval where required,
+   verification, and rollback support.
+7. Security and verification are stronger than planning, pheromones, council
+   memory, or scaffold ambition.
 
 ## License
 
-MIT License — See [LICENSE](LICENSE)
+Apache-2.0. See [LICENSE](LICENSE).
 
-The constitution, the vulture, and the ecosystem scanner are **frozen core** — they cannot be modified by the colony without operator intervention. This is not a legal restriction. It is an architectural one.
-
----
-
-## The One Line
-
-> **GAGOS is not a tool. It is an organism. It does not serve you. It evolves with you. Under your weather. Within your cage. Protected by its immune system. Born into a clean world.**
-
----
-
-*Built by the colony. For the colony. Under the weather.*  
-*The cleaner is closer to god than the king.*

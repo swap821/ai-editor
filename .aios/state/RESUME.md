@@ -1,32 +1,60 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-08T20:56:07+05:30 by Codex.
-Task: `v7-sovereign-integration` / squash land `origin/cerebellum-matching-soundness`.
+Last updated: 2026-07-09T01:21:52+05:30 by Codex.
+Task: `v10-integration-audit` / Phase 0 truth-drift guard.
 
 ## Current Goal
-Squash-merge `origin/cerebellum-matching-soundness` into `master` after green GitHub Actions, preserving the dirty primary checkout and keeping the v7 integration as one local/remote master landing.
+Integrate the uploaded GAGOS v10 plan and scaffold as an architectural contract,
+not production code, while preserving the proven v7 safety/council/worker/memory
+spine.
 
 ## Last Completed + Verified Step
-Branch CI is green for exact branch head `b8dabdbac7f2b939ca683a46c18ab8dc068fe35e`:
+v10 audit and plan are committed:
 
-- GitHub Actions run `28953898874` passed on `cerebellum-matching-soundness`.
-- Backend job passed.
-- Frontend job passed.
+- `81f40b3` - `docs: audit v10 integration contract`
+- `65a76d3` - `docs: plan v10 integration phases`
 
-The squash merge was applied in the clean temp master worktree `C:\tmp\ai-editor-merge-session-planning-docs`. Code and test files staged cleanly; only `.aios/state/RESUME.md` and `.aios/memory/experiences.jsonl` had append/continuity conflicts, now resolved by preserving both relevant histories.
+Phase 0 is implemented locally:
+
+- `tools/thesis_audit.py` now checks post-v7 documentation drift for built
+  Project Passport and pheromone contract wiring.
+- `tests/test_thesis_audit.py` covers the new post-v7 drift detector.
+- `README.md`, `.aios/state/AUDIT.md`, `.aios/state/GAGOS_ULTRA_PLAN.md`, and
+  `.aios/state/SYSTEM_TRUE_PICTURE.md` now describe the current Project
+  Passport, pheromone wiring, cloud-routing default, and earned-autonomy default
+  accurately.
+
+Verification passed:
+
+- `python tools/thesis_audit.py` -> ok
+- `.venv\Scripts\python.exe -m pytest tests/test_thesis_audit.py -q` -> 3 passed
+- `.venv\Scripts\python.exe -m pytest tests/test_config.py tests/adversarial/test_cloud_privacy.py tests/test_route_wiring.py tests/test_router.py -q` -> passed
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage 92%
 
 ## Single Next Action
-Commit the staged squash on `master`, push `origin/master`, then watch the master GitHub Actions run for the pushed squash commit.
+Commit the Phase 0 truth-drift guard slice, then hand off `v10-integration-audit`
+for review. After review, the next implementation phase should be Phase 1:
+constitution facade + enforcer adapter outside frozen core.
 
 ## Open Approvals / Blockers
-- None for the squash land.
-- The primary checkout `C:\Users\kumar\ai-editor` is intentionally untouched and remains on `cerebellum-matching-soundness` with pre-existing dirty/untracked workspace noise.
-- Do not rewrite `master` history unless the operator explicitly asks.
+- No approval is needed for the current Phase 0 docs/test slice.
+- Any future implementation under `aios/security/*` for vulture or ecosystem
+  scanner still requires explicit Section VIII approval.
+- Existing untracked workspace noise remains intentionally untouched.
 
 ## Active Files
-- Staged squash in `C:\tmp\ai-editor-merge-session-planning-docs`.
-- Continuity conflicts resolved in `.aios/state/RESUME.md` and `.aios/memory/experiences.jsonl`.
+- `tools/thesis_audit.py`
+- `tests/test_thesis_audit.py`
+- `README.md`
+- `.aios/state/AUDIT.md`
+- `.aios/state/GAGOS_ULTRA_PLAN.md`
+- `.aios/state/SYSTEM_TRUE_PICTURE.md`
+- `.aios/state/RESUME.md`
+- `.aios/memory/experiences.jsonl`
 
 ## Notes Not Yet Promoted
-- The branch contained the cerebellum matching-soundness work, plan-stage default, and v7 sovereign integration commits. This squash preserves the branch tree as one master commit.
-- Use the temp master worktree for the final push so the operator's primary checkout stays untouched.
+- Honest v10 opinion: pursue the three-pillar contract, but do not copy scaffold
+  stubs. The scaffold contains non-functional `NotImplementedError` APIs and
+  allow/pass safety stubs.
+- Phase 1 should add constitutional vocabulary as an adapter over existing
+  gateway/router/budget/caste/self-apply authorities, not as a replacement.

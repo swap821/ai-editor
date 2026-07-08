@@ -111,8 +111,9 @@ Each its own reviewed PR with `pytest tests/test_security.py tests/test_audit.py
 - **1.5 Git-repo-aware snapshots** (L) — wire `WorktreeBackend` (built, zero callers) / in-repo throwaway
   refs; `SnapshotManager` raises on existing `.git`.
 - **1.6 Origin-scoped routing across BOTH cloud paths** (L) — `origin: interactive|autonomous` into
-  `router_wiring._router_policy()` **AND** `IntelligenceGateway._cloud_allowed()`; autonomous default
-  local-only; `SWARM_CLOUD_BURST` off for the daemon.
+  `router_wiring._router_policy()` **AND** `IntelligenceGateway._cloud_allowed()`; autonomous-origin
+  traffic must be forced local-only even though the interactive shipped config keeps
+  `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; `SWARM_CLOUD_BURST` off for the daemon.
 - **1.7 Concurrency + cost + latent-security** (M) — atomic exclusive-create for the request_id approval
   decision (#26, race today); wire real per-token cost estimation so `BudgetGuard` dials can actually fire
   (#27, dead controls today); sign+enforce boot attestation; wire the audit-anchor publisher; key rotation.
@@ -170,12 +171,13 @@ golden-mission + endurance) · per-module coverage floors · flaky-test hygiene.
 
 # PHASE 5 — Memory & Knowledge Depth (M3) · after M2
 
-Project Passport harvester (P3, XL, local-only enforced) · scheduled memory maintenance · compaction
-across all 9+ tables · backup/restore · semantic (not lexical) recall · FAISS-index uploaded docs · CRAG
-calibration on real data · fact-graph editing · contradiction UX · **curriculum multi-domain + revive the
-2 dead escalation templates (#53)** · **broaden operator-fact auto-extraction beyond 3 first-person
-regexes (#54 — feeds P5 taste)** · **wire or remove the orphaned `PheromoneStore.for_contract` hook
-(#55)** · **embedding-model version tagging + reindex path (#56).**
+Project Passport seed is now built as a local-only proposal/evidence scanner; remaining Phase 5 work is
+symbol-level RepoMap, scheduled memory maintenance, compaction across all 9+ tables · backup/restore ·
+semantic (not lexical) recall · FAISS-index uploaded docs · CRAG calibration on real data · fact-graph
+editing · contradiction UX · **curriculum multi-domain + revive the 2 dead escalation templates (#53)** ·
+**broaden operator-fact auto-extraction beyond 3 first-person regexes (#54 — feeds P5 taste)** ·
+pheromone quality/reinforcement beyond the v7 `PheromoneStore.for_contract` council wiring ·
+**embedding-model version tagging + reindex path (#56).**
 
 # PHASE 6 — Frontend Organism (M3) · after 4
 

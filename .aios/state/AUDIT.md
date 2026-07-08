@@ -50,7 +50,13 @@ voice · session/auth · API routers (memory/development/models/system/auth/acti
 
 **BUILT, not in the live loop:** Planner as a *mandatory* stage (see §3).
 
-**DESIGNED, not built:** Project Passport (P3) · Web Navigator (P4) · Taste Memory (P5).
+**BUILT as seed/evidence surfaces, not full roadmap complete:** Project Passport
+local-only scanner/API/status (proposal evidence only), v7 pheromone contract
+wiring, caste contracts, Royal Decree, resource/hibernation status, and
+Sovereign State indicators.
+
+**DESIGNED, not built:** Web Navigator (P4) · Taste Memory (P5) · symbol-level
+RepoMap beyond the Project Passport seed.
 
 ## 3. 🔑 Integration reality (corrects the 06-07 gap table)
 
@@ -93,7 +99,7 @@ architecture** phases (R0–R10, with a 30-day MVP scoped inside). Different axe
 | R2 Simulated Council Loop | ✅ implemented |
 | — Dashboard-lite (KingReport API/panel) | ✅ implemented |
 | R3A/R3B Queen wrappers/services | ⬜ not claimed complete; council/queen surface partially live — verify before claiming |
-| R4 Pheromone Memory | ⬜ seeded (skill trails + reuse pheromone live) — full phase not claimed |
+| R4 Pheromone Memory | ✅ v7 seed implemented (typed store + council contract context); broader mature pheromone program not claimed complete |
 | R5–R9 (worktree swarm · healing · policy evolution · mature dashboard · isolation) | ⬜ not started |
 | R10 Sovereign AI-OS v1.0 | ⬜ target |
 
