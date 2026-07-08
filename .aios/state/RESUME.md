@@ -1,7 +1,7 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-09T01:50:00+05:30 by Codex.
-Task: `v10-phase1-constitution` / Phase 1 constitution facade and enforcer adapter.
+Last updated: 2026-07-09T02:09:29+05:30 by Codex.
+Task: `v10-phase2-immune-vulture` / Phase 2 read-only immune evidence scanner.
 
 ## Current Goal
 Integrate the uploaded GAGOS v10 plan and scaffold as an architectural contract,
@@ -9,60 +9,59 @@ not production code, while preserving the proven v7/v8 safety, council, worker,
 memory, router, verifier, hibernation, resource, and UI spine.
 
 ## Last Completed + Verified Step
-Phase 0 was committed earlier:
+Phase 0 and Phase 1 are committed:
 
 - `81f40b3` - `docs: audit v10 integration contract`
 - `65a76d3` - `docs: plan v10 integration phases`
 - `e4fbb93` - `test: guard v10 truth drift`
+- `d6ba28d` - `feat: add v10 constitution facade`
 
-Phase 1 is implemented, verified, committed, and handed off for review:
+Phase 2 is implemented and verified locally:
 
-- Added `aios/policy/constitution.py` as a typed snapshot of live config,
-  caste, router, resource, and autonomy defaults.
-- Added `aios/policy/constitution_enforcer.py` as a strengthen-only adapter
-  over the existing security gateway, router policy, budget guard, and caste
-  contract checks.
-- Exported the new facade from `aios.policy`.
-- Added `tests/test_constitution.py`.
-- Updated `tests/test_dead_code_hygiene.py` because `aios/policy/constitution.py`
-  is now wired and tested, no longer orphaned dead code.
+- Added `aios/maintenance/vulture_sanitation.py` as a local-only, read-only
+  immune/vulture scanner.
+- Added `aios/maintenance/__init__.py` exports.
+- Added `tests/test_vulture_sanitation.py`.
+- Updated `README.md` to document the v10 constitution and read-only immune
+  evidence seed truthfully.
 - Updated `.aios/state/V10_INTEGRATION_AUDIT.md` and
-  `.aios/state/V10_INTEGRATION_PLAN.md` so Phase 1 status and next risks are
+  `.aios/state/V10_INTEGRATION_PLAN.md` so Phase 2 status and next risks are
   current.
 
 Verification passed:
 
-- `.venv\Scripts\python.exe -m pytest tests/test_constitution.py -q` -> 5 passed
-- `.venv\Scripts\python.exe -m pytest tests/test_constitution.py tests/test_castes.py tests/test_hibernation_resource.py tests/test_router.py tests/test_policy_engine.py tests/test_thesis_audit.py -q` -> 55 passed
-- `.venv\Scripts\python.exe -m pytest tests/test_dead_code_hygiene.py tests/test_constitution.py -q` -> 6 passed
+- `.venv\Scripts\python.exe -m pytest tests/test_vulture_sanitation.py -q` -> 4 passed
+- `.venv\Scripts\python.exe -m pytest tests/test_vulture_sanitation.py tests/test_constitution.py tests/test_hibernation_resource.py tests/test_thesis_audit.py tests/test_dead_code_hygiene.py tests/test_security.py -q` -> 70 passed, 2 skipped
+- `python tools\thesis_audit.py` -> ok
 - `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage 92%
 
 ## Single Next Action
-Wait for review on `v10-phase1-constitution`. After review, the next
-implementation phase should be Phase 2: a read-only immune/vulture evidence
-scanner under `aios/maintenance/*`, not `aios/security/*`.
+Commit Phase 2, push `master`, then wait for GitHub CI to finish green. After
+CI is green, the next implementation phase should be Phase 3: a local-only
+ecosystem scanner under `aios/maintenance/*`, not `aios/security/*`.
 
 ## Open Approvals / Blockers
-- No frozen-core files were edited in Phase 1.
+- No frozen-core files were edited in Phase 2.
 - Any future v10 implementation under `aios/security/*` still requires explicit
   Section VIII approval.
 - Existing untracked workspace noise and older stashes remain intentionally
   untouched.
+- GitHub CI is not checked yet for the Phase 2 commit because the commit has
+  not been pushed yet.
 
 ## Active Files
-- `aios/policy/constitution.py`
-- `aios/policy/constitution_enforcer.py`
-- `aios/policy/__init__.py`
-- `tests/test_constitution.py`
-- `tests/test_dead_code_hygiene.py`
+- `aios/maintenance/__init__.py`
+- `aios/maintenance/vulture_sanitation.py`
+- `tests/test_vulture_sanitation.py`
+- `README.md`
 - `.aios/state/V10_INTEGRATION_AUDIT.md`
 - `.aios/state/V10_INTEGRATION_PLAN.md`
 - `.aios/state/RESUME.md`
 - `.aios/memory/experiences.jsonl`
 
 ## Notes Not Yet Promoted
-- Phase 1 resolved the constitution/enforcer risk by making it an observer and
-  clamp over existing authorities, not a new authority.
-- Phase 2 must start read-only outside frozen core. The v10 scaffold's
-  `aios/security/vulture_sanitation.py` target remains deferred without
-  explicit approval.
+- The vulture scanner is proposal/evidence only. It cannot delete, mutate
+  memory, decay pheromones, suspend policy, call cloud providers, or approve
+  actions.
+- Phase 3 should reuse the same pattern: local-only maintenance evidence outside
+  frozen core.

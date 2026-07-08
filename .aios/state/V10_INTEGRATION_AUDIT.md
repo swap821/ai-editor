@@ -167,6 +167,10 @@ Rules:
 ### Phase 2 - Immune System, Read-Only First
 
 Risk: High. The target path is under frozen security territory.
+Status: Implemented 2026-07-09 as `aios/maintenance/vulture_sanitation.py`.
+The frozen `aios/security/*` target remains deferred. The live scanner is
+local-only, redacts secrets, reports proposal/evidence findings, and does not
+mutate files, memory, pheromones, or policy.
 
 Preferred safe staging:
 - Start outside frozen core as a read-only proposal layer, for example
@@ -297,8 +301,11 @@ Do not implement until:
 - Policy/constitution rollback: remove the facade/enforcer imports and
   `tests/test_constitution.py`; no existing gateway/router/budget/caste
   authority was replaced.
-- Immune/ecosystem rollback: begin read-only. If a finding pipeline is noisy,
-  disable the route/config flag and keep collected reports as audit evidence.
+- Immune rollback: remove `aios/maintenance/vulture_sanitation.py` and
+  `tests/test_vulture_sanitation.py`; no security authority or mutable runtime
+  state was changed.
+- Ecosystem rollback: begin read-only. If a finding pipeline is noisy, disable
+  the route/config flag and keep collected reports as audit evidence.
 - Council memory rollback: write append-only verdict evidence; never require it
   for security approval until mature.
 - RepoMap rollback: keep symbol context advisory; worker scopes remain enforced
@@ -328,6 +335,6 @@ Required targeted tests by feature:
 
 ## Immediate Recommendation
 
-Phase 0 and Phase 1 are complete. Next safe implementation scope is Phase 2:
-read-only immune/vulture evidence under `aios/maintenance/*`, not
+Phase 0, Phase 1, and Phase 2 are complete. Next safe implementation scope is
+Phase 3: local-only ecosystem scanning under `aios/maintenance/*`, not
 `aios/security/*`, unless the operator grants explicit Section VIII approval.
