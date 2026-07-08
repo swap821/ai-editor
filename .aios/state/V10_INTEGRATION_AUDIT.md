@@ -147,6 +147,9 @@ Exit tests:
 ### Phase 1 - Constitution Facade And Enforcer Adapter
 
 Risk: Medium. It touches policy vocabulary but must not replace authority.
+Status: Implemented 2026-07-09 as a typed facade plus strengthen-only enforcer
+adapter. It delegates to the existing gateway/router/budget/caste contracts and
+does not modify frozen security code.
 
 Add or modify:
 - `aios/policy/constitution.py`: typed, executable description of current
@@ -291,8 +294,9 @@ Do not implement until:
 ## Risk And Rollback Plan
 
 - Phase 0 rollback: revert the docs/test commit. No runtime behavior changes.
-- Policy/constitution rollback: keep new modules feature-flagged and
-  non-authoritative until tests prove delegation to existing gates.
+- Policy/constitution rollback: remove the facade/enforcer imports and
+  `tests/test_constitution.py`; no existing gateway/router/budget/caste
+  authority was replaced.
 - Immune/ecosystem rollback: begin read-only. If a finding pipeline is noisy,
   disable the route/config flag and keep collected reports as audit evidence.
 - Council memory rollback: write append-only verdict evidence; never require it
@@ -310,7 +314,7 @@ Required baseline before implementation:
   complete.
 
 Required targeted tests by feature:
-- Constitution facade blocks frozen paths and cannot approve RED/YELLOW actions.
+- Constitution facade blocks frozen paths and cannot auto-run RED/YELLOW actions.
 - Constitution enforcer delegates to existing gateway/router/budget/caste checks.
 - Vulture detects cognitive-parasite lessons and creates quarantine proposals
   without deleting or mutating state automatically.
@@ -324,12 +328,6 @@ Required targeted tests by feature:
 
 ## Immediate Recommendation
 
-Commit this audit first. Then create `.aios/state/V10_INTEGRATION_PLAN.md` with
-Phase 0 as the only active implementation scope:
-
-1. Extend thesis/config drift checks for post-v7 reality and v10 cloud wording.
-2. Update canonical docs so v7-built organs are no longer listed as missing.
-3. Add explicit approval gates for any future `aios/security/*` v10 immune or
-   ecosystem work.
-4. Run focused thesis/config tests before any feature code.
-
+Phase 0 and Phase 1 are complete. Next safe implementation scope is Phase 2:
+read-only immune/vulture evidence under `aios/maintenance/*`, not
+`aios/security/*`, unless the operator grants explicit Section VIII approval.

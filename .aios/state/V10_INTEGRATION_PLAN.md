@@ -2,6 +2,7 @@
 
 Date: 2026-07-09
 Audit: `.aios/state/V10_INTEGRATION_AUDIT.md`
+Status: Phase 0 and Phase 1 implemented and verified locally on 2026-07-09.
 
 Goal: integrate the useful GAGOS v10 "Sovereign Organism" contract into the
 real GAGOS repo without replacing the proven security, memory, router,
@@ -30,6 +31,8 @@ with `NotImplementedError` or allow/pass defaults must not enter production.
 
 Purpose: make the repo honest about the post-v7 state and prevent v10 plan drift
 from becoming new dogma.
+Status: Complete. `tools/thesis_audit.py`, docs, and focused tests now guard
+post-v7 truth/config drift.
 
 Files:
 - Extend `tools/thesis_audit.py`.
@@ -59,6 +62,9 @@ Exit gate:
 
 Purpose: add executable constitutional vocabulary without creating a parallel
 security authority.
+Status: Complete. The facade snapshots live config/caste/resource defaults, and
+the enforcer delegates to the existing security gateway, router policy, budget
+guard, and caste contract checks.
 
 Files:
 - Add `aios/policy/constitution.py`.
@@ -77,6 +83,11 @@ Exit gate:
 - Cloud checks reflect live router policy.
 - Caste spawn checks reflect live caste profiles.
 - Tests prove RED cannot be overridden by constitution output.
+
+Verification:
+- `.venv\Scripts\python.exe -m pytest tests/test_constitution.py -q` -> 5 passed
+- `.venv\Scripts\python.exe -m pytest tests/test_constitution.py tests/test_castes.py tests/test_hibernation_resource.py tests/test_router.py tests/test_policy_engine.py tests/test_thesis_audit.py -q` -> 55 passed
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage 92%
 
 ## Phase 2 - Immune System, Read-Only First
 
@@ -226,12 +237,12 @@ Reasons:
 
 ## Recommended Immediate Work
 
-Start Phase 0 only:
+Start Phase 2 only:
 
-1. Add post-v7 drift checks to `tools/thesis_audit.py`.
-2. Add failing tests for stale "Project Passport missing" and v10 cloud-default
-   wording.
-3. Update docs to match current code and tests.
-4. Run focused tests.
-5. Stop for review before Phase 1.
-
+1. Add failing tests for a read-only vulture/immune evidence scanner.
+2. Stage the implementation outside frozen core, preferably
+   `aios/maintenance/vulture_sanitation.py`.
+3. Prove it emits deterministic, redacted findings without writes, memory
+   mutation, pheromone mutation, cloud calls, or policy changes.
+4. Do not add `aios/security/*` v10 scanner files without explicit Section VIII
+   approval.
