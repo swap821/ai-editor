@@ -12,6 +12,7 @@ Exposes the subsystems behind versioned HTTP endpoints. Phase 3a + 3b are live:
     POST /api/v1/rollback          restore the sandbox to a prior snapshot
     GET  /api/v1/alignment/evaluation diagnostic human-alignment evidence
     POST /api/v1/alignment/feedback explicit human label for a visible frame
+    POST /api/v1/projects/passport/scan local-only project evidence scan
 
 Collaborators (LLM client, executor, rollback engine) are supplied via
 dependency injection so tests can override them with fakes/sandboxes and avoid
@@ -350,6 +351,7 @@ from aios.api.routes.actions import router as _actions_router  # noqa: E402
 from aios.api.routes.voice import router as _voice_router
 from aios.api.routes.sovereignty import router as _sovereignty_router
 from aios.api.routes.council import router as _council_router
+from aios.api.routes.projects import router as _projects_router
 
 app.include_router(_system_router)
 app.include_router(_auth_router)
@@ -360,6 +362,7 @@ app.include_router(_models_router)
 app.include_router(_voice_router)
 app.include_router(_sovereignty_router)
 app.include_router(_council_router)
+app.include_router(_projects_router)
 
 
 @app.middleware("http")

@@ -146,14 +146,17 @@ resume yourself — say so if asked). Don't report a task done without evidence
 - **Cross-provider router (`aios/core/router.py`):** `Auto` routes by task across
   local Ollama + (policy-permitted) AWS Bedrock + Google Gemini. The privacy
   boundary is operator-owned and deterministic — `AIOS_ROUTER_CLOUD_TASKS` (which
-  task classes may leave the machine; **empty by default = local-only**),
+  task classes may leave the machine; shipped default is `reasoning,coding`, set
+  `AIOS_ROUTER_CLOUD_TASKS=""` to force `auto` local-only),
   `AIOS_ROUTER_PREFER_LOCAL`, `AIOS_ROUTER_MAX_COST`, `AIOS_ROUTER_LLM_PICK` (a
   local model picks among policy-allowed candidates but can never escape the gate),
   `AIOS_ROUTER_CALIBRATION_WEIGHT` (blend measured per-(provider,model,task)
   verified success). The cage verifies regardless of provider; RED stays blocked.
   Gemini = `AIOS_GEMINI_PROJECT` (Vertex AI / gcloud ADC, `pip install google-genai`);
   Bedrock = `AIOS_BEDROCK_REGION` + `AWS_BEARER_TOKEN_BEDROCK` (backend env only).
-  Each turn emits a `route` SSE frame → the UI "active brain" badge.
+  `AIOS_SWARM_CLOUD_BURST` is a separate worker-swarm egress switch and is true by
+  default today; disable it for unattended/local-only runs. Each turn emits a
+  `route` SSE frame → the UI "active brain" badge.
 - **Gated agent modes (always gated + audited):** `AIOS_EARNED_AUTONOMY` — **enabled by
   default** (`config.py` `_env_bool("AIOS_EARNED_AUTONOMY", True)`) but grants nothing until
   earned: a YELLOW action class auto-applies only after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES`

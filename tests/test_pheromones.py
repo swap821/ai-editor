@@ -155,3 +155,78 @@ def test_multiple_resources(tmp_path: Path) -> None:
 
     all_results = store.query()
     assert len(all_results) == 2
+
+
+def test_council_loads_pheromone_context_into_contract(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from aios import config
+    from aios.council.council_orchestrator import CouncilOrchestrator
+    from aios.council.queens.planner import CouncilMissionRequest
+
+    monkeypatch.setattr(config, "PHEROMONE_ENABLED", True)
+    store = _store(tmp_path)
+    store.deposit(
+        PheromoneType.SUCCESS_TRAIL,
+        "src/foo.py",
+        "worker-forager",
+        strength=0.9,
+        payload={"summary": "similar edit verified twice"},
+    )
+
+    run = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime",
+        pheromone_store=store,
+    ).deliberate(
+        CouncilMissionRequest(
+            mission_id="mission-pheromone-context",
+            goal="edit foo safely",
+            workspace_root=tmp_path / "workspace",
+            allowed_files=["src/foo.py"],
+            allowed_tools=["read_file"],
+            verification_commands=[],
+        )
+    )
+
+    assert any("similar edit verified twice" in item for item in run.contract.pheromone_context)
+    assert run.contract.metadata["pheromone_context_non_authoritative"] is True
+    memory_verdict = next(v for v in run.verdicts if v.queen == "memory")
+    assert any("[success-trail] src/foo.py" in item for item in memory_verdict.constraints)
+
+
+def test_pheromone_context_cannot_override_red_security_decision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aios import config
+    from aios.council.council_orchestrator import CouncilOrchestrator
+    from aios.council.queens.planner import CouncilMissionRequest
+
+    monkeypatch.setattr(config, "PHEROMONE_ENABLED", True)
+    store = _store(tmp_path)
+    store.deposit(
+        PheromoneType.SUCCESS_TRAIL,
+        "aios/security/gateway.py",
+        "worker-builder",
+        strength=1.0,
+        payload={"summary": "previous protected edit claimed success"},
+    )
+
+    run = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime-red",
+        pheromone_store=store,
+    ).deliberate(
+        CouncilMissionRequest(
+            mission_id="mission-pheromone-red",
+            goal="edit protected gateway",
+            workspace_root=tmp_path / "workspace",
+            allowed_files=["aios/security/gateway.py"],
+            allowed_tools=["read_file"],
+            verification_commands=[],
+        )
+    )
+
+    assert any("previous protected edit claimed success" in item for item in run.contract.pheromone_context)
+    security_verdict = next(v for v in run.verdicts if v.queen == "security")
+    assert security_verdict.verdict == "deny"
+    assert security_verdict.risk == "RED"
+    assert run.worker_run is None
+    assert run.report.risk == "RED"

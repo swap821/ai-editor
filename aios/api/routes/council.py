@@ -35,6 +35,7 @@ from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
+from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
 
 # Cross-cutting helpers shared with other route modules still living in
 # main.py — imported rather than duplicated so there is exactly one
@@ -109,6 +110,8 @@ class CouncilMissionOriginationRequest(BaseModel):
     )
     risk_level: str = Field("YELLOW", alias="riskLevel")
     session_id: str = Field("council-session", alias="sessionId")
+    complex_task: bool = Field(False, alias="complexTask")
+    royal_decree: bool = Field(False, alias="royalDecree")
 
 
 # --------------------------------------------------------------------------- #
@@ -243,6 +246,7 @@ def _council_summary_from_artifacts(
         "modelRouting": _latest_intelligence_for_dashboard(report),
         "pendingApprovals": _pending_approvals_for_dashboard(runtime_root, mission_id),
         "kingDecision": _king_decision(runtime_root, mission_id),
+        "royalDecree": report.council_summary.get("royal_decree"),
         "updatedAt": updated_at,
     }
 
@@ -503,6 +507,11 @@ def council_originate(
         risk_level=req.risk_level,  # type: ignore[arg-type]
         metadata=mission_metadata,
     )
+    if req.royal_decree or req.complex_task or should_use_royal_decree(mission_request):
+        mission_request = apply_royal_decree(
+            mission_request,
+            force=req.royal_decree or req.complex_task,
+        )
     background.add_task(_run_council_deliberation, runtime_root, mission_request)
     return {"missionId": mission_id, "status": "deliberating"}
 

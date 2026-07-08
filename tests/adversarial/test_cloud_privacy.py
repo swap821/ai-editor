@@ -13,8 +13,9 @@ Tests verify that sensitive data never reaches cloud providers:
   P6: Router cloud-task policy enforcement
   P7: Scope-root privacy boundaries
 
-The local-first principle: cloud is opt-in, not default. The router's gate
-is deterministic — a model can never route a task the operator didn't opt in.
+The shipped router can make reasoning/coding cloud-eligible by default, but the
+router's gate is deterministic: a model can never route a task outside
+AIOS_ROUTER_CLOUD_TASKS, and setting AIOS_ROUTER_CLOUD_TASKS="" forces local-only.
 """
 from __future__ import annotations
 

@@ -162,7 +162,7 @@ def _maybe_llm_picker(
 
     Returns a callable only when it would actually matter: the picker is enabled
     (:data:`config.ROUTER_LLM_PICK`), there are **2+ candidates** for the task (so
-    there is a real choice — the default local-only path never reaches here, paying
+    there is a real choice — the single-candidate local path never reaches here, paying
     zero latency), and a local model exists to make the meta-decision. *cands* is
     the already-ranked candidate list (computed once by the caller, not re-derived).
     The picker asks a small/fast local model to choose from the allow-list; its
@@ -241,7 +241,7 @@ def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
     """Measured per-(provider,model,task) success rates for evidence calibration.
 
     Read only when it can change the route — an ``auto`` turn with cloud opted in
-    and calibration on — so the common (default, local-only) path never pays for a
+    and calibration on — so a common local-only or explicit-model path never pays for a
     DB read. Fail-soft: any error yields ``{}`` (the router falls back to heuristic).
     """
     if (
@@ -273,9 +273,10 @@ def _select_chat_client(
 
     ``auto`` runs the **cross-provider router**: the agent picks the best model for
     *task* across local + (policy-permitted) cloud providers. The privacy boundary
-    is deterministic and operator-owned (:func:`_router_policy`) — with the default
-    empty ``ROUTER_CLOUD_TASKS`` no task ever leaves the machine, so ``auto`` stays
-    local-only exactly as before. ``ollama.x`` always runs locally on ``x``. A
+    is deterministic and operator-owned (:func:`_router_policy`). The live config
+    currently ships ``reasoning,coding`` cloud-eligible; setting
+    ``AIOS_ROUTER_CLOUD_TASKS=""`` keeps ``auto`` local-only. ``ollama.x`` always
+    runs locally on ``x``. A
     ``gemini.x`` id routes to Google Gemini; ``openai.x`` to the OpenAI-compatible
     endpoint; ``anthropic.x`` to Anthropic direct; any other explicit id routes to
     Bedrock. Each explicit cloud pick fails clearly when that provider is

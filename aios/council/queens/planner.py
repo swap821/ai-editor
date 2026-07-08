@@ -16,6 +16,7 @@ from aios import config
 from aios.core.llm import LLMClient
 from aios.council.reasoning import plan_with_llm, reconcile_plan
 from aios.runtime.contracts import MissionContract, QueenVerdict
+from aios.runtime.castes import apply_caste_profile, caste_from_contract
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,6 +106,13 @@ class PlannerQueen:
                     contract, reason, constraints
                 )
 
+        caste_profile = caste_from_contract(contract)
+        if caste_profile is not None:
+            contract = apply_caste_profile(contract, caste_profile)
+            constraints = [
+                *constraints,
+                f"{caste_profile.name} caste profile applied; constraints can only narrow authority.",
+            ]
         verdict = "allow_with_approval" if contract.requires_approval else "allow"
         risk = contract.risk_level
         if not contract.allowed_files:

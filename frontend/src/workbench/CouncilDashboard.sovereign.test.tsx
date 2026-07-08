@@ -74,6 +74,87 @@ const CURRICULUM = {
   ],
 };
 
+const REPO_MAP = {
+  available: true,
+  localOnly: true,
+  activation: 'proposal/evidence',
+  trustedMemoryActivated: false,
+  lastScan: {
+    root: 'C:/repo',
+    generatedAt: '2026-07-08T00:00:00Z',
+    purpose: 'AI Editor - local-first AI OS',
+    stack: ['FastAPI', 'React'],
+    keyFileCount: 6,
+    evidenceFileCount: 12,
+    suggestedImprovementCount: 2,
+  },
+};
+
+const RESOURCE = {
+  mode: 'conservation',
+  cloud_calls: 1,
+  estimated_cost: 0.04,
+  worker_count: 2,
+  cpu_pressure: null,
+  memory_pressure: null,
+  cloud_allowed: false,
+  reason: 'resource mode conservation blocks cloud',
+  source: 'process_default',
+};
+
+const HIBERNATION = {
+  configuredMode: 'conservation',
+  hibernationMode: 'hibernation',
+  localOnly: true,
+  writesAllowed: false,
+  cloudAllowed: false,
+  lastRun: {
+    ranAt: '2026-07-08T00:00:00Z',
+    mode: 'hibernation',
+    localOnly: true,
+    writesPerformed: false,
+    cloudCalls: 0,
+    proposalCount: 3,
+    projectPassport: { skipped: false, activation: 'proposal/evidence' },
+    resourceMode: 'hibernation',
+  },
+};
+
+const PHEROMONES = {
+  pheromones: [
+    {
+      id: 1,
+      type: 'success',
+      resource: 'tests/test_castes.py',
+      depositor: 'council',
+      strength: 0.74,
+      payload: {},
+      created_at: '2026-07-08T00:00:00Z',
+    },
+  ],
+};
+
+const COUNCIL_MISSIONS = {
+  missions: [
+    {
+      missionId: 'mission-1',
+      mission: 'complex mission',
+      status: 'awaiting_approval',
+      recommendation: 'proceed',
+      risk: 'YELLOW',
+      pendingApprovals: [{ requestId: 'approval-1' }],
+      royalDecree: {
+        scout_contract: { metadata: { caste: 'forager' } },
+        worker_contracts: [
+          { metadata: { caste: 'builder' } },
+          { metadata: { caste: 'scout' } },
+        ],
+      },
+    },
+  ],
+  count: 1,
+};
+
 let posts: Array<{ url: string; body: string }> = [];
 
 function mockFetch() {
@@ -86,7 +167,17 @@ function mockFetch() {
         posts.push({ url: u, body: String(init?.body ?? '') });
         return { ok: true, status: 200, json: async () => ({}) } as unknown as Response;
       }
-      const payload = u.includes('/self-analysis/proposals')
+      const payload = u.includes('/projects/passport/status')
+        ? REPO_MAP
+        : u.includes('/resource/status')
+          ? RESOURCE
+          : u.includes('/hibernation/status')
+            ? HIBERNATION
+            : u.includes('/pheromones/surface')
+              ? PHEROMONES
+              : u.includes('/council/missions')
+                ? COUNCIL_MISSIONS
+                : u.includes('/self-analysis/proposals')
         ? { proposals: [PROPOSAL] }
         : u.includes('/development/autonomy')
           ? AUTONOMY
@@ -135,9 +226,17 @@ describe('CouncilDashboard sovereignty views', () => {
     );
   });
 
-  it('renders all four sovereign sections and revokes an earned signature', async () => {
+  it('renders sovereign sections and revokes an earned signature', async () => {
     render(<CouncilDashboard />);
     fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    expect(await screen.findByText(/Sovereign Superorganism v7/)).toBeInTheDocument();
+    expect(screen.getByText(/AI Editor - local-first AI OS/)).toBeInTheDocument();
+    expect(screen.getAllByText(/conservation/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/cloud blocked/)).toBeInTheDocument();
+    expect(screen.getByText(/3 proposals/)).toBeInTheDocument();
+    expect(screen.getByText(/success · tests\/test_castes.py · 74%/)).toBeInTheDocument();
+    expect(screen.getByText(/builder x1, forager x1, scout x1/)).toBeInTheDocument();
+    expect(screen.getByText(/4 pending item/)).toBeInTheDocument();
     expect(await screen.findByText(/Earned Autonomy/)).toBeInTheDocument();
     expect(screen.getByText(/execute_terminal/)).toBeInTheDocument();
     expect(screen.getByText(/operator — prefers — dark mode/)).toBeInTheDocument();

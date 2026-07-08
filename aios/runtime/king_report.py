@@ -79,26 +79,31 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
             f"⚠ Weak verification ({strength.name} < {floor} floor). " + human_summary
         )
 
+    royal_decree = ledger.contract.metadata.get("royal_decree")
+    council_summary = {
+        "workers_created": ledger.workers_created,
+        "blocked_attempts": len(ledger.blocked_attempts),
+        "backend": result.evidence.get("backend", "controlled_subprocess"),
+        "council_verdicts": [
+            {
+                "queen": verdict.queen,
+                "verdict": verdict.verdict,
+                "risk": verdict.risk,
+                "reason": verdict.reason,
+                "confidence": verdict.confidence,
+            }
+            for verdict in ledger.council_verdicts
+        ],
+        "model_routing": intelligence,
+    }
+    if isinstance(royal_decree, dict):
+        council_summary["royal_decree"] = royal_decree
+
     return KingReport(
         mission_id=ledger.mission_id,
         mission=ledger.mission,
         status=status,
-        council_summary={
-            "workers_created": ledger.workers_created,
-            "blocked_attempts": len(ledger.blocked_attempts),
-            "backend": result.evidence.get("backend", "controlled_subprocess"),
-            "council_verdicts": [
-                {
-                    "queen": verdict.queen,
-                    "verdict": verdict.verdict,
-                    "risk": verdict.risk,
-                    "reason": verdict.reason,
-                    "confidence": verdict.confidence,
-                }
-                for verdict in ledger.council_verdicts
-            ],
-            "model_routing": intelligence,
-        },
+        council_summary=council_summary,
         recommendation=recommendation,
         risk=ledger.risk_after,
         files=list(ledger.files_touched),
@@ -118,25 +123,30 @@ def build_deliberation_report(
 ) -> KingReport:
     """Pre-execution report: the council has deliberated and the mission awaits
     King approval. No worker has run; nothing has been edited yet."""
+    royal_decree = contract.metadata.get("royal_decree")
+    council_summary = {
+        "workers_created": [],
+        "blocked_attempts": 0,
+        "council_verdicts": [
+            {
+                "queen": verdict.queen,
+                "verdict": verdict.verdict,
+                "risk": verdict.risk,
+                "reason": verdict.reason,
+                "confidence": verdict.confidence,
+            }
+            for verdict in verdicts
+        ],
+        "model_routing": {},
+    }
+    if isinstance(royal_decree, dict):
+        council_summary["royal_decree"] = royal_decree
+
     return KingReport(
         mission_id=contract.mission_id,
         mission=contract.goal,
         status="awaiting_approval",
-        council_summary={
-            "workers_created": [],
-            "blocked_attempts": 0,
-            "council_verdicts": [
-                {
-                    "queen": verdict.queen,
-                    "verdict": verdict.verdict,
-                    "risk": verdict.risk,
-                    "reason": verdict.reason,
-                    "confidence": verdict.confidence,
-                }
-                for verdict in verdicts
-            ],
-            "model_routing": {},
-        },
+        council_summary=council_summary,
         recommendation="approve" if contract.requires_approval else "observe",
         risk=contract.risk_level,
         files=list(contract.allowed_files),

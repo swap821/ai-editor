@@ -4,7 +4,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from aios import config
 from aios.runtime.contracts import MissionContract
+from aios.runtime.resource_ecology import (
+    ResourceMode,
+    ResourceSnapshot,
+    cpu_pressure,
+    memory_pressure,
+    normalize_resource_mode,
+)
 
 
 @dataclass(frozen=True)
@@ -40,6 +48,10 @@ class BudgetGuard:
 
     usage_by_mission: dict[str, BudgetUsage] = field(default_factory=dict)
     daily_cost_total: float = 0.0
+    mode: ResourceMode = field(
+        default_factory=lambda: normalize_resource_mode(config.RESOURCE_MODE)
+    )
+    worker_count: int = 0
 
     def policy_for(self, contract: MissionContract) -> ModelPolicy:
         raw = contract.metadata.get("model_policy", {})
@@ -65,6 +77,10 @@ class BudgetGuard:
         estimated_cost: float = 0.0,
     ) -> BudgetDecision:
         policy = self.policy_for(contract)
+        if self.mode == "hibernation":
+            return BudgetDecision(False, "resource mode hibernation blocks cloud", policy.fallback)
+        if self.mode == "conservation":
+            return BudgetDecision(False, "resource mode conservation blocks cloud", policy.fallback)
         if policy.mode == "local" or not policy.allow_cloud:
             return BudgetDecision(False, "cloud disabled by model_policy", policy.fallback)
         if estimated_tokens > policy.max_tokens_per_request:
@@ -99,10 +115,37 @@ class BudgetGuard:
         usage.cost_total += cost
         self.daily_cost_total += cost
 
+    def set_mode(self, mode: str) -> None:
+        self.mode = normalize_resource_mode(mode)
+
+    def snapshot(self) -> ResourceSnapshot:
+        cloud_calls = sum(usage.cloud_calls for usage in self.usage_by_mission.values())
+        cloud_allowed = self.mode == "normal"
+        reason = "cloud eligible subject to per-mission policy" if cloud_allowed else (
+            f"resource mode {self.mode} blocks cloud"
+        )
+        return ResourceSnapshot(
+            mode=self.mode,
+            cloud_calls=cloud_calls,
+            estimated_cost=self.daily_cost_total,
+            worker_count=self.worker_count,
+            cpu_pressure=cpu_pressure(),
+            memory_pressure=memory_pressure(),
+            cloud_allowed=cloud_allowed,
+            reason=reason,
+        )
+
     def _optional_float(self, value: Any) -> float | None:
         if value is None:
             return None
         return float(value)
 
 
-__all__ = ["BudgetDecision", "BudgetGuard", "BudgetUsage", "ModelPolicy"]
+__all__ = [
+    "BudgetDecision",
+    "BudgetGuard",
+    "BudgetUsage",
+    "ModelPolicy",
+    "ResourceMode",
+    "ResourceSnapshot",
+]

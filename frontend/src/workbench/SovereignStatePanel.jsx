@@ -47,11 +47,50 @@ function asArray(value) {
 
 const AUTONOMY_TONE = { earned: 'ok', probation: 'warn', revoked: 'danger' };
 
+function resourceTone(mode) {
+  if (mode === 'normal') return 'ok';
+  if (mode === 'conservation' || mode === 'hibernation') return 'warn';
+  return 'danger';
+}
+
+function collectCasteCounts(council) {
+  const counts = {};
+  asArray(council?.missions).forEach((mission) => {
+    const decree = mission.royalDecree || {};
+    const contracts = [decree.scout_contract, ...asArray(decree.worker_contracts)];
+    contracts.forEach((contract) => {
+      const caste = contract?.metadata?.caste;
+      if (!caste) return;
+      counts[caste] = (counts[caste] || 0) + 1;
+    });
+  });
+  return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
+}
+
+function pendingProposalCount({ facts, curriculum, council, selfAnalysis }) {
+  const pendingApprovals = asArray(council?.missions).reduce(
+    (total, mission) => total + asArray(mission.pendingApprovals).length,
+    0,
+  );
+  const selfAnalysisPending = asArray(selfAnalysis?.proposals).filter((proposal) => (
+    proposal?.status || 'proposed'
+  ) === 'proposed').length;
+  return facts.length + curriculum.length + pendingApprovals + selfAnalysisPending;
+}
+
 export default function SovereignStatePanel() {
   const [autonomy, setAutonomy] = useState(null);
   const [facts, setFacts] = useState([]);
   const [trails, setTrails] = useState(null);
   const [curriculum, setCurriculum] = useState([]);
+  const [v7, setV7] = useState({
+    repoMap: null,
+    resource: null,
+    hibernation: null,
+    pheromones: null,
+    council: null,
+    selfAnalysis: null,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -60,7 +99,7 @@ export default function SovereignStatePanel() {
   const load = useCallback(async (signal) => {
     setLoading(true);
     setError('');
-    // Four independent reads; one failing section must not blank the others.
+    // Independent reads; one failing section must not blank the others.
     // Facts ride the adapter's existing quarantine helper (shared with the
     // memory halo) instead of a re-implemented fetch.
     const results = await Promise.allSettled([
@@ -68,6 +107,12 @@ export default function SovereignStatePanel() {
       fetchPendingFacts(),
       getJson('/api/v1/development/trails', signal),
       getJson('/api/v1/development/curriculum/proposals', signal),
+      getJson('/api/v1/projects/passport/status', signal),
+      getJson('/api/v1/resource/status', signal),
+      getJson('/api/v1/hibernation/status', signal),
+      getJson('/api/v1/pheromones/surface', signal),
+      getJson('/api/v1/council/missions?limit=8', signal),
+      getJson('/api/v1/self-analysis/proposals', signal),
     ]);
     // An aborted load is a CANCELLED load (unmount / StrictMode cleanup), not
     // a failure: bail before any setState, or the abandoned first pass would
@@ -75,11 +120,30 @@ export default function SovereignStatePanel() {
     if (results.some((r) => r.status === 'rejected' && r.reason?.name === 'AbortError')) {
       return;
     }
-    const [autonomyR, factsR, trailsR, curriculumR] = results;
+    const [
+      autonomyR,
+      factsR,
+      trailsR,
+      curriculumR,
+      repoMapR,
+      resourceR,
+      hibernationR,
+      pheromonesR,
+      councilR,
+      selfAnalysisR,
+    ] = results;
     if (autonomyR.status === 'fulfilled') setAutonomy(autonomyR.value);
     if (factsR.status === 'fulfilled') setFacts(asArray(factsR.value));
     if (trailsR.status === 'fulfilled') setTrails(trailsR.value);
     if (curriculumR.status === 'fulfilled') setCurriculum(asArray(curriculumR.value.proposals));
+    setV7({
+      repoMap: repoMapR.status === 'fulfilled' ? repoMapR.value : null,
+      resource: resourceR.status === 'fulfilled' ? resourceR.value : null,
+      hibernation: hibernationR.status === 'fulfilled' ? hibernationR.value : null,
+      pheromones: pheromonesR.status === 'fulfilled' ? pheromonesR.value : null,
+      council: councilR.status === 'fulfilled' ? councilR.value : null,
+      selfAnalysis: selfAnalysisR.status === 'fulfilled' ? selfAnalysisR.value : null,
+    });
     if (results.every((r) => r.status === 'rejected')) setError('Sovereign state link offline');
     setLoading(false);
   }, []);
@@ -108,6 +172,19 @@ export default function SovereignStatePanel() {
 
   const entries = asArray(autonomy?.entries);
   const trailRows = asArray(trails?.trails).slice(0, 8);
+  const repoMap = v7.repoMap;
+  const resource = v7.resource;
+  const hibernation = v7.hibernation;
+  const pheromoneRows = asArray(v7.pheromones?.pheromones).slice(0, 4);
+  const casteCounts = collectCasteCounts(v7.council);
+  const pendingCount = pendingProposalCount({
+    facts,
+    curriculum,
+    council: v7.council,
+    selfAnalysis: v7.selfAnalysis,
+  });
+  const resourceMode = resource?.mode || 'unknown';
+  const repoLastScan = repoMap?.lastScan;
 
   return (
     <div className="council-dashboard__body" aria-label="Sovereign state">
@@ -117,6 +194,68 @@ export default function SovereignStatePanel() {
         <div className="council-dashboard__empty">{error}</div>
       ) : (
         <div className="council-dashboard__detail">
+          <section className="council-dashboard__section" aria-label="V7 truth surface">
+            <h3>
+              <ShieldCheck size={14} aria-hidden="true" /> Sovereign Superorganism v7
+              <span className={`council-dashboard__badge is-${repoMap?.localOnly ? 'ok' : 'warn'}`}>
+                {repoMap?.localOnly ? 'local only' : 'status partial'}
+              </span>
+              <span className={`council-dashboard__badge is-${resourceTone(resourceMode)}`}>
+                {resourceMode}
+              </span>
+            </h3>
+            <div className="council-dashboard__grid">
+              <span>
+                <b>RepoMap</b>
+                {repoMap
+                  ? repoLastScan
+                    ? `${String(repoLastScan.purpose || 'scanned').slice(0, 54)} · ${repoMap.activation}`
+                    : `ready · ${repoMap.activation}`
+                  : 'offline'}
+              </span>
+              <span>
+                <b>Resource</b>
+                {resource
+                  ? `${resourceMode} · ${resource.cloud_allowed ? 'cloud allowed' : 'cloud blocked'}`
+                  : 'offline'}
+              </span>
+              <span>
+                <b>Hibernation</b>
+                {hibernation
+                  ? hibernation.lastRun
+                    ? `${hibernation.lastRun.proposalCount ?? 0} proposals · ${hibernation.lastRun.cloudCalls ?? 0} cloud calls`
+                    : 'not run · writes/cloud blocked'
+                  : 'offline'}
+              </span>
+              <span>
+                <b>Pheromones</b>
+                {v7.pheromones ? `${pheromoneRows.length} advisory signal(s)` : 'disabled or offline'}
+              </span>
+              <span>
+                <b>Caste contracts</b>
+                {casteCounts.length
+                  ? casteCounts.map(([caste, count]) => `${caste} x${count}`).join(', ')
+                  : 'none contracted'}
+              </span>
+              <span>
+                <b>Pending proposals</b>
+                {pendingCount} pending item(s)
+              </span>
+            </div>
+            <p className="council-dashboard__muted">
+              RepoMap and pheromones are proposal evidence only; security, verification, and King approval stay authoritative.
+            </p>
+            {pheromoneRows.length ? (
+              <div className="council-dashboard__route" aria-label="Pheromone trails">
+                {pheromoneRows.map((trail) => (
+                  <span key={`${trail.type}-${trail.resource}-${trail.id}`}>
+                    {trail.type} · {String(trail.resource).slice(0, 42)} · {Math.round((trail.strength ?? 0) * 100)}%
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
           <section className="council-dashboard__section" aria-label="Earned autonomy ledger">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Earned Autonomy

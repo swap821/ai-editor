@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from aios import config
+from aios.memory.pheromones import PheromoneStore
 from aios.council.council_state import CouncilState
 from aios.council.king_reasoning import reason_king
 from aios.council.queen_verdict import (
@@ -77,6 +78,7 @@ class CouncilOrchestrator:
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
         council_state: CouncilState | None = None,
+        pheromone_store: PheromoneStore | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
         self.spawner = spawner or WorkerSpawner(runtime_root=self.runtime_root)
@@ -96,6 +98,13 @@ class CouncilOrchestrator:
         self.report_store = report_store or self.spawner.report_store
         # Optional Phase-3A durable deliberation log. None → no persistence.
         self.council_state = council_state
+        self.pheromone_store = pheromone_store
+        if self.pheromone_store is None and config.PHEROMONE_ENABLED:
+            self.pheromone_store = PheromoneStore(
+                db_path=config.PHEROMONE_DB,
+                lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
+                floor=config.PHEROMONE_FLOOR,
+            )
 
     async def run(self, request: CouncilMissionRequest | MissionContract) -> CouncilRun:
         """Full loop: deliberate, then execute when the council does not block.
@@ -115,7 +124,7 @@ class CouncilOrchestrator:
         report with status ``awaiting_approval`` (passed) or ``blocked`` (denied).
         Claims the mission dir so a later execute() need not re-claim."""
         draft = self.planner.draft(request)
-        contract = draft.contract
+        contract = self._apply_pheromone_context(draft.contract)
         verdicts = [draft.verdict]
         # Claim once, here — covers both the blocked and awaiting-approval paths
         # (and the later execute() phase, which spawns with claim=False).
@@ -221,6 +230,31 @@ class CouncilOrchestrator:
             worker_run=worker_run,
             ledger_path=ledger_path,
             report_path=report_path,
+        )
+
+    def _apply_pheromone_context(self, contract: MissionContract) -> MissionContract:
+        """Attach decayed pheromone hints as non-authoritative contract context."""
+        if not config.PHEROMONE_ENABLED or self.pheromone_store is None:
+            return contract
+        if not contract.allowed_files:
+            return contract
+        try:
+            contexts = self.pheromone_store.for_contract(list(contract.allowed_files))
+        except Exception as exc:  # noqa: BLE001 - pheromones may suggest, never block
+            _LOGGER.warning("pheromone_context_unavailable", exc_info=exc)
+            return contract
+        if not contexts:
+            return contract
+        combined: list[str] = []
+        for item in [*contract.pheromone_context, *contexts]:
+            if item and item not in combined:
+                combined.append(item)
+        metadata = dict(contract.metadata)
+        metadata["pheromone_context_count"] = len(contexts)
+        metadata["pheromone_context_non_authoritative"] = True
+        metadata["pheromone_context_source"] = "PheromoneStore.for_contract"
+        return contract.model_copy(
+            update={"pheromone_context": combined[:20], "metadata": metadata}
         )
 
     def _apply_council_context(

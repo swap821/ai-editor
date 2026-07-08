@@ -94,7 +94,7 @@ plus the new `/api/v1/chat`.
 
 | Surplus feature | Where | Notes |
 |---|---|---|
-| **Multi-LLM hybrid router** | `aios/core/router.py`, `gemini.py`, `bedrock.py`, `failover.py`, `catalog.py` | Cross-provider, **privacy-gated** (`AIOS_ROUTER_CLOUD_TASKS` empty by default ⇒ `auto` stays local-only, `config.py:346`), evidence-calibrated, failover-truthful active-brain badge. Both clouds live-verified. Dedicated suites (router/route-wiring/failover/gemini/bedrock/catalog) |
+| **Multi-LLM hybrid router** | `aios/core/router.py`, `gemini.py`, `bedrock.py`, `failover.py`, `catalog.py` | Cross-provider, **privacy-gated** (`AIOS_ROUTER_CLOUD_TASKS` ships as `reasoning,coding`; set `AIOS_ROUTER_CLOUD_TASKS=""` to force `auto` local-only, `config.py:346`), evidence-calibrated, failover-truthful active-brain badge. Both clouds live-verified. Dedicated suites (router/route-wiring/failover/gemini/bedrock/catalog) |
 | **Jarvis voice mind (Slice 1)** | `POST /api/v1/chat` (`main.py:2138`) | Hinglish conversational endpoint; reuses router+memory+facts; tools=None (no forge loop); honest about itself in the docstring ("CONVERSATION, not the agentic forge") |
 | **Earned autonomy** (evidence→GREEN bridge) | `aios/core/autonomy.py` | OFF by default (`AIOS_EARNED_AUTONOMY=False`, `config.py:177`); double-gated by `MIN_SUCCESSES=5` (`config.py:179`); **RED is structurally un-earnable**. Ledger + integration tests; distinct audit-chain entry |
 | **Self-analysis T0–T4** | `self_analysis_agent.py` + `self_apply.py` | Faithful build of `aiosv6_assessment_text.md` §6. T0 index → T1 diagnose (AST) → T2 propose-diff → T3 guarded apply → T4 frozen-core-RED. Golden-regression freeze (`tests/test_golden_analysis.py`) with a load-bearing vacuity guard |

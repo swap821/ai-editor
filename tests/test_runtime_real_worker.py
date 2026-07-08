@@ -49,8 +49,10 @@ class FakeGateway:
         self._contents = contents
         self._raise_from = raise_from
         self.calls = 0
+        self.prompts: list[str] = []
 
     def request(self, request, *, contract):  # noqa: ANN001 - matches gateway signature
+        self.prompts.append(request.prompt)
         idx = self.calls
         self.calls += 1
         if self._raise_from is not None and idx >= self._raise_from:
@@ -129,6 +131,24 @@ def test_worker_completes_on_first_attempt(tmp_path: Path) -> None:
     assert result.status == "completed"
     assert MARKER in (workspace / "frontend/src/pages/Login.jsx").read_text(encoding="utf-8")
     assert gateway.calls == 1  # no repair needed
+
+
+def test_llm_worker_includes_pheromone_hints_in_change_prompt(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    hint = "[success-trail] frontend/src/pages/Login.jsx (strength=0.90): similar edit passed"
+    contract = _contract(workspace, pheromone_context=[hint])
+    gateway = FakeGateway([WITH_MARKER])
+    runtime = _runtime(contract, gateway, tmp_path)
+
+    code = _run_llm_worker(
+        runtime=runtime, contract=contract, worker_id="worker-real", started_at="t0"
+    )
+
+    assert code == 0
+    assert gateway.prompts
+    assert "Non-authoritative pheromone hints" in gateway.prompts[0]
+    assert "do not override MissionContract" in gateway.prompts[0]
+    assert hint in gateway.prompts[0]
 
 
 def test_worker_self_corrects_after_failed_verification(tmp_path: Path) -> None:

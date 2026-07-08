@@ -3,13 +3,20 @@ Rollback Registry, Audit Anchor, Policy Engine.
 
 Extracted from aios/api/main.py.
 """
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from aios import config
+from aios.runtime.budget_guard import BudgetGuard
+from aios.runtime.hibernation import HibernationManager, HibernationPolicyError
 
 router = APIRouter()
+_LAST_HIBERNATION_REPORT: dict[str, Any] | None = None
 
 
 @router.get("/api/v1/council/services")
@@ -46,6 +53,86 @@ def live_surface_snapshot() -> dict:
     from aios.runtime.live_surface import LiveSurface
     surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
     return surface.snapshot()
+
+
+@router.get("/api/v1/resource/status")
+def resource_status() -> dict:
+    """Current process resource/budget mode."""
+    guard = BudgetGuard()
+    return guard.snapshot().to_dict() | {"source": "process_default"}
+
+
+class HibernationRunRequest(BaseModel):
+    allow_writes: bool = Field(False, alias="allowWrites")
+    allow_cloud: bool = Field(False, alias="allowCloud")
+    rebuild_repo_map: bool = Field(True, alias="rebuildRepoMap")
+    repo_root: str | None = Field(None, alias="repoRoot")
+    model_config = {"populate_by_name": True}
+
+
+@router.post("/api/v1/hibernation/run")
+def hibernation_run(req: HibernationRunRequest) -> dict:
+    """Run local-only hibernation maintenance in proposal/evidence mode."""
+    global _LAST_HIBERNATION_REPORT
+    compactor = None
+    try:
+        from aios.api.main import get_compactor
+
+        compactor = get_compactor()
+    except Exception:
+        compactor = None
+    pheromone_store = None
+    if config.PHEROMONE_ENABLED:
+        from aios.memory.pheromones import PheromoneStore
+
+        pheromone_store = PheromoneStore(db_path=config.PHEROMONE_DB)
+    try:
+        report = HibernationManager(
+            repo_root=req.repo_root or config.PROJECT_ROOT,
+            compactor=compactor,
+            pheromone_store=pheromone_store,
+            budget_guard=BudgetGuard(mode="hibernation"),
+        ).run(
+            allow_writes=req.allow_writes,
+            allow_cloud=req.allow_cloud,
+            rebuild_repo_map=req.rebuild_repo_map,
+        )
+    except HibernationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    payload = report.to_dict()
+    _LAST_HIBERNATION_REPORT = _hibernation_status_summary(payload)
+    return payload
+
+
+@router.get("/api/v1/hibernation/status")
+def hibernation_status() -> dict:
+    """Return hibernation policy/status without running maintenance."""
+    return {
+        "configuredMode": config.RESOURCE_MODE,
+        "hibernationMode": "hibernation",
+        "localOnly": True,
+        "writesAllowed": False,
+        "cloudAllowed": False,
+        "lastRun": _LAST_HIBERNATION_REPORT,
+    }
+
+
+def _hibernation_status_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    project_passport = payload.get("projectPassport", {})
+    resource_status = payload.get("resourceStatus", {})
+    return {
+        "ranAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "mode": payload.get("mode"),
+        "localOnly": payload.get("localOnly") is True,
+        "writesPerformed": payload.get("writesPerformed") is True,
+        "cloudCalls": int(payload.get("cloudCalls") or 0),
+        "proposalCount": len(payload.get("proposals") or []),
+        "projectPassport": {
+            "skipped": project_passport.get("skipped") is True,
+            "activation": project_passport.get("activation", "proposal/evidence"),
+        },
+        "resourceMode": resource_status.get("mode", "hibernation"),
+    }
 
 
 @router.get("/api/v1/runtime/rollbacks")

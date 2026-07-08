@@ -190,11 +190,13 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
     target = workspace / "frontend" / "src" / "pages" / "Login.jsx"
     target.parent.mkdir(parents=True)
     target.write_text("export function Login() { return null; }\n", encoding="utf-8")
+    hint = "[success-trail] frontend/src/pages/Login.jsx (strength=0.90): similar plan passed"
     contract = _mission(
         workspace,
         allowed_tools=["request_plan", "read_file", "write_file", "run_command"],
         forbidden_files=["backend/"],
         verification_commands=[f"{sys.executable} -c \"print('verification ok')\""],
+        pheromone_context=[hint],
         metadata={
             "hybrid_plan_prompt": "Plan a frontend-only edit",
             "allow_cloud_reasoning": True,
@@ -211,8 +213,10 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
     result_path = tmp_path / "result.json"
     contract_path.write_text(contract.model_dump_json(), encoding="utf-8")
 
+    seen_prompts: list[str] = []
     class PatchedGateway:
         def request(self, request: IntelligenceRequest, *, contract: MissionContract):
+            seen_prompts.append(request.prompt)
             return IntelligenceResponse(
                 provider="gemini",
                 model="gemini-test",
@@ -236,6 +240,10 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
     result = result_path.read_text(encoding="utf-8")
     assert "Use the allowed file only." in result
     assert "request_plan" in result
+    assert seen_prompts
+    assert "Non-authoritative pheromone hints" in seen_prompts[0]
+    assert "do not override MissionContract" in seen_prompts[0]
+    assert hint in seen_prompts[0]
     assert "// Council Runtime deterministic worker heartbeat" in target.read_text(
         encoding="utf-8"
     )

@@ -199,7 +199,7 @@ A serious system names its limits:
 
 Deny dangerous actions by default · require approval for risky operations · keep audit logs · separate observation from memory · separate AI suggestion from trusted fact · never auto-trust model output or web content · keep memory editable and reversible · prefer local execution · **fail closed when uncertain.**
 
-Two distinctions reviewers often miss. First, fail-closed governs **actions**: an uncertain classification denies execution. A contradiction in **knowledge** is handled differently — the fact refuses activation and the system asks the sovereign; that pause is the design working, not a failure mode. Second, local-first governs **egress**: a cloud route requires per-task-class operator opt-in (`AIOS_ROUTER_CLOUD_TASKS`, empty by default = local-only), and anything that does leave passes the privacy filter with paths and secrets redacted.
+Two distinctions reviewers often miss. First, fail-closed governs **actions**: an uncertain classification denies execution. A contradiction in **knowledge** is handled differently — the fact refuses activation and the system asks the sovereign; that pause is the design working, not a failure mode. Second, local-first governs **egress**: this shipped config makes `reasoning,coding` cloud-eligible through `AIOS_ROUTER_CLOUD_TASKS`; set `AIOS_ROUTER_CLOUD_TASKS=""` to force `auto` local-only. A cloud route still requires a configured provider and privacy filtering with paths and secrets redacted. Swarm cloud-burst is a separate switch (`AIOS_SWARM_CLOUD_BURST`, currently true by default) and must be treated as a distinct egress control.
 
 ---
 

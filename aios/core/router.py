@@ -11,12 +11,11 @@ The design is **hybrid**, in three deterministic layers + one optional LLM layer
 
   1. **POLICY (operator-owned, deterministic).** A :class:`Policy` gates which
      ``(task, provider)`` pairs are even *eligible*: a PRIVACY gate (a cloud
-     provider is allowed only for task classes the operator opted in via
-     ``cloud_tasks``), a COST ceiling, and availability. The default
-     :data:`LOCAL_FIRST` policy has an **empty** ``cloud_tasks`` -> nothing ever
-     leaves the machine, so wiring this router in is behaviour-preserving until
-     the operator sets the privacy boundary. **The local LLM can never override
-     the policy** — it only chooses *within* the allowed set.
+     provider is allowed only for task classes present in ``cloud_tasks``), a COST
+     ceiling, and availability. The pure :data:`LOCAL_FIRST` fallback has an
+     **empty** ``cloud_tasks`` -> nothing ever leaves the machine; the live API
+     layer passes the configured process default instead. **The local LLM can
+     never override the policy** — it only chooses *within* the allowed set.
   2. **DETERMINISTIC RANK.** The allowed candidates are scored by a transparent
      heuristic (capability tier, a local-first bias, cost), optionally blended
      with **evidence calibration** — the measured per-(provider, model, task)
@@ -132,10 +131,9 @@ class Provider:
 class Policy:
     """The operator-owned routing policy. **The local LLM cannot override it.**
 
-    * ``cloud_tasks`` — the task classes ALLOWED to leave the machine. Default
-      **empty** -> local-first, nothing goes to cloud (the safe default until the
-      operator sets the privacy boundary). To let generic reasoning escalate, the
-      operator adds e.g. ``TASK_REASONING``.
+    * ``cloud_tasks`` — the task classes ALLOWED to leave the machine. Empty means
+      local-first and no automatic cloud route. The API wiring passes the
+      configured process default, which may be non-empty.
     * ``max_cost`` — the highest cost tier any route may use.
     * ``prefer_local`` — when True (default), a local candidate gets a small bias
       so it wins ties; capability/evidence gaps can still escalate to an allowed
@@ -147,9 +145,8 @@ class Policy:
     prefer_local: bool = True
 
 
-#: The behaviour-preserving default: cloud disabled (empty ``cloud_tasks``),
-#: local-first. Wiring the router in under this policy keeps today's local-only
-#: routing byte-for-byte until the operator opts task classes into the cloud.
+#: Pure fallback policy: cloud disabled (empty ``cloud_tasks``), local-first.
+#: The live process usually passes :mod:`aios.config`'s configured policy instead.
 LOCAL_FIRST = Policy()
 
 

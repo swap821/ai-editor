@@ -215,6 +215,7 @@ SWARM_SCOUT_EXPLORATION_BONUS: Final[float] = _env_float(
 SWARM_ADAPTIVE_SIZING: Final[bool] = _env_bool("AIOS_SWARM_ADAPTIVE_SIZING", True)
 SWARM_MIN_WORKERS: Final[int] = _env_int("AIOS_SWARM_MIN_WORKERS", 1)
 SWARM_MEMORY_PER_WORKER_MB: Final[int] = _env_int("AIOS_SWARM_MEMORY_PER_WORKER_MB", 256)
+RESOURCE_MODE: Final[str] = _env_str("AIOS_RESOURCE_MODE", "normal").strip().lower()
 
 CONFIDENCE_THRESHOLD: Final[float] = _env_float("AIOS_CONFIDENCE_THRESHOLD", 0.72)
 MAX_RED_ACTIONS_PER_SESSION: Final[int] = _env_int("AIOS_MAX_RED_ACTIONS", 3)
@@ -461,6 +462,7 @@ def startup_banner() -> dict[str, object]:
         "earned_autonomy": EARNED_AUTONOMY_ENABLED,
         "council_runtime_dir": str(COUNCIL_RUNTIME_DIR),
         "council_reasoning": COUNCIL_REASONING,
+        "resource_mode": RESOURCE_MODE,
         "scope_roots": [str(p) for p in SCOPE_ROOTS],
         "offline_mode": OFFLINE_MODE,
     }
@@ -491,6 +493,7 @@ __all__ = [
     "SWARM_CONFLICT_STRATEGY", "SWARM_CONFLICT_TIMEOUT_S",
     "SWARM_SCOUT_TEMPERATURE", "SWARM_SCOUT_EXPLORATION_BONUS",
     "SWARM_ADAPTIVE_SIZING", "SWARM_MIN_WORKERS", "SWARM_MEMORY_PER_WORKER_MB",
+    "RESOURCE_MODE",
     "CONFIDENCE_THRESHOLD", "MAX_RED_ACTIONS_PER_SESSION",
     "YELLOW_APPROVAL_TIMEOUT_MS", "RED_APPROVAL_TIMEOUT_MS",
     "AUDIT_GENESIS_HASH", "INJECTION_VECTOR_SHIELD", "INJECTION_VECTOR_THRESHOLD",
