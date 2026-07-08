@@ -12,6 +12,7 @@ approval surface.
 from __future__ import annotations
 
 import json
+import os
 from typing import Iterator, Optional
 
 import pytest
@@ -219,15 +220,26 @@ def _generate(client: TestClient, session_id: str, text: str):
     )
 
 
-def test_plan_stage_off_by_default(stage_client: TestClient, monkeypatch) -> None:
+def test_plan_stage_suppressed_when_disabled(stage_client: TestClient, monkeypatch) -> None:
     """Flag OFF: no `plan` event. (Pinned via monkeypatch rather than asserting
     the env-derived literal, so a dev/CI environment exporting AIOS_PLAN_STAGE
-    while dogfooding cannot fail the default-behavior test.)"""
+    while dogfooding cannot fail the opt-out behavior test.)"""
     monkeypatch.setattr(config, "PLAN_STAGE_ENABLED", False)
     response = _generate(stage_client, "plan-stage-off", "plan stage probe xyzzy quux")
     assert response.status_code == 200
     assert "event: done" in response.text
     assert _plan_events(response.text) == []
+
+
+@pytest.mark.skipif(
+    os.environ.get("AIOS_PLAN_STAGE") is not None,
+    reason="an explicit AIOS_PLAN_STAGE override is active — the default literal is masked",
+)
+def test_plan_stage_on_by_default() -> None:
+    """The default flipped ON (2026-07-07) once the learning-loop prover was green
+    at 19/19 with the stage enabled. Skipped when the env var pins it, so a machine
+    that opts out cannot fail the default-contract test."""
+    assert config.PLAN_STAGE_ENABLED is True
 
 
 def test_plan_stage_emits_structured_plan_event(

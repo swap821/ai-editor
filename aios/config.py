@@ -185,9 +185,12 @@ EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_S
 # Mandatory plan stage (Product-Phase-1 close-out): run the deterministic
 # Planner unconditionally on every non-reflex /api/generate turn and surface
 # the confidence-partitioned plan as a `plan` SSE event + advisory context.
-# Ships default-OFF; the default flips ON only after the learning-loop prover
-# is green with the stage enabled (the gate the v1.0 plan commits to).
-PLAN_STAGE_ENABLED: Final[bool] = _env_bool("AIOS_PLAN_STAGE", False)
+# Default flipped ON 2026-07-07: the gate the v1.0 plan committed to is met —
+# the learning-loop prover scores a true 19/19 WITH the stage enabled
+# (AIOS_PLAN_STAGE=1, 211s, `plan` SSE confirmed live). Set AIOS_PLAN_STAGE=0
+# to opt back out. The stage is advisory (fail-open); its cost is one planner
+# LLM call + latency per non-reflex turn.
+PLAN_STAGE_ENABLED: Final[bool] = _env_bool("AIOS_PLAN_STAGE", True)
 
 # Narrative self: inject a grounded, verified-only autobiographical self-model
 # into the agent's recalled context. Local SQLite reads only — no model calls.

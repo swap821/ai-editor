@@ -641,6 +641,7 @@ class ToolAgent:
         memory_context: Optional[str] = None,
         on_failure: Optional[FailureHook] = None,
         confirm_lesson: Optional[ConfirmHook] = None,
+        recalled_pending: Optional[list[tuple[int, str]]] = None,
         approved_commands: Optional[list[str]] = None,
         approved_edits: Optional[list[dict[str, str]]] = None,
         approved_creations: Optional[list[dict[str, str]]] = None,
@@ -691,6 +692,12 @@ class ToolAgent:
         #: Optional confirmation hook: promotes a pending lesson only when the
         #: same failed command later succeeds in this live run (blueprint Q6).
         self.confirm_lesson = confirm_lesson
+        #: ``(mistake_id, failed_command)`` pairs for this session's pending
+        #: lessons, recalled from the DB to SEED ``run()``'s fail->confirm tracker.
+        #: This is what lets a lesson recorded before an approval pause still be
+        #: promoted when its exact command succeeds in the replayed continuation --
+        #: the in-memory tracker alone is per-run() and does not survive the pause.
+        self._recalled_pending = list(recalled_pending or [])
         #: Commands a human has explicitly authorised this turn (blueprint Q5).
         #: A YELLOW command listed here runs via ``execute_approved`` instead of
         #: pausing again -- this is what makes in-chat approval *resumable*. RED is
@@ -904,10 +911,15 @@ class ToolAgent:
         required_tools = _explicit_tool_requests(messages)
         nudged_tools: set[str] = set()
 
-        #: Lesson ids awaiting corrective evidence. Only failures observed during
-        #: this live run enter the list; recalled pending lessons never become
-        #: verified merely because an unrelated command later succeeds.
-        pending_lessons: list[tuple[int, str]] = []
+        #: Lessons awaiting corrective evidence, tracked as
+        #: ``(mistake_id, failed_command)``. Seeded from this session's pending
+        #: lessons so a lesson recorded before an approval pause is still promoted
+        #: when its command later succeeds -- including in a replayed continuation
+        #: whose fresh run() would otherwise start with an empty tracker. Promotion
+        #: still requires the EXACT failed command to succeed at the STRONG floor
+        #: (see tool_loop_helpers.confirm), so an unrelated command's success never
+        #: graduates a recalled lesson.
+        pending_lessons: list[tuple[int, str]] = list(self._recalled_pending)
 
         for _ in range(self.max_iters):
             # --- C4: streaming path (real-time cloud tokens) ---

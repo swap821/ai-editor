@@ -47,8 +47,15 @@ class OllamaClient:
         self.temperature = temperature
         self.num_ctx = num_ctx
 
-    def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+    def complete(
+        self, prompt: str, *, system: Optional[str] = None, json_mode: bool = False
+    ) -> str:
         """Generate a single non-streaming completion from the local model.
+
+        When *json_mode* is set, Ollama's ``format: "json"`` grammar constraint is
+        requested so small local models (e.g. ``llama3.2:3b``) emit a single valid
+        JSON object instead of trailing off into prose — the difference between an
+        unparseable reflection and a reliable one.
 
         Raises:
             LLMError: On any transport or decoding failure.
@@ -61,6 +68,8 @@ class OllamaClient:
         }
         if system:
             payload["system"] = system
+        if json_mode:
+            payload["format"] = "json"
 
         request = urllib.request.Request(
             f"{self.host}/api/generate",
