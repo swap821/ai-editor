@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-09T12:24:47+05:30 by Codex.
+Last updated: 2026-07-09T12:33:37+05:30 by Codex.
 Task: `v10-phase4-signal-ganglia`.
 
 ## Current Goal
@@ -31,6 +31,7 @@ or bypass approval, verification, scope, audit, or rollback.
 
 Verification:
 
+- Commit `2e7e5db` - `feat: add advisory council ganglia`.
 - Red-first API gap:
   `.venv\Scripts\python.exe -m pytest tests\test_council_origination.py::test_originate_deliberates_to_awaiting_approval -q`
   failed before route summary/council-memory wiring.
@@ -42,10 +43,15 @@ Verification:
 - `python tools\thesis_audit.py` -> ok.
 - `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
   92%.
+- GitHub CI run `29000047721` -> success
+  - frontend: dependency audit, type-check, unit tests + coverage, production
+    build
+  - backend: dependency audit, test suite with coverage gate
+- GitHub CodeQL Advanced run `29000047695` -> success
+  - actions, JavaScript/TypeScript, and Python analyses passed
 
 ## Single Next Action
-Commit and push the Phase 4 slice, then confirm GitHub CI/CodeQL on the pushed
-HEAD. After that, start Phase 5: Symbol RepoMap over Project Passport.
+Start Phase 5: Symbol RepoMap over Project Passport.
 
 ## Open Approvals / Blockers
 - No frozen-core files were edited.

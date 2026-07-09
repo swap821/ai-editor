@@ -199,6 +199,8 @@ Verification:
 - `python tools\thesis_audit.py` -> ok.
 - `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
   92%.
+- GitHub CI run `29000047721` -> success.
+- GitHub CodeQL Advanced run `29000047695` -> success.
 
 ## Phase 5 - Symbol RepoMap
 
