@@ -218,6 +218,9 @@ Tests:
 ### Phase 4 - Signal Ganglia And Council Memory
 
 Risk: Medium/High. It touches orchestration.
+Status: Implemented 2026-07-09 as advisory signal adapters and append-only
+council memory. It preserves the existing queen/council call chain and does not
+replace security, approval, verifier, or human authority.
 
 Add:
 - `aios/council/ganglia.py`: typed `Gradient`/`GanglionSignal` DTOs and adapters
@@ -225,13 +228,26 @@ Add:
 - `aios/council/council_memory.py`: durable verdict/deliberation evidence store.
 
 Modify narrowly:
-- `aios/council/council_orchestrator.py`: optional signal emission and memory
-  persistence behind config flags.
+- `aios/council/council_orchestrator.py`: signal emission, non-authoritative
+  contract metadata, final post-testing synthesis, and memory persistence.
+- `aios/runtime/king_report.py`: includes ganglia evidence in King reports.
+- `aios/api/routes/council.py`: exposes backend-backed summary evidence and
+  wires `CouncilMemory` through the background mission path.
 
 Rules:
 - Security gradient is deterministic and veto-capable.
 - LLM or memory gradients are strengthen-only.
 - Precedent is evidence, never authority.
+
+Verification:
+- `tests/test_ganglia.py`: security veto wins and non-security signals cannot
+  authorize.
+- `tests/test_council_memory.py`: deliberation evidence is append-only and
+  survives reload.
+- `tests/test_council_orchestrator.py`: reports and ledgers carry ganglia
+  evidence; final synthesis includes Testing Queen verdicts.
+- `tests/test_council_origination.py`: API mission detail exposes real
+  ganglia summary fields and persisted council memory.
 
 ### Phase 5 - Symbol RepoMap
 
@@ -310,8 +326,9 @@ Do not implement until:
   state was changed.
 - Ecosystem rollback: begin read-only. If a finding pipeline is noisy, disable
   the route/config flag and keep collected reports as audit evidence.
-- Council memory rollback: write append-only verdict evidence; never require it
-  for security approval until mature.
+- Council memory rollback: remove the ganglia/council-memory adapters and tests;
+  existing verdict logs and security approval paths remain authoritative without
+  them.
 - RepoMap rollback: keep symbol context advisory; worker scopes remain enforced
   by contracts and runtime checks.
 - UI rollback: remove panels/status rows without changing backend decisions.
@@ -339,8 +356,7 @@ Required targeted tests by feature:
 
 ## Immediate Recommendation
 
-Phase 0, Phase 1, Phase 2, and Phase 3 are complete locally. Next safe
-implementation scope is Phase 4: signal ganglia and council memory as typed
-adapters/evidence around the existing council call chain. Security veto must
-remain deterministic and strongest; council memory may suggest but never
-authorize action.
+Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 are complete locally. After
+full-suite and CI verification, the next safe implementation scope is Phase 5:
+Symbol RepoMap over Project Passport. Keep it local-only, proposal/evidence
+only, and prove it cannot activate trusted memory or widen worker scope.

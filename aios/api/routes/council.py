@@ -33,6 +33,7 @@ from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
+from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
@@ -243,6 +244,8 @@ def _council_summary_from_artifacts(
             for command in commands
         ) if commands else None,
         "councilVerdicts": report.council_summary.get("council_verdicts", []),
+        "gangliaSignals": report.council_summary.get("ganglia_signals", []),
+        "gangliaSynthesis": report.council_summary.get("ganglia_synthesis"),
         "modelRouting": _latest_intelligence_for_dashboard(report),
         "pendingApprovals": _pending_approvals_for_dashboard(runtime_root, mission_id),
         "kingDecision": _king_decision(runtime_root, mission_id),
@@ -379,9 +382,11 @@ def _write_failed_council_report(runtime_root: Path, mission_id: str, reason: st
 def _run_council_deliberation(runtime_root: Path, request: CouncilMissionRequest) -> None:
     """Background: deliberate only (no worker). Failures surface as a failed report."""
     try:
+        council_state = CouncilState(db_path=runtime_root / "council_state.db")
         CouncilOrchestrator(
             runtime_root=runtime_root,
-            council_state=CouncilState(db_path=runtime_root / "council_state.db"),
+            council_state=council_state,
+            council_memory=CouncilMemory(state=council_state),
         ).deliberate(request)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning("council_deliberation_failed", mission_id=request.mission_id, exc_info=exc)
@@ -397,9 +402,11 @@ def _run_council_execution(runtime_root: Path, mission_id: str) -> None:
         # (guards against an on-disk ledger tampered between deliberate and approve).
         if has_blocking_verdict(list(ledger.council_verdicts)):
             raise RuntimeError("ledger carries a blocking verdict; refusing to execute")
+        council_state = CouncilState(db_path=runtime_root / "council_state.db")
         orchestrator = CouncilOrchestrator(
             runtime_root=runtime_root,
-            council_state=CouncilState(db_path=runtime_root / "council_state.db"),
+            council_state=council_state,
+            council_memory=CouncilMemory(state=council_state),
         )
         asyncio.run(orchestrator.execute(ledger.contract, list(ledger.council_verdicts)))
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server

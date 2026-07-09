@@ -14,6 +14,8 @@ from fastapi.testclient import TestClient
 
 from aios import config
 from aios.api.main import app, get_council_runtime_root
+from aios.council.council_memory import CouncilMemory
+from aios.council.council_state import CouncilState
 
 
 def _client_overrides(runtime_root: Path):
@@ -62,6 +64,16 @@ def test_originate_deliberates_to_awaiting_approval(
 
     assert detail.status_code == 200
     assert detail.json()["report"]["status"] == "awaiting_approval"
+    summary = detail.json()["summary"]
+    synthesis = summary["gangliaSynthesis"]
+    assert synthesis["authority"] == "proposal/evidence"
+    assert synthesis["can_authorize"] is False
+    assert synthesis["advisory_only"] is True
+    assert summary["gangliaSignals"][0]["source"] == "planner"
+    memory = CouncilMemory(
+        state=CouncilState(db_path=runtime_root / "council_state.db")
+    )
+    assert memory.deliberations_for(mission_id)[0]["payload"]["synthesis"] == synthesis
 
 
 def test_approve_triggers_execution_and_worker_acts(

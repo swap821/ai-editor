@@ -2,7 +2,7 @@
 
 Date: 2026-07-09
 Audit: `.aios/state/V10_INTEGRATION_AUDIT.md`
-Status: Phase 0, Phase 1, Phase 2, and Phase 3 implemented and verified
+Status: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 implemented and verified
 locally on 2026-07-09.
 
 Goal: integrate the useful GAGOS v10 "Sovereign Organism" contract into the
@@ -162,11 +162,17 @@ Verification:
 
 Purpose: evolve council deliberation from prose-heavy records toward typed
 signals while preserving the call chain.
+Status: Complete locally. Implemented as advisory adapters over the existing
+queen/council chain, with route-level summary evidence and append-only council
+memory persistence. Security remains the only deterministic veto-capable
+signal; ganglia synthesis cannot authorize action.
 
 Files:
 - Add `aios/council/ganglia.py`.
 - Add `aios/council/council_memory.py`.
-- Modify `aios/council/council_orchestrator.py` narrowly behind config flags.
+- Modify `aios/council/council_orchestrator.py` narrowly.
+- Modify `aios/api/routes/council.py` to surface backend-backed summary fields.
+- Modify `aios/runtime/king_report.py` to carry ganglia evidence into reports.
 - Add tests under `tests/test_ganglia.py` and `tests/test_council_memory.py`.
 
 Behavior:
@@ -180,6 +186,19 @@ Exit gate:
 - Security veto wins over positive plan/memory signals.
 - Council memory persistence survives reload.
 - No existing council API breaks.
+
+Verification:
+- Red-first API gap:
+  `.venv\Scripts\python.exe -m pytest tests\test_council_origination.py::test_originate_deliberates_to_awaiting_approval -q`
+  failed before route summary/council-memory wiring.
+- Red-first execution gap:
+  `.venv\Scripts\python.exe -m pytest tests\test_council_orchestrator.py::test_council_orchestrator_runs_full_loop_and_records_report -q`
+  failed before post-testing ganglia refresh.
+- `.venv\Scripts\python.exe -m pytest tests\test_ganglia.py tests\test_council_memory.py tests\test_council_orchestrator.py tests\test_council_origination.py -q`
+  -> 21 passed.
+- `python tools\thesis_audit.py` -> ok.
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
+  92%.
 
 ## Phase 5 - Symbol RepoMap
 
@@ -256,13 +275,6 @@ Reasons:
 
 ## Recommended Immediate Work
 
-Start Phase 4 only after Phase 3 local and full-suite verification remain
-green:
-
-1. Add failing tests for typed council gradients and durable council memory.
-2. Stage ganglia as adapters over existing queen/council outputs, not a
-   replacement call chain.
-3. Prove deterministic security veto wins over positive plan, memory, or
-   reflection signals.
-4. Keep council memory append-only evidence; precedent may suggest, never
-   authorize.
+After Phase 4 full-suite and CI verification, the next safe scope is Phase 5:
+Symbol RepoMap. Keep it local-only and advisory over Project Passport, and prove
+it cannot activate trusted memory or widen worker scope.

@@ -14,7 +14,14 @@ from pathlib import Path
 
 from aios import config
 from aios.memory.pheromones import PheromoneStore
+from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
+from aios.council.ganglia import (
+    GanglionSignal,
+    SignalSynthesis,
+    signals_from_verdicts,
+    synthesize_signals,
+)
 from aios.council.king_reasoning import reason_king
 from aios.council.queen_verdict import (
     has_blocking_verdict,
@@ -78,6 +85,7 @@ class CouncilOrchestrator:
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
         council_state: CouncilState | None = None,
+        council_memory: CouncilMemory | None = None,
         pheromone_store: PheromoneStore | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
@@ -98,6 +106,8 @@ class CouncilOrchestrator:
         self.report_store = report_store or self.spawner.report_store
         # Optional Phase-3A durable deliberation log. None → no persistence.
         self.council_state = council_state
+        # Optional v10 deliberation memory. None → no persistence.
+        self.council_memory = council_memory
         self.pheromone_store = pheromone_store
         if self.pheromone_store is None and config.PHEROMONE_ENABLED:
             self.pheromone_store = PheromoneStore(
@@ -140,6 +150,14 @@ class CouncilOrchestrator:
         self._persist_verdict(contract.mission_id, memory_verdict)
 
         contract = self._apply_council_context(contract, verdicts)
+        signals, synthesis = self._ganglia_for(verdicts)
+        contract = self._apply_ganglia_context(contract, signals, synthesis)
+        self._persist_council_memory(
+            contract.mission_id,
+            verdicts=verdicts,
+            signals=signals,
+            synthesis=synthesis,
+        )
         if has_blocking_verdict(verdicts):
             return self._blocked_run(contract=contract, verdicts=verdicts)
 
@@ -157,7 +175,7 @@ class CouncilOrchestrator:
             status="awaiting_approval",
             created_at=now,
             completed_at=None,
-            evidence={"council": verdicts_as_metadata(verdicts)},
+            evidence=self._council_evidence(contract, verdicts),
         )
         ledger_path = self.ledger_store.write(ledger)
         report = build_deliberation_report(contract=contract, verdicts=verdicts)
@@ -203,7 +221,23 @@ class CouncilOrchestrator:
             verdicts = [*verdicts, critique_verdict]
             self._persist_verdict(contract.mission_id, critique_verdict)
 
-        ledger = self._enrich_worker_ledger(worker_run=worker_run, verdicts=verdicts)
+        signals, synthesis = self._ganglia_for(verdicts)
+        contract_with_ganglia = self._apply_ganglia_context(
+            worker_run.contract,
+            signals,
+            synthesis,
+        )
+        self._persist_council_memory(
+            contract_with_ganglia.mission_id,
+            verdicts=verdicts,
+            signals=signals,
+            synthesis=synthesis,
+        )
+        ledger = self._enrich_worker_ledger(
+            worker_run=worker_run,
+            verdicts=verdicts,
+            contract=contract_with_ganglia,
+        )
         ledger_path = self.ledger_store.write(ledger)
         report = build_king_report(ledger=ledger, result=worker_run.result)
         # Deeper cognition (opt-in): the Reasoning King enriches the recommendation +
@@ -211,7 +245,7 @@ class CouncilOrchestrator:
         if config.COUNCIL_KING_REASONING and self.king_complete is not None:
             report = reason_king(
                 report,
-                contract=worker_run.contract,
+                contract=contract_with_ganglia,
                 verdicts=verdicts,
                 complete=self.king_complete,
             )
@@ -223,7 +257,7 @@ class CouncilOrchestrator:
             snapshot_id=worker_run.contract.snapshot_id,
         )
         return CouncilRun(
-            contract=worker_run.contract,
+            contract=contract_with_ganglia,
             verdicts=verdicts,
             ledger=ledger,
             report=report,
@@ -273,6 +307,37 @@ class CouncilOrchestrator:
             metadata["council_constraints"] = constraints
         return contract.model_copy(update={"metadata": metadata})
 
+    def _ganglia_for(
+        self,
+        verdicts: list[QueenVerdict],
+    ) -> tuple[list[GanglionSignal], SignalSynthesis]:
+        signals = signals_from_verdicts(verdicts)
+        return signals, synthesize_signals(signals)
+
+    def _apply_ganglia_context(
+        self,
+        contract: MissionContract,
+        signals: list[GanglionSignal],
+        synthesis: SignalSynthesis,
+    ) -> MissionContract:
+        metadata = dict(contract.metadata)
+        metadata["ganglia_signals"] = [signal.model_dump() for signal in signals]
+        metadata["ganglia_synthesis"] = synthesis.model_dump()
+        metadata["ganglia_authority"] = "proposal/evidence"
+        return contract.model_copy(update={"metadata": metadata})
+
+    def _council_evidence(
+        self,
+        contract: MissionContract,
+        verdicts: list[QueenVerdict],
+    ) -> dict[str, object]:
+        evidence: dict[str, object] = {"council": verdicts_as_metadata(verdicts)}
+        if isinstance(contract.metadata.get("ganglia_signals"), list):
+            evidence["ganglia_signals"] = contract.metadata["ganglia_signals"]
+        if isinstance(contract.metadata.get("ganglia_synthesis"), dict):
+            evidence["ganglia_synthesis"] = contract.metadata["ganglia_synthesis"]
+        return evidence
+
     def _blocked_run(
         self,
         *,
@@ -304,7 +369,7 @@ class CouncilOrchestrator:
             status="blocked",
             created_at=now,
             completed_at=now,
-            evidence={"council": verdicts_as_metadata(verdicts)},
+            evidence=self._council_evidence(contract, verdicts),
         )
         ledger_path = self.ledger_store.write(ledger)
         report = build_king_report(ledger=ledger, result=result)
@@ -352,12 +417,35 @@ class CouncilOrchestrator:
         except Exception as exc:  # noqa: BLE001 - persistence is additive, not authority
             _LOGGER.warning("council_state_event_failed", exc_info=exc)
 
+    def _persist_council_memory(
+        self,
+        mission_id: str,
+        *,
+        verdicts: list[QueenVerdict],
+        signals: list[GanglionSignal],
+        synthesis: SignalSynthesis,
+    ) -> None:
+        """Best-effort v10 deliberation memory; never fatal or authoritative."""
+        if self.council_memory is None:
+            return
+        try:
+            self.council_memory.record_deliberation(
+                mission_id=mission_id,
+                verdicts=verdicts,
+                signals=signals,
+                synthesis=synthesis,
+            )
+        except Exception as exc:  # noqa: BLE001 - memory may suggest, never block
+            _LOGGER.warning("council_memory_record_failed", exc_info=exc)
+
     def _enrich_worker_ledger(
         self,
         *,
         worker_run: WorkerRun,
         verdicts: list[QueenVerdict],
+        contract: MissionContract | None = None,
     ) -> RunLedger:
+        contract = contract or worker_run.contract
         risk = highest_risk(
             [worker_run.ledger.risk_after, *(verdict.risk for verdict in verdicts)]
         )
@@ -365,9 +453,10 @@ class CouncilOrchestrator:
         if has_blocking_verdict(verdicts):
             status = "failed"
         evidence = dict(worker_run.ledger.evidence)
-        evidence["council"] = verdicts_as_metadata(verdicts)
+        evidence.update(self._council_evidence(contract, verdicts))
         return worker_run.ledger.model_copy(
             update={
+                "contract": contract,
                 "risk_after": risk,
                 "status": status,
                 "council_verdicts": verdicts,

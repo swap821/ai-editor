@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
+from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
@@ -116,6 +117,50 @@ def test_council_orchestrator_persists_deliberation_to_state(tmp_path: Path) -> 
     assert any(event["event_type"] == "report" for event in events)
 
 
+def test_council_orchestrator_attaches_ganglia_and_memory_evidence(
+    tmp_path: Path,
+) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    memory = CouncilMemory(db_path=tmp_path / "council_memory.db")
+    request = _request(workspace, mission_id="mission-ganglia")
+
+    run = CouncilOrchestrator(
+        runtime_root=runtime_root,
+        council_memory=memory,
+    ).deliberate(request)
+
+    synthesis = run.contract.metadata["ganglia_synthesis"]
+    assert synthesis["authority"] == "proposal/evidence"
+    assert synthesis["can_authorize"] is False
+    assert run.ledger.evidence["ganglia_synthesis"] == synthesis
+    assert run.report.council_summary["ganglia_synthesis"] == synthesis
+    assert memory.deliberations_for(request.mission_id)
+
+
+def test_ganglia_security_veto_remains_blocking_and_non_authorizing(
+    tmp_path: Path,
+) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    memory = CouncilMemory(db_path=tmp_path / "council_memory.db")
+    request = _request(workspace, mission_id="mission-ganglia-blocked")
+
+    run = CouncilOrchestrator(
+        runtime_root=runtime_root,
+        security=_DenySecurity(),
+        council_memory=memory,
+    ).deliberate(request)
+
+    synthesis = run.contract.metadata["ganglia_synthesis"]
+    assert run.worker_run is None
+    assert run.ledger.status == "blocked"
+    assert synthesis["status"] == "blocked"
+    assert synthesis["security_veto"] is True
+    assert synthesis["can_authorize"] is False
+    assert memory.deliberations_for(request.mission_id)[0]["payload"]["synthesis"] == synthesis
+
+
 def test_council_orchestrator_runs_full_loop_and_records_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -125,8 +170,15 @@ def test_council_orchestrator_runs_full_loop_and_records_report(
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     request = _request(workspace)
+    state = CouncilState(db_path=tmp_path / "council_state.db")
+    memory = CouncilMemory(state=state)
 
-    run = asyncio.run(CouncilOrchestrator(runtime_root=runtime_root).run(request))
+    run = asyncio.run(
+        CouncilOrchestrator(
+            runtime_root=runtime_root,
+            council_memory=memory,
+        ).run(request)
+    )
 
     target = workspace / "frontend" / "src" / "pages" / "Login.jsx"
     assert run.worker_run is not None
@@ -147,6 +199,11 @@ def test_council_orchestrator_runs_full_loop_and_records_report(
     assert run.ledger.council_verdicts == run.verdicts
     assert run.ledger.verification["commands"][0]["returncode"] == 0
     assert run.report.council_summary["council_verdicts"][-1]["queen"] == "testing"
+    assert run.report.council_summary["ganglia_signals"][-1]["source"] == "testing"
+    assert run.report.council_summary["ganglia_synthesis"]["can_authorize"] is False
+    deliberations = memory.deliberations_for(request.mission_id)
+    assert len(deliberations) == 2
+    assert deliberations[-1]["payload"]["signals"][-1]["source"] == "testing"
     assert run.report.council_summary["model_routing"] == {}
     assert run.ledger_path.exists()
     assert run.report_path.exists()

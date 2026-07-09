@@ -1,7 +1,7 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-09T11:50:07+05:30 by Codex.
-Task: `v10-vulture-complete-replacement` / Phase 2 vulture hardening follow-up.
+Last updated: 2026-07-09T12:24:47+05:30 by Codex.
+Task: `v10-phase4-signal-ganglia`.
 
 ## Current Goal
 Integrate the uploaded GAGOS v10 plan and scaffold as an architectural
@@ -9,64 +9,68 @@ contract, not production code, while preserving the proven v7/v8 safety,
 council, worker, memory, router, verifier, hibernation, resource, and UI spine.
 
 ## Last Completed + Verified Step
-The operator's prepared `vulture_sanitation_COMPLETE.py` was safety-reviewed,
-partially integrated as a read-only hardening slice, pushed, and verified on
-GitHub:
+Phase 4 - Signal Ganglia and Council Memory is implemented locally as advisory
+evidence around the existing council chain:
 
-- Commit `10bb774` - `feat: harden vulture evidence scanner`
+- `aios/council/ganglia.py` converts queen verdicts into typed signals and a
+  non-authoritative synthesis.
+- `aios/council/council_memory.py` persists append-only deliberation evidence
+  through the existing `CouncilState` store.
+- `aios/council/council_orchestrator.py` attaches ganglia context to mission
+  contracts, refreshes synthesis after Testing/Critique verdicts, and records
+  council memory without changing authority.
+- `aios/runtime/king_report.py` carries ganglia evidence into King reports.
+- `aios/api/routes/council.py` exposes real ganglia summary fields and wires
+  council memory into background council missions.
+- `README.md`, `.aios/state/V10_INTEGRATION_AUDIT.md`, and
+  `.aios/state/V10_INTEGRATION_PLAN.md` now mark Phase 4 complete locally.
 
-- rejected autonomous quarantine storage, SQLite ledger writes, purge/restore,
-  pheromone inversion, subprocess test loops, and file unlink/write paths;
-- kept the existing local-only proposal/evidence contract;
-- added cognitive-parasite detection for anti-immune-system language;
-- added `scan_code_paths()` / `scan_vulture_code_paths()` as AST-only dead-import
-  evidence, without edits, test execution, quarantine, cloud, or mutation;
-- added tests proving the new detections and the absence of write/purge/subprocess
-  organs.
+Security remains deterministic and strongest: ganglia and council memory may
+suggest caution, but they cannot authorize action, override RED/YELLOW policy,
+or bypass approval, verification, scope, audit, or rollback.
 
-Local verification:
+Verification:
 
-- Red-first:
-  `.venv\Scripts\python.exe -m pytest tests\test_vulture_sanitation.py -q`
-  failed on missing `cognitive_parasite` and missing `scan_code_paths`.
-- `.venv\Scripts\python.exe -m pytest tests\test_vulture_sanitation.py -q`
-  -> 7 passed.
-- `.venv\Scripts\python.exe -m pytest tests\test_vulture_sanitation.py tests\test_thesis_audit.py tests\test_security.py tests\test_hibernation_resource.py tests\test_dead_code_hygiene.py tests\test_constitution.py tests\adversarial\test_api_security.py -q`
-  -> 129 passed, 2 skipped.
-- `.venv\Scripts\python.exe -m pytest -q` -> exit 0, 4 skipped, total coverage
+- Red-first API gap:
+  `.venv\Scripts\python.exe -m pytest tests\test_council_origination.py::test_originate_deliberates_to_awaiting_approval -q`
+  failed before route summary/council-memory wiring.
+- Red-first execution gap:
+  `.venv\Scripts\python.exe -m pytest tests\test_council_orchestrator.py::test_council_orchestrator_runs_full_loop_and_records_report -q`
+  failed before post-testing ganglia refresh.
+- `.venv\Scripts\python.exe -m pytest tests\test_ganglia.py tests\test_council_memory.py tests\test_council_orchestrator.py tests\test_council_origination.py -q`
+  -> 21 passed.
+- `python tools\thesis_audit.py` -> ok.
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
   92%.
 
-GitHub verification for `10bb774`:
-
-- CI run `28998140392` -> success
-  - frontend: dependency audit, typecheck, unit tests + coverage, production
-    build
-  - backend: dependency audit, test suite with coverage gate
-- CodeQL Advanced run `28998140372` -> success
-
 ## Single Next Action
-Start Phase 4 as the next scoped roadmap task: signal ganglia and council memory
-as typed adapters/evidence around the existing council call chain.
+Commit and push the Phase 4 slice, then confirm GitHub CI/CodeQL on the pushed
+HEAD. After that, start Phase 5: Symbol RepoMap over Project Passport.
 
 ## Open Approvals / Blockers
-- No frozen-core files were edited in Phase 3.
-- Any future ecosystem promotion under `aios/security/*` still requires explicit
-  Section VIII approval.
-- Existing untracked workspace noise and older stashes remain intentionally
-  untouched.
-- The operator's complete vulture file is not safe to paste verbatim because it
-  contains autonomous write/purge/restore/subprocess/mutation organs.
-- No current blocker for Phase 4, provided security veto remains deterministic
-  and council memory remains advisory evidence.
+- No frozen-core files were edited.
+- Existing untracked workspace noise remains intentionally untouched.
+- Phase 5 must remain local-only and proposal/evidence only.
+- Symbol RepoMap hints must not activate trusted memory or widen worker scope.
 
 ## Active Files
-- No active vulture implementation files remain open.
-- Phase 4 should begin with a fresh task/lease and targeted tests.
+- `.aios/state/V10_INTEGRATION_AUDIT.md`
+- `.aios/state/V10_INTEGRATION_PLAN.md`
+- `.aios/state/RESUME.md`
+- `README.md`
+- `aios/api/routes/council.py`
+- `aios/council/__init__.py`
+- `aios/council/ganglia.py`
+- `aios/council/council_memory.py`
+- `aios/council/council_orchestrator.py`
+- `aios/runtime/king_report.py`
+- `tests/test_ganglia.py`
+- `tests/test_council_memory.py`
+- `tests/test_council_orchestrator.py`
+- `tests/test_council_origination.py`
 
 ## Notes Not Yet Promoted
-- Vulture output is proposal/evidence only. It cannot activate trusted memory,
-  authorize action, mutate policy, write files, call cloud providers, run tests,
-  purge, restore, or invert pheromones.
-- Phase 4 should add signal ganglia and council memory as typed
-  adapters/evidence around the existing council call chain, with deterministic
-  security veto strongest.
+- Phase 4 landed as adapters over the existing council, not a replacement
+  orchestrator.
+- The next roadmap recommendation is Phase 5 Symbol RepoMap, not federation or
+  mandibles.

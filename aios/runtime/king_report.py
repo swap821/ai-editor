@@ -80,6 +80,8 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
         )
 
     royal_decree = ledger.contract.metadata.get("royal_decree")
+    ganglia_synthesis = ledger.contract.metadata.get("ganglia_synthesis")
+    ganglia_signals = ledger.contract.metadata.get("ganglia_signals")
     council_summary = {
         "workers_created": ledger.workers_created,
         "blocked_attempts": len(ledger.blocked_attempts),
@@ -98,6 +100,10 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
     }
     if isinstance(royal_decree, dict):
         council_summary["royal_decree"] = royal_decree
+    if isinstance(ganglia_synthesis, dict):
+        council_summary["ganglia_synthesis"] = ganglia_synthesis
+    if isinstance(ganglia_signals, list):
+        council_summary["ganglia_signals"] = ganglia_signals
 
     return KingReport(
         mission_id=ledger.mission_id,
@@ -124,6 +130,8 @@ def build_deliberation_report(
     """Pre-execution report: the council has deliberated and the mission awaits
     King approval. No worker has run; nothing has been edited yet."""
     royal_decree = contract.metadata.get("royal_decree")
+    ganglia_synthesis = contract.metadata.get("ganglia_synthesis")
+    ganglia_signals = contract.metadata.get("ganglia_signals")
     council_summary = {
         "workers_created": [],
         "blocked_attempts": 0,
@@ -141,6 +149,10 @@ def build_deliberation_report(
     }
     if isinstance(royal_decree, dict):
         council_summary["royal_decree"] = royal_decree
+    if isinstance(ganglia_synthesis, dict):
+        council_summary["ganglia_synthesis"] = ganglia_synthesis
+    if isinstance(ganglia_signals, list):
+        council_summary["ganglia_signals"] = ganglia_signals
 
     return KingReport(
         mission_id=contract.mission_id,

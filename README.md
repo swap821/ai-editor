@@ -29,6 +29,7 @@ tests, `python tools/thesis_audit.py` should catch it.
 | Pheromones | Built | Typed, decaying, auditable hints influence planning/worker context but never override security, verification, or human approval. |
 | Caste Workers | Built | Forager, Builder, Scout, Soldier, and Nurse profiles clamp tools, scope, timeout, and evidence expectations over the existing worker runtime. Workers are ephemeral. |
 | Royal Decree | Built seed | Complex work can get scout-first advisory plans before execution. The decree is evidence, not authority. |
+| Signal Ganglia + Council Memory | Built seed | `aios/council/ganglia.py` converts queen verdicts into typed advisory signals, and `aios/council/council_memory.py` persists append-only deliberation evidence. Security veto remains deterministic and strongest. |
 | Resource + Hibernation | Built seed | Resource mode can block expensive/cloud operations. Hibernation is local-only maintenance evidence: no writes, cloud calls, self-modification, git push, or credential access. |
 | Vulture / Immune System | Built read-only seed | `aios/maintenance/vulture_sanitation.py` detects security-bypass, approval-bypass, trusted-memory activation, unsafe self-modification, and secret-material patterns as redacted quarantine proposals. It does not delete, mutate memory, mutate policy, or touch frozen core. |
 | Ecosystem Scanner | Built read-only seed | `aios/maintenance/ecosystem_scanner.py` scans local dependency manifests, explicit git logs, API response strings, and local model metadata as redacted proposal/evidence. It performs no network calls or writes. A security-core promotion requires separate Section VIII approval. |
@@ -193,7 +194,7 @@ Current integration status:
 | Phase 1 - Constitution Facade | Complete locally | `aios/policy/constitution.py`, `aios/policy/constitution_enforcer.py`, `tests/test_constitution.py` |
 | Phase 2 - Vulture Read-Only Seed | Complete locally | `aios/maintenance/vulture_sanitation.py`, `tests/test_vulture_sanitation.py` |
 | Phase 3 - Ecosystem Scanner | Complete locally | `aios/maintenance/ecosystem_scanner.py`, `tests/test_ecosystem_scanner.py` |
-| Phase 4 - Signal Ganglia + Council Memory | Planned | typed gradients and durable deliberation evidence |
+| Phase 4 - Signal Ganglia + Council Memory | Complete locally | `aios/council/ganglia.py`, `aios/council/council_memory.py`, council/API tests |
 | Phase 5 - Symbol RepoMap | Planned | stdlib-first symbol graph over Project Passport |
 | Phase 6 - Meta Loop | Planned | proposal-only self-assessment |
 | Phase 7 - UI Truth Surface | Planned | backend-backed indicators only |
