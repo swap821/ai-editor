@@ -280,6 +280,8 @@ Verification:
 - `python tools\thesis_audit.py` -> ok.
 - `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
   92%.
+- GitHub CI run `29010330538` on commit `34a529d` -> success.
+- GitHub CodeQL Advanced run `29010330572` on commit `34a529d` -> success.
 
 ### Phase 6 - Runtime Wiring And UI Truth
 
