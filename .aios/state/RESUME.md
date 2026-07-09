@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-09T02:24:07+05:30 by Codex.
+Last updated: 2026-07-09T10:13:56+05:30 by Codex.
 Task: `v10-phase2-immune-vulture` / Phase 2 read-only immune evidence scanner.
 
 ## Current Goal
@@ -10,13 +10,14 @@ memory, router, verifier, hibernation, resource, and UI spine.
 
 ## Last Completed + Verified Step
 The v10 Phase 0/1/2 stack is rebased on top of the operator's README update
-`930f6fb`:
+`930f6fb`, pushed to `origin/master`, and verified by GitHub CI:
 
 - `f21ea21` - `docs: audit v10 integration contract`
 - `4a158f0` - `docs: plan v10 integration phases`
 - `6de59f8` - `test: guard v10 truth drift`
 - `8a9958f` - `feat: add v10 constitution facade`
 - `a66b65c` - `feat: add v10 read-only vulture scanner`
+- `e767a65` - `docs: refresh v10 rebase handoff`
 
 Phase 2 is implemented:
 
@@ -38,11 +39,14 @@ Verification passed after the README rebase:
 - `python tools\thesis_audit.py` -> ok
 - `.venv\Scripts\python.exe -m pytest tests\test_vulture_sanitation.py tests\test_constitution.py tests\test_thesis_audit.py -q` -> 12 passed
 - `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage 92%
+- GitHub CI run `28994403560` for `e767a653ea6d4aa9e25905f430f44fe96e9ad598` -> success
+  - frontend: typecheck, unit tests + coverage, production build
+  - backend: dependency audit, test suite with coverage gate
+- GitHub CodeQL Advanced run `28994403559` for `e767a653ea6d4aa9e25905f430f44fe96e9ad598` -> success
 
 ## Single Next Action
-Push `master`, then wait for GitHub CI to finish green. After CI is green, the
-next implementation phase should be Phase 3: a local-only ecosystem scanner
-under `aios/maintenance/*`, not `aios/security/*`.
+Start the next implementation phase only as a new scoped task: Phase 3
+local-only ecosystem scanner under `aios/maintenance/*`, not `aios/security/*`.
 
 ## Open Approvals / Blockers
 - No frozen-core files were edited in Phase 2.
@@ -50,8 +54,7 @@ under `aios/maintenance/*`, not `aios/security/*`.
   Section VIII approval.
 - Existing untracked workspace noise and older stashes remain intentionally
   untouched.
-- GitHub CI is not checked yet for the rebased Phase 2 commit because it has
-  not been pushed yet.
+- No current blocker for Phase 3, provided it starts read-only/local-only.
 
 ## Active Files
 - `aios/maintenance/__init__.py`
