@@ -32,6 +32,8 @@ POST_V7_DOCS: tuple[str, ...] = (
     "README.md",
     ".aios/state/AUDIT.md",
     ".aios/state/GAGOS_ULTRA_PLAN.md",
+    ".aios/state/V10_INTEGRATION_AUDIT.md",
+    ".aios/state/V10_INTEGRATION_PLAN.md",
 )
 
 CANONICAL_CLOUD_DOCS: frozenset[str] = frozenset(
@@ -90,6 +92,30 @@ POST_V7_FEATURE_RULES: tuple[FeatureDocRule, ...] = (
         stale_patterns=(
             re.compile(
                 r"wire or remove the orphaned\s+`?PheromoneStore\.for_contract`?\s+hook",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    FeatureDocRule(
+        code="post-v10-ecosystem-scanner-drift",
+        name="Ecosystem Scanner",
+        evidence_paths=(
+            "aios/maintenance/ecosystem_scanner.py",
+            "tests/test_ecosystem_scanner.py",
+        ),
+        stale_patterns=(
+            re.compile(r"Ecosystem Scanner\s*\|[^\n]*Roadmap", re.IGNORECASE),
+            re.compile(
+                r"Phase 3\s*[-\u2013\u2014]\s*Ecosystem Scanner\s*\|[^\n]*Recommended next",
+                re.IGNORECASE,
+            ),
+            re.compile(r"Start Phase 3 only", re.IGNORECASE),
+            re.compile(
+                r"Next safe implementation scope is\s+Phase 3",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"Status:\s*Phase 0,\s*Phase 1,\s*and Phase 2 implemented",
                 re.IGNORECASE,
             ),
         ),

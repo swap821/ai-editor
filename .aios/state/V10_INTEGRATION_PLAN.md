@@ -2,8 +2,8 @@
 
 Date: 2026-07-09
 Audit: `.aios/state/V10_INTEGRATION_AUDIT.md`
-Status: Phase 0, Phase 1, and Phase 2 implemented and verified locally on
-2026-07-09.
+Status: Phase 0, Phase 1, Phase 2, and Phase 3 implemented and verified
+locally on 2026-07-09.
 
 Goal: integrate the useful GAGOS v10 "Sovereign Organism" contract into the
 real GAGOS repo without replacing the proven security, memory, router,
@@ -128,6 +128,9 @@ Verification:
 ## Phase 3 - Ecosystem Scanner, Local-Only
 
 Purpose: add environmental defense without network or secret exposure.
+Status: Complete. Implemented as `aios/maintenance/ecosystem_scanner.py`, not
+under frozen `aios/security/*`. It emits redacted proposal/evidence findings
+only and performs no writes, cloud calls, or network calls.
 
 Files:
 - Preferred staging: add `aios/maintenance/ecosystem_scanner.py`.
@@ -149,6 +152,11 @@ Exit gate:
 - Findings cannot authorize blocking beyond existing security policy until
   explicitly wired.
 - Tests prove cloud/network attempts are absent or blocked.
+
+Verification:
+- `.venv\Scripts\python.exe -m pytest tests/test_ecosystem_scanner.py -q` -> 5 passed
+- `.venv\Scripts\python.exe -m pytest tests/test_thesis_audit.py -q` -> 4 passed
+- `python tools\thesis_audit.py` -> ok after docs were corrected
 
 ## Phase 4 - Signal Ganglia And Council Memory
 
@@ -248,13 +256,13 @@ Reasons:
 
 ## Recommended Immediate Work
 
-Start Phase 3 only:
+Start Phase 4 only after Phase 3 local and full-suite verification remain
+green:
 
-1. Add failing tests for a local-only ecosystem scanner over manifests and API
-   response strings.
-2. Stage the implementation outside frozen core, preferably
-   `aios/maintenance/ecosystem_scanner.py`.
-3. Prove it performs no network calls, redacts secrets, and emits
-   proposal/evidence findings only.
-4. Do not add `aios/security/*` v10 scanner files without explicit Section VIII
-   approval.
+1. Add failing tests for typed council gradients and durable council memory.
+2. Stage ganglia as adapters over existing queen/council outputs, not a
+   replacement call chain.
+3. Prove deterministic security veto wins over positive plan, memory, or
+   reflection signals.
+4. Keep council memory append-only evidence; precedent may suggest, never
+   authorize.

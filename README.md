@@ -31,7 +31,7 @@ tests, `python tools/thesis_audit.py` should catch it.
 | Royal Decree | Built seed | Complex work can get scout-first advisory plans before execution. The decree is evidence, not authority. |
 | Resource + Hibernation | Built seed | Resource mode can block expensive/cloud operations. Hibernation is local-only maintenance evidence: no writes, cloud calls, self-modification, git push, or credential access. |
 | Vulture / Immune System | Built read-only seed | `aios/maintenance/vulture_sanitation.py` detects security-bypass, approval-bypass, trusted-memory activation, unsafe self-modification, and secret-material patterns as redacted quarantine proposals. It does not delete, mutate memory, mutate policy, or touch frozen core. |
-| Ecosystem Scanner | Roadmap | Phase 3 target: local-only dependency/config/git/API-text scanner staged under `aios/maintenance/*` first. A security-core promotion requires separate Section VIII approval. |
+| Ecosystem Scanner | Built read-only seed | `aios/maintenance/ecosystem_scanner.py` scans local dependency manifests, explicit git logs, API response strings, and local model metadata as redacted proposal/evidence. It performs no network calls or writes. A security-core promotion requires separate Section VIII approval. |
 | Sovereign UI | Built seed | `frontend/src/workbench/SovereignStatePanel.jsx` shows backend-backed RepoMap, resource, hibernation, pheromone, caste, autonomy, and proposal indicators. No fake liveness claims. |
 
 ## What GAGOS Is Not
@@ -69,10 +69,10 @@ The durable pattern is:
 6. Verify.
 7. Report back to the King/operator.
 
-Plans, pheromones, RepoMap/Project Passport output, vulture findings, and
-council memory are advisory. They may suggest caution or review. They may not
-override the gateway, verifier, budget guard, scope lock, audit policy, or human
-approval.
+Plans, pheromones, RepoMap/Project Passport output, vulture findings,
+ecosystem findings, and council memory are advisory. They may suggest caution
+or review. They may not override the gateway, verifier, budget guard, scope
+lock, audit policy, or human approval.
 
 ## The Three Defensive Pillars
 
@@ -80,12 +80,12 @@ approval.
 | --- | --- | --- |
 | Cage | Real and frozen | Prevent unsafe action before execution. Do not weaken `aios/security/*`. |
 | Vulture | Read-only evidence seed | Detect internal rot and propose quarantine. No autonomous purge or mutation. |
-| Ecosystem | Next phase | Inspect local environment evidence without network calls or secret exposure. |
+| Ecosystem | Read-only evidence seed | Inspect local dependency, API-text, explicit git-log, and local model metadata evidence without network calls or secret exposure. |
 
 The future vulture authority, if promoted into `aios/security/*`, is frozen-core
 work and requires the full Section VIII flow: observe, analyze, propose, test,
-verify, human review, approve, deploy. The current v10 Phase 2 implementation is
-deliberately outside frozen core under `aios/maintenance/*`.
+verify, human review, approve, deploy. The current v10 Phase 2 and Phase 3
+implementations are deliberately outside frozen core under `aios/maintenance/*`.
 
 ## Safety Invariants
 
@@ -192,7 +192,7 @@ Current integration status:
 | Phase 0 - Truth/Safety Guard | Complete locally | `tools/thesis_audit.py`, `tests/test_thesis_audit.py`, docs |
 | Phase 1 - Constitution Facade | Complete locally | `aios/policy/constitution.py`, `aios/policy/constitution_enforcer.py`, `tests/test_constitution.py` |
 | Phase 2 - Vulture Read-Only Seed | Complete locally | `aios/maintenance/vulture_sanitation.py`, `tests/test_vulture_sanitation.py` |
-| Phase 3 - Ecosystem Scanner | Recommended next | local-only `aios/maintenance/ecosystem_scanner.py` |
+| Phase 3 - Ecosystem Scanner | Complete locally | `aios/maintenance/ecosystem_scanner.py`, `tests/test_ecosystem_scanner.py` |
 | Phase 4 - Signal Ganglia + Council Memory | Planned | typed gradients and durable deliberation evidence |
 | Phase 5 - Symbol RepoMap | Planned | stdlib-first symbol graph over Project Passport |
 | Phase 6 - Meta Loop | Planned | proposal-only self-assessment |
@@ -217,4 +217,3 @@ exit gates.
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
-

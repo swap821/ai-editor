@@ -193,6 +193,10 @@ Tests:
 
 Risk: High if placed under `aios/security`; Medium if staged as read-only
 maintenance first.
+Status: Implemented 2026-07-09 as `aios/maintenance/ecosystem_scanner.py`.
+The frozen `aios/security/*` target remains deferred. The live scanner is
+local-only, redacts secrets, reports proposal/evidence findings, and does not
+perform writes, cloud calls, or network calls.
 
 Preferred safe staging:
 - Start as `aios/maintenance/ecosystem_scanner.py` or similar unless explicit
@@ -335,6 +339,8 @@ Required targeted tests by feature:
 
 ## Immediate Recommendation
 
-Phase 0, Phase 1, and Phase 2 are complete. Next safe implementation scope is
-Phase 3: local-only ecosystem scanning under `aios/maintenance/*`, not
-`aios/security/*`, unless the operator grants explicit Section VIII approval.
+Phase 0, Phase 1, Phase 2, and Phase 3 are complete locally. Next safe
+implementation scope is Phase 4: signal ganglia and council memory as typed
+adapters/evidence around the existing council call chain. Security veto must
+remain deterministic and strongest; council memory may suggest but never
+authorize action.

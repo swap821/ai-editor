@@ -76,3 +76,31 @@ def test_post_v7_audit_catches_features_documented_as_missing(tmp_path: Path) ->
             ),
         )
     ]
+
+
+def test_post_v10_audit_catches_ecosystem_documented_as_roadmap(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "aios/maintenance").mkdir(parents=True)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "aios/maintenance/ecosystem_scanner.py").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (tmp_path / "tests/test_ecosystem_scanner.py").write_text("", encoding="utf-8")
+
+    findings = audit_post_v7_feature_docs(
+        {
+            "README.md": (
+                "| Ecosystem Scanner | Roadmap | Phase 3 target: local-only scanner |"
+            ),
+            ".aios/state/V10_INTEGRATION_PLAN.md": "Start Phase 3 only",
+        },
+        root=tmp_path,
+    )
+
+    assert {finding.path for finding in findings} == {
+        "README.md",
+        ".aios/state/V10_INTEGRATION_PLAN.md",
+    }
+    assert all(finding.code == "post-v10-ecosystem-scanner-drift" for finding in findings)
