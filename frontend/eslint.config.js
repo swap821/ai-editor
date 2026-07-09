@@ -26,7 +26,7 @@ export default defineConfig([
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // Async fetch-then-setState inside useEffect is the canonical React data-fetching
       // pattern; this rule is overly aggressive for this codebase.
-      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/set-state-in-effect': 'off',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       // rules-of-hooks stays error — calling hooks conditionally is always wrong
       'react-hooks/rules-of-hooks': 'error',
@@ -61,7 +61,7 @@ export default defineConfig([
       'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       // Same as JS config — async data-fetching pattern in useEffect is fine
-      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])
