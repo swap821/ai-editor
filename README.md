@@ -25,7 +25,7 @@ tests, `python tools/thesis_audit.py` should catch it.
 | Audit + Rollback | Built | Critical actions are audited; write paths use snapshots, confinement, verification, and rollback support through the existing spine. |
 | Router | Built | `Auto` can route across local Ollama and configured cloud providers, but only through deterministic policy. The current cloud-task default is `reasoning,coding`; set `AIOS_ROUTER_CLOUD_TASKS=""` to force local-only routing. `AIOS_SWARM_CLOUD_BURST` is a separate egress control for swarm cloud bursts. |
 | Memory | Built | Facts are proposed, approved, then active. Project scans and model output are evidence/proposals, not trusted memory. |
-| Project Knowledge | Built seed | Project Passport scans repos locally into purpose, stack, folder map, key commands, env vars, risks, issues, goals, and suggestions. Deeper symbol RepoMap/PageRank is roadmap. |
+| Project Knowledge | Built seed | Project Passport scans repos locally into purpose, stack, folder map, key commands, env vars, risks, issues, goals, and suggestions. `aios/cognition/repo_map.py` adds a local-only stdlib AST/import symbol map with advisory scope hints that cannot widen worker contracts. |
 | Pheromones | Built | Typed, decaying, auditable hints influence planning/worker context but never override security, verification, or human approval. |
 | Caste Workers | Built | Forager, Builder, Scout, Soldier, and Nurse profiles clamp tools, scope, timeout, and evidence expectations over the existing worker runtime. Workers are ephemeral. |
 | Royal Decree | Built seed | Complex work can get scout-first advisory plans before execution. The decree is evidence, not authority. |
@@ -195,7 +195,7 @@ Current integration status:
 | Phase 2 - Vulture Read-Only Seed | Complete locally | `aios/maintenance/vulture_sanitation.py`, `tests/test_vulture_sanitation.py` |
 | Phase 3 - Ecosystem Scanner | Complete locally | `aios/maintenance/ecosystem_scanner.py`, `tests/test_ecosystem_scanner.py` |
 | Phase 4 - Signal Ganglia + Council Memory | Complete locally | `aios/council/ganglia.py`, `aios/council/council_memory.py`, council/API tests |
-| Phase 5 - Symbol RepoMap | Planned | stdlib-first symbol graph over Project Passport |
+| Phase 5 - Symbol RepoMap | Complete locally | `aios/cognition/repo_map.py`, `tests/test_repo_map.py` |
 | Phase 6 - Meta Loop | Planned | proposal-only self-assessment |
 | Phase 7 - UI Truth Surface | Planned | backend-backed indicators only |
 

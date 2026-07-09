@@ -206,6 +206,9 @@ Verification:
 
 Purpose: add symbol-level project map on top of Project Passport.
 
+Status: Complete locally as of 2026-07-09 for the core scanner and contract
+scope hints. No API/UI exposure was added in this slice.
+
 Files:
 - Add `aios/cognition/repo_map.py`.
 - Add tests under `tests/test_repo_map.py`.
@@ -222,6 +225,15 @@ Exit gate:
 - Symbol queries are deterministic.
 - RepoMap hints cannot widen worker scope.
 - Project Passport trusted-memory safety still passes.
+
+Verification:
+- Red-first `.venv\Scripts\python.exe -m pytest tests\test_repo_map.py -q`
+  failed before `aios.cognition` existed.
+- `.venv\Scripts\python.exe -m pytest tests\test_repo_map.py tests\test_project_passport.py -q`
+  -> 10 passed.
+- `python tools\thesis_audit.py` -> ok.
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
+  92%.
 
 ## Phase 6 - Meta-Loop And Council Self-Assessment
 

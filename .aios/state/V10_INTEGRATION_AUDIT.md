@@ -253,6 +253,10 @@ Verification:
 
 Risk: Medium.
 
+Status: Complete locally as of 2026-07-09. The implemented slice is the core
+local-only Python symbol/import graph and worker-contract scope hints. API/UI
+exposure remains intentionally out of this slice.
+
 Add:
 - `aios/cognition/repo_map.py`: AST/import symbol graph and PageRank using
   existing dependencies before adding any heavy parser.
@@ -266,6 +270,16 @@ Tests:
 - Secret paths skipped.
 - Symbol graph queries are deterministic.
 - RepoMap context cannot widen worker file scope.
+- Project Passport trusted-memory safety still holds under Symbol RepoMap.
+
+Verification:
+- Red-first `.venv\Scripts\python.exe -m pytest tests\test_repo_map.py -q`
+  failed before `aios.cognition` existed.
+- `.venv\Scripts\python.exe -m pytest tests\test_repo_map.py tests\test_project_passport.py -q`
+  -> 10 passed.
+- `python tools\thesis_audit.py` -> ok.
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
+  92%.
 
 ### Phase 6 - Runtime Wiring And UI Truth
 
