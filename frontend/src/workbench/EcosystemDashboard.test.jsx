@@ -13,11 +13,6 @@ vi.mock('../components/HUDPanel', () => ({
 describe('EcosystemDashboard', () => {
   beforeEach(() => {
     global.fetch = vi.fn();
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('renders loading state initially', () => {

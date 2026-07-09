@@ -13,7 +13,7 @@ describe('VoiceCommandHandler', () => {
       onerror: null
     };
 
-    global.window.SpeechRecognition = vi.fn(() => mockSpeechRecognition);
+    global.window.SpeechRecognition = vi.fn(function() { return mockSpeechRecognition; });
   });
 
   it('shows error if Web Speech API is missing', () => {

@@ -37,9 +37,9 @@ describe('StigmergyPanel', () => {
     render(<StigmergyPanel onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/system/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/system/i).length).toBeGreaterThan(0);
       expect(screen.getByText(/depends_on/i)).toBeInTheDocument();
-      expect(screen.getByText(/database/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/database/i).length).toBeGreaterThan(0);
       expect(screen.getByText(/stores/i)).toBeInTheDocument();
     });
   });

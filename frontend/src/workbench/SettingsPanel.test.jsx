@@ -15,7 +15,7 @@ describe('SettingsPanel', () => {
     render(<SettingsPanel onClose={vi.fn()} />);
     
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
-    expect(screen.getByText('System Preferences')).toBeInTheDocument();
+    expect(screen.getByTestId('hud-panel')).toHaveAttribute('data-title', 'System Preferences');
     expect(screen.getByText('Ollama')).toBeInTheDocument();
     expect(screen.getByText('Bedrock')).toBeInTheDocument();
     expect(screen.getByText('Gemini')).toBeInTheDocument();

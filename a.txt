@@ -1,0 +1,137 @@
+.........................................                                [100%]
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.14.5-final-0 _______________
+
+Name                                    Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------------------------------
+aios\__init__.py                            2      0      0      0   100%
+aios\__main__.py                           14     14      2      0     0%   20-65
+aios\agents\__init__.py                     0      0      0      0   100%
+aios\agents\reflection_agent.py            83     83     12      0     0%   15-215
+aios\agents\role_pass.py                   75     75     40      0     0%   20-182
+aios\agents\rollback_engine.py             92     92     24      0     0%   22-194
+aios\agents\self_analysis_agent.py        330    330    118      0     0%   37-754
+aios\agents\swarm.py                      227    227    106      0     0%   26-513
+aios\agents\swarm_patterns.py              67     67     16      0     0%   8-161
+aios\agents\tool_agent.py                 418    418    172      0     0%   81-1468
+aios\agents\tool_handlers.py              268    268     98      0     0%   6-649
+aios\agents\tool_loop_helpers.py          104    104     44      0     0%   8-253
+aios\api\__init__.py                        0      0      0      0   100%
+aios\api\deps.py                          155    155     32      0     0%   20-406
+aios\api\main.py                         1114   1114    386      0     0%   20-2715
+aios\api\routes\__init__.py                 0      0      0      0   100%
+aios\api\routes\actions.py                147    147     30      0     0%   11-327
+aios\api\routes\auth.py                    43     43      2      0     0%   9-153
+aios\api\routes\council.py                337    337     86      0     0%   12-716
+aios\api\routes\development.py            126    126     28      0     0%   8-277
+aios\api\routes\memory.py                 172    172     26      0     0%   14-470
+aios\api\routes\models.py                  35     35      6      0     0%   8-93
+aios\api\routes\sovereignty.py            246    246     56      0     0%   7-414
+aios\api\routes\system.py                  94     94     14      0     0%   9-213
+aios\api\routes\voice.py                   63     63     20      0     0%   8-120
+aios\audit_anchor.py                       85     85     14      0     0%   2-121
+aios\boot_attestation.py                   41     41     10      0     0%   8-101
+aios\config.py                            234     16     20      7    91%   29->32, 39, 56-58, 65-69, 78, 81-82, 96, 291, 293, 448
+aios\core\__init__.py                       0      0      0      0   100%
+aios\core\alignment.py                    263    263     96      0     0%   9-580
+aios\core\anthropic_direct.py             167    167     64      0     0%   27-334
+aios\core\approvals.py                    187    187     56      0     0%   9-325
+aios\core\autonomy.py                     100    100     18      0     0%   26-274
+aios\core\bedrock.py                      242    242     98      0     0%   23-506
+aios\core\catalog.py                       45     45     22      0     0%   16-88
+aios\core\cerebellum.py                   183    183     60      0     0%   27-446
+aios\core\confidence_filter.py             27     27      6      0     0%   9-63
+aios\core\events.py                        52     52      0      0     0%   3-151
+aios\core\executor.py                     227    227     66      0     0%   26-580
+aios\core\failover.py                     238    238    104      0     0%   37-427
+aios\core\gemini.py                       214    214     88      0     0%   29-457
+aios\core\graph_ingestion.py               76     76     40      0     0%   8-138
+aios\core\inference.py                     47     47     12      0     0%   6-113
+aios\core\llm.py                          105    105     16      0     0%   9-233
+aios\core\metrics.py                       73     73      4      0     0%   6-180
+aios\core\model_selector.py                92     92     24      0     0%   23-241
+aios\core\native_planner.py                98     98     36      0     0%   15-214
+aios\core\openai_compat.py                156    156     50      0     0%   24-308
+aios\core\planner.py                      131    131     26      0     0%   15-317
+aios\core\privacy_filter.py               272    272    102      0     0%   18-430
+aios\core\prompt_writer.py                 40     40     12      0     0%   7-80
+aios\core\router.py                       143    143     50      0     0%   37-405
+aios\core\router_wiring.py                125    125     68      0     0%   1-340
+aios\core\self_apply.py                   209    209     56      0     0%   23-414
+aios\core\self_consistency.py              52     52     16      0     0%   2-99
+aios\core\session_manager.py              129    129     36      0     0%   16-278
+aios\core\stream_protocol.py                7      7      0      0     0%   2-17
+aios\core\telemetry.py                     92     92     24      0     0%   14-191
+aios\core\verification_strength.py         75     75     24      0     0%   10-202
+aios\core\verifier.py                      49     49      8      0     0%   15-142
+aios\core\voice.py                        119    119     16      0     0%   7-199
+aios\core\websearch.py                     43     43     14      0     0%   11-88
+aios\council\__init__.py                    4      4      0      0     0%   2-19
+aios\council\council_orchestrator.py      130    130     16      0     0%   7-345
+aios\council\council_state.py              53     53      0      0     0%   10-178
+aios\council\king_reasoning.py             44     44     16      0     0%   11-102
+aios\council\queen_service.py              68     68      6      0     0%   2-118
+aios\council\queen_verdict.py              18     18      4      0     0%   2-47
+aios\council\queens\__init__.py             6      6      0      0     0%   2-8
+aios\council\queens\critique.py            23     23      8      0     0%   9-92
+aios\council\queens\memory.py              36     36      8      0     0%   9-117
+aios\council\queens\planner.py             73     73      8      0     0%   8-186
+aios\council\queens\security.py            82     82     36      0     0%   2-150
+aios\council\queens\testing.py             44     44     14      0     0%   2-152
+aios\council\reasoning.py                  87     87     10      0     0%   14-228
+aios\logging_config.py                     32     32      8      0     0%   8-85
+aios\memory\__init__.py                     0      0      0      0   100%
+aios\memory\alignment_evaluation.py       140    140     34      0     0%   8-288
+aios\memory\compaction.py                 132    132     28      0     0%   17-278
+aios\memory\consolidation.py               69     69     22      0     0%   2-137
+aios\memory\conversation.py               142    142     44      0     0%   8-284
+aios\memory\crag.py                       116    116     40      0     0%   16-275
+aios\memory\curriculum.py                  88     88     24      0     0%   7-211
+aios\memory\curriculum_miner.py           159    159     72      0     0%   13-300
+aios\memory\db.py                         142    142     60      0     0%   9-329
+aios\memory\development.py                113    113     34      0     0%   6-238
+aios\memory\doc_ingest.py                  98     98     26      0     0%   10-231
+aios\memory\embeddings.py                 110    110     20      0     0%   18-211
+aios\memory\episodic.py                    31     31      2      0     0%   9-79
+aios\memory\fact_extraction.py             42     42     18      0     0%   11-89
+aios\memory\facts.py                      179    179     42      0     0%   10-534
+aios\memory\mistake.py                    102    102     16      0     0%   10-305
+aios\memory\operator_model.py              23     23      6      0     0%   8-52
+aios\memory\pheromones.py                 133    133     32      0     0%   2-233
+aios\memory\relevance.py                   27     27      4      0     0%   7-70
+aios\memory\retrieval.py                   77     77     18      0     0%   19-166
+aios\memory\self_model.py                  50     50     20      0     0%   13-103
+aios\memory\semantic.py                    91     91     16      0     0%   9-202
+aios\memory\skills.py                     170    170     42      0     0%   7-456
+aios\memory\working.py                     28     28      0      0     0%   8-52
+aios\policy\__init__.py                     2      2      0      0     0%   2-4
+aios\policy\engine.py                     118    118     20      0     0%   2-216
+aios\probe_common.py                        6      0      0      0   100%
+aios\runtime\__init__.py                   12     12      4      0     0%   2-27
+aios\runtime\backends.py                   88     88      8      0     0%   7-243
+aios\runtime\budget_guard.py               61     61     16      0     0%   2-108
+aios\runtime\concurrency.py                25     25      2      0     0%   13-59
+aios\runtime\contracts.py                  87     87      0      0     0%   7-142
+aios\runtime\cortex_bus.py                107    107     12      0     0%   12-278
+aios\runtime\cortex_bus_dispatcher.py      41     41      8      0     0%   19-87
+aios\runtime\intelligence_gateway.py       88     88     18      0     0%   2-184
+aios\runtime\king_report.py                63     63     18      0     0%   2-192
+aios\runtime\live_surface.py              112    112     20      0     0%   2-206
+aios\runtime\rollback_registry.py         114    114     18      0     0%   2-231
+aios\runtime\run_ledger.py                 39     39      6      0     0%   2-112
+aios\runtime\secret_policy.py              23     23      0      0     0%   2-70
+aios\runtime\self_model_handler.py         30     30      2      0     0%   15-69
+aios\runtime\snapshots.py                  45     45     10      0     0%   2-99
+aios\runtime\spawner.py                    61     61      8      0     0%   2-123
+aios\runtime\turn_state.py                 40     40      4      0     0%   25-102
+aios\runtime\worker_api.py                204    204     52      0     0%   2-464
+aios\runtime\worker_entry.py              172    172     52      0     0%   9-381
+aios\runtime\worktree_backend.py           92     92     26      0     0%   2-133
+aios\security\__init__.py                   0      0      0      0   100%
+aios\security\audit_logger.py             350    350     90      0     0%   39-1077
+aios\security\gateway.py                  172    172     64      0     0%   22-445
+aios\security\injection_shield.py          29     29      6      0     0%   20-88
+aios\security\scope_lock.py                85     85     32      0     0%   14-177
+aios\security\secret_scanner.py           133    133     54      0     0%   13-365
+-----------------------------------------------------------------------------------
+TOTAL                                   14011  13785   3978      7     1%
