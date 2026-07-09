@@ -7,7 +7,7 @@ describe('MemoryOperationsPanel', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn();
-    global.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
   });
 
   afterEach(() => {

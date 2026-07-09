@@ -8,7 +8,7 @@ describe('SettingsPanel', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn();
-    global.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
     onCloseMock = vi.fn();
   });
 
