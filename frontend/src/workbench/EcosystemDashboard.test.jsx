@@ -12,11 +12,11 @@ vi.mock('../components/HUDPanel', () => ({
 
 describe('EcosystemDashboard', () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   it('renders loading state initially', () => {
-    global.fetch.mockImplementation(() => new Promise(() => {}));
+    globalThis.fetch.mockImplementation(() => new Promise(() => {}));
     render(<EcosystemDashboard onClose={vi.fn()} />);
     
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
@@ -24,7 +24,7 @@ describe('EcosystemDashboard', () => {
   });
 
   it('renders metrics on success', async () => {
-    global.fetch.mockResolvedValueOnce({
+    globalThis.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         memory_integration_score: 0.95,

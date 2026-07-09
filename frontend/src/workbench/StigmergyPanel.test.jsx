@@ -12,19 +12,19 @@ vi.mock('../components/HUDPanel', () => ({
 
 describe('StigmergyPanel', () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   it('renders loading state and fetches default node', async () => {
-    global.fetch.mockImplementation(() => new Promise(() => {})); // pending
+    globalThis.fetch.mockImplementation(() => new Promise(() => {})); // pending
     render(<StigmergyPanel onClose={vi.fn()} />);
     
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('start=system'));
+    expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('start=system'));
   });
 
   it('renders graph edges on success', async () => {
-    global.fetch.mockResolvedValueOnce({
+    globalThis.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         edges: [

@@ -113,7 +113,7 @@ function getStableRandom(seed) {
 export default function SuperbrainReactiveEffects() {
   const [lightnings, setLightnings] = useState([]);
   const [motes, setMotes] = useState({});
-  const [stigmergyTrails, setStigmergyTrails] = useState([]);
+  const [stigmergyTrails, setStigmergyTrails] = useState(() => [...(getKnownTrails() || [])]);
   const motesRef = useRef({});
   const [aurora, setAurora] = useState(getAuroraState);
   const [spineFlash, setSpineFlash] = useState(getSpineFlashState);
@@ -164,7 +164,6 @@ export default function SuperbrainReactiveEffects() {
 
     // Verify-pass aurora and Stigmergy trails/scars updates.
     // getKnownTrails might return the same array reference so we spread.
-    setStigmergyTrails([...(getKnownTrails() || [])]);
     const unsubCognition = subscribeCognition((event) => {
       if (event.type === 'verify' && event.data?.verdict) {
         setAuroraIntensity(1, event.data.verdict);

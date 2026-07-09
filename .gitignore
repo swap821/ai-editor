@@ -94,3 +94,8 @@ training_ground/*
 # fixtures from the learning-loop prover are ignored; lab/__init__.py and
 # lab/conftest.py are force-added.
 lab/*
+
+scratch.py
+
+frontend/eslint-report*.json
+

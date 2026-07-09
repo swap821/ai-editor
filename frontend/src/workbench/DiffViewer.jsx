@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { DiffEditor } from '@monaco-editor/react';
 import { Columns, AlignLeft } from 'lucide-react';
@@ -33,28 +33,6 @@ export default function DiffViewer({ original, modified, filename, onClose }) {
     });
   };
 
-  const HeaderExtras = () => (
-    <button
-      onClick={() => setInline(!inline)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        background: 'rgba(255,255,255,0.05)',
-        border: 'var(--hairline)',
-        borderRadius: 'var(--radius-xs)',
-        padding: '2px 8px',
-        color: 'var(--text-2)',
-        fontSize: 'var(--text-xs)',
-        cursor: 'pointer'
-      }}
-      title="Toggle Inline (Ctrl+Shift+D)"
-    >
-      {inline ? <AlignLeft size={12} /> : <Columns size={12} />}
-      {inline ? 'Inline' : 'Side-by-Side'}
-    </button>
-  );
-
   const getLanguage = (fname) => {
     if (!fname) return 'javascript';
     const ext = fname.split('.').pop().toLowerCase();
@@ -69,7 +47,27 @@ export default function DiffViewer({ original, modified, filename, onClose }) {
       defaultPosition={{ x: 100, y: 150 }}
       defaultSize={{ width: 900, height: 500 }}
       onClose={onClose}
-      headerExtras={<HeaderExtras />}
+      headerExtras={
+        <button
+          onClick={() => setInline(!inline)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'rgba(255,255,255,0.05)',
+            border: 'var(--hairline)',
+            borderRadius: 'var(--radius-xs)',
+            padding: '2px 8px',
+            color: 'var(--text-2)',
+            fontSize: 'var(--text-xs)',
+            cursor: 'pointer'
+          }}
+          title="Toggle Inline (Ctrl+Shift+D)"
+        >
+          {inline ? <AlignLeft size={12} /> : <Columns size={12} />}
+          {inline ? 'Inline' : 'Side-by-Side'}
+        </button>
+      }
     >
       <DiffEditor
         height="100%"

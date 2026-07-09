@@ -1,11 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Terminal, Copy, Trash2, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Terminal, Copy, Trash2, X, ChevronUp } from 'lucide-react';
 // import { subscribeCognition } from '../superbrain/lib/cognitionBus';
 
 export default function TerminalPanel() {
   const [isOpen, setIsOpen] = useState(false);
-  const [logs, setLogs] = useState([]);
+  // Lazy initializer — avoids calling setState synchronously inside an effect
+  const [logs, setLogs] = useState(() => [{
+    id: Date.now(),
+    command: 'gag system start',
+    output: 'GAGOS v10 Terminal Online.',
+    returncode: 0,
+    timestamp: new Date().toISOString()
+  }]);
   const bottomRef = useRef(null);
   
   useEffect(() => {
@@ -20,26 +27,6 @@ export default function TerminalPanel() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  useEffect(() => {
-    // Mock subscription since cognitionBus might not be fully exported here yet
-    // const unsubscribe = subscribeCognition('terminal', (data) => {
-    //   setLogs(prev => {
-    //     const newLogs = [...prev, { ...data, id: Date.now() }];
-    //     if (newLogs.length > 500) return newLogs.slice(newLogs.length - 500);
-    //     return newLogs;
-    //   });
-    // });
-    // return unsubscribe;
-    
-    // Simulate initial log
-    setLogs([{
-      id: Date.now(),
-      command: 'gag system start',
-      output: 'GAGOS v10 Terminal Online.',
-      returncode: 0,
-      timestamp: new Date().toISOString()
-    }]);
-  }, []);
 
   useEffect(() => {
     if (isOpen && bottomRef.current) {

@@ -68,6 +68,9 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests + coverage
         # Runs the suite AND measures coverage, enforcing the per-directory
         # floors in vite.config.js (src/superbrain/lib, src/workbench). Coverage

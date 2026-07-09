@@ -12,12 +12,12 @@ vi.mock('../components/HUDPanel', () => ({
 
 describe('MemoryBrowser', () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   it('renders loading state initially', () => {
     // Need an unresolved promise so it stays loading
-    global.fetch.mockImplementation(() => new Promise(() => {}));
+    globalThis.fetch.mockImplementation(() => new Promise(() => {}));
     
     render(<MemoryBrowser onClose={vi.fn()} />);
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe('MemoryBrowser', () => {
       JSON.stringify({ task_id: 'TASK-2', goal: 'Another goal', outcome: 'failure', lessons: 'Learned B' })
     ].join('\n');
 
-    global.fetch.mockResolvedValueOnce({
+    globalThis.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ content: fakeExperiences })
     });
@@ -44,7 +44,7 @@ describe('MemoryBrowser', () => {
   });
 
   it('renders error on failure', async () => {
-    global.fetch.mockRejectedValueOnce(new Error('Network error'));
+    globalThis.fetch.mockRejectedValueOnce(new Error('Network error'));
 
     render(<MemoryBrowser onClose={vi.fn()} />);
 

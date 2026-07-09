@@ -12,11 +12,11 @@ vi.mock('../components/HUDPanel', () => ({
 
 describe('VultureFeed', () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   it('renders loading state initially', () => {
-    global.fetch.mockImplementation(() => new Promise(() => {}));
+    globalThis.fetch.mockImplementation(() => new Promise(() => {}));
     render(<VultureFeed onClose={vi.fn()} />);
     
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
@@ -24,7 +24,7 @@ describe('VultureFeed', () => {
   });
 
   it('renders trails on success', async () => {
-    global.fetch.mockResolvedValueOnce({
+    globalThis.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         trails: [
