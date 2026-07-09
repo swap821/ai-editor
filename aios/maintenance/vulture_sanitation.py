@@ -7,6 +7,7 @@ cloud calls, memory compaction, pheromone decay, policy mutation, or deletion.
 """
 from __future__ import annotations
 
+import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +22,8 @@ VultureKind = Literal[
     "trusted_memory_activation",
     "unsafe_self_modification",
     "secret_material",
+    "cognitive_parasite",
+    "dead_import",
     "read_error",
 ]
 VultureSeverity = Literal["low", "medium", "high", "critical"]
@@ -113,6 +116,15 @@ _RULES: tuple[VultureRule, ...] = (
         ),
         evidence="self-modification without the approval chain",
     ),
+    VultureRule(
+        kind="cognitive_parasite",
+        severity="high",
+        pattern=re.compile(
+            r"\b(?:disable\s+(?:the\s+)?vulture|remove\s+(?:the\s+)?immune\s+system|immune\s+system\s+is\s+(?:waste|unnecessary|expensive)|vulture\s+is\s+(?:waste|unnecessary|expensive)|disable\s+(?:the\s+)?security\s+ganglion)\b",
+            re.IGNORECASE,
+        ),
+        evidence="anti-immune-system language that should not be trusted automatically",
+    ),
 )
 
 _RECOMMENDATIONS: Mapping[VultureKind, str] = {
@@ -121,6 +133,8 @@ _RECOMMENDATIONS: Mapping[VultureKind, str] = {
     "trusted_memory_activation": "Keep as evidence only until an existing memory authority accepts it.",
     "unsafe_self_modification": "Convert to a proposal and route through controlled self-modification review.",
     "secret_material": "Redact before persistence and review the source for credential exposure.",
+    "cognitive_parasite": "Keep as cautionary evidence and require human review before reuse.",
+    "dead_import": "Treat as a cleanup proposal; do not remove code without verifier-backed review.",
     "read_error": "Treat unreadable target as incomplete evidence, not as a clean scan.",
 }
 
@@ -170,6 +184,37 @@ class VultureScanner:
                     )
                 )
         findings.extend(self.scan_targets(targets).findings)
+        return VultureReport(findings=tuple(findings))
+
+    def scan_code_paths(self, paths: Iterable[Path | str]) -> VultureReport:
+        """Read Python files and propose local code hygiene findings only.
+
+        This intentionally stops at evidence. It does not edit files, run tests,
+        invoke formatters, or quarantine anything.
+        """
+
+        findings: list[VultureFinding] = []
+        for raw_path in sorted((Path(p) for p in paths), key=lambda p: p.as_posix()):
+            target_id = raw_path.as_posix()
+            try:
+                payload = raw_path.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                findings.append(
+                    VultureFinding(
+                        target_id=target_id,
+                        kind="read_error",
+                        severity="medium",
+                        excerpt=_clip(str(exc)),
+                        evidence=("local file read failed",),
+                        recommendation=_RECOMMENDATIONS["read_error"],
+                    )
+                )
+                continue
+
+            findings.extend(self._scan_text(target_id, payload))
+            if raw_path.suffix == ".py":
+                findings.extend(self._scan_python_ast(target_id, payload))
+
         return VultureReport(findings=tuple(findings))
 
     def _scan_text(self, target_id: str, payload: str) -> tuple[VultureFinding, ...]:
@@ -225,9 +270,63 @@ class VultureScanner:
 
         return tuple(findings)
 
+    def _scan_python_ast(
+        self, target_id: str, payload: str
+    ) -> tuple[VultureFinding, ...]:
+        try:
+            tree = ast.parse(payload)
+        except SyntaxError as exc:
+            return (
+                VultureFinding(
+                    target_id=target_id,
+                    kind="read_error",
+                    severity="low",
+                    excerpt=_clip(str(exc)),
+                    evidence=("local Python AST parse failed",),
+                    recommendation=_RECOMMENDATIONS["read_error"],
+                ),
+            )
+
+        imported: dict[str, int] = {}
+        used_names: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    name = alias.asname or alias.name.split(".", 1)[0]
+                    imported.setdefault(name, node.lineno)
+            elif isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if alias.name == "*":
+                        continue
+                    name = alias.asname or alias.name
+                    imported.setdefault(name, node.lineno)
+            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                used_names.add(node.id)
+
+        findings: list[VultureFinding] = []
+        for name in sorted(imported):
+            if name in used_names or name.startswith("_"):
+                continue
+            line_no = imported[name]
+            findings.append(
+                VultureFinding(
+                    target_id=f"{target_id}:import:{name}",
+                    kind="dead_import",
+                    severity="low",
+                    excerpt=f"line {line_no}: unused import {name}",
+                    evidence=(name, "unused import from local AST name scan"),
+                    recommendation=_RECOMMENDATIONS["dead_import"],
+                )
+            )
+        return tuple(findings)
+
 
 def scan_vulture_targets(targets: Mapping[str, str]) -> VultureReport:
     return VultureScanner().scan_targets(targets)
+
+
+def scan_vulture_code_paths(paths: Iterable[Path | str]) -> VultureReport:
+    return VultureScanner().scan_code_paths(paths)
 
 
 def _clip(text: str, limit: int = 180) -> str:
@@ -247,5 +346,6 @@ __all__ = [
     "VultureFinding",
     "VultureReport",
     "VultureScanner",
+    "scan_vulture_code_paths",
     "scan_vulture_targets",
 ]
