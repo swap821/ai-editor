@@ -1,6 +1,6 @@
 # RESUME MANIFEST
 
-Last updated: 2026-07-09T11:26:03+05:30 by Codex.
+Last updated: 2026-07-09T11:50:07+05:30 by Codex.
 Task: `v10-vulture-complete-replacement` / Phase 2 vulture hardening follow-up.
 
 ## Current Goal
@@ -9,9 +9,11 @@ contract, not production code, while preserving the proven v7/v8 safety,
 council, worker, memory, router, verifier, hibernation, resource, and UI spine.
 
 ## Last Completed + Verified Step
-The operator's prepared `vulture_sanitation_COMPLETE.py` was safety-reviewed and
-partially integrated as a read-only hardening slice. Unsafe scaffold behaviors
-were intentionally not copied:
+The operator's prepared `vulture_sanitation_COMPLETE.py` was safety-reviewed,
+partially integrated as a read-only hardening slice, pushed, and verified on
+GitHub:
+
+- Commit `10bb774` - `feat: harden vulture evidence scanner`
 
 - rejected autonomous quarantine storage, SQLite ledger writes, purge/restore,
   pheromone inversion, subprocess test loops, and file unlink/write paths;
@@ -34,10 +36,17 @@ Local verification:
 - `.venv\Scripts\python.exe -m pytest -q` -> exit 0, 4 skipped, total coverage
   92%.
 
+GitHub verification for `10bb774`:
+
+- CI run `28998140392` -> success
+  - frontend: dependency audit, typecheck, unit tests + coverage, production
+    build
+  - backend: dependency audit, test suite with coverage gate
+- CodeQL Advanced run `28998140372` -> success
+
 ## Single Next Action
-Review and, if accepted, commit the vulture hardening follow-up; then resume
-Phase 4 as the next scoped roadmap task: signal ganglia and council memory as
-typed adapters/evidence around the existing council call chain.
+Start Phase 4 as the next scoped roadmap task: signal ganglia and council memory
+as typed adapters/evidence around the existing council call chain.
 
 ## Open Approvals / Blockers
 - No frozen-core files were edited in Phase 3.
@@ -47,14 +56,11 @@ typed adapters/evidence around the existing council call chain.
   untouched.
 - The operator's complete vulture file is not safe to paste verbatim because it
   contains autonomous write/purge/restore/subprocess/mutation organs.
-- No current blocker for Phase 4 after this follow-up is reviewed/committed,
-  provided security veto remains deterministic and council memory remains
-  advisory evidence.
+- No current blocker for Phase 4, provided security veto remains deterministic
+  and council memory remains advisory evidence.
 
 ## Active Files
-- `aios/maintenance/vulture_sanitation.py`
-- `tests/test_vulture_sanitation.py`
-- `.aios/state/RESUME.md`
+- No active vulture implementation files remain open.
 - Phase 4 should begin with a fresh task/lease and targeted tests.
 
 ## Notes Not Yet Promoted
