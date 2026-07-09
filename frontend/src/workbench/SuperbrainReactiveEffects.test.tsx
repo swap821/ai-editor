@@ -9,7 +9,7 @@ import {
 } from '../superbrain/lib/swarmHUDStore';
 import { setSpineFusion, __resetSpineFusionForTests } from '../superbrain/lib/spineFusionBus';
 import {
-  getAuroraIntensity,
+  getAuroraState,
   __resetAuroraBridgeForTests,
 } from './verifyAuroraBridge';
 import {
@@ -43,7 +43,7 @@ describe('SuperbrainReactiveEffects', () => {
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
     const { container } = render(<SuperbrainReactiveEffects />);
 
-    expect(getAuroraIntensity()).toBe(0);
+    expect(getAuroraState().intensity).toBe(0);
     expect(container.querySelector('[data-testid="verify-aurora"]')).toBeNull();
   });
 
@@ -51,7 +51,7 @@ describe('SuperbrainReactiveEffects', () => {
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
     const { container } = render(<SuperbrainReactiveEffects />);
 
-    expect(getAuroraIntensity()).toBe(0);
+    expect(getAuroraState().intensity).toBe(0);
 
     act(() => {
       publishCognition({
@@ -61,7 +61,7 @@ describe('SuperbrainReactiveEffects', () => {
       });
     });
 
-    expect(getAuroraIntensity()).toBe(1);
+    expect(getAuroraState().intensity).toBe(1);
     expect(container.querySelector('[data-testid="verify-aurora"]')).not.toBeNull();
   });
 

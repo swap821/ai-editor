@@ -53,7 +53,15 @@ export type CognitionEventType =
   | 'graph-recall'
   /** Sovereignty S3: the native planner produced a plan from verified
    *  experience templates — no LLM consultation needed for planning. */
-  | 'template-plan';
+  | 'template-plan'
+  /** Terminal stream output */
+  | 'terminal'
+  /** Budget tracker update */
+  | 'budget'
+  /** File tree / repo map update */
+  | 'file_tree'
+  /** Raycast voice toggle */
+  | 'raycast-voice-toggle';
 
 export interface CognitionEvent {
   type: CognitionEventType;

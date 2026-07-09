@@ -644,6 +644,20 @@ async function streamTurn(
           });
           break;
         }
+        case 'terminal':
+        case 'budget':
+        case 'file_tree': {
+          publishCognition({
+            type: frame.event,
+            label: frame.event.replace('_', ' ').toUpperCase(),
+            detail: 'Data update received',
+            intensity: 0.3,
+            source: 'aios',
+            data: frame.data,
+            ...spine,
+          });
+          break;
+        }
         default:
           break; // alignment and future frames are advisory to the scene
       }

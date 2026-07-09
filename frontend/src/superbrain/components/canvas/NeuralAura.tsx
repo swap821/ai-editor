@@ -354,7 +354,17 @@ export default function NeuralAura({
       delta,
     );
 
-    const targetColor = AURA_MODE_COLORS[mode] || AURA_MODE_COLORS.observe;
+    const energyState = 
+      (smoothedActivityRef.current > 0.7) ? 'feast' :
+      (smoothedActivityRef.current < 0.2) ? 'hibernation' : 'conservation';
+      
+    const ENERGY_COLORS = {
+      hibernation: new THREE.Color('#10164a'), // deep dark blue
+      conservation: new THREE.Color('#8f7bff'), // violet
+      feast: new THREE.Color('#ffb454'), // bright amber
+    };
+
+    const targetColor = ENERGY_COLORS[energyState];
     auraColor.lerp(targetColor, Math.min(1, delta * 2.5));
     // Approval hold: the atmosphere itself defers to YELLOW-zone amber.
     const holding = uniforms.uHold.value;

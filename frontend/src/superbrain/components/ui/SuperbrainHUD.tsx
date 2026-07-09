@@ -1157,6 +1157,14 @@ export default function SuperbrainHUD({
     else startVoice();
   }, [voiceListening, startVoice]);
 
+  useEffect(() => {
+    return subscribeCognition((e) => {
+      if (e.type === 'raycast-voice-toggle') {
+        toggleVoice();
+      }
+    });
+  }, [toggleVoice]);
+
   const cycleVoiceLang = useCallback(() => {
     setVoiceLang((prev) => (prev === 'en-IN' ? 'hi-IN' : 'en-IN'));
   }, []);

@@ -6,32 +6,33 @@
  * publish transient aurora intensity without touching ported files.
  */
 
-type Listener = (intensity: number) => void;
+type AuroraState = { intensity: number; verdict: 'pass' | 'fail' | 'caution' | null };
+type Listener = (state: AuroraState) => void;
 
-let intensity = 0;
+let state: AuroraState = { intensity: 0, verdict: null };
 const listeners = new Set<Listener>();
 
 function notify(): void {
-  for (const listener of listeners) listener(intensity);
+  for (const listener of listeners) listener(state);
 }
 
-export function setAuroraIntensity(value: number): void {
-  intensity = value;
+export function setAuroraIntensity(value: number, verdict?: 'pass' | 'fail' | 'caution' | null): void {
+  state = { intensity: value, verdict: verdict !== undefined ? verdict : state.verdict };
   notify();
 }
 
-export function getAuroraIntensity(): number {
-  return intensity;
+export function getAuroraState(): AuroraState {
+  return state;
 }
 
 export function subscribeAurora(listener: Listener): () => void {
   listeners.add(listener);
-  listener(intensity);
+  listener(state);
   return () => listeners.delete(listener);
 }
 
 /** Test seam: reset the bridge between cases. */
 export function __resetAuroraBridgeForTests(): void {
-  intensity = 0;
+  state = { intensity: 0, verdict: null };
   listeners.clear();
 }

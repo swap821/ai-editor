@@ -16,6 +16,7 @@ import {
   subscribeSwarmHUD,
 } from '../superbrain/lib/swarmHUDStore';
 import { subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { getKnownTrails } from '../superbrain/lib/aiosAdapter';
 import {
   fuseSpinePoint,
   getBrainDockScale,
@@ -23,7 +24,7 @@ import {
 } from '../superbrain/lib/spineFusionBus';
 import { SEGMENT_ANCHORS } from '../superbrain/lib/spineAnatomy';
 import {
-  getAuroraIntensity,
+  getAuroraState,
   setAuroraIntensity,
   subscribeAurora,
 } from './verifyAuroraBridge';
@@ -41,6 +42,16 @@ const CLOUD_COLORS = {
 
 function providerColor(provider) {
   return CLOUD_COLORS[provider] ?? CLOUD_COLORS.default;
+}
+
+const CLOUD_THICKNESS = {
+  bedrock: 4,
+  gemini: 3,
+  default: 2,
+};
+
+function providerThickness(provider) {
+  return CLOUD_THICKNESS[provider] ?? CLOUD_THICKNESS.default;
 }
 
 function jaggedArc(start, end, segments = 9) {
@@ -92,11 +103,19 @@ function beadPointsForProgress(progress) {
   return points;
 }
 
+function getStableRandom(seed) {
+  let t = (seed + 0x6d2b79f5) >>> 0;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
 export default function SuperbrainReactiveEffects() {
   const [lightnings, setLightnings] = useState([]);
   const [motes, setMotes] = useState({});
+  const [stigmergyTrails, setStigmergyTrails] = useState([]);
   const motesRef = useRef({});
-  const [aurora, setAurora] = useState(getAuroraIntensity);
+  const [aurora, setAurora] = useState(getAuroraState);
   const [spineFlash, setSpineFlash] = useState(getSpineFlashState);
   const lastCloudIndices = useRef(new Set());
   const lastCastes = useRef(new Set());
@@ -133,6 +152,7 @@ export default function SuperbrainReactiveEffects() {
               id: `${Date.now()}-${idx}`,
               points: jaggedArc(start, end),
               color: providerColor(state.provider ?? 'default'),
+              thickness: providerThickness(state.provider ?? 'default'),
               born: performance.now(),
             });
           }
@@ -142,10 +162,15 @@ export default function SuperbrainReactiveEffects() {
       lastCloudIndices.current = current;
     });
 
-    // Verify-pass aurora.
+    // Verify-pass aurora and Stigmergy trails/scars updates.
+    // getKnownTrails might return the same array reference so we spread.
+    setStigmergyTrails([...(getKnownTrails() || [])]);
     const unsubCognition = subscribeCognition((event) => {
-      if (event.type === 'verify' && event.data?.verdict === 'pass') {
-        setAuroraIntensity(1);
+      if (event.type === 'verify' && event.data?.verdict) {
+        setAuroraIntensity(1, event.data.verdict);
+      }
+      if (event.type === 'telemetry') {
+        setStigmergyTrails([...(getKnownTrails() || [])]);
       }
     });
 
@@ -188,10 +213,10 @@ export default function SuperbrainReactiveEffects() {
 
   useFrame((_, delta) => {
     // Decay aurora intensity in the bridge; the subscriber updates React state.
-    const intensity = getAuroraIntensity();
-    if (intensity > 0) {
-      const target = Math.max(0, intensity - delta * 0.9);
-      if (target !== intensity) {
+    const currentState = getAuroraState();
+    if (currentState.intensity > 0) {
+      const target = Math.max(0, currentState.intensity - delta * 0.9);
+      if (target !== currentState.intensity) {
         setAuroraIntensity(target);
       }
     }
@@ -227,7 +252,14 @@ export default function SuperbrainReactiveEffects() {
 
   const [cx, cy, cz] = getCortexAnchor();
   const cortex = new THREE.Vector3(cx, cy, cz).multiplyScalar(getBrainDockScale());
-  const auroraScale = 0.22 + aurora * 0.18;
+  const auroraScale = 0.22 + aurora.intensity * 0.18;
+  
+  const VERDICT_COLORS = {
+    pass: '#2fffa1',
+    fail: '#ff2f2f',
+    caution: '#ffb454',
+  };
+  const auroraColor = VERDICT_COLORS[aurora.verdict] || VERDICT_COLORS.pass;
 
   return (
     <group name="superbrain-reactive-effects">
@@ -236,7 +268,7 @@ export default function SuperbrainReactiveEffects() {
           key={l.id}
           points={l.points}
           color={l.color}
-          lineWidth={2}
+          lineWidth={l.thickness}
           transparent
           opacity={0.9}
         />
@@ -274,8 +306,8 @@ export default function SuperbrainReactiveEffects() {
         </group>
       )}
 
-      {/* Verify-pass aurora: a soft, transient green bloom around the cortex. */}
-      {aurora > 0.01 && (
+      {/* Verify-pass aurora: a soft, transient bloom around the cortex. */}
+      {aurora.intensity > 0.01 && (
         <mesh
           data-testid="verify-aurora"
           position={cortex}
@@ -283,9 +315,9 @@ export default function SuperbrainReactiveEffects() {
         >
           <sphereGeometry args={[1, 32, 32]} />
           <meshBasicMaterial
-            color="#2fffa1"
+            color={auroraColor}
             transparent
-            opacity={aurora * 0.14}
+            opacity={aurora.intensity * 0.14}
             depthWrite={false}
             side={THREE.DoubleSide}
             blending={THREE.AdditiveBlending}
@@ -299,12 +331,84 @@ export default function SuperbrainReactiveEffects() {
         pos.x += Math.cos(m.angle) * m.radius;
         pos.z += Math.sin(m.angle) * m.radius;
         pos.multiplyScalar(getBrainDockScale());
+        
+        const CASTE_COLORS = {
+          builder: '#ff8a00',
+          scout: '#00e5ff',
+          soldier: '#ff2a2a',
+          default: '#aefeff',
+        };
+        const c = caste.toLowerCase();
+        const color = CASTE_COLORS[c] || CASTE_COLORS.default;
+        
         return (
           <mesh key={caste} position={pos}>
             <sphereGeometry args={[0.04, 8, 8]} />
-            <meshBasicMaterial color="#aefeff" transparent opacity={0.85} />
+            <meshBasicMaterial color={color} transparent opacity={0.85} />
           </mesh>
         );
+      })}
+
+      {/* Trails and Scars (Stigmergy pheromones and mistakes) */}
+      {stigmergyTrails.map((t, i) => {
+        const seed = t.skill_id ?? i;
+        const rand1 = getStableRandom(seed);
+        const rand2 = getStableRandom(seed + 9999);
+        const radius = 3.25; // float slightly above brain
+        const phi = Math.acos(2 * rand1 - 1);
+        const theta = 2 * Math.PI * rand2;
+        
+        const pos = new THREE.Vector3(
+          radius * Math.sin(phi) * Math.cos(theta),
+          radius * Math.sin(phi) * Math.sin(theta),
+          radius * Math.cos(phi)
+        ).add(cortex);
+
+        const isScar = t.failure_count > 0 || t.status === 'failed';
+        const color = isScar ? '#ff2a2a' : (t.status === 'verified' ? '#00e5ff' : '#aefeff');
+        const opacity = Math.max(0.15, (t.strength ?? 0.5) * (isScar ? 0.8 : 1.0));
+
+        if (isScar) {
+          return (
+            <mesh key={`scar-${seed}`} position={pos}>
+              <boxGeometry args={[0.07, 0.07, 0.07]} />
+              <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} blending={THREE.AdditiveBlending} />
+            </mesh>
+          );
+        } else {
+          // generate short arc along the sphere
+          const phi2 = phi + (getStableRandom(seed + 1) - 0.5) * 0.4;
+          const theta2 = theta + (getStableRandom(seed + 2) - 0.5) * 0.4;
+          const pos2 = new THREE.Vector3(
+            radius * Math.sin(phi2) * Math.cos(theta2),
+            radius * Math.sin(phi2) * Math.sin(theta2),
+            radius * Math.cos(phi2)
+          ).add(cortex);
+          
+          const arcPoints = [];
+          for (let s = 0; s <= 5; s++) {
+             const t_val = s / 5;
+             const p = new THREE.Vector3()
+               .lerpVectors(pos, pos2, t_val)
+               .sub(cortex)
+               .normalize()
+               .multiplyScalar(radius)
+               .add(cortex);
+             arcPoints.push(p);
+          }
+          return (
+            <Line 
+              key={`trail-${seed}`} 
+              points={arcPoints} 
+              color={color} 
+              lineWidth={2} 
+              transparent 
+              opacity={opacity} 
+              blending={THREE.AdditiveBlending} 
+              depthWrite={false} 
+            />
+          );
+        }
       })}
     </group>
   );

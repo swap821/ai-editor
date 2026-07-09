@@ -352,6 +352,7 @@ from aios.api.routes.voice import router as _voice_router
 from aios.api.routes.sovereignty import router as _sovereignty_router
 from aios.api.routes.council import router as _council_router
 from aios.api.routes.projects import router as _projects_router
+from aios.api.routes.files import router as _files_router
 
 app.include_router(_system_router)
 app.include_router(_auth_router)
@@ -363,6 +364,7 @@ app.include_router(_voice_router)
 app.include_router(_sovereignty_router)
 app.include_router(_council_router)
 app.include_router(_projects_router)
+app.include_router(_files_router)
 
 
 @app.middleware("http")

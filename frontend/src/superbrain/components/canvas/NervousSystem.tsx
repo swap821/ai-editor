@@ -14,6 +14,7 @@ import {
   SEGMENT_BOTTOM_Y,
   SEGMENT_ANCHORS,
 } from '@/lib/spineAnatomy';
+import VertebraeRepoMapOverlay from './VertebraeRepoMapOverlay';
 
 // ============================================================================
 // THE LIVING NERVOUS SYSTEM — MESH, wearing the BRAIN'S EXACT material
@@ -799,6 +800,7 @@ export default function NervousSystem({
       {sprayBundle && (
         <mesh geometry={sprayBundle} material={material} frustumCulled={false} renderOrder={2} />
       )}
+      <VertebraeRepoMapOverlay />
     </group>
   );
 }

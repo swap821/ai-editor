@@ -25,6 +25,7 @@ import OrganSurface from './OrganSurface';
 import RegionPins from './RegionPins';
 import NodeLattice from './NodeLattice';
 import MaterializationLayer from './MaterializationLayer';
+import CouncilNodesOverlay from './CouncilNodesOverlay';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
@@ -1041,7 +1042,10 @@ function BrainModel({
 
   return (
     <group ref={groupRef} rotation={[0.04, -0.82, 0]} position={[0, -0.35, -1.2]}>
-      <group ref={brainVisualRef}>
+      <group ref={brainVisualRef} onPointerDown={(e) => {
+        e.stopPropagation();
+        publishCognition({ type: 'raycast-voice-toggle', source: 'raycast' });
+      }} onPointerOver={() => { document.body.style.cursor = 'pointer'; }} onPointerOut={() => { document.body.style.cursor = 'auto'; }}>
         {/* The base surface: canon emission shell, or the operator's painted
             flesh — the energy skin below breathes over BOTH. While the flesh
             textures stream in, the canon shell stands in (no blink). */}
@@ -1278,6 +1282,7 @@ function PointerBrainClone({
   return (
     <group ref={groupRef} position={brainPresence.miniBrainPosition} scale={BRAIN_SCALE * brainPresence.miniBrainScale}>
       <primitive object={brainClone.object} />
+      <CouncilNodesOverlay />
     </group>
   );
 }
