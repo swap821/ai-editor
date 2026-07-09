@@ -104,3 +104,26 @@ def test_post_v10_audit_catches_ecosystem_documented_as_roadmap(
         ".aios/state/V10_INTEGRATION_PLAN.md",
     }
     assert all(finding.code == "post-v10-ecosystem-scanner-drift" for finding in findings)
+
+
+def test_post_v10_audit_catches_meta_loop_documented_as_planned(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "aios/learning").mkdir(parents=True)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "aios/learning/meta_loop.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests/test_meta_loop.py").write_text("", encoding="utf-8")
+
+    findings = audit_post_v7_feature_docs(
+        {
+            "README.md": "| Phase 6 - Meta Loop | Planned | proposal-only self-assessment |",
+            ".aios/state/V10_INTEGRATION_AUDIT.md": "### Phase 6 - Runtime Wiring And UI Truth",
+        },
+        root=tmp_path,
+    )
+
+    assert {finding.path for finding in findings} == {
+        "README.md",
+        ".aios/state/V10_INTEGRATION_AUDIT.md",
+    }
+    assert all(finding.code == "post-v10-meta-loop-drift" for finding in findings)

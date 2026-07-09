@@ -2,8 +2,8 @@
 
 Date: 2026-07-09
 Audit: `.aios/state/V10_INTEGRATION_AUDIT.md`
-Status: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 implemented and verified
-locally on 2026-07-09.
+Status: Phase 0 through Phase 6 implemented and verified locally on
+2026-07-09. Phase 7 is the next scoped recommendation.
 
 Goal: integrate the useful GAGOS v10 "Sovereign Organism" contract into the
 real GAGOS repo without replacing the proven security, memory, router,
@@ -242,20 +242,41 @@ Verification:
 Purpose: convert v10 self-assessment into local proposals, not autonomous
 self-rewrite.
 
+Status: Complete locally as of 2026-07-09. Implemented as a read-only
+assessment layer over supplied reflection, mistake, skill, audit, policy,
+hibernation, and council evidence.
+
 Files:
-- Add `aios/learning/meta_loop.py` only if it composes existing reflection,
-  mistake, skill, audit, policy, and hibernation evidence.
-- Add tests under `tests/test_meta_loop.py`.
+- `aios/learning/meta_loop.py`: typed local-only evidence snapshot and advisory
+  proposal assessment.
+- `tests/test_meta_loop.py`: proposal-only, policy-read-only, unsafe
+  hibernation blocking, and secret-redaction coverage.
+- `tools/thesis_audit.py` and `tests/test_thesis_audit.py`: drift guard for
+  stale Phase 6 roadmap/docs claims.
 
 Behavior:
 - Summarize evidence.
 - Propose improvements.
 - Never run cloud, edit files, self-apply, or mutate policy by itself.
+- Redact secret-like evidence before it appears in assessment output.
 
 Exit gate:
 - Outputs are proposals.
 - Hibernation local-only tests still pass.
 - Policy evolution remains additive/reviewed.
+
+Verification:
+- Red-first `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py -q`
+  failed before `aios.learning` existed.
+- `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py -q`
+  -> 4 passed.
+- `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py tests\test_hibernation_resource.py tests\test_policy_engine.py tests\test_ganglia.py -q`
+  -> 23 passed.
+- `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py tests\test_hibernation_resource.py tests\test_policy_engine.py tests\test_ganglia.py tests\test_thesis_audit.py -q`
+  -> 28 passed.
+- `python tools\thesis_audit.py` -> ok.
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
+  92%.
 
 ## Phase 7 - UI Truth Surface
 

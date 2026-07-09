@@ -283,7 +283,53 @@ Verification:
 - GitHub CI run `29010330538` on commit `34a529d` -> success.
 - GitHub CodeQL Advanced run `29010330572` on commit `34a529d` -> success.
 
-### Phase 6 - Runtime Wiring And UI Truth
+### Phase 6 - Meta-Loop And Council Self-Assessment
+
+Risk: Medium.
+
+Status: Complete locally as of 2026-07-09. The implemented slice is a read-only
+assessment layer that turns supplied reflection, mistake, skill, audit, policy,
+hibernation, and council evidence into local proposal/evidence. It cannot
+authorize action, mutate policy, self-apply, write files, or call cloud.
+
+Add:
+- `aios/learning/meta_loop.py`: typed local-only snapshot, source summaries,
+  blockers, and human-review proposals with secret redaction.
+- `tests/test_meta_loop.py`: proposal-only contract tests.
+
+Integrate:
+- Policy engine evidence via read-only `policy_chain()` snapshots.
+- Hibernation report evidence as a safety input; unsafe hibernation evidence is
+  blocked and never converted into authority.
+- Council/memory/audit evidence as summaries, not active memory or approvals.
+
+Ignore:
+- Scaffold-style autonomous self-rewrite loops.
+- Cloud reflection, self-apply, file writes, policy mutation, or approval
+  shortcuts from meta-assessment output.
+
+Tests:
+- Meta-loop output is proposal/evidence only.
+- Policy evidence collection does not mutate the policy engine.
+- Unsafe hibernation evidence is blocked without authorizing action.
+- Secret-like evidence is redacted.
+- Thesis audit catches docs that still describe Phase 6 as planned or as UI
+  work once the meta-loop code exists.
+
+Verification:
+- Red-first `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py -q`
+  failed before `aios.learning` existed.
+- `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py -q`
+  -> 4 passed.
+- `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py tests\test_hibernation_resource.py tests\test_policy_engine.py tests\test_ganglia.py -q`
+  -> 23 passed.
+- `.venv\Scripts\python.exe -m pytest tests\test_meta_loop.py tests\test_hibernation_resource.py tests\test_policy_engine.py tests\test_ganglia.py tests\test_thesis_audit.py -q`
+  -> 28 passed.
+- `python tools\thesis_audit.py` -> ok.
+- `.venv\Scripts\python.exe -m pytest -q` -> passed, 4 skipped, total coverage
+  92%.
+
+### Phase 7 - Runtime Wiring And UI Truth
 
 Risk: Medium.
 
@@ -298,6 +344,7 @@ Expose:
 - Ecosystem scanner last-run status.
 - Council memory status.
 - Symbol RepoMap status.
+- Meta-loop proposal status.
 
 Do not expose:
 - Fake liveliness.

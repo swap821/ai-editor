@@ -120,6 +120,19 @@ POST_V7_FEATURE_RULES: tuple[FeatureDocRule, ...] = (
             ),
         ),
     ),
+    FeatureDocRule(
+        code="post-v10-meta-loop-drift",
+        name="Meta-Loop and Council Self-Assessment",
+        evidence_paths=(
+            "aios/learning/meta_loop.py",
+            "tests/test_meta_loop.py",
+        ),
+        stale_patterns=(
+            re.compile(r"Phase 6\s*[-\u2013\u2014]\s*Meta Loop\s*\|[^\n]*Planned", re.IGNORECASE),
+            re.compile(r"Phase 6\s*[-\u2013\u2014]\s*Runtime Wiring And UI Truth", re.IGNORECASE),
+            re.compile(r"Phase 6\s*[-\u2013\u2014][^\n]*UI Truth", re.IGNORECASE),
+        ),
+    ),
 )
 
 
