@@ -3,6 +3,15 @@ import { AlertTriangle, Cloud, FileText, RefreshCw, RotateCcw, ShieldCheck } fro
 import { API_BASE, API_HEADERS } from '../config';
 import { ensureSession } from '../superbrain/lib/sessionId';
 import SovereignStatePanel from './SovereignStatePanel';
+import KnowledgeIngestPanel from './KnowledgeIngestPanel';
+import MemoryOperationsPanel from './MemoryOperationsPanel';
+import PolicyEnforcementHUD from './PolicyEnforcementHUD';
+import SovereigntyControls from './SovereigntyControls';
+import CouncilServicesPanel from './CouncilServicesPanel';
+import RuntimeSurfaceHUD from './RuntimeSurfaceHUD';
+import ExecutionDebuggerPanel from './ExecutionDebuggerPanel';
+import AlignmentHUD from './AlignmentHUD';
+import SecurityAuditPanel from './SecurityAuditPanel';
 import './CouncilDashboard.css';
 
 const EMPTY_DETAIL = { summary: null, report: null, ledger: null };
@@ -378,6 +387,11 @@ export default function CouncilDashboard() {
           ['missions', 'Missions'],
           ['proposals', 'Self-Analysis'],
           ['sovereign', 'Sovereign State'],
+          ['knowledge', 'Knowledge & Memory'],
+          ['policy', 'Policy & Control'],
+          ['services', 'Services & Runtime'],
+          ['debugger', 'Debugger & Alignment'],
+          ['security', 'Security Audit'],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -394,6 +408,35 @@ export default function CouncilDashboard() {
 
       {view === 'proposals' ? <SelfAnalysisProposals /> : null}
       {view === 'sovereign' ? <SovereignStatePanel /> : null}
+      {view === 'knowledge' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+          <KnowledgeIngestPanel />
+          <MemoryOperationsPanel />
+        </div>
+      ) : null}
+      {view === 'policy' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+          <PolicyEnforcementHUD />
+          <SovereigntyControls />
+        </div>
+      ) : null}
+      {view === 'services' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+          <CouncilServicesPanel />
+          <RuntimeSurfaceHUD />
+        </div>
+      ) : null}
+      {view === 'debugger' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+          <ExecutionDebuggerPanel />
+          <AlignmentHUD />
+        </div>
+      ) : null}
+      {view === 'security' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+          <SecurityAuditPanel />
+        </div>
+      ) : null}
       {view !== 'missions' ? null : (
       <>
       <form

@@ -1,11 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import HUDPanel from '../components/HUDPanel';
-import { Settings, Sliders, Server, Cpu } from 'lucide-react';
+import { Settings, Sliders, Server, Cpu, Power } from 'lucide-react';
+import { API_BASE, API_HEADERS } from '../config';
+
+async function postJson(path, body = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
 
 export default function SettingsPanel({ onClose }) {
   const [provider, setProvider] = useState('Ollama');
   const [autonomy, setAutonomy] = useState(true);
   const [theme, setTheme] = useState('Superbrain');
+  
+  const [busy, setBusy] = useState(false);
 
   return (
     <HUDPanel
@@ -110,17 +124,60 @@ export default function SettingsPanel({ onClose }) {
           </select>
         </div>
         
-        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-          <button style={{
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid var(--border)',
-            padding: '6px 16px',
-            color: '#fff',
-            borderRadius: '4px',
-            fontSize: '12px',
-            cursor: 'pointer'
-          }} onClick={onClose}>
-            Apply & Close
+        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button 
+            disabled={busy}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--danger)',
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            onClick={async () => {
+              if (window.confirm('Restart AI-OS Backend?')) {
+                setBusy(true);
+                try {
+                  await postJson('/api/v1/system/restart');
+                  alert('Restart signal sent.');
+                } catch (err) {
+                  alert('Restart failed: ' + err.message);
+                } finally {
+                  setBusy(false);
+                }
+              }
+            }}
+          >
+            <Power size={14} /> Restart Backend
+          </button>
+          
+          <button 
+            disabled={busy}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid var(--border)',
+              padding: '6px 16px',
+              color: '#fff',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }} 
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await postJson('/api/v1/system/config', { provider, autonomy, theme });
+                onClose();
+              } catch (err) {
+                alert('Save config failed: ' + err.message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? 'Saving...' : 'Apply & Close'}
           </button>
         </div>
       </div>
