@@ -40,6 +40,15 @@ let _cookieBased = true;
 /** Whether we've already attempted session setup. */
 let _sessionChecked = false;
 
+/**
+ * The in-flight (or completed) session-detection check. Concurrent callers
+ * during the async init window all await this SAME promise instead of each
+ * racing their own checkServerSession() round-trip — otherwise a second
+ * caller could observe `_sessionChecked` flipped true before `_cookieBased`
+ * reflects the real, awaited result, and read the stale default.
+ */
+let _initPromise: Promise<void> | null = null;
+
 /** In-memory session ID for the cookie-blocked fallback. NEVER persisted. */
 let _fallbackSessionId: string | null = null;
 
@@ -107,18 +116,27 @@ async function createServerSession(): Promise<boolean> {
 export async function initSession(): Promise<string> {
   if (typeof window === 'undefined') return FALLBACK_SESSION_ID;
 
-  // Try cookie-based session first (server-side, httpOnly)
+  // Try cookie-based session first (server-side, httpOnly). _sessionChecked
+  // only flips to true once the awaited result is in, and every concurrent
+  // caller shares the one in-flight promise, so nobody can observe a "checked
+  // but not yet resolved" state and read the stale _cookieBased default.
   if (!_sessionChecked) {
-    _sessionChecked = true;
-    const hasSession = await checkServerSession();
-    if (!hasSession) {
-      const created = await createServerSession();
-      const verified = created ? await checkServerSession() : false;
-      if (!verified) {
-        // Backend doesn't support cookie sessions — fall back to storage
-        _cookieBased = false;
-      }
+    if (!_initPromise) {
+      _initPromise = (async () => {
+        const hasSession = await checkServerSession();
+        if (!hasSession) {
+          const created = await createServerSession();
+          const verified = created ? await checkServerSession() : false;
+          if (!verified) {
+            // Backend doesn't support cookie sessions — fall back to storage
+            _cookieBased = false;
+          }
+        }
+      })().finally(() => {
+        _sessionChecked = true;
+      });
     }
+    await _initPromise;
   }
 
   if (_cookieBased) {
@@ -273,6 +291,7 @@ export async function destroySession(): Promise<void> {
 export function __resetSessionForTests(): void {
   _cookieBased = true;
   _sessionChecked = false;
+  _initPromise = null;
   _fallbackSessionId = null;
   _fallbackWarningEmitted = false;
 }

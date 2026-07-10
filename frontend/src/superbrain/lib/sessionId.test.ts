@@ -67,6 +67,7 @@ describe('isCookieBasedSession', () => {
 
 describe('initSession', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     __resetSessionForTests();
     window.sessionStorage.clear();
     vi.restoreAllMocks();
@@ -123,5 +124,26 @@ describe('initSession', () => {
     vi.stubGlobal('window', undefined);
     const sid = await initSession();
     expect(sid).toBe(FALLBACK_SESSION_ID);
+  });
+
+  it('gives concurrent callers during the async init window the same, correct result', async () => {
+    // Regression for the 2026-07-10 audit: initSession() used to flip
+    // _sessionChecked to true BEFORE awaiting the real network round-trip,
+    // so a second concurrent caller could race past the "already checked"
+    // gate while _cookieBased still held its stale default -- returning a
+    // contradictory bodySessionId/cookieBased pair for the same request
+    // window. All fetch calls report cookies unsupported (404), so the
+    // correct ground truth for every caller is cookieBased: false.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: false, status: 404 } as Response))
+    );
+
+    const [ctxA, ctxB] = await Promise.all([ensureSession(), ensureSession()]);
+
+    expect(ctxA.cookieBased).toBe(false);
+    expect(ctxB.cookieBased).toBe(false);
+    expect(ctxA.bodySessionId).toBeTruthy();
+    expect(ctxB.bodySessionId).toBe(ctxA.bodySessionId);
   });
 });
