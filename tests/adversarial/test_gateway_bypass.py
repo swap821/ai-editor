@@ -798,23 +798,31 @@ class TestCautionOperations:
         assert result.zone == Zone.YELLOW
 
     def test_mkdir(self, gateway):
-        """TC-SEC-105: mkdir must be YELLOW."""
-        result = gateway("mkdir newdir")
+        """TC-SEC-105: mkdir with an explicit sandbox-relative target must be YELLOW."""
+        result = gateway("mkdir training_ground/newdir")
         assert result.zone == Zone.YELLOW
 
+    def test_mkdir_bare_target_is_scope_violation(self, gateway):
+        """Regression (2026-07-10): a bare, unprefixed mkdir target is ambiguous
+        about which directory it's relative to (the executor's real process cwd
+        is the repo root, not the sandbox itself) and is now a RED scope
+        violation instead of silently YELLOW-approving an escape."""
+        result = gateway("mkdir newdir")
+        assert result.zone == Zone.RED
+
     def test_mv_file(self, gateway):
-        """TC-SEC-106: mv must be YELLOW."""
-        result = gateway("mv old.txt new.txt")
+        """TC-SEC-106: mv with explicit sandbox-relative targets must be YELLOW."""
+        result = gateway("mv training_ground/old.txt training_ground/new.txt")
         assert result.zone == Zone.YELLOW
 
     def test_cp_file(self, gateway):
-        """TC-SEC-107: cp must be YELLOW."""
-        result = gateway("cp source.txt dest.txt")
+        """TC-SEC-107: cp with explicit sandbox-relative targets must be YELLOW."""
+        result = gateway("cp training_ground/source.txt training_ground/dest.txt")
         assert result.zone == Zone.YELLOW
 
     def test_touch_file(self, gateway):
-        """TC-SEC-108: touch must be YELLOW."""
-        result = gateway("touch newfile.txt")
+        """TC-SEC-108: touch with an explicit sandbox-relative target must be YELLOW."""
+        result = gateway("touch training_ground/newfile.txt")
         assert result.zone == Zone.YELLOW
 
     def test_yarn_add(self, gateway):
