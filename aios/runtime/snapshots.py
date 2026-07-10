@@ -67,7 +67,12 @@ class SnapshotManager:
         fail closed before the worker can act.
         """
         key = hashlib.sha256(str(workspace_root).encode("utf-8")).hexdigest()[:16]
-        git_dir = (self.runtime_root / "rollback_git" / key).resolve()
+        base = (self.runtime_root / "rollback_git").resolve()
+        git_dir = (base / key).resolve()
+        try:
+            git_dir.relative_to(base)
+        except ValueError:
+            raise RollbackError("Invalid git_dir escapes rollback_git directory")
         pointer = workspace_root / ".git"
         if pointer.is_dir():
             raise RollbackError(

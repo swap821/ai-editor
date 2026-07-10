@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from aios import config
+from aios.security.scope_lock import is_path_in_scope
 
 router = APIRouter(tags=["Files"])
 
@@ -42,7 +43,14 @@ def _build_tree(root_dir: Path) -> List[Dict[str, Any]]:
 @router.get("/api/v1/files/tree")
 def get_file_tree(root: Optional[str] = None):
     """Returns the AST structure of the workspace."""
-    base_dir = Path(root) if root else Path(config.PROJECT_ROOT)
+    if root:
+        check = is_path_in_scope(root)
+        if not check.in_scope:
+            raise HTTPException(status_code=403, detail="Directory out of bounds")
+        base_dir = Path(check.resolved)
+    else:
+        base_dir = Path(config.PROJECT_ROOT)
+        
     if not base_dir.exists() or not base_dir.is_dir():
         raise HTTPException(status_code=404, detail="Directory not found")
     
@@ -51,7 +59,11 @@ def get_file_tree(root: Optional[str] = None):
 @router.post("/api/v1/files/read")
 def read_file(req: ReadFileRequest):
     """Returns file content."""
-    p = Path(req.path)
+    check = is_path_in_scope(req.path)
+    if not check.in_scope:
+        raise HTTPException(status_code=403, detail="File out of bounds")
+    p = Path(check.resolved)
+    
     if not p.exists() or not p.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     
@@ -64,5 +76,9 @@ def read_file(req: ReadFileRequest):
 @router.post("/api/v1/files/edit")
 def edit_file(req: EditFileRequest):
     """Proposes diff, hits gate."""
+    check = is_path_in_scope(req.path)
+    if not check.in_scope:
+        raise HTTPException(status_code=403, detail="File out of bounds")
+        
     # In Phase 1, we just return success to simulate proposing an edit
     return {"status": "proposed", "message": "Edit proposed for approval."}

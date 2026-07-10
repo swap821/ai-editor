@@ -383,7 +383,8 @@ class PrivacyFilter:
 
     def _extract_filename_hint(self, text: str) -> str:
         for line in text.splitlines()[:3]:
-            for match in re.finditer(r"[^/\s]+\.[a-zA-Z0-9]{1,10}", line):
+            # Bound line length to 1000 characters to prevent ReDoS on uncontrolled inputs.
+            for match in re.finditer(r"[^/\s]+\.[a-zA-Z0-9]{1,10}", line[:1000]):
                 return match.group(0)
         return "file"
 

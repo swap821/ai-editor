@@ -197,7 +197,13 @@ class KingReportStore:
         self.runtime_root = _safe_resolve(runtime_root)
 
     def path_for(self, mission_id: str) -> Path:
-        return self.runtime_root / "missions" / mission_id / "king_report.json"
+        base = (self.runtime_root / "missions").resolve()
+        candidate = (base / mission_id).resolve()
+        try:
+            candidate.relative_to(base)
+        except ValueError:
+            raise ValueError(f"Invalid mission_id escapes missions directory: {mission_id}")
+        return candidate / "king_report.json"
 
     def write(self, report: KingReport) -> Path:
         path = self.path_for(report.mission_id)

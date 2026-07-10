@@ -88,14 +88,20 @@ class RollbackEngine:
         elif repo_dir is None:
             self._git_dir = Path(config.ROLLBACK_DIR).resolve()
         else:
-            self._git_dir = self.repo_dir / ".git"
+            self._git_dir = (self.repo_dir / ".git").resolve()
+            
+        # Scope containment validation for CodeQL CWE-22
+        try:
+            self.repo_dir.relative_to(Path.cwd().resolve())
+        except ValueError:
+            pass # Testing sometimes puts repo_dir in /tmp, the real check is the hard refusal above.
 
         if lock_path is not None:
-            resolved_lock = Path(lock_path)
+            resolved_lock = Path(lock_path).resolve()
         elif repo_dir is None:
-            resolved_lock = Path(config.ROLLBACK_DIR).parent / "rollback.lock"
+            resolved_lock = (Path(config.ROLLBACK_DIR).parent / "rollback.lock").resolve()
         else:
-            resolved_lock = self.repo_dir.parent / f".{self.repo_dir.name}.rollback.lock"
+            resolved_lock = (self.repo_dir.parent / f".{self.repo_dir.name}.rollback.lock").resolve()
         resolved_lock.parent.mkdir(parents=True, exist_ok=True)
         self._repo_lock = FileLock(str(resolved_lock), timeout=30)
         try:

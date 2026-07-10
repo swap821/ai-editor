@@ -160,7 +160,9 @@ def _mission_dir(runtime_root: Path, mission_id: str) -> Path:
     # mission_id can ever address a sibling or parent directory.
     base = (runtime_root / "missions").resolve()
     candidate = (base / mission_id).resolve()
-    if base not in candidate.parents:
+    try:
+        candidate.relative_to(base)
+    except ValueError:
         raise HTTPException(status_code=422, detail="invalid mission id")
     return candidate
 

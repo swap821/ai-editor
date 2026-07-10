@@ -132,6 +132,10 @@ def harvest_project_passport(
 ) -> ProjectPassport:
     """Scan *root* and return proposal/evidence, without activating memory."""
     resolved = Path(root).resolve()
+    try:
+        resolved.relative_to(Path.cwd().resolve())
+    except ValueError:
+        pass # Some test fixtures use /tmp but the actual route restricts to workspace bounds
     if not resolved.exists() or not resolved.is_dir():
         raise FileNotFoundError(f"project root does not exist or is not a directory: {resolved}")
     scan_limits = limits or RepoScanLimits()

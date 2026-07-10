@@ -95,7 +95,13 @@ class RunLedgerStore:
         self.runtime_root = _safe_resolve(runtime_root)
 
     def path_for(self, mission_id: str) -> Path:
-        return self.runtime_root / "missions" / mission_id / "run_ledger.json"
+        base = (self.runtime_root / "missions").resolve()
+        candidate = (base / mission_id).resolve()
+        try:
+            candidate.relative_to(base)
+        except ValueError:
+            raise ValueError(f"Invalid mission_id escapes missions directory: {mission_id}")
+        return candidate / "run_ledger.json"
 
     def write(self, ledger: RunLedger) -> Path:
         path = self.path_for(ledger.mission_id)
