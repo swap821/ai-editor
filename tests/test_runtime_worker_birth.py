@@ -309,6 +309,30 @@ def test_spawner_refuses_duplicate_mission_id(tmp_path: Path) -> None:
         asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
 
 
+def test_spawner_refuses_contract_that_violates_its_declared_caste(tmp_path: Path) -> None:
+    """WorkerSpawner.run() routes every contract through
+    ConstitutionEnforcer.check_caste_spawn before a mission dir is claimed or
+    a subprocess exists -- a forager (read-only research) contract declaring
+    write_file among its allowed_tools exceeds that caste's profile and must
+    be refused before spawn, not silently allowed through."""
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    contract = _mission(
+        workspace,
+        mission_id="mission-caste-violation",
+        allowed_tools=["read_file", "write_file"],
+        metadata={"caste": "forager"},
+    )
+
+    from aios.runtime.spawner import CasteSpawnRefused
+
+    with pytest.raises(CasteSpawnRefused, match="tools exceed forager caste"):
+        asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
+
+    # Refused before the mission dir was ever claimed.
+    assert not (runtime_root / "missions" / "mission-caste-violation").exists()
+
+
 def test_snapshot_manager_refuses_existing_git_workspace(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     (workspace / ".git").mkdir()

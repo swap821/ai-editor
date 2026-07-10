@@ -5,12 +5,17 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from aios.policy.constitution_enforcer import ConstitutionEnforcer
 from aios.runtime.backends import ControlledSubprocessBackend, WorkerBackend, WorkerHandle
 from aios.runtime.concurrency import WORKER_POOL
 from aios.runtime.contracts import KingReport, MissionContract, RunLedger, WorkerResult
 from aios.runtime.king_report import KingReportStore, build_king_report
 from aios.runtime.run_ledger import RunLedgerStore, build_run_ledger
 from aios.runtime.snapshots import SnapshotManager
+
+
+class CasteSpawnRefused(RuntimeError):
+    """Raised when ConstitutionEnforcer.check_caste_spawn refuses a contract."""
 
 
 def _utc_now() -> str:
@@ -64,6 +69,7 @@ class WorkerSpawner:
         snapshot_manager: SnapshotManager | None = None,
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
+        constitution_enforcer: ConstitutionEnforcer | None = None,
     ) -> None:
         from aios.runtime import _safe_resolve
         self.runtime_root = _safe_resolve(runtime_root)
@@ -71,9 +77,19 @@ class WorkerSpawner:
         self.snapshot_manager = snapshot_manager or SnapshotManager(self.runtime_root)
         self.ledger_store = ledger_store or RunLedgerStore(self.runtime_root)
         self.report_store = report_store or KingReportStore(self.runtime_root)
+        self.constitution_enforcer = constitution_enforcer or ConstitutionEnforcer()
 
     async def run(self, contract: MissionContract, *, claim: bool = True) -> WorkerRun:
         created_at = _utc_now()
+        # Real gate: the ONE place every worker actually spawns. A contract
+        # declaring a caste it violates (extra tools, forbidden tools still
+        # enabled, missing required verification) is refused before any
+        # mission-dir claim or subprocess exists to clean up. Contracts with
+        # no recognized caste (worker_type not in CASTE_PROFILES) pass
+        # through unaffected -- this only blocks a DECLARED violation.
+        decision = self.constitution_enforcer.check_caste_spawn(contract)
+        if not decision.allowed:
+            raise CasteSpawnRefused(decision.reason)
         # claim=False when a prior phase (e.g. CouncilOrchestrator.deliberate)
         # already claimed the mission dir; re-claiming would falsely collide.
         if claim:
@@ -120,4 +136,4 @@ class WorkerSpawner:
         return contract.model_copy(update={"snapshot_id": snapshot_id})
 
 
-__all__ = ["MissionCollisionError", "WorkerRun", "WorkerSpawner", "claim_mission"]
+__all__ = ["CasteSpawnRefused", "MissionCollisionError", "WorkerRun", "WorkerSpawner", "claim_mission"]
