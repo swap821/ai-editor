@@ -4,11 +4,27 @@ import {
   getVoiceSpeakState,
   interruptSpeech,
   isVoiceSpeakMuted,
+  setBackendTTS,
   setVoiceSpeakMuted,
   startVoiceSpeak,
   subscribeVoiceSpeak,
 } from './voiceSpeak';
 import { publishCognition } from '../superbrain/lib/cognitionBus';
+import { speakText } from '../superbrain/lib/aiosAdapter';
+
+vi.mock('../superbrain/lib/aiosAdapter', () => ({
+  speakText: vi.fn(),
+}));
+
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+const flush = () => new Promise((r) => setTimeout(r, 0));
 
 interface MockUtterance {
   text: string;
@@ -167,6 +183,76 @@ describe('voiceSpeak', () => {
     const utter = mocks.getLastUtterance();
     expect(utter?.voice?.lang).toBe('hi-IN');
     stop();
+  });
+
+  describe('backend TTS', () => {
+    class MockSource {
+      buffer: { tag: string } | null = null;
+      onended: (() => void) | null = null;
+      connect(): void {}
+      start(): void {
+        startedTags.push(this.buffer?.tag ?? '');
+      }
+      stop(): void {}
+    }
+
+    class MockAudioContext {
+      destination = {};
+      createBufferSource(): MockSource {
+        return new MockSource();
+      }
+      decodeAudioData(buf: unknown): Promise<unknown> {
+        return Promise.resolve(buf);
+      }
+    }
+
+    let startedTags: string[];
+
+    beforeEach(() => {
+      startedTags = [];
+      installSpeechMocks();
+      vi.stubGlobal('AudioContext', MockAudioContext);
+      setBackendTTS(true);
+    });
+
+    it('does not let a stale reply start playing after a newer reply already started', async () => {
+      const stop = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      const first = deferred<ArrayBuffer>();
+      const second = deferred<ArrayBuffer>();
+      speakTextMock.mockImplementationOnce(() => first.promise);
+      speakTextMock.mockImplementationOnce(() => second.promise);
+
+      // FIRST reply starts speaking; its network round-trip is still in flight.
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'FIRST' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+
+      // SECOND reply supersedes it before FIRST's network resolves.
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'SECOND' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+
+      // SECOND's network resolves first, then the stale FIRST's resolves after.
+      second.resolve({ tag: 'SECOND' } as unknown as ArrayBuffer);
+      await flush();
+      first.resolve({ tag: 'FIRST' } as unknown as ArrayBuffer);
+      await flush();
+
+      expect(startedTags).toEqual(['SECOND']);
+      stop();
+    });
+
+    it('still plays a reply normally when nothing supersedes it', async () => {
+      const stop = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'ONLY' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      await flush();
+
+      expect(startedTags).toEqual(['ONLY']);
+      stop();
+    });
   });
 
   describe('interruptSpeech', () => {

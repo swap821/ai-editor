@@ -23,6 +23,17 @@ let currentUtterance: SpeechSynthesisUtterance | null = null;
 let backendTTSEnabled = false;
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
+/**
+ * Bumped by cancelSpeech() (called at the top of every speak()). Each
+ * speakViaBackend() call captures the generation it was started under and
+ * checks it before applying the network response's side effects -- without
+ * this, a stale reply whose fetch/decode round-trip is still in flight when
+ * a newer reply arrives can win the race and start playing after the newer
+ * reply already started (cancelSpeech() has nothing to stop yet, since the
+ * stale call's AudioBufferSourceNode doesn't exist until its own decode
+ * resolves, which can happen after the new call's).
+ */
+let speakGeneration = 0;
 
 function set(next: Partial<VoiceSpeakState>): void {
   state = { ...state, ...next };
@@ -72,6 +83,7 @@ function selectVoice(): SpeechSynthesisVoice | undefined {
 }
 
 function cancelSpeech(): void {
+  speakGeneration += 1;
   if (typeof window !== 'undefined' && window.speechSynthesis) {
     try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
   }
@@ -130,6 +142,7 @@ function speakViaBrowser(trimmed: string): void {
 }
 
 function speakViaBackend(trimmed: string): void {
+  const myGeneration = speakGeneration;
   set({ speaking: true });
   publishSpeaking(trimmed);
   speakText(trimmed)
@@ -138,6 +151,7 @@ function speakViaBackend(trimmed: string): void {
       return audioCtx.decodeAudioData(buf);
     })
     .then((decoded) => {
+      if (myGeneration !== speakGeneration) return; // superseded while decoding
       const src = audioCtx!.createBufferSource();
       currentSource = src;
       src.buffer = decoded;
@@ -150,6 +164,7 @@ function speakViaBackend(trimmed: string): void {
       src.start();
     })
     .catch(() => {
+      if (myGeneration !== speakGeneration) return; // superseded; don't clobber the active call
       set({ speaking: false });
       speakViaBrowser(trimmed);
     });
@@ -270,6 +285,9 @@ export function __resetVoiceSpeakForTests(): void {
   pendingText = '';
   currentUtterance = null;
   currentSource = null;
+  backendTTSEnabled = false;
+  audioCtx = null;
+  speakGeneration = 0;
   try {
     window.localStorage.removeItem(MUTE_KEY);
   } catch {
