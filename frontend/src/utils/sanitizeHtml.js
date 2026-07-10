@@ -85,34 +85,48 @@ function filterAllowedTags(html) {
   });
 }
 
-/** Sanitize <a> tags: only allow http://, https://, mailto:, tel:, #anchor. */
+/**
+ * Sanitize <a> tags: only allow http://, https://, mailto:, tel:, #anchor
+ * hrefs, and rebuild the tag keeping ONLY href/rel/class/data-* — every
+ * other attribute (including `style`, which the old attribute-preserving
+ * approach let through unfiltered) is dropped rather than selectively
+ * patched, so a new dangerous attribute can't reopen this hole later.
+ */
 function sanitizeAnchorTag(tagHtml) {
+  if (!/^<a\b/i.test(tagHtml)) return tagHtml; // closing </a> — no attributes to filter
+
   const hrefMatch = tagHtml.match(/\s+href\s*=\s*["']([^"]*)["']/i);
-  if (!hrefMatch) {
-    // No href — safe, keep as-is (could be <a name="...">)
-    return tagHtml;
-  }
-  const href = hrefMatch[1].trim();
-  const isSafe =
-    href.startsWith('http://') ||
-    href.startsWith('https://') ||
-    href.startsWith('mailto:') ||
-    href.startsWith('tel:') ||
-    href.startsWith('#') ||
-    href.startsWith('/') ||
-    /^[a-zA-Z0-9_-]+\.html?$/i.test(href);
-
-  if (!isSafe) {
-    // Unsafe href — strip the href attribute but keep tag
-    return tagHtml.replace(/\s+href\s*=\s*["'][^"]*["']/gi, '');
+  let safeHref = null;
+  if (hrefMatch) {
+    const href = hrefMatch[1].trim();
+    const isSafe =
+      href.startsWith('http://') ||
+      href.startsWith('https://') ||
+      href.startsWith('mailto:') ||
+      href.startsWith('tel:') ||
+      href.startsWith('#') ||
+      href.startsWith('/') ||
+      /^[a-zA-Z0-9_-]+\.html?$/i.test(href);
+    if (isSafe) safeHref = href;
   }
 
-  // Safe href — ensure rel="noopener noreferrer" for external links
-  const hasRel = /\s+rel\s*=/i.test(tagHtml);
-  if (!hasRel && (href.startsWith('http://') || href.startsWith('https://'))) {
-    return tagHtml.replace(/>\s*$/, ' rel="noopener noreferrer">');
+  // Strip every attribute except class/data-* — href/rel are rebuilt below
+  // from the validated value, never carried through unfiltered.
+  let result = tagHtml.replace(/\s+[a-zA-Z_:][-\w:.]*\s*=\s*["'][^"']*["']/g, (attr) => {
+    const attrName = attr.split('=')[0].trim().toLowerCase();
+    if (attrName === 'class' || attrName.startsWith('data-')) return attr;
+    return '';
+  });
+
+  if (safeHref) {
+    const rel =
+      safeHref.startsWith('http://') || safeHref.startsWith('https://')
+        ? ' rel="noopener noreferrer"'
+        : '';
+    result = result.replace(/^<a\b/i, `<a href="${safeHref}"${rel}`);
   }
-  return tagHtml;
+
+  return result;
 }
 
 /**
