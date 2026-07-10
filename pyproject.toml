@@ -22,6 +22,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
+# Minimal DIRECT dependencies only (loose >= bounds), for `pip install -e .`.
+# requirements.txt is the exact-pinned, reproducible install lock (the full
+# transitive closure) -- when adding a NEW direct import to aios/, add it to
+# both files, not just this one.
 dependencies = [
     "beautifulsoup4>=4.12",
     "boto3>=1.28",
@@ -40,6 +44,7 @@ dependencies = [
     "scikit-learn>=1.0",
     "sentence-transformers>=2.0",
     "structlog>=23.0",
+    "torch>=2.0",
     "typer>=0.9",
     "uvicorn[standard]>=0.20",
 ]

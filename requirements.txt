@@ -1,3 +1,9 @@
+# Exact-pinned, reproducible install lock (the full transitive closure,
+# including fastapi/typer/uvicorn/sentence-transformers' own dependencies).
+# For the minimal DIRECT dependency list only (used by `pip install -e .`),
+# see pyproject.toml's [project.dependencies] instead -- the two
+# intentionally differ in scope (lock vs. manifest); when adding a NEW
+# direct import to aios/, add it to both files, not just this one.
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.14.1
