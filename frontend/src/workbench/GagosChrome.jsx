@@ -615,6 +615,12 @@ export default function GagosChrome() {
         // code-so-far reveals into the slab; the final settle (below) cleans it up.
         const onWritingChunk = (answer) => {
           if (turnTokenRef.current !== token) return;
+          // Refresh the claim on every chunk -- without this, a turn that runs
+          // longer than the claim window (e.g. tool calls/agent dispatch before
+          // the final code emission) lets it lapse mid-flight, and the backend's
+          // CODE EMITTED auto-fire (MaterializationLayer) treats a genuine event
+          // as unclaimed and materializes a duplicate tab for the same turn.
+          claimWorkMaterialization();
           const partial = extractStreamingCode(answer);
           if (partial.code && partial.code.trim()) {
             updateMaterializedTab(writingTab.id, {
@@ -633,6 +639,7 @@ export default function GagosChrome() {
         // structured artifact growing line-by-line into the being's body.
         const onWritingCodeChunk = (code, language) => {
           if (turnTokenRef.current !== token) return;
+          claimWorkMaterialization(); // see onWritingChunk: keep the claim alive while streaming
           if (!code || !code.trim()) return;
           updateMaterializedTab(writingTab.id, {
             content: {

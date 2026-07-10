@@ -418,4 +418,5 @@ export function __resetTabStoreForTests(): void {
   snapshot = { tabs: [], focusId: null, attention: null };
   tabSequence = 0;
   listeners.clear();
+  workMaterializationClaimUntil = 0;
 }
