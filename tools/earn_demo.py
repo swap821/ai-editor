@@ -5,7 +5,14 @@ approvals — earned autonomy firing on real evidence.
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import requests
+
+# curriculum_evidence_driver.py lives at the project root; this file lives
+# in tools/, one level below.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from curriculum_evidence_driver import BASE, run_prompt
 

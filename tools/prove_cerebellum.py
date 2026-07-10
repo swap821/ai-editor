@@ -24,8 +24,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Ensure project root is on the path.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Ensure project root is on the path (this file lives in tools/, one level
+# below the project root).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios.core.cerebellum import Cerebellum, _parse_step, PlaybookStep
 from aios.memory.db import init_memory_db, get_connection
