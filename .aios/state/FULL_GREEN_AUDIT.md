@@ -54,6 +54,14 @@ Security-spine touchpoints are flagged **[SECURITY-SPINE]**.
 
 #### BUG-G | P0 | Backend | `direct_id is None` guard fails — every recalled skill gets spurious pheromone reuse credit
 
+> **STATUS (2026-07-10): FIXED.** Commit `0fe0fbd` (2026-06-19, four days after
+> this audit) added the `direct_id is None or ...` guard described below —
+> `aios/api/main.py:2108-2117` today has the exact fix, with an inline
+> comment documenting the intent. Never annotated back to this ledger, so
+> this entry silently read as an open P0 for 3+ weeks. The other 6 entries
+> in this doc were NOT re-verified in this pass — do not assume they're
+> fixed or still open without checking the live code first.
+
 - **File:** `aios/api/main.py:2000–2019` (assignment + filter ~line 2014)
 - **Class:** Logic/correctness error — silent persistent-state corruption
 - **Defect:** `direct_id` is assigned inside a `try` from `skills.record_attempt(...)`. When `record_attempt` raises (empty goal / empty arc signature / DB error), the `except` swallows it and `direct_id` stays `None`. The downstream reuse filter is:
