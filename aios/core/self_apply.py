@@ -31,7 +31,6 @@ from typing import Any, Callable, Optional
 from filelock import FileLock, Timeout
 
 from aios import config
-from aios.agents.self_analysis_agent import classify_target
 from aios.core.executor import _bounded_run
 from aios.core.verifier import Verifier
 from aios.memory.db import get_connection, init_memory_db
@@ -56,6 +55,29 @@ class ApplyResult:
     reason: str
     audit_id: Optional[int] = None
     verify: Optional[str] = None
+
+
+def classify_target(
+    rel_path: str,
+    *,
+    package: str = "aios",
+    frozen_subdirs: tuple[str, ...] = ("security",),
+) -> str:
+    """Deterministic would-be-apply zone for a project-relative path.
+
+    A file under a frozen subdir of *package* (e.g. ``aios/security/…``, the frozen
+    core in AGENTS.md §XI) is **RED** — editing the gate that guards the agent is the
+    highest-risk action. Every other path is **YELLOW**. This is the single source of
+    truth shared by T2 (records ``proposed_zone``, see
+    :mod:`aios.agents.self_analysis_agent`) and T3 (the apply zone gate below), so the
+    two can never diverge. Lives in ``core`` (not ``agents``) so agents/, which is
+    built on top of core/, can depend on it without core reaching back up into agents/.
+    """
+    for sub in frozen_subdirs:
+        base = f"{package}/{sub}"
+        if rel_path == base or rel_path.startswith(base + "/"):
+            return "RED"
+    return "YELLOW"
 
 
 def _diff_paths(diff: str) -> set[str]:

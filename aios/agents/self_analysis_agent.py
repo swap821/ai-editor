@@ -49,6 +49,7 @@ from typing import Optional
 
 from aios import config
 from aios.core.llm import LLMClient, LLMError
+from aios.core.self_apply import classify_target
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
 
@@ -123,27 +124,6 @@ def finding_fingerprint(target_path: str, finding_type: str, symbol: str) -> str
     return hashlib.sha256(
         f"{target_path}\x1f{finding_type}\x1f{symbol}".encode("utf-8")
     ).hexdigest()
-
-
-def classify_target(
-    rel_path: str,
-    *,
-    package: str = "aios",
-    frozen_subdirs: tuple[str, ...] = ("security",),
-) -> str:
-    """Deterministic would-be-apply zone for a project-relative path.
-
-    A file under a frozen subdir of *package* (e.g. ``aios/security/…``, the frozen
-    core in AGENTS.md §XI) is **RED** — editing the gate that guards the agent is the
-    highest-risk action. Every other path is **YELLOW**. This is the single source of
-    truth shared by T2 (records ``proposed_zone``) and T3 (the apply zone gate), so
-    the two can never diverge.
-    """
-    for sub in frozen_subdirs:
-        base = f"{package}/{sub}"
-        if rel_path == base or rel_path.startswith(base + "/"):
-            return "RED"
-    return "YELLOW"
 
 
 @dataclass(frozen=True)
