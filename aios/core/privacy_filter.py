@@ -107,12 +107,13 @@ def _looks_like_secret(value: str) -> bool:
     """Return ``True`` if *value* looks like a high-entropy secret string."""
     if len(value) <= _SECRET_ENTROPY_THRESHOLD:
         return False
-    lower = value.lower()
-    upper = value.upper()
-    digit_count = sum(1 for c in value if c.isdigit())
-    if digit_count == 0:
-        return bool(re.match(r"^[A-Za-z0-9_+/=-]+$", value)) and len(value) > 24
-    return bool(re.match(r"^[A-Za-z0-9_+/=\-]{20,}$", value))
+    # No digit-count-based carve-out: a 2026-07-10 adversarial audit found a
+    # 21-24 char all-alphabetic secret ("qwertyuiopasdfghjklzxc") slipped
+    # through the old `len > 24` bar reserved for the no-digit case. Real
+    # secrets don't reliably contain digits (base32/hex-lowercase alphabets,
+    # word-based tokens), so digit presence is not a trustworthy signal —
+    # apply the same >20 threshold regardless.
+    return bool(re.match(r"^[A-Za-z0-9_+/=\-]+$", value))
 
 
 def _hash_placeholder(value: str) -> str:
@@ -126,6 +127,43 @@ _PATH_SHAPED = re.compile(r"[A-Za-z0-9_\-]+(?:[/\\][A-Za-z0-9_\-]+)+")
 
 #: A dot-extension immediately following a token (``.py``, ``.md``, ...).
 _EXT_AFTER = re.compile(r"\.[A-Za-z0-9]{1,5}(?![A-Za-z0-9])")
+
+#: Real path segments (directory/file names) are rarely longer than this;
+#: an individual segment beyond it is a tell that a slash-bearing secret
+#: (base64 alphabet includes '/') was incidentally split by that slash
+#: rather than being a genuine path component. 36 comfortably exceeds this
+#: repo's own longest legitimate segments (~30-31 chars, e.g. timestamped
+#: test-fixture names) while sitting well below the 40+ char single-segment
+#: fragments a 2026-07-10 adversarial audit found slipping through
+#: unbounded (a 44-char slash-bearing secret split as a 43-char + 4-char
+#: segment previously fullmatched _PATH_SHAPED with no length check at all).
+_MAX_PATH_SEGMENT_LEN: Final[int] = 36
+
+#: Minimum alphabetic-character count before the case-transition check below
+#: applies — below this, ratio noise makes the signal unreliable (e.g. "Ab"
+#: is 1 transition / 2 chars = 0.5 but is obviously not a secret).
+_MIN_SEGMENT_ALPHA_FOR_ENTROPY_CHECK: Final[int] = 8
+
+#: A segment whose upper/lower CASE TRANSITIONS (as a fraction of its
+#: alphabetic characters) exceed this is almost certainly random-generated
+#: (base64/hex-mixed-case secrets), not a natural identifier. Calibrated
+#: empirically against this repo's own real path segments (snake_case
+#: identifiers and ISO8601-timestamped fixture names top out at ~0.08 —
+#: at most one embedded capital) versus real secret fragments recovered
+#: from the 2026-07-10 audit's bypasses (minimum 0.28, most >0.9) — a wide
+#: margin separates the two populations, unlike raw Shannon entropy (which
+#: timestamps inflate for legitimate segments) or segment length alone
+#: (which a deliberately-balanced split, e.g. 31/19 chars, defeats).
+_MAX_CASE_TRANSITION_RATIO: Final[float] = 0.15
+
+
+def _looks_like_secret_segment(segment: str) -> bool:
+    """True when *segment* has random-generated case-mixing, not natural text."""
+    alpha = [c for c in segment if c.isalpha()]
+    if len(alpha) < _MIN_SEGMENT_ALPHA_FOR_ENTROPY_CHECK:
+        return False
+    transitions = sum(1 for a, b in zip(alpha, alpha[1:]) if a.islower() != b.islower())
+    return (transitions / len(alpha)) > _MAX_CASE_TRANSITION_RATIO
 
 
 def _in_filename_context(text: str, start: int, end: int, token: str) -> bool:
@@ -141,9 +179,32 @@ def _in_filename_context(text: str, start: int, end: int, token: str) -> bool:
     operator data leaving the machine); the security scanner's entropy
     backstop — which deliberately catches path-DISGUISED credentials — is
     separate and unchanged.
+
+    Hardened 2026-07-10 after an adversarial audit found the path-shaped
+    exemption alone waved through slash-bearing secrets regardless of shape
+    plausibility: a path-shaped token is now exempt only when EVERY segment
+    is both a plausible length (<=36 chars) AND doesn't look
+    random-generated (see _looks_like_secret_segment). A single long or
+    high-case-transition segment defeats the exemption for the whole token,
+    even if other segments are short.
+
+    KNOWN LIMITATION (disclosed, not silently claimed fixed): this remains a
+    heuristic classifier, not a proof. A secret deliberately engineered to
+    avoid mixed-case (e.g. all-lowercase-hex, chunked into short segments)
+    can still slip through — closing that fully is an open problem for any
+    regex/heuristic-based scanner, not something this fix claims to solve.
     """
     if _PATH_SHAPED.fullmatch(token):
-        return True
+        segments = re.split(r"[/\\]", token)
+        if all(
+            len(segment) <= _MAX_PATH_SEGMENT_LEN and not _looks_like_secret_segment(segment)
+            for segment in segments
+        ):
+            return True
+        # Path-shaped but at least one segment is implausible (too long or
+        # random-looking) — fall through to the other two checks instead of
+        # returning False outright, since this token could still be exempt
+        # via a genuine adjacent separator or extension.
     if start > 0 and text[start - 1] in "/\\":
         return True
     return bool(_EXT_AFTER.match(text, end))

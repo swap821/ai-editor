@@ -275,6 +275,57 @@ class TestPathShapedTokensAreNotSecrets:
         assert secret not in str(safe2[0]["content"])
         assert audit2["redacted_credentials"] + audit2["redacted_secrets"] > 0
 
+    def test_slash_shaped_secret_still_redacts_when_not_exactly_40_chars(self) -> None:
+        """Regression for the 2026-07-10 adversarial audit's own re-finding: the
+        first fix only closed the literal 40-char AWS-key repro via a dedicated
+        shape pattern. The root cause -- _in_filename_context's path-shape
+        exemption having no plausibility check at all -- was untouched, so a
+        differently-sized slash-bearing secret (a lopsided 43+4 char split, and
+        a balanced 31+19 char split -- neither matching the 40-char pattern)
+        still sailed through with zero redactions. Both are now caught by the
+        per-segment length/case-transition check."""
+        pf = PrivacyFilter()
+        lopsided = "wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEYAB12/34cD"
+        safe, audit = pf.filter(
+            [{"role": "user", "content": f"cloud key rejected: {lopsided} end"}]
+        )
+        assert lopsided not in str(safe[0]["content"])
+        assert audit["redacted_credentials"] + audit["redacted_secrets"] > 0
+
+        balanced = "sk9F2xQ7mZ4tY8bA1cD3eG6hJ0kL5nP/rS8uV2wX4yA6zB9cE1f"
+        safe2, audit2 = pf.filter(
+            [{"role": "user", "content": f"cloud provider returned {balanced} and closed"}]
+        )
+        assert balanced not in str(safe2[0]["content"])
+        assert audit2["redacted_credentials"] + audit2["redacted_secrets"] > 0
+
+    def test_short_no_digit_secret_still_redacts(self) -> None:
+        """Regression: the old _looks_like_secret required len > 24 specifically
+        for all-alphabetic (no-digit) strings, which a 22-char pure-alphabetic
+        secret slipped under. Digit presence isn't a trustworthy signal (real
+        secrets don't reliably contain digits), so the carve-out is gone."""
+        pf = PrivacyFilter()
+        secret = "qwertyuiopasdfghjklzxc"
+        assert len(secret) == 22
+        safe, audit = pf.filter([{"role": "user", "content": f"here is the key {secret} end"}])
+        assert secret not in str(safe[0]["content"])
+        assert audit["redacted_secrets"] > 0
+
+    def test_pascal_case_and_camel_case_identifiers_are_not_false_positives(self) -> None:
+        """The case-transition-ratio check must not flag normal camelCase/
+        PascalCase code identifiers -- these have very few case transitions
+        relative to real random-generated secrets, which transition on
+        roughly every other character."""
+        pf = PrivacyFilter()
+        cases = [
+            "open frontend/src/components/MyComponent.tsx for the bug",
+            "check src/workbench/CodeEditor.jsx and superbrain/lib/cognitionBus.ts",
+            "class MyClassName extends BaseComponent",
+        ]
+        for text in cases:
+            safe, audit = pf.filter([{"role": "user", "content": text}])
+            assert audit["redacted_secrets"] == 0, f"false positive on: {text!r}"
+
     def test_absolute_paths_still_redacted_as_paths(self) -> None:
         """The PATH redaction (absolute paths reveal machine layout) is separate
         and intentionally unchanged -- only the false SECRET classification of

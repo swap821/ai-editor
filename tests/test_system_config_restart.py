@@ -4,12 +4,15 @@ phantom routes SettingsPanel.jsx already called (and 404'd on).
 """
 from __future__ import annotations
 
+import subprocess
+import sys
 from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
 from aios.api.main import app
+from aios.api.routes.system import _reexec_after_delay
 
 
 @pytest.fixture()
@@ -83,3 +86,46 @@ def test_restart_confirmed_schedules_reexec_without_blocking_response(client, mo
             break
         time.sleep(0.05)
     assert calls, "expected the restart thread to invoke _reexec_after_delay"
+
+
+def test_reexec_argv_reconstruction_is_actually_importable(monkeypatch) -> None:
+    """Regression for the 2026-07-10 adversarial audit: the original
+    [sys.executable] + sys.argv reconstruction re-invoked as a direct script
+    (python aios/__main__.py ...), not `-m aios`, which sets sys.path[0] to
+    aios/ itself and breaks `from aios import config` with
+    ModuleNotFoundError -- verified as a real, reproducible crash, not a
+    theoretical one. This test does NOT mock the argv-construction logic
+    (only os.execv itself, since calling the real one would replace this
+    test process) -- it captures the exact argv _reexec_after_delay would
+    hand to execv, then runs those exact argv as a real subprocess to prove
+    the reconstruction is genuinely valid and importable, not just
+    plausible-looking."""
+    captured: list[list[str]] = []
+    monkeypatch.setattr("os.execv", lambda path, argv: captured.append(list(argv)))
+    monkeypatch.setattr("sys.argv", ["<ignored-under-broken-argv0>", "--help"])
+
+    _reexec_after_delay(0.0)
+
+    assert captured, "expected os.execv to have been called"
+    argv = captured[0]
+    assert argv[0] == sys.executable
+    assert argv[1:3] == ["-m", "aios"], (
+        "must re-invoke with an explicit -m aios, not sys.argv[0] "
+        "(which degrades to a bare script path under python -m launch)"
+    )
+    assert argv[3:] == ["--help"], "sys.argv[1:] (the real CLI flags) must be preserved"
+
+    # Prove it's not just plausible -- actually run it as a real subprocess.
+    result = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, (
+        f"reconstructed argv failed to run: stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    assert "ModuleNotFoundError" not in result.stderr
+
+    # Anchor the bug this fixes: the OLD reconstruction (sys.argv[0] as a
+    # literal script path) really does crash, confirming this isn't a
+    # hypothetical regression test for a hypothetical bug.
+    broken_argv = [sys.executable, "aios/__main__.py", "--help"]
+    broken_result = subprocess.run(broken_argv, capture_output=True, text=True, timeout=30)
+    assert broken_result.returncode != 0
+    assert "ModuleNotFoundError" in broken_result.stderr

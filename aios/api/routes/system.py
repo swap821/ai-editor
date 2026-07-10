@@ -272,13 +272,28 @@ def _reexec_after_delay(delay_seconds: float) -> None:
     to flush to the client before the process is replaced. ``os.execv``
     replaces the process image IN PLACE (same PID) — the same technique
     used to reload a service inside a container without the container
-    itself restarting — re-running the exact command this process was
-    launched with (``sys.executable`` + ``sys.argv``, faithful whether
+    itself restarting.
+
+    MUST re-invoke with an explicit ``-m aios``, not
+    ``[sys.executable] + sys.argv``: under ``python -m aios``, Python's
+    runpy sets ``sys.argv[0]`` to the resolved *path* of
+    ``aios/__main__.py``, not a literal ``-m aios`` token. Re-execing that
+    path directly (``python aios/__main__.py``) is normal script execution,
+    which sets ``sys.path[0]`` to ``aios/`` itself rather than the project
+    root — breaking ``aios/__main__.py``'s own ``from aios import config``
+    with ``ModuleNotFoundError`` (verified: this was shipped broken and
+    would crash the server on every restart click, with no supervisor to
+    bring it back on the documented bare-shell launch path). ``sys.argv[1:]``
+    is unaffected by how argv[0] degrades — it always holds just the real
+    CLI flags (e.g. ``--reload``) — so rebuilding as
+    ``[sys.executable, "-m", "aios"] + sys.argv[1:]`` reproduces the
+    original ``-m aios <flags>`` invocation exactly, faithful whether
     launched via ``python -m aios`` or Docker's ``CMD ["python", "-m",
-    "aios"]``).
+    "aios"]`` (verified empirically: sys.argv[1:] correctly holds only the
+    trailing flags under -m launch, confirmed with a throwaway package).
     """
     time.sleep(delay_seconds)
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    os.execv(sys.executable, [sys.executable, "-m", "aios"] + sys.argv[1:])
 
 
 @router.post("/api/v1/system/restart")
