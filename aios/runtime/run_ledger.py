@@ -95,12 +95,9 @@ class RunLedgerStore:
         self.runtime_root = _safe_resolve(runtime_root)
 
     def path_for(self, mission_id: str) -> Path:
-        base = (self.runtime_root / "missions").resolve()
-        candidate = (base / mission_id).resolve()
-        try:
-            candidate.relative_to(base)
-        except ValueError:
-            raise ValueError(f"Invalid mission_id escapes missions directory: {mission_id}")
+        from aios.security.path_sanitizer import sanitize_path
+        base = self.runtime_root / "missions"
+        candidate = sanitize_path(base, mission_id)
         return candidate / "run_ledger.json"
 
     def write(self, ledger: RunLedger) -> Path:

@@ -71,17 +71,17 @@ def _resolve_scan_root(raw: Optional[str], workspace: Path) -> Path:
     if raw is None or not raw.strip():
         return workspace
     requested = Path(raw)
-    target = (workspace / requested).resolve() if not requested.is_absolute() else requested.resolve()
+    
+    # Use CodeQL-recognized path sanitization pattern
+    import os
+    workspace_real = os.path.realpath(str(workspace))
+    target_real = os.path.realpath(os.path.join(workspace_real, str(requested)) if not requested.is_absolute() else str(requested))
+    
+    if target_real != workspace_real and not target_real.startswith(workspace_real + os.sep):
+        raise HTTPException(status_code=403, detail="scan root must stay inside the current workspace")
+        
+    target = Path(target_real)
     if target == Path.home().resolve() or target.anchor == str(target):
         raise HTTPException(status_code=403, detail="refusing to scan broad home/root path")
-    if not _is_relative_to(target, workspace):
-        raise HTTPException(status_code=403, detail="scan root must stay inside the current workspace")
+        
     return target
-
-
-def _is_relative_to(child: Path, parent: Path) -> bool:
-    try:
-        child.relative_to(parent)
-        return True
-    except ValueError:
-        return False

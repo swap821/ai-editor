@@ -69,13 +69,12 @@ def get_scope_roots() -> tuple[Path, ...]:
 
 def _is_within(resolved: Path, root: Path) -> bool:
     """Return True if *resolved* is *root* itself or nested beneath it."""
-    if resolved == root:
+    import os
+    res_str = os.path.realpath(str(resolved))
+    root_str = os.path.realpath(str(root))
+    if res_str == root_str or res_str.startswith(root_str + os.sep):
         return True
-    try:
-        resolved.relative_to(root)
-        return True
-    except ValueError:
-        return False
+    return False
 
 
 def is_path_in_scope(candidate: str) -> ScopeResult:

@@ -383,9 +383,13 @@ class PrivacyFilter:
 
     def _extract_filename_hint(self, text: str) -> str:
         for line in text.splitlines()[:3]:
-            # Bound line length to 1000 characters to prevent ReDoS on uncontrolled inputs.
-            for match in re.finditer(r"[^/\s]+\.[a-zA-Z0-9]{1,10}", line[:1000]):
-                return match.group(0)
+            # Avoid regex to completely mitigate CodeQL ReDoS warnings
+            for token in line.split():
+                if "/" in token or "\\" in token:
+                    continue
+                parts = token.rsplit(".", 1)
+                if len(parts) == 2 and 1 <= len(parts[1]) <= 10 and parts[1].isalnum():
+                    return token
         return "file"
 
     def _redact_tool_call(self, call: dict[str, Any], audit: dict[str, int]) -> dict[str, Any]:
