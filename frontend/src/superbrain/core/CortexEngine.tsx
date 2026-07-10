@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect, useRef } from 'react';
 import { Float, PerspectiveCamera, OrbitControls } from '@react-three/drei';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
-import type { QualityTier } from '@/components/QualityTierProvider';
 import { preloadBrainScene } from '@/lib/brainScene';
 
 import AccretionCore from './AccretionCore';
@@ -33,9 +31,7 @@ import { FeatureGate } from './Performance/FeatureGate';
 import {
   SuperbrainSceneProps,
   BurstState,
-  BurstRef,
   CameraPushState,
-  CameraPushRef,
   IdleControllerState,
   SCENE_UNIFORMS,
   BrainModel,
@@ -51,9 +47,7 @@ import {
   SHOW_MEMORY_GALAXY,
   HOLD_TINT,
   MODE_EMISSIVE,
-  POSTURE_SCRATCH,
-  type SkyMode,
-  type BrainSurface
+  POSTURE_SCRATCH
 } from '../components/canvas/SuperbrainScene.LEGACY';
 
 

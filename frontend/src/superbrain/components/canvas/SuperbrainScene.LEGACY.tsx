@@ -1,3 +1,4 @@
+/* eslint-disable -- Legacy scene snapshot retained for rollback; active engine imports its constants only. */
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';

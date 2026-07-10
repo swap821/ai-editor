@@ -39,7 +39,7 @@ export default function SuperbrainApp() {
   const [vultureOpen, setVultureOpen] = useState(true);
   const [ecosystemOpen, setEcosystemOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(true);
-  const [isListening, setIsListening] = useState(false);
+  const [isListening] = useState(false);
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
 

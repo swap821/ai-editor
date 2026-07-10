@@ -91,7 +91,7 @@ describe('NodeLattice topology', () => {
   });
 
   it('high tier adds intra-cluster links beyond the spokes', () => {
-    const { nodes, edges } = buildLatticeData('high');
+    const { edges } = buildLatticeData('high');
     const spokeCount = HUBS.length * SATELLITES_PER_HUB.high; // one spoke per satellite
     expect(edges.length).toBeGreaterThan(spokeCount);
   });

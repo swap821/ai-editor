@@ -10,8 +10,6 @@ import type { BurstRef, CognitionUniforms } from './SuperbrainScene.LEGACY';
 import {
   CORD_Z,
   SEGMENT_COUNT,
-  SEGMENT_TOP_Y,
-  SEGMENT_BOTTOM_Y,
   SEGMENT_ANCHORS,
 } from '@/lib/spineAnatomy';
 import VertebraeRepoMapOverlay from './VertebraeRepoMapOverlay';
@@ -44,8 +42,6 @@ import VertebraeRepoMapOverlay from './VertebraeRepoMapOverlay';
 // Geometry merges into FOUR draw calls (cord+bulge / vertebrae / roots / spray),
 // all sharing ONE nerve material instance.
 // ============================================================================
-
-const TAU = Math.PI * 2;
 
 // ── BRAIN-PALETTE ARC RAMP (keep the brain's vivid hues EXACTLY) ─────────────
 // The body is the cortex palette read head→tail. The brain is born violet at
@@ -337,7 +333,7 @@ export default function NervousSystem({
   burst,
   uniforms,
   tier = 'high',
-  reducedMotion = false,
+  reducedMotion: _reducedMotion = false,
 }: {
   burst: BurstRef;
   uniforms: CognitionUniforms;

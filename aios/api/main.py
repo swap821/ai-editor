@@ -41,7 +41,6 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from starlette.routing import Match
 
 import aios
 from aios import config
@@ -596,6 +595,22 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
 _RATE_LIMIT_ENDPOINTS: dict[str, int] = {
     path: meta.rate_limit_per_minute for path, meta in _ROUTE_AUTHORITY.items()
 }
+_ROUTE_TEMPLATE_PARAM_RE = re.compile(r"\{[^}/]+\}")
+_RATE_LIMIT_ROUTE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (
+        path,
+        re.compile(
+            "^"
+            + _ROUTE_TEMPLATE_PARAM_RE.sub(
+                "[^/]+",
+                re.escape(path).replace(r"\{", "{").replace(r"\}", "}"),
+            )
+            + "$"
+        ),
+    )
+    for path in _RATE_LIMIT_ENDPOINTS
+    if "{" in path and "}" in path
+)
 _RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
 
@@ -606,15 +621,9 @@ def _rate_limited_route_path(request: Request) -> str | None:
     if path in _RATE_LIMIT_ENDPOINTS:
         return path
 
-    for route in app.router.routes:
-        matches = getattr(route, "matches", None)
-        if matches is None:
-            continue
-        match, _child_scope = matches(request.scope)
-        if match == Match.FULL:
-            route_path = getattr(route, "path", None)
-            if route_path in _RATE_LIMIT_ENDPOINTS:
-                return route_path
+    for route_path, route_pattern in _RATE_LIMIT_ROUTE_PATTERNS:
+        if route_pattern.fullmatch(path):
+            return route_path
     return None
 
 
