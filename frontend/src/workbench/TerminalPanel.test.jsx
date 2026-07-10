@@ -34,13 +34,37 @@ describe('TerminalPanel', () => {
 
   it('toggles via keyboard shortcut', () => {
     render(<TerminalPanel />);
-    
+
     // Simulate Ctrl+`
     fireEvent.keyDown(window, { key: '`', ctrlKey: true });
     expect(screen.getByText('gag system start')).toBeInTheDocument();
-    
+
     // Close via shortcut
     fireEvent.keyDown(window, { key: '`', ctrlKey: true });
     expect(screen.getByText('Terminal (Ctrl+`)')).toBeInTheDocument();
+  });
+
+  it('runs a typed command against the real /api/terminal endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ output: 'hello world', isError: false }),
+    });
+    globalThis.fetch = fetchMock;
+
+    render(<TerminalPanel />);
+    fireEvent.click(screen.getByText('Terminal (Ctrl+`)'));
+
+    const input = screen.getByPlaceholderText('Type a command...');
+    fireEvent.change(input, { target: { value: 'echo hello world' } });
+    fireEvent.submit(input.closest('form'));
+
+    await screen.findByText('hello world');
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/terminal'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('echo hello world'),
+      })
+    );
   });
 });

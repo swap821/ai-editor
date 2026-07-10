@@ -1,7 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Terminal, Copy, Trash2, X, ChevronUp } from 'lucide-react';
-// import { subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { API_BASE, API_HEADERS } from '../config';
+import { getSessionIdForBody } from '../superbrain/lib/sessionId';
+
+async function runTerminalCommand(command) {
+  const bodySessionId = getSessionIdForBody();
+  const response = await fetch(`${API_BASE}/api/terminal`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+    body: JSON.stringify({
+      command,
+      ...(bodySessionId ? { sessionId: bodySessionId } : {}),
+    }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
 
 export default function TerminalPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,8 +29,45 @@ export default function TerminalPanel() {
     returncode: 0,
     timestamp: new Date().toISOString()
   }]);
+  const [commandInput, setCommandInput] = useState('');
+  const [running, setRunning] = useState(false);
   const bottomRef = useRef(null);
-  
+
+  const runCommand = async (command) => {
+    const trimmed = command.trim();
+    if (!trimmed || running) return;
+    setRunning(true);
+    setCommandInput('');
+    try {
+      // Real, gated, sandboxed execution (aios/api/main.py's /api/terminal):
+      // RED is blocked, YELLOW needs approval, only GREEN actually runs.
+      const result = await runTerminalCommand(trimmed);
+      setLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          command: trimmed,
+          output: result.output,
+          returncode: result.isError ? 1 : 0,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } catch (err) {
+      setLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          command: trimmed,
+          output: `[REQUEST FAILED] ${err.message}`,
+          returncode: 1,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setRunning(false);
+    }
+  };
+
   useEffect(() => {
     // Keyboard shortcut to toggle terminal (Ctrl+`)
     const handleKeyDown = (e) => {
@@ -156,6 +209,40 @@ export default function TerminalPanel() {
               ))}
               <div ref={bottomRef} />
             </div>
+
+            {/* Command input */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void runCommand(commandInput);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                borderTop: 'var(--hairline)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              <span style={{ color: 'var(--terminal-prompt)' }}>$</span>
+              <input
+                type="text"
+                value={commandInput}
+                onChange={(e) => setCommandInput(e.target.value)}
+                disabled={running}
+                placeholder={running ? 'Running...' : 'Type a command...'}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--text-1)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--text-sm)',
+                }}
+              />
+            </form>
           </motion.div>
         )}
       </div>

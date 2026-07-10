@@ -206,6 +206,31 @@ def audit_cloud_routing_docs(
     return findings
 
 
+def _evidence_paths_are_real(root: Path, evidence_paths: tuple[str, ...]) -> bool:
+    """True when every evidence path exists AND, for .py files, is actually
+    importable -- catches a stub/broken file passing the weaker "exists"
+    check while genuinely being unfinished (the class of gap that let
+    aios/learning/meta_loop.py's own drift rule apply before the module had
+    any real caller: file-existence alone can't distinguish "wired in" from
+    "sits on disk unused" -- but a module that doesn't even import cleanly
+    is unambiguously not a real implementation, regardless of caller count).
+    """
+    for rel in evidence_paths:
+        path = root / rel
+        if not path.exists():
+            return False
+        if path.suffix != ".py":
+            continue
+        module_name = rel[: -len(".py")].replace("/", ".").replace("\\", ".")
+        try:
+            import importlib
+
+            importlib.import_module(module_name)
+        except Exception:
+            return False
+    return True
+
+
 def audit_post_v7_feature_docs(
     docs: Mapping[str, str],
     *,
@@ -215,7 +240,7 @@ def audit_post_v7_feature_docs(
     """Return findings when docs say a post-v7 built feature is still missing."""
     findings: list[Finding] = []
     for rule in rules:
-        if not all((root / rel).exists() for rel in rule.evidence_paths):
+        if not _evidence_paths_are_real(root, rule.evidence_paths):
             continue
         for path, text in docs.items():
             for pattern in rule.stale_patterns:

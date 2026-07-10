@@ -7,11 +7,12 @@ self-modification, git pushes, or credential access.
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
 from aios import config
+from aios.learning.meta_loop import assess_meta_loop, collect_meta_loop_evidence
 from aios.memory.project_passport import RepoScanLimits, harvest_project_passport
 from aios.runtime.budget_guard import BudgetGuard
 
@@ -42,6 +43,7 @@ class HibernationReport:
     audit_summary: dict[str, Any]
     proposals: list[str]
     resource_status: dict[str, Any]
+    meta_loop_assessment: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,6 +57,7 @@ class HibernationReport:
             "auditSummary": self.audit_summary,
             "proposals": self.proposals,
             "resourceStatus": self.resource_status,
+            "metaLoopAssessment": self.meta_loop_assessment,
         }
 
 
@@ -93,6 +96,7 @@ class HibernationManager:
             "skipped": True,
             "reason": "repo map rebuild disabled",
         }
+        audit_summary = self._audit_summary()
         proposals = list(project_passport.get("suggested_improvements", []))[:10]
         return HibernationReport(
             mode="hibernation",
@@ -102,9 +106,10 @@ class HibernationManager:
             compaction=compaction,
             pheromones=pheromones,
             project_passport=project_passport,
-            audit_summary=self._audit_summary(),
+            audit_summary=audit_summary,
             proposals=proposals,
             resource_status=self.budget_guard.snapshot().to_dict(),
+            meta_loop_assessment=self._meta_loop_assessment(compaction, pheromones, audit_summary),
         )
 
     def _compaction_preview(self) -> dict[str, Any]:
@@ -130,6 +135,29 @@ class HibernationManager:
             limits=RepoScanLimits(max_files=200, max_file_bytes=80_000),
         )
         return passport.as_dict()
+
+    def _meta_loop_assessment(
+        self,
+        compaction: dict[str, Any],
+        pheromones: dict[str, Any],
+        audit_summary: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Advisory self-assessment over this hibernation cycle's own evidence.
+
+        meta_loop.py ships a dedicated ``_hibernation_source`` adapter for
+        exactly this shape but had no caller anywhere in the codebase. This
+        is real evidence collection (this cycle's compaction/pheromone/audit
+        state), not a synthetic call proving the import path works.
+        """
+        snapshot = collect_meta_loop_evidence(
+            hibernation_report={
+                "mode": "hibernation",
+                "compaction": compaction,
+                "pheromones": pheromones,
+                "auditSummary": audit_summary,
+            },
+        )
+        return assess_meta_loop(snapshot).as_dict()
 
     def _audit_summary(self) -> dict[str, Any]:
         if not self.audit_db_path.exists():

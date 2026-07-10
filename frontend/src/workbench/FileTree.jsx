@@ -1,6 +1,29 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { ChevronRight, ChevronDown, File as FileIcon, Folder, FolderOpen, Search, Sparkles } from 'lucide-react';
+import { API_BASE, API_HEADERS } from '../config';
+
+async function fetchTreeLevel(root, signal) {
+  const url = root
+    ? `${API_BASE}/api/v1/files/tree?root=${encodeURIComponent(root)}`
+    : `${API_BASE}/api/v1/files/tree`;
+  const response = await fetch(url, { signal, credentials: 'include', headers: API_HEADERS });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+// The backend deliberately returns only ONE level per call (children: [] as a
+// placeholder) to avoid a massive full-tree payload -- children load lazily
+// on expand. This replaces one node's children immutably by path.
+function withChildrenAt(nodes, targetPath, children) {
+  return nodes.map((node) => {
+    if (node.path === targetPath) return { ...node, children };
+    if (node.children && node.children.length) {
+      return { ...node, children: withChildrenAt(node.children, targetPath, children) };
+    }
+    return node;
+  });
+}
 
 const Badge = ({ type }) => {
   const colors = {
@@ -27,9 +50,10 @@ const Badge = ({ type }) => {
   );
 };
 
-const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, onRightClick }) => {
+const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, onRightClick, loadingPaths }) => {
   const isDir = node.type === 'directory';
   const isExpanded = expanded[node.path];
+  const isLoadingChildren = Boolean(loadingPaths?.[node.path]);
   const paddingLeft = level * 16 + 8;
   
   const matchesSearch = searchQuery && node.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -59,7 +83,7 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
           backgroundColor: 'transparent',
         }}
         onClick={() => {
-          if (isDir) toggleExpand(node.path);
+          if (isDir) toggleExpand(node);
           else onSelect(node);
         }}
         onContextMenu={(e) => {
@@ -84,7 +108,12 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
         </span>
         <Badge type={node.status} />
       </div>
-      
+
+      {(isExpanded || hasMatchingChild) && isDir && isLoadingChildren && (
+        <div style={{ padding: `4px 8px 4px ${paddingLeft + 20}px`, fontSize: 'var(--text-sm)', color: 'var(--text-3)' }}>
+          Loading...
+        </div>
+      )}
       {(isExpanded || hasMatchingChild) && isDir && node.children && (
         <div>
           {node.children.map(child => (
@@ -97,6 +126,7 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
               toggleExpand={toggleExpand}
               searchQuery={searchQuery}
               onRightClick={onRightClick}
+              loadingPaths={loadingPaths}
             />
           ))}
         </div>
@@ -108,46 +138,61 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
 export default function FileTree({ onClose, onOpenFile }) {
   const [treeData, setTreeData] = useState([]);
   const [expanded, setExpanded] = useState({});
+  const [loadingPaths, setLoadingPaths] = useState({});
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
   const containerRef = useRef(null);
+  const loadedPaths = useRef(new Set());
 
-  useEffect(() => {
-    // Mock fetch for now, replace with actual fetch when backend is ready
-    const fetchTree = async () => {
-      try {
-        // const response = await fetch('/api/v1/files/tree');
-        // const data = await response.json();
-        const data = [
-          {
-            name: 'src', path: '/src', type: 'directory', children: [
-              { name: 'main.jsx', path: '/src/main.jsx', type: 'file', status: 'approved' },
-              { name: 'App.jsx', path: '/src/App.jsx', type: 'file', status: 'editing' }
-            ]
-          },
-          {
-            name: 'docs', path: '/docs', type: 'directory', children: [
-              { name: 'architecture.md', path: '/docs/architecture.md', type: 'file', status: 'verifying' },
-              { name: 'README.md', path: '/docs/README.md', type: 'file', status: 'failed' }
-            ]
-          }
-        ];
-        setTreeData(data);
-        
-        // Auto-expand root directories
-        const initialExpanded = {};
-        data.forEach(n => { initialExpanded[n.path] = true; });
-        setExpanded(initialExpanded);
-      } catch (e) {
-        console.error('Failed to fetch file tree', e);
-      }
-    };
-    fetchTree();
+  const loadChildren = useCallback(async (node) => {
+    if (loadedPaths.current.has(node.path)) return;
+    loadedPaths.current.add(node.path);
+    setLoadingPaths((prev) => ({ ...prev, [node.path]: true }));
+    try {
+      const children = await fetchTreeLevel(node.path);
+      setTreeData((prev) => withChildrenAt(prev, node.path, children));
+    } catch (e) {
+      console.error(`Failed to load children of ${node.path}`, e);
+      loadedPaths.current.delete(node.path); // allow retry on next expand
+    } finally {
+      setLoadingPaths((prev) => {
+        const next = { ...prev };
+        delete next[node.path];
+        return next;
+      });
+    }
   }, []);
 
-  const toggleExpand = (path) => {
-    setExpanded(prev => ({ ...prev, [path]: !prev[path] }));
+  const toggleExpand = (node) => {
+    const willExpand = !expanded[node.path];
+    setExpanded(prev => ({ ...prev, [node.path]: willExpand }));
+    if (willExpand) void loadChildren(node);
   };
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchTreeLevel(null, ctrl.signal)
+      .then((data) => {
+        setTreeData(data);
+        // Auto-expand root directories, matching the original UX.
+        const initialExpanded = {};
+        data.forEach((n) => {
+          if (n.type === 'directory') {
+            initialExpanded[n.path] = true;
+            void loadChildren(n);
+          }
+        });
+        setExpanded(initialExpanded);
+      })
+      .catch((e) => {
+        if (e?.name !== 'AbortError') {
+          console.error('Failed to fetch file tree', e);
+          setError('File tree offline');
+        }
+      });
+    return () => ctrl.abort();
+  }, [loadChildren]);
 
   const handleRightClick = (node, e) => {
     setContextMenu({
@@ -195,18 +240,23 @@ export default function FileTree({ onClose, onOpenFile }) {
       </div>
       
       <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {treeData.map(node => (
-          <FileNode
-            key={node.path}
-            node={node}
-            level={0}
-            onSelect={onOpenFile}
-            expanded={expanded}
-            toggleExpand={toggleExpand}
-            searchQuery={searchQuery}
-            onRightClick={handleRightClick}
-          />
-        ))}
+        {error ? (
+          <div style={{ padding: '8px', fontSize: 'var(--text-sm)', color: 'var(--danger, #f87171)' }}>{error}</div>
+        ) : (
+          treeData.map(node => (
+            <FileNode
+              key={node.path}
+              node={node}
+              level={0}
+              onSelect={onOpenFile}
+              expanded={expanded}
+              toggleExpand={toggleExpand}
+              searchQuery={searchQuery}
+              onRightClick={handleRightClick}
+              loadingPaths={loadingPaths}
+            />
+          ))
+        )}
       </div>
 
       {contextMenu && (

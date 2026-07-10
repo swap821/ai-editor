@@ -98,6 +98,12 @@ def test_hibernation_cannot_perform_cloud_calls_or_writes(tmp_path: Path) -> Non
     assert report.pheromones["signals_seen"] == 2
     assert report.project_passport["activation"] == "proposal/evidence"
     assert report.resource_status["mode"] == "hibernation"
+    # meta_loop.py's assess_meta_loop wired in for real: local/safe evidence
+    # (no cloud calls, no writes) must never read as blocked.
+    assert report.meta_loop_assessment["safetyStatus"] == "advisory"
+    assert report.meta_loop_assessment["sources"], "expected at least the hibernation source"
+    dict_form = report.to_dict()
+    assert dict_form["metaLoopAssessment"] == report.meta_loop_assessment
 
     with pytest.raises(HibernationPolicyError, match="cloud"):
         manager.run(allow_cloud=True)
