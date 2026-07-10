@@ -33,33 +33,49 @@ describe('AlignmentHUD', () => {
     });
   });
 
-  it('handles sync action', async () => {
+  it('loads from the real backend alignment-evaluation endpoint', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ drift: 0.05, status: 'aligned' }),
+    });
+
+    render(<AlignmentHUD />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/alignment/evaluation'),
+        expect.objectContaining({ credentials: 'include' })
+      );
+    });
+  });
+
+  it('handles sync action by refetching the evaluation summary (no sync endpoint exists)', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ drift: 0.1, status: 'drifting' }),
     });
 
     render(<AlignmentHUD />);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/drifting/)).toBeInTheDocument();
     });
 
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ message: 'Sync complete' }) });
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ drift: 0.0, status: 'aligned' }) });
 
     const syncBtn = screen.getByText(/Sync Alignment/);
     fireEvent.click(syncBtn);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/conversation/alignment/sync'),
-        expect.objectContaining({ method: 'POST' })
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        expect.stringContaining('/api/v1/alignment/evaluation'),
+        expect.objectContaining({ credentials: 'include' })
       );
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Sync complete')).toBeInTheDocument();
+      expect(screen.getByText('Refreshed')).toBeInTheDocument();
     });
   });
 });

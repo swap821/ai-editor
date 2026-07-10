@@ -47,7 +47,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from aios import config
 from aios.security.gateway import Zone
@@ -968,6 +968,55 @@ def get_anchor(db_path: Path = config.AUDIT_DB_PATH) -> dict[str, Optional[Union
     }
 
 
+def list_recent_entries(
+    limit: int = 50,
+    *,
+    zone: Optional[Union[Zone, str]] = None,
+    db_path: Path = config.AUDIT_DB_PATH,
+) -> list[dict[str, Any]]:
+    """Return the most recent ledger entries, newest first.
+
+    Read-only view for operator-facing audit surfaces (e.g. a security-audit
+    UI panel). Payloads were already secret-scrubbed at write time
+    (:func:`log_action`'s ``redact_secrets``), so nothing further is redacted
+    here.
+
+    Args:
+        limit: Maximum number of entries to return (clamped to [1, 500]).
+        zone: Optional security-zone filter (``'GREEN'|'YELLOW'|'RED'``).
+        db_path: Ledger database to read from.
+    """
+    limit = max(1, min(int(limit), 500))
+    _ensure_initialized(db_path)
+    conn = _connect(db_path)
+    try:
+        if zone is not None:
+            rows = conn.execute(
+                "SELECT entry_id, timestamp, actor, action_payload, security_zone "
+                "FROM tamper_audit_trail WHERE security_zone = ? "
+                "ORDER BY entry_id DESC LIMIT ?",
+                (_zone_str(zone), limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT entry_id, timestamp, actor, action_payload, security_zone "
+                "FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "entryId": row["entry_id"],
+            "timestamp": row["timestamp"],
+            "actor": row["actor"],
+            "payload": row["action_payload"],
+            "zone": row["security_zone"],
+        }
+        for row in rows
+    ]
+
+
 def retroactively_sign_unsinged_entries(
     db_path: Path = config.AUDIT_DB_PATH,
 ) -> int:
@@ -1082,6 +1131,7 @@ __all__ = [
     "get_active_public_key",
     "get_anchor",
     "init_audit_db",
+    "list_recent_entries",
     "log_action",
     "retroactively_sign_unsinged_entries",
     "rotate_audit_key",

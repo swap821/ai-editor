@@ -20,72 +20,47 @@ describe('ExecutionDebuggerPanel', () => {
     expect(screen.getByText('Loading state...')).toBeInTheDocument();
   });
 
-  it('renders state on successful load', async () => {
+  it('renders state on successful load from the real backend shape', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: 'paused', mission: 'm-999' }),
+      json: async () => ({
+        missions: [{ missionId: 'm-999', status: 'completed' }],
+        count: 1,
+        steppable: false,
+        note: 'Council missions execute atomically; there is no interruptible step-machine to pause/resume.',
+      }),
     });
 
     render(<ExecutionDebuggerPanel />);
-    
+
     const preElement = await screen.findByText(/m-999/);
     expect(preElement).toBeInTheDocument();
-    expect(preElement.textContent).toContain('paused');
+    expect(preElement.textContent).toContain('completed');
   });
 
-  it('handles step action', async () => {
+  it('disables Step/Resume and explains why when the backend reports non-steppable', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: 'paused' }),
+      json: async () => ({
+        missions: [],
+        count: 0,
+        steppable: false,
+        note: 'Council missions execute atomically; there is no interruptible step-machine to pause/resume.',
+      }),
     });
 
     render(<ExecutionDebuggerPanel />);
-    
-    const input = screen.getByPlaceholderText('Mission ID');
-    fireEvent.change(input, { target: { value: 'm-123' } });
-    
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'running' }) });
-
-    const stepBtn = screen.getByText('Step');
-    fireEvent.click(stepBtn);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/execution/debugger/step'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ missionId: 'm-123' })
-        })
-      );
-    });
-  });
-
-  it('handles resume action', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ status: 'paused' }),
+      expect(screen.getByText(/no interruptible step-machine/)).toBeInTheDocument();
     });
 
-    render(<ExecutionDebuggerPanel />);
-    
     const input = screen.getByPlaceholderText('Mission ID');
     fireEvent.change(input, { target: { value: 'm-123' } });
-    
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'running' }) });
 
-    const resumeBtn = screen.getByText('Resume');
-    fireEvent.click(resumeBtn);
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/execution/debugger/resume'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ missionId: 'm-123' })
-        })
-      );
-    });
+    expect(screen.getByText('Step').closest('button')).toBeDisabled();
+    expect(screen.getByText('Resume').closest('button')).toBeDisabled();
+    // Only the initial GET fired -- no phantom POST to a non-functional action.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

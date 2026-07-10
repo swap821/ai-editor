@@ -20,39 +20,39 @@ describe('SecurityAuditPanel', () => {
     expect(screen.getByText('Loading audit log...')).toBeInTheDocument();
   });
 
-  it('renders log on successful load', async () => {
+  it('renders log on successful load from the real audit-ledger shape', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        log: [
-          { event: 'SECURITY_SCAN', timestamp: '2026-07-09T10:00:00Z', details: 'Passed' }
+        entries: [
+          { entryId: 1, actor: 'operator', zone: 'GREEN', timestamp: '2026-07-09T10:00:00Z', payload: 'Passed scan' }
         ],
+        chainValid: true,
       }),
     });
 
     render(<SecurityAuditPanel />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText('SECURITY_SCAN')).toBeInTheDocument();
-      expect(screen.getByText('Passed')).toBeInTheDocument();
+      expect(screen.getByText(/operator — GREEN/)).toBeInTheDocument();
+      expect(screen.getByText('Passed scan')).toBeInTheDocument();
+      expect(screen.getByText(/Hash chain: valid/)).toBeInTheDocument();
     });
   });
 
-  it('handles sandbox clear', async () => {
+  it('handles sandbox clear by POSTing an explicit confirm flag', async () => {
     window.confirm = vi.fn(() => true);
     window.alert = vi.fn();
 
     fetchMock.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        log: [],
-      }),
+      json: async () => ({ entries: [], chainValid: true }),
     });
 
     render(<SecurityAuditPanel />);
-    
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ log: [] }) });
+
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'cleared', removedCount: 3 }) });
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ entries: [], chainValid: true }) });
 
     const btn = screen.getByText('Clear Sandbox');
     fireEvent.click(btn);
@@ -60,7 +60,7 @@ describe('SecurityAuditPanel', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/security/sandbox/clear'),
-        expect.objectContaining({ method: 'POST' })
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ confirm: true }) })
       );
     });
   });

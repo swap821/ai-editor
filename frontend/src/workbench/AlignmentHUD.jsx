@@ -12,17 +12,6 @@ async function fetchJson(path, signal) {
   return response.json();
 }
 
-async function postJson(path, body = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...API_HEADERS },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-}
-
 export default function AlignmentHUD() {
   const [alignmentState, setAlignmentState] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +25,10 @@ export default function AlignmentHUD() {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchJson('/api/v1/conversation/alignment', signal);
+      // Real backend route (aios/api/routes/memory.py) — global diagnostic
+      // alignment evidence, not conversation-corrections. There is no
+      // conversation-scoped "/conversation/alignment" endpoint on the backend.
+      const data = await fetchJson('/api/v1/alignment/evaluation', signal);
       setAlignmentState(data);
     } catch (err) {
       if (err?.name !== 'AbortError') setError('Alignment data offline');
@@ -51,16 +43,19 @@ export default function AlignmentHUD() {
     return () => ctrl.abort();
   }, [loadAlignment]);
 
+  // There is no backend "force resync" primitive for a global alignment
+  // frame (alignment corrections/feedback are session-scoped, requiring a
+  // sessionId this HUD doesn't track). Rather than call a route that doesn't
+  // exist, this refetches the current diagnostic summary.
   const handleSync = async () => {
     setSyncBusy(true);
     setSyncError('');
     setSyncMessage('');
     try {
-      const res = await postJson('/api/v1/conversation/alignment/sync');
-      setSyncMessage(res.message || 'Sync complete');
-      void loadAlignment();
+      await loadAlignment();
+      setSyncMessage('Refreshed');
     } catch (err) {
-      setSyncError('Sync failed: ' + err.message);
+      setSyncError('Refresh failed: ' + err.message);
     } finally {
       setSyncBusy(false);
     }

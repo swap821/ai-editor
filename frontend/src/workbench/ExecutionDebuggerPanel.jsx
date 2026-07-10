@@ -28,13 +28,15 @@ export default function ExecutionDebuggerPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyAction, setBusyAction] = useState(null);
-  
+
   const [stepMissionId, setStepMissionId] = useState('');
 
   const loadState = useCallback(async (signal) => {
     setLoading(true);
     setError('');
     try {
+      // Real Council mission state (aios/api/routes/execution_debugger.py),
+      // reusing the same source as the mission dashboard.
       const data = await fetchJson('/api/v1/execution/debugger/state', signal);
       setDebuggerState(data);
     } catch (err) {
@@ -50,6 +52,12 @@ export default function ExecutionDebuggerPanel() {
     return () => ctrl.abort();
   }, [loadState]);
 
+  // Council missions run atomically to completion through the worker
+  // pipeline -- there is no interruptible step-machine to pause/resume
+  // (the backend answers both routes with an honest 501, not fabricated
+  // control). These buttons stay disabled and explain why, rather than
+  // pretend an action succeeded.
+  const steppable = debuggerState?.steppable === true;
   const handleAction = async (action, missionId) => {
     if (!missionId) return;
     setBusyAction(`${action}-${missionId}`);
@@ -92,7 +100,10 @@ export default function ExecutionDebuggerPanel() {
             <StepForward size={14} aria-hidden="true" /> Step / Resume
           </h3>
           <p className="council-dashboard__muted" style={{ marginBottom: '8px' }}>
-            Control execution of a paused mission.
+            {steppable
+              ? 'Control execution of a paused mission.'
+              : (debuggerState?.note ||
+                 'Council missions run atomically to completion; there is no interruptible step-machine to pause/resume.')}
           </p>
           <div className="council-dashboard__originate">
             <input
@@ -102,19 +113,22 @@ export default function ExecutionDebuggerPanel() {
               value={stepMissionId}
               onChange={(e) => setStepMissionId(e.target.value)}
               placeholder="Mission ID"
+              disabled={!steppable}
             />
             <div className="council-dashboard__decision-actions" style={{ justifyContent: 'flex-start', gap: '8px' }}>
               <button
                 type="button"
                 onClick={() => handleAction('step', stepMissionId)}
-                disabled={!stepMissionId.trim() || busyAction !== null}
+                disabled={!steppable || !stepMissionId.trim() || busyAction !== null}
+                title={steppable ? undefined : 'Not supported: no interruptible step-machine exists'}
               >
                 <StepForward size={14} /> Step
               </button>
               <button
                 type="button"
                 onClick={() => handleAction('resume', stepMissionId)}
-                disabled={!stepMissionId.trim() || busyAction !== null}
+                disabled={!steppable || !stepMissionId.trim() || busyAction !== null}
+                title={steppable ? undefined : 'Not supported: missions cannot be paused mid-execution'}
               >
                 <Play size={14} /> Resume
               </button>

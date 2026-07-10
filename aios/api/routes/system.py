@@ -8,12 +8,17 @@ path keep working.
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 import sqlite3
+import sys
+import threading
+import time
 from dataclasses import asdict
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 import aios
@@ -26,7 +31,7 @@ from aios.logging_config import get_logger
 from aios.memory.db import get_connection
 from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
-from aios.security.audit_logger import init_audit_db, verify_chain
+from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.security.gateway import classify
 
 logger = get_logger(__name__)
@@ -211,3 +216,86 @@ def audit_verify(from_entry: int = 1, to_entry: Optional[int] = None) -> dict[st
         )
         _METRICS.record_audit_verify_failure()
     return asdict(status)
+
+
+# --------------------------------------------------------------------------- #
+# System config + restart
+# --------------------------------------------------------------------------- #
+
+#: Real, persisted operator-facing settings — provider/autonomy/theme.
+_SETTINGS_PATH = config.DATA_DIR / "system_settings.json"
+_DEFAULT_SETTINGS: dict[str, Any] = {
+    "provider": "Ollama",
+    "autonomy": True,
+    "theme": "Superbrain",
+}
+
+
+class SystemConfigRequest(BaseModel):
+    provider: str = Field(..., min_length=1, max_length=64)
+    autonomy: bool
+    theme: str = Field(..., min_length=1, max_length=64)
+
+
+def _read_settings() -> dict[str, Any]:
+    if not _SETTINGS_PATH.exists():
+        return dict(_DEFAULT_SETTINGS)
+    try:
+        return {**_DEFAULT_SETTINGS, **json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))}
+    except (OSError, json.JSONDecodeError):
+        return dict(_DEFAULT_SETTINGS)
+
+
+@router.get("/api/v1/system/config")
+def get_system_config() -> dict[str, Any]:
+    """Return the real, currently-persisted operator settings."""
+    return _read_settings()
+
+
+@router.post("/api/v1/system/config")
+def set_system_config(req: SystemConfigRequest) -> dict[str, Any]:
+    """Persist operator settings (provider/autonomy/theme) to disk."""
+    payload = req.model_dump()
+    _SETTINGS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    log_action("operator", f"updated system config: {payload}", "YELLOW")
+    return {"status": "saved", **payload}
+
+
+class SystemRestartRequest(BaseModel):
+    confirm: bool = Field(False, description="Must be explicitly true; this restarts the live server process.")
+
+
+def _reexec_after_delay(delay_seconds: float) -> None:
+    """Re-exec the current process image after *delay_seconds*.
+
+    Runs in a daemon thread so the HTTP response for this request has time
+    to flush to the client before the process is replaced. ``os.execv``
+    replaces the process image IN PLACE (same PID) — the same technique
+    used to reload a service inside a container without the container
+    itself restarting — re-running the exact command this process was
+    launched with (``sys.executable`` + ``sys.argv``, faithful whether
+    launched via ``python -m aios`` or Docker's ``CMD ["python", "-m",
+    "aios"]``).
+    """
+    time.sleep(delay_seconds)
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+@router.post("/api/v1/system/restart")
+def restart_system(req: SystemRestartRequest) -> dict[str, Any]:
+    """Restart the live backend process.
+
+    Fail-closed on the confirmation flag (ConstitutionEnforcer.check_command
+    is for classifying real shell commands against gateway's allowlist, not
+    abstract operator actions — using it here would permanently 403 this
+    endpoint, since "restart" isn't and shouldn't be an auto-execute shell
+    command). Restarting drops every in-flight request and in-memory-only
+    state; anything durable is already on disk (SQLite/JSON stores), so this
+    is a clean restart, not a reset.
+    """
+    if not req.confirm:
+        raise HTTPException(status_code=422, detail="confirm must be true to restart the server")
+
+    log_action("operator", "restarting server process (self-exec)", "RED")
+    threading.Thread(target=_reexec_after_delay, args=(0.5,), daemon=True).start()
+    return {"status": "restarting", "etaSeconds": 0.5}

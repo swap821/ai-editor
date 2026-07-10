@@ -6,7 +6,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from aios import config
+from aios.policy.constitution_enforcer import ConstitutionEnforcer
 from aios.security.scope_lock import is_path_in_scope
+
+_enforcer = ConstitutionEnforcer()
 
 router = APIRouter(tags=["Files"])
 
@@ -79,6 +82,17 @@ def edit_file(req: EditFileRequest):
     check = is_path_in_scope(req.path)
     if not check.in_scope:
         raise HTTPException(status_code=403, detail="File out of bounds")
-        
-    # In Phase 1, we just return success to simulate proposing an edit
-    return {"status": "proposed", "message": "Edit proposed for approval."}
+
+    decision = _enforcer.check_file_edit(req.path, actor="operator")
+    if not decision.allowed:
+        raise HTTPException(status_code=403, detail=decision.reason)
+
+    # In Phase 1, we just return success to simulate proposing an edit; the
+    # actual write still requires the human-approval gate constitution.
+    # check_file_edit references (constraints on the decision above).
+    return {
+        "status": "proposed",
+        "message": "Edit proposed for approval.",
+        "requiresHuman": decision.requires_human,
+        "constraints": list(decision.constraints),
+    }

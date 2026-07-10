@@ -113,4 +113,36 @@ def test_edit_file_proposes_for_legit_path_in_scope(client, scoped_workspace) ->
     )
 
     assert resp.status_code == 200
-    assert resp.json()["status"] == "proposed"
+    body = resp.json()
+    assert body["status"] == "proposed"
+    assert body["requiresHuman"] is True
+
+
+def test_edit_file_rejects_when_constitution_enforcer_blocks(client, scoped_workspace, monkeypatch) -> None:
+    """Proves the route actually respects ConstitutionEnforcer's verdict (the
+    frozen-core check itself is unit-tested directly against
+    ConstitutionEnforcer in test_constitution.py; scope_lock's SCOPE_ROOTS
+    default to training_ground/lab, outside aios/security/, so a real frozen
+    path can never simultaneously pass is_path_in_scope in this route --
+    mocking the enforcer isolates "does the route wire it in" from "does the
+    enforcer correctly detect frozen paths")."""
+    import aios.api.routes.files as files_route
+    from aios.policy.constitution_enforcer import EnforcementDecision
+
+    target = scoped_workspace / "gateway.py"
+    target.write_text("# pretend security module", encoding="utf-8")
+    monkeypatch.setattr(
+        files_route._enforcer,
+        "check_file_edit",
+        lambda path, actor="worker": EnforcementDecision(
+            allowed=False, risk="RED", reason="frozen core path blocked", source="constitution"
+        ),
+    )
+
+    resp = client.post(
+        "/api/v1/files/edit",
+        json={"path": str(target), "content": "malicious"},
+    )
+
+    assert resp.status_code == 403
+    assert "frozen core" in resp.json()["detail"].lower()

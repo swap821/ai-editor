@@ -29,17 +29,20 @@ function asArray(value) {
 
 export default function SecurityAuditPanel() {
   const [auditLog, setAuditLog] = useState([]);
+  const [chainValid, setChainValid] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   const [busyAction, setBusyAction] = useState(null);
 
   const loadAudit = useCallback(async (signal) => {
     setLoading(true);
     setError('');
     try {
+      // Real Ed25519-signed hash-chained ledger (aios/security/audit_logger.py).
       const data = await fetchJson('/api/v1/security/audit', signal);
-      setAuditLog(asArray(data.log));
+      setAuditLog(asArray(data.entries));
+      setChainValid(data.chainValid);
     } catch (err) {
       if (err?.name !== 'AbortError') setError('Security audit offline');
     } finally {
@@ -53,11 +56,11 @@ export default function SecurityAuditPanel() {
     return () => ctrl.abort();
   }, [loadAudit]);
 
-  const handleAction = async (actionPath, actionId) => {
-    if (!window.confirm(`Are you sure you want to ${actionId}?`)) return;
+  const handleAction = async (actionPath, actionId, body = {}) => {
+    if (!window.confirm(`Are you sure you want to ${actionId}? This action is real and audited.`)) return;
     setBusyAction(actionId);
     try {
-      await postJson(actionPath);
+      await postJson(actionPath, body);
       alert(`${actionId} complete.`);
       void loadAudit();
     } catch (err) {
@@ -82,7 +85,7 @@ export default function SecurityAuditPanel() {
             <button
               type="button"
               className="is-reject"
-              onClick={() => handleAction('/api/v1/security/sandbox/clear', 'Clear Sandbox')}
+              onClick={() => handleAction('/api/v1/security/sandbox/clear', 'Clear Sandbox', { confirm: true })}
               disabled={busyAction !== null}
             >
               <Trash2 size={14} /> Clear Sandbox
@@ -102,6 +105,11 @@ export default function SecurityAuditPanel() {
           <h3>
             <Shield size={14} aria-hidden="true" /> Audit Log
           </h3>
+          {chainValid !== null && (
+            <p className={chainValid ? 'council-dashboard__badge is-ok' : 'council-dashboard__error'} style={{ display: 'inline-block', marginBottom: '8px' }}>
+              Hash chain: {chainValid ? 'valid' : 'BROKEN'}
+            </p>
+          )}
           {loading ? (
             <p className="council-dashboard__muted">Loading audit log...</p>
           ) : error ? (
@@ -109,16 +117,16 @@ export default function SecurityAuditPanel() {
           ) : auditLog.length === 0 ? (
             <p className="council-dashboard__muted">No audit events found.</p>
           ) : (
-            auditLog.map((entry, idx) => (
-              <div key={idx} className="council-dashboard__route" style={{ display: 'block', padding: '8px' }}>
+            auditLog.map((entry) => (
+              <div key={entry.entryId} className="council-dashboard__route" style={{ display: 'block', padding: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <strong>{entry.event}</strong>
+                  <strong>{entry.actor} — {entry.zone}</strong>
                   <span className="council-dashboard__muted" style={{ fontSize: '10px' }}>
                     {new Date(entry.timestamp).toLocaleString()}
                   </span>
                 </div>
                 <div className="council-dashboard__muted" style={{ fontSize: '11px' }}>
-                  {entry.details}
+                  {entry.payload}
                 </div>
               </div>
             ))

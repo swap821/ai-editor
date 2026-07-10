@@ -1,7 +1,17 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { Settings, Sliders, Server, Cpu, Power } from 'lucide-react';
 import { API_BASE, API_HEADERS } from '../config';
+
+async function fetchJson(path, signal) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    signal,
+    credentials: 'include',
+    headers: API_HEADERS,
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
 
 async function postJson(path, body = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -18,8 +28,23 @@ export default function SettingsPanel({ onClose }) {
   const [provider, setProvider] = useState('Ollama');
   const [autonomy, setAutonomy] = useState(true);
   const [theme, setTheme] = useState('Superbrain');
-  
+
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchJson('/api/v1/system/config', ctrl.signal)
+      .then((data) => {
+        if (data.provider) setProvider(data.provider);
+        if (typeof data.autonomy === 'boolean') setAutonomy(data.autonomy);
+        if (data.theme) setTheme(data.theme);
+      })
+      .catch((err) => {
+        if (err?.name !== 'AbortError') setLoadError('Could not load current settings; showing defaults.');
+      });
+    return () => ctrl.abort();
+  }, []);
 
   return (
     <HUDPanel
@@ -31,6 +56,9 @@ export default function SettingsPanel({ onClose }) {
       onClose={onClose}
     >
       <div style={{ padding: '20px', color: 'var(--foreground)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {loadError && (
+          <p style={{ fontSize: '11px', color: 'var(--danger)', margin: 0 }}>{loadError}</p>
+        )}
         
         {/* LLM Provider */}
         <div>
@@ -138,10 +166,10 @@ export default function SettingsPanel({ onClose }) {
               gap: '6px'
             }}
             onClick={async () => {
-              if (window.confirm('Restart AI-OS Backend?')) {
+              if (window.confirm('Restart AI-OS Backend? In-flight requests will be dropped.')) {
                 setBusy(true);
                 try {
-                  await postJson('/api/v1/system/restart');
+                  await postJson('/api/v1/system/restart', { confirm: true });
                   alert('Restart signal sent.');
                 } catch (err) {
                   alert('Restart failed: ' + err.message);
