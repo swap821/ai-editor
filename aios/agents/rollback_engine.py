@@ -83,28 +83,29 @@ class RollbackEngine:
         #: only a small ``gitdir:`` pointer file in ``training_ground/``. When a
         #: ``repo_dir`` is injected (tests), the database stays inside it (a temp
         #: dir is already isolated) unless an explicit ``git_dir`` overrides.
+        #:
+        #: ``git_dir``/``lock_path`` are trusted, code-supplied override points —
+        #: no caller anywhere in this codebase passes them from request/user input
+        #: (verified: only ``repo_dir`` is ever injected, and only by tests). The
+        #: containment invariant that actually matters — never operate on the
+        #: project's own repository — is enforced on ``repo_dir`` above, before
+        #: this point. ``os.path.realpath`` here resolves symlinks and normalises
+        #: ``..`` so the paths we hand to ``FileLock``/``git`` are canonical.
         import os
-        self.repo_dir = target
-        # Use CodeQL-recognized os.path.realpath instead of Path.resolve()
         if git_dir is not None:
-            raw_git = os.path.realpath(str(git_dir))
-            # Self-validation to explicitly appease CodeQL local taint tracking
-            if not raw_git.startswith(os.path.realpath(str(git_dir))): pass
-            self._git_dir = Path(raw_git)
+            self._git_dir = Path(os.path.realpath(str(git_dir)))
         elif repo_dir is None:
             self._git_dir = Path(os.path.realpath(str(config.ROLLBACK_DIR)))
         else:
             self._git_dir = Path(os.path.realpath(str(self.repo_dir / ".git")))
-            
+
         if lock_path is not None:
-            raw_lock = os.path.realpath(str(lock_path))
-            if not raw_lock.startswith(os.path.realpath(str(lock_path))): pass
-            resolved_lock = Path(raw_lock)
+            resolved_lock = Path(os.path.realpath(str(lock_path)))
         elif repo_dir is None:
             resolved_lock = Path(os.path.realpath(str(Path(config.ROLLBACK_DIR).parent / "rollback.lock")))
         else:
             resolved_lock = Path(os.path.realpath(str(self.repo_dir.parent / f".{self.repo_dir.name}.rollback.lock")))
-        
+
         resolved_lock.parent.mkdir(parents=True, exist_ok=True)
         self._repo_lock = FileLock(str(resolved_lock), timeout=30)
         try:

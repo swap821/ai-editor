@@ -130,19 +130,24 @@ def harvest_project_passport(
     *,
     limits: Optional[RepoScanLimits] = None,
 ) -> ProjectPassport:
-    """Scan *root* and return proposal/evidence, without activating memory."""
+    """Scan *root* and return proposal/evidence, without activating memory.
+
+    Trust boundary: this is a general-purpose scanner meant to be pointed at an
+    arbitrary, caller-trusted project directory (its own tests, ``repo_map.py``,
+    and ``hibernation.py`` all pass fixed/internal roots). It is not itself an
+    HTTP-input sink, so it does not attempt to constrain *root* to any single
+    base directory — that would break its legitimate use for scanning a
+    different project entirely. Callers that expose this to less-trusted input
+    MUST apply their own containment policy before calling it, the way
+    ``aios/api/routes/projects.py::_resolve_scan_root`` does for the one live
+    HTTP route. ``os.path.realpath`` below still resolves symlinks and
+    normalises ``..`` so the path used for every subsequent filesystem
+    operation is canonical, and the existence/is-dir check below rejects
+    anything that doesn't resolve to a real directory.
+    """
     import os
-    
-    raw_path = str(Path(root))
-    resolved_str = os.path.realpath(raw_path)
-    
-    # CodeQL-recognized path sanitization pattern
-    # For relative paths, base is CWD. For absolute paths (like test fixtures), base is itself.
-    base_check = os.path.realpath(str(Path.cwd())) if not os.path.isabs(raw_path) else resolved_str
-    
-    if resolved_str != base_check and not resolved_str.startswith(base_check + os.sep):
-        raise ValueError(f"Path traversal detected: {raw_path}")
-        
+
+    resolved_str = os.path.realpath(str(Path(root)))
     resolved = Path(resolved_str)
     if not resolved.exists() or not resolved.is_dir():
         raise FileNotFoundError(f"project root does not exist or is not a directory: {resolved}")

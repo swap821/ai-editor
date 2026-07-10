@@ -37,9 +37,21 @@ _CREDENTIAL_PATTERNS: Final[list[re.Pattern[str]]] = [
     # Generic bearer / token / api-key patterns
     re.compile(r"(?i)bearer\s+[A-Za-z0-9_\-]{8,}"),
     re.compile(r"(?i)authorization\s*[:\s]\s*[A-Za-z0-9_\-+/=]{8,}"),
-    re.compile(r"(?i)(api[_-]?key|apikey|secret|token|password)\s*[:=]\s*\S{8,}"),
+    # [a-z0-9_]* after the keyword catches compound identifiers like
+    # "aws_secret_access_key" or "db_password_hash", not just an exact
+    # "secret"/"password" token immediately before the operator.
+    re.compile(r"(?i)(api[_-]?key|apikey|secret|token|password|access[_-]?key)[a-z0-9_]*\s*[:=]\s*\S{8,}"),
     re.compile(r"(?i)(AKIA[A-Z0-9]{16})"),  # AWS Access Key ID
     re.compile(r"(?i)(ASIA[A-Z0-9]{16})"),  # AWS Session Token prefix
+    # AWS Secret Access Key shape: an isolated 40-char base64-alphabet run.
+    # Matched by shape alone (no nearby keyword required) because this is a
+    # fixed, well-known credential format — the same approach real secret
+    # scanners (gitleaks, truffleHog) use, since keyword-adjacency alone
+    # (see the generic pattern above) misses a bare pasted value with no
+    # "secret ="-style prefix, and the entropy backstop below deliberately
+    # exempts path-shaped tokens (2026-07-07 egress fix) which a slash-
+    # bearing AWS secret can coincidentally look like.
+    re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])"),
     re.compile(r"gh[ps]_[A-Za-z0-9_]{30,}"),  # GitHub tokens
     re.compile(r"glpat-[A-Za-z0-9_\-]{20,}"),  # GitLab tokens
     re.compile(r"sk-[A-Za-z0-9]{20,}"),  # Generic sk- keys

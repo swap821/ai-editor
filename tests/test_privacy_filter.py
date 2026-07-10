@@ -256,6 +256,25 @@ class TestPathShapedTokensAreNotSecrets:
         safe, _ = pf.filter([{"role": "user", "content": f"key {secret} end"}])
         assert secret not in str(safe[0]["content"])
 
+    def test_slash_shaped_aws_secret_key_still_redacts(self) -> None:
+        """Regression for the 2026-07-07 exemption's own bypass (found 2026-07-10):
+        a real AWS secret access key can be slash-shaped (base64 alphabet includes
+        '/'), which used to fullmatch the path-shaped exemption and sail through
+        both the credential-keyword pass and the entropy backstop with zero
+        redactions. Must be caught via keyword context (aws_secret_access_key=)
+        AND via bare shape alone (no keyword nearby)."""
+        pf = PrivacyFilter()
+        secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        with_keyword = f"aws_secret_access_key = {secret}"
+        safe, audit = pf.filter([{"role": "user", "content": with_keyword}])
+        assert secret not in str(safe[0]["content"])
+        assert audit["redacted_credentials"] + audit["redacted_secrets"] > 0
+
+        bare = f"here is the value: {secret}"
+        safe2, audit2 = pf.filter([{"role": "user", "content": bare}])
+        assert secret not in str(safe2[0]["content"])
+        assert audit2["redacted_credentials"] + audit2["redacted_secrets"] > 0
+
     def test_absolute_paths_still_redacted_as_paths(self) -> None:
         """The PATH redaction (absolute paths reveal machine layout) is separate
         and intentionally unchanged -- only the false SECRET classification of
