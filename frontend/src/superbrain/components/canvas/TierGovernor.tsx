@@ -26,6 +26,7 @@ import { PerformanceMonitor } from '@react-three/drei';
 import { publishCognition } from '@/lib/cognitionBus';
 import { useQualityTier } from '@/components/QualityTierProvider';
 import { dprForFactor, PERF_BOUNDS, DPR_WARMUP_MS, ADVISORY_WARMUP_MS } from '@/lib/perfBudget';
+import { FeatureGate } from '../../core/Performance/FeatureGate';
 
 /** At most one advisory per this window — advice, not nagging. */
 const ADVISORY_COOLDOWN_MS = 120_000;
@@ -76,7 +77,7 @@ export default function TierGovernor() {
           onChange={({ fps, factor }) => {
             // RELIEF VALVE: resolution gives to hold the framerate. A hidden tab
             // throttles RAF to ~0 fps (not a real sag) — never react to that.
-            if (typeof document !== 'undefined' && document.hidden) return;
+            if (FeatureGate.isSleeping) return;
             const dpr = dprForFactor(perfTier, factor);
             setDpr(dpr);
             perfRef.current = { ...perfRef.current, fps, factor, dpr, tier: perfTier };
@@ -85,7 +86,7 @@ export default function TierGovernor() {
             // Resolution couldn't save it. Dips while the model generates or the
             // tab is hidden are expected; a machine already on 'low' has nothing
             // left to advise; and boot jank must never count (fullyWarmed gate).
-            if (!fullyWarmedRef.current || generating || document.hidden || baseTier === 'low') return;
+            if (!fullyWarmedRef.current || generating || FeatureGate.isSleeping || baseTier === 'low') return;
             const now = Date.now();
             if (now - lastAdvisoryRef.current < ADVISORY_COOLDOWN_MS) return;
             lastAdvisoryRef.current = now;

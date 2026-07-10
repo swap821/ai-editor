@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary } from './WebGLErrorBoundary';
 import { FallbackScene } from './FallbackScene';
-import SuperbrainScene, { type BrainSurface, type SkyMode } from './SuperbrainScene';
+import CortexEngine from '../../core/CortexEngine';
+import { type BrainSurface, type SkyMode } from './SuperbrainScene.LEGACY';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import {
   QualityTierProvider,
@@ -229,7 +230,7 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
             <fog attach="fog" args={['#000000', 50, 150]} />
             <TierGovernor />
             <Suspense fallback={null}>
-              <SuperbrainScene mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
+              <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
               <ReadySignal />
               {/* Product-side forge ports (editor/preview) mount here, INSIDE the
                   one canvas, so the canon nerves plug into them. Renders nothing

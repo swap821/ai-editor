@@ -6,7 +6,7 @@ import { createSeededRandom } from '@/lib/seededRandom';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
-import type { BurstRef, CognitionUniforms } from './SuperbrainScene';
+import type { BurstRef, CognitionUniforms } from './SuperbrainScene.LEGACY';
 import {
   CORD_Z,
   SEGMENT_COUNT,

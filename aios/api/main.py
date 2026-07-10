@@ -41,6 +41,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from starlette.routing import Match
 
 import aios
 from aios import config
@@ -346,6 +347,7 @@ from aios.api.routes.projects import router as _projects_router
 from aios.api.routes.files import router as _files_router
 from aios.api.routes.security import router as _security_router
 from aios.api.routes.execution_debugger import router as _execution_debugger_router
+from aios.api.routes.v10 import router as _v10_router
 
 app.include_router(_system_router)
 app.include_router(_auth_router)
@@ -360,6 +362,7 @@ app.include_router(_projects_router)
 app.include_router(_files_router)
 app.include_router(_security_router)
 app.include_router(_execution_debugger_router)
+app.include_router(_v10_router)
 
 
 @app.middleware("http")
@@ -512,36 +515,107 @@ async def require_api_token(request: Request, call_next):
 
 # --------------------------------------------------------------------------- #
 # In-memory sliding-window rate limiter for sensitive API endpoints.
-# Protects against brute-force on approval tokens and DoS on execute/reflect.
-# Best-effort, per-process; the durable RateLimiter governs RED actions.
+# Protects against brute-force on approval tokens, noisy control routes, and
+# expensive evidence scans. Best-effort, per-process; the durable RateLimiter
+# governs RED actions. The route authority map is metadata only here: it
+# centralizes API-surface posture without becoming a new security authority.
 # --------------------------------------------------------------------------- #
 _RATE_LIMIT_WINDOW_S = 60.0
-_RATE_LIMIT_ENDPOINTS: dict[str, int] = {
-    "/api/v1/approval/req": 10,
-    "/api/v1/execute": 30,
-    "/api/terminal": 20,
+
+
+@dataclass(frozen=True)
+class RouteAuthority:
+    authority_class: str
+    rate_limit_per_minute: int
+    actor_source: str
+    confirm_required: bool = False
+    audit_event: str = ""
+    body_limit_bytes: int | None = None
+
+
+_ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
+    "/api/v1/approval/req": RouteAuthority("YELLOW", 10, "session", audit_event="approval_decision"),
+    "/api/v1/execute": RouteAuthority("YELLOW", 30, "session", audit_event="approved_execute"),
+    "/api/terminal": RouteAuthority("YELLOW", 20, "session", audit_event="terminal_command"),
     # Council origination/decisions: IP-keyed cap (the per-session throttle is
-    # spoofable by varying sessionId) — bounds mission/worker spawn floods.
-    "/api/v1/council/missions": 20,
-    "/api/v1/council/approve": 30,
-    "/api/v1/council/reject": 30,
-    "/api/v1/voice/transcribe": 30,
-    "/api/v1/voice/speak": 60,
-    "/api/v1/policy/propose": 10,
-    "/api/v1/audit/anchor/verify": 20,
-    "/api/v1/pheromones/deposit": 60,
-    "/api/v1/pheromones/reinforce": 60,
-    "/api/v1/pheromones/decay": 5,
-    "/api/v1/runtime/surface/emit": 60,
-    "/api/v1/runtime/surface/sweep": 5,
-    "/api/v1/runtime/rollbacks/register": 30,
-    "/api/v1/runtime/rollbacks/prune": 5,
-    "/api/v1/policy/{policy_id}/vote": 20,
-    "/api/v1/policy/{policy_id}/enact": 10,
-    "/api/v1/policy/{policy_id}/suspend": 10,
+    # spoofable by varying sessionId) - bounds mission/worker spawn floods.
+    "/api/v1/council/missions": RouteAuthority("YELLOW", 20, "session", audit_event="council_mission"),
+    "/api/v1/council/approve": RouteAuthority("YELLOW", 30, "session", audit_event="council_approve"),
+    "/api/v1/council/reject": RouteAuthority("YELLOW", 30, "session", audit_event="council_reject"),
+    "/api/v1/voice/transcribe": RouteAuthority("YELLOW", 30, "session", audit_event="voice_transcribe"),
+    "/api/v1/voice/speak": RouteAuthority("YELLOW", 60, "session", audit_event="voice_speak"),
+    "/api/v1/policy/propose": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_propose"),
+    "/api/v1/policy/{policy_id}/vote": RouteAuthority("YELLOW", 20, "server-session", audit_event="policy_vote"),
+    "/api/v1/policy/{policy_id}/enact": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_enact"),
+    "/api/v1/policy/{policy_id}/suspend": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_suspend"),
+    "/api/v1/audit/anchor/verify": RouteAuthority("YELLOW", 20, "server-session", audit_event="audit_anchor_verify"),
+    "/api/v1/pheromones/deposit": RouteAuthority("YELLOW", 60, "server-session", audit_event="pheromone_deposit"),
+    "/api/v1/pheromones/reinforce": RouteAuthority("YELLOW", 60, "server-session", audit_event="pheromone_reinforce"),
+    "/api/v1/pheromones/decay": RouteAuthority("YELLOW", 5, "server-session", audit_event="pheromone_decay"),
+    "/api/v1/runtime/surface/emit": RouteAuthority("YELLOW", 60, "server-session", audit_event="surface_emit"),
+    "/api/v1/runtime/surface/{signal_id}": RouteAuthority("YELLOW", 30, "server-session", audit_event="surface_revoke"),
+    "/api/v1/runtime/surface/sweep": RouteAuthority("YELLOW", 5, "server-session", audit_event="surface_sweep"),
+    "/api/v1/runtime/rollbacks/register": RouteAuthority("YELLOW", 30, "server-session", audit_event="rollback_register"),
+    "/api/v1/runtime/rollbacks/prune": RouteAuthority("YELLOW", 5, "server-session", audit_event="rollback_prune"),
+    "/api/v1/v10/vulture/scan": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="v10_vulture_scan",
+        body_limit_bytes=128_000,
+    ),
+    "/api/v1/v10/ecosystem/scan": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="v10_ecosystem_scan",
+        body_limit_bytes=32_000,
+    ),
+    "/api/v1/system/restart": RouteAuthority(
+        "RED",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="system_restart",
+    ),
+    "/api/v1/security/tokens/rotate": RouteAuthority(
+        "YELLOW",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="audit_key_rotate",
+    ),
+    "/api/v1/security/sandbox/clear": RouteAuthority(
+        "RED",
+        10,
+        "server-session",
+        confirm_required=True,
+        audit_event="sandbox_clear",
+    ),
+}
+_RATE_LIMIT_ENDPOINTS: dict[str, int] = {
+    path: meta.rate_limit_per_minute for path, meta in _ROUTE_AUTHORITY.items()
 }
 _RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
+
+
+def _rate_limited_route_path(request: Request) -> str | None:
+    """Return the literal or templated route key used by the rate limiter."""
+    path = request.url.path
+    if path in _RATE_LIMIT_ENDPOINTS:
+        return path
+
+    for route in app.router.routes:
+        matches = getattr(route, "matches", None)
+        if matches is None:
+            continue
+        match, _child_scope = matches(request.scope)
+        if match == Match.FULL:
+            route_path = getattr(route, "path", None)
+            if route_path in _RATE_LIMIT_ENDPOINTS:
+                return route_path
+    return None
 
 
 def _check_endpoint_rate_limit(path: str, client_ip: str) -> None:
@@ -576,8 +650,8 @@ def _check_endpoint_rate_limit(path: str, client_ip: str) -> None:
 async def endpoint_rate_limit(request: Request, call_next):
     """Apply per-endpoint, per-IP rate limits before the request reaches handlers."""
     if request.method != "OPTIONS":
-        path = request.url.path
-        if path in _RATE_LIMIT_ENDPOINTS:
+        path = _rate_limited_route_path(request)
+        if path is not None:
             # Use the same IP extraction logic as the auth middleware.
             client_ip = _real_client_ip(request)
             try:

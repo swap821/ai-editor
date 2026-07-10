@@ -19,6 +19,7 @@ from aios.runtime.contracts import MissionContract
 
 router = APIRouter()
 _LAST_PROJECT_PASSPORT_SCAN: dict[str, object] | None = None
+_LAST_SYMBOL_REPO_MAP_SCAN: dict[str, object] | None = None
 
 
 class ProjectPassportScanRequest(BaseModel):
@@ -57,6 +58,20 @@ def project_passport_status() -> dict:
     }
 
 
+@router.get("/api/v1/projects/symbol-repomap/status")
+def symbol_repo_map_status() -> dict[str, Any]:
+    """Return status for the symbol-level RepoMap without scanning."""
+    return {
+        "available": True,
+        "localOnly": True,
+        "activation": "proposal/evidence",
+        "trustedMemoryActivated": False,
+        "canWidenScope": False,
+        "cloudCalls": 0,
+        "lastScan": _LAST_SYMBOL_REPO_MAP_SCAN,
+    }
+
+
 class ScopeHintsRequest(BaseModel):
     goal: str = Field(..., min_length=1, max_length=4000)
     allowed_files: list[str] = Field(default_factory=list, alias="allowedFiles")
@@ -73,12 +88,14 @@ def scope_hints(req: ScopeHintsRequest) -> dict[str, Any]:
     never expanding scope. Real repo scan (aios/cognition/repo_map.py), not
     fabricated data; this module previously had zero callers outside its own
     tests anywhere in the codebase."""
+    global _LAST_SYMBOL_REPO_MAP_SCAN
     workspace = Path.cwd().resolve()
     root = _resolve_scan_root(req.root, workspace)
     try:
         repo_map = scan_symbol_repo_map(root, limits=SymbolRepoMapLimits(max_files=req.max_files))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _LAST_SYMBOL_REPO_MAP_SCAN = _symbol_repo_map_summary(repo_map)
     contract = MissionContract(
         mission_id="scope-hints-preview",
         goal=req.goal,
@@ -100,6 +117,21 @@ def _project_passport_summary(passport: ProjectPassport) -> dict[str, object]:
         "keyFileCount": len(passport.key_files),
         "evidenceFileCount": len(passport.evidence_files),
         "suggestedImprovementCount": len(passport.suggested_improvements),
+    }
+
+
+def _symbol_repo_map_summary(repo_map: Any) -> dict[str, object]:
+    return {
+        "root": repo_map.root,
+        "generatedAt": repo_map.generated_at,
+        "symbolCount": len(repo_map.symbols),
+        "edgeCount": len(repo_map.edges),
+        "evidenceFileCount": len(repo_map.evidence_files),
+        "skippedFileCount": len(repo_map.skipped_files),
+        "activation": repo_map.activation,
+        "trustedMemoryActivated": repo_map.trusted_memory_activated,
+        "localOnly": repo_map.local_only,
+        "cloudCalls": repo_map.cloud_calls,
     }
 
 

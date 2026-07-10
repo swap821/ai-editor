@@ -7,41 +7,67 @@ vi.mock('../components/HUDPanel', () => ({
     <div data-testid="hud-panel" data-title={title} data-tint={tint}>
       {children}
     </div>
-  )
+  ),
 }));
+
+const V10_STATUS = {
+  ecosystem: {
+    available: true,
+    lastScan: {
+      findingCount: 3,
+      networkCalls: 0,
+    },
+  },
+  constitution: {
+    casteCount: 7,
+    frozenCoreProtected: true,
+  },
+  symbolRepoMap: {
+    activation: 'proposal/evidence',
+    lastScan: {
+      symbolCount: 123,
+      evidenceFileCount: 45,
+    },
+  },
+  metaLoop: {
+    safetyStatus: 'ok',
+    proposalCount: 2,
+  },
+  councilMemory: {
+    deliberationCount: 4,
+  },
+};
 
 describe('EcosystemDashboard', () => {
   beforeEach(() => {
     globalThis.fetch = vi.fn();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('renders loading state initially', () => {
     globalThis.fetch.mockImplementation(() => new Promise(() => {}));
     render(<EcosystemDashboard onClose={vi.fn()} />);
-    
+
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
-    expect(screen.getByText(/Scanning ecosystem.../i)).toBeInTheDocument();
+    expect(screen.getByText(/Reading ecosystem status.../i)).toBeInTheDocument();
   });
 
-  it('renders metrics on success', async () => {
+  it('renders v10 ecosystem status on success', async () => {
     globalThis.fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        memory_integration_score: 0.95,
-        fact_consistency: 0.99,
-        active_models: ['llama3.1', 'qwen2.5'],
-        tasks_completed: 42,
-        tasks_failed: 1
-      })
+      json: async () => V10_STATUS,
     });
 
     render(<EcosystemDashboard onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText('95.0%')).toBeInTheDocument();
-      expect(screen.getByText('99.0%')).toBeInTheDocument();
-      expect(screen.getByText('llama3.1')).toBeInTheDocument();
-      expect(screen.getByText(/Completed: 42/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 finding\(s\) · 0 network calls/i)).toBeInTheDocument();
+      expect(screen.getByText(/7 castes · frozen protected/i)).toBeInTheDocument();
+      expect(screen.getByText(/123 symbols · 45 files · proposal\/evidence/i)).toBeInTheDocument();
+      expect(screen.getByText(/Meta-loop: ok · 2 proposal\(s\) \| Council memory: 4 deliberation\(s\)/i)).toBeInTheDocument();
     });
   });
 });

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
-import type { CognitionUniforms } from './SuperbrainScene';
+import type { CognitionUniforms } from './SuperbrainScene.LEGACY';
 import { createSeededRandom } from '@/lib/seededRandom';
 
 /* -------------------------------------------------------------------------- */

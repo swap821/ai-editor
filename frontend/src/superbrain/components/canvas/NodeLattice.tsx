@@ -48,7 +48,7 @@ import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import { fetchFactGraph, getKnownTrails } from '@/lib/aiosAdapter';
 import type { FactEdge, TrailRow } from '@/lib/aiosAdapter';
-import type { CognitionUniforms } from './SuperbrainScene';
+import type { CognitionUniforms } from './SuperbrainScene.LEGACY';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
 const TAU = Math.PI * 2;

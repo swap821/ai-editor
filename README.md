@@ -34,7 +34,7 @@ tests, `python tools/thesis_audit.py` should catch it.
 | Vulture / Immune System | Built read-only seed | `aios/maintenance/vulture_sanitation.py` detects security-bypass, approval-bypass, trusted-memory activation, unsafe self-modification, and secret-material patterns as redacted quarantine proposals. It does not delete, mutate memory, mutate policy, or touch frozen core. |
 | Ecosystem Scanner | Built read-only seed | `aios/maintenance/ecosystem_scanner.py` scans local dependency manifests, explicit git logs, API response strings, and local model metadata as redacted proposal/evidence. It performs no network calls or writes. A security-core promotion requires separate Section VIII approval. |
 | Meta-Loop | Built read-only seed | `aios/learning/meta_loop.py` summarizes reflection, mistake, skill, audit, policy, hibernation, and council evidence into local proposal/evidence. It cannot authorize action, mutate policy, self-apply, write files, or call cloud. |
-| Sovereign UI | Built seed | `frontend/src/workbench/SovereignStatePanel.jsx` shows backend-backed RepoMap, resource, hibernation, pheromone, caste, autonomy, and proposal indicators. No fake liveness claims. |
+| Sovereign UI | Built seed | `frontend/src/workbench/SovereignStatePanel.jsx`, `VultureFeed.jsx`, and `EcosystemDashboard.jsx` show backend-backed v7/v10 indicators including constitution, immune, ecosystem, council memory, Symbol RepoMap, meta-loop, RepoMap, resource, hibernation, pheromone, caste, autonomy, and proposal state. No fake liveness claims. |
 
 ## What GAGOS Is Not
 
@@ -198,7 +198,7 @@ Current integration status:
 | Phase 4 - Signal Ganglia + Council Memory | Complete locally | `aios/council/ganglia.py`, `aios/council/council_memory.py`, council/API tests |
 | Phase 5 - Symbol RepoMap | Complete locally | `aios/cognition/repo_map.py`, `tests/test_repo_map.py` |
 | Phase 6 - Meta Loop | Complete locally | `aios/learning/meta_loop.py`, `tests/test_meta_loop.py` |
-| Phase 7 - UI Truth Surface | Planned | backend-backed indicators only |
+| Phase 7 - UI Truth Surface | Complete locally | `aios/api/routes/v10.py`, `tests/test_v10_status_api.py`, focused workbench tests |
 
 See `.aios/state/V10_INTEGRATION_AUDIT.md` and
 `.aios/state/V10_INTEGRATION_PLAN.md` for the detailed contract, risks, and

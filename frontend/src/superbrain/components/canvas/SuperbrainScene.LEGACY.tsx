@@ -6,9 +6,9 @@ import { useBrainScene, preloadBrainScene } from '@/lib/brainScene';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
-import AccretionCore from './AccretionCore';
+import AccretionCore from '../../core/AccretionCore';
 import CognitiveGrasp from './CognitiveGrasp';
-import CorticalSignals, { THOUGHT_WAVE_GLSL } from './CorticalSignals';
+import CorticalSignals, { THOUGHT_WAVE_GLSL } from '../../core/AttentionField';
 import PostFX from './PostFX';
 import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
 import { createSeededRandom } from '@/lib/seededRandom';
@@ -25,7 +25,8 @@ import OrganSurface from './OrganSurface';
 import RegionPins from './RegionPins';
 import NodeLattice from './NodeLattice';
 import MaterializationLayer from './MaterializationLayer';
-import CouncilNodesOverlay from './CouncilNodesOverlay';
+import DeliberationOverlay from '../../core/CorticalNerves/DeliberationOverlay';
+import { SubsystemErrorBoundary } from './SubsystemErrorBoundary';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
@@ -79,16 +80,16 @@ const SHOW_REGION_PINS = false;
 const CURSOR_ATTENTION = true;
 
 // Restrained "voyaging" — a slow auto-orbit; operator tunes live (try 0.10–0.30).
-const VOYAGE_SPEED = 0.18;
+export const VOYAGE_SPEED = 0.18;
 
 /** The memory galaxy: every REAL trail a persistent star orbiting the mind
  *  (strength = brightness, walks = size, quarantine = red pulse; recalls
  *  flash their star). Additive layer, honest dormancy — the operator's
  *  call (VISION.md): flip to false to remove without a trace. */
-const SHOW_MEMORY_GALAXY = true;
+export const SHOW_MEMORY_GALAXY = true;
 
 /** Substrate: 'mesh' (default, the working being) or 'points' (?being=points). */
-const BEING_MODE = readBeingMode();
+export const BEING_MODE = readBeingMode();
 
 /** The cortex surface itself (VISION.md — the operator decides):
  *  'web'   = the confirmed canon: dark emission shell + animated Voronoi web.
@@ -98,7 +99,7 @@ const BEING_MODE = readBeingMode();
  *  click chooses, and canon 'web' stays the default. */
 export type BrainSurface = 'web' | 'organ';
 
-interface SuperbrainSceneProps {
+export interface SuperbrainSceneProps {
   mode: CognitiveMode;
   activity: number;
   /** Effective quality tier — governs particle counts, shells, and the
@@ -122,12 +123,12 @@ export interface BurstState {
 export type BurstRef = MutableRefObject<BurstState>;
 
 /* ---------- shared camera push impulse (directive surge) ---------- */
-interface CameraPushState {
+export interface CameraPushState {
   /** 0..1 impulse; CameraDrift converts it into a -0.45 dolly-in and decays it. */
   value: number;
 }
 
-type CameraPushRef = MutableRefObject<CameraPushState>;
+export type CameraPushRef = MutableRefObject<CameraPushState>;
 
 /* -------------------------------------------------------------------------- */
 /*  Idle attract-mode — autonomous cognition                                   */
@@ -152,7 +153,7 @@ const IDLE_PITCH_AMPLITUDE = THREE.MathUtils.degToRad(2);
 /** Pitch sway angular frequency (rad/s) — one full sway ≈ 25 s. */
 const IDLE_PITCH_FREQ = 0.25;
 
-interface IdleControllerState {
+export interface IdleControllerState {
   lastInputMs: number;
   progress: number;
   blend: number;
@@ -243,15 +244,15 @@ const createCognitionUniforms = (): CognitionUniforms => ({
 });
 
 /** YELLOW-zone amber — the approval hold's signature color. Accent only. */
-const HOLD_TINT = new THREE.Color('#b96a14');
+export const HOLD_TINT = new THREE.Color('#b96a14');
 
 /** The ONE shared-uniform instance — genuinely module-level (the scene mounts
  *  exactly once), so frame-loop mutation is architecture, not a hook-rule
  *  violation. */
-const SCENE_UNIFORMS = createCognitionUniforms();
+export const SCENE_UNIFORMS = createCognitionUniforms();
 
 /** Scratch color for per-frame posture damping (no per-frame allocation). */
-const POSTURE_SCRATCH = new THREE.Color();
+export const POSTURE_SCRATCH = new THREE.Color();
 
 // Dev tint dial — tune the posture STRENGTH live in the operator's browser
 // (scales each posture's intrinsic spectral tint; 1.0 = exact demoplan strength):
@@ -292,7 +293,7 @@ const FUNNEL_SCRATCH = new THREE.Vector3();
 const FUNNEL_LOCAL_Y = -0.85;
 
 /* ---------- mode-reactive core tint targets (lerped into uModeTint) ---------- */
-const MODE_EMISSIVE: Record<CognitiveMode, THREE.Color> = {
+export const MODE_EMISSIVE: Record<CognitiveMode, THREE.Color> = {
   observe: new THREE.Color('#10164a'),
   synthesize: new THREE.Color('#35205f'),
   orchestrate: new THREE.Color('#5c183d'),
@@ -552,7 +553,7 @@ function applyRegionVertexColors(root: THREE.Object3D) {
 const WAVE_CENTER = new THREE.Vector3().addVectors(BRAIN_MIN, BRAIN_MAX).multiplyScalar(0.5);
 const WAVE_HALF = new THREE.Vector3().subVectors(BRAIN_MAX, BRAIN_MIN).multiplyScalar(0.5);
 
-const WAVE_REGION_ANCHORS: { pattern: RegExp; origin: THREE.Vector3 }[] = [
+export const WAVE_REGION_ANCHORS: { pattern: RegExp; origin: THREE.Vector3 }[] = [
   // Signal-flavored intake lands occipital (rear violet), archives temporal,
   // causal/graph work frontal, lattices on the parietal crown.
   { pattern: /SIGNAL|TITAN/i, origin: new THREE.Vector3(0.05, 0.31, -0.38 * ANTERIOR_SIGN) },
@@ -561,7 +562,7 @@ const WAVE_REGION_ANCHORS: { pattern: RegExp; origin: THREE.Vector3 }[] = [
   { pattern: /SEMANTIC|LATTICE/i, origin: new THREE.Vector3(0, 0.61, 0.11) },
 ];
 
-function randomWaveOrigin(random: () => number): THREE.Vector3 {
+export function randomWaveOrigin(random: () => number): THREE.Vector3 {
   const theta = random() * TAU;
   const phi = Math.acos(2 * random() - 1);
   return new THREE.Vector3(
@@ -573,7 +574,7 @@ function randomWaveOrigin(random: () => number): THREE.Vector3 {
 
 /** THE LIVING TURN: a dispatched tool lights the lobe that owns that kind of
  *  work — the same anatomy the region pins and wave anchors agree on. */
-function waveLabelForTool(tool: string): string {
+export function waveLabelForTool(tool: string): string {
   const t = tool.toLowerCase();
   if (/plan|orchestr|skill|recall|memory|lesson/.test(t)) return 'CAUSAL';
   if (/read|search|list|web|fetch|grep|inspect/.test(t)) return 'ARCHIVE';
@@ -581,7 +582,7 @@ function waveLabelForTool(tool: string): string {
   return 'SIGNAL';
 }
 
-function waveOriginForLabel(label: string | undefined, random: () => number): THREE.Vector3 {
+export function waveOriginForLabel(label: string | undefined, random: () => number): THREE.Vector3 {
   if (label) {
     for (const anchor of WAVE_REGION_ANCHORS) {
       if (anchor.pattern.test(label)) {
@@ -695,7 +696,7 @@ const CASING_FRAGMENT_SHADER = /* glsl */ `
   }
 `;
 
-function BrainModel({
+export function BrainModel({
   activity,
   mode,
   burst,
@@ -1089,12 +1090,14 @@ function BrainModel({
           />
         )}
         {BEING_MODE !== 'points' && (
-          <CorticalSignals
-            activity={activity}
-            source={brainAsset.object}
-            uniforms={uniforms}
-            count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
-          />
+          <SubsystemErrorBoundary name="CorticalSignals">
+            <CorticalSignals
+              activity={activity}
+              source={brainAsset.object}
+              uniforms={uniforms}
+              count={tier === 'high' ? 320 : tier === 'medium' ? 180 : 80}
+            />
+          </SubsystemErrorBoundary>
         )}
         {/* COMPUTER BRAIN INTERIOR: the node-network lattice (nodes + edges +
             backbone bus, 3 draw calls). Mounts ONLY under NODE_BRAIN; rides the
@@ -1134,7 +1137,7 @@ function BrainModel({
   );
 }
 
-function PointerBrainClone({
+export function PointerBrainClone({
   uniforms,
   tier,
   reducedMotion,
@@ -1282,12 +1285,14 @@ function PointerBrainClone({
   return (
     <group ref={groupRef} position={brainPresence.miniBrainPosition} scale={BRAIN_SCALE * brainPresence.miniBrainScale}>
       <primitive object={brainClone.object} />
-      <CouncilNodesOverlay />
+      <SubsystemErrorBoundary name="DeliberationOverlay">
+        <DeliberationOverlay />
+      </SubsystemErrorBoundary>
     </group>
   );
 }
 
-function CameraDrift({
+export function CameraDrift({
   activity,
   burst,
   push,
@@ -1356,7 +1361,7 @@ function CameraDrift({
  *  (OrbitControls owns distance) so it never fights the controls. Desktop aspect →
  *  the current look unchanged (fov 26 / target -0.5). Dev dial:
  *  window.__CAMFRAME = { fov, targetY }; proof: window.__getOrganismCameraFrame(). */
-function OrganismFraming({
+export function OrganismFraming({
   controlsRef,
 }: {
   controlsRef: MutableRefObject<{ target: THREE.Vector3 } | null>;

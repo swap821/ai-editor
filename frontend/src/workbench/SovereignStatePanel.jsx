@@ -78,6 +78,19 @@ function pendingProposalCount({ facts, curriculum, council, selfAnalysis }) {
   return facts.length + curriculum.length + pendingApprovals + selfAnalysisPending;
 }
 
+
+function scanSummary(surface) {
+  if (!surface) return 'offline';
+  if (!surface.lastScan) return 'not scanned';
+  return `${surface.lastScan.findingCount ?? 0} finding(s) · ${surface.lastScan.cloudCalls ?? 0} cloud calls`;
+}
+
+function repoMapSummary(surface) {
+  if (!surface) return 'offline';
+  if (!surface.lastScan) return 'not scanned';
+  return `${surface.lastScan.symbolCount ?? 0} symbols · ${surface.activation}`;
+}
+
 export default function SovereignStatePanel() {
   const [autonomy, setAutonomy] = useState(null);
   const [facts, setFacts] = useState([]);
@@ -91,6 +104,7 @@ export default function SovereignStatePanel() {
     council: null,
     selfAnalysis: null,
   });
+  const [v10, setV10] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -113,6 +127,7 @@ export default function SovereignStatePanel() {
       getJson('/api/v1/pheromones/surface', signal),
       getJson('/api/v1/council/missions?limit=8', signal),
       getJson('/api/v1/self-analysis/proposals', signal),
+      getJson('/api/v1/v10/status', signal),
     ]);
     // An aborted load is a CANCELLED load (unmount / StrictMode cleanup), not
     // a failure: bail before any setState, or the abandoned first pass would
@@ -131,6 +146,7 @@ export default function SovereignStatePanel() {
       pheromonesR,
       councilR,
       selfAnalysisR,
+      v10R,
     ] = results;
     if (autonomyR.status === 'fulfilled') setAutonomy(autonomyR.value);
     if (factsR.status === 'fulfilled') setFacts(asArray(factsR.value));
@@ -144,6 +160,7 @@ export default function SovereignStatePanel() {
       council: councilR.status === 'fulfilled' ? councilR.value : null,
       selfAnalysis: selfAnalysisR.status === 'fulfilled' ? selfAnalysisR.value : null,
     });
+    setV10(v10R.status === 'fulfilled' ? v10R.value : null);
     if (results.every((r) => r.status === 'rejected')) setError('Sovereign state link offline');
     setLoading(false);
   }, []);
@@ -185,6 +202,9 @@ export default function SovereignStatePanel() {
   });
   const resourceMode = resource?.mode || 'unknown';
   const repoLastScan = repoMap?.lastScan;
+  const constitution = v10?.constitution;
+  const metaLoop = v10?.metaLoop;
+  const councilMemory = v10?.councilMemory;
 
   return (
     <div className="council-dashboard__body" aria-label="Sovereign state">
@@ -194,6 +214,51 @@ export default function SovereignStatePanel() {
         <div className="council-dashboard__empty">{error}</div>
       ) : (
         <div className="council-dashboard__detail">
+          <section className="council-dashboard__section" aria-label="V10 truth surface">
+            <h3>
+              <ShieldCheck size={14} aria-hidden="true" /> Sovereign Organism v10
+              <span className={`council-dashboard__badge is-${v10?.localOnly ? 'ok' : 'warn'}`}>
+                {v10?.localOnly ? 'local only' : 'offline'}
+              </span>
+              <span className="council-dashboard__badge is-warn">
+                {v10?.authority || 'proposal/evidence'}
+              </span>
+            </h3>
+            <div className="council-dashboard__grid">
+              <span>
+                <b>Constitution</b>
+                {constitution
+                  ? `${constitution.casteCount ?? 0} castes · ${constitution.frozenCoreProtected ? 'frozen core protected' : 'frozen core unknown'}`
+                  : 'offline'}
+              </span>
+              <span>
+                <b>Vulture</b>
+                {scanSummary(v10?.vulture)}
+              </span>
+              <span>
+                <b>Ecosystem</b>
+                {scanSummary(v10?.ecosystem)}
+              </span>
+              <span>
+                <b>Council memory</b>
+                {councilMemory ? `${councilMemory.deliberationCount ?? 0} deliberation(s)` : 'offline'}
+              </span>
+              <span>
+                <b>Symbol RepoMap</b>
+                {repoMapSummary(v10?.symbolRepoMap)}
+              </span>
+              <span>
+                <b>Meta-loop</b>
+                {metaLoop
+                  ? `${metaLoop.safetyStatus} · ${metaLoop.proposalCount ?? 0} proposal(s)`
+                  : 'offline'}
+              </span>
+            </div>
+            <p className="council-dashboard__muted">
+              These v10 organs are backend-backed advisory evidence; none can authorize action, mutate policy, self-apply, write files, or bypass approval.
+            </p>
+          </section>
+
           <section className="council-dashboard__section" aria-label="V7 truth surface">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Sovereign Superorganism v7

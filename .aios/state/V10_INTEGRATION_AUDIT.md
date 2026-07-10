@@ -254,8 +254,9 @@ Verification:
 Risk: Medium.
 
 Status: Complete locally as of 2026-07-09. The implemented slice is the core
-local-only Python symbol/import graph and worker-contract scope hints. API/UI
-exposure remains intentionally out of this slice.
+local-only Python symbol/import graph and worker-contract scope hints. Phase 7
+adds read-only API/UI freshness exposure; Symbol RepoMap remains advisory and
+cannot widen worker scope.
 
 Add:
 - `aios/cognition/repo_map.py`: AST/import symbol graph and PageRank using
@@ -334,13 +335,21 @@ Verification:
 ### Phase 7 - Runtime Wiring And UI Truth
 
 Risk: Medium.
+Status: Complete locally as of 2026-07-10. Implemented as a focused v10 status
+route plus UI readouts over existing advisory organs. The route is local-only,
+proposal/evidence, and cannot authorize action.
 
-Modify only after backend evidence exists:
-- `aios/api/routes/sovereignty.py` or a focused route module for v10 status.
+Modified:
+- `aios/api/routes/v10.py`: read-only aggregate for constitution, vulture,
+  ecosystem, council memory, Symbol RepoMap, and meta-loop status.
+- `aios/api/routes/projects.py`: Symbol RepoMap freshness status after
+  scope-hints scans.
 - `frontend/src/workbench/SovereignStatePanel.jsx`.
-- Frontend tests for real backend-backed fields.
+- `frontend/src/workbench/VultureFeed.jsx`.
+- `frontend/src/workbench/EcosystemDashboard.jsx`.
+- Backend and frontend focused tests for real backend-backed fields.
 
-Expose:
+Exposes:
 - Constitution status.
 - Immune findings count.
 - Ecosystem scanner last-run status.
@@ -348,7 +357,7 @@ Expose:
 - Symbol RepoMap status.
 - Meta-loop proposal status.
 
-Do not expose:
+Does not expose:
 - Fake liveliness.
 - Speculative federation state.
 - Claimed protection that is not enforced.
@@ -358,27 +367,27 @@ Do not expose:
 Risk: Very High.
 
 Do not implement until:
-- Local vulture and ecosystem scanners are proven.
-- A federation threat model exists.
+- A federation threat model exists on top of the local-only scanner evidence.
 - Operator approves remote sharing boundaries.
 - Tests prove no secrets, memory, or project data leave the machine without
   explicit policy.
 
-## Current Documentation Drift To Fix In Phase 0
+## Phase 0 Documentation Drift Resolved/Guarded
 
-- `README.md` still describes Project Passport as roadmap, while
-  `aios/memory/project_passport.py` and tests now exist.
-- `.aios/state/AUDIT.md` predates the v7 integration and still lists Project
-  Passport as designed, not built.
-- The v10 uploaded plan says empty `cloud_tasks` means local-only. That is true
-  only as an override statement; the live default is `reasoning,coding`.
-- The v10 uploaded plan calls the current codebase "larva" and says the
-  nervous system / RepoMap / castes / pheromones are missing. That is stale
-  after v7 and must not become canonical repo documentation without a
-  superseded banner or audit test.
-- The v10 scaffold suggests `aios/security/vulture_sanitation.py` and
-  `aios/security/ecosystem_scanner.py`; those are frozen-core-adjacent paths in
-  this repo and need explicit approval before implementation there.
+Phase 0 reconciled or guarded the stale claims below so they do not become
+canonical repo truth again:
+
+- Project Passport is no longer documented as pure roadmap while
+  `aios/memory/project_passport.py` and tests exist.
+- `.aios/state/AUDIT.md` and related state docs are treated as dated snapshots
+  when they predate the v7/v10 integrations.
+- Empty `cloud_tasks` is documented only as an override/local-only posture; the
+  live default remains `reasoning,coding` unless config changes.
+- Scaffold claims that the nervous system, RepoMap, castes, or pheromones are
+  missing are treated as stale after v7/v10 code and tests.
+- Scaffold suggestions for `aios/security/vulture_sanitation.py` and
+  `aios/security/ecosystem_scanner.py` remain frozen-core-adjacent and require
+  explicit Section VIII approval before implementation there.
 
 ## Risk And Rollback Plan
 
@@ -421,7 +430,8 @@ Required targeted tests by feature:
 
 ## Immediate Recommendation
 
-Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 are complete locally. After
-full-suite and CI verification, the next safe implementation scope is Phase 5:
-Symbol RepoMap over Project Passport. Keep it local-only, proposal/evidence
-only, and prove it cannot activate trusted memory or widen worker scope.
+Phase 0 through Phase 7 are complete locally as advisory/backend-backed slices.
+Do not jump to federation, mandibles, or structural reform without a separate
+operator-approved threat model. Near-term work should harden verification,
+expose explicit live scan triggers, or keep docs/tests current around the
+existing local-only organs.

@@ -16,7 +16,7 @@ import { getTabStoreSnapshot } from '@/lib/tabStore';
 import { easeOutBack, easeOutExpo, easeOutQuint, flashBell, clamp01 } from '@/lib/motionEasing';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { useReducedMotion } from '@/lib/reducedMotion';
-import type { CognitionUniforms } from './SuperbrainScene';
+import type { CognitionUniforms } from './SuperbrainScene.LEGACY';
 
 /** Concatenate two point-field datasets into one (brain first, then spine). */
 function mergeData(a: PointFieldData, b: PointFieldData): PointFieldData {

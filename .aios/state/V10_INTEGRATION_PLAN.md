@@ -2,8 +2,8 @@
 
 Date: 2026-07-09
 Audit: `.aios/state/V10_INTEGRATION_AUDIT.md`
-Status: Phase 0 through Phase 6 implemented and verified locally on
-2026-07-09. Phase 7 is the next scoped recommendation.
+Status: Phase 0 through Phase 7 implemented and verified locally through
+2026-07-10. Federation, mandibles, and structural reform remain deferred.
 
 Goal: integrate the useful GAGOS v10 "Sovereign Organism" contract into the
 real GAGOS repo without replacing the proven security, memory, router,
@@ -209,12 +209,13 @@ Verification:
 Purpose: add symbol-level project map on top of Project Passport.
 
 Status: Complete locally as of 2026-07-09 for the core scanner and contract
-scope hints. No API/UI exposure was added in this slice.
+scope hints. Phase 7 adds read-only API/UI freshness exposure; the map remains
+proposal/evidence only and cannot widen worker scope.
 
 Files:
 - Add `aios/cognition/repo_map.py`.
 - Add tests under `tests/test_repo_map.py`.
-- Optionally add status/query API after the core is tested.
+- Core tests landed first; Phase 7 added read-only status API/UI exposure.
 
 Behavior:
 - Build AST/import graph using stdlib first.
@@ -283,11 +284,18 @@ Verification:
 ## Phase 7 - UI Truth Surface
 
 Purpose: show v10 state only after backend evidence exists.
+Status: Complete locally as of 2026-07-10. The v10 surface is a read-only
+backend aggregate and UI display; it does not authorize action, mutate policy,
+self-apply, write files, call cloud, or bypass approval.
 
 Files:
-- Add or extend backend status endpoints.
-- Modify `frontend/src/workbench/SovereignStatePanel.jsx`.
-- Add frontend tests beside existing workbench tests.
+- Added `aios/api/routes/v10.py` and wired it in `aios/api/main.py`.
+- Extended `aios/api/routes/projects.py` with Symbol RepoMap freshness status.
+- Modified `frontend/src/workbench/SovereignStatePanel.jsx`.
+- Rewired `frontend/src/workbench/VultureFeed.jsx` and
+  `frontend/src/workbench/EcosystemDashboard.jsx` away from placeholder
+  development metrics/trails and onto `/api/v1/v10/status`.
+- Added/updated `tests/test_v10_status_api.py` and the focused workbench tests.
 
 Indicators:
 - Constitution status.
@@ -295,11 +303,16 @@ Indicators:
 - Ecosystem scanner status.
 - Council memory health.
 - Symbol RepoMap freshness.
+- Meta-loop proposal status.
 
 Exit gate:
 - UI reads real backend endpoints.
 - Offline/error state is honest.
 - No fake "alive" animation.
+
+Verification:
+- `.venv\Scripts\python.exe -m pytest tests\test_v10_status_api.py tests\test_scope_hints_api.py -q` -> 7 passed.
+- `cd frontend; npm test -- CouncilDashboard.sovereign.test.tsx VultureFeed.test.jsx EcosystemDashboard.test.jsx` -> 9 passed.
 
 ## Deferred - Federation, CodeAgent Mandibles, Structural Reform
 
@@ -314,6 +327,8 @@ Reasons:
 
 ## Recommended Immediate Work
 
-After Phase 4 full-suite and CI verification, the next safe scope is Phase 5:
-Symbol RepoMap. Keep it local-only and advisory over Project Passport, and prove
-it cannot activate trusted memory or widen worker scope.
+Phase 0 through Phase 7 are now locally integrated as advisory, backend-backed
+surfaces. The next safe scope is not federation or mandibles by default; keep
+those deferred until the operator approves a separate threat model. Near-term
+work should be verification hardening, live scan trigger UX, or docs/test
+currency around the existing local-only organs.

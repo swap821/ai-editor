@@ -401,6 +401,8 @@ def _default_runner(
         return " ".join(argv[1:]) + "\n", "", 0
     if executable == "pwd":
         return cwd + "\n", "", 0
+    if executable in {"mkdir", "md"}:
+        return _run_mkdir_builtin(argv, cwd)
     if not Path(argv[0]).is_absolute() and os.sep not in argv[0]:
         # Resolve a bare program name through the SANITISED env's PATH (where
         # _sanitise_env put this project's venv first). Without this, Windows'
@@ -422,6 +424,45 @@ def _default_runner(
         timeout=timeout_s,
     )
     return completed.stdout or "", completed.stderr or "", completed.returncode
+
+
+def _path_within_roots(path: Path, roots: list[Path]) -> bool:
+    for root in roots:
+        try:
+            path.relative_to(root)
+        except ValueError:
+            continue
+        return True
+    return False
+
+
+def _run_mkdir_builtin(argv: list[str], cwd: str) -> tuple[str, str, int]:
+    """Implement mkdir/md without a shell while preserving scope containment."""
+    parents = False
+    targets: list[str] = []
+    for raw in argv[1:]:
+        arg = raw.strip("\"'")
+        if arg in {"-p", "--parents"}:
+            parents = True
+            continue
+        if arg.startswith("-"):
+            raise ValueError(f"unsupported mkdir flag: {arg}")
+        if arg:
+            targets.append(arg)
+    if not targets:
+        raise ValueError("mkdir requires at least one target directory")
+
+    roots = [Path(root).resolve() for root in config.SCOPE_ROOTS]
+    if not roots:
+        raise ValueError("no configured scope roots")
+    cwd_path = Path(cwd).resolve()
+    for raw in targets:
+        target = Path(raw)
+        resolved = (target if target.is_absolute() else cwd_path / target).resolve()
+        if not _path_within_roots(resolved, roots):
+            raise ValueError(f"mkdir target escapes configured scope: {raw}")
+        resolved.mkdir(parents=parents, exist_ok=parents)
+    return "", "", 0
 
 
 def _truncate_output(value: str) -> str:

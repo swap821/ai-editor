@@ -120,6 +120,39 @@ const HIBERNATION = {
   },
 };
 
+
+const V10_STATUS = {
+  activation: 'proposal/evidence',
+  authority: 'proposal/evidence',
+  localOnly: true,
+  cloudCalls: 0,
+  writesPerformed: false,
+  canAuthorize: false,
+  constitution: {
+    available: true,
+    casteCount: 7,
+    frozenCoreProtected: true,
+  },
+  vulture: {
+    available: true,
+    lastScan: { findingCount: 2, cloudCalls: 0, writesPerformed: false },
+  },
+  ecosystem: {
+    available: true,
+    lastScan: { findingCount: 1, cloudCalls: 0, networkCalls: 0, writesPerformed: false },
+  },
+  councilMemory: {
+    deliberationCount: 4,
+  },
+  symbolRepoMap: {
+    activation: 'proposal/evidence',
+    lastScan: { symbolCount: 123, evidenceFileCount: 12 },
+  },
+  metaLoop: {
+    safetyStatus: 'ok',
+    proposalCount: 3,
+  },
+};
 const PHEROMONES = {
   pheromones: [
     {
@@ -169,7 +202,9 @@ function mockFetch() {
       }
       const payload = u.includes('/projects/passport/status')
         ? REPO_MAP
-        : u.includes('/resource/status')
+        : u.includes('/v10/status')
+          ? V10_STATUS
+          : u.includes('/resource/status')
           ? RESOURCE
           : u.includes('/hibernation/status')
             ? HIBERNATION
@@ -229,6 +264,12 @@ describe('CouncilDashboard sovereignty views', () => {
   it('renders sovereign sections and revokes an earned signature', async () => {
     render(<CouncilDashboard />);
     fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    expect(await screen.findByText(/Sovereign Organism v10/)).toBeInTheDocument();
+    expect(screen.getByText(/7 castes · frozen core protected/)).toBeInTheDocument();
+    expect(screen.getByText(/2 finding\(s\) · 0 cloud calls/)).toBeInTheDocument();
+    expect(screen.getByText(/123 symbols · proposal\/evidence/)).toBeInTheDocument();
+    expect(screen.getByText(/ok · 3 proposal\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/none can authorize action/)).toBeInTheDocument();
     expect(await screen.findByText(/Sovereign Superorganism v7/)).toBeInTheDocument();
     expect(screen.getByText(/AI Editor - local-first AI OS/)).toBeInTheDocument();
     expect(screen.getAllByText(/conservation/).length).toBeGreaterThan(0);

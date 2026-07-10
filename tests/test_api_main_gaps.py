@@ -259,6 +259,70 @@ def test_endpoint_rate_limit_returns_429_after_cap(client: TestClient) -> None:
     _RATE_LIMIT_HITS.clear()
 
 
+def test_endpoint_rate_limit_uses_fastapi_route_template_for_policy_vote(
+    client: TestClient,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    from aios.api.main import _RATE_LIMIT_ENDPOINTS, _RATE_LIMIT_HITS
+
+    monkeypatch.setattr(config, "POLICY_ENGINE", True)
+    monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
+    _RATE_LIMIT_HITS.clear()
+    try:
+        proposed = client.post(
+            "/api/v1/policy/propose",
+            json={
+                "constraint": "All workers MUST leave audit evidence",
+                "proposedBy": "security-queen",
+            },
+        )
+        assert proposed.status_code == 200
+        policy_id = proposed.json()["policy_id"]
+        limit = _RATE_LIMIT_ENDPOINTS["/api/v1/policy/{policy_id}/vote"]
+
+        responses = [
+            client.post(
+                f"/api/v1/policy/{policy_id}/vote",
+                json={
+                    "queen": f"rate-limit-queen-{idx}",
+                    "approve": True,
+                    "reason": "bounded by template route",
+                },
+            )
+            for idx in range(limit + 1)
+        ]
+
+        statuses = [response.status_code for response in responses]
+        assert statuses[:limit] == [200] * limit
+        assert statuses[-1] == 429
+    finally:
+        _RATE_LIMIT_HITS.clear()
+
+
+def test_route_authority_registry_covers_sensitive_scan_and_control_routes() -> None:
+    from aios.api import main as api_main
+
+    registry = getattr(api_main, "_ROUTE_AUTHORITY", {})
+    expected = {
+        "/api/v1/policy/{policy_id}/vote": {"confirm_required": False},
+        "/api/v1/policy/{policy_id}/enact": {"confirm_required": False},
+        "/api/v1/policy/{policy_id}/suspend": {"confirm_required": False},
+        "/api/v1/v10/vulture/scan": {"confirm_required": False},
+        "/api/v1/v10/ecosystem/scan": {"confirm_required": False},
+        "/api/v1/system/restart": {"confirm_required": True},
+        "/api/v1/security/tokens/rotate": {"confirm_required": True},
+        "/api/v1/security/sandbox/clear": {"confirm_required": True},
+    }
+
+    for path, expected_meta in expected.items():
+        meta = registry.get(path)
+        assert meta is not None, f"{path} missing from route authority registry"
+        assert meta.rate_limit_per_minute == api_main._RATE_LIMIT_ENDPOINTS[path]
+        assert meta.confirm_required is expected_meta["confirm_required"]
+        assert meta.authority_class in {"YELLOW", "RED"}
+
+
 # --------------------------------------------------------------------------- #
 # Dependency provider functions (lines 608-718, 791-927)
 # --------------------------------------------------------------------------- #
