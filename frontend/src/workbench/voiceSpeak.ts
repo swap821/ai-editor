@@ -219,10 +219,19 @@ export function startVoiceSpeak(): () => void {
   }
   return () => {
     startCount -= 1;
-    if (startCount === 0 && cognitionUnsub) {
-      cognitionUnsub();
-      cognitionUnsub = null;
+    if (startCount === 0) {
+      if (cognitionUnsub) {
+        cognitionUnsub();
+        cognitionUnsub = null;
+      }
       cancelSpeech();
+      // Close the backend-TTS AudioContext (a separate context from
+      // soundEngine.ts's own) when the last consumer unmounts, instead of
+      // holding an audio device handle open for the life of the tab.
+      if (audioCtx) {
+        try { void audioCtx.close(); } catch { /* already closed */ }
+        audioCtx = null;
+      }
     }
   };
 }

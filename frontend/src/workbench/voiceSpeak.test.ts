@@ -196,6 +196,8 @@ describe('voiceSpeak', () => {
       stop(): void {}
     }
 
+    const closeSpy = vi.fn();
+
     class MockAudioContext {
       destination = {};
       createBufferSource(): MockSource {
@@ -204,12 +206,17 @@ describe('voiceSpeak', () => {
       decodeAudioData(buf: unknown): Promise<unknown> {
         return Promise.resolve(buf);
       }
+      close(): Promise<void> {
+        closeSpy();
+        return Promise.resolve();
+      }
     }
 
     let startedTags: string[];
 
     beforeEach(() => {
       startedTags = [];
+      closeSpy.mockClear();
       installSpeechMocks();
       vi.stubGlobal('AudioContext', MockAudioContext);
       setBackendTTS(true);
@@ -252,6 +259,36 @@ describe('voiceSpeak', () => {
 
       expect(startedTags).toEqual(['ONLY']);
       stop();
+    });
+
+    it('closes the AudioContext when the last consumer stops', async () => {
+      const stop = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'ONLY' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      await flush();
+
+      expect(closeSpy).not.toHaveBeenCalled();
+      stop();
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not close the AudioContext while other consumers are still mounted', async () => {
+      const stopA = startVoiceSpeak();
+      const stopB = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'ONLY' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      await flush();
+
+      stopA();
+      expect(closeSpy).not.toHaveBeenCalled();
+      stopB();
+      expect(closeSpy).toHaveBeenCalledTimes(1);
     });
   });
 
