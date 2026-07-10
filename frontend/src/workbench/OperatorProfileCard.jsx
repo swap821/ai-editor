@@ -14,8 +14,10 @@ export default function OperatorProfileCard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // loading already starts true (useState(true) above) and this effect
+    // only ever runs once ([] deps), so re-asserting it here was a no-op the
+    // linter correctly flagged as pointless setState-in-effect.
     let alive = true;
-    setLoading(true);
     fetchOperatorModel().then((data) => {
       if (alive) setModel(data);
     }).finally(() => {

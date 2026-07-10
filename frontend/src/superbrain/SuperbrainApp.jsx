@@ -24,6 +24,7 @@ import StigmergyPanel from '../workbench/StigmergyPanel';
 import VultureFeed from '../workbench/VultureFeed';
 import VoiceCommandHandler from '../components/VoiceCommandHandler';
 import MobileHUD from '../components/MobileHUD';
+import PanelLauncher from '../workbench/PanelLauncher';
 import './superbrain.css';
 
 const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas'));
@@ -107,9 +108,21 @@ export default function SuperbrainApp() {
         </div>
       </MobileHUD>
 
-      <VoiceCommandHandler 
-        isListening={isListening} 
-        onCommand={handleVoiceCommand} 
+      <VoiceCommandHandler
+        isListening={isListening}
+        onCommand={handleVoiceCommand}
+      />
+
+      <PanelLauncher
+        panels={[
+          { name: 'File Tree', isOpen: fileTreeOpen, setOpen: setFileTreeOpen },
+          { name: 'Council', isOpen: councilOpen, setOpen: setCouncilOpen },
+          { name: 'Memory', isOpen: memoryOpen, setOpen: setMemoryOpen },
+          { name: 'Stigmergy', isOpen: stigmergyOpen, setOpen: setStigmergyOpen },
+          { name: 'Vulture Feed', isOpen: vultureOpen, setOpen: setVultureOpen },
+          { name: 'Ecosystem', isOpen: ecosystemOpen, setOpen: setEcosystemOpen },
+          { name: 'Settings', isOpen: settingsOpen, setOpen: setSettingsOpen },
+        ]}
       />
     </div>
   );

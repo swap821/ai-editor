@@ -24,9 +24,12 @@ export default defineConfig([
     rules: {
       // Downgrade to warn so legacy files don't block CI while being cleaned up
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      // Async fetch-then-setState inside useEffect is the canonical React data-fetching
-      // pattern; this rule is overly aggressive for this codebase.
-      'react-hooks/set-state-in-effect': 'off',
+      // Official react-hooks rule (not "custom" — it ships in eslint-plugin-react-hooks
+      // and catches non-local derived data / derived-event / external-sync bugs, not just
+      // async-fetch-then-setState). Kept as 'warn' (not blocking) but NOT disabled: a
+      // blanket 'off' was tried 2026-07-09 and reverted after a per-site audit found it
+      // hides a real bug class this rule exists to catch, even though today's sites are fine.
+      'react-hooks/set-state-in-effect': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       // rules-of-hooks stays error — calling hooks conditionally is always wrong
       'react-hooks/rules-of-hooks': 'error',
@@ -60,8 +63,8 @@ export default defineConfig([
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
-      // Same as JS config — async data-fetching pattern in useEffect is fine
-      'react-hooks/set-state-in-effect': 'off',
+      // Same as JS config — kept as 'warn', not disabled (see JS block comment).
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 ])
