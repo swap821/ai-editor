@@ -691,7 +691,7 @@ def test_generate_persists_episodic_turns(client: TestClient) -> None:
 
 def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> None:
     recalled = [SimpleNamespace(text="The project serves the API on port 8000.")]
-    monkeypatch.setattr("aios.api.main.hybrid_search", lambda q, top_k=3: recalled)
+    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", lambda q, top_k=3: recalled)
 
     response = client.post(
         "/api/generate",

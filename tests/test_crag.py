@@ -184,9 +184,9 @@ def test_retrieval_verdict_exposes_per_hit_scores() -> None:
 
 def _patch_recall(monkeypatch, hits, *, crag: bool):
     from aios import config
-    from aios.api import main
+    from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(main, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
     monkeypatch.setattr(config, "CRAG", crag)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
@@ -265,14 +265,14 @@ def test_external_retrieve_no_sources_is_empty() -> None:
 
 def _patch_recall_external(monkeypatch, hits, *, sources):
     from aios import config
-    from aios.api import main
+    from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(main, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
     monkeypatch.setattr(config, "CRAG", True)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
     monkeypatch.setattr(config, "CRAG_EXTERNAL", True)
-    monkeypatch.setattr(main, "_crag_external_sources", lambda: sources)
+    monkeypatch.setattr(turn_pipeline, "_crag_external_sources", lambda: sources)
     return main
 
 
@@ -316,25 +316,25 @@ class _FakeOllama:
 
 
 def test_crag_llm_judge_parses_score(monkeypatch) -> None:
-    from aios.api import main
+    from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("0.82"))
+    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("0.82"))
     assert main._crag_llm_judge("q", "passage") == 0.82
 
 
 def test_crag_llm_judge_extracts_and_clamps(monkeypatch) -> None:
-    from aios.api import main
+    from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("I'd say 1.5 relevance"))
+    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("I'd say 1.5 relevance"))
     assert main._crag_llm_judge("q", "p") == 1.0  # parsed + clamped to [0,1]
 
 
 def test_crag_llm_judge_raises_on_unparseable(monkeypatch) -> None:
     import pytest
 
-    from aios.api import main
+    from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("no number at all"))
+    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("no number at all"))
     with pytest.raises(Exception):  # noqa: B017 - evaluate_retrieval catches & ignores
         main._crag_llm_judge("q", "p")
 
@@ -343,11 +343,11 @@ def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
     # A judge verdict of 0.0 caution-clamps a deterministically-strong hit down to
     # INCORRECT, so the recall is dropped — the judge catches a false-positive.
     from aios import config
-    from aios.api import main
+    from aios.api import main, turn_pipeline
 
     hits = [_Hit("strongly worded but actually off-topic note here", faiss=0.95)]
-    monkeypatch.setattr(main, "hybrid_search", lambda _q, top_k=3: hits)
-    monkeypatch.setattr(main, "get_ollama_client", lambda: _FakeOllama("0.0"))
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("0.0"))
     monkeypatch.setattr(config, "CRAG", True)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)

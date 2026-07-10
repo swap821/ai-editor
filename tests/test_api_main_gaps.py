@@ -1488,8 +1488,8 @@ def test_recall_facts_swallows_traverse_weighted_exception() -> None:
 # CRAG source helpers (2584-2632)
 # --------------------------------------------------------------------------- #
 def test_crag_cloud_source_empty_when_no_cloud_client(monkeypatch) -> None:
-    monkeypatch.setattr("aios.api.main.get_gemini_client", lambda: None)
-    monkeypatch.setattr("aios.api.main.get_bedrock_client", lambda: None)
+    monkeypatch.setattr("aios.api.turn_pipeline.get_gemini_client", lambda: None)
+    monkeypatch.setattr("aios.api.turn_pipeline.get_bedrock_client", lambda: None)
     assert _crag_cloud_source("what is the weather") == []
 
 
@@ -1498,8 +1498,8 @@ def test_crag_cloud_source_returns_text_from_client(monkeypatch) -> None:
         def chat(self, messages, tools=None):
             return {"content": "42 degrees"}
 
-    monkeypatch.setattr("aios.api.main.get_gemini_client", lambda: FakeCloud())
-    monkeypatch.setattr("aios.api.main.get_bedrock_client", lambda: None)
+    monkeypatch.setattr("aios.api.turn_pipeline.get_gemini_client", lambda: FakeCloud())
+    monkeypatch.setattr("aios.api.turn_pipeline.get_bedrock_client", lambda: None)
     assert _crag_cloud_source("weather?") == ["42 degrees"]
 
 
@@ -1508,8 +1508,8 @@ def test_crag_cloud_source_swallows_chat_exception(monkeypatch) -> None:
         def chat(self, messages, tools=None):
             raise RuntimeError("cloud unreachable")
 
-    monkeypatch.setattr("aios.api.main.get_gemini_client", lambda: BoomCloud())
-    monkeypatch.setattr("aios.api.main.get_bedrock_client", lambda: None)
+    monkeypatch.setattr("aios.api.turn_pipeline.get_gemini_client", lambda: BoomCloud())
+    monkeypatch.setattr("aios.api.turn_pipeline.get_bedrock_client", lambda: None)
     assert _crag_cloud_source("weather?") == []
 
 
@@ -1546,12 +1546,12 @@ def test_recall_memory_swallows_hybrid_search_exception(monkeypatch) -> None:
     def boom(query, top_k=3):
         raise RuntimeError("index corrupted")
 
-    monkeypatch.setattr("aios.api.main.hybrid_search", boom)
+    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", boom)
     assert _recall_memory("query") is None
 
 
 def test_recall_memory_returns_none_when_no_hits(monkeypatch) -> None:
-    monkeypatch.setattr("aios.api.main.hybrid_search", lambda query, top_k=3: [])
+    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: [])
     assert _recall_memory("query") is None
 
 
@@ -1564,7 +1564,7 @@ def test_recall_memory_without_crag_builds_trusted_and_unverified_blocks(monkeyp
             self.verification_status = status
 
     hits = [Hit("trusted fact", "verified"), Hit("unverified fact", "unverified")]
-    monkeypatch.setattr("aios.api.main.hybrid_search", lambda query, top_k=3: hits)
+    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: hits)
     result = _recall_memory("query")
     assert result is not None
     assert "trusted fact" in result
@@ -1584,8 +1584,8 @@ def test_recall_memory_crag_incorrect_verdict_drops_local_retrieval(monkeypatch)
     class Verdict:
         action = CragAction.INCORRECT
 
-    monkeypatch.setattr("aios.api.main.hybrid_search", lambda query, top_k=3: [Hit()])
-    monkeypatch.setattr("aios.api.main.evaluate_retrieval", lambda *a, **k: Verdict())
+    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: [Hit()])
+    monkeypatch.setattr("aios.api.turn_pipeline.evaluate_retrieval", lambda *a, **k: Verdict())
     assert _recall_memory("query") is None
 
 
@@ -1599,8 +1599,8 @@ def test_recall_memory_crag_evaluation_exception_falls_back_to_unrefined(monkeyp
     def boom_evaluate(*a, **k):
         raise RuntimeError("crag evaluator down")
 
-    monkeypatch.setattr("aios.api.main.hybrid_search", lambda query, top_k=3: [Hit()])
-    monkeypatch.setattr("aios.api.main.evaluate_retrieval", boom_evaluate)
+    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: [Hit()])
+    monkeypatch.setattr("aios.api.turn_pipeline.evaluate_retrieval", boom_evaluate)
     result = _recall_memory("query")
     assert result is not None
     assert "some fact" in result
