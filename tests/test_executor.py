@@ -417,6 +417,36 @@ def test_execute_approved_still_refuses_red() -> None:
     assert runner.calls == []
 
 
+def test_approved_bare_mkdir_no_longer_escapes_the_sandbox(monkeypatch, tmp_path) -> None:
+    """Regression for the 2026-07-10 adversarial audit: because _scope_cwd()
+    runs commands from the repo root (not training_ground/ itself, needed for
+    training_ground.x imports -- see _scope_cwd's docstring), an approved bare
+    "mkdir probe_dir" used to create probe_dir next to training_ground/
+    instead of nested inside it, silently escaping the sandbox a human
+    approver believed they were confining the action to. This does NOT mock
+    the runner -- it exercises the real default subprocess runner end to end,
+    the same way the audit's live repro did."""
+    scope_root = tmp_path / "training_ground"
+    scope_root.mkdir()
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [scope_root])
+    from aios.security import scope_lock
+    monkeypatch.setattr(scope_lock, "_scope_roots", [scope_root])
+
+    executor = Executor(rate_limiter=RateLimiter(), audit_log=RecordingAudit())
+    result = executor.execute_approved("mkdir probe_dir")
+
+    assert result.status == "BLOCKED"
+    assert result.zone == "RED"
+    assert not (tmp_path / "probe_dir").exists(), "escaped outside the sandbox"
+    assert not (scope_root / "probe_dir").exists()
+
+    # The correctly-prefixed, sandbox-relative form still works and lands
+    # exactly where a human approver expects.
+    result2 = executor.execute_approved("mkdir training_ground/probe_dir")
+    assert result2.status == "OK"
+    assert (scope_root / "probe_dir").is_dir()
+
+
 @pytest.mark.parametrize(
     "command",
     [

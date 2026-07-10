@@ -289,9 +289,9 @@ TOOL_SPECS: list[dict[str, Any]] = [
                 "Run a verification command (e.g. the test suite) to confirm the "
                 "previous change actually worked -- judged by exit code + parsed "
                 "pass/fail counts. Use after edits or commands to verify success. "
-                "Commands run FROM the sandbox directory, so give test paths "
-                "sandbox-relative: write 'pytest test_x.py', NOT "
-                "'pytest training_ground/test_x.py' (the latter double-nests and "
+                "Commands run from the project root, so give test paths prefixed "
+                "with the sandbox directory: write 'pytest training_ground/test_x.py', "
+                "NOT 'pytest test_x.py' (the latter looks outside the sandbox and "
                 "collects 0 tests)."
             ),
             "parameters": {
@@ -301,7 +301,8 @@ TOOL_SPECS: list[dict[str, Any]] = [
                         "type": "string",
                         "description": (
                             "The verification command to run, with any test path "
-                            "sandbox-relative (e.g. 'pytest -q' or 'pytest test_x.py')."
+                            "prefixed by the sandbox directory (e.g. 'pytest -q' or "
+                            "'pytest training_ground/test_x.py')."
                         ),
                     }
                 },
