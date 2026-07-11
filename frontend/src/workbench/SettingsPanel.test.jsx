@@ -21,14 +21,15 @@ describe('SettingsPanel', () => {
     expect(screen.getByText('Gemini')).toBeInTheDocument();
   });
 
-  it('toggles autonomy', () => {
+  it('displays read-only autonomy state', () => {
     render(<SettingsPanel onClose={vi.fn()} />);
     
     expect(screen.getByText('ENABLED (YELLOW allowed)')).toBeInTheDocument();
     
-    // The checkbox is hidden, but we can click the label text
+    // The checkbox is disabled, so clicking the label text shouldn't change it
     fireEvent.click(screen.getByText('ENABLED (YELLOW allowed)'));
     
-    expect(screen.getByText('DISABLED (GREEN only)')).toBeInTheDocument();
+    expect(screen.queryByText('DISABLED (GREEN only)')).not.toBeInTheDocument();
+    expect(screen.getByText('ENABLED (YELLOW allowed)')).toBeInTheDocument();
   });
 });
