@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * VoiceCommandHandler provides continuous listening mode using the Web Speech API.
