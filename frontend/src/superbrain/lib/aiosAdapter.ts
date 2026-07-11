@@ -19,12 +19,14 @@ import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
 import { __resetSessionForTests, ensureSession } from './sessionId';
 import {
-  endSwarmCaste,
-  markSwarmCloudSubtask,
   resetSwarmHUD,
-  startSwarmCaste,
-  startSwarmPlan,
 } from './swarmHUDStore';
+
+
+export function humanizeRedactionMarkers(text: string | null | undefined): string {
+  if (!text) return text as string;
+  return text.replace(BACKEND_REDACTION_MARKER_RE, '(a sensitive value was withheld)');
+}
 
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
@@ -46,9 +48,7 @@ const FETCH_CREDENTIALS: RequestCredentials = 'include';
 export const BACKEND_REDACTION_MARKER_RE =
   /\[(?:SENSITIVE:\s*[^\]]*|CREDENTIAL REDACTED|PATH REDACTED|FILE CONTENT REDACTED[^\]]*)\]/g;
 
-function humanizeRedactionMarkers(value: unknown): string {
-  return String(value ?? '').replace(BACKEND_REDACTION_MARKER_RE, '(a sensitive value was withheld)');
-}
+
 
 async function sessionBodyFields(): Promise<Record<string, string>> {
   const session = await ensureSession();
@@ -107,9 +107,7 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
   }
 }
 
-function publishStep(data: Record<string, unknown>): void {
-  // UI reactions moved to aiosMirror.ts
-}
+
 
 /** A pause the operator must resolve: the server-issued capability plus
  *  everything needed to judge it (the diff IS the decision surface). */
@@ -312,16 +310,7 @@ async function streamTurn(
   }
 }
 
-/** Forward the typed event spine's additive fields (phase / seq) so body
- *  systems can index motion to the organism's REAL cognitive phase. Absent on
- *  frames from pre-spine backends — consumers treat a missing phase as
- *  unknown, never as an error. */
-function spineOf(data: Record<string, unknown>): { phase?: string; seq?: number } {
-  const out: { phase?: string; seq?: number } = {};
-  if (typeof data.phase === 'string') out.phase = data.phase;
-  if (typeof data.seq === 'number') out.seq = data.seq;
-  return out;
-}
+
 
 /** Stream one REAL supervised turn through GAGOS and narrate it on the bus. */
 export async function sendDirective(

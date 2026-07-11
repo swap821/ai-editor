@@ -52,12 +52,11 @@ def test_w3_thinking_echo_is_visible_above_dock_and_reuses_typing_dots() -> None
 
 def test_w3_adapter_humanizes_redaction_markers_before_body_labels() -> None:
     source = AIOS_ADAPTER.read_text(encoding="utf-8")
+    mirror_source = (ROOT / "frontend" / "src" / "superbrain" / "lib" / "aiosMirror.ts").read_text(encoding="utf-8")
 
     assert "BACKEND_REDACTION_MARKER_RE" in source
     assert "function humanizeRedactionMarkers" in source
     assert "(a sensitive value was withheld)" in source
     assert source.count("BACKEND_REDACTION_MARKER_RE") == 2
 
-    publish_start = source.index("function publishStep")
-    publish = source[publish_start : source.index("/** A pause", publish_start)]
-    assert "humanizeRedactionMarkers" in publish
+    assert "humanizeRedactionMarkers" in mirror_source

@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sendDirective, setSwarmMode } from '../superbrain/lib/aiosAdapter';
-import { subscribeCognition, type CognitionEvent } from '../superbrain/lib/cognitionBus';
+
 
 function sseBody(frames: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();

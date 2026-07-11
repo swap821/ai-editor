@@ -9,12 +9,12 @@ export interface CortexMirrorState {
   lastEventId: number | null;
   // Reducers
   setStatus: (status: 'offline' | 'online') => void;
-  setSnapshot: (data: any) => void;
-  applyEvent: (id: number, type: string, payload: any) => void;
+  setSnapshot: (data: Record<string, unknown>) => void;
+  applyEvent: (id: number, type: string, payload: Record<string, unknown>) => void;
 }
 
 export const useMirrorStore = create<CortexMirrorState>()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector((set) => ({
     status: 'offline',
     pendingEvents: 0,
     phase: 'idle',

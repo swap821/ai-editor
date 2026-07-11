@@ -1,4 +1,5 @@
 import { publishCognition } from './cognitionBus';
+import { humanizeRedactionMarkers } from './aiosAdapter';
 import { useMirrorStore } from './mirrorStore';
 import {
   endSwarmCaste,
@@ -56,6 +57,46 @@ export async function startMirrorClient(): Promise<void> {
 
     // Map backend canonical events to frontend visual reactions
     switch (eventType) {
+      case 'aios.cognitive_action':
+        publishCognition({
+          type: 'aios.cognitive_action',
+          spine_id: canonical.spine_id,
+          label: humanizeRedactionMarkers(payload.label),
+          body: humanizeRedactionMarkers(payload.body),
+          redacted: payload.redacted,
+        });
+        break;
+      case 'aios.message':
+        publishCognition({
+          type: 'message',
+          spine_id: canonical.spine_id,
+          label: humanizeRedactionMarkers(payload.label),
+          body: humanizeRedactionMarkers(payload.body),
+          role: payload.role,
+          speaker: payload.speaker,
+          metadata: payload.metadata,
+        });
+        break;
+      case 'aios.error':
+        publishCognition({
+          type: 'error',
+          spine_id: canonical.spine_id,
+          label: humanizeRedactionMarkers(payload.label),
+          body: humanizeRedactionMarkers(payload.body),
+          code: payload.code,
+          recoverable: payload.recoverable,
+        });
+        break;
+      
+      case 'aios.intent':
+        publishCognition({
+          type: 'aios.intent',
+          spine_id: canonical.spine_id,
+          label: humanizeRedactionMarkers(payload.label),
+          body: humanizeRedactionMarkers(payload.body),
+        });
+        break;
+        
       case 'turn.started':
         publishCognition({
           type: 'knowledge-acquired',
@@ -107,7 +148,7 @@ export async function startMirrorClient(): Promise<void> {
         const kind = String(payload.type ?? '');
         const tool = String(payload.tool ?? '');
         const rawOutput = String(payload.output ?? '');
-        const output = rawOutput; // could humanize later
+        const output = humanizeRedactionMarkers(rawOutput); // could humanize later
         
         if (kind === 'tool_call') {
           publishCognition({
@@ -121,7 +162,7 @@ export async function startMirrorClient(): Promise<void> {
           publishCognition({
             type: 'agent-dispatch',
             label: `${tool.toUpperCase()} BLOCKED`,
-            detail: (payload.reason ?? '').slice(0, 140),
+            detail: humanizeRedactionMarkers(payload.reason ?? '').slice(0, 140),
             intensity: 0.4,
             source: 'mirror',
           });
