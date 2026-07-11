@@ -37,6 +37,8 @@ const BOOT_LINES: BootLine[] = [
   { text: 'calibrating supermind', status: 'NOMINAL' },
 ];
 
+const BOOT_FACTS_BUDGET_MS = 1_600;
+
 import { useMirrorStore } from '@/lib/mirrorStore';
 
 interface BootTimings {
