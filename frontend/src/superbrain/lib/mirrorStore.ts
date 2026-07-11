@@ -27,7 +27,7 @@ export const useMirrorStore = create<CortexMirrorState>()(
       set((state) => ({
         status: data.status === 'online' ? 'online' : state.status,
         pendingEvents: typeof data.pending_events === 'number' ? data.pending_events : state.pendingEvents,
-        phase: data.phase || state.phase,
+        phase: typeof data.phase === 'string' ? data.phase : state.phase,
         activeCastes: Array.isArray(data.active_castes) ? data.active_castes : state.activeCastes,
       }));
     },
@@ -42,14 +42,14 @@ export const useMirrorStore = create<CortexMirrorState>()(
 
         switch (type) {
           case 'worker.started': {
-            const role = payload.role;
+            const role = typeof payload.role === 'string' ? payload.role : '';
             if (role && !state.activeCastes.includes(role)) {
               nextState.activeCastes = [...state.activeCastes, role];
             }
             break;
           }
           case 'worker.dissolved': {
-            const role = payload.role;
+            const role = typeof payload.role === 'string' ? payload.role : '';
             if (role) {
               nextState.activeCastes = state.activeCastes.filter((c) => c !== role);
             }

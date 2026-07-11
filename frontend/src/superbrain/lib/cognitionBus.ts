@@ -61,7 +61,12 @@ export type CognitionEventType =
   /** File tree / repo map update */
   | 'file_tree'
   /** Raycast voice toggle */
-  | 'raycast-voice-toggle';
+  | 'raycast-voice-toggle'
+  /** Mirror stream backend events */
+  | 'aios.cognitive_action'
+  | 'aios.intent'
+  | 'message'
+  | 'error';
 
 export interface CognitionEvent {
   type: CognitionEventType;
@@ -82,6 +87,16 @@ export interface CognitionEvent {
   phase?: string;
   /** Monotonic per-turn sequence number from the typed event spine. */
   seq?: number;
+  /** Server-generated spine_id for causality tracking */
+  spine_id?: string;
+  /** Message body payload for mirror events */
+  body?: any;
+  redacted?: boolean;
+  role?: string;
+  speaker?: string;
+  metadata?: any;
+  code?: string;
+  recoverable?: boolean;
 }
 
 type Listener = (event: CognitionEvent) => void;
