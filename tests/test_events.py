@@ -1,4 +1,4 @@
-from aios.core.events import Event, EventPhase, EventType, event_for_sse
+from aios.core.events import Event, EventPhase, EventType, event_for_sse, CanonicalEvent, CanonicalEventType, TrustLevel
 
 
 def test_event_round_trips_json() -> None:
@@ -49,3 +49,49 @@ def test_real_human_approval_stays_reflex() -> None:
     event = event_for_sse("human_required", {"text": "approve?"}, turn_id="t", seq=1)
     assert event.type == EventType.APPROVAL_REQUIRED
     assert event.phase == EventPhase.REFLEX
+
+
+def test_canonical_event_round_trips_json() -> None:
+    event = CanonicalEvent(
+        event_type=CanonicalEventType.PLAN_CREATED,
+        phase="narrative",
+        status="success",
+        trust=TrustLevel.VERIFIED,
+        source="planner",
+        session_id="session-1",
+        sequence=1,
+        turn_id="turn-1",
+        payload={"plan": "details"}
+    )
+    assert CanonicalEvent.from_json(event.to_json()) == event
+
+
+def test_canonical_event_sse_payload_compatibility() -> None:
+    event = CanonicalEvent(
+        event_type=CanonicalEventType.ROUTE_SELECTED,
+        phase="chemotaxis",
+        status="success",
+        trust=TrustLevel.VERIFIED,
+        source="router",
+        session_id="session-1",
+        sequence=42,
+        turn_id="turn-1",
+    )
+    
+    payload = event.to_sse_payload()
+    
+    assert payload["schemaVersion"] == "1.0"
+    assert payload["eventId"] == event.event_id
+    assert payload["seq"] == 42
+    assert payload["type"] == CanonicalEventType.ROUTE_SELECTED
+    assert payload["eventType"] == CanonicalEventType.ROUTE_SELECTED
+    assert payload["timestamp"] == event.occurred_at
+    assert payload["source"] == "router"
+    assert payload["sessionId"] == "session-1"
+    assert payload["turnId"] == "turn-1"
+    assert payload["phase"] == "chemotaxis"
+    assert payload["status"] == "success"
+    assert payload["trust"] == TrustLevel.VERIFIED
+    assert payload["payload"] == {}
+    assert payload["evidenceRefs"] == []
+

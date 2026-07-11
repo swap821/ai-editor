@@ -202,6 +202,16 @@ class CortexBus:
             ).fetchall()
         return [_row_to_event(row) for row in rows]
 
+    def fetch_since(self, event_id: int, limit: int = 1000) -> list[BusEvent]:
+        """Fetch up to `limit` events that occurred after `event_id`, regardless of dispatch status."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, event_type, signature, payload FROM cortex_events "
+                "WHERE id > ? ORDER BY id ASC LIMIT ?",
+                (event_id, max(1, int(limit))),
+            ).fetchall()
+        return [_row_to_event(row) for row in rows]
+
     def pending_count(self) -> int:
         with self._connect() as conn:
             return int(

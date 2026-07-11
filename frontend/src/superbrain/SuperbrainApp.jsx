@@ -8,7 +8,7 @@
  * GagosChrome drives turns through the same adapter and cognition bus the being
  * already listens to, so the organism still arrives, listens and reacts.
  */
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState, useEffect } from 'react';
 import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
@@ -27,6 +27,8 @@ import MobileHUD from '../components/MobileHUD';
 import PanelLauncher from '../workbench/PanelLauncher';
 import './superbrain.css';
 
+import { startMirrorClient, stopMirrorClient } from './lib/aiosMirror';
+
 const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas'));
 
 export default function SuperbrainApp() {
@@ -42,6 +44,13 @@ export default function SuperbrainApp() {
   const [isListening] = useState(false);
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
+
+  useEffect(() => {
+    startMirrorClient();
+    return () => {
+      stopMirrorClient();
+    };
+  }, []);
 
   const handleVoiceCommand = useCallback((transcript) => {
     console.log('[Voice Command Received]', transcript);

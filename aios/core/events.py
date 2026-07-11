@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 import json
-from typing import Any
+from typing import Any, Optional
+import uuid
 
 
 class EventPhase(str, Enum):
@@ -155,3 +156,115 @@ def event_for_sse(
         payload=payload,
         seq=seq,
     )
+
+
+class TrustLevel(str, Enum):
+    VERIFIED = "verified"
+    ADVISORY = "advisory"
+    BLOCKED = "blocked"
+    UNKNOWN = "unknown"
+
+
+class CanonicalEventType(str, Enum):
+    ALIGNMENT_DECLARED = "alignment.declared"
+    PLAN_CREATED = "plan.created"
+    ROUTE_SELECTED = "route.selected"
+    APPROVAL_REQUIRED = "approval.required"
+    APPROVAL_DECIDED = "approval.decided"
+    TOOL_LIFECYCLE_CHANGED = "tool.lifecycle.changed"
+    VERIFICATION_COMPLETED = "verification.completed"
+    WORKER_STARTED = "worker.started"
+    WORKER_COMPLETED = "worker.completed"
+    WORKER_DISSOLVED = "worker.dissolved"
+    AUTONOMY_GRANT_CHANGED = "autonomy.grant.changed"
+    LEARNING_SKILL_MASTERED = "learning.skill.mastered"
+    TURN_COMPLETED = "turn.completed"
+    TURN_FAILED = "turn.failed"
+
+
+@dataclass(frozen=True)
+class CanonicalEvent:
+    event_type: str
+    phase: str
+    status: str
+    trust: str
+    source: str
+    session_id: str
+    schema_version: str = "1.0"
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    sequence: int = 0
+    occurred_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    turn_id: Optional[str] = None
+    mission_id: Optional[str] = None
+    worker_id: Optional[str] = None
+    payload: dict[str, Any] = field(default_factory=dict)
+    evidence_refs: list[str] = field(default_factory=list)
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "schemaVersion": self.schema_version,
+                "eventId": self.event_id,
+                "sequence": self.sequence,
+                "eventType": self.event_type,
+                "occurredAt": self.occurred_at,
+                "source": self.source,
+                "sessionId": self.session_id,
+                "turnId": self.turn_id,
+                "missionId": self.mission_id,
+                "workerId": self.worker_id,
+                "phase": self.phase,
+                "status": self.status,
+                "trust": self.trust,
+                "payload": self.payload,
+                "evidenceRefs": self.evidence_refs,
+            },
+            ensure_ascii=False,
+        )
+
+    @classmethod
+    def from_json(cls, raw: str) -> "CanonicalEvent":
+        data = json.loads(raw)
+        return cls(
+            schema_version=data.get("schemaVersion", "1.0"),
+            event_id=data.get("eventId", str(uuid.uuid4())),
+            sequence=int(data.get("sequence", 0)),
+            event_type=str(data["eventType"]),
+            occurred_at=str(data.get("occurredAt", datetime.now(timezone.utc).isoformat())),
+            source=str(data["source"]),
+            session_id=str(data["sessionId"]),
+            turn_id=data.get("turnId"),
+            mission_id=data.get("missionId"),
+            worker_id=data.get("workerId"),
+            phase=str(data["phase"]),
+            status=str(data["status"]),
+            trust=str(data["trust"]),
+            payload=data.get("payload") or {},
+            evidence_refs=data.get("evidenceRefs") or [],
+        )
+
+    def to_sse_payload(self) -> dict[str, Any]:
+        """Backward compatibility for existing UI while we bridge buses."""
+        # The frontend expects a certain shape. We'll map CanonicalEvent to the old expected payload
+        # structure for intermediate compatibility if needed.
+        return {
+            "schemaVersion": self.schema_version,
+            "eventId": self.event_id,
+            "seq": self.sequence,
+            "type": self.event_type, # Using 'type' for older SSE listeners if they look here
+            "eventType": self.event_type,
+            "timestamp": self.occurred_at,
+            "source": self.source,
+            "sessionId": self.session_id,
+            "turnId": self.turn_id,
+            "missionId": self.mission_id,
+            "workerId": self.worker_id,
+            "phase": self.phase,
+            "status": self.status,
+            "trust": self.trust,
+            "payload": self.payload,
+            "evidenceRefs": self.evidence_refs,
+        }
+

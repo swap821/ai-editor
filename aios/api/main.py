@@ -263,6 +263,11 @@ def _build_cortex_dispatcher(bus: CortexBus) -> CortexBusDispatcher:
     return CortexBusDispatcher(bus, poll_interval=0.25)
 
 
+def get_cortex_bus() -> Optional[CortexBus]:
+    """Return the live cortex bus, or None when the bus is off (default)."""
+    return _cortex_bus if config.CORTEX_BUS else None
+
+
 def _get_cortex_dispatcher() -> Optional[CortexBusDispatcher]:
     """Return the live dispatcher, or None when the bus is off (default)."""
     return _cortex_dispatcher if config.CORTEX_BUS else None
@@ -347,6 +352,7 @@ from aios.api.routes.files import router as _files_router
 from aios.api.routes.security import router as _security_router
 from aios.api.routes.execution_debugger import router as _execution_debugger_router
 from aios.api.routes.v10 import router as _v10_router
+from aios.api.routes.mirror import router as _mirror_router
 
 app.include_router(_system_router)
 app.include_router(_auth_router)
@@ -362,6 +368,7 @@ app.include_router(_files_router)
 app.include_router(_security_router)
 app.include_router(_execution_debugger_router)
 app.include_router(_v10_router)
+app.include_router(_mirror_router)
 
 
 @app.middleware("http")
@@ -854,7 +861,36 @@ def _sse(
     ``\\n\\nevent: approve\\ndata: {...}`` inside a data field.
     """
     if turn_id is not None and seq is not None:
-        data = event_for_sse(event, data, turn_id=turn_id, seq=seq).to_sse_payload()
+        event_obj = event_for_sse(event, data, turn_id=turn_id, seq=seq)
+        data = event_obj.to_sse_payload()
+        
+        bus = get_cortex_bus()
+        if bus is not None:
+            from aios.core.events import CanonicalEvent, CanonicalEventType, TrustLevel
+            from dataclasses import asdict
+            
+            # Opportunistic mapping to a canonical event for the truthful journal
+            canonical_type = event
+            if event == "done":
+                canonical_type = CanonicalEventType.TURN_COMPLETED.value
+            elif event == "error":
+                canonical_type = CanonicalEventType.TURN_FAILED.value
+                
+            canonical = CanonicalEvent(
+                event_type=canonical_type,
+                phase=event_obj.phase.value,
+                status="completed" if event == "done" else "in_progress",
+                trust=TrustLevel.ADVISORY.value,
+                source="aios.api.main.sse",
+                session_id=turn_id,
+                turn_id=turn_id,
+                sequence=seq,
+                payload=data
+            )
+            try:
+                bus.append(canonical.event_type, canonical.event_id, asdict(canonical))
+            except Exception:
+                pass
     payload = json.dumps(data, ensure_ascii=False)
     # Defensive: escape any literal newlines that would break the SSE frame.
     payload = payload.replace("\r", "\\r").replace("\n", "\\n")

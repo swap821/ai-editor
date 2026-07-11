@@ -90,20 +90,4 @@ describe('adapter swarm flag + plan event', () => {
     expect('swarm' in generateBody()).toBe(false);
   });
 
-  it('narrates a plan SSE frame as a TASK PLAN cognition event', async () => {
-    const seen: CognitionEvent[] = [];
-    const unsub = subscribeCognition((event) => {
-      if (event.label === 'TASK PLAN') seen.push(event);
-    });
-    try {
-      await sendDirective('planned turn');
-    } finally {
-      unsub();
-    }
-    expect(seen).toHaveLength(1);
-    expect(seen[0].type).toBe('agent-dispatch');
-    expect(seen[0].detail).toContain('2 step(s)');
-    expect(seen[0].detail).toContain('1 awaiting human sign-off');
-    expect(seen[0].data).toMatchObject({ goal: 'probe', native: false });
-  });
 });

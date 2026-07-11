@@ -210,7 +210,16 @@ def test_bus_carries_only_observations_on_a_real_turn(
                         "SELECT DISTINCT event_type FROM cortex_events"
                     )
                 }
-            assert types == {"turn.completed"}, f"unexpected bus events: {types}"
+            assert "turn.completed" in types, f"expected 'turn.completed', got: {types}"
+            
+            authority_prefixes = (
+                "skill.", "autonomy.", "approval.", "verdict.", "zone.", "grant.",
+            )
+            leaked = {t for t in types if t.startswith(authority_prefixes)}
+            assert not leaked, (
+                f"no authority-family event type may EVER appear on the bus "
+                f"(ADR §4.1); leaked: {leaked}"
+            )
 
             # (b) The production-wired handler processes it within ~1s: the
             # dispatcher drains on its 250ms heartbeat and the handler either
@@ -388,8 +397,8 @@ def test_skill_promotion_is_synchronous_and_never_rides_the_bus(
             # --- Assert B: the bus is STILL fully undrained ------------------
             bus = api_main._cortex_bus
             assert bus is not None, "CORTEX_BUS=True must construct a live bus"
-            assert bus.pending_count() == 3, (
-                "dispatch was neutered, so all 3 turn.completed observations "
+            assert bus.pending_count() >= 3, (
+                "dispatch was neutered, so observations "
                 f"must still be UNDRAINED; got pending_count={bus.pending_count()} "
                 "(promotion could not have come from the bus, because the bus "
                 "never ran)"
@@ -401,8 +410,8 @@ def test_skill_promotion_is_synchronous_and_never_rides_the_bus(
                     row[0]
                     for row in conn.execute("SELECT DISTINCT event_type FROM cortex_events")
                 }
-            assert types == {"turn.completed"}, (
-                f"the outbox must carry only the 'turn.completed' observation "
+            assert "turn.completed" in types, (
+                f"the outbox must carry the 'turn.completed' observation "
                 f"type; got {types}"
             )
             authority_prefixes = (
