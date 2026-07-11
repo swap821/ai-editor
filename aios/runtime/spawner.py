@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
 from aios.runtime.backends import ControlledSubprocessBackend, WorkerBackend, WorkerHandle
 from aios.runtime.concurrency import WORKER_POOL
 from aios.runtime.contracts import KingReport, MissionContract, RunLedger, WorkerResult
+from aios.runtime.cortex_bus import CortexBus
 from aios.runtime.king_report import KingReportStore, build_king_report
 from aios.runtime.run_ledger import RunLedgerStore, build_run_ledger
 from aios.runtime.snapshots import SnapshotManager
@@ -70,6 +72,7 @@ class WorkerSpawner:
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
         constitution_enforcer: ConstitutionEnforcer | None = None,
+        bus: CortexBus | None = None,
     ) -> None:
         from aios.runtime import _safe_resolve
         self.runtime_root = _safe_resolve(runtime_root)
@@ -78,6 +81,7 @@ class WorkerSpawner:
         self.ledger_store = ledger_store or RunLedgerStore(self.runtime_root)
         self.report_store = report_store or KingReportStore(self.runtime_root)
         self.constitution_enforcer = constitution_enforcer or ConstitutionEnforcer()
+        self.bus = bus
 
     async def run(self, contract: MissionContract, *, claim: bool = True) -> WorkerRun:
         created_at = _utc_now()
@@ -100,11 +104,42 @@ class WorkerSpawner:
         # capacity this raises WorkerCapacityError (the caller reports it).
         with WORKER_POOL.slot():
             handle = await self.backend.spawn(sealed_contract)
+            if self.bus:
+                session_id = getattr(sealed_contract, "session_id", "council")
+                self.bus.append(
+                    event_type=CanonicalEventType.WORKER_STARTED.value,
+                    signature="spawner",
+                    payload={
+                        "phase": EventPhase.REFLEX.value,
+                        "status": "started",
+                        "trust": "verified",
+                        "source": "spawner",
+                        "session_id": session_id,
+                        "mission_id": sealed_contract.mission_id,
+                        "worker_id": handle.worker_id,
+                    }
+                )
+
             try:
                 result = await self.backend.reap(handle)
             finally:
                 if handle.status not in {"dead", "killed"}:
                     await self.backend.kill(handle, "spawner cleanup after reap")
+                if self.bus:
+                    session_id = getattr(sealed_contract, "session_id", "council")
+                    self.bus.append(
+                        event_type=CanonicalEventType.WORKER_DISSOLVED.value,
+                        signature="spawner",
+                        payload={
+                            "phase": EventPhase.REFLEX.value,
+                            "status": "dissolved",
+                            "trust": "verified",
+                            "source": "spawner",
+                            "session_id": session_id,
+                            "mission_id": sealed_contract.mission_id,
+                            "worker_id": handle.worker_id,
+                        }
+                    )
 
             if sealed_contract.snapshot_id and result.rollback_id is None:
                 result = result.model_copy(

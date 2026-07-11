@@ -40,7 +40,7 @@ def _mission(workspace: Path, **overrides: object) -> MissionContract:
         "timeout_seconds": 30,
         "max_steps": 12,
         "verification_commands": [
-            f"{sys.executable} -c \"print('verification ok')\"",
+            f"{sys.executable} -m pytest --version",
         ],
         "metadata": {
             "deterministic_forbidden_probe": "backend/secret.py",
@@ -245,7 +245,7 @@ def test_run_command_is_fail_closed_to_verification_allowlist(
     monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
-    allowed_cmd = f"{sys.executable} -c \"print('verification ok')\""
+    allowed_cmd = f"{sys.executable} -m pytest --version"
     contract = _mission(
         workspace,
         allowed_tools=["read_file", "write_file", "run_command"],

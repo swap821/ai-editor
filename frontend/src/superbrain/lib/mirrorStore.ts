@@ -7,6 +7,7 @@ export interface CortexMirrorState {
   phase: string;
   activeCastes: string[];
   lastEventId: number | null;
+  bootFacts: Record<string, unknown> | null;
   // Reducers
   setStatus: (status: 'offline' | 'online') => void;
   setSnapshot: (data: Record<string, unknown>) => void;
@@ -20,6 +21,7 @@ export const useMirrorStore = create<CortexMirrorState>()(
     phase: 'idle',
     activeCastes: [],
     lastEventId: null,
+    bootFacts: null,
 
     setStatus: (status) => set({ status }),
     
@@ -29,6 +31,7 @@ export const useMirrorStore = create<CortexMirrorState>()(
         pendingEvents: typeof data.pending_events === 'number' ? data.pending_events : state.pendingEvents,
         phase: typeof data.phase === 'string' ? data.phase : state.phase,
         activeCastes: Array.isArray(data.active_castes) ? data.active_castes : state.activeCastes,
+        bootFacts: data.boot_facts && typeof data.boot_facts === 'object' ? data.boot_facts as Record<string, unknown> : state.bootFacts,
       }));
     },
 

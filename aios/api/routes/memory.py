@@ -112,7 +112,23 @@ class AlignmentFeedbackRequest(BaseModel):
 @router.post("/api/v1/memory/search")
 def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
     """Hybrid BM25 + FAISS + temporal-decay retrieval over semantic memory."""
+    from aios.api.main import get_cortex_bus
+    bus = get_cortex_bus()
     results = hybrid_search(req.query, top_k=req.top_k)
+    
+    if bus and results:
+        for r in results:
+            bus.append("memory.recalled", str(r.id), {
+                "id": r.id,
+                "text": r.text,
+                "score": r.score
+            })
+            if r.memory_type == "workflow" and getattr(r, "verification_status", None) == "trusted":
+                bus.append("memory.trusted_workflow_applied", str(r.id), {
+                    "workflowId": str(r.id),
+                    "query": req.query
+                })
+
     return {"query": req.query, "results": [asdict(r) for r in results]}
 
 

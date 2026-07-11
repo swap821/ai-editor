@@ -1,8 +1,8 @@
-# CI Green Checkpoint
+# Truthful Innervation Checkpoint
 
-**Current Goal:** Make GitHub `CI` green on `master` after failing run `29101145237` for commit `a98e241`.
-**Last Completed + Verified Step:** Pushed `aa333a2 fix(ci): restore master checks` to `origin/master`. GitHub `CI` run `29119612045` passed (backend + frontend), and `CodeQL Advanced` run `29119612047` passed. Local pre-push gates also passed: backend coverage 91.78%, frontend lint 120/124 warnings, typecheck, Vitest coverage, and production build.
-**Single Next Action:** No CI action remains; optional reviewer can inspect `aa333a2` and the GitHub runs above.
-**Open Approvals / Blockers:** No CI blocker. Local-only dirty files remain: `.aios/memory/experiences.jsonl` has uncommitted journal entries, and `audit_report.md` is untracked from before this CI fix.
-**Active Files For This Slice:** `aios/api/main.py`, `frontend/src/superbrain/SuperbrainApp.jsx`, `frontend/src/superbrain/components/canvas/{NervousSystem.tsx,NodeLattice.test.ts,SubsystemErrorBoundary.tsx,SuperbrainScene.LEGACY.tsx}`, `frontend/src/superbrain/core/CortexEngine.tsx`, `.aios/state/RESUME.md`.
-**Notes Not Yet Promoted:** The backend fix avoids Starlette route-resolution timing by compiling rate-limited FastAPI templates to deterministic regexes. The legacy scene lint exemption is scoped to the rollback snapshot; active modules still lint normally.
+**Current Goal:** Decouple the organism's visual reactions from transient state and wire them exclusively to the authoritative CortexBus mirror stream (Truthful Innervation Architecture).
+**Last Completed + Verified Step:** Completed Phase 8 (Proof sweep). Fixed `ContractViolation` rejections in `test_runtime_gaps.py`, `test_runtime_worker_birth.py`, and `test_runtime_intelligence_gateway.py` caused by the new security gateway restriction on `python -c` commands. Verified the 16k+ backend test suite and the 589 frontend `vitest` tests are completely green.
+**Single Next Action:** Await user's request for further enhancements or new tasks.
+**Open Approvals / Blockers:** None.
+**Active Files For This Slice:** `aios/api/main.py`, `aios/security/gateway.py`, `aios/api/routes/mirror.py`, `frontend/src/superbrain/lib/aiosMirror.ts`, `tests/test_runtime_gaps.py`, `tests/test_runtime_worker_birth.py`, `tests/test_runtime_intelligence_gateway.py`.
+**Notes Not Yet Promoted:** The mirror architecture fully restricts the frontend from hallucinating state. All visual elements now strictly rely on the backend SSE event stream without any duplicated `publishCognition` calls in `aiosAdapter.ts`.

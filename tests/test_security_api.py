@@ -54,7 +54,7 @@ def test_security_audit_rejects_invalid_zone(client) -> None:
 
 
 def test_tokens_rotate_returns_new_key_id(client) -> None:
-    resp = client.post("/api/v1/security/tokens/rotate")
+    resp = client.post("/api/v1/security/tokens/rotate", json={"confirm": True})
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "rotated"

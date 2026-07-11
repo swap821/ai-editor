@@ -76,7 +76,7 @@ def _contract(workspace: Path, **overrides: object) -> MissionContract:
         "allowed_tools": ["read_file", "write_file", "run_command"],
         "timeout_seconds": 30,
         "max_steps": 12,
-        "verification_commands": [f"{sys.executable} -c \"print('ok')\""],
+        "verification_commands": [f"{sys.executable} -m pytest --version"],
         "metadata": {"deterministic_forbidden_probe": "backend/secret.py"},
     }
     data.update(overrides)
@@ -241,10 +241,11 @@ class TestRunLlmWorkerDirectCalls:
         (repair) raises IntelligenceGatewayError -> the "attempts already recorded"
         branch (gateway_error set with non-empty attempts)."""
         workspace = _workspace(tmp_path)
+        (workspace / "check_fail.py").write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
         contract = _contract(
             workspace,
             allowed_tools=["read_file", "write_file", "run_command", "request_change"],
-            verification_commands=[f"{sys.executable} -c \"import sys; sys.exit(1)\""],
+            verification_commands=[f"{sys.executable} check_fail.py"],
         )
         gateway = QueuedGateway(["content v1"], raise_from=1)
         runtime = _runtime(

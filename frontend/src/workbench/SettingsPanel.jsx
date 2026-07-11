@@ -62,11 +62,14 @@ export default function SettingsPanel({ onClose }) {
         
         {/* LLM Provider */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <Server size={14} style={{ color: 'var(--ag-text-cyan)' }} />
             <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LLM Provider</strong>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', marginBottom: '8px' }}>
+            Controlled by .env file (AIOS_LLM_MODEL, AIOS_BEDROCK_MODEL, AIOS_GEMINI_MODEL)
+          </div>
+          <div style={{ display: 'flex', gap: '8px', opacity: 0.5, pointerEvents: 'none' }}>
             {['Ollama', 'Bedrock', 'Gemini'].map(p => (
               <button
                 key={p}
@@ -90,18 +93,22 @@ export default function SettingsPanel({ onClose }) {
 
         {/* Autonomy Toggle */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <Cpu size={14} style={{ color: 'var(--ag-text-purple)' }} />
             <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Earned Autonomy</strong>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+          <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', marginBottom: '8px' }}>
+            Controlled by .env file (AIOS_EARNED_AUTONOMY)
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'not-allowed', opacity: 0.5 }}>
             <div style={{
               width: '40px',
               height: '20px',
               background: autonomy ? 'var(--ag-text-purple)' : 'rgba(255, 255, 255, 0.1)',
               borderRadius: '10px',
               position: 'relative',
-              transition: 'background 0.2s'
+              transition: 'background 0.2s',
+              pointerEvents: 'none'
             }}>
               <div style={{
                 width: '16px',
@@ -119,6 +126,7 @@ export default function SettingsPanel({ onClose }) {
               checked={autonomy}
               onChange={(e) => setAutonomy(e.target.checked)}
               style={{ display: 'none' }}
+              disabled
             />
             <span style={{ fontSize: '12px', color: autonomy ? '#e9d8fd' : 'var(--muted-foreground)' }}>
               {autonomy ? 'ENABLED (YELLOW allowed)' : 'DISABLED (GREEN only)'}

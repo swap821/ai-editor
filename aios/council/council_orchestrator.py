@@ -27,6 +27,7 @@ from aios.council.queen_verdict import (
     has_blocking_verdict,
     highest_risk,
     verdicts_as_metadata,
+
 )
 from aios.council.queens.critique import CritiqueQueen
 from aios.council.queens.memory import MemoryQueen
@@ -40,6 +41,7 @@ from aios.runtime.contracts import (
     RunLedger,
     WorkerResult,
 )
+from aios.runtime.cortex_bus import CortexBus
 from aios.runtime.king_report import (
     KingReportStore,
     build_deliberation_report,
@@ -87,9 +89,11 @@ class CouncilOrchestrator:
         council_state: CouncilState | None = None,
         council_memory: CouncilMemory | None = None,
         pheromone_store: PheromoneStore | None = None,
+        bus: CortexBus | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
-        self.spawner = spawner or WorkerSpawner(runtime_root=self.runtime_root)
+        self.bus = bus
+        self.spawner = spawner or WorkerSpawner(runtime_root=self.runtime_root, bus=self.bus)
         self.planner = planner or PlannerQueen()
         self.security = security or SecurityQueen()
         self.memory = memory or MemoryQueen()

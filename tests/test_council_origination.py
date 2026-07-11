@@ -51,7 +51,7 @@ def test_originate_deliberates_to_awaiting_approval(
                 json={
                     "goal": "Improve the login page",
                     "allowedFiles": ["Login.jsx"],
-                    "verificationCommands": [],
+                    "verificationCommands": ["echo ok"],
                     "sessionId": "s-delib",
                 },
             )
@@ -163,7 +163,7 @@ def test_reject_does_not_execute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
                 json={
                     "goal": "Append a worker heartbeat",
                     "allowedFiles": ["target.txt"],
-                    "verificationCommands": [],
+                    "verificationCommands": ["echo ok"],
                     "sessionId": "s-reject",
                 },
             ).json()["missionId"]
@@ -194,7 +194,7 @@ def test_second_decision_is_rejected_409(tmp_path: Path, monkeypatch: pytest.Mon
                 json={
                     "goal": "edit target",
                     "allowedFiles": ["target.txt"],
-                    "verificationCommands": [],
+                    "verificationCommands": ["echo ok"],
                     "sessionId": "s-2dec",
                 },
             ).json()["missionId"]
@@ -222,8 +222,8 @@ def test_reject_blocks_a_later_approve(tmp_path: Path, monkeypatch: pytest.Monke
                 json={
                     "goal": "edit target",
                     "allowedFiles": ["target.txt"],
-                    "verificationCommands": [],
-                    "sessionId": "s-rblock",
+                    "verificationCommands": ["echo ok"],
+                    "sessionId": "s-r2dec",
                 },
             ).json()["missionId"]
             rejected = client.post("/api/v1/council/reject", json={"missionId": mission_id})

@@ -37,6 +37,7 @@ from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
+from aios.runtime.cortex_bus import CortexBus
 
 # Cross-cutting helpers shared with other route modules still living in
 # main.py — imported rather than duplicated so there is exactly one
@@ -62,6 +63,11 @@ def _session_id_from_request(request, fallback=None):
 def get_approval_store():
     """Deferred proxy to avoid circular dependency with main.py."""
     from aios.api.main import get_approval_store as _impl
+    return _impl()
+
+def get_cortex_bus():
+    """Deferred proxy to avoid circular dependency with main.py."""
+    from aios.api.main import get_cortex_bus as _impl
     return _impl()
 
 logger = get_logger(__name__)
@@ -381,7 +387,7 @@ def _write_failed_council_report(runtime_root: Path, mission_id: str, reason: st
         logger.warning("council_failed_report_write_failed", mission_id=mission_id, exc_info=exc)
 
 
-def _run_council_deliberation(runtime_root: Path, request: CouncilMissionRequest) -> None:
+def _run_council_deliberation(runtime_root: Path, request: CouncilMissionRequest, bus: CortexBus | None = None) -> None:
     """Background: deliberate only (no worker). Failures surface as a failed report."""
     try:
         council_state = CouncilState(db_path=runtime_root / "council_state.db")
@@ -389,13 +395,14 @@ def _run_council_deliberation(runtime_root: Path, request: CouncilMissionRequest
             runtime_root=runtime_root,
             council_state=council_state,
             council_memory=CouncilMemory(state=council_state),
+            bus=bus,
         ).deliberate(request)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning("council_deliberation_failed", mission_id=request.mission_id, exc_info=exc)
         _write_failed_council_report(runtime_root, request.mission_id, str(exc))
 
 
-def _run_council_execution(runtime_root: Path, mission_id: str) -> None:
+def _run_council_execution(runtime_root: Path, mission_id: str, bus: CortexBus | None = None) -> None:
     """Background: run the approved worker — reads the deliberated ledger for the
     contract + verdicts, executes (worker acts), and writes the final report."""
     try:
@@ -409,6 +416,7 @@ def _run_council_execution(runtime_root: Path, mission_id: str) -> None:
             runtime_root=runtime_root,
             council_state=council_state,
             council_memory=CouncilMemory(state=council_state),
+            bus=bus,
         )
         asyncio.run(orchestrator.execute(ledger.contract, list(ledger.council_verdicts)))
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
@@ -482,6 +490,7 @@ def council_originate(
     req: CouncilMissionOriginationRequest,
     background: BackgroundTasks,
     runtime_root: Path = Depends(get_council_runtime_root),
+    bus: Optional[CortexBus] = Depends(get_cortex_bus),
 ) -> dict[str, Any]:
     """Originate a Council mission from a goal: deliberate, then await King approval.
 
@@ -521,7 +530,7 @@ def council_originate(
             mission_request,
             force=req.royal_decree or req.complex_task,
         )
-    background.add_task(_run_council_deliberation, runtime_root, mission_request)
+    background.add_task(_run_council_deliberation, runtime_root, mission_request, bus)
     return {"missionId": mission_id, "status": "deliberating"}
 
 
@@ -702,6 +711,7 @@ def council_approve(
     req: CouncilDecisionRequest,
     background: BackgroundTasks,
     runtime_root: Path = Depends(get_council_runtime_root),
+    bus: Optional[CortexBus] = Depends(get_cortex_bus),
 ) -> dict[str, Any]:
     """Record King approval; if the mission is awaiting execution, run the worker.
 
@@ -720,7 +730,7 @@ def council_approve(
         except Exception:  # noqa: BLE001 - a read failure simply means "don't execute"
             awaiting = False
         if awaiting:
-            background.add_task(_run_council_execution, runtime_root, safe_id)
+            background.add_task(_run_council_execution, runtime_root, safe_id, bus)
             result["execution"] = "scheduled"
     return result
 

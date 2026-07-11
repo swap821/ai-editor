@@ -76,16 +76,34 @@ def read_file(req: ReadFileRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from aios.api.main import get_cortex_bus
+from aios.runtime.cortex_bus import CortexBus
+
 @router.post("/api/v1/files/edit")
-def edit_file(req: EditFileRequest):
+def edit_file(req: EditFileRequest, bus: Optional[CortexBus] = Depends(get_cortex_bus)):
     """Proposes diff, hits gate."""
     check = is_path_in_scope(req.path)
     if not check.in_scope:
+        if bus:
+            bus.append("edit.blocked", req.path, {"path": req.path, "reason": "File out of bounds"})
         raise HTTPException(status_code=403, detail="File out of bounds")
 
     decision = _enforcer.check_file_edit(req.path, actor="operator")
     if not decision.allowed:
+        if bus:
+            bus.append("edit.blocked", req.path, {"path": req.path, "reason": decision.reason})
         raise HTTPException(status_code=403, detail=decision.reason)
+
+    if bus:
+        bus.append(
+            "edit.proposed",
+            req.path,
+            {
+                "path": req.path,
+                "requiresHuman": decision.requires_human,
+                "constraints": list(decision.constraints)
+            }
+        )
 
     # In Phase 1, we just return success to simulate proposing an edit; the
     # actual write still requires the human-approval gate constitution.

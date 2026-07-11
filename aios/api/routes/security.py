@@ -49,13 +49,19 @@ def security_audit(limit: int = 50, zone: Optional[str] = None) -> dict[str, Any
     }
 
 
+class RotateTokensRequest(BaseModel):
+    confirm: bool = Field(False, description="Must be explicitly true to rotate tokens")
+
 @router.post("/api/v1/security/tokens/rotate")
-def security_rotate_tokens() -> dict[str, Any]:
+def security_rotate_tokens(req: RotateTokensRequest) -> dict[str, Any]:
     """Rotate the audit-ledger's Ed25519 signing key.
 
     Old entries remain verifiable under the retired key; new entries sign
     with the fresh one. The rotation itself is recorded in the ledger.
     """
+    if not req.confirm:
+        raise HTTPException(status_code=422, detail="confirm must be true to rotate tokens")
+        
     try:
         new_key_id = rotate_audit_key()
         log_action("operator", "rotated audit signing key", "YELLOW")

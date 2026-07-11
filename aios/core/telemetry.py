@@ -96,6 +96,16 @@ def record_run(
                     verified_outcome, latency_ms, tokens_in, tokens_out, max_zone,
                 ),
             )
+        # Pulse the global metrics via CortexBus
+        from aios.api.main import get_cortex_bus
+        bus = get_cortex_bus()
+        if bus:
+            bus.append("telemetry.agent_started", session_id or "system", {
+                "dispatch_path": dispatch_path,
+                "provider": provider,
+                "model": model,
+                "latency_ms": latency_ms
+            })
     except Exception:  # noqa: BLE001 - observation must never break a request
         logger.warning("telemetry write failed; request continues", exc_info=True)
 

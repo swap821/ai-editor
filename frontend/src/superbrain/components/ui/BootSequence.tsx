@@ -37,46 +37,7 @@ const BOOT_LINES: BootLine[] = [
   { text: 'calibrating supermind', status: 'NOMINAL' },
 ];
 
-/** TRUE BOOT: when the real GAGOS backend answers inside the boot window, the typed
- *  statuses become measured facts (version, live trail counts, verified
- *  rate). Offline, the imagination's lore boots the kernel as before.
- *  Statuses re-render in place, so anything landing before the ~2.6s finale
- *  still makes the screen — the budget only has to beat the finale. */
-const BOOT_FACTS_BUDGET_MS = 1_600;
-
-async function fetchBootFacts(signal: AbortSignal): Promise<Map<string, string>> {
-  const facts = new Map<string, string>();
-  const get = async (path: string) => {
-    const response = await fetch(`${AIOS_BASE}${path}`, { signal });
-    if (!response.ok) throw new Error(String(response.status));
-    return (await response.json()) as Record<string, unknown>;
-  };
-  const [health, trails, metrics] = await Promise.allSettled([
-    get('/health'),
-    get('/api/v1/development/trails'),
-    get('/api/v1/development/metrics'),
-  ]);
-  if (health.status === 'fulfilled' && typeof health.value.version === 'string') {
-    facts.set('verifying fable-class cognition core', `v${health.value.version} OK`);
-  }
-  if (trails.status === 'fulfilled' && Array.isArray(trails.value.trails)) {
-    const rows = trails.value.trails as Array<{ status?: string }>;
-    const verified = rows.filter((t) => t.status === 'verified').length;
-    facts.set('indexing knowledge horizon', `${rows.length} TRAILS · ${verified} VERIFIED`);
-    facts.set('establishing historical mythos link', 'LIVE');
-  }
-  if (metrics.status === 'fulfilled') {
-    const rate = metrics.value.verified_success_rate;
-    const avg = metrics.value.average_tool_calls;
-    if (typeof avg === 'number') {
-      facts.set('binding agent mesh', `AVG ${avg.toFixed(1)} CALLS/TURN`);
-    }
-    if (typeof rate === 'number') {
-      facts.set('calibrating supermind', `${Math.round(rate * 100)}% VERIFIED RATE`);
-    }
-  }
-  return facts;
-}
+import { useMirrorStore } from '@/lib/mirrorStore';
 
 interface BootTimings {
   /** ms per boot-log line (0 = all lines instantly). */
@@ -118,28 +79,50 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  // TRUE BOOT: real facts replace the lore statuses when the backend answers
-  // fast enough to make it onto the screen; silence keeps the imagination.
+  // TRUE BOOT: real facts are published via the mirror snapshot at boot.
+  // We subscribe to the store, and if bootFacts arrive within the budget, we render them.
   const [lines, setLines] = useState<BootLine[]>(BOOT_LINES);
+  
   useEffect(() => {
-    const controller = new AbortController();
-    const deadline = window.setTimeout(() => controller.abort(), BOOT_FACTS_BUDGET_MS);
-    void fetchBootFacts(controller.signal)
-      .then((facts) => {
-        if (facts.size === 0) return;
+    let timeoutId = 0;
+    const unsub = useMirrorStore.subscribe(
+      (state) => state.bootFacts,
+      (facts) => {
+        if (!facts) return;
         setLines((prev) =>
           prev.map((line) => {
-            const status = facts.get(line.text);
+            let status;
+            if (line.text.includes('fable-class cognition core')) {
+              status = `v${facts.version || 'unknown'} OK`;
+            } else if (line.text.includes('cortical lattice')) {
+              status = `[${facts.nodes_count ?? 'UNKNOWN'} nodes]`;
+            } else if (line.text.includes('binding agent mesh')) {
+              const avg = typeof facts.average_tool_calls === 'number' ? facts.average_tool_calls.toFixed(1) : '?';
+              status = `AVG ${avg} CALLS/TURN`;
+            } else if (line.text.includes('indexing knowledge horizon')) {
+              status = `${facts.trails_total ?? '?'} TRAILS · ${facts.trails_verified ?? '?'} VERIFIED`;
+            } else if (line.text.includes('historical mythos link')) {
+              status = 'LIVE';
+            } else if (line.text.includes('calibrating supermind')) {
+              const rate = typeof facts.verified_success_rate === 'number' ? Math.round(facts.verified_success_rate * 100) : '?';
+              status = `${rate}% VERIFIED RATE`;
+            }
             return status ? { ...line, status } : line;
-          }),
+          })
         );
-      })
-      .catch(() => {
-        // Offline boot is the lore boot — by design.
-      });
+      },
+      { fireImmediately: true }
+    );
+
+    // After budget time, we stop listening so we don't accidentally update lines 
+    // mid-animation. Offline boot retains lore.
+    timeoutId = window.setTimeout(() => {
+      unsub();
+    }, BOOT_FACTS_BUDGET_MS);
+
     return () => {
-      window.clearTimeout(deadline);
-      controller.abort();
+      window.clearTimeout(timeoutId);
+      unsub();
     };
   }, []);
 

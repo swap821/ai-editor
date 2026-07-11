@@ -143,6 +143,34 @@ export async function startMirrorClient(): Promise<void> {
         });
         break;
         
+      case 'memory.recalled':
+        publishCognition({
+          type: 'knowledge-acquired',
+          label: 'MEMORY RECALLED',
+          detail: String(payload.text ?? '').slice(0, 140),
+          intensity: 0.6,
+          source: 'mirror',
+        });
+        break;
+      case 'memory.trusted_workflow_applied':
+        publishCognition({
+          type: 'knowledge-acquired',
+          label: 'TRUSTED WORKFLOW',
+          detail: String(payload.workflowId ?? 'applied').slice(0, 140),
+          intensity: 1.0,
+          source: 'mirror',
+        });
+        break;
+      case 'telemetry.agent_started':
+        publishCognition({
+          type: 'agent-dispatch',
+          label: 'TELEMETRY PULSE',
+          detail: 'Global health metrics update',
+          intensity: 0.4,
+          source: 'mirror',
+        });
+        break;
+        
       // Maps from the original aiosAdapter.ts responses
       case 'step': {
         const kind = String(payload.type ?? '');
@@ -228,6 +256,42 @@ export async function startMirrorClient(): Promise<void> {
         }
         break;
       }
+      case 'edit.proposed':
+        publishCognition({
+          type: 'approval-required',
+          label: 'EDIT PROPOSED',
+          detail: String(payload.path ?? 'a file').slice(0, 140),
+          intensity: 0.9,
+          source: 'mirror',
+        });
+        break;
+      case 'edit.blocked':
+        publishCognition({
+          type: 'error',
+          label: 'EDIT BLOCKED',
+          detail: String(payload.reason ?? 'gate intervention').slice(0, 140),
+          intensity: 1,
+          source: 'mirror',
+        });
+        break;
+      case 'worker.started':
+        publishCognition({
+          type: 'agent-dispatch',
+          label: 'WORKER STARTED',
+          detail: String(payload.workerId || 'a council worker'),
+          intensity: 0.8,
+          source: 'mirror',
+        });
+        break;
+      case 'worker.dissolved':
+        publishCognition({
+          type: 'synthesis',
+          label: 'WORKER DISSOLVED',
+          detail: String(payload.workerId || 'a council worker'),
+          intensity: 0.8,
+          source: 'mirror',
+        });
+        break;
       case 'earned_autonomy': {
         const what = String(payload.command ?? payload.filepath ?? 'a write');
         publishCognition({

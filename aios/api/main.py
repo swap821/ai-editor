@@ -328,7 +328,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_validate_cors_origins(config.API_CORS_ORIGINS),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 app.add_middleware(MetricsMiddleware)

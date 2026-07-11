@@ -120,6 +120,11 @@ class PlannerQueen:
             risk = "YELLOW"
             reason = "Planner cannot spawn a worker without allowed_files."
             constraints = ["Add at least one allowed file before worker birth."]
+        elif not contract.verification_commands:
+            verdict = "defer"
+            risk = "YELLOW"
+            reason = "Planner cannot spawn a worker without explicit verification commands."
+            constraints = [*constraints, "Add at least one verification command before worker birth."]
 
         return PlannerDraft(
             contract=contract,

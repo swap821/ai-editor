@@ -195,7 +195,7 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
         workspace,
         allowed_tools=["request_plan", "read_file", "write_file", "run_command"],
         forbidden_files=["backend/"],
-        verification_commands=[f"{sys.executable} -c \"print('verification ok')\""],
+        verification_commands=[f"{sys.executable} -m pytest --version"],
         pheromone_context=[hint],
         metadata={
             "hybrid_plan_prompt": "Plan a frontend-only edit",
