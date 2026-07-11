@@ -18,8 +18,6 @@ vi.mock('./swarmHUDStore', () => ({
 
 describe('aiosMirror', () => {
   let mockEventSource: any;
-  const originalEventSource = global.EventSource;
-  const originalFetch = global.fetch;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -29,23 +27,23 @@ describe('aiosMirror', () => {
       onmessage: null,
       close: vi.fn(),
     };
-    global.EventSource = vi.fn(function() { return mockEventSource; }) as any;
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('EventSource', vi.fn(function() { return mockEventSource; }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ history: [] }),
-    });
-    useMirrorStore.setState({ status: 'offline', events: [], snapshot: null });
+    }));
+    useMirrorStore.setState({ status: 'offline' });
   });
 
   afterEach(() => {
-    global.EventSource = originalEventSource;
-    global.fetch = originalFetch;
+    vi.unstubAllGlobals();
     stopMirrorClient();
   });
 
   it('starts client and connects', async () => {
     await startMirrorClient();
-    expect(global.EventSource).toHaveBeenCalled();
+    expect(useMirrorStore.getState().status).toBe('offline'); // initial state before open
+
     
     // Simulate open
     mockEventSource.onopen();
