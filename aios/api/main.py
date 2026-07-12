@@ -22,10 +22,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import ipaddress
 import json
 import re
-import secrets
 import sqlite3
 import threading
 import time
@@ -93,6 +91,7 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     _RATE_LIMITER,
     _SESSION_MANAGER,
 )
+from aios.interfaces.http import edge_security
 from aios.core import catalog, router, telemetry
 from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
@@ -314,24 +313,7 @@ def _append_turn_completed(
 # headers are also narrowed from "*" to the surface the front-end actually uses.
 def _validate_cors_origins(origins: tuple[str, ...]) -> list[str]:
     """Reject wildcard/host-less origins so credentialed CORS can't widen silently."""
-    from urllib.parse import urlparse
-
-    validated: list[str] = []
-    for origin in origins:
-        if origin == "*":
-            raise RuntimeError(
-                "AIOS_CORS_ORIGINS may not contain '*' while credentials are "
-                "allowed (the CORS spec forbids it; it would widen credentialed "
-                "cross-origin access). List explicit scheme://host[:port] origins."
-            )
-        parsed = urlparse(origin)
-        if not parsed.scheme or not parsed.netloc:
-            raise RuntimeError(
-                f"AIOS_CORS_ORIGINS entry {origin!r} is not a valid origin "
-                "(expected scheme://host[:port])."
-            )
-        validated.append(origin)
-    return validated
+    return edge_security.validate_cors_origins(origins)
 
 
 app.add_middleware(
@@ -390,28 +372,7 @@ async def bind_request_context(request: Request, call_next):
     clear_contextvars()
     bind_contextvars(request_id=request_id, method=request.method, path=request.url.path)
     try:
-        session_id: Optional[str] = None
-        # P0 SECURITY: prefer session from httpOnly cookie (not accessible to JS/XSS)
-        # Fall back to body field for clients that haven't migrated yet.
-        cookie_hash = request.cookies.get("session_id")
-        if cookie_hash:
-            manager = get_session_manager()
-            session = manager.validate_session(cookie_hash)
-            if session is not None:
-                # Use the session hash as the log key (raw ID never leaves memory)
-                session_id = session.session_hash
-        if not session_id and request.method in ("POST", "PUT", "PATCH"):
-            content_type = request.headers.get("content-type", "")
-            if "application/json" in content_type:
-                try:
-                    body = await request.body()
-                    payload = json.loads(body.decode("utf-8")) if body else None
-                except Exception:
-                    payload = None
-                if isinstance(payload, dict):
-                    body_sid = payload.get("sessionId") or payload.get("session_id")
-                    if body_sid:
-                        session_id = str(body_sid)
+        session_id = await edge_security.extract_session_id(request, allow_body_fallback=True)
         if session_id:
             bind_contextvars(session_id_hash=session_log_key(session_id))
         response = await call_next(request)
@@ -425,154 +386,34 @@ async def bind_request_context(request: Request, call_next):
 #: "testclient" is deliberately NOT included — it must never be a production
 #: backdoor. Tests that need unauthenticated access should use an explicit
 #: loopback client address.
-_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
-def _is_private_ip(ip: str) -> bool:
-    """Return True if *ip* is a loopback, link-local, or RFC 1918/4193 address.
+_LOOPBACK_HOSTS = edge_security.LOOPBACK_HOSTS
 
-    Uses the standard-library ``ipaddress`` module so IPv4 and IPv6 are both
-    handled correctly (e.g. ``::1``, ``fc00::``, ``fe80::``).
-    """
-    ip = ip.strip()
-    if not ip:
-        return True  # empty = unsafe, treat as private
-    try:
-        addr = ipaddress.ip_address(ip)
-        return addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_reserved
-    except ValueError:
-        # Not a valid IP — could be a Unix socket path or empty string.
-        # Fail closed: treat unparseable as private (untrusted).
-        return True
+def _is_private_ip(ip: str) -> bool:
+    """Return True if *ip* is loopback, link-local, or RFC 1918/4193 address."""
+    return edge_security.is_private_ip(ip)
 
 
 def _real_client_ip(request: Request) -> str:
-    """Return the best-effort real client IP for auth decisions.
-
-    When TRUST_PROXY_HEADERS is enabled, parse X-Forwarded-For as a
-    comma-separated chain and take the **rightmost** non-private IP (the one
-    closest to the server that is still a public/resolvable address). If every
-    IP in the chain is private, fall back to the direct peer — in that case
-    the deployment MUST set AIOS_API_TOKEN because loopback exemption is
-    unsafe behind a proxy.
-
-    When TRUST_PROXY_HEADERS is disabled, use the direct peer IP.
-    """
-    direct = request.client.host if request.client else ""
-    if not config.TRUST_PROXY_HEADERS:
-        return direct
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if not forwarded:
-        return direct
-    # X-Forwarded-For is a comma-separated chain: left = original client,
-    # right = closest to server. Take the rightmost non-private IP.
-    chain = [h.strip() for h in forwarded.split(",") if h.strip()]
-    # If TRUSTED_PROXIES is configured, only trust entries from those proxies.
-    if config.TRUSTED_PROXIES:
-        # Walk from rightmost to leftmost, stop at first IP that is NOT a
-        # trusted proxy (that IP made the request through the proxy chain).
-        for ip in reversed(chain):
-            if ip not in config.TRUSTED_PROXIES:
-                return ip
-        # Every IP in the chain is a trusted proxy — use direct peer.
-        return direct
-    # No trusted proxy whitelist: take the rightmost non-private IP.
-    for ip in reversed(chain):
-        if not _is_private_ip(ip):
-            return ip
-    # All IPs in the chain are private — possible spoofing attempt.
-    return direct
+    """Return the best-effort real client IP for auth decisions."""
+    return edge_security.real_client_ip(request)
 
 
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
-    """Protect API and schema surfaces; keep unauthenticated use loopback-only.
-
-    When the operator has configured a trusted reverse proxy, the loopback
-    exemption is disabled entirely: the direct peer may be the proxy, so only
-    a bearer token can authenticate the real client.
-
-    Protected paths:
-      * All ``/api/*`` routes
-      * ``/docs``, ``/redoc``, ``/openapi.json`` schema/docs surfaces
-
-    ``/health`` remains public for liveness probes. ``/metrics`` is also kept
-    outside this token middleware so the existing single-box observability
-    contract stays stable; deployments that expose it beyond loopback must
-    protect it at the reverse proxy.
-    """
-    path = request.url.path
-    docs_paths = {"/docs", "/redoc", "/openapi.json"}
-    if path in docs_paths and not config.ENABLE_DOCS:
-        if request.method != "OPTIONS":
-            client_ip = _real_client_ip(request)
-            if config.TRUST_PROXY_HEADERS or client_ip not in _LOOPBACK_HOSTS:
-                return JSONResponse(
-                    status_code=403,
-                    content={"detail": "unauthenticated API access is loopback-only"},
-                )
-        return JSONResponse(status_code=404, content={"detail": "Not Found"})
-    protected = path.startswith("/api/") or path in docs_paths
-    if protected and request.method != "OPTIONS":
-        if config.API_TOKEN:
-            auth = request.headers.get("authorization", "")
-            expected = f"Bearer {config.API_TOKEN}"
-            if not secrets.compare_digest(auth, expected):
-                return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
-        else:
-            # No API token configured — ONLY loopback is permitted, and NEVER
-            # when behind a proxy (the peer IP is the proxy, not the client).
-            client_ip = _real_client_ip(request)
-            if config.TRUST_PROXY_HEADERS or client_ip not in _LOOPBACK_HOSTS:
-                return JSONResponse(
-                    status_code=403,
-                    content={"detail": "unauthenticated API access is loopback-only"},
-                )
+    """Protect API and schema surfaces; keep unauthenticated use loopback-only."""
+    error = edge_security.check_api_token_or_loopback(request)
+    if error is not None:
+        return error
     return await call_next(request)
 
 
 @app.middleware("http")
 async def require_browser_or_token_for_mutations(request: Request, call_next):
-    """CSRF/Mutation protection: block unauthenticated non-browser mutations.
-    
-    Any state-changing request (POST, PUT, DELETE, PATCH) must either:
-      1. Provide a valid Bearer token (CLI/automation).
-      2. Prove it is a trusted browser request via Origin or Sec-Fetch-Site.
-    
-    This stops cross-site request forgery and hardens local CLI usage.
-    """
-    if request.method not in ("POST", "PUT", "DELETE", "PATCH"):
-        return await call_next(request)
-        
-    # 1. Bearer token provided?
-    if config.API_TOKEN:
-        auth = request.headers.get("authorization", "")
-        expected = f"Bearer {config.API_TOKEN}"
-        if secrets.compare_digest(auth, expected):
-            return await call_next(request)
-            
-    # 2. Browser proofs
-    sec_site = request.headers.get("sec-fetch-site")
-    if sec_site in ("same-origin", "same-site"):
-        return await call_next(request)
-        
-    origin = request.headers.get("origin")
-    if origin:
-        allowed = _validate_cors_origins(config.API_CORS_ORIGINS)
-        # If allowed is empty, we fall back to checking if the origin host is loopback.
-        if origin in allowed:
-            return await call_next(request)
-        # Check if the origin itself is a loopback URL (e.g. http://localhost:5173)
-        try:
-            from urllib.parse import urlparse
-            parsed = urlparse(origin)
-            if parsed.hostname and _is_private_ip(parsed.hostname):
-                return await call_next(request)
-        except Exception:
-            pass
-
-    return JSONResponse(
-        status_code=403,
-        content={"detail": "Mutation requires valid browser Origin/Sec-Fetch-Site or API Bearer token."}
-    )
+    """CSRF/Mutation protection: block unauthenticated non-browser mutations."""
+    error = edge_security.check_mutation_origin_or_token(request)
+    if error is not None:
+        return error
+    return await call_next(request)
 
 
 # --------------------------------------------------------------------------- #
@@ -725,7 +566,7 @@ async def endpoint_rate_limit(request: Request, call_next):
         path = _rate_limited_route_path(request)
         if path is not None:
             # Use the same IP extraction logic as the auth middleware.
-            client_ip = _real_client_ip(request)
+            client_ip = edge_security.real_client_ip(request)
             try:
                 _check_endpoint_rate_limit(path, client_ip)
             except HTTPException:
