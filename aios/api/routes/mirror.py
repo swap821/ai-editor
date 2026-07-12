@@ -46,12 +46,45 @@ def get_snapshot(
     verified_trails = sum(1 for t in trails if t.get("status") == "verified")
 
     # True snapshot returns the substrate's state and active configuration.
+    
+    # Project state from CortexBus
+    phase = "idle"
+    active_castes = set()
+    events = bus.fetch_since(0, limit=100000)
+    for ev in events:
+        et = ev.payload.get("eventType") if isinstance(ev.payload, dict) and "eventType" in ev.payload else ev.event_type
+        if et == "worker.started":
+            role = None
+            if isinstance(ev.payload, dict):
+                if "payload" in ev.payload and isinstance(ev.payload["payload"], dict):
+                    role = ev.payload["payload"].get("role")
+                else:
+                    role = ev.payload.get("role")
+            if role:
+                active_castes.add(role)
+        elif et == "worker.dissolved" or et == "worker.completed":
+            role = None
+            if isinstance(ev.payload, dict):
+                if "payload" in ev.payload and isinstance(ev.payload["payload"], dict):
+                    role = ev.payload["payload"].get("role")
+                else:
+                    role = ev.payload.get("role")
+            if role:
+                active_castes.discard(role)
+        elif et == "turn.started":
+            phase = "active"
+        elif et == "turn.completed" or et == "turn.failed":
+            phase = "idle"
+            
+    last_event_id = events[-1].id if events else 0
+            
     return JSONResponse(
         content={
             "status": "online",
             "pending_events": pending,
-            "phase": "idle", # Default to idle, state machines derive phase from events
-            "active_castes": [], # Truthfully pulled from recent worker.started/dissolved
+            "phase": phase,
+            "active_castes": list(active_castes),
+            "last_event_id": last_event_id,
             "knowledge": [], # Can be populated from recent semantic recall
             "boot_facts": {
                 "version": version,
@@ -68,15 +101,20 @@ def get_snapshot(
     )
 
 
+from fastapi import Query
+
 @router.get("/stream")
 async def stream_journal(
     request: Request,
-    last_event_id: Optional[int] = Header(None, alias="Last-Event-ID"),
+    last_event_id_header: Optional[int] = Header(None, alias="Last-Event-ID"),
+    last_event_id_query: Optional[int] = Query(None, alias="last_event_id"),
     bus: Optional[CortexBus] = Depends(get_cortex_bus)
 ) -> StreamingResponse:
     """Stream the durable cortex journal (Last-Event-ID recovery + heartbeat)."""
     if bus is None:
         raise ValueError("CORTEX_BUS must be enabled to stream the journal")
+        
+    last_event_id = last_event_id_header if last_event_id_header is not None else last_event_id_query
 
     async def _event_generator() -> AsyncGenerator[str, None]:
         queue: asyncio.Queue[BusEvent] = asyncio.Queue()

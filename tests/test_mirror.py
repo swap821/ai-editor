@@ -66,6 +66,32 @@ def test_mirror_snapshot_online(mock_cortex_bus):
         app.dependency_overrides.clear()
 
 
+def test_mirror_snapshot_projects_truthful_state():
+    bus = MagicMock()
+    bus.pending_count.return_value = 0
+    
+    # Simulate a history: turn starts, worker A starts, worker B starts, worker A dissolves.
+    # Resulting state should be phase="active", active_castes=["worker_b"]
+    bus.fetch_since.return_value = [
+        BusEvent(id=1, event_type="turn.started", signature="test", payload={"eventType": "turn.started"}),
+        BusEvent(id=2, event_type="worker.started", signature="test", payload={"eventType": "worker.started", "payload": {"role": "worker_a"}}),
+        BusEvent(id=3, event_type="worker.started", signature="test", payload={"eventType": "worker.started", "payload": {"role": "worker_b"}}),
+        BusEvent(id=4, event_type="worker.dissolved", signature="test", payload={"eventType": "worker.dissolved", "payload": {"role": "worker_a"}}),
+    ]
+    
+    app.dependency_overrides[get_cortex_bus] = lambda: bus
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.get("/api/v1/mirror/snapshot")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["phase"] == "active"
+            assert set(data["active_castes"]) == {"worker_b"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+
 def test_mirror_stream_requires_bus():
     app.dependency_overrides[get_cortex_bus] = lambda: None
     try:

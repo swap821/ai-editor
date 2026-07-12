@@ -17,17 +17,24 @@ export async function startMirrorClient(): Promise<void> {
     return; // Already started
   }
 
+  let lastEventId: number | null = null;
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/mirror/snapshot`);
     if (res.ok) {
       const data = await res.json();
       useMirrorStore.getState().setSnapshot(data);
+      if (data.last_event_id !== undefined) {
+        lastEventId = data.last_event_id;
+      }
     }
   } catch (err) {
     console.warn('Failed to fetch mirror snapshot', err);
   }
 
-  const es = new EventSource(`${AIOS_BASE}/api/v1/mirror/stream`);
+  const streamUrl = lastEventId !== null 
+    ? `${AIOS_BASE}/api/v1/mirror/stream?last_event_id=${lastEventId}`
+    : `${AIOS_BASE}/api/v1/mirror/stream`;
+  const es = new EventSource(streamUrl);
   mirrorEventSource = es;
 
   es.onopen = () => {
