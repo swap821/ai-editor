@@ -83,15 +83,18 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_session_manager,
     get_executor,
     get_approval_store,
+    get_policy_kernel,
     get_rollback_engine,
     get_self_apply_engine,
     get_edit_snapshot,
     _session_id_from_request,
     _APPROVALS,
     _RATE_LIMITER,
+    _POLICY_KERNEL,
     _SESSION_MANAGER,
 )
 from aios.interfaces.http import edge_security
+from aios.policy.kernel import RouteAuthority
 from aios.core import catalog, router, telemetry
 from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
@@ -426,137 +429,23 @@ async def require_browser_or_token_for_mutations(request: Request, call_next):
 _RATE_LIMIT_WINDOW_S = 60.0
 
 
-@dataclass(frozen=True)
-class RouteAuthority:
-    authority_class: str
-    rate_limit_per_minute: int
-    actor_source: str
-    confirm_required: bool = False
-    audit_event: str = ""
-    body_limit_bytes: int | None = None
-
-
-_ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
-    "/api/v1/approval/req": RouteAuthority("YELLOW", 10, "session", audit_event="approval_decision"),
-    "/api/v1/execute": RouteAuthority("YELLOW", 30, "session", audit_event="approved_execute"),
-    "/api/terminal": RouteAuthority("YELLOW", 20, "session", audit_event="terminal_command"),
-    # Council origination/decisions: IP-keyed cap (the per-session throttle is
-    # spoofable by varying sessionId) - bounds mission/worker spawn floods.
-    "/api/v1/council/missions": RouteAuthority("YELLOW", 20, "session", audit_event="council_mission"),
-    "/api/v1/council/approve": RouteAuthority("YELLOW", 30, "session", audit_event="council_approve"),
-    "/api/v1/council/reject": RouteAuthority("YELLOW", 30, "session", audit_event="council_reject"),
-    "/api/v1/voice/transcribe": RouteAuthority("YELLOW", 30, "session", audit_event="voice_transcribe"),
-    "/api/v1/voice/speak": RouteAuthority("YELLOW", 60, "session", audit_event="voice_speak"),
-    "/api/v1/policy/propose": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_propose"),
-    "/api/v1/policy/{policy_id}/vote": RouteAuthority("YELLOW", 20, "server-session", audit_event="policy_vote"),
-    "/api/v1/policy/{policy_id}/enact": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_enact"),
-    "/api/v1/policy/{policy_id}/suspend": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_suspend"),
-    "/api/v1/audit/anchor/verify": RouteAuthority("YELLOW", 20, "server-session", audit_event="audit_anchor_verify"),
-    "/api/v1/pheromones/deposit": RouteAuthority("YELLOW", 60, "server-session", audit_event="pheromone_deposit"),
-    "/api/v1/pheromones/reinforce": RouteAuthority("YELLOW", 60, "server-session", audit_event="pheromone_reinforce"),
-    "/api/v1/pheromones/decay": RouteAuthority("YELLOW", 5, "server-session", audit_event="pheromone_decay"),
-    "/api/v1/runtime/surface/emit": RouteAuthority("YELLOW", 60, "server-session", audit_event="surface_emit"),
-    "/api/v1/runtime/surface/{signal_id}": RouteAuthority("YELLOW", 30, "server-session", audit_event="surface_revoke"),
-    "/api/v1/runtime/surface/sweep": RouteAuthority("YELLOW", 5, "server-session", audit_event="surface_sweep"),
-    "/api/v1/runtime/rollbacks/register": RouteAuthority("YELLOW", 30, "server-session", audit_event="rollback_register"),
-    "/api/v1/runtime/rollbacks/prune": RouteAuthority("YELLOW", 5, "server-session", audit_event="rollback_prune"),
-    "/api/v1/v10/vulture/scan": RouteAuthority(
-        "YELLOW",
-        5,
-        "server-session",
-        audit_event="v10_vulture_scan",
-        body_limit_bytes=128_000,
-    ),
-    "/api/v1/v10/ecosystem/scan": RouteAuthority(
-        "YELLOW",
-        5,
-        "server-session",
-        audit_event="v10_ecosystem_scan",
-        body_limit_bytes=32_000,
-    ),
-    "/api/v1/system/restart": RouteAuthority(
-        "RED",
-        3,
-        "server-session",
-        confirm_required=True,
-        audit_event="system_restart",
-    ),
-    "/api/v1/security/tokens/rotate": RouteAuthority(
-        "YELLOW",
-        3,
-        "server-session",
-        confirm_required=True,
-        audit_event="audit_key_rotate",
-    ),
-    "/api/v1/security/sandbox/clear": RouteAuthority(
-        "RED",
-        10,
-        "server-session",
-        confirm_required=True,
-        audit_event="sandbox_clear",
-    ),
-}
-_RATE_LIMIT_ENDPOINTS: dict[str, int] = {
-    path: meta.rate_limit_per_minute for path, meta in _ROUTE_AUTHORITY.items()
-}
-_ROUTE_TEMPLATE_PARAM_RE = re.compile(r"\{[^}/]+\}")
-_RATE_LIMIT_ROUTE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
-    (
-        path,
-        re.compile(
-            "^"
-            + _ROUTE_TEMPLATE_PARAM_RE.sub(
-                "[^/]+",
-                re.escape(path).replace(r"\{", "{").replace(r"\}", "}"),
-            )
-            + "$"
-        ),
-    )
-    for path in _RATE_LIMIT_ENDPOINTS
-    if "{" in path and "}" in path
-)
-_RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
-_RATE_LIMIT_LOCK = threading.Lock()
+# Route authority and per-endpoint rate limiting are owned by the PolicyKernel.
+# Force lazy initialization now (this module is the runtime assembly point).
+_POLICY_KERNEL = get_policy_kernel()
+# Keep backward-compatible aliases so existing tests can import them from main.
+_ROUTE_AUTHORITY = _POLICY_KERNEL.route_table
+_RATE_LIMIT_ENDPOINTS = _POLICY_KERNEL.rate_limit_endpoints
+_RATE_LIMIT_HITS = _POLICY_KERNEL.endpoint_hits
 
 
 def _rate_limited_route_path(request: Request) -> str | None:
     """Return the literal or templated route key used by the rate limiter."""
-    path = request.url.path
-    if path in _RATE_LIMIT_ENDPOINTS:
-        return path
-
-    for route_path, route_pattern in _RATE_LIMIT_ROUTE_PATTERNS:
-        if route_pattern.fullmatch(path):
-            return route_path
-    return None
+    return _POLICY_KERNEL.rate_limited_route_path(request.url.path)
 
 
 def _check_endpoint_rate_limit(path: str, client_ip: str) -> None:
-    """Raise HTTP 429 if *client_ip* exceeds the per-minute cap for *path*.
-
-    A simple monotonic sliding window keyed by ``path|ip``. Best-effort and
-    in-process; intended to slow brute-force on approval tokens and noisy
-    execute/terminal endpoints.
-    """
-    cap = _RATE_LIMIT_ENDPOINTS.get(path)
-    if cap is None:
-        return
-    key = f"{path}|{client_ip}"
-    now = time.monotonic()
-    cutoff = now - _RATE_LIMIT_WINDOW_S
-    with _RATE_LIMIT_LOCK:
-        hits = [t for t in _RATE_LIMIT_HITS.get(key, []) if t[1] > cutoff]
-        if len(hits) >= cap:
-            _RATE_LIMIT_HITS[key] = hits
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    f"Rate limit exceeded for {path}. "
-                    f"Limit is {cap} per {int(_RATE_LIMIT_WINDOW_S)}s."
-                ),
-            )
-        hits.append((key, now))
-        _RATE_LIMIT_HITS[key] = hits
+    """Backward-compatible alias for the kernel's endpoint rate-limit check."""
+    return _POLICY_KERNEL.check_endpoint_rate_limit(path, client_ip)
 
 
 @app.middleware("http")
@@ -565,10 +454,9 @@ async def endpoint_rate_limit(request: Request, call_next):
     if request.method != "OPTIONS":
         path = _rate_limited_route_path(request)
         if path is not None:
-            # Use the same IP extraction logic as the auth middleware.
             client_ip = edge_security.real_client_ip(request)
             try:
-                _check_endpoint_rate_limit(path, client_ip)
+                _POLICY_KERNEL.check_endpoint_rate_limit(path, client_ip)
             except HTTPException:
                 return JSONResponse(
                     status_code=429,

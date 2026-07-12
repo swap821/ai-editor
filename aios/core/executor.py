@@ -41,9 +41,7 @@ from aios.security.audit_logger import log_action
 from aios.security.gateway import (
     RateLimiter,
     Zone,
-    classify,
     reset_sensitive_actions,
-    validate_command,
 )
 
 #: Environment variables whose *names* indicate a secret; stripped from children.
@@ -483,13 +481,18 @@ class Executor:
         runner: Optional[Runner] = None,
         approved_runner: Optional[Runner] = None,
         rate_limiter: Optional[RateLimiter] = None,
+        policy_kernel: Optional["PolicyKernel"] = None,
         timeout_s: int = 30,
         actor: str = "executor",
         audit_log: Optional[Callable[..., object]] = None,
     ) -> None:
+        # Imported lazily to break the api-deps -> executor -> policy cycle.
+        from aios.policy.kernel import PolicyKernel
+
         self.runner: Runner = runner or _default_runner
         self.approved_runner = approved_runner
         self.rate_limiter = rate_limiter
+        self.policy_kernel = policy_kernel or PolicyKernel(rate_limiter=self.rate_limiter)
         self.timeout_s = timeout_s
         self.actor = actor
         #: Audit sink; defaults to the real tamper-evident ledger. Injectable so
@@ -519,21 +522,21 @@ class Executor:
         requiring approval and never run here (use the approval flow); a GREEN
         command runs inside the configured scope. Every outcome is audited.
         """
-        if len(command) > max(config.MAX_COMMAND_CHARS, 1):
-            reason = f"[SECURITY BLOCK] command exceeds {config.MAX_COMMAND_CHARS} character limit"
-            self._audit(self.actor, reason, Zone.RED)
-            return ExecutionResult(
-                status="BLOCKED",
-                zone=Zone.RED.value,
-                command="",
-                reason=reason,
-            )
-        decision = validate_command(
-            command, session_id=session_id, rate_limiter=self.rate_limiter
-        )
+        decision = self.policy_kernel.evaluate_action(command, session_id=session_id)
 
-        if decision.status == "BLOCK":
-            self._audit(self.actor, f"BLOCKED: {command}", Zone.RED)
+        if decision.blocked:
+            # Size blocks are treated specially: never echo the oversized payload
+            # back in the result or audit log.
+            if "character limit" in decision.reason:
+                reason = f"[SECURITY BLOCK] {decision.reason}"
+                self._audit(self.actor, reason, Zone.RED)
+                return ExecutionResult(
+                    status="BLOCKED",
+                    zone=Zone.RED.value,
+                    command="",
+                    reason=reason,
+                )
+            self._audit(self.actor, f"BLOCKED: {command}", decision.zone)
             return ExecutionResult(
                 status="BLOCKED",
                 zone=decision.zone.value,
@@ -541,8 +544,8 @@ class Executor:
                 reason=decision.reason,
             )
 
-        if decision.status == "REQUIRE_HUMAN":
-            self._audit(self.actor, f"ESCALATED: {command}", Zone.YELLOW)
+        if decision.requires_approval:
+            self._audit(self.actor, f"ESCALATED: {command}", decision.zone)
             return ExecutionResult(
                 status="REQUIRE_APPROVAL",
                 zone=decision.zone.value,
@@ -550,9 +553,9 @@ class Executor:
                 reason=decision.reason,
             )
 
-        # GREEN -> ALLOW: run it inside the configured scope.
-        self._audit(self.actor, f"EXECUTING: {command}", Zone.GREEN)
-        return self._run_in_sandbox(command, Zone.GREEN)
+        # GREEN (or earned-autonomy YELLOW) -> ALLOW: run it inside the configured scope.
+        self._audit(self.actor, f"EXECUTING: {command}", decision.zone)
+        return self._run_in_sandbox(command, decision.zone)
 
     def execute_approved(self, command: str) -> ExecutionResult:
         """Run a command that a human has explicitly approved.
@@ -562,23 +565,28 @@ class Executor:
         approval. GREEN/YELLOW commands are audited as approved and run inside
         the configured scope.
         """
-        if len(command) > max(config.MAX_COMMAND_CHARS, 1):
-            reason = f"Approved command exceeds {config.MAX_COMMAND_CHARS} character limit"
-            self._audit(self.actor, reason, Zone.RED)
-            return ExecutionResult("BLOCKED", Zone.RED.value, "", reason=reason)
-        result = classify(command)
-        if result.zone is Zone.RED:
+        decision = self.policy_kernel.evaluate_approved(command)
+        if decision.blocked:
+            if "character limit" in decision.reason:
+                reason = f"[SECURITY BLOCK] {decision.reason}"
+                self._audit(self.actor, reason, Zone.RED)
+                return ExecutionResult(
+                    status="BLOCKED",
+                    zone=Zone.RED.value,
+                    command="",
+                    reason=reason,
+                )
             self._audit(self.actor, f"APPROVAL DENIED (RED): {command}", Zone.RED)
             return ExecutionResult(
                 status="BLOCKED",
                 zone=Zone.RED.value,
                 command=command,
-                reason=f"Human approval cannot authorise a RED action: {result.reason}",
+                reason=decision.reason,
             )
-        self._audit(self.actor, f"APPROVED+EXECUTING: {command}", result.zone)
+        self._audit(self.actor, f"APPROVED+EXECUTING: {command}", decision.zone)
         return self._run_in_sandbox(
             command,
-            result.zone,
+            decision.zone,
             runner=self.approved_runner or self.runner,
             isolated=self.approved_runner is not None,
         )

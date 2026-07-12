@@ -285,6 +285,7 @@ def get_alignment_interpreter(
 # --------------------------------------------------------------------------- #
 _APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
+_POLICY_KERNEL: Optional["PolicyKernel"] = None
 
 #: Server-side session manager with httpOnly cookie support.
 #: Sessions are stored by SHA-256 hash only; the raw ID never leaves the server
@@ -326,6 +327,17 @@ def get_executor() -> Executor:
 def get_approval_store() -> ApprovalStore:
     """Provide the durable local multi-worker approval capability store."""
     return _APPROVALS
+
+
+def get_policy_kernel() -> "PolicyKernel":
+    """Provide the runtime policy kernel singleton."""
+    global _POLICY_KERNEL
+    if _POLICY_KERNEL is None:
+        # Imported lazily to break the policy -> edge_security -> deps cycle.
+        from aios.policy.kernel import PolicyKernel
+
+        _POLICY_KERNEL = PolicyKernel(rate_limiter=_RATE_LIMITER, autonomy_ledger=AutonomyLedger())
+    return _POLICY_KERNEL
 
 
 def get_rollback_engine() -> RollbackEngine:
@@ -428,6 +440,7 @@ __all__ = [
     "get_session_manager",
     "get_executor",
     "get_approval_store",
+    "get_policy_kernel",
     "get_rollback_engine",
     "get_self_apply_engine",
     "get_edit_snapshot",
