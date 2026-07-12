@@ -1,6 +1,7 @@
 """Policy Kernel -- single authority facade for request, action, and feature policy."""
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
@@ -11,9 +12,11 @@ from fastapi import HTTPException, Request
 from starlette.responses import JSONResponse
 
 from aios import config
+from aios.core import router
 from aios.core.autonomy import AutonomyLedger
 from aios.interfaces.http import edge_security
 from aios.policy.constitution import Constitution, build_constitution
+from aios.runtime import profiles
 from aios.security.gateway import GatewayDecision, RateLimiter, Zone, classify, validate_command
 
 
@@ -117,6 +120,8 @@ class PolicyKernel:
         self._endpoint_hits: dict[str, list[tuple[str, float]]] = {}
         self._endpoint_hits_lock = threading.Lock()
         self._window_s = 60.0
+        self._active_profile: Optional[profiles.RuntimeProfile] = None
+        self._active_profile_lock = threading.Lock()
 
     @property
     def route_table(self) -> dict[str, RouteAuthority]:
@@ -209,7 +214,9 @@ class PolicyKernel:
         if decision.status == "BLOCK":
             return AuthorityDecision(blocked=True, zone=decision.zone, reason=decision.reason, command=command)
         if decision.status == "REQUIRE_HUMAN":
-            if self.autonomy.is_earned("command", command):
+            if self.autonomy.is_earned(
+                "command", command, enabled=self.earned_autonomy_enabled()
+            ):
                 return AuthorityDecision(allowed=True, zone=decision.zone, reason="earned autonomy", command=command)
             return AuthorityDecision(requires_approval=True, zone=decision.zone, reason=decision.reason, command=command)
         return AuthorityDecision(allowed=True, zone=decision.zone, reason=decision.reason, command=command)
@@ -246,6 +253,107 @@ class PolicyKernel:
     def constitution_snapshot(self) -> Constitution:
         """Return the current constitutional snapshot."""
         return self.constitution
+
+    # ------------------------------------------------------------------ #
+    # Runtime profile authority
+    # ------------------------------------------------------------------ #
+    def active_runtime_profile(self) -> profiles.RuntimeProfile:
+        """Return the active runtime profile, resolving env var and persisted state.
+
+        The active profile is cached on the kernel. Unknown names fall back to
+        the built-in ``local-first`` profile so the process never starts without
+        a valid operating mode.
+        """
+        if self._active_profile is not None:
+            return self._active_profile
+        with self._active_profile_lock:
+            if self._active_profile is not None:
+                return self._active_profile
+            env_name = (
+                os.environ.get("AIOS_RUNTIME_PROFILE", profiles.default_profile_name())
+                .strip()
+                .lower()
+            )
+            persisted = profiles.load_active_profile_name()
+            name = persisted or env_name
+            profile = profiles.get_profile(name)
+            if profile is None:
+                profile = profiles.get_profile(profiles.default_profile_name())
+            if profile is None and profiles.RUNTIME_PROFILES:
+                profile = next(iter(profiles.RUNTIME_PROFILES.values()))
+            self._active_profile = profile
+            return self._active_profile
+
+    def load_runtime_profile(self, name: str) -> profiles.RuntimeProfile:
+        """Look up a built-in runtime profile by name.
+
+        Raises ``ValueError`` if the profile is unknown.
+        """
+        profile = profiles.get_profile(name)
+        if profile is None:
+            raise ValueError(f"Unknown runtime profile: {name!r}")
+        return profile
+
+    def list_runtime_profiles(self) -> list[str]:
+        """Return the names of all built-in runtime profiles."""
+        return profiles.list_profile_names()
+
+    def save_runtime_profile(self, profile: profiles.RuntimeProfile) -> None:
+        """Persist *profile* as the active profile and invalidate the cache."""
+        profiles.save_active_profile(profile)
+        with self._active_profile_lock:
+            self._active_profile = profile
+
+    def cloud_tasks_allowed(self, task: str) -> bool:
+        """Return True if *task* may be routed to a cloud provider."""
+        return self.active_runtime_profile().cloud_task_allowed(task)
+
+    def earned_autonomy_enabled(self) -> bool:
+        """Return whether earned autonomy is enabled in the active profile."""
+        return self.active_runtime_profile().earned_autonomy
+
+    def execution_backend(self) -> str:
+        """Return the execution backend configured by the active profile."""
+        return self.active_runtime_profile().execution_backend
+
+    def offline_mode(self) -> bool:
+        """Return whether the active profile forces offline operation."""
+        return self.active_runtime_profile().offline_mode
+
+    def router_policy(self) -> router.Policy:
+        """Build the cross-provider routing policy from the active profile."""
+        profile = self.active_runtime_profile()
+        return router.Policy(
+            cloud_tasks=frozenset(profile.router_cloud_tasks),
+            max_cost=profile.router_max_cost,
+            prefer_local=profile.router_prefer_local,
+        )
+
+    def runtime_profile_decisions(self) -> dict[str, Any]:
+        """Return a read-only summary of the active profile and resolved decisions."""
+        profile = self.active_runtime_profile()
+        return {
+            "name": profile.name,
+            "description": profile.description,
+            "execution_backend": profile.execution_backend,
+            "earned_autonomy": profile.earned_autonomy,
+            "router_cloud_tasks": list(profile.router_cloud_tasks),
+            "router_prefer_local": profile.router_prefer_local,
+            "router_max_cost": profile.router_max_cost,
+            "swarm_cloud_burst": profile.swarm_cloud_burst,
+            "offline_mode": profile.offline_mode,
+            "resource_mode": profile.resource_mode,
+            "plan_stage": profile.plan_stage,
+            "narrative_self": profile.narrative_self,
+            "facts_auto_extract": profile.facts_auto_extract,
+            "pheromone_enabled": profile.pheromone_enabled,
+            "queen_enabled": profile.queen_enabled,
+            "live_surface": profile.live_surface,
+            "cloud_tasks_allowed": {
+                task: profile.cloud_task_allowed(task)
+                for task in ("reasoning", "coding", "browse", "swarm")
+            },
+        }
 
     def execution_policy(self, approved: bool) -> ExecutionPolicy:
         """Return the execution backend and isolation level for an action.
@@ -304,9 +412,38 @@ class PolicyKernel:
         return validate_approved_execution_backend()
 
 
+_KERNEL: Optional[PolicyKernel] = None
+_KERNEL_LOCK = threading.Lock()
+
+
+def get_policy_kernel(
+    rate_limiter: RateLimiter | None = None,
+    autonomy_ledger: AutonomyLedger | None = None,
+    constitution: Constitution | None = None,
+) -> PolicyKernel:
+    """Return the process-wide ``PolicyKernel`` singleton.
+
+    The first caller sets the concrete dependencies; subsequent callers receive
+    the same instance. The default rate limiter is multi-process safe via the
+    shared approvals database path.
+    """
+    global _KERNEL
+    if _KERNEL is None:
+        with _KERNEL_LOCK:
+            if _KERNEL is None:
+                _KERNEL = PolicyKernel(
+                    rate_limiter=rate_limiter
+                    or RateLimiter(db_path=config.APPROVAL_DB_PATH),
+                    autonomy_ledger=autonomy_ledger or AutonomyLedger(),
+                    constitution=constitution,
+                )
+    return _KERNEL
+
+
 __all__ = [
     "AuthorityDecision",
     "ExecutionPolicy",
     "PolicyKernel",
     "RouteAuthority",
+    "get_policy_kernel",
 ]
