@@ -18,6 +18,11 @@ def sanitize_path(base_dir: Path, target: str) -> Path:
     Raises:
         ValueError: If the target attempts to escape the base_dir.
     """
+    target_str = str(target)
+    parts = target_str.replace("\\", "/").split("/")
+    if ".." in parts:
+        raise ValueError("Path traversal detected")
+        
     safe_base = os.path.realpath(str(base_dir))
     target_real = os.path.realpath(os.path.join(safe_base, str(target)))
 

@@ -27,7 +27,9 @@ async function postJson(path, body = {}) {
 export default function SettingsPanel({ onClose }) {
   const [provider, setProvider] = useState('Ollama');
   const [autonomy, setAutonomy] = useState(true);
-  const [theme, setTheme] = useState('Superbrain');
+  const [theme, setTheme] = useState(() => localStorage.getItem('ag_ui_theme') || 'Superbrain');
+  const [providerSource, setProviderSource] = useState('db');
+  const [autonomySource, setAutonomySource] = useState('db');
 
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -38,7 +40,8 @@ export default function SettingsPanel({ onClose }) {
       .then((data) => {
         if (data.provider) setProvider(data.provider);
         if (typeof data.autonomy === 'boolean') setAutonomy(data.autonomy);
-        if (data.theme) setTheme(data.theme);
+        if (data.provider_source) setProviderSource(data.provider_source);
+        if (data.autonomy_source) setAutonomySource(data.autonomy_source);
       })
       .catch((err) => {
         if (err?.name !== 'AbortError') setLoadError('Could not load current settings; showing defaults.');
@@ -59,7 +62,7 @@ export default function SettingsPanel({ onClose }) {
         {loadError && (
           <p style={{ fontSize: '11px', color: 'var(--danger)', margin: 0 }}>{loadError}</p>
         )}
-
+        
         {/* LLM Provider */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -67,9 +70,11 @@ export default function SettingsPanel({ onClose }) {
             <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LLM Provider</strong>
           </div>
           <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', marginBottom: '8px' }}>
-            Controlled by .env file (AIOS_LLM_MODEL, AIOS_BEDROCK_MODEL, AIOS_GEMINI_MODEL)
+            {providerSource === 'env' 
+              ? 'Hardcoded by .env file (AIOS_LLM_MODEL, AIOS_BEDROCK_MODEL, AIOS_GEMINI_MODEL)' 
+              : 'Requires backend restart to take effect'}
           </div>
-          <div style={{ display: 'flex', gap: '8px', opacity: 0.5, pointerEvents: 'none' }}>
+          <div style={{ display: 'flex', gap: '8px', opacity: providerSource === 'env' ? 0.5 : 1, pointerEvents: providerSource === 'env' ? 'none' : 'auto' }}>
             {['Ollama', 'Bedrock', 'Gemini'].map(p => (
               <button
                 key={p}
@@ -98,9 +103,11 @@ export default function SettingsPanel({ onClose }) {
             <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Earned Autonomy</strong>
           </div>
           <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', marginBottom: '8px' }}>
-            Controlled by .env file (AIOS_EARNED_AUTONOMY)
+            {autonomySource === 'env' 
+              ? 'Hardcoded by .env file (AIOS_EARNED_AUTONOMY)' 
+              : 'Requires backend restart to take effect'}
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'not-allowed', opacity: 0.5 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: autonomySource === 'env' ? 'not-allowed' : 'pointer', opacity: autonomySource === 'env' ? 0.5 : 1 }}>
             <div style={{
               width: '40px',
               height: '20px',
@@ -121,12 +128,12 @@ export default function SettingsPanel({ onClose }) {
                 transition: 'left 0.2s'
               }} />
             </div>
-            <input
-              type="checkbox"
+            <input 
+              type="checkbox" 
               checked={autonomy}
               onChange={(e) => setAutonomy(e.target.checked)}
               style={{ display: 'none' }}
-              disabled
+              disabled={autonomySource === 'env'}
             />
             <span style={{ fontSize: '12px', color: autonomy ? '#e9d8fd' : 'var(--muted-foreground)' }}>
               {autonomy ? 'ENABLED (YELLOW allowed)' : 'DISABLED (GREEN only)'}
@@ -140,9 +147,12 @@ export default function SettingsPanel({ onClose }) {
             <Sliders size={14} style={{ color: 'var(--ag-text-amber)' }} />
             <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>UI Theme</strong>
           </div>
-          <select
+          <select 
             value={theme}
-            onChange={(e) => setTheme(e.target.value)}
+            onChange={(e) => {
+              setTheme(e.target.value);
+              localStorage.setItem('ag_ui_theme', e.target.value);
+            }}
             style={{
               width: '100%',
               padding: '8px',
@@ -159,9 +169,9 @@ export default function SettingsPanel({ onClose }) {
             <option value="Minimal">Minimal Chrome</option>
           </select>
         </div>
-
+        
         <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
+          <button 
             disabled={busy}
             style={{
               background: 'transparent',
@@ -189,8 +199,8 @@ export default function SettingsPanel({ onClose }) {
           >
             <Power size={14} /> Restart Backend
           </button>
-
-          <button
+          
+          <button 
             disabled={busy}
             style={{
               background: 'rgba(255, 255, 255, 0.1)',
@@ -200,11 +210,11 @@ export default function SettingsPanel({ onClose }) {
               borderRadius: '4px',
               fontSize: '12px',
               cursor: 'pointer'
-            }}
+            }} 
             onClick={async () => {
               setBusy(true);
               try {
-                await postJson('/api/v1/system/config', { provider, autonomy, theme });
+                await postJson('/api/v1/system/config', { provider, autonomy });
                 onClose();
               } catch (err) {
                 alert('Save config failed: ' + err.message);

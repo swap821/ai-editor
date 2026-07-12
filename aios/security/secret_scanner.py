@@ -33,7 +33,7 @@ _ENTROPY_THRESHOLD: float = 4.0
 _SLIDE_WINDOW_MIN: int = 20
 _SLIDE_WINDOW_MAX: int = 80
 #: Fraction of window chars that must be in the base64 alphabet to qualify.
-_SLIDE_BASE64_RATIO: float = 0.80
+_SLIDE_BASE64_RATIO: float = 0.95
 
 #: Keywords that strengthen confidence when found near a candidate secret.
 _CONTEXT_SECRET_KEYWORDS: tuple[str, ...] = (
@@ -93,7 +93,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── Anthropic API keys (sk-ant-api03-…, sk-ant-api04-…, etc.). ──────────
     ("ANTHROPIC_API_KEY", re.compile(r"\bsk-ant-api[0-9]{2}-[A-Za-z0-9_-]{32,}\b")),
     # ── Bearer tokens ───────────────────────────────────────────────────────
-    ("BEARER_TOKEN", re.compile(r"\bBearer\s+[A-Za-z0-9\-._~+/]+=*")),
+    ("BEARER_TOKEN", re.compile(r"\bBearer\s+[A-Za-z0-9\-._~+/]{20,}=*")),
     # ── AWS Secret Keys (40-char base64; only flagged with AWS context).
     #: Placed AFTER more specific provider patterns so it only acts as a
     #: catch-all fallback for genuine AWS secret material.
@@ -107,7 +107,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     (
         "DATABASE_URL",
         re.compile(
-            r"\b(?:postgres|mysql|mongodb|redis)://[^:]+:[^@]+@\b",
+            r"\b(?:postgres|mysql|mongodb|redis)://[^:\s]*:[^@\s]+@\b",
             re.IGNORECASE,
         ),
     ),
@@ -115,7 +115,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     (
         "CONNECTION_STRING",
         re.compile(
-            r"\b[A-Za-z]+(?:\+\w+)?://[^:]+:[^@]+@\b"
+            r"\b[A-Za-z]+(?:\+\w+)?://[^:\s]*:[^@\s]+@\b"
         ),
     ),
     # ── Generic API-key assignment patterns ─────────────────────────────────
@@ -206,7 +206,16 @@ def _has_secret_context(payload: str, position: int, radius: int = 50) -> bool:
     """
     start = max(0, position - radius)
     end = min(len(payload), position + radius)
+    
+    # Expand to word boundaries to avoid chopping safe compound words (like 'fastapi')
+    while start > 0 and payload[start - 1].isalnum():
+        start -= 1
+    while end < len(payload) and payload[end].isalnum():
+        end += 1
+        
     context = payload[start:end].lower()
+    # Mask out known safe compounds that contain 'api' to prevent false positive context flags
+    context = context.replace("fastapi", "").replace("openapi", "")
     return any(kw in context for kw in _CONTEXT_SECRET_KEYWORDS)
 
 

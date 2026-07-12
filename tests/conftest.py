@@ -26,6 +26,15 @@ from pathlib import Path
 from uuid import uuid4
 import _pytest.pathlib as pytest_pathlib
 
+# Patch TestClient to always include a local Origin so mutation protection allows it
+from fastapi.testclient import TestClient
+_original_testclient_init = TestClient.__init__
+def _patched_testclient_init(self, *args, **kwargs):
+    _original_testclient_init(self, *args, **kwargs)
+    if "Origin" not in self.headers:
+        self.headers["Origin"] = "http://localhost:5173"
+TestClient.__init__ = _patched_testclient_init
+
 if os.name == "nt":
     _original_make_numbered_dir = pytest_pathlib.make_numbered_dir
 

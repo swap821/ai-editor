@@ -288,6 +288,22 @@ def test_plain_english_is_not_flagged_as_secret() -> None:
     assert scan_and_redact("the quick brown fox jumps over the lazy dog").detected is False
 
 
+def test_fastapi_openapi_prose_is_not_flagged_as_secret() -> None:
+    # A random-looking token with '=' characters so Pass 2 (which ignores '=') splits it.
+    # Pass 3 (sliding window) will evaluate it and use _has_secret_context.
+    # We make sure it has high entropy.
+    token = "Zx9Qw3Vb7N=Kp5Rt8Ld1Gf6Hs4Jc=0Ay7Bn3Eu2Xy8"
+    assert shannon_entropy(token.replace("=", "")) > 4.0
+    # The word 'fastapi' contains 'api', which used to trigger the context check.
+    # The fix ensures 'fastapi' and 'openapi' do not falsely flag 'api'.
+    result = scan_and_redact(f"We build a FastAPI application with this identifier: {token}")
+    assert result.detected is False
+    
+    # But if there's a real context keyword like 'secret', it should still be caught.
+    result_real = scan_and_redact(f"We build a FastAPI application with this secret: {token}")
+    assert result_real.detected is True
+
+
 @pytest.mark.parametrize(
     "name,token",
     [

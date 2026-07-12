@@ -25,6 +25,10 @@ def test_get_system_config_returns_defaults_when_unset(client, tmp_path, monkeyp
     monkeypatch.setattr(
         "aios.api.routes.system._SETTINGS_PATH", tmp_path / "system_settings.json"
     )
+    monkeypatch.delenv("AIOS_EARNED_AUTONOMY", raising=False)
+    monkeypatch.delenv("AIOS_LLM_MODEL", raising=False)
+    monkeypatch.delenv("AIOS_BEDROCK_MODEL", raising=False)
+    monkeypatch.delenv("AIOS_GEMINI_MODEL", raising=False)
 
     resp = client.get("/api/v1/system/config")
 
@@ -32,16 +36,19 @@ def test_get_system_config_returns_defaults_when_unset(client, tmp_path, monkeyp
     body = resp.json()
     assert body["provider"] == "Ollama"
     assert body["autonomy"] is True
-    assert body["theme"] == "Superbrain"
 
 
 def test_post_system_config_persists_and_get_reflects_it(client, tmp_path, monkeypatch) -> None:
     settings_path = tmp_path / "system_settings.json"
     monkeypatch.setattr("aios.api.routes.system._SETTINGS_PATH", settings_path)
+    monkeypatch.delenv("AIOS_EARNED_AUTONOMY", raising=False)
+    monkeypatch.delenv("AIOS_LLM_MODEL", raising=False)
+    monkeypatch.delenv("AIOS_BEDROCK_MODEL", raising=False)
+    monkeypatch.delenv("AIOS_GEMINI_MODEL", raising=False)
 
     resp = client.post(
         "/api/v1/system/config",
-        json={"provider": "Gemini", "autonomy": False, "theme": "Dark"},
+        json={"provider": "Gemini", "autonomy": False},
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "saved"
@@ -51,7 +58,6 @@ def test_post_system_config_persists_and_get_reflects_it(client, tmp_path, monke
     body = resp2.json()
     assert body["provider"] == "Gemini"
     assert body["autonomy"] is False
-    assert body["theme"] == "Dark"
 
 
 def test_post_system_config_rejects_missing_fields(client) -> None:

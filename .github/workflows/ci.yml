@@ -16,9 +16,11 @@ concurrency:
 
 jobs:
   backend:
-    # windows-latest reproduces the project's known-green dev platform
-    # (the 1 documented skip is the Windows symlink-privilege case).
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
 

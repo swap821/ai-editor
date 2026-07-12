@@ -803,7 +803,7 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
 
     session_id = f"prove-it-scripted-{uuid.uuid4().hex[:12]}"
     try:
-        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+        with TestClient(app, client=("127.0.0.1", 12345), headers={"Sec-Fetch-Site": "same-origin"}) as client:
             directive = DEMO_DIRECTIVE
             body = {
                 "messages": [{"role": "user", "content": [{"text": directive}]}],

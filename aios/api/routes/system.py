@@ -227,14 +227,12 @@ _SETTINGS_PATH = config.DATA_DIR / "system_settings.json"
 _DEFAULT_SETTINGS: dict[str, Any] = {
     "provider": "Ollama",
     "autonomy": True,
-    "theme": "Superbrain",
 }
 
 
 class SystemConfigRequest(BaseModel):
     provider: str = Field(..., min_length=1, max_length=64)
     autonomy: bool
-    theme: str = Field(..., min_length=1, max_length=64)
 
 
 def _read_settings() -> dict[str, Any]:
@@ -248,14 +246,41 @@ def _read_settings() -> dict[str, Any]:
 
 @router.get("/api/v1/system/config")
 def get_system_config() -> dict[str, Any]:
-    """Return the real, currently-persisted operator settings."""
-    return _read_settings()
+    """Return the real, currently-persisted operator settings merged with env."""
+    db_settings = _read_settings()
+    
+    # Determine autonomy source and effective value
+    autonomy_in_env = "AIOS_EARNED_AUTONOMY" in os.environ
+    autonomy_val = config.EARNED_AUTONOMY_ENABLED if autonomy_in_env else db_settings.get("autonomy", True)
+    
+    # Determine provider source and effective value
+    # We check if cloud tasks are enabled, etc. For simplicity, since provider is usually
+    # controlled by AIOS_ROUTER_PREFER_LOCAL or AIOS_LLM_MODEL, we can just check if
+    # the environment imposes a specific provider, or assume DB if no explicit override.
+    # Currently, UI implies it's controlled by env. We'll mark it as env if AIOS_LLM_MODEL exists.
+    provider_in_env = any(k in os.environ for k in ("AIOS_LLM_MODEL", "AIOS_BEDROCK_MODEL", "AIOS_GEMINI_MODEL"))
+    provider_val = db_settings.get("provider", "Ollama")
+    
+    return {
+        "provider": provider_val,
+        "provider_source": "env" if provider_in_env else "db",
+        "autonomy": autonomy_val,
+        "autonomy_source": "env" if autonomy_in_env else "db"
+    }
 
 
 @router.post("/api/v1/system/config")
 def set_system_config(req: SystemConfigRequest) -> dict[str, Any]:
-    """Persist operator settings (provider/autonomy/theme) to disk."""
+    """Persist operator settings to disk, ignoring env-hardcoded overrides."""
+    current = get_system_config()
     payload = req.model_dump()
+    
+    # Ignore attempts to persist if environmentally hardcoded
+    if current["provider_source"] == "env":
+        payload["provider"] = current["provider"]
+    if current["autonomy_source"] == "env":
+        payload["autonomy"] = current["autonomy"]
+        
     _SETTINGS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     log_action("operator", f"updated system config: {payload}", "YELLOW")
     return {"status": "saved", **payload}

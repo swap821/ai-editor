@@ -46,18 +46,18 @@ export default function StigmergyPanel({ onClose }) {
     >
       <div style={{ padding: '16px', color: 'var(--foreground)', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-          <div style={{
-            display: 'flex',
-            flex: 1,
-            alignItems: 'center',
-            background: 'var(--ag-surface-cyan)',
+          <div style={{ 
+            display: 'flex', 
+            flex: 1, 
+            alignItems: 'center', 
+            background: 'var(--ag-surface-cyan)', 
             border: '1px solid rgba(123, 245, 251, 0.3)',
             borderRadius: '4px',
             padding: '4px 8px'
           }}>
             <Search size={14} style={{ color: 'var(--ag-text-cyan)', marginRight: '8px' }} />
-            <input
-              type="text"
+            <input 
+              type="text" 
               value={startNode}
               onChange={(e) => setStartNode(e.target.value)}
               placeholder="Start node..."

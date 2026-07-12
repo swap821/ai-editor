@@ -529,6 +529,52 @@ async def require_api_token(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def require_browser_or_token_for_mutations(request: Request, call_next):
+    """CSRF/Mutation protection: block unauthenticated non-browser mutations.
+    
+    Any state-changing request (POST, PUT, DELETE, PATCH) must either:
+      1. Provide a valid Bearer token (CLI/automation).
+      2. Prove it is a trusted browser request via Origin or Sec-Fetch-Site.
+    
+    This stops cross-site request forgery and hardens local CLI usage.
+    """
+    if request.method not in ("POST", "PUT", "DELETE", "PATCH"):
+        return await call_next(request)
+        
+    # 1. Bearer token provided?
+    if config.API_TOKEN:
+        auth = request.headers.get("authorization", "")
+        expected = f"Bearer {config.API_TOKEN}"
+        if secrets.compare_digest(auth, expected):
+            return await call_next(request)
+            
+    # 2. Browser proofs
+    sec_site = request.headers.get("sec-fetch-site")
+    if sec_site in ("same-origin", "same-site"):
+        return await call_next(request)
+        
+    origin = request.headers.get("origin")
+    if origin:
+        allowed = _validate_cors_origins(config.API_CORS_ORIGINS)
+        # If allowed is empty, we fall back to checking if the origin host is loopback.
+        if origin in allowed:
+            return await call_next(request)
+        # Check if the origin itself is a loopback URL (e.g. http://localhost:5173)
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(origin)
+            if parsed.hostname and _is_private_ip(parsed.hostname):
+                return await call_next(request)
+        except Exception:
+            pass
+
+    return JSONResponse(
+        status_code=403,
+        content={"detail": "Mutation requires valid browser Origin/Sec-Fetch-Site or API Bearer token."}
+    )
+
+
 # --------------------------------------------------------------------------- #
 # In-memory sliding-window rate limiter for sensitive API endpoints.
 # Protects against brute-force on approval tokens, noisy control routes, and

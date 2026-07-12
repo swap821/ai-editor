@@ -18,7 +18,7 @@ function computeTrustLevel(metrics) {
 
 export default function TrustHalo() {
   const [trustLevel, setTrustLevel] = useState('unknown');
-  const [metrics, setMetrics] = useState(null);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +28,7 @@ export default function TrustHalo() {
         if (!resp.ok) return;
         const data = await resp.json();
         if (cancelled) return;
-        setMetrics(data);
+
         setTrustLevel(computeTrustLevel(data));
       } catch {
         // Offline or error — show unknown

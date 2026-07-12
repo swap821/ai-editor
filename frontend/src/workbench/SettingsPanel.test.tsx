@@ -66,7 +66,7 @@ describe('SettingsPanel', () => {
         expect.stringContaining('/api/v1/system/config'),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ provider: 'Ollama', autonomy: true, theme: 'Superbrain' }),
+          body: JSON.stringify({ provider: 'Ollama', autonomy: true }),
         })
       );
     });

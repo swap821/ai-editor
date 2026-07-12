@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { act } from 'react';
 import { publishCognition } from '../superbrain/lib/cognitionBus';
 import {

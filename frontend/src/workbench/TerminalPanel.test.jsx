@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import TerminalPanel from './TerminalPanel';
 
+
 // Mock matchMedia for framer-motion
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -25,7 +26,7 @@ describe('TerminalPanel', () => {
     render(<TerminalPanel />);
     const toggleBtn = screen.getByText('Terminal (Ctrl+`)');
     expect(toggleBtn).toBeInTheDocument();
-
+    
     // Open terminal
     fireEvent.click(toggleBtn);
     expect(screen.getByText('gag system start')).toBeInTheDocument();

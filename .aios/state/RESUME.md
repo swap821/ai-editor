@@ -1,8 +1,8 @@
-# Truthful Innervation Checkpoint
+# Sovereign Learning + Mirror Checkpoint
 
-**Current Goal:** Decouple the organism's visual reactions from transient state and wire them exclusively to the authoritative CortexBus mirror stream (Truthful Innervation Architecture).
-**Last Completed + Verified Step:** Fixed strict TypeScript global mocking constraints in frontend CI (`aiosMirror.test.ts`) by replacing `global.EventSource` with `vi.stubGlobal('EventSource')`. Both the backend and frontend CI workflows (ID: 29172542091) are now 100% green.
-**Single Next Action:** Await user's request for further enhancements or new tasks.
+**Current Goal:** Build the supervised cloud-teacher -> provenance-rich corpus -> locally verified sovereign-procedure loop and its truthful GAGOS mirror; an operator-requested CI recovery interrupt is complete.
+**Last Completed + Verified Step:** Finished Slice 6 (production cage repairs). Hardened frontend CI, expanded cross-platform parity, enforced `Origin`/`Sec-Fetch-Site` mutation protection, and solved the secret scanner sliding-window boundary bug that caused `FastAPI`/`OpenAPI` prose to be falsely flagged.
+**Single Next Action:** Await user's instructions for Slice 7 (Final verification of production stability and cleanup).
 **Open Approvals / Blockers:** None.
-**Active Files For This Slice:** `frontend/src/superbrain/lib/aiosMirror.test.ts`, `frontend/src/superbrain/lib/aiosMirror.ts`.
-**Notes Not Yet Promoted:** The mirror architecture fully restricts the frontend from hallucinating state. All visual elements now strictly rely on the backend SSE event stream without any duplicated `publishCognition` calls in `aiosAdapter.ts`.
+**Active Files For This Slice:** `aios/security/secret_scanner.py`, `tests/test_security.py`.
+**Notes Not Yet Promoted:** The secret scanner's `_has_secret_context` now properly snaps to word boundaries before checking context to prevent chopping compound words like "fastapi" in half (which would leave "api" in the context and trigger a false positive).
