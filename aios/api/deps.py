@@ -33,7 +33,7 @@ from aios.core.autonomy import AutonomyLedger
 from aios.core.alignment import AlignmentInterpreter
 from aios.core.bedrock import BedrockClient
 from aios.core.cerebellum import Cerebellum
-from aios.core.executor import Executor, approved_runner_from_config
+from aios.core.executor import Executor
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.native_planner import NativePlanner
@@ -318,9 +318,11 @@ def _session_id_from_request(request: Request, fallback: Optional[str] = None) -
 
 def get_executor() -> Executor:
     """Provide the default scope-constrained executor. Overridden in tests."""
+    kernel = get_policy_kernel()
     return Executor(
-        approved_runner=approved_runner_from_config(),
+        approved_runner=kernel.build_approved_runner(),
         rate_limiter=_RATE_LIMITER,
+        policy_kernel=kernel,
     )
 
 
@@ -354,7 +356,7 @@ def get_self_apply_engine(
     — there is deliberately no agent tool that applies. Overridden in tests with a
     fake verifier + temp project root so no real shell/suite runs.
     """
-    isolated_runner = approved_runner_from_config()
+    isolated_runner = get_policy_kernel().build_approved_runner()
 
     def project_root_runner(
         command: str, *, cwd: str, env: dict[str, str], timeout_s: int

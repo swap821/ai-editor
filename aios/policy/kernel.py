@@ -37,6 +37,15 @@ class AuthorityDecision:
     command: str = ""
 
 
+@dataclass(frozen=True)
+class ExecutionPolicy:
+    """Container-vs-host execution decision produced by the policy kernel."""
+
+    backend: str
+    isolated: bool
+    reason: str
+
+
 _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     "/api/v1/approval/req": RouteAuthority("YELLOW", 10, "session", audit_event="approval_decision"),
     "/api/v1/execute": RouteAuthority("YELLOW", 30, "session", audit_event="approved_execute"),
@@ -238,9 +247,66 @@ class PolicyKernel:
         """Return the current constitutional snapshot."""
         return self.constitution
 
+    def execution_policy(self, approved: bool) -> ExecutionPolicy:
+        """Return the execution backend and isolation level for an action.
+
+        GREEN (non-approved) actions always run in the host scope. Approved
+        actions follow ``AIOS_APPROVED_EXECUTION_BACKEND``; an unsupported
+        backend is reported as non-isolated and fail-closed at runtime.
+        """
+        backend = config.APPROVED_EXECUTION_BACKEND
+        if not approved:
+            return ExecutionPolicy(
+                backend="host",
+                isolated=False,
+                reason="GREEN action runs in the configured host scope.",
+            )
+        if backend == "container":
+            return ExecutionPolicy(
+                backend="container",
+                isolated=True,
+                reason="Approved action runs in an isolated container.",
+            )
+        if backend == "host":
+            return ExecutionPolicy(
+                backend="host",
+                isolated=False,
+                reason="Approved action runs on the host (development only).",
+            )
+        # Treat an unsupported backend as fail-closed: the runner built for it
+        # is ``UnavailableIsolationRunner``, so mark it isolated so the executor
+        # dispatches through that runner and surfaces an ERROR instead of the
+        # host runner.
+        return ExecutionPolicy(
+            backend=backend,
+            isolated=True,
+            reason=f"Unsupported execution backend '{backend}'; approved execution will fail closed.",
+        )
+
+    def build_approved_runner(self) -> Optional[Any]:
+        """Build the configured runner for human-approved arbitrary commands.
+
+        Imported lazily so the policy kernel does not depend on the execution
+        surface at module-load time.
+        """
+        from aios.core.executor import approved_runner_from_config
+
+        return approved_runner_from_config()
+
+    def validate_execution_backend(self) -> Optional[str]:
+        """Validate the configured execution backend at startup.
+
+        Returns a warning string (host mode / unavailable container) or ``None``
+        when the container backend is ready. Raises for an unknown backend.
+        """
+        from aios.core.executor import validate_approved_execution_backend
+
+        return validate_approved_execution_backend()
+
 
 __all__ = [
     "AuthorityDecision",
+    "ExecutionPolicy",
     "PolicyKernel",
     "RouteAuthority",
 ]

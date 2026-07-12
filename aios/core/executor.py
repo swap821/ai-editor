@@ -243,8 +243,9 @@ class DockerRunner:
         # ("invalid field 'rw' must be a key=value pair"), which fail-closed
         # every container-backed verify the moment a real daemon was present
         # (first observed live 2026-07-03). Bind mounts are read-write by
-        # default, so simply omit the field.
-        mount = f"type=bind,src={resolved_cwd},dst=/workspace"
+        # default, so simply omit the field. bind-propagation=private prevents
+        # mounts created inside the sandbox from leaking back to the host.
+        mount = f"type=bind,src={resolved_cwd},dst=/workspace,bind-propagation=private"
         docker_argv = [
             self.runtime,
             "run",
@@ -583,12 +584,17 @@ class Executor:
                 command=command,
                 reason=decision.reason,
             )
+        policy = self.policy_kernel.execution_policy(approved=True)
+        # Actual isolation requires both the policy to request it AND a runner
+        # that provides the boundary; injection tests may omit the runner.
+        isolated = policy.isolated and (self.approved_runner is not None)
+        runner = self.approved_runner if isolated else self.runner
         self._audit(self.actor, f"APPROVED+EXECUTING: {command}", decision.zone)
         return self._run_in_sandbox(
             command,
             decision.zone,
-            runner=self.approved_runner or self.runner,
-            isolated=self.approved_runner is not None,
+            runner=runner,
+            isolated=isolated,
         )
 
     def reset_sensitive_actions(self, session_id: Optional[str]) -> None:

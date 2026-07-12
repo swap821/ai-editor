@@ -11,7 +11,7 @@
 | 0 | Truthful Baseline | **DONE** | `docs/architecture/*.md`, green backend + frontend gates |
 | 1 | Edge Security Hardening | **DONE** | `aios/interfaces/http/edge_security.py`, refactored `aios/api/main.py`, `tests/test_edge_security.py` (24 passing), adversarial tests; backend 91.71% coverage, frontend gates green |
 | 2 | Authority Centralization | **DONE** | `aios/policy/kernel.py`, refactored `aios/api/main.py` + `aios/core/executor.py` + `aios/api/deps.py`, `tests/test_policy_kernel.py` (21 passing); backend 91.72% coverage; frontend build green |
-| 3 | Execution Isolation | pending | — |
+| 3 | Execution Isolation | **DONE** | `aios/policy/kernel.py` execution-policy methods, `aios/core/executor.py` kernel-routed runner selection, hardened `DockerRunner` (`bind-propagation=private`), `tests/test_policy_kernel.py` + `tests/test_executor.py`; backend 91.75% coverage, frontend build green |
 | 4 | Runtime Profiles | pending | — |
 | 5 | Subsystem Convergence | pending | — |
 | 6 | Living Interface | pending | — |
@@ -38,4 +38,4 @@
 
 ## Next Action
 
-Hand off Slice 2 builder lease to codex; codex begins Slice 3: Execution Isolation — harden the boundary between approved arbitrary-code execution and the host, and centralize execution policy through the PolicyKernel.
+Push Slice 3 to `master` and hand off the builder lease to the next agent. Slice 4 — Runtime Profiles — is ready to begin: unify runtime profile loading/storage and route profile-scoped decisions through the PolicyKernel.

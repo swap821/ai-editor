@@ -204,6 +204,25 @@ def test_execute_approved_uses_isolated_runner_when_configured() -> None:
     assert len(isolated.calls) == 1
 
 
+def test_execute_approved_uses_kernel_policy_for_isolation_flag(monkeypatch) -> None:
+    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "host")
+    host = RecordingRunner(out="host")
+    isolated = RecordingRunner(out="isolated")
+    result = Executor(
+        runner=host,
+        approved_runner=isolated,
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+    ).execute_approved("pip install flask")
+
+    assert result.status == "OK"
+    assert result.stdout == "host"
+    assert "Executed within configured scope" in result.reason
+    assert len(host.calls) == 1
+    assert host.calls[0]["command"] == "pip install flask"
+    assert isolated.calls == []
+
+
 def test_real_runner_retains_only_bounded_output() -> None:
     result = _bounded_run(
         [sys.executable, "-c", "print('x' * 10000)"],
@@ -274,6 +293,16 @@ def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
         f"--mount fields must all be key=value; got {mount!r}"
     )
     assert mount.startswith("type=bind,src=") and ",dst=/workspace" in mount
+    assert "bind-propagation=private" in mount
+
+
+def test_docker_runner_rejects_mount_breaking_cwd_characters(tmp_path) -> None:
+    runner = DockerRunner(image="test-image")
+    for bad in ("path,with,commas", "path=equals"):
+        cwd = tmp_path / bad
+        cwd.mkdir(parents=True, exist_ok=True)
+        with pytest.raises(ValueError, match="characters not permitted"):
+            runner("echo hi", cwd=str(cwd), env={}, timeout_s=1)
 
 
 def test_default_execution_backend_is_container() -> None:

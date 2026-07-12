@@ -225,3 +225,66 @@ def test_feature_enabled_reads_config(kernel, monkeypatch):
 def test_constitution_snapshot(kernel):
     snapshot = kernel.constitution_snapshot()
     assert snapshot is kernel.constitution
+
+
+# --------------------------------------------------------------------------- #
+# Execution policy
+# --------------------------------------------------------------------------- #
+
+def test_execution_policy_for_green_action_is_host(kernel):
+    policy = kernel.execution_policy(approved=False)
+    assert policy.backend == "host"
+    assert policy.isolated is False
+    assert "host scope" in policy.reason
+
+
+def test_execution_policy_for_approved_action_is_container_by_default(kernel, monkeypatch):
+    monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "container")
+    policy = kernel.execution_policy(approved=True)
+    assert policy.backend == "container"
+    assert policy.isolated is True
+    assert "isolated container" in policy.reason
+
+
+def test_execution_policy_for_approved_action_can_be_host(kernel, monkeypatch):
+    monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "host")
+    policy = kernel.execution_policy(approved=True)
+    assert policy.backend == "host"
+    assert policy.isolated is False
+    assert "development only" in policy.reason
+
+
+def test_execution_policy_unknown_backend_fail_closed(kernel, monkeypatch):
+    monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "vmware")
+    policy = kernel.execution_policy(approved=True)
+    assert policy.backend == "vmware"
+    # Isolated=True forces the executor to dispatch through the runner built
+    # for this backend (UnavailableIsolationRunner) rather than the host runner.
+    assert policy.isolated is True
+    assert "fail closed" in policy.reason.lower()
+
+
+def test_build_approved_runner_returns_docker_runner_when_container(kernel, monkeypatch):
+    monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "container")
+    from aios.core.executor import DockerRunner
+
+    runner = kernel.build_approved_runner()
+    assert isinstance(runner, DockerRunner)
+
+
+def test_build_approved_runner_returns_none_when_host(kernel, monkeypatch):
+    monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "host")
+    assert kernel.build_approved_runner() is None
+
+
+def test_validate_execution_backend_warns_for_host(kernel, monkeypatch):
+    monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "host")
+    warning = kernel.validate_execution_backend()
+    assert warning is not None
+    assert "development only" in warning.lower()
+
+
+def test_validate_execution_backend_raises_for_unknown_backend(kernel, monkeypatch):
+    monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "unknown")
+    with pytest.raises(RuntimeError, match="unsupported AIOS_APPROVED_EXECUTION_BACKEND"):
+        kernel.validate_execution_backend()

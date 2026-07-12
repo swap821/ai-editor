@@ -51,10 +51,7 @@ from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
-from aios.core.executor import (
-    Executor,
-    validate_approved_execution_backend,
-)
+from aios.core.executor import Executor
 from aios.core.confidence_filter import gate as confidence_gate
 from aios.core.planner import Planner, PlannerError, plan_to_prompt_block, serialize_plan
 from aios.core.events import event_for_sse, CanonicalEvent, CanonicalEventType, TrustLevel, EventPhase
@@ -189,7 +186,7 @@ async def lifespan(app: FastAPI):
             )
         if len(config.API_TOKEN) < 32:
             raise RuntimeError("AIOS_API_TOKEN must be at least 32 characters for non-loopback use")
-    backend_warning = validate_approved_execution_backend()
+    backend_warning = get_policy_kernel().validate_execution_backend()
     if backend_warning:
         logger.warning("approved_execution_backend", detail=backend_warning)
     init_memory_db()
