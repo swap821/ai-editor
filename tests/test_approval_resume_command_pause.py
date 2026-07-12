@@ -50,7 +50,7 @@ class ScriptedCommandOllama(FakeOllamaYellow):
 
 @pytest.fixture()
 def client(monkeypatch) -> Iterator[TestClient]:
-    sandbox = Path(tempfile.mkdtemp(prefix="cp"))
+    sandbox = Path(tempfile.mkdtemp(prefix="cp")).resolve()
     monkeypatch.setattr(config, "PROJECT_ROOT", sandbox)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([sandbox])

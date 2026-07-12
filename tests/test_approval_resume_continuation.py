@@ -132,7 +132,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     # detector false-positives on the auto-verify command's absolute path and
     # RED-blocks the forced verify -- see test_grant_workflow_steps.py's
     # fixture for the same precedent.
-    sandbox = Path(tempfile.mkdtemp(prefix="ar"))
+    sandbox = Path(tempfile.mkdtemp(prefix="ar")).resolve()
     monkeypatch.setattr(config, "PROJECT_ROOT", sandbox)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([sandbox])

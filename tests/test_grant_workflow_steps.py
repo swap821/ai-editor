@@ -65,7 +65,7 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     # test targets the workflow_steps seam, not that one.
     import shutil
     import tempfile
-    sandbox = Path(tempfile.mkdtemp(prefix="ag"))
+    sandbox = Path(tempfile.mkdtemp(prefix="ag")).resolve()
     monkeypatch.setattr(config, "PROJECT_ROOT", sandbox)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([sandbox])
