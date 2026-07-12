@@ -74,7 +74,7 @@ describe('weatherFromEvent reducer', () => {
 
   it('returns the SAME object when nothing changes (cheap per-frame bail)', () => {
     const prev: WeatherState = { phase: 'reflex', confidence: 0.8, updatedAt: NOW - 5 };
-    const next = weatherFromEvent(prev, { type: 'telemetry', phase: 'reflex' }, NOW);
+    const next = weatherFromEvent(prev, { type: 'directive', phase: 'reflex' } as any, NOW);
     expect(next).toBe(prev);
   });
 });

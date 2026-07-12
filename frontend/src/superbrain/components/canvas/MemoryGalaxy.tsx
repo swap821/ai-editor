@@ -18,7 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { subscribeCognition } from '@/lib/cognitionBus';
-import { getKnownTrails, type TrailRow } from '@/lib/aiosAdapter';
+import { getKnownTrails, subscribeTelemetry, type TrailRow } from '@/lib/aiosAdapter';
 
 const MAX_STARS = 128;
 const TAU = Math.PI * 2;
@@ -162,11 +162,8 @@ export default function MemoryGalaxy() {
     };
 
     sync();
+    const unsubTelemetry = subscribeTelemetry(() => sync());
     const unsubscribe = subscribeCognition((event) => {
-      if (event.type === 'telemetry') {
-        sync();
-        return;
-      }
       // A reinforcement or a recall touching "trail #N" flashes ITS star.
       if (event.type !== 'knowledge-acquired' && event.type !== 'burst') return;
       const match = /trail #(\d+)/.exec(event.detail ?? '');
@@ -177,7 +174,10 @@ export default function MemoryGalaxy() {
       flash.setX(slot, timeRef.current);
       flash.needsUpdate = true;
     });
-    return unsubscribe;
+    return () => {
+      unsubTelemetry();
+      unsubscribe();
+    };
   }, [star]);
 
   useFrame((state) => {

@@ -10,6 +10,7 @@ import { isSoundOn, startSound, stopSound } from '@/lib/soundEngine';
 import {
   getLastTelemetry,
   getLinkState,
+  subscribeTelemetry,
   getPendingApproval,
   sendVoiceTurn,
   subscribePendingApproval,
@@ -817,6 +818,28 @@ export default function SuperbrainHUD({
     [],
   );
 
+  useEffect(() => {
+    return subscribeTelemetry(() => {
+      const link = getLinkState();
+      setLinkUp(link);
+      if (!link) return;
+      const t = getLastTelemetry();
+      setTelemetry(t);
+      if (!t) return;
+      const prev = prevVerifiedRef.current;
+      const delta = prev !== null && t.verified > prev ? t.verified - prev : null;
+      prevVerifiedRef.current = t.verified;
+      heartbeatCountRef.current += 1;
+      if (delta !== null || heartbeatCountRef.current % 3 === 1) {
+        appendTermLine(
+          `Telemetry · ${t.trails}t ${t.verified}v ${t.latencyMs}ms`,
+          false,
+          { delta }
+        );
+      }
+    });
+  }, [appendTermLine]);
+
   /* ----- knowledge intake + agent mesh reactions ----- */
   const [sourcePulse, setSourcePulse] = useState<SourcePulse | null>(null);
   /* The center port that a real event just touched. Carries the metric channel
@@ -937,38 +960,7 @@ export default function SuperbrainHUD({
           }
           break;
         }
-        case 'telemetry': {
-          const data = (event.data ?? {}) as Record<string, unknown>;
-          if (data.link === false) {
-            setLinkUp(false);
-          } else {
-            setLinkUp(true);
-            const t = data as unknown as AiosTelemetry;
-            setTelemetry(t);
-            // The REAL verified-trail delta this poll surfaced: a non-negative
-            // gain over the last count we logged (the first live poll just
-            // seeds the baseline, never claiming a delta). A growth is a real
-            // hash-chain entry, so it earns the accent +N column.
-            const prev = prevVerifiedRef.current;
-            const delta = prev !== null && t.verified > prev ? t.verified - prev : null;
-            prevVerifiedRef.current = t.verified;
-            // A quiet real heartbeat every few polls · telemetry owns the
-            // idle channel while the link is alive. A real verified gain is
-            // surfaced the instant it happens, regardless of the cadence.
-            heartbeatCountRef.current += 1;
-            if (delta !== null || heartbeatCountRef.current % 3 === 1) {
-              // One middle-dot per line (the metadata-strip ration): the three
-              // figures read as compact mono columns (Nt / Nv / Nms), so the
-              // line keeps a single separator instead of three.
-              appendTermLine(
-                `Telemetry · ${t.trails}t ${t.verified}v ${t.latencyMs}ms`,
-                false,
-                { delta },
-              );
-            }
-          }
-          break;
-        }
+        // (telemetry is handled by a separate subscriber)
         case 'synthesis':
           appendTermLine(`Synthesis · ${event.detail ?? event.label ?? 'cycle complete'}`);
           setApprovalHold(false);
