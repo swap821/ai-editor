@@ -85,25 +85,51 @@ def edit_file(req: EditFileRequest, bus: Optional[CortexBus] = Depends(get_corte
     check = is_path_in_scope(req.path)
     if not check.in_scope:
         if bus:
-            bus.append("edit.blocked", req.path, {"path": req.path, "reason": "File out of bounds"})
+            from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
+            canonical = CanonicalEvent(
+                event_type=CanonicalEventType.EDIT_BLOCKED.value,
+                phase=EventPhase.NARRATIVE.value,
+                status="failed",
+                trust=TrustLevel.VERIFIED.value,
+                source="aios.api.routes.files",
+                session_id="system",
+                payload={"path": req.path, "reason": "File out of bounds"}
+            )
+            bus.append(canonical.event_type, req.path, canonical.to_dict())
         raise HTTPException(status_code=403, detail="File out of bounds")
 
     decision = _enforcer.check_file_edit(req.path, actor="operator")
     if not decision.allowed:
         if bus:
-            bus.append("edit.blocked", req.path, {"path": req.path, "reason": decision.reason})
+            from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
+            canonical = CanonicalEvent(
+                event_type=CanonicalEventType.EDIT_BLOCKED.value,
+                phase=EventPhase.NARRATIVE.value,
+                status="failed",
+                trust=TrustLevel.VERIFIED.value,
+                source="aios.api.routes.files",
+                session_id="system",
+                payload={"path": req.path, "reason": decision.reason}
+            )
+            bus.append(canonical.event_type, req.path, canonical.to_dict())
         raise HTTPException(status_code=403, detail=decision.reason)
 
     if bus:
-        bus.append(
-            "edit.proposed",
-            req.path,
-            {
+        from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
+        canonical = CanonicalEvent(
+            event_type=CanonicalEventType.EDIT_PROPOSED.value,
+            phase=EventPhase.WONDER.value,
+            status="in_progress",
+            trust=TrustLevel.VERIFIED.value,
+            source="aios.api.routes.files",
+            session_id="system",
+            payload={
                 "path": req.path,
                 "requiresHuman": decision.requires_human,
                 "constraints": list(decision.constraints)
             }
         )
+        bus.append(canonical.event_type, req.path, canonical.to_dict())
 
     # In Phase 1, we just return success to simulate proposing an edit; the
     # actual write still requires the human-approval gate constitution.

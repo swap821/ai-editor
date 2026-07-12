@@ -59,7 +59,7 @@ from aios.core.executor import (
 )
 from aios.core.confidence_filter import gate as confidence_gate
 from aios.core.planner import Planner, PlannerError, plan_to_prompt_block, serialize_plan
-from aios.core.events import event_for_sse
+from aios.core.events import event_for_sse, CanonicalEvent, CanonicalEventType, TrustLevel, EventPhase
 from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules import these from main
     get_alignment_evaluation_store,
     get_alignment_interpreter,
@@ -286,10 +286,20 @@ def _append_turn_completed(
     if bus is None:
         return
     try:
+        canonical = CanonicalEvent(
+            event_type=CanonicalEventType.TURN_COMPLETED.value,
+            phase=EventPhase.NARRATIVE.value,
+            status="completed",
+            trust=TrustLevel.VERIFIED.value,
+            source="aios.api.main",
+            session_id=session_id,
+            turn_id=session_id,
+            payload={"ts": datetime.now(timezone.utc).isoformat()},
+        )
         bus.append(
-            "turn.completed",
+            canonical.event_type,
             session_id,
-            {"ts": datetime.now(timezone.utc).isoformat()},
+            canonical.to_dict(),
         )
     except Exception:  # noqa: BLE001 — best-effort; never break a turn
         logger.warning("cortex_bus_append_failed", exc_info=True)
@@ -866,9 +876,6 @@ def _sse(
         
         bus = get_cortex_bus()
         if bus is not None:
-            from aios.core.events import CanonicalEvent, CanonicalEventType, TrustLevel
-            from dataclasses import asdict
-            
             # Opportunistic mapping to a canonical event for the truthful journal
             canonical_type = event
             if event == "done":
@@ -888,7 +895,7 @@ def _sse(
                 payload=data
             )
             try:
-                bus.append(canonical.event_type, canonical.event_id, asdict(canonical))
+                bus.append(canonical.event_type, canonical.event_id, canonical.to_dict())
             except Exception:
                 pass
     payload = json.dumps(data, ensure_ascii=False)
@@ -1618,9 +1625,20 @@ def generate(
                         if r.proposed or r.reason == "strengthened":
                             proposed_count += 1
                     if proposed_count and _cortex_bus:
+                        canonical = CanonicalEvent(
+                            event_type=CanonicalEventType.FACTS_PROPOSED.value,
+                            phase=EventPhase.WONDER.value,
+                            status="success",
+                            trust=TrustLevel.VERIFIED.value,
+                            source="generate",
+                            session_id=session_id,
+                            turn_id=session_id,
+                            payload={"count": proposed_count},
+                        )
                         _cortex_bus.append(
-                            "facts.proposed", session_id,
-                            {"count": proposed_count, "source": "generate"},
+                            canonical.event_type,
+                            session_id,
+                            canonical.to_dict(),
                         )
                 except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
                     logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
@@ -2249,9 +2267,20 @@ def chat(
                     if result.proposed or result.reason == "strengthened":
                         proposed_count += 1
                 if proposed_count and _cortex_bus:
+                    canonical = CanonicalEvent(
+                        event_type=CanonicalEventType.FACTS_PROPOSED.value,
+                        phase=EventPhase.WONDER.value,
+                        status="success",
+                        trust=TrustLevel.VERIFIED.value,
+                        source="chat",
+                        session_id=session_id,
+                        turn_id=session_id,
+                        payload={"count": proposed_count},
+                    )
                     _cortex_bus.append(
-                        "facts.proposed", session_id,
-                        {"count": proposed_count, "source": "chat"},
+                        canonical.event_type,
+                        session_id,
+                        canonical.to_dict(),
                     )
             except Exception:
                 logger.warning("Chat fact extraction failed", exc_info=True)

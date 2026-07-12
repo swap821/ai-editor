@@ -95,3 +95,63 @@ def test_canonical_event_sse_payload_compatibility() -> None:
     assert payload["payload"] == {}
     assert payload["evidenceRefs"] == []
 
+
+def test_canonical_event_to_dict_uses_camel_case() -> None:
+    event = CanonicalEvent(
+        event_type=CanonicalEventType.WORKER_STARTED,
+        phase="reflex",
+        status="success",
+        trust=TrustLevel.VERIFIED,
+        source="spawner",
+        session_id="session-1",
+        sequence=5,
+        turn_id="turn-1",
+    )
+    d = event.to_dict()
+    assert d["schemaVersion"] == "1.0"
+    assert d["eventId"] == event.event_id
+    assert d["sequence"] == 5
+    assert d["eventType"] == CanonicalEventType.WORKER_STARTED
+    assert d["occurredAt"] == event.occurred_at
+    assert d["source"] == "spawner"
+    assert d["sessionId"] == "session-1"
+    assert d["turnId"] == "turn-1"
+    assert d["missionId"] is None
+    assert d["workerId"] is None
+    assert d["phase"] == "reflex"
+    assert d["status"] == "success"
+    assert d["trust"] == TrustLevel.VERIFIED
+    assert d["payload"] == {}
+    assert d["evidenceRefs"] == []
+
+
+def test_canonical_event_validation_raises_on_missing_required_fields() -> None:
+    import pytest
+    with pytest.raises(ValueError, match="event_type is required"):
+        CanonicalEvent(
+            event_type="",
+            phase="reflex",
+            status="success",
+            trust=TrustLevel.VERIFIED,
+            source="spawner",
+            session_id="session-1",
+        )
+    with pytest.raises(ValueError, match="phase is required"):
+        CanonicalEvent(
+            event_type=CanonicalEventType.WORKER_STARTED,
+            phase="",
+            status="success",
+            trust=TrustLevel.VERIFIED,
+            source="spawner",
+            session_id="session-1",
+        )
+    with pytest.raises(ValueError, match="session_id is required"):
+        CanonicalEvent(
+            event_type=CanonicalEventType.WORKER_STARTED,
+            phase="reflex",
+            status="success",
+            trust=TrustLevel.VERIFIED,
+            source="spawner",
+            session_id="",
+        )
+

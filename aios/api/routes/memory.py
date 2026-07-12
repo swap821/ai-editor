@@ -117,17 +117,36 @@ def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
     results = hybrid_search(req.query, top_k=req.top_k)
     
     if bus and results:
+        from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
         for r in results:
-            bus.append("memory.recalled", str(r.id), {
-                "id": r.id,
-                "text": r.text,
-                "score": r.score
-            })
+            canonical = CanonicalEvent(
+                event_type=CanonicalEventType.MEMORY_RECALLED.value,
+                phase=EventPhase.RECALL.value,
+                status="success",
+                trust=TrustLevel.VERIFIED.value,
+                source="aios.api.routes.memory",
+                session_id="system",
+                payload={
+                    "id": r.id,
+                    "text": r.text,
+                    "score": r.score
+                }
+            )
+            bus.append(canonical.event_type, str(r.id), canonical.to_dict())
             if r.memory_type == "workflow" and getattr(r, "verification_status", None) == "trusted":
-                bus.append("memory.trusted_workflow_applied", str(r.id), {
-                    "workflowId": str(r.id),
-                    "query": req.query
-                })
+                canonical_workflow = CanonicalEvent(
+                    event_type=CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED.value,
+                    phase=EventPhase.RECALL.value,
+                    status="success",
+                    trust=TrustLevel.VERIFIED.value,
+                    source="aios.api.routes.memory",
+                    session_id="system",
+                    payload={
+                        "workflowId": str(r.id),
+                        "query": req.query
+                    }
+                )
+                bus.append(canonical_workflow.event_type, str(r.id), canonical_workflow.to_dict())
 
     return {"query": req.query, "results": [asdict(r) for r in results]}
 

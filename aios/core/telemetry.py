@@ -100,12 +100,22 @@ def record_run(
         from aios.api.main import get_cortex_bus
         bus = get_cortex_bus()
         if bus:
-            bus.append("telemetry.agent_started", session_id or "system", {
-                "dispatch_path": dispatch_path,
-                "provider": provider,
-                "model": model,
-                "latency_ms": latency_ms
-            })
+            from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
+            canonical = CanonicalEvent(
+                event_type=CanonicalEventType.TELEMETRY_AGENT_STARTED.value,
+                phase=EventPhase.NARRATIVE.value,
+                status="success",
+                trust=TrustLevel.VERIFIED.value,
+                source="aios.core.telemetry",
+                session_id=session_id or "system",
+                payload={
+                    "dispatch_path": dispatch_path,
+                    "provider": provider,
+                    "model": model,
+                    "latency_ms": latency_ms
+                }
+            )
+            bus.append(canonical.event_type, session_id or "system", canonical.to_dict())
     except Exception:  # noqa: BLE001 - observation must never break a request
         logger.warning("telemetry write failed; request continues", exc_info=True)
 

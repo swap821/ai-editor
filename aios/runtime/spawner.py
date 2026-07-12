@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
+from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
 from aios.runtime.backends import ControlledSubprocessBackend, WorkerBackend, WorkerHandle
 from aios.runtime.concurrency import WORKER_POOL
@@ -106,18 +106,20 @@ class WorkerSpawner:
             handle = await self.backend.spawn(sealed_contract)
             if self.bus:
                 session_id = getattr(sealed_contract, "session_id", "council")
-                self.bus.append(
+                canonical = CanonicalEvent(
                     event_type=CanonicalEventType.WORKER_STARTED.value,
-                    signature="spawner",
-                    payload={
-                        "phase": EventPhase.REFLEX.value,
-                        "status": "started",
-                        "trust": "verified",
-                        "source": "spawner",
-                        "session_id": session_id,
-                        "mission_id": sealed_contract.mission_id,
-                        "worker_id": handle.worker_id,
-                    }
+                    phase=EventPhase.REFLEX.value,
+                    status="started",
+                    trust=TrustLevel.VERIFIED.value,
+                    source="spawner",
+                    session_id=session_id,
+                    mission_id=sealed_contract.mission_id,
+                    worker_id=handle.worker_id,
+                )
+                self.bus.append(
+                    canonical.event_type,
+                    "spawner",
+                    canonical.to_dict(),
                 )
 
             try:
@@ -127,18 +129,20 @@ class WorkerSpawner:
                     await self.backend.kill(handle, "spawner cleanup after reap")
                 if self.bus:
                     session_id = getattr(sealed_contract, "session_id", "council")
-                    self.bus.append(
+                    canonical = CanonicalEvent(
                         event_type=CanonicalEventType.WORKER_DISSOLVED.value,
-                        signature="spawner",
-                        payload={
-                            "phase": EventPhase.REFLEX.value,
-                            "status": "dissolved",
-                            "trust": "verified",
-                            "source": "spawner",
-                            "session_id": session_id,
-                            "mission_id": sealed_contract.mission_id,
-                            "worker_id": handle.worker_id,
-                        }
+                        phase=EventPhase.REFLEX.value,
+                        status="dissolved",
+                        trust=TrustLevel.VERIFIED.value,
+                        source="spawner",
+                        session_id=session_id,
+                        mission_id=sealed_contract.mission_id,
+                        worker_id=handle.worker_id,
+                    )
+                    self.bus.append(
+                        canonical.event_type,
+                        "spawner",
+                        canonical.to_dict(),
                     )
 
             if sealed_contract.snapshot_id and result.rollback_id is None:

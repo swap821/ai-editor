@@ -50,7 +50,7 @@ export async function startMirrorClient(): Promise<void> {
 
     const idStr = event.lastEventId; 
     const id = idStr ? parseInt(idStr, 10) : Date.now();
-    const eventType = event.type; 
+    const eventType = canonical.eventType || event.type; 
     const payload = canonical.payload || {};
 
     useMirrorStore.getState().applyEvent(id, eventType, canonical);
@@ -60,7 +60,7 @@ export async function startMirrorClient(): Promise<void> {
       case 'aios.cognitive_action':
         publishCognition({
           type: 'aios.cognitive_action',
-          spine_id: canonical.spine_id,
+          spine_id: canonical.eventId,
           label: humanizeRedactionMarkers(payload.label),
           body: humanizeRedactionMarkers(payload.body),
           redacted: payload.redacted,
@@ -69,7 +69,7 @@ export async function startMirrorClient(): Promise<void> {
       case 'aios.message':
         publishCognition({
           type: 'message',
-          spine_id: canonical.spine_id,
+          spine_id: canonical.eventId,
           label: humanizeRedactionMarkers(payload.label),
           body: humanizeRedactionMarkers(payload.body),
           role: payload.role,
@@ -80,7 +80,7 @@ export async function startMirrorClient(): Promise<void> {
       case 'aios.error':
         publishCognition({
           type: 'error',
-          spine_id: canonical.spine_id,
+          spine_id: canonical.eventId,
           label: humanizeRedactionMarkers(payload.label),
           body: humanizeRedactionMarkers(payload.body),
           code: payload.code,
@@ -91,7 +91,7 @@ export async function startMirrorClient(): Promise<void> {
       case 'aios.intent':
         publishCognition({
           type: 'aios.intent',
-          spine_id: canonical.spine_id,
+          spine_id: canonical.eventId,
           label: humanizeRedactionMarkers(payload.label),
           body: humanizeRedactionMarkers(payload.body),
         });
@@ -119,7 +119,7 @@ export async function startMirrorClient(): Promise<void> {
         publishCognition({
           type: 'knowledge-acquired',
           label: 'PLAN CREATED',
-          detail: canonical.goal ? canonical.goal.slice(0, 140) : 'New architectural plan',
+          detail: payload.goal ? payload.goal.slice(0, 140) : 'New architectural plan',
           intensity: 0.8,
           source: 'mirror',
         });

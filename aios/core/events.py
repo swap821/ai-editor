@@ -180,6 +180,12 @@ class CanonicalEventType(str, Enum):
     LEARNING_SKILL_MASTERED = "learning.skill.mastered"
     TURN_COMPLETED = "turn.completed"
     TURN_FAILED = "turn.failed"
+    FACTS_PROPOSED = "facts.proposed"
+    EDIT_PROPOSED = "edit.proposed"
+    EDIT_BLOCKED = "edit.blocked"
+    MEMORY_RECALLED = "memory.recalled"
+    MEMORY_TRUSTED_WORKFLOW_APPLIED = "memory.trusted_workflow_applied"
+    TELEMETRY_AGENT_STARTED = "telemetry.agent_started"
 
 
 @dataclass(frozen=True)
@@ -202,27 +208,41 @@ class CanonicalEvent:
     payload: dict[str, Any] = field(default_factory=dict)
     evidence_refs: list[str] = field(default_factory=list)
 
+    def __post_init__(self):
+        if not self.event_type:
+            raise ValueError("event_type is required")
+        if not self.phase:
+            raise ValueError("phase is required")
+        if not self.status:
+            raise ValueError("status is required")
+        if not self.trust:
+            raise ValueError("trust is required")
+        if not self.source:
+            raise ValueError("source is required")
+        if not self.session_id:
+            raise ValueError("session_id is required")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schemaVersion": self.schema_version,
+            "eventId": self.event_id,
+            "sequence": self.sequence,
+            "eventType": self.event_type,
+            "occurredAt": self.occurred_at,
+            "source": self.source,
+            "sessionId": self.session_id,
+            "turnId": self.turn_id,
+            "missionId": self.mission_id,
+            "workerId": self.worker_id,
+            "phase": self.phase,
+            "status": self.status,
+            "trust": self.trust,
+            "payload": self.payload,
+            "evidenceRefs": self.evidence_refs,
+        }
+
     def to_json(self) -> str:
-        return json.dumps(
-            {
-                "schemaVersion": self.schema_version,
-                "eventId": self.event_id,
-                "sequence": self.sequence,
-                "eventType": self.event_type,
-                "occurredAt": self.occurred_at,
-                "source": self.source,
-                "sessionId": self.session_id,
-                "turnId": self.turn_id,
-                "missionId": self.mission_id,
-                "workerId": self.worker_id,
-                "phase": self.phase,
-                "status": self.status,
-                "trust": self.trust,
-                "payload": self.payload,
-                "evidenceRefs": self.evidence_refs,
-            },
-            ensure_ascii=False,
-        )
+        return json.dumps(self.to_dict(), ensure_ascii=False)
 
     @classmethod
     def from_json(cls, raw: str) -> "CanonicalEvent":
