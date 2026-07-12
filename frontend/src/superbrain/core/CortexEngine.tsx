@@ -1,5 +1,5 @@
-import { subscribeCognition } from '@/lib/cognitionBus';
 'use client';
+import { subscribeCognition } from '@/lib/cognitionBus';
 
 import { useEffect, useRef } from 'react';
 import { Float, PerspectiveCamera, OrbitControls } from '@react-three/drei';

@@ -1,5 +1,5 @@
-import { subscribeCognition } from '@/lib/cognitionBus';
 'use client';
+import { subscribeCognition } from '@/lib/cognitionBus';
 
 import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
