@@ -299,13 +299,7 @@ async function streamTurn(
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
     }
-    publishCognition({
-      type: 'synthesis',
-      label: 'LINK OFFLINE',
-      detail: 'GAGOS backend unreachable — directive handled by imagination only.',
-      intensity: 0.3,
-      source: 'aios',
-    });
+    
     return { ok: false, paused: false, answer };
   }
 }
@@ -341,7 +335,7 @@ export async function sendVoiceTurn(
 ): Promise<string> {
   const text = transcript.trim();
   if (!text) return '';
-  publishCognition({ type: 'directive', label: text.slice(0, 80), intensity: 1, source: 'voice' });
+  
   let reply = '';
   const { signal, modelId } = opts;
   try {
@@ -362,37 +356,18 @@ export async function sendVoiceTurn(
         reply += String(data.text ?? '');
         opts.onChunk?.(reply);
       } else if (frame.event === 'route' && typeof data.model === 'string' && data.model) {
-        publishCognition({
-          type: 'route',
-          label: 'ACTIVE BRAIN',
-          detail: `${String(data.provider ?? '?')}:${String(data.model)} (${String(data.privacy ?? '?')})`,
-          intensity: 0.3,
-          source: 'aios',
-          data,
-        });
+        // (route event handled by aiosMirror)
       } else if (frame.event === 'error') {
         throw new Error(String(data.text ?? 'The voice mind could not answer.'));
       }
     }
-    publishCognition({
-      type: 'synthesis',
-      label: 'SYNTHESIS COMPLETE',
-      detail: reply.slice(0, 140) || 'voice reply received',
-      intensity: 0.6,
-      source: 'aios',
-    });
+    
     return reply;
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
     }
-    publishCognition({
-      type: 'synthesis',
-      label: 'LINK OFFLINE',
-      detail: 'Voice mind unreachable — the reply did not arrive.',
-      intensity: 0.3,
-      source: 'aios',
-    });
+    
     throw err;
   }
 }
@@ -439,13 +414,7 @@ export async function approvePendingApproval(): Promise<DirectiveResult> {
   const pending = pendingApproval;
   if (!pending?.token) return { ok: false, paused: false, answer: '' };
   setPendingApprovalState(null);
-  publishCognition({
-    type: 'approval-resolved',
-    label: 'approved',
-    detail: pending.summary.slice(0, 140),
-    intensity: 0.9,
-    source: 'operator',
-  });
+  
   return streamTurn(pending.prompt, [pending.token]);
 }
 
@@ -477,13 +446,7 @@ export async function rejectPendingApproval(): Promise<void> {
   } catch {
     // The token simply expires unredeemed; the visual still stands down.
   }
-  publishCognition({
-    type: 'approval-resolved',
-    label: confirmed ? 'rejected' : 'rejected (unconfirmed — token will expire)',
-    detail: pending.summary.slice(0, 140),
-    intensity: 0.5,
-    source: 'operator',
-  });
+  
 }
 
 /** The operator cancelled the turn while an approval slab was showing.
@@ -493,13 +456,7 @@ export function cancelPendingApproval(): void {
   const pending = pendingApproval;
   if (!pending) return;
   setPendingApprovalState(null);
-  publishCognition({
-    type: 'approval-resolved',
-    label: 'cancelled',
-    detail: pending.summary.slice(0, 140),
-    intensity: 0.5,
-    source: 'operator',
-  });
+  
 }
 
 // -------------------------------------------------------- trails + metrics
@@ -749,13 +706,7 @@ export async function pollOnce(): Promise<void> {
     if (!linkUp) {
       linkUp = true;
       setMetricLink(true);
-      publishCognition({
-        type: 'synthesis',
-        label: 'GAGOS LINK ESTABLISHED',
-        detail: `live cognition: ${trails.length} trail(s) on the pheromone map`,
-        intensity: 0.7,
-        source: 'aios',
-      });
+      
     }
 
     knownTrails = trails;
@@ -774,13 +725,7 @@ export async function pollOnce(): Promise<void> {
       const total = trail.success_count + trail.reuse_success_count;
       const previous = seenTrailTotals.get(trail.skill_id);
       if (previous !== undefined && total > previous) {
-        publishCognition({
-          type: 'knowledge-acquired',
-          label: trailLabel(trail.goal_pattern),
-          detail: `trail #${trail.skill_id} reinforced — strength ${trail.strength.toFixed(3)}`,
-          intensity: Math.max(0.4, Math.min(1, trail.strength)),
-          source: 'aios',
-        });
+        
       }
       seenTrailTotals.set(trail.skill_id, total);
 
@@ -793,13 +738,7 @@ export async function pollOnce(): Promise<void> {
         previousStatus !== 'verified' &&
         trail.status === 'verified'
       ) {
-        publishCognition({
-          type: 'knowledge-acquired',
-          label: `SKILL MASTERED — TRAIL #${trail.skill_id}`,
-          detail: trailLabel(trail.goal_pattern).toLowerCase(),
-          intensity: 1,
-          source: 'aios',
-        });
+        
       }
       seenTrailStatus.set(trail.skill_id, trail.status);
 
@@ -807,13 +746,7 @@ export async function pollOnce(): Promise<void> {
       const failures = (trail.failure_count ?? 0) + (trail.reuse_failure_count ?? 0);
       const previousFailures = seenTrailFailures.get(trail.skill_id);
       if (previousFailures !== undefined && failures > previousFailures) {
-        publishCognition({
-          type: 'agent-dispatch',
-          label: 'TRAIL WEAKENED',
-          detail: `trail #${trail.skill_id} took a failure — strength ${trail.strength.toFixed(3)}`,
-          intensity: 0.4,
-          source: 'aios',
-        });
+        
       }
       seenTrailFailures.set(trail.skill_id, failures);
     }
@@ -833,13 +766,7 @@ export async function pollOnce(): Promise<void> {
           chainValid = chain.valid === true ? true : chain.valid === false ? false : null;
           chainEntries = typeof chain.total_entries === 'number' ? chain.total_entries : 0;
           if (chainValid === false && wasValid !== false) {
-            publishCognition({
-              type: 'synthesis',
-              label: 'AUDIT CHAIN BROKEN',
-              detail: 'tamper-evidence check FAILED — inspect the audit ledger',
-              intensity: 1,
-              source: 'aios',
-            });
+            
           }
         }
       } catch {
@@ -862,13 +789,7 @@ export async function pollOnce(): Promise<void> {
         for (const entry of lastAutonomy.entries ?? []) {
           const prev = seenAutonomyStatus.get(entry.signature);
           if (prev !== undefined && prev !== 'earned' && entry.status === 'earned') {
-            publishCognition({
-              type: 'knowledge-acquired',
-              label: 'CAPABILITY EARNED',
-              detail: `${entry.action_type} ${entry.target_shape} — autonomous after ${entry.success_count} verified`,
-              intensity: 1,
-              source: 'aios',
-            });
+            
           }
           seenAutonomyStatus.set(entry.signature, entry.status);
         }
@@ -901,30 +822,27 @@ export async function pollOnce(): Promise<void> {
         revoked: lastAutonomy?.summary?.revoked ?? 0,
       },
     };
-    publishCognition({
-      type: 'telemetry',
-      source: 'aios',
-      data: lastTelemetry as unknown as Record<string, unknown>,
-    });
+    notifyTelemetry();
   } catch {
     if (linkUp) {
       linkUp = false;
       setMetricLink(false);
       lastTelemetry = lastTelemetry ? { ...lastTelemetry, link: false } : null;
-      publishCognition({
-        type: 'synthesis',
-        label: 'GAGOS LINK LOST',
-        detail: 'pheromone map unreachable — cognition running on imagination.',
-        intensity: 0.3,
-        source: 'aios',
-      });
-      publishCognition({
-        type: 'telemetry',
-        source: 'aios',
-        data: { link: false },
-      });
+      notifyTelemetry();
     }
   }
+}
+
+export type TelemetryListener = () => void;
+const telemetryListeners = new Set<TelemetryListener>();
+
+export function subscribeTelemetry(listener: TelemetryListener): () => void {
+  telemetryListeners.add(listener);
+  return () => telemetryListeners.delete(listener);
+}
+
+function notifyTelemetry(): void {
+  for (const listener of telemetryListeners) listener();
 }
 
 /* -------------------------------------------------------- facts graph */

@@ -1,7 +1,7 @@
 'use client';
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { publishCognition } from '@/lib/cognitionBus';
+
 
 interface Props {
   children: ReactNode;
@@ -26,13 +26,7 @@ export class SubsystemErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error(`Subsystem [${this.props.name}] crashed:`, error, errorInfo);
     
-    publishCognition({
-      type: 'terminal',
-      label: `SYS.ERR`,
-      detail: `Subsystem [${this.props.name}] encountered a fatal geometric/shader fault and was excised to preserve core cognition.`,
-      source: 'subsystem-boundary',
-      intensity: 0.8,
-    });
+    
   }
 
   public render() {

@@ -1,3 +1,4 @@
+import { subscribeCognition } from '@/lib/cognitionBus';
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -17,7 +18,7 @@ import MemoryGalaxy from '../components/canvas/MemoryGalaxy';
 import BodySpeech from '../components/canvas/BodySpeech';
 import { SubsystemErrorBoundary } from '../components/canvas/SubsystemErrorBoundary';
 
-import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
+
 import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeLifecycle, LifecycleState, ArrivalMode } from '@/lib/lifecycleStateMachine';
 import { coalescenceEnvelope, ignitionPulse, awakenNotice } from '@/lib/openingMotion';
@@ -313,7 +314,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       current.lastBurst = time;
       current.intensity = 1;
       // The HUD reacts to the SAME pulse the 3D scene feels.
-      publishCognition({ type: 'burst', intensity: 1, source: 'scene' });
+      
     }
     current.intensity = THREE.MathUtils.damp(current.intensity, 0, 3.5, delta);
     // Decay the directive camera surge here (the ref is owned by this scope);
@@ -498,13 +499,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
             ),
           );
         }
-        publishCognition({
-          type: 'synthesis',
-          label: 'autonomous reflection',
-          detail: 'unprompted inference cycle',
-          intensity: 0.7,
-          source: 'idle',
-        });
+        
       }
     }
     idle.wasIdle = isIdle;

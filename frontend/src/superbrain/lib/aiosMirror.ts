@@ -131,25 +131,7 @@ export async function startMirrorClient(): Promise<void> {
           source: 'mirror',
         });
         break;
-      case 'worker.started':
-        publishCognition({
-          type: 'agent-dispatch',
-          label: payload.role ? payload.role.toUpperCase() : 'WORKER',
-          detail: 'Worker online',
-          intensity: 0.7,
-          source: 'mirror',
-        });
-        break;
-      case 'worker.dissolved':
-        publishCognition({
-          type: 'agent-dispatch',
-          label: payload.role ? payload.role.toUpperCase() : 'WORKER',
-          detail: 'Worker dissolved',
-          intensity: 0.3,
-          source: 'mirror',
-        });
-        break;
-        
+
       case 'memory.recalled':
         publishCognition({
           type: 'knowledge-acquired',
@@ -284,7 +266,16 @@ export async function startMirrorClient(): Promise<void> {
       case 'worker.started':
         publishCognition({
           type: 'agent-dispatch',
-          label: 'WORKER STARTED',
+          label: payload.role ? `${String(payload.role).toUpperCase()} STARTED` : 'WORKER STARTED',
+          detail: String(payload.workerId || 'a council worker'),
+          intensity: 0.8,
+          source: 'mirror',
+        });
+        break;
+      case 'worker.completed':
+        publishCognition({
+          type: 'synthesis',
+          label: payload.role ? `${String(payload.role).toUpperCase()} COMPLETED` : 'WORKER COMPLETED',
           detail: String(payload.workerId || 'a council worker'),
           intensity: 0.8,
           source: 'mirror',
@@ -293,9 +284,9 @@ export async function startMirrorClient(): Promise<void> {
       case 'worker.dissolved':
         publishCognition({
           type: 'synthesis',
-          label: 'WORKER DISSOLVED',
+          label: payload.role ? `${String(payload.role).toUpperCase()} DISSOLVED` : 'WORKER DISSOLVED',
           detail: String(payload.workerId || 'a council worker'),
-          intensity: 0.8,
+          intensity: 0.3,
           source: 'mirror',
         });
         break;

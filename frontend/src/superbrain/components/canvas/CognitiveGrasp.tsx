@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { publishCognition } from '@/lib/cognitionBus';
+
 import { getKnownTrails, trailLabel, type TrailRow } from '@/lib/aiosAdapter';
 
 type Point = readonly [number, number, number];
@@ -395,16 +395,7 @@ function TransferRoute({
       absorbTimeRef.current = state.clock.elapsedTime;
       const trail = trailForSlot(timeline.slot);
       if (trail) {
-        publishCognition({
-          type: 'burst',
-          label: trailLabel(trail.goal_pattern),
-          detail:
-            `trail #${trail.skill_id} · strength ${trail.strength.toFixed(2)} · ` +
-            `${trail.success_count + trail.reuse_success_count} walk(s)` +
-            (trail.quarantined ? ' · QUARANTINED' : ''),
-          intensity: THREE.MathUtils.clamp(0.3 + trail.strength * 0.5, 0, 1),
-          source: 'grasp',
-        });
+        
       }
     }
     // 1 at the absorb instant -> 0 after ABSORB_PULSE_SECONDS.

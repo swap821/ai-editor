@@ -27,9 +27,6 @@ export type CognitionEventType =
   | 'approval-required'
   /** The operator resolved a pending approval (approve or reject). */
   | 'approval-resolved'
-  /** A successful adapter poll: real link/latency/trail/metric snapshot in
-   *  `data` (AiosTelemetry). Link loss publishes one with link=false. */
-  | 'telemetry'
   /** The active brain for a turn: which provider/model served it and whether it
    *  stayed local. `data` carries {provider, model, privacy, task, auto}. The
    *  sovereignty row shows it; additive, so the canon idle frame is untouched. */

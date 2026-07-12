@@ -115,6 +115,7 @@ class WorkerSpawner:
                     session_id=session_id,
                     mission_id=sealed_contract.mission_id,
                     worker_id=handle.worker_id,
+                    payload={"role": sealed_contract.worker_type},
                 )
                 self.bus.append(
                     canonical.event_type,
@@ -124,6 +125,24 @@ class WorkerSpawner:
 
             try:
                 result = await self.backend.reap(handle)
+                if self.bus:
+                    session_id = getattr(sealed_contract, "session_id", "council")
+                    canonical = CanonicalEvent(
+                        event_type=CanonicalEventType.WORKER_COMPLETED.value,
+                        phase=EventPhase.REFLEX.value,
+                        status="completed",
+                        trust=TrustLevel.VERIFIED.value,
+                        source="spawner",
+                        session_id=session_id,
+                        mission_id=sealed_contract.mission_id,
+                        worker_id=handle.worker_id,
+                        payload={"role": sealed_contract.worker_type},
+                    )
+                    self.bus.append(
+                        canonical.event_type,
+                        "spawner",
+                        canonical.to_dict(),
+                    )
             finally:
                 if handle.status not in {"dead", "killed"}:
                     await self.backend.kill(handle, "spawner cleanup after reap")
@@ -138,6 +157,7 @@ class WorkerSpawner:
                         session_id=session_id,
                         mission_id=sealed_contract.mission_id,
                         worker_id=handle.worker_id,
+                        payload={"role": sealed_contract.worker_type},
                     )
                     self.bus.append(
                         canonical.event_type,

@@ -192,6 +192,7 @@ export default function CouncilDashboard() {
   const [rollbackError, setRollbackError] = useState('');
   const [originGoal, setOriginGoal] = useState('');
   const [originFiles, setOriginFiles] = useState('');
+  const [originVerification, setOriginVerification] = useState('');
   const [originBusy, setOriginBusy] = useState(false);
   const [originError, setOriginError] = useState('');
 
@@ -224,6 +225,10 @@ export default function CouncilDashboard() {
       .split(/[\n,]/)
       .map((entry) => entry.trim())
       .filter(Boolean);
+    const verificationCommands = originVerification
+      .split('\n')
+      .map((cmd) => cmd.trim())
+      .filter(Boolean);
     if (!goal || allowedFiles.length === 0) {
       setOriginError('Goal and at least one allowed file are required');
       return;
@@ -231,16 +236,17 @@ export default function CouncilDashboard() {
     setOriginBusy(true);
     setOriginError('');
     try {
-      await postJson('/api/v1/council/missions', { goal, allowedFiles });
+      await postJson('/api/v1/council/missions', { goal, allowedFiles, verificationCommands });
       setOriginGoal('');
       setOriginFiles('');
+      setOriginVerification('');
       void loadMissions();
     } catch (err) {
       setOriginError('Could not originate mission (origination may be disabled)');
     } finally {
       setOriginBusy(false);
     }
-  }, [originGoal, originFiles, loadMissions]);
+  }, [originGoal, originFiles, originVerification, loadMissions]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -462,6 +468,14 @@ export default function CouncilDashboard() {
           onChange={(event) => setOriginFiles(event.target.value)}
           placeholder="Allowed files (comma or newline separated)"
           aria-label="Allowed files"
+        />
+        <textarea
+          className="council-dashboard__origin-verification"
+          value={originVerification}
+          onChange={(event) => setOriginVerification(event.target.value)}
+          placeholder="Verification commands (one per line, e.g. npm test)"
+          rows={2}
+          aria-label="Verification commands"
         />
         {originError ? <p className="council-dashboard__error">{originError}</p> : null}
         <button type="submit" disabled={originBusy}>

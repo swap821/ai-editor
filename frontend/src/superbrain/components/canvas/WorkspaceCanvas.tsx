@@ -1,3 +1,4 @@
+import { subscribeCognition } from '@/lib/cognitionBus';
 'use client';
 
 import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode } from 'react';
@@ -17,7 +18,7 @@ import {
 import TierGovernor from './TierGovernor';
 import { TIER_DPR } from '@/lib/perfBudget';
 import { startAiosPolling } from '@/lib/aiosAdapter';
-import { publishCognition, subscribeCognition } from '@/lib/cognitionBus';
+
 import {
   notifyDirective,
   tickLifecycle,
@@ -125,13 +126,7 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
     const el = gl.domElement;
     el.addEventListener('webglcontextlost', (event) => {
       event.preventDefault(); // opt in to in-place restoration
-      publishCognition({
-        type: 'synthesis',
-        label: 'RENDERER INTERRUPTED',
-        detail: 'GPU context lost — holding for in-place restore',
-        intensity: 0.4,
-        source: 'renderer',
-      });
+      
       if (restoreTimerRef.current) window.clearTimeout(restoreTimerRef.current);
       restoreTimerRef.current = window.setTimeout(() => {
         restoreTimerRef.current = null;
@@ -143,13 +138,7 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
         window.clearTimeout(restoreTimerRef.current);
         restoreTimerRef.current = null;
       }
-      publishCognition({
-        type: 'synthesis',
-        label: 'RENDERER RECOVERED',
-        detail: 'GPU context restored in place',
-        intensity: 0.3,
-        source: 'renderer',
-      });
+      
     });
   }, []);
 
@@ -167,7 +156,7 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
     const host = window as unknown as Record<string, unknown>;
-    host.__gagCognition = publishCognition;
+    
     return () => {
       delete host.__gagCognition;
     };

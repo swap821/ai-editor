@@ -23,7 +23,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { publishCognition } from '@/lib/cognitionBus';
+
 import { useQualityTier } from '@/components/QualityTierProvider';
 import { dprForFactor, PERF_BOUNDS, DPR_WARMUP_MS, ADVISORY_WARMUP_MS } from '@/lib/perfBudget';
 import { FeatureGate } from '../../core/Performance/FeatureGate';
@@ -90,14 +90,7 @@ export default function TierGovernor() {
             const now = Date.now();
             if (now - lastAdvisoryRef.current < ADVISORY_COOLDOWN_MS) return;
             lastAdvisoryRef.current = now;
-            publishCognition({
-              type: 'synthesis',
-              label: 'PERFORMANCE ADVISORY',
-              detail:
-                'frame rate still low after resolution relief — click FIDELITY to trade detail for smoothness (your call, never automatic)',
-              intensity: 0.3,
-              source: 'governor',
-            });
+            
           }}
         />
       )}

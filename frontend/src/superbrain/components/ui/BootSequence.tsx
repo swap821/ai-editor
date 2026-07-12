@@ -16,7 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useProgress } from '@react-three/drei';
-import { publishCognition } from '@/lib/cognitionBus';
+
 import { transitionToArriving, ArrivalMode } from '@/lib/lifecycleStateMachine';
 import { AIOS_BASE } from '@/lib/aiosAdapter';
 import styles from './BootSequence.module.css';
@@ -192,13 +192,7 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
       return () => window.clearTimeout(id);
     }
     if (phase === 'fade') {
-      publishCognition({
-        type: 'synthesis',
-        label: 'GAGOS ONLINE',
-        detail: 'GAGOS kernel boot complete — cognition core engaged.',
-        intensity: 0.9,
-        source: 'boot',
-      });
+      
       // The kernel is online — begin the being's opening. First-ever load on this
       // device coalesces (A); a return awakens (C). Reduced-motion is honored by
       // the scene (it renders the settled REST state immediately).
