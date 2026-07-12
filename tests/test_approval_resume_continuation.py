@@ -9,11 +9,11 @@ the tool call it just paused on.
 
 This test scripts a fake Ollama client that RECORDS every ``messages`` array it
 receives across a two-pause chain:
-  1. Plans ``create_file`` for ``test_alpha.py`` -> the turn pauses.
+  1. Plans ``create_file`` for ``test_a.py`` -> the turn pauses.
   2. Resume with token 1: the fake's SECOND call must see, in its own messages,
      its OWN turn-1 assistant tool_call for file A (the continuation -- this is
      the RED assertion) PLUS the applied-grant tool result anchor. It then
-     plans ``create_file`` for ``test_beta.py`` -> the turn pauses AGAIN
+     plans ``create_file`` for ``test_b.py`` -> the turn pauses AGAIN
      (supervision authority is unchanged: a second write still needs its own
      token).
   3. Resume with token 2: the fake's THIRD call sees the full history and
@@ -36,6 +36,7 @@ from fastapi.testclient import TestClient
 from aios import config
 from aios.api.main import (
     app,
+    get_edit_snapshot,
     get_executor,
     get_llm_client,
     get_ollama_client,
@@ -96,7 +97,7 @@ class ScriptedRecordingOllama:
                         "function": {
                             "name": "create_file",
                             "arguments": {
-                                "filepath": "test_alpha.py",
+                                "filepath": "training_ground/test_a.py",
                                 "content": _ALPHA_CONTENT,
                             },
                         }
@@ -112,7 +113,7 @@ class ScriptedRecordingOllama:
                         "function": {
                             "name": "create_file",
                             "arguments": {
-                                "filepath": "test_beta.py",
+                                "filepath": "training_ground/test_b.py",
                                 "content": _BETA_CONTENT,
                             },
                         }
@@ -132,8 +133,11 @@ def client(monkeypatch) -> Iterator[TestClient]:
     # detector false-positives on the auto-verify command's absolute path and
     # RED-blocks the forced verify -- see test_grant_workflow_steps.py's
     # fixture for the same precedent.
-    sandbox = Path(tempfile.mkdtemp(prefix="ar")).resolve()
-    monkeypatch.setattr(config, "PROJECT_ROOT", sandbox)
+    project_root = Path(tempfile.mkdtemp(prefix="ar")).resolve()
+    sandbox = project_root / "training_ground"
+    sandbox.mkdir()
+    monkeypatch.setattr(config, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [sandbox])
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([sandbox])
     skills = SkillMemory(db_path=sandbox / "resume_skills.db")
@@ -142,6 +146,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = lambda: fake_ollama
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": None)
     _runner = lambda command, *, cwd, env, timeout_s: ("1 passed", "", 0)  # noqa: E731
     app.dependency_overrides[get_executor] = lambda: Executor(
         runner=_runner,
@@ -159,7 +164,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     finally:
         app.dependency_overrides.clear()
         scope_lock.set_scope_roots(list(original))
-        shutil.rmtree(sandbox, ignore_errors=True)
+        shutil.rmtree(project_root, ignore_errors=True)
 
 
 def _extract_approval_token(body: str) -> str:
@@ -185,7 +190,7 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
     # --- Turn 1: fresh directive, no tokens -> plans file A -> pauses. ---
     resp1 = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [
-            {"text": "create test_alpha.py, then create test_beta.py, then verify both"}
+            {"text": "create test_a.py, then create test_b.py, then verify both"}
         ]}],
         "modelId": "ollama.llama3.2:3b",
         "sessionId": SESSION_ID,
@@ -199,7 +204,7 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
     # --- Turn 2: resume with token 1. ---
     resp2 = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [
-            {"text": "create test_alpha.py, then create test_beta.py, then verify both"}
+            {"text": "create test_a.py, then create test_b.py, then verify both"}
         ]}],
         "modelId": "ollama.llama3.2:3b",
         "sessionId": SESSION_ID,
@@ -210,7 +215,7 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
 
     # RED ASSERTION (today this fails): the fake's SECOND call must see its
     # OWN turn-1 assistant tool_call for file A as CONTINUATION -- i.e. an
-    # assistant message whose tool_calls include create_file/test_alpha.py --
+    # assistant message whose tool_calls include create_file/test_a.py --
     # somewhere in the messages array it receives on this second invocation.
     assert len(fake_ollama.calls) == 2, "the model must be re-invoked on resume"
     call2_messages = fake_ollama.calls[1]
@@ -222,11 +227,11 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
             fn = tc.get("function", {})
             if fn.get("name") == "create_file":
                 fp = str(fn.get("arguments", {}).get("filepath", ""))
-                if "test_alpha.py" in fp:
+                if "test_a.py" in fp:
                     found_own_tool_call = True
     assert found_own_tool_call, (
         "resume call must replay the paused turn's OWN assistant tool_call "
-        "for test_alpha.py as convo-tail continuation, not start fresh -- "
+        "for test_a.py as convo-tail continuation, not start fresh -- "
         f"got messages: {call2_messages!r}"
     )
 
@@ -238,7 +243,7 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
     # --- Turn 3: resume with token 2 -> model concludes. ---
     resp3 = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [
-            {"text": "create test_alpha.py, then create test_beta.py, then verify both"}
+            {"text": "create test_a.py, then create test_b.py, then verify both"}
         ]}],
         "modelId": "ollama.llama3.2:3b",
         "sessionId": SESSION_ID,
@@ -255,13 +260,13 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
     assert "event: human_required" not in body3
 
     # Both files landed on disk.
-    assert (sandbox / "test_alpha.py").read_text(encoding="utf-8") == _ALPHA_CONTENT
-    assert (sandbox / "test_beta.py").read_text(encoding="utf-8") == _BETA_CONTENT
+    assert (sandbox / "test_a.py").read_text(encoding="utf-8") == _ALPHA_CONTENT
+    assert (sandbox / "test_b.py").read_text(encoding="utf-8") == _BETA_CONTENT
 
     # The final turn mints exactly one skill whose recipe carries both writes.
     skills: SkillMemory = client._skills  # type: ignore[attr-defined]
     rows = [r for r in skills.list() if r["status"] != "superseded"]
     assert len(rows) == 1, f"expected exactly one minted skill, got {len(rows)}"
     steps = " | ".join(rows[0]["steps"])
-    assert "test_alpha.py" in steps, f"recipe missing file A: {steps!r}"
-    assert "test_beta.py" in steps, f"recipe missing file B: {steps!r}"
+    assert "test_a.py" in steps, f"recipe missing file A: {steps!r}"
+    assert "test_b.py" in steps, f"recipe missing file B: {steps!r}"

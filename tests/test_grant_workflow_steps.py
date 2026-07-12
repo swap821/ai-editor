@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from aios import config
 from aios.api.main import (
     app,
+    get_edit_snapshot,
     get_executor,
     get_llm_client,
     get_ollama_client,
@@ -56,7 +57,7 @@ class FakeOllamaConcludes:
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
+def client(monkeypatch) -> Iterator[TestClient]:
     # SHORT sandbox dir on purpose (not tmp_path): pytest's test-name-derived
     # tmp dir is long enough that the gateway's HIGH_ENTROPY credential
     # detector false-positives on the auto-verify command's absolute path and
@@ -65,8 +66,11 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     # test targets the workflow_steps seam, not that one.
     import shutil
     import tempfile
-    sandbox = Path(tempfile.mkdtemp(prefix="ag")).resolve()
-    monkeypatch.setattr(config, "PROJECT_ROOT", sandbox)
+    project_root = Path(tempfile.mkdtemp(prefix="ag")).resolve()
+    sandbox = project_root / "training_ground"
+    sandbox.mkdir()
+    monkeypatch.setattr(config, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(config, "SCOPE_ROOTS", [sandbox])
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([sandbox])
     skills = SkillMemory(db_path=sandbox / "grant_skills.db")
@@ -74,6 +78,7 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = FakeOllamaConcludes
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": None)
     # A recognized runner reporting a genuine pass -> the forced auto-verify
     # is STRONG. approved_runner is injected too: the FORCED auto-verify runs
     # approved=True -> approved_runner, which fail-closes on the container
@@ -95,19 +100,19 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     finally:
         app.dependency_overrides.clear()
         scope_lock.set_scope_roots(list(original))
-        shutil.rmtree(sandbox, ignore_errors=True)
+        shutil.rmtree(project_root, ignore_errors=True)
 
 
 def test_granted_write_mints_skill_evidence(client: TestClient) -> None:
     """Approve -> grant applies -> STRONG verify -> the skill MUST record."""
     token = get_approval_store().issue(
         "create",
-        {"filepath": "test_selfcheck.py", "content": _SELF_TESTING_FILE},
+        {"filepath": "training_ground/test_add.py", "content": _SELF_TESTING_FILE},
         "grant-steps-session",
     )
     response = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [
-            {"text": "create test_selfcheck.py with an add function and its test, then verify"}
+            {"text": "create test_add.py with an add function and its test, then verify"}
         ]}],
         "modelId": "ollama.llama3.2:3b",
         "sessionId": "grant-steps-session",
@@ -118,7 +123,7 @@ def test_granted_write_mints_skill_evidence(client: TestClient) -> None:
     assert "event: human_required" not in body, "token was granted; no pause expected"
     assert "event: done" in body
     sandbox: Path = client._sandbox  # type: ignore[attr-defined]
-    assert (sandbox / "test_selfcheck.py").read_text(encoding="utf-8") == _SELF_TESTING_FILE
+    assert (sandbox / "test_add.py").read_text(encoding="utf-8") == _SELF_TESTING_FILE
     assert "[VERIFY PASS]" in body, "the forced auto-verify must have run"
 
     skills: SkillMemory = client._skills  # type: ignore[attr-defined]
@@ -132,6 +137,6 @@ def test_granted_write_mints_skill_evidence(client: TestClient) -> None:
     assert row["success_count"] == 1
     assert row["verification_strength"] == "STRONG"
     steps = " | ".join(row["steps"])
-    assert "create_file" in steps and "test_selfcheck.py" in steps, (
+    assert "create_file" in steps and "test_add.py" in steps, (
         f"the recipe must carry the granted write itself; got steps: {steps!r}"
     )
