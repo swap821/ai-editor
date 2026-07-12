@@ -80,16 +80,11 @@ async def stream_journal(
 
     async def _event_generator() -> AsyncGenerator[str, None]:
         queue: asyncio.Queue[BusEvent] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
 
         def _on_event(event: BusEvent) -> None:
-            # We use put_nowait because subscribe handlers run in a different thread
-            # but we need to pass data to the async generator safely.
-            # Using loop.call_soon_threadsafe is safer for asyncio queues from other threads.
-            try:
-                loop = asyncio.get_running_loop()
-                loop.call_soon_threadsafe(queue.put_nowait, event)
-            except RuntimeError:
-                pass
+            # Dispatcher runs in a separate thread, use the captured loop
+            loop.call_soon_threadsafe(queue.put_nowait, event)
 
         # 1. Recovery: Replay missed events from Last-Event-ID
         if last_event_id is not None:
@@ -101,28 +96,30 @@ async def stream_journal(
                 pass
 
         # 2. Subscription: Listen for live events
-        bus.subscribe(_on_event)
+        unsubscribe = bus.subscribe(_on_event)
 
-        # 3. Stream loop with heartbeat
-        while not await request.is_disconnected():
-            try:
-                # Wait for next event or heartbeat timeout
-                event = await asyncio.wait_for(queue.get(), timeout=15.0)
-                
-                # Format payload for SSE
-                payload_str = json.dumps(event.payload, ensure_ascii=False)
-                payload_str = payload_str.replace("\r", "\\r").replace("\n", "\\n")
-                
-                yield f"id: {event.id}\n"
-                yield f"event: {event.event_type}\n"
-                yield f"data: {payload_str}\n\n"
-                
-                queue.task_done()
-                
-            except asyncio.TimeoutError:
-                # Heartbeat pulse to keep connection alive
-                yield "event: ping\ndata: {}\n\n"
-            except Exception:
-                break
+        try:
+            # 3. Stream loop with heartbeat
+            while not await request.is_disconnected():
+                try:
+                    # Wait for next event or heartbeat timeout
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    
+                    # Format payload for SSE
+                    payload_str = json.dumps(event.payload, ensure_ascii=False)
+                    payload_str = payload_str.replace("\r", "\\r").replace("\n", "\\n")
+                    
+                    yield f"id: {event.id}\n"
+                    yield f"data: {payload_str}\n\n"
+                    
+                    queue.task_done()
+                    
+                except asyncio.TimeoutError:
+                    # Heartbeat pulse to keep connection alive
+                    yield ": heartbeat\n\n"
+                except Exception:
+                    break
+        finally:
+            unsubscribe()
 
     return StreamingResponse(_event_generator(), media_type="text/event-stream")

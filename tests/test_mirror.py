@@ -15,15 +15,16 @@ def mock_cortex_bus():
     bus = MagicMock()
     bus.pending_count.return_value = 42
     
-    # Mock subscribe to yield a fake event when called
+    # Mock subscribe to yield a fake event when called and return unsubscribe
     def mock_subscribe(handler):
         fake_event = BusEvent(
             id=1,
             event_type="plan.created",
             signature="test",
-            payload={"test": "data"}
+            payload={"schemaVersion": 1, "eventType": "plan.created", "test": "data"}
         )
         handler(fake_event)
+        return MagicMock(name="unsubscribe")
         
     bus.subscribe = mock_subscribe
     
@@ -33,7 +34,7 @@ def mock_cortex_bus():
             id=2,
             event_type="worker.started",
             signature="test",
-            payload={"worker": "test"}
+            payload={"schemaVersion": 1, "eventType": "worker.started", "worker": "test"}
         )
     ]
     
@@ -93,13 +94,14 @@ def test_mirror_stream_live_events(mock_cortex_bus):
                     for chunk in response.iter_lines():
                         if chunk:
                             lines.append(chunk)
-                        if len(lines) >= 3:
+                        if len(lines) >= 2:
                             break
                     
-                    # We expect id, event, and data
-                    assert len(lines) >= 3
-                    assert any(l.startswith("event: plan.created") for l in lines)
-                    assert lines[2] == 'data: {"test": "data"}'
+                    # We expect generic SSE: id and data only
+                    assert len(lines) >= 2
+                    assert lines[0] == "id: 1"
+                    assert "eventType" in lines[1]
+                    assert "plan.created" in lines[1]
     finally:
         app.dependency_overrides.clear()
 
@@ -122,14 +124,40 @@ def test_mirror_stream_recovery(mock_cortex_bus):
                     for chunk in response.iter_lines():
                         if chunk:
                             lines.append(chunk)
-                        if len(lines) >= 6:
+                        if len(lines) >= 4:
                             break
                             
-                    assert len(lines) >= 6, f"Lines length: {len(lines)}. Lines: {lines}"
+                    assert len(lines) >= 4, f"Lines length: {len(lines)}. Lines: {lines}"
                     assert lines[0] == "id: 2"
-                    assert lines[1] == "event: worker.started"
+                    assert "eventType" in lines[1]
+                    assert "worker.started" in lines[1]
                     
-                    assert lines[3] == "id: 1"
-                    assert lines[4] == "event: plan.created"
+                    assert lines[2] == "id: 1"
+                    assert "eventType" in lines[3]
+                    assert "plan.created" in lines[3]
+    finally:
+        app.dependency_overrides.clear()
+
+def test_mirror_unsubscribe_called(mock_cortex_bus):
+    app.dependency_overrides[get_cortex_bus] = lambda: mock_cortex_bus
+    
+    unsubscribe_mock = MagicMock()
+    def fake_subscribe(handler):
+        return unsubscribe_mock
+    mock_cortex_bus.subscribe = fake_subscribe
+
+    try:
+        with patch("fastapi.Request.is_disconnected") as mock_is_disconnected:
+            async def fake_is_disconnected():
+                return True # Disconnect immediately
+            mock_is_disconnected.side_effect = fake_is_disconnected
+            
+            with TestClient(app, client=("127.0.0.1", 12345)) as client:
+                with client.stream("GET", "/api/v1/mirror/stream") as response:
+                    # iterate to force the generator to run and exit
+                    for _ in response.iter_lines():
+                        pass
+                    
+            unsubscribe_mock.assert_called_once()
     finally:
         app.dependency_overrides.clear()

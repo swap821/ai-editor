@@ -188,10 +188,18 @@ class CortexBus:
 
     # ── Consumer side ────────────────────────────────────────────────────────
 
-    def subscribe(self, handler: Callable[[BusEvent], None]) -> None:
+    def subscribe(self, handler: Callable[[BusEvent], None]) -> Callable[[], None]:
         """Register an in-process handler. Handlers MUST be idempotent (an event
         may be delivered more than once on replay) and MUST NOT carry authority."""
         self._handlers.append(handler)
+        
+        def unsubscribe() -> None:
+            try:
+                self._handlers.remove(handler)
+            except ValueError:
+                pass
+                
+        return unsubscribe
 
     def peek_pending(self, limit: int = 1000) -> list[BusEvent]:
         with self._connect() as conn:
