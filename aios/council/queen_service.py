@@ -92,18 +92,75 @@ class QueenService(ABC):
                 future.set_result(verdict)
 
 
-class SecurityQueenService(QueenService):
-    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
-        super().__init__("security", queue_depth)
-        from aios.council.queens.security import SecurityQueen
+class _SyncQueenService(QueenService):
+    """Base for Queens whose review() method is synchronous."""
 
-        self._queen = SecurityQueen()
+    def __init__(self, name: str, queen: Any, queue_depth: int):
+        super().__init__(name, queue_depth)
+        self._queen = queen
 
     async def _handle(self, contract: MissionContract) -> QueenVerdict:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._queen.review, contract)
 
 
+class PlannerQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.planner import PlannerQueen
+
+        super().__init__("planner", PlannerQueen(), queue_depth)
+
+
+class SecurityQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.security import SecurityQueen
+
+        super().__init__("security", SecurityQueen(), queue_depth)
+
+
+class MemoryQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.memory import MemoryQueen
+
+        super().__init__("memory", MemoryQueen(), queue_depth)
+
+
+class TestingQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.testing import TestingQueen
+
+        super().__init__("testing", TestingQueen(), queue_depth)
+
+
+class CritiqueQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.critique import CritiqueQueen
+
+        super().__init__("critique", CritiqueQueen(), queue_depth)
+
+
+class RoutingQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.routing import RoutingQueen
+
+        super().__init__("routing", RoutingQueen(), queue_depth)
+
+
+class ReflectionQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.reflection import ReflectionQueen
+
+        super().__init__("reflection", ReflectionQueen(), queue_depth)
+
+
+class ProjectUnderstandingQueenService(_SyncQueenService):
+    def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
+        from aios.council.queens.project_understanding import ProjectUnderstandingQueen
+
+        super().__init__("project_understanding", ProjectUnderstandingQueen(), queue_depth)
+
+
+# Global registry. Populated by init_queen_services() at application startup.
 QUEEN_SERVICES: dict[str, QueenService] = {}
 
 
@@ -115,10 +172,47 @@ def unregister_service(name: str) -> None:
     QUEEN_SERVICES.pop(name, None)
 
 
+def init_queen_services() -> dict[str, QueenService]:
+    """Initialize and register all Queen service instances.
+
+    Returns the populated registry. Callers must still ``await service.start()``
+    before submitting work and ``await service.stop()`` on shutdown.
+    """
+    if QUEEN_SERVICES:
+        return QUEEN_SERVICES
+    services: list[QueenService] = [
+        PlannerQueenService(),
+        SecurityQueenService(),
+        MemoryQueenService(),
+        TestingQueenService(),
+        CritiqueQueenService(),
+        RoutingQueenService(),
+        ReflectionQueenService(),
+        ProjectUnderstandingQueenService(),
+    ]
+    for svc in services:
+        register_service(svc)
+    return QUEEN_SERVICES
+
+
+def clear_queen_services() -> None:
+    """Clear the registry. Useful for tests."""
+    QUEEN_SERVICES.clear()
+
+
 __all__ = [
     "QUEEN_SERVICES",
     "QueenService",
+    "PlannerQueenService",
     "SecurityQueenService",
+    "MemoryQueenService",
+    "TestingQueenService",
+    "CritiqueQueenService",
+    "RoutingQueenService",
+    "ReflectionQueenService",
+    "ProjectUnderstandingQueenService",
     "register_service",
     "unregister_service",
+    "init_queen_services",
+    "clear_queen_services",
 ]

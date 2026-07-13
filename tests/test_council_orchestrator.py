@@ -254,3 +254,59 @@ def test_testing_queen_failure_changes_king_report_to_rollback(
     testing = next(verdict for verdict in run.verdicts if verdict.queen == "testing")
     assert testing.verdict == "deny"
     assert run.ledger.verification["commands"][0]["returncode"] != 0
+
+
+def test_deliberation_includes_optional_queens_when_justified(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    request = _request(
+        workspace,
+        mission_id="mission-optional-queens",
+        allowed_files=["a", "b", "c", "d"],
+        metadata={"project_id": "proj-42", "complex_task": True},
+    )
+
+    run = CouncilOrchestrator(runtime_root=runtime_root).deliberate(request)
+
+    queens = [verdict.queen for verdict in run.verdicts]
+    assert "routing" in queens
+    assert "project_understanding" in queens
+    assert set(run.ledger.evidence["council_participation"]["optional"]) >= {
+        "routing",
+        "project_understanding",
+    }
+    assert run.ledger.evidence["council_metrics"]["cost_usd"] == 0.0
+    assert run.ledger.evidence["council_metrics"]["latency_ms"] >= 0
+
+
+def test_deliberation_records_participation_for_minimal_council(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    request = _request(workspace, mission_id="mission-minimal")
+
+    run = CouncilOrchestrator(runtime_root=runtime_root).deliberate(request)
+
+    assert run.ledger.evidence["council_participation"]["required"] == [
+        "planner",
+        "security",
+        "memory",
+        "testing",
+    ]
+    assert "critique" in run.ledger.evidence["council_participation"]["optional"]
+
+
+def test_queen_services_registry_can_be_used_for_deliberation(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    request = _request(
+        workspace,
+        mission_id="mission-services",
+        allowed_files=["a", "b", "c", "d"],
+    )
+
+    run = CouncilOrchestrator(
+        runtime_root=runtime_root, use_queen_services=True
+    ).deliberate(request)
+
+    assert "routing" in [verdict.queen for verdict in run.verdicts]
+    assert run.report.status == "awaiting_approval"

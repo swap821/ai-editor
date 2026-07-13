@@ -80,6 +80,14 @@ class WorkerResult(RuntimeContract):
     ended_at: str
 
 
+class QueenEvidence(RuntimeContract):
+    """Structured evidence produced by a Queen during deliberation."""
+
+    basis: str = ""
+    checks: list[dict[str, Any]] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)
+
+
 class QueenVerdict(RuntimeContract):
     queen: str
     verdict: Literal["allow", "allow_with_approval", "deny", "defer"]
@@ -87,6 +95,10 @@ class QueenVerdict(RuntimeContract):
     reason: str
     constraints: list[str] = Field(default_factory=list)
     confidence: float = 0.0
+    confidence_basis: str = ""
+    evidence: QueenEvidence | None = None
+    recommended_worker_strategy: str | None = None
+    unresolved_questions: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -142,6 +154,7 @@ class KingReport(RuntimeContract):
 __all__ = [
     "KingReport",
     "MissionContract",
+    "QueenEvidence",
     "QueenVerdict",
     "RiskLevel",
     "RunLedger",
