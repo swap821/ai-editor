@@ -16,19 +16,23 @@
 | 5 | Action Envelope & Deterministic Policy Kernel | **DONE** | `aios/domain/actions/envelope.py`, `aios/domain/policy/decision.py`, `aios/application/action_broker.py`, extended `aios/policy/kernel.py` with full route registry + `decide()`, `tests/test_action_*.py` + `tests/test_policy_kernel_decide.py` + `tests/test_route_registry_conformance.py`; backend 91.84% coverage, frontend build green |
 | 6 | TurnCoordinator | **DONE** | `aios/application/turns/turn_context.py` + `turn_result.py` + `turn_coordinator.py`, unified `/api/v1/chat` and `/api/generate` through canonical `TurnContext`/`turn_id`/`mode`, `tests/test_turn_coordinator.py` + extended `tests/test_chat.py`/`tests/test_generate_input_shield.py`/`tests/test_cortex_bus_w2.py`; backend 91.88% coverage, frontend build green |
 | 7 | Living Interface | **DONE** | `frontend/src/superbrain/lib/activeBrain.ts`, `frontend/src/workbench/GagosChrome.jsx` + `.css` + `.status.test.tsx`, `frontend/src/superbrain/components/ui/SuperbrainHUD.tsx`, `frontend/src/superbrain/components/canvas/IdentityReadout.tsx`; frontend tests + build green, CSS canon 4 pre-existing violations, texture canon OK, backend 91.87% coverage |
-| 8 | Distribution & Bootstrap | pending | — |
+| 8 | Distribution & Bootstrap | **DONE** | `aios/bootstrap.py`, `aios/__main__.py` bootstrap subcommand, `install.ps1`, `aios/api/routes/system.py` `GET /api/v1/system/bootstrap`, `tests/test_bootstrap.py`; backend 91.80%+ coverage, frontend build green, CSS/texture canon same as baseline, `install.ps1` syntax OK |
 
 ## Baseline Evidence
 
 ### Backend
 - Command: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85`
-- Result: passing, backend coverage 91.87%
+- Result: passing, backend coverage 91.80%+
 - Log: `coverage.xml`
 
 ### Frontend
 - Build: passing (`npm run build`)
 - CSS canon: 4 pre-existing violations in `GagosChrome.css` / `TrustHalo.css`; out of scope
 - Texture canon: OK (`tools/check_canon_frozen.py`)
+
+### Installer
+- Script: `install.ps1`
+- Syntax check: passed (`[System.Management.Automation.PSParser]::Tokenize`)
 
 ## Authority & Ownership
 
@@ -38,4 +42,4 @@
 
 ## Next Action
 
-Push Slice 7 branch to `master` and hand off the builder lease to the next agent. Slice 8 — Distribution & Bootstrap — is ready to begin when chosen by the operator.
+Commit and push Slice 8 changes to `kimi/gagos-s06-turn-coordinator`, then hand off the builder lease to the next agent.

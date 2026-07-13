@@ -37,6 +37,7 @@ from aios.memory.db import get_connection
 from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
+from aios.bootstrap import run_bootstrap
 from aios.security.gateway import classify
 
 logger = get_logger(__name__)
@@ -87,6 +88,23 @@ class OnboardingStateResponse(BaseModel):
     firstAutonomy: bool
 
 
+class BootstrapCheckResponse(BaseModel):
+    """Single bootstrap check result."""
+
+    name: str
+    passed: bool
+    required: bool
+    message: str
+
+
+class BootstrapResponse(BaseModel):
+    """Aggregated bootstrap status for the distribution endpoint."""
+
+    ok: bool
+    summary: str
+    checks: list[BootstrapCheckResponse]
+
+
 # --------------------------------------------------------------------------- #
 # Liveness + metrics
 # --------------------------------------------------------------------------- #
@@ -94,6 +112,25 @@ class OnboardingStateResponse(BaseModel):
 def health() -> dict[str, Any]:
     """Liveness probe."""
     return {"status": "ok", "version": aios.__version__}
+
+
+@router.get("/api/v1/system/bootstrap", response_model=BootstrapResponse)
+def bootstrap_status() -> BootstrapResponse:
+    """Read-only bootstrap health status (no filesystem mutations)."""
+    result = run_bootstrap(project_root=config.PROJECT_ROOT, data_dir=config.DATA_DIR)
+    return BootstrapResponse(
+        ok=result.ok,
+        summary=result.summary,
+        checks=[
+            BootstrapCheckResponse(
+                name=c.name,
+                passed=c.passed,
+                required=c.required,
+                message=c.message,
+            )
+            for c in result.checks
+        ],
+    )
 
 
 @router.get("/metrics")
