@@ -40,8 +40,8 @@
 | 13 | Evidence and Verification Authorities | **DONE** | `f567446`; focused evidence/verification tests `24 passed`, full backend `2965 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
 | 14 | Atomic Promotion and Recovery | **DONE** | `c30cb9f`; focused promotion/rollback/audit tests `34 passed`, full backend `2970 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green; first Ubuntu CI setup outage rerun green |
 | 15 | Durable Cortex consumer semantics | **DONE** | `94ec847`; focused Cortex/stream tests `23 passed`, full backend `2975 passed/5 skipped/2 warnings`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29255612887` green across Ubuntu/Windows/macOS/frontend |
-| 16 | Incremental system read models | **DONE** | Slice 16 commit created locally; focused read-model/Cortex tests `26 passed`, full backend `2978 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI pending |
-| 17 | One Memory Authority | **NOT DONE** | Pending Slice 10 |
+| 16 | Incremental system read models | **DONE** | `7825654`; focused read-model/Cortex tests `26 passed`, full backend `2978 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29257186345` green across Ubuntu/Windows/macOS/frontend |
+| 17 | One Memory Authority | **DONE** | Slice 17 commit created locally; focused memory/migration tests `68 passed/2 skipped`, full backend `2986 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI pending |
 | 18 | Learning and earned autonomy loop | **NOT DONE** | Pending Slice 10 |
 | 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **NOT DONE** | Pending Slice 10 |
 | 20 | Constitutionally truthful Living Mirror | **NOT DONE** | Pending Slice 10 |
@@ -53,7 +53,7 @@
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
-- Next logical slice: **Slice 17 — One Memory Authority**.
+- Next logical slice: **Slice 18 — Governed learning and autonomy**.
 - Old Slice 8 (Distribution & Bootstrap) feeds new Slice 21 (operations/recovery) and Slice 23 (packaged product).
 
 ## Baseline Evidence
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Stage and validate Slice 17 — One Memory Authority. Do not infer completion of later slices from the cumulative candidate patch.
+Stage and validate Slice 18 — Governed learning and autonomy. Do not infer completion of later slices from the cumulative candidate patch.

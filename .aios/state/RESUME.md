@@ -2,16 +2,16 @@
 
 **Current Goal:** Execute the Master Convergence Directive: implement Slices 9–24 as independently validated, supervised authority boundaries without weakening the frozen security spine or claiming production readiness.
 
-**Last Completed + Verified Step:** Slice 16 — Incremental system read models, commit created locally.
-- Added immutable metric/status and system portrait contracts plus a durable incremental projection that applies Cortex observations idempotently without scanning event history on normal reads.
-- Added active turn/mission/worker/model projection state, bounded consumer processing, retention-gap handling, and mirror-store fields for stale/snapshot-required/read-model state.
-- Focused read-model/Cortex tests passed: `26 passed in 3.30s`.
-- Full backend gate passed: `2978 passed, 5 skipped, 1 warning` in `454.29s` with `-o addopts=''`; warning was the existing HTTPX deprecation.
+**Last Completed + Verified Step:** Slice 17 — One Memory Authority, commit created locally.
+- Added immutable memory proposal, verification, promotion-actor, provenance, record, and recall contracts plus a SQLite authority registry and versioned provenance migration.
+- Added one process-wide API authority provider routing recall to one specialized adapter while keeping pheromones advisory; fixed the route/provider integration uncovered by focused testing.
+- Focused memory/migration suites passed: `68 passed, 2 skipped in 9.08s`.
+- Full backend gate passed: `2986 passed, 5 skipped, 1 warning` in `423.10s` with `-o addopts=''`; warning was the existing HTTPX deprecation.
 - Frontend gates passed: typecheck, lint `122 warnings / 0 errors` under the existing budget, `102` test files / `588` tests, and production build.
 
-**Current Slice:** Slice 17 — One Memory Authority. The cumulative candidate for Slices 17–24 is stashed while Slice 16 is committed/published; `master` remains untouched.
+**Current Slice:** Slice 18 — Governed learning and autonomy. The cumulative candidate for Slices 18–24 is stashed while Slice 17 is committed/published; `master` remains untouched.
 
-**Single Next Action:** Stage only Slice 17 memory-authority files and run their focused tests before any wider gate.
+**Single Next Action:** Stage only Slice 18 autonomy/governance files and run their focused safety tests before any wider gate.
 
 **Open Approvals / Blockers:**
 - GitHub SSH preflight remains blocked by local `Host key verification failed`; the authenticated HTTPS `origin` is usable and must be recorded honestly.
@@ -20,6 +20,6 @@
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`); built-in tools continue to work.
 - Pre-existing CSS canon violations in `GagosChrome.css` and `TrustHalo.css` remain out of scope.
 
-**Active Files For This Slice:** `aios/application/read_models/**`, `aios/domain/read_models/**`, `frontend/src/superbrain/lib/mirrorStore.ts`, and `tests/test_read_model_projection.py`.
+**Active Files For This Slice:** `aios/application/memory/**`, `aios/domain/memory/**`, `aios/infrastructure/memory/**`, `aios/infrastructure/storage/migrations/0002_memory_provenance.py`, `aios/api/deps.py`, `aios/api/routes/memory.py`, and `tests/test_memory_authority.py`.
 
 **Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; each slice must be explicitly staged, tested, and committed from the isolated worktree before the next slice.
