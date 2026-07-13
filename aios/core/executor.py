@@ -225,7 +225,13 @@ class DockerRunner:
         self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
     ) -> tuple[str, str, int]:
         argv = _parse_argv(command)
-        resolved_cwd = str(Path(cwd).resolve())
+        cwd_path = Path(cwd)
+        if not cwd_path.is_absolute() or ".." in cwd_path.parts:
+            raise ValueError("executor cwd must be an absolute, normalized path")
+        # The scope-lock and structured executor adapters resolve cwd before
+        # crossing this runner boundary. Keep that canonical value unchanged;
+        # re-normalizing a request-derived string is itself a CodeQL path sink.
+        resolved_cwd = str(cwd_path)
         # H4 — Docker mount spec characters can break out of the mount string.
         # Commas, equals, and non-drive-letter colons are separators in the
         # --mount syntax. A normal Windows root ("C:\...") is allowed.
