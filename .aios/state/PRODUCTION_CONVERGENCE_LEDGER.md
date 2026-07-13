@@ -31,8 +31,8 @@
 | 4 | Runtime profiles | **DONE** | `aios/runtime/profiles.py`, runtime-profile endpoint |
 | 5 | ActionEnvelope & Policy Kernel | **DONE** | `aios/domain/actions/`, `aios/application/action_broker.py`, route registry |
 | 6 | Unify `/chat` and `/generate` under TurnCoordinator | **DONE** | `aios/application/turns/turn_coordinator.py`, unified routes |
-| 7 | MissionContract v1 and transactional mission state | **NOT DONE** | Next planned slice |
-| 8 | Converge the Queen Council | **NOT DONE** | |
+| 7 | MissionContract v1 and transactional mission state | **NOT DONE** | `aios/runtime/contracts.py` has v0.1 `MissionContract` schema and `aios/runtime/run_ledger.py` persists JSON ledgers, but there is no v1 contract, mission state machine, repository, transition validation, contract digest, or SQLite as authoritative source. |
+| 8 | Converge the Queen Council | **NOT DONE** | `aios/council/council_orchestrator.py` always invokes Planner/Security/Memory/Testing and optional Critique; there is no adaptive participation policy, no Routing/Reflection/Project-Understanding Queens, and `aios/council/queen_service.py` registry (`QUEEN_SERVICES`) is empty and unused by production callers. |
 | 9 | Worker Foundry unification | **NOT DONE** | |
 | 10 | Privacy Broker and model routing | **NOT DONE** | |
 | 11 | Isolated Executor Service | **NOT DONE** | |
