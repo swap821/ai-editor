@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import hmac
 import os
-from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
 
 from aios import config
 from aios.domain.executor import ExecutorJob, ExecutorResult
 from aios.infrastructure.executor.docker_runner import DockerJobRunner
+from aios.infrastructure.executor.workspace import resolve_staged_workspace
 
 
 app = FastAPI(
@@ -38,13 +38,13 @@ def _authorized(authorization: str | None) -> bool:
 
 
 def _workspace_allowed(path: str) -> bool:
-    root = Path(os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs")).resolve()
-    candidate = Path(path).resolve()
     try:
-        candidate.relative_to(root)
-    except ValueError:
+        resolve_staged_workspace(
+            path, os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs")
+        )
+    except (OSError, ValueError):
         return False
-    return candidate.is_dir()
+    return True
 
 
 @app.get("/health")

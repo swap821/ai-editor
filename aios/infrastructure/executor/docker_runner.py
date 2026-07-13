@@ -1,13 +1,13 @@
 """Compatibility adapter from structured jobs to the existing Docker runner."""
 from __future__ import annotations
 
+import os
 import shlex
-from pathlib import Path
-from typing import Callable
 
 from aios.core.executor import DockerRunner
 from aios.domain.executor import ExecutorJob, ExecutorResult
 from aios.application.executor.service import environment_digest, utc_now
+from aios.infrastructure.executor.workspace import resolve_staged_workspace
 
 
 class DockerJobRunner:
@@ -23,7 +23,6 @@ class DockerJobRunner:
     def __call__(self, job: ExecutorJob) -> ExecutorResult:
         argv = job.argv or job.worker_entrypoint
         command = shlex.join(argv)
-        workspace = Path(job.workspace_snapshot).resolve()
         env = {
             name: job.environment[name]
             for name in job.environment_allowlist
@@ -31,6 +30,10 @@ class DockerJobRunner:
         }
         started = utc_now()
         try:
+            workspace = resolve_staged_workspace(
+                job.workspace_snapshot,
+                os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs"),
+            )
             stdout, stderr, code = self.runner(
                 command,
                 cwd=str(workspace),

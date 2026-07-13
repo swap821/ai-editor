@@ -70,7 +70,10 @@ class ExecutorJob(BaseModel):
         if bool(self.argv) == bool(self.worker_entrypoint):
             raise ValueError("exactly one of argv or worker_entrypoint is required")
         selected = self.argv or self.worker_entrypoint
-        if any(not part or any(char in part for char in ";&|<>`\r\n") for part in selected):
+        if any(
+            not part or any(char in part for char in ";&|<>`\r\n\x00")
+            for part in selected
+        ):
             raise ValueError("executor arguments must be non-empty and shell-free")
         if not self.mount_policy.workspace_only:
             raise ValueError("executor jobs may mount only the staged workspace")

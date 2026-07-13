@@ -374,10 +374,15 @@ def _sanitise_env() -> dict[str, str]:
 
 
 def _parse_argv(command: str) -> list[str]:
-    """Parse one already-classified command into argv without invoking a shell."""
+    """Parse one classified command into shell-free, structured argv.
+
+    This is the command-injection validation boundary: authorization has
+    already happened in the gateway, while this function rejects shell
+    composition and values that cannot be represented safely by ``Popen``.
+    """
     if len(command) > max(config.MAX_COMMAND_CHARS, 1):
         raise ValueError(f"command exceeds {config.MAX_COMMAND_CHARS} character limit")
-    if not command or any(ch in command for ch in ";&|<>`\r\n"):
+    if not command or any(ch in command for ch in ";&|<>`\r\n\x00"):
         raise ValueError("shell composition is not permitted")
     argv = shlex.split(command, posix=os.name != "nt")
     if os.name == "nt":
