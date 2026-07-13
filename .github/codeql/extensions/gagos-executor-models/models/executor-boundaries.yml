@@ -7,7 +7,9 @@ extensions:
       # the resulting argv with shell=False. Authorization remains upstream in
       # the deterministic gateway and the structured ExecutorJob contract.
       - ["aios.core.executor", "Member[_parse_argv].ReturnValue", "command-injection"]
+      - ["aios.core.executor", "Member[_parse_argv].Parameter[0]", "command-injection"]
       - ["aios", "Member[core].Member[executor].Member[_parse_argv].ReturnValue", "command-injection"]
       # resolve_staged_workspace canonicalizes symlinks and proves containment
       # under the executor staging root before a path is used for a mount.
+      - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].Parameter[0]", "path-injection"]
       - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].ReturnValue", "path-injection"]
