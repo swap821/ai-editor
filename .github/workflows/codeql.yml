@@ -28,6 +28,16 @@ jobs:
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
     runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    env:
+      # Make the repository-local model pack resolvable without publishing it
+      # to a registry. The extra search path is harmless for the other matrix
+      # languages, which do not request the Python pack.
+      CODEQL_ACTION_EXTRA_OPTIONS: |
+        database:
+          init:
+            - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
+          run-queries:
+            - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
     permissions:
       # required for all workflows
       security-events: write
@@ -74,9 +84,9 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
         # Load the repository-local executor boundary models for the Python
-        # analysis. The pack path keeps the barriers versioned with the code
-        # they describe; other matrix languages do not need this Python pack.
-        packs: ${{ matrix.language == 'python' && 'gagos/executor-models:.github/codeql/extensions/gagos-executor-models' || '' }}
+        # analysis. The local search path above keeps the barriers versioned
+        # with the code they describe; other matrix languages do not need it.
+        packs: ${{ matrix.language == 'python' && 'gagos/executor-models' || '' }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
