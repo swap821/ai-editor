@@ -96,6 +96,7 @@ from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
+from aios.application.turns import TurnContext, TurnCoordinator, TurnMode
 from aios.core.model_selector import TASK_FAST, infer_task
 from aios.core.router_wiring import (
     _AUTO_IDS,
@@ -274,7 +275,7 @@ def _get_cortex_dispatcher() -> Optional[CortexBusDispatcher]:
 
 
 def _append_turn_completed(
-    bus: Optional[CortexBus], session_id: str
+    bus: Optional[CortexBus], session_id: str, turn_id: str
 ) -> None:
     """Best-effort: append a 'turn.completed' OBSERVATION to the cortex bus.
 
@@ -293,7 +294,7 @@ def _append_turn_completed(
             trust=TrustLevel.VERIFIED.value,
             source="aios.api.main",
             session_id=session_id,
-            turn_id=session_id,
+            turn_id=turn_id,
             payload={"ts": datetime.now(timezone.utc).isoformat()},
         )
         bus.append(
@@ -708,6 +709,42 @@ _COMPACTOR: Optional[MemoryCompactor] = None
 _COMPACTOR_LOCK = threading.Lock()
 
 
+# ── TurnCoordinator helpers ──────────────────────────────────────────────────
+# Slice 6: both /api/generate and /api/v1/chat resolve through one coordinator.
+# The routes stay thin HTTP adapters; the coordinator owns turn identity, mode
+# classification, and the common event contract.
+
+
+def _build_turn_context(
+    session_id: str,
+    directive: str,
+    *,
+    model_id: Optional[str] = None,
+    approval_tokens: Optional[list[str]] = None,
+    mission_requested: bool = False,
+    governance_requested: bool = False,
+    data_classification: str = "PROJECT_INTERNAL",
+) -> TurnContext:
+    """Create a canonical TurnContext for the current directive."""
+    mode = TurnCoordinator.classify_mode(
+        directive,
+        mission_requested=mission_requested,
+        governance_requested=governance_requested,
+    )
+    return TurnContext(
+        turn_id=str(uuid.uuid4()),
+        session_id=session_id,
+        operator_id=None,
+        project_id=None,
+        directive=directive,
+        mode=mode,
+        model_id=model_id,
+        approval_tokens=tuple(approval_tokens or []),
+        data_classification=data_classification,
+        correlation_id=str(uuid.uuid4()),
+    )
+
+
 #: System prompt for the lean conversational endpoint (the GAGOS voice mind,
 #: Slice 1). It is CONVERSATION, not the coding forge: no file edits, no tool
 #: loop — just a warm, technically deep Hinglish chat. The operator-facts context
@@ -810,6 +847,14 @@ def generate(
         )
     if (injection_reason := _check_prompt_injection(user_text)):
         raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
+
+    ctx = _build_turn_context(
+        session_id,
+        user_text,
+        model_id=req.model_id,
+        approval_tokens=req.approval_tokens,
+        mission_requested=True,
+    )
     # The agent routes by PURPOSE: infer the task from the user's message so 'auto'
     # picks a coder for code, a reasoner for analysis, etc. (require_tools still
     # keeps the loop on a tool-capable model regardless of the inferred task).
@@ -829,7 +874,15 @@ def generate(
         """Development metadata for the model that ACTUALLY served (post-failover)."""
         p, m = _active_route(chat_client, bedrock, gemini, model,
                              openai=openai_client, anthropic=anthropic_client)
-        return {"provider": p, "model": m, "task": task}
+        return {
+            "provider": p,
+            "model": m,
+            "privacy": "local" if p == router.PROVIDER_OLLAMA else "cloud",
+            "task": task,
+            "auto": req.model_id in _AUTO_IDS,
+            "turn_id": ctx.turn_id,
+            "mode": ctx.mode.value,
+        }
 
     compactor.touch_working_session(session_id)
     if req.approved_commands or req.approved_edits or req.approved_creations:
@@ -868,7 +921,7 @@ def generate(
     )
 
     def event_stream() -> Iterator[str]:
-        sse = _sse_writer(session_id)
+        sse = _sse_writer(ctx.turn_id)
         if not user_text:
             yield sse("error", {"text": "No user message provided."})
             return
@@ -936,6 +989,8 @@ def generate(
                     "privacy": "local" if p == router.PROVIDER_OLLAMA else "cloud",
                     "task": task,
                     "auto": req.model_id in _AUTO_IDS,
+                    "turn_id": ctx.turn_id,
+                    "mode": ctx.mode.value,
                 },
             )
 
@@ -1405,7 +1460,7 @@ def generate(
                             trust=TrustLevel.VERIFIED.value,
                             source="generate",
                             session_id=session_id,
-                            turn_id=session_id,
+                            turn_id=ctx.turn_id,
                             payload={"count": proposed_count},
                         )
                         _cortex_bus.append(
@@ -1790,7 +1845,7 @@ def generate(
                 # Cortex bus W2: emit a cold-path observation AFTER the done
                 # frame so the hot path is never delayed. Best-effort and
                 # completely skipped when CORTEX_BUS is off (the default).
-                _append_turn_completed(_cortex_bus, session_id)
+                _append_turn_completed(_cortex_bus, session_id, ctx.turn_id)
 
     return StreamingResponse(
         event_stream(),
@@ -1919,6 +1974,14 @@ def chat(
     user_text = req.transcript.strip()
     if (injection_reason := _check_prompt_injection(user_text)):
         raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
+
+    ctx = _build_turn_context(
+        session_id,
+        user_text,
+        model_id=req.model_id,
+        approval_tokens=[],
+    )
+
     # Route by purpose (general for chitchat, coding for code talk, etc.). The
     # privacy gate lives inside _select_chat_client via _router_policy(): with the
     # default empty ROUTER_CLOUD_TASKS, `auto` stays local-only. Never force cloud.
@@ -1931,7 +1994,7 @@ def chat(
                              openai=openai_client, anthropic=anthropic_client)
 
     def event_stream() -> Iterator[str]:
-        sse = _sse_writer(session_id)
+        sse = _sse_writer(ctx.turn_id)
         # Telemetry (Phase 1 lap-counter, roadmap SS1): this endpoint has no tool
         # loop and never verifies anything, so dispatch_path is always `llm` and
         # verified_outcome is always `unverified` -- except a turn that never
@@ -2005,6 +2068,8 @@ def chat(
                 "privacy": "local" if active_provider == router.PROVIDER_OLLAMA else "cloud",
                 "task": task,
                 "auto": req.model_id in _AUTO_IDS,
+                "turn_id": ctx.turn_id,
+                "mode": ctx.mode.value,
             }
 
         # ONE no-tool chat stream => pure text, no tool loop, no file writes.
@@ -2047,7 +2112,7 @@ def chat(
                         trust=TrustLevel.VERIFIED.value,
                         source="chat",
                         session_id=session_id,
-                        turn_id=session_id,
+                        turn_id=ctx.turn_id,
                         payload={"count": proposed_count},
                     )
                     _cortex_bus.append(

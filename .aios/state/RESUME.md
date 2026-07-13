@@ -2,28 +2,27 @@
 
 **Current Goal:** Execute the Master Convergence Directive: transform the repository into a local-first sovereign agentic OS with unified authority, isolated execution, and a truthful living GAGOS interface.
 
-**Last Completed + Verified Step:** Slice 5 — Action Envelope & Deterministic Policy Kernel done and validated.
-- Added immutable domain contracts: `ActionEnvelope`, `ActionType`, `Principal` in `aios/domain/actions/envelope.py`; `PolicyDecision` in `aios/domain/policy/decision.py`.
-- Added application broker `aios/application/action_broker.py` with `ActionBroker` / `PolicyBrokerError` to issue/consume approval tokens and resolve envelopes without leaking token state into the kernel.
-- Extended `aios/policy/kernel.py`:
-  - `RouteAuthority` now carries `action_type` and `capability_required`.
-  - `_ROUTE_AUTHORITY` expanded from ~27 routes to a complete registry covering all 64 mutating API endpoints.
-  - Added `decide(envelope) -> PolicyDecision` that enforces rate limits, delegates command classification to the frozen gateway, and deterministically classifies all other mutations from the registry.
-- Added deterministic tests: `tests/test_action_envelope.py`, `tests/test_policy_decision.py`, `tests/test_action_broker.py`, `tests/test_policy_kernel_decide.py`.
-- Added architecture guard `tests/test_route_registry_conformance.py` that parses every `@router.post/put/delete/patch` and `@app.post/put/delete/patch` decorator and fails any mutating route lacking registry metadata.
-- Fixed full-suite test isolation issue: `/api/v1/council/missions/{mission_id}/rollback` registry rate limit raised from 10 to 60 req/min so `tests/test_routes_gaps.py` council-rollback tests no longer collide in the full suite.
-- Backend gate: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` — passing at 91.84% coverage.
-- Frontend build (`cd frontend && npm run build`) green. CSS canon check (`tools/check_css_canon.py`) still reports 4 pre-existing violations in `GagosChrome.css` / `TrustHalo.css`; unrelated to this slice.
-- Commit `65823fb` pushed to `master`; builder lease for `slice-5-action-envelope-policy` released.
+**Last Completed + Verified Step:** Slice 6 — TurnCoordinator unification of `/api/v1/chat` and `/api/generate` done and validated.
+- Added domain contracts under `aios/application/turns/`: `TurnContext` + `TurnMode` (`conversation`/`advisory`/`mission`/`governance`) in `turn_context.py`; `TurnResult` + event wrapping in `turn_result.py`; `TurnCoordinator` + `RuntimeDeps` + deterministic mode classification in `turn_coordinator.py`.
+- Refactored `aios/api/main.py`:
+  - Added `_build_turn_context(...)` helper to construct a canonical `TurnContext` per request.
+  - `/api/v1/chat` now builds a `TurnContext`, streams via `ctx.turn_id`, and emits `turn_id`/`mode` in route/facts events.
+  - `/api/generate` now builds a `TurnContext` with `mission_requested=True`, streams via `ctx.turn_id`, enriches the existing `_route_frame()` with `turn_id`/`mode`, and records facts against the real turn ID.
+  - `_append_turn_completed(bus, session_id, turn_id)` now requires a real `turn_id`.
+- Added deterministic tests: `tests/test_turn_coordinator.py` (classification, coordinator registration/fallback); extended `tests/test_chat.py` and `tests/test_generate_input_shield.py` to assert `turn_id` and `mode` propagation.
+- Fixed `tests/test_cortex_bus_w2.py` call sites for the new `_append_turn_completed` 3-arg signature.
+- Backend gate: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` — passing at 91.88% coverage.
+- Frontend build (`cd frontend && npm run build`) green. CSS canon check (`tools/check_css_canon.py`) still reports 4 pre-existing violations in `GagosChrome.css` / `TrustHalo.css`; unrelated to this slice. Texture canon check (`tools/check_canon_frozen.py`) OK.
+- Slice 6 ready to commit, push, and release builder lease.
 
-**Current Slice:** Slice 6 — to be chosen by operator / next agent.
+**Current Slice:** Slice 6 — TurnCoordinator.
 
-**Single Next Action:** Await operator direction for Slice 6 scope and next builder assignment.
+**Single Next Action:** Commit Slice 6 changes, push to `master`, and hand off the builder lease to the next agent.
 
 **Open Approvals / Blockers:**
 - `.claude/settings.json` was corrupted during a hook-blocker repair attempt. It has been removed and the broken copy preserved as `.claude/settings.json.broken`. The operator should restore a known-good `.claude/settings.json` before the next agent session; built-in tools work in this session due to a no-op `hook-handler.cjs`.
 - CSS canon violations in `GagosChrome.css` and `TrustHalo.css` are pre-existing and out of scope.
 
-**Active Files For This Slice:** `aios/policy/kernel.py`, `aios/domain/actions/envelope.py`, `aios/domain/policy/decision.py`, `aios/application/action_broker.py`, `tests/test_action_envelope.py`, `tests/test_policy_decision.py`, `tests/test_action_broker.py`, `tests/test_policy_kernel_decide.py`, `tests/test_route_registry_conformance.py`.
+**Active Files For This Slice:** `aios/application/turns/turn_context.py`, `aios/application/turns/turn_result.py`, `aios/application/turns/turn_coordinator.py`, `aios/application/turns/__init__.py`, `aios/api/main.py`, `tests/test_turn_coordinator.py`, `tests/test_chat.py`, `tests/test_generate_input_shield.py`, `tests/test_cortex_bus_w2.py`.
 
 **Notes Not Yet Promoted:** None.
