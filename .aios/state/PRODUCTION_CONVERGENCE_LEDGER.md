@@ -36,8 +36,8 @@
 | 9 | Worker Foundry unification | **DONE** | `7a28ee1`; focused worker tests, full backend `2951 passed/4 skipped`, frontend typecheck/lint/tests/build green; scripted prover regression `7 passed` |
 | 10 | Privacy Broker and model routing | **DONE** | `PENDING`; focused privacy/router/provider tests `65 passed`, full backend `2956 passed/4 skipped`, frontend typecheck/lint/tests/build green; prover regression `8 passed` |
 | 11 | Isolated Executor Service | **DONE** | `PENDING`; focused executor/runtime tests `41 passed`, full backend `2959 passed/4 skipped`, frontend typecheck/lint/tests/build green |
-| 12 | Staged workspaces / dormant worktree | **IN PROGRESS** | Cumulative candidate present; focused validation pending |
-| 13 | Evidence and Verification Authorities | **NOT DONE** | Pending Slice 10 |
+| 12 | Staged workspaces / dormant worktree | **DONE** | `PENDING`; focused staged-workspace/worktree tests `8 passed/1 skipped`, full backend `2962 passed/5 skipped`, frontend typecheck/lint/tests/build green |
+| 13 | Evidence and Verification Authorities | **IN PROGRESS** | Cumulative candidate present; focused validation pending |
 | 14 | Atomic Promotion and Recovery | **NOT DONE** | Pending Slice 10 |
 | 15 | Durable Cortex consumer semantics | **NOT DONE** | Pending Slice 10 |
 | 16 | Incremental system read models | **NOT DONE** | Pending Slice 10 |
@@ -53,7 +53,7 @@
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
-- Next logical slice: **Slice 12 — Staged workspaces**.
+- Next logical slice: **Slice 13 — Evidence and Verification Authorities**.
 - Old Slice 8 (Distribution & Bootstrap) feeds new Slice 21 (operations/recovery) and Slice 23 (packaged product).
 
 ## Baseline Evidence
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Stage and validate Slice 12 — Staged workspaces. Do not infer completion of later slices from the cumulative candidate patch.
+Stage and validate Slice 13 — Evidence and Verification Authorities. Do not infer completion of later slices from the cumulative candidate patch.
