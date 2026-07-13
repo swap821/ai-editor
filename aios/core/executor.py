@@ -125,6 +125,7 @@ def _bounded_run(
     if not _argv_is_safe(argv):
         raise ValueError("unsafe structured argv")
     limit = max(max_output_bytes or config.MAX_COMMAND_OUTPUT_BYTES, 1024)
+    # codeql[py/command-line-injection]
     process = subprocess.Popen(
         argv,
         shell=False,
