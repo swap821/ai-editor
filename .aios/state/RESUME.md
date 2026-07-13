@@ -2,14 +2,18 @@
 
 **Current Goal:** Execute the Master Convergence Directive: transform the repository into a local-first sovereign agentic OS with unified authority, isolated execution, and a truthful living GAGOS interface.
 
-**Last Completed + Verified Step:** Saved `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md` (commit `730f24f`).
-- The operator-supplied directive defines the canonical 24-slice roadmap, domain models, operating rules, and acceptance gates.
-- Updated `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md` with a superseded notice and roadmap pointer.
-- The prior 8-slice convergence is retained as historical evidence; it maps to the new directive's Slices 0–6, plus groundwork for Slices 19–21/23.
+**Last Completed + Verified Step:** Fixed CI/PR blockers and merged the ahead-of-master feature branch.
+- Fixed `tests/test_bootstrap.py::test_bootstrap_status_endpoint` to run without a repo-root `.env`.
+- Renamed CI matrix jobs to `backend-tests`/`frontend-tests` and added aggregate `backend`/`frontend` gate jobs so branch-protection required status checks are satisfied.
+- Updated `tests/test_deployment_hardening.py` to find the `actions/setup-python` step across any CI job.
+- Added `permissions: contents: read` to `.github/workflows/ci.yml` to resolve CodeQL workflow-permission review comments.
+- Merged PR #136 (`kimi/gagos-s06-turn-coordinator` → `master`).
+- Updated and merged safe dependabot PRs #133 (faster-whisper) and #134 (frontend minor-patch group).
+- Closed conflicting dependabot PRs #131 (pydantic_core group), #132 (setuptools), and #135 (TypeScript major) with explanatory comments.
 
-**Current Slice:** Master Convergence Directive saved; awaiting operator go/no-go on the next slice.
+**Current Slice:** Master Convergence Directive saved; repository is on `master` with clean CI gates.
 
-**Single Next Action:** Claim the builder lease and execute **new directive Slice 7 — MissionContract v1 and transactional mission state**, unless the operator wants to revisit an earlier slice under the stricter new directive.
+**Single Next Action:** Claim the builder lease and execute **new directive Slice 7 — MissionContract v1 and transactional mission state**, pending operator go-ahead.
 
 **Open Approvals / Blockers:**
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`). Restore a known-good settings file before the next agent session; built-in tools continue to work.
