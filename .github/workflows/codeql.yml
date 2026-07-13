@@ -35,7 +35,7 @@ jobs:
       CODEQL_ACTION_EXTRA_OPTIONS: |
         database:
           init:
-            - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
+            - --search-path=${{ github.workspace }}/.github/codeql/extensions
           run-queries:
             - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
     permissions:
