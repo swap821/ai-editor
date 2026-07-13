@@ -103,6 +103,9 @@ def test_chat_streams_text_chunk_then_done(
     # local-first respected: provider is the router's local pick, privacy local.
     assert '"provider": "ollama"' in body
     assert '"privacy": "local"' in body
+    # Slice 6: every event carries a unique turn_id and the canonical mode.
+    assert '"mode": "conversation"' in body
+    assert '"turn_id"' in body
     # the reply text actually reached the wire.
     assert "ho" in body and "jayega" in body
     # text_chunk precedes done.

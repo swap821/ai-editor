@@ -85,6 +85,35 @@ describe('GagosChrome W3 status chrome', () => {
     expect(status.querySelector('.gagos-pill--supervised')).toBeTruthy();
   });
 
+  it('renders a mode badge when the route event carries a TurnCoordinator mode', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    act(() => {
+      publishCognition({
+        type: 'route',
+        label: 'ROUTE',
+        detail: 'ollama:qwen2.5-coder:32b',
+        intensity: 0.5,
+        source: 'aios',
+        data: {
+          provider: 'ollama',
+          model: 'qwen2.5-coder:32b',
+          privacy: 'local',
+          turn_id: 'turn-7a9f-44d2',
+          mode: 'mission',
+        },
+      });
+    });
+
+    const status = screen.getByLabelText('GAGOS status');
+    await waitFor(() => {
+      expect(within(status).getByText('mission')).toHaveClass('gagos-pill__main');
+    });
+    expect(status.querySelector('.gagos-pill--mode')).toBeTruthy();
+    expect(status.querySelector('.gagos-pill--mode-mission')).toBeTruthy();
+  });
+
   it('shows a visible calm thinking echo above the dock while a turn is pending', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     const { container } = render(<GagosChrome />);

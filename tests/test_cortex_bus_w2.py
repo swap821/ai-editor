@@ -142,7 +142,7 @@ class TestProducer:
 
         with patch("aios.api.main.config") as mock_cfg:
             mock_cfg.CORTEX_BUS = bus_on
-            _append_turn_completed(bus if bus_on else None, "session-abc")
+            _append_turn_completed(bus if bus_on else None, "session-abc", "turn-abc")
 
         # Drain to materialise events into `seen`.
         bus.dispatch_pending()
@@ -155,7 +155,7 @@ class TestProducer:
         seen: list[BusEvent] = []
         bus.subscribe(seen.append)
 
-        _append_turn_completed(bus, "session-abc")
+        _append_turn_completed(bus, "session-abc", "turn-abc")
         bus.dispatch_pending()
 
         assert len(seen) == 1
@@ -171,7 +171,7 @@ class TestProducer:
         bus.subscribe(seen.append)
 
         # Passing None simulates bus-off — nothing may be appended.
-        _append_turn_completed(None, "session-abc")
+        _append_turn_completed(None, "session-abc", "turn-abc")
         bus.dispatch_pending()
 
         assert seen == []
@@ -181,7 +181,7 @@ class TestProducer:
         from aios.api.main import _append_turn_completed
 
         bus = CortexBus(db_path=tmp_path / "bus.db")
-        _append_turn_completed(bus, "session-xyz")
+        _append_turn_completed(bus, "session-xyz", "turn-xyz")
 
         events = bus.peek_pending()
         assert events, "event must be pending"
@@ -202,7 +202,7 @@ class TestProducer:
         # Pass a bus whose db_path is in a non-existent dir to force an error,
         # but wrap in a None to exercise the None-guard path without touching disk.
         # The real best-effort test: _append_turn_completed(None, ...) is silent.
-        _append_turn_completed(None, "session-xyz")  # must not raise
+        _append_turn_completed(None, "session-xyz", "turn-xyz")  # must not raise
 
 
 # ── Slice D: consumer ─────────────────────────────────────────────────────────
@@ -304,7 +304,7 @@ class TestW3Guard:
         from aios.api.main import _append_turn_completed
 
         bus = CortexBus(db_path=tmp_path / "bus.db")
-        _append_turn_completed(bus, "session-w3")
+        _append_turn_completed(bus, "session-w3", "turn-w3")
 
         events = bus.peek_pending()
         for evt in events:
