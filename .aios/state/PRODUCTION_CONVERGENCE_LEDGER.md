@@ -15,14 +15,14 @@
 | 4 | Runtime Profiles | **DONE** | `aios/runtime/profiles.py` + `aios/runtime/data/profiles.json`, kernel profile authority + singleton, router/executor routed through kernel, `GET /api/v1/system/runtime-profile`, `tests/test_runtime_profiles.py`; backend 91.77% coverage, frontend build green |
 | 5 | Action Envelope & Deterministic Policy Kernel | **DONE** | `aios/domain/actions/envelope.py`, `aios/domain/policy/decision.py`, `aios/application/action_broker.py`, extended `aios/policy/kernel.py` with full route registry + `decide()`, `tests/test_action_*.py` + `tests/test_policy_kernel_decide.py` + `tests/test_route_registry_conformance.py`; backend 91.84% coverage, frontend build green |
 | 6 | TurnCoordinator | **DONE** | `aios/application/turns/turn_context.py` + `turn_result.py` + `turn_coordinator.py`, unified `/api/v1/chat` and `/api/generate` through canonical `TurnContext`/`turn_id`/`mode`, `tests/test_turn_coordinator.py` + extended `tests/test_chat.py`/`tests/test_generate_input_shield.py`/`tests/test_cortex_bus_w2.py`; backend 91.88% coverage, frontend build green |
-| 7 | Living Interface | pending | — |
+| 7 | Living Interface | **DONE** | `frontend/src/superbrain/lib/activeBrain.ts`, `frontend/src/workbench/GagosChrome.jsx` + `.css` + `.status.test.tsx`, `frontend/src/superbrain/components/ui/SuperbrainHUD.tsx`, `frontend/src/superbrain/components/canvas/IdentityReadout.tsx`; frontend tests + build green, CSS canon 4 pre-existing violations, texture canon OK, backend 91.87% coverage |
 | 8 | Distribution & Bootstrap | pending | — |
 
 ## Baseline Evidence
 
 ### Backend
 - Command: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85`
-- Result: passing, backend coverage 91.88%
+- Result: passing, backend coverage 91.87%
 - Log: `coverage.xml`
 
 ### Frontend
@@ -38,4 +38,4 @@
 
 ## Next Action
 
-Push Slice 6 branch to `master` and hand off the builder lease to the next agent. Slice 7 — Living Interface — is ready to begin when chosen by the operator.
+Push Slice 7 branch to `master` and hand off the builder lease to the next agent. Slice 8 — Distribution & Bootstrap — is ready to begin when chosen by the operator.

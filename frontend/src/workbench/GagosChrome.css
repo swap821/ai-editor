@@ -170,6 +170,16 @@
     0 0 18px rgba(248, 113, 113, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+/* TurnCoordinator mode badge — data-true, only appears when a route event carries mode. */
+.gagos-pill--mode {
+  color: var(--neon-cyan);
+  background: rgba(123, 245, 251, 0.1);
+  border-color: rgba(123, 245, 251, 0.3);
+  box-shadow:
+    0 0 18px rgba(123, 245, 251, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  text-transform: lowercase;
+}
 .gagos-dot {
   width: 6px;
   height: 6px;
@@ -185,6 +195,11 @@
 .gagos-dot--supervised {
   background: var(--neon-green);
   box-shadow: 0 0 9px rgba(84, 240, 160, 0.85), 0 0 18px rgba(84, 240, 160, 0.28);
+}
+/* TurnCoordinator mode badge dot — cyan accent */
+.gagos-dot--mode {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 9px rgba(123, 245, 251, 0.85), 0 0 18px rgba(123, 245, 251, 0.28);
 }
 /* Honest offline state — the connection dot tells the truth, never a faked status. */
 .gagos-dot--offline {
