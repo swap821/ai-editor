@@ -37,7 +37,9 @@ def test_executor_health_does_not_expose_credentials(monkeypatch) -> None:
 
 def test_executor_job_requires_private_authentication(monkeypatch) -> None:
     monkeypatch.setenv("AIOS_EXECUTOR_TOKEN", "private-token")
-    response = TestClient(app).post("/v1/jobs", json=_job(), headers={"Authorization": "Bearer wrong"})
+    response = TestClient(app).post(
+        "/v1/jobs", json=_job(), headers={"Authorization": "Bearer wrong"}
+    )
     assert response.status_code == 401
 
 

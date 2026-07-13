@@ -5,6 +5,7 @@ process is given the Docker socket; submitted jobs are structured
 ``ExecutorJob`` messages and never opaque shell strings. Missing runtime,
 workspace or token configuration returns an explicit refusal.
 """
+
 from __future__ import annotations
 
 import hmac
