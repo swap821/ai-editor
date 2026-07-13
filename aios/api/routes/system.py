@@ -23,7 +23,12 @@ from pydantic import BaseModel, Field
 
 import aios
 from aios import config
-from aios.api.deps import get_approval_store, get_autonomy, get_development_tracker
+from aios.api.deps import (
+    get_approval_store,
+    get_autonomy,
+    get_development_tracker,
+    get_policy_kernel,
+)
 from aios.core.approvals import ApprovalStore
 from aios.core.autonomy import AutonomyLedger
 from aios.core.metrics import CONTENT_TYPE_LATEST, generate_latest, get_collector
@@ -267,6 +272,17 @@ def get_system_config() -> dict[str, Any]:
         "autonomy": autonomy_val,
         "autonomy_source": "env" if autonomy_in_env else "db"
     }
+
+
+@router.get("/api/v1/system/runtime-profile")
+def get_runtime_profile() -> dict[str, Any]:
+    """Return the active runtime profile and its resolved decisions.
+
+    Read-only surface: no mutation endpoint is exposed in this slice. The active
+    profile is selected by ``AIOS_RUNTIME_PROFILE`` (or persisted state) and
+    enforced by ``PolicyKernel``.
+    """
+    return get_policy_kernel().runtime_profile_decisions()
 
 
 @router.post("/api/v1/system/config")

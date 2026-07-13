@@ -1,6 +1,7 @@
 """Policy Kernel -- single authority facade for request, action, and feature policy."""
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
@@ -11,9 +12,13 @@ from fastapi import HTTPException, Request
 from starlette.responses import JSONResponse
 
 from aios import config
+from aios.core import router
 from aios.core.autonomy import AutonomyLedger
+from aios.domain.actions.envelope import ActionEnvelope, ActionType
+from aios.domain.policy.decision import PolicyDecision
 from aios.interfaces.http import edge_security
 from aios.policy.constitution import Constitution, build_constitution
+from aios.runtime import profiles
 from aios.security.gateway import GatewayDecision, RateLimiter, Zone, classify, validate_command
 
 
@@ -25,6 +30,8 @@ class RouteAuthority:
     confirm_required: bool = False
     audit_event: str = ""
     body_limit_bytes: int | None = None
+    action_type: ActionType = ActionType.UNKNOWN
+    capability_required: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -47,41 +54,417 @@ class ExecutionPolicy:
 
 
 _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
-    "/api/v1/approval/req": RouteAuthority("YELLOW", 10, "session", audit_event="approval_decision"),
-    "/api/v1/execute": RouteAuthority("YELLOW", 30, "session", audit_event="approved_execute"),
-    "/api/terminal": RouteAuthority("YELLOW", 20, "session", audit_event="terminal_command"),
-    "/api/v1/council/missions": RouteAuthority("YELLOW", 20, "session", audit_event="council_mission"),
-    "/api/v1/council/approve": RouteAuthority("YELLOW", 30, "session", audit_event="council_approve"),
-    "/api/v1/council/reject": RouteAuthority("YELLOW", 30, "session", audit_event="council_reject"),
-    "/api/v1/voice/transcribe": RouteAuthority("YELLOW", 30, "session", audit_event="voice_transcribe"),
-    "/api/v1/voice/speak": RouteAuthority("YELLOW", 60, "session", audit_event="voice_speak"),
-    "/api/v1/policy/propose": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_propose"),
-    "/api/v1/policy/{policy_id}/vote": RouteAuthority("YELLOW", 20, "server-session", audit_event="policy_vote"),
-    "/api/v1/policy/{policy_id}/enact": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_enact"),
-    "/api/v1/policy/{policy_id}/suspend": RouteAuthority("YELLOW", 10, "server-session", audit_event="policy_suspend"),
-    "/api/v1/audit/anchor/verify": RouteAuthority("YELLOW", 20, "server-session", audit_event="audit_anchor_verify"),
-    "/api/v1/pheromones/deposit": RouteAuthority("YELLOW", 60, "server-session", audit_event="pheromone_deposit"),
-    "/api/v1/pheromones/reinforce": RouteAuthority("YELLOW", 60, "server-session", audit_event="pheromone_reinforce"),
-    "/api/v1/pheromones/decay": RouteAuthority("YELLOW", 5, "server-session", audit_event="pheromone_decay"),
-    "/api/v1/runtime/surface/emit": RouteAuthority("YELLOW", 60, "server-session", audit_event="surface_emit"),
-    "/api/v1/runtime/surface/{signal_id}": RouteAuthority("YELLOW", 30, "server-session", audit_event="surface_revoke"),
-    "/api/v1/runtime/surface/sweep": RouteAuthority("YELLOW", 5, "server-session", audit_event="surface_sweep"),
-    "/api/v1/runtime/rollbacks/register": RouteAuthority("YELLOW", 30, "server-session", audit_event="rollback_register"),
-    "/api/v1/runtime/rollbacks/prune": RouteAuthority("YELLOW", 5, "server-session", audit_event="rollback_prune"),
-    "/api/v1/v10/vulture/scan": RouteAuthority(
-        "YELLOW", 5, "server-session", audit_event="v10_vulture_scan", body_limit_bytes=128_000
+    # ------------------------------------------------------------------ #
+    # Actions
+    # ------------------------------------------------------------------ #
+    "/api/v1/reflect": RouteAuthority(
+        "GREEN", 120, "session", audit_event="reflect", action_type=ActionType.REFLECT
     ),
-    "/api/v1/v10/ecosystem/scan": RouteAuthority(
-        "YELLOW", 5, "server-session", audit_event="v10_ecosystem_scan", body_limit_bytes=32_000
+    "/api/v1/plan": RouteAuthority(
+        "GREEN", 120, "session", audit_event="plan", action_type=ActionType.PLAN
     ),
-    "/api/v1/system/restart": RouteAuthority(
-        "RED", 3, "server-session", confirm_required=True, audit_event="system_restart"
+    "/api/v1/execute": RouteAuthority(
+        "YELLOW", 30, "session", audit_event="approved_execute", action_type=ActionType.COMMAND
     ),
+    "/api/v1/approval/req": RouteAuthority(
+        "YELLOW",
+        10,
+        "session",
+        audit_event="approval_decision",
+        action_type=ActionType.APPROVAL_RESOLUTION,
+    ),
+    "/api/v1/rollback": RouteAuthority(
+        "YELLOW", 10, "session", audit_event="rollback", action_type=ActionType.ROLLBACK
+    ),
+    "/api/v1/self-analysis/proposals/{proposal_id}/apply": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="proposal_apply",
+        action_type=ActionType.PROPOSAL_APPLY,
+    ),
+    "/api/v1/self-analysis/proposals/{proposal_id}/reject": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="proposal_reject",
+        action_type=ActionType.PROPOSAL_REJECT,
+    ),
+    # ------------------------------------------------------------------ #
+    # Auth
+    # ------------------------------------------------------------------ #
+    "/api/v1/auth/session": RouteAuthority(
+        "GREEN", 60, "public", audit_event="auth_session", action_type=ActionType.AUTH_SESSION_CREATE
+    ),
+    # ------------------------------------------------------------------ #
+    # Council
+    # ------------------------------------------------------------------ #
+    "/api/v1/council/missions": RouteAuthority(
+        "YELLOW", 20, "session", audit_event="council_mission", action_type=ActionType.COUNCIL_MISSION
+    ),
+    "/api/v1/council/missions/{mission_id}/rollback": RouteAuthority(
+        "YELLOW",
+        60,
+        "session",
+        audit_event="council_mission_rollback",
+        action_type=ActionType.COUNCIL_MISSION_ROLLBACK,
+    ),
+    "/api/v1/council/approve": RouteAuthority(
+        "YELLOW", 30, "session", audit_event="council_approve", action_type=ActionType.COUNCIL_APPROVE
+    ),
+    "/api/v1/council/reject": RouteAuthority(
+        "YELLOW", 30, "session", audit_event="council_reject", action_type=ActionType.COUNCIL_REJECT
+    ),
+    # ------------------------------------------------------------------ #
+    # Execution debugger
+    # ------------------------------------------------------------------ #
+    "/api/v1/execution/debugger/step": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="execution_debugger_step",
+        action_type=ActionType.EXECUTION_DEBUGGER_STEP,
+    ),
+    "/api/v1/execution/debugger/resume": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="execution_debugger_resume",
+        action_type=ActionType.EXECUTION_DEBUGGER_RESUME,
+    ),
+    # ------------------------------------------------------------------ #
+    # Development
+    # ------------------------------------------------------------------ #
+    "/api/v1/development/autonomy/revoke": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="development_autonomy_revoke",
+        action_type=ActionType.DEVELOPMENT_AUTONOMY_REVOKE,
+    ),
+    "/api/v1/development/curriculum": RouteAuthority(
+        "GREEN",
+        30,
+        "server-session",
+        audit_event="development_curriculum",
+        action_type=ActionType.DEVELOPMENT_CURRICULUM,
+    ),
+    "/api/v1/development/curriculum/proposals/accept": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="development_curriculum_accept",
+        action_type=ActionType.DEVELOPMENT_CURRICULUM_ACCEPT,
+    ),
+    # ------------------------------------------------------------------ #
+    # Memory
+    # ------------------------------------------------------------------ #
+    "/api/v1/memory/search": RouteAuthority(
+        "GREEN", 120, "session", audit_event="memory_search", action_type=ActionType.MEMORY_SEARCH
+    ),
+    "/api/v1/memory/consolidate": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="memory_consolidate",
+        action_type=ActionType.MEMORY_CONSOLIDATE,
+    ),
+    "/api/v1/conversation/session": RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="conversation_start",
+        action_type=ActionType.CONVERSATION_START,
+    ),
+    "/api/v1/conversation/correction": RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="conversation_correct",
+        action_type=ActionType.CONVERSATION_CORRECT,
+    ),
+    "/api/v1/alignment/feedback": RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="alignment_feedback",
+        action_type=ActionType.ALIGNMENT_FEEDBACK,
+    ),
+    "/api/v1/conversation/correction/clear": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="conversation_clear",
+        action_type=ActionType.CONVERSATION_CLEAR,
+    ),
+    "/api/v1/memory/facts/pending/{proposal_id}/approve": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="fact_approve",
+        action_type=ActionType.FACT_APPROVE,
+    ),
+    "/api/v1/memory/facts/pending/{proposal_id}/reject": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="fact_reject",
+        action_type=ActionType.FACT_REJECT,
+    ),
+    "/api/v1/memory/facts": RouteAuthority(
+        "GREEN", 120, "session", audit_event="fact_propose", action_type=ActionType.FACT_PROPOSE
+    ),
+    "/api/v1/memory/facts/reconcile": RouteAuthority(
+        "YELLOW", 30, "session", audit_event="fact_reconcile", action_type=ActionType.FACT_RECONCILE
+    ),
+    "/api/v1/knowledge/ingest": RouteAuthority(
+        "YELLOW",
+        30,
+        "server-session",
+        audit_event="knowledge_ingest",
+        action_type=ActionType.KNOWLEDGE_INGEST,
+    ),
+    "/api/v1/knowledge/sources/{source_id}": RouteAuthority(
+        "YELLOW",
+        30,
+        "server-session",
+        audit_event="knowledge_delete",
+        action_type=ActionType.KNOWLEDGE_DELETE,
+    ),
+    # ------------------------------------------------------------------ #
+    # Projects
+    # ------------------------------------------------------------------ #
+    "/api/v1/projects/passport/scan": RouteAuthority(
+        "GREEN",
+        30,
+        "session",
+        audit_event="project_passport_scan",
+        action_type=ActionType.PROJECT_PASSPORT_SCAN,
+    ),
+    "/api/v1/projects/scope-hints": RouteAuthority(
+        "GREEN",
+        60,
+        "session",
+        audit_event="project_scope_hints",
+        action_type=ActionType.PROJECT_SCOPE_HINTS,
+    ),
+    # ------------------------------------------------------------------ #
+    # Security
+    # ------------------------------------------------------------------ #
     "/api/v1/security/tokens/rotate": RouteAuthority(
-        "YELLOW", 3, "server-session", confirm_required=True, audit_event="audit_key_rotate"
+        "YELLOW",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="audit_key_rotate",
+        action_type=ActionType.SECURITY_TOKENS_ROTATE,
     ),
     "/api/v1/security/sandbox/clear": RouteAuthority(
-        "RED", 10, "server-session", confirm_required=True, audit_event="sandbox_clear"
+        "RED",
+        10,
+        "server-session",
+        confirm_required=True,
+        audit_event="sandbox_clear",
+        action_type=ActionType.SECURITY_SANDBOX_CLEAR,
+    ),
+    # ------------------------------------------------------------------ #
+    # Files
+    # ------------------------------------------------------------------ #
+    "/api/v1/files/read": RouteAuthority(
+        "GREEN", 120, "session", audit_event="files_read", action_type=ActionType.FILES_READ
+    ),
+    "/api/v1/files/edit": RouteAuthority(
+        "YELLOW", 60, "session", audit_event="files_edit", action_type=ActionType.FILES_EDIT
+    ),
+    # ------------------------------------------------------------------ #
+    # Sovereignty / runtime
+    # ------------------------------------------------------------------ #
+    "/api/v1/hibernation/run": RouteAuthority(
+        "YELLOW", 10, "server-session", audit_event="hibernation_run", action_type=ActionType.HIBERNATION_RUN
+    ),
+    "/api/v1/audit/anchor/verify": RouteAuthority(
+        "YELLOW",
+        20,
+        "server-session",
+        audit_event="audit_anchor_verify",
+        action_type=ActionType.AUDIT_ANCHOR_VERIFY,
+    ),
+    "/api/v1/policy/propose": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="policy_propose",
+        action_type=ActionType.POLICY_PROPOSE,
+    ),
+    "/api/v1/pheromones/deposit": RouteAuthority(
+        "YELLOW",
+        60,
+        "server-session",
+        audit_event="pheromone_deposit",
+        action_type=ActionType.PHEROMONE_DEPOSIT,
+    ),
+    "/api/v1/pheromones/reinforce": RouteAuthority(
+        "YELLOW",
+        60,
+        "server-session",
+        audit_event="pheromone_reinforce",
+        action_type=ActionType.PHEROMONE_REINFORCE,
+    ),
+    "/api/v1/pheromones/decay": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="pheromone_decay",
+        action_type=ActionType.PHEROMONE_DECAY,
+    ),
+    "/api/v1/runtime/surface/emit": RouteAuthority(
+        "YELLOW",
+        60,
+        "server-session",
+        audit_event="surface_emit",
+        action_type=ActionType.RUNTIME_SURFACE_EMIT,
+    ),
+    "/api/v1/runtime/surface/{signal_id}": RouteAuthority(
+        "YELLOW",
+        30,
+        "server-session",
+        audit_event="surface_revoke",
+        action_type=ActionType.RUNTIME_SURFACE_REVOKE,
+    ),
+    "/api/v1/runtime/surface/sweep": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="surface_sweep",
+        action_type=ActionType.RUNTIME_SURFACE_SWEEP,
+    ),
+    "/api/v1/runtime/rollbacks/register": RouteAuthority(
+        "YELLOW",
+        30,
+        "server-session",
+        audit_event="rollback_register",
+        action_type=ActionType.RUNTIME_ROLLBACK_REGISTER,
+    ),
+    "/api/v1/runtime/rollbacks/prune": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="rollback_prune",
+        action_type=ActionType.RUNTIME_ROLLBACK_PRUNE,
+    ),
+    "/api/v1/policy/{policy_id}/vote": RouteAuthority(
+        "YELLOW",
+        20,
+        "server-session",
+        audit_event="policy_vote",
+        action_type=ActionType.POLICY_VOTE,
+    ),
+    "/api/v1/policy/{policy_id}/enact": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="policy_enact",
+        action_type=ActionType.POLICY_ENACT,
+    ),
+    "/api/v1/policy/{policy_id}/suspend": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="policy_suspend",
+        action_type=ActionType.POLICY_SUSPEND,
+    ),
+    "/api/v1/council/services/{name}/start": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="council_service_start",
+        action_type=ActionType.COUNCIL_SERVICE_START,
+    ),
+    "/api/v1/council/services/{name}/stop": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="council_service_stop",
+        action_type=ActionType.COUNCIL_SERVICE_STOP,
+    ),
+    # ------------------------------------------------------------------ #
+    # System
+    # ------------------------------------------------------------------ #
+    "/api/v1/intent/preview": RouteAuthority(
+        "GREEN", 120, "session", audit_event="intent_preview", action_type=ActionType.INTENT_PREVIEW
+    ),
+    "/api/v1/security/classify": RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="security_classify",
+        action_type=ActionType.SECURITY_CLASSIFY,
+    ),
+    "/api/v1/system/config": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="system_config",
+        action_type=ActionType.SYSTEM_CONFIG,
+    ),
+    "/api/v1/system/restart": RouteAuthority(
+        "RED",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="system_restart",
+        action_type=ActionType.SYSTEM_RESTART,
+    ),
+    # ------------------------------------------------------------------ #
+    # V10 sanitation
+    # ------------------------------------------------------------------ #
+    "/api/v1/v10/vulture/scan": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="v10_vulture_scan",
+        body_limit_bytes=128_000,
+        action_type=ActionType.V10_VULTURE_SCAN,
+    ),
+    "/api/v1/v10/ecosystem/scan": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="v10_ecosystem_scan",
+        body_limit_bytes=32_000,
+        action_type=ActionType.V10_ECOSYSTEM_SCAN,
+    ),
+    # ------------------------------------------------------------------ #
+    # Voice
+    # ------------------------------------------------------------------ #
+    "/api/v1/voice/transcribe": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="voice_transcribe",
+        action_type=ActionType.VOICE_TRANSCRIBE,
+    ),
+    "/api/v1/voice/speak": RouteAuthority(
+        "YELLOW", 60, "session", audit_event="voice_speak", action_type=ActionType.VOICE_SPEAK
+    ),
+    # ------------------------------------------------------------------ #
+    # Main app routes
+    # ------------------------------------------------------------------ #
+    "/api/v1/chat": RouteAuthority(
+        "GREEN", 120, "session", audit_event="chat", action_type=ActionType.CHAT
+    ),
+    "/api/generate": RouteAuthority(
+        "GREEN", 120, "session", audit_event="generate", action_type=ActionType.GENERATE
+    ),
+    "/api/terminal": RouteAuthority(
+        "YELLOW", 20, "session", audit_event="terminal_command", action_type=ActionType.TERMINAL
+    ),
+    "/api/v1/memory/compact": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="memory_compact",
+        action_type=ActionType.MEMORY_COMPACT,
     ),
 }
 
@@ -117,6 +500,8 @@ class PolicyKernel:
         self._endpoint_hits: dict[str, list[tuple[str, float]]] = {}
         self._endpoint_hits_lock = threading.Lock()
         self._window_s = 60.0
+        self._active_profile: Optional[profiles.RuntimeProfile] = None
+        self._active_profile_lock = threading.Lock()
 
     @property
     def route_table(self) -> dict[str, RouteAuthority]:
@@ -209,7 +594,9 @@ class PolicyKernel:
         if decision.status == "BLOCK":
             return AuthorityDecision(blocked=True, zone=decision.zone, reason=decision.reason, command=command)
         if decision.status == "REQUIRE_HUMAN":
-            if self.autonomy.is_earned("command", command):
+            if self.autonomy.is_earned(
+                "command", command, enabled=self.earned_autonomy_enabled()
+            ):
                 return AuthorityDecision(allowed=True, zone=decision.zone, reason="earned autonomy", command=command)
             return AuthorityDecision(requires_approval=True, zone=decision.zone, reason=decision.reason, command=command)
         return AuthorityDecision(allowed=True, zone=decision.zone, reason=decision.reason, command=command)
@@ -234,6 +621,75 @@ class PolicyKernel:
             )
         return AuthorityDecision(allowed=True, zone=result.zone, reason="approved", command=command)
 
+    # ------------------------------------------------------------------ #
+    # Deterministic ActionEnvelope -> PolicyDecision authority
+    # ------------------------------------------------------------------ #
+    def decide(self, envelope: ActionEnvelope) -> PolicyDecision:
+        """Return a deterministic PolicyDecision for an ActionEnvelope.
+
+        Commands are evaluated through the frozen security gateway (via
+        ``evaluate_action``); all other action types are evaluated from the
+        route registry. Rate limits are enforced before any classification.
+        """
+        route = envelope.route
+        authority = self.route_authority(route)
+        audit_event = authority.audit_event or "action_evaluated"
+
+        try:
+            self.check_endpoint_rate_limit(route, envelope.principal.client_ip)
+        except HTTPException as exc:
+            return PolicyDecision(
+                envelope_id=envelope.action_id,
+                route=route,
+                blocked=True,
+                zone=Zone.RED,
+                reason=f"rate limited: {exc.detail}",
+                audit_event="rate_limit",
+            )
+
+        if envelope.action_type is ActionType.COMMAND:
+            command = str(envelope.payload.get("command", ""))
+            inner = self.evaluate_action(command, session_id=envelope.session_id)
+            return PolicyDecision(
+                envelope_id=envelope.action_id,
+                route=route,
+                allowed=inner.allowed,
+                blocked=inner.blocked,
+                requires_approval=inner.requires_approval,
+                zone=inner.zone,
+                reason=inner.reason,
+                audit_event=audit_event,
+            )
+
+        if authority.authority_class == "RED":
+            return PolicyDecision(
+                envelope_id=envelope.action_id,
+                route=route,
+                blocked=True,
+                zone=Zone.RED,
+                reason=f"route {route} is classified RED by policy",
+                audit_event=audit_event,
+            )
+
+        if authority.authority_class == "YELLOW":
+            return PolicyDecision(
+                envelope_id=envelope.action_id,
+                route=route,
+                requires_approval=True,
+                zone=Zone.YELLOW,
+                reason=f"route {route} requires human approval",
+                audit_event=audit_event,
+            )
+
+        return PolicyDecision(
+            envelope_id=envelope.action_id,
+            route=route,
+            allowed=True,
+            zone=Zone.GREEN,
+            reason=f"route {route} is GREEN",
+            audit_event=audit_event,
+        )
+
     def reset_sensitive_actions(self, session_id: Optional[str]) -> None:
         """Reset a session's sensitive-action budget after human re-authorisation."""
         from aios.security.gateway import reset_sensitive_actions as _reset
@@ -246,6 +702,107 @@ class PolicyKernel:
     def constitution_snapshot(self) -> Constitution:
         """Return the current constitutional snapshot."""
         return self.constitution
+
+    # ------------------------------------------------------------------ #
+    # Runtime profile authority
+    # ------------------------------------------------------------------ #
+    def active_runtime_profile(self) -> profiles.RuntimeProfile:
+        """Return the active runtime profile, resolving env var and persisted state.
+
+        The active profile is cached on the kernel. Unknown names fall back to
+        the built-in ``local-first`` profile so the process never starts without
+        a valid operating mode.
+        """
+        if self._active_profile is not None:
+            return self._active_profile
+        with self._active_profile_lock:
+            if self._active_profile is not None:
+                return self._active_profile
+            env_name = (
+                os.environ.get("AIOS_RUNTIME_PROFILE", profiles.default_profile_name())
+                .strip()
+                .lower()
+            )
+            persisted = profiles.load_active_profile_name()
+            name = persisted or env_name
+            profile = profiles.get_profile(name)
+            if profile is None:
+                profile = profiles.get_profile(profiles.default_profile_name())
+            if profile is None and profiles.RUNTIME_PROFILES:
+                profile = next(iter(profiles.RUNTIME_PROFILES.values()))
+            self._active_profile = profile
+            return self._active_profile
+
+    def load_runtime_profile(self, name: str) -> profiles.RuntimeProfile:
+        """Look up a built-in runtime profile by name.
+
+        Raises ``ValueError`` if the profile is unknown.
+        """
+        profile = profiles.get_profile(name)
+        if profile is None:
+            raise ValueError(f"Unknown runtime profile: {name!r}")
+        return profile
+
+    def list_runtime_profiles(self) -> list[str]:
+        """Return the names of all built-in runtime profiles."""
+        return profiles.list_profile_names()
+
+    def save_runtime_profile(self, profile: profiles.RuntimeProfile) -> None:
+        """Persist *profile* as the active profile and invalidate the cache."""
+        profiles.save_active_profile(profile)
+        with self._active_profile_lock:
+            self._active_profile = profile
+
+    def cloud_tasks_allowed(self, task: str) -> bool:
+        """Return True if *task* may be routed to a cloud provider."""
+        return self.active_runtime_profile().cloud_task_allowed(task)
+
+    def earned_autonomy_enabled(self) -> bool:
+        """Return whether earned autonomy is enabled in the active profile."""
+        return self.active_runtime_profile().earned_autonomy
+
+    def execution_backend(self) -> str:
+        """Return the execution backend configured by the active profile."""
+        return self.active_runtime_profile().execution_backend
+
+    def offline_mode(self) -> bool:
+        """Return whether the active profile forces offline operation."""
+        return self.active_runtime_profile().offline_mode
+
+    def router_policy(self) -> router.Policy:
+        """Build the cross-provider routing policy from the active profile."""
+        profile = self.active_runtime_profile()
+        return router.Policy(
+            cloud_tasks=frozenset(profile.router_cloud_tasks),
+            max_cost=profile.router_max_cost,
+            prefer_local=profile.router_prefer_local,
+        )
+
+    def runtime_profile_decisions(self) -> dict[str, Any]:
+        """Return a read-only summary of the active profile and resolved decisions."""
+        profile = self.active_runtime_profile()
+        return {
+            "name": profile.name,
+            "description": profile.description,
+            "execution_backend": profile.execution_backend,
+            "earned_autonomy": profile.earned_autonomy,
+            "router_cloud_tasks": list(profile.router_cloud_tasks),
+            "router_prefer_local": profile.router_prefer_local,
+            "router_max_cost": profile.router_max_cost,
+            "swarm_cloud_burst": profile.swarm_cloud_burst,
+            "offline_mode": profile.offline_mode,
+            "resource_mode": profile.resource_mode,
+            "plan_stage": profile.plan_stage,
+            "narrative_self": profile.narrative_self,
+            "facts_auto_extract": profile.facts_auto_extract,
+            "pheromone_enabled": profile.pheromone_enabled,
+            "queen_enabled": profile.queen_enabled,
+            "live_surface": profile.live_surface,
+            "cloud_tasks_allowed": {
+                task: profile.cloud_task_allowed(task)
+                for task in ("reasoning", "coding", "browse", "swarm")
+            },
+        }
 
     def execution_policy(self, approved: bool) -> ExecutionPolicy:
         """Return the execution backend and isolation level for an action.
@@ -304,9 +861,38 @@ class PolicyKernel:
         return validate_approved_execution_backend()
 
 
+_KERNEL: Optional[PolicyKernel] = None
+_KERNEL_LOCK = threading.Lock()
+
+
+def get_policy_kernel(
+    rate_limiter: RateLimiter | None = None,
+    autonomy_ledger: AutonomyLedger | None = None,
+    constitution: Constitution | None = None,
+) -> PolicyKernel:
+    """Return the process-wide ``PolicyKernel`` singleton.
+
+    The first caller sets the concrete dependencies; subsequent callers receive
+    the same instance. The default rate limiter is multi-process safe via the
+    shared approvals database path.
+    """
+    global _KERNEL
+    if _KERNEL is None:
+        with _KERNEL_LOCK:
+            if _KERNEL is None:
+                _KERNEL = PolicyKernel(
+                    rate_limiter=rate_limiter
+                    or RateLimiter(db_path=config.APPROVAL_DB_PATH),
+                    autonomy_ledger=autonomy_ledger or AutonomyLedger(),
+                    constitution=constitution,
+                )
+    return _KERNEL
+
+
 __all__ = [
     "AuthorityDecision",
     "ExecutionPolicy",
     "PolicyKernel",
     "RouteAuthority",
+    "get_policy_kernel",
 ]
