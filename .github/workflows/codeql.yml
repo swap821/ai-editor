@@ -102,11 +102,13 @@ jobs:
       if: matrix.language == 'python'
       shell: bash
       run: |
-        codeql resolve packs \
+        CODEQL_BIN="$(find /opt/hostedtoolcache/CodeQL -type f -path '*/codeql/codeql' | sort -V | tail -1)"
+        test -n "$CODEQL_BIN"
+        "$CODEQL_BIN" resolve packs \
           --search-path="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
           --additional-packs="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
           --format=json | grep -F 'gagos/executor-models'
-        codeql resolve extensions-by-pack \
+        "$CODEQL_BIN" resolve extensions-by-pack \
           --search-path="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
           --additional-packs="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
           --model-packs=gagos/executor-models \
