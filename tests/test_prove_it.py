@@ -33,7 +33,9 @@ Two things are asserted:
 from __future__ import annotations
 
 import subprocess
+import shutil
 import sys
+from uuid import uuid4
 from pathlib import Path
 
 import pytest
@@ -276,3 +278,21 @@ def test_cleanup_stale_rollback_pointer_removes_only_broken_pointer(tmp_path):
     prove_it.cleanup_stale_rollback_pointer(scope_root)
 
     assert not pointer.exists()
+
+
+def test_cleanup_stale_rollback_pointer_removes_pytest_sandbox_pointer(tmp_path):
+    """A pytest-owned rollback database is disposable between subprocesses."""
+    prove_it = _import_prove_it_utils()
+    scope_root = tmp_path / "training_ground"
+    scope_root.mkdir()
+    pytest_runtime = prove_it.REPO_ROOT / ".aios" / "tmp" / "pytest-root" / f"prover-{uuid4().hex}"
+    target = pytest_runtime / "rollback"
+    target.mkdir(parents=True)
+    pointer = scope_root / ".git"
+    pointer.write_text(f"gitdir: {target.as_posix()}\n", encoding="utf-8")
+    try:
+        prove_it.cleanup_stale_rollback_pointer(scope_root)
+        assert not pointer.exists()
+        assert target.exists(), "pointer cleanup must not delete the rollback database"
+    finally:
+        shutil.rmtree(pytest_runtime, ignore_errors=True)
