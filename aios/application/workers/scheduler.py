@@ -99,6 +99,7 @@ class WorkerScheduler:
             self._tickets.pop(worker_id, None)
             self._queue = [item for item in self._queue if item.spec.worker_id != worker_id]
             heapq.heapify(self._queue)
+            self._pump()
             return True
         task = self._active.get(worker_id)
         if task is not None:
@@ -137,12 +138,12 @@ class WorkerScheduler:
             self._pumping = False
 
     def _next_admissible_index(self) -> int | None:
-        for index, ticket in enumerate(self._queue):
+        for ticket in sorted(self._queue):
             if (
                 self._active_by_mission[ticket.spec.mission_id]
                 < self.max_per_mission
             ):
-                return index
+                return self._queue.index(ticket)
         return None
 
     async def _run(self, ticket: _Ticket) -> None:

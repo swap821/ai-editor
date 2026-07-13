@@ -269,6 +269,7 @@ def _select_chat_client(
     task: str = "coding",
     metrics: Optional[dict] = None,
     calibration_weight: float = 0.0,
+    data_classification: str = "PROJECT_INTERNAL",
 ) -> tuple[Any, str]:
     """Pick the ``(chat_client, model)`` for the requested UI model id.
 
@@ -286,6 +287,30 @@ def _select_chat_client(
     if model_id in _AUTO_IDS:
         providers = _build_providers(ollama, bedrock, gemini, openai=openai, anthropic=anthropic)
         policy = _router_policy()
+        # Enforce classification-bound routing: let the PrivacyBroker filter the
+        # provider list before candidates are ranked.  Lazy import keeps the core
+        # wiring module free of application-layer imports at load time.
+        from aios.application.models.privacy_broker import PrivacyBroker
+        from aios.domain.privacy import DataClassification, ModelCallRequest, PrivacyPolicy
+
+        try:
+            dc = DataClassification(data_classification)
+        except ValueError:
+            dc = DataClassification.PROJECT_INTERNAL
+        _broker_request = ModelCallRequest(
+            request_id="routing",
+            principal_id="system",
+            purpose="model_routing",
+            prompt="",
+            data_classification=dc,
+            policy=PrivacyPolicy(
+                data_classification=dc,
+                local_only=not bool(policy.cloud_tasks),
+                allowed_providers=tuple(p.name for p in providers),
+            ),
+        )
+        _decision = PrivacyBroker().evaluate(_broker_request)
+        providers = [p for p in providers if p.name in _decision.allowed_providers]
         cands = router.candidates(
             task, providers, policy=policy, require_tools=True,
             metrics=metrics, calibration_weight=calibration_weight,
