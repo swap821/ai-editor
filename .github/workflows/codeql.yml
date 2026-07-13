@@ -98,6 +98,20 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
+    - name: Validate executor CodeQL model pack
+      if: matrix.language == 'python'
+      shell: bash
+      run: |
+        codeql resolve packs \
+          --search-path="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --additional-packs="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --format=json | grep -F 'gagos/executor-models'
+        codeql resolve extensions-by-pack \
+          --search-path="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --additional-packs="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --model-packs=gagos/executor-models \
+          -- "${GITHUB_WORKSPACE}/.github/codeql/extensions/gagos/executor-models"
+
     # If the analyze step fails for one of the languages you are analyzing with
     # "We were unable to automatically build your code", modify the matrix above
     # to set the build mode to "manual" for that language. Then modify this step
