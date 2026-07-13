@@ -33,13 +33,13 @@
 | 6 | Unify `/chat` and `/generate` under TurnCoordinator | **DONE** | `aios/application/turns/turn_coordinator.py`, unified routes |
 | 7 | MissionContract v1 and transactional mission state | **DONE** | `aios/domain/missions/` v1 `MissionContract`/`MissionState`/`MissionTransition`/`MissionRepository`, `aios/infrastructure/missions/sqlite_mission_repository.py` authoritative SQLite store with WAL + transition audit, `aios/infrastructure/storage/migrations/0001_mission_state.py`, `aios/application/missions/mission_service.py` state machine + double-approve guard + legacy migration + export, `aios/council/council_orchestrator.py` integrated with `MissionService` (dual-write with JSON ledgers), `tests/test_mission_contract_v1.py` (12 passing), full backend + frontend gates green. |
 | 8 | Converge the Queen Council | **DONE** | `aios/council/participation.py` deterministic adaptive `CouncilParticipationPolicy` (required + optional Queens, full-Council only when justified), deterministic adapter Queens `RoutingQueen`/`ReflectionQueen`/`ProjectUnderstandingQueen`, `aios/runtime/contracts.py` extended `QueenVerdict`/`QueenEvidence`, `aios/council/queen_service.py` real service registry with `init_queen_services()` + all 8 Queen service classes, `aios/council/council_orchestrator.py` consumes participation policy, invokes optional Queens in deliberation, gates Critique by policy in execution, optionally routes reviews through `QUEEN_SERVICES` when `AIOS_QUEEN_SERVICES=true`, records Council cost/latency metrics; tests `tests/test_council_participation.py`, `tests/test_queen_services.py`, updated `tests/test_council_orchestrator.py`; full backend + frontend gates green. |
-| 9 | Worker Foundry unification | **DONE** | `7a28ee1`; focused worker tests, full backend `2951 passed/4 skipped`, frontend typecheck/lint/tests/build green; scripted prover regression `7 passed` |
-| 10 | Privacy Broker and model routing | **DONE** | `PENDING`; focused privacy/router/provider tests `65 passed`, full backend `2956 passed/4 skipped`, frontend typecheck/lint/tests/build green; prover regression `8 passed` |
-| 11 | Isolated Executor Service | **DONE** | `PENDING`; focused executor/runtime tests `41 passed`, full backend `2959 passed/4 skipped`, frontend typecheck/lint/tests/build green |
-| 12 | Staged workspaces / dormant worktree | **DONE** | `PENDING`; focused staged-workspace/worktree tests `8 passed/1 skipped`, full backend `2962 passed/5 skipped`, frontend typecheck/lint/tests/build green |
-| 13 | Evidence and Verification Authorities | **DONE** | `PENDING`; focused evidence/verification tests `24 passed`, full backend `2965 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
-| 14 | Atomic Promotion and Recovery | **DONE** | `PENDING`; focused promotion/rollback/audit tests `34 passed`, full backend `2970 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
-| 15 | Durable Cortex consumer semantics | **IN PROGRESS** | Cumulative candidate present; focused validation pending |
+| 9 | Worker Foundry unification | **DONE** | `8a62b59`; focused worker tests `18 passed`, full backend `2951 passed/4 skipped`, frontend typecheck/lint/tests/build green; scripted prover regression `7 passed` |
+| 10 | Privacy Broker and model routing | **DONE** | `64fd241`; focused privacy/router/provider tests `65 passed`, full backend `2956 passed/4 skipped`, frontend typecheck/lint/tests/build green; prover regression `8 passed` |
+| 11 | Isolated Executor Service | **DONE** | `4d12ac1`; focused executor/runtime tests `41 passed`, full backend `2959 passed/4 skipped`, frontend typecheck/lint/tests/build green |
+| 12 | Staged workspaces / dormant worktree | **DONE** | `2789ddd`; focused staged-workspace/worktree tests `8 passed/1 skipped`, full backend `2962 passed/5 skipped`, frontend typecheck/lint/tests/build green |
+| 13 | Evidence and Verification Authorities | **DONE** | `f567446`; focused evidence/verification tests `24 passed`, full backend `2965 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
+| 14 | Atomic Promotion and Recovery | **DONE** | `c30cb9f`; focused promotion/rollback/audit tests `34 passed`, full backend `2970 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green; first Ubuntu CI setup outage rerun green |
+| 15 | Durable Cortex consumer semantics | **DONE** | Slice 15 commit created locally; focused Cortex/stream tests `23 passed`, full backend `2975 passed/5 skipped/2 warnings`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI pending |
 | 16 | Incremental system read models | **NOT DONE** | Pending Slice 10 |
 | 17 | One Memory Authority | **NOT DONE** | Pending Slice 10 |
 | 18 | Learning and earned autonomy loop | **NOT DONE** | Pending Slice 10 |
@@ -53,7 +53,7 @@
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
-- Next logical slice: **Slice 15 — Durable Cortex consumer semantics**.
+- Next logical slice: **Slice 16 — Incremental system read models**.
 - Old Slice 8 (Distribution & Bootstrap) feeds new Slice 21 (operations/recovery) and Slice 23 (packaged product).
 
 ## Baseline Evidence
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Stage and validate Slice 15 — Durable Cortex consumer semantics. Do not infer completion of later slices from the cumulative candidate patch.
+Publish and obtain CI evidence for Slice 15, then stage and validate Slice 16 — Incremental system read models. Do not infer completion of later slices from the cumulative candidate patch.

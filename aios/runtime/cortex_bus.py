@@ -35,6 +35,30 @@ class BusEvent:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ConsumerCursor:
+    """Durable progress for one independent observation consumer."""
+
+    consumer_name: str
+    last_event_id: int
+    status: str
+    failure_count: int
+    updated_at: str
+
+
+class ConsumerReplayGap(RuntimeError):
+    """Raised when retention removed history needed by a consumer."""
+
+    def __init__(self, consumer_name: str, cursor: int, earliest_event_id: int) -> None:
+        self.consumer_name = consumer_name
+        self.cursor = cursor
+        self.earliest_event_id = earliest_event_id
+        super().__init__(
+            f"consumer {consumer_name!r} is behind retention boundary: "
+            f"cursor={cursor}, earliest_event_id={earliest_event_id}; snapshot required"
+        )
+
+
 # THE LAW, enforced structurally (not just documented): the bus carries what
 # HAPPENED, never what is PERMITTED. Event types in these authority families
 # are refused at append — fail-closed at the substrate boundary, so no future
@@ -61,6 +85,24 @@ CREATE TABLE IF NOT EXISTS cortex_events (
 );
 CREATE INDEX IF NOT EXISTS idx_cortex_pending
     ON cortex_events(dispatched_at, id);
+CREATE TABLE IF NOT EXISTS cortex_consumers (
+    consumer_name TEXT PRIMARY KEY,
+    last_event_id INTEGER NOT NULL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'active',
+    failure_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS cortex_consumer_failures (
+    consumer_name TEXT NOT NULL,
+    event_id INTEGER NOT NULL,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'retrying',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (consumer_name, event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cortex_consumer_failures_status
+    ON cortex_consumer_failures(consumer_name, status, event_id);
 """
 
 
@@ -188,6 +230,199 @@ class CortexBus:
 
     # ── Consumer side ────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _validate_consumer_name(consumer_name: str) -> str:
+        normalized = str(consumer_name or "").strip()
+        if not normalized:
+            raise ValueError("cortex consumer name is required")
+        if len(normalized) > 128 or any(
+            char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+            for char in normalized
+        ):
+            raise ValueError("cortex consumer name contains unsafe characters")
+        return normalized
+
+    def register_consumer(self, consumer_name: str, *, start_event_id: int = 0) -> ConsumerCursor:
+        """Create a cursor once; later registrations never reset progress."""
+        name = self._validate_consumer_name(consumer_name)
+        if int(start_event_id) < 0:
+            raise ValueError("consumer cursor cannot be negative")
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO cortex_consumers "
+                "(consumer_name, last_event_id) VALUES (?, ?)",
+                (name, int(start_event_id)),
+            )
+            row = conn.execute(
+                "SELECT consumer_name, last_event_id, status, failure_count, updated_at "
+                "FROM cortex_consumers WHERE consumer_name = ?",
+                (name,),
+            ).fetchone()
+        assert row is not None
+        return _row_to_cursor(row)
+
+    def consumer_cursor(self, consumer_name: str) -> ConsumerCursor:
+        return self.register_consumer(consumer_name)
+
+    def reset_consumer(self, consumer_name: str, *, start_event_id: int = 0) -> ConsumerCursor:
+        """Reset one derived observer cursor for an explicit recovery replay.
+
+        This operation touches only observation-consumer progress. It cannot
+        alter event history or any authority-bearing state.
+        """
+        name = self._validate_consumer_name(consumer_name)
+        start = int(start_event_id)
+        if start < 0:
+            raise ValueError("consumer cursor cannot be negative")
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO cortex_consumers "
+                "(consumer_name, last_event_id, status, failure_count) "
+                "VALUES (?, ?, 'active', 0) "
+                "ON CONFLICT(consumer_name) DO UPDATE SET "
+                "last_event_id = excluded.last_event_id, status = 'active', "
+                "failure_count = 0, updated_at = CURRENT_TIMESTAMP",
+                (name, start),
+            )
+            conn.execute(
+                "DELETE FROM cortex_consumer_failures WHERE consumer_name = ?",
+                (name,),
+            )
+        return self.consumer_cursor(name)
+
+    def consumer_batch(self, consumer_name: str, *, limit: int = 100) -> list[BusEvent]:
+        """Fetch the next bounded page for one cursor without advancing it.
+
+        A consumer can retry its own page without blocking any other consumer.
+        Quarantined events are intentionally skipped only after the bounded
+        failure policy advances that consumer's cursor.
+        """
+        cursor = self.consumer_cursor(consumer_name)
+        name = cursor.consumer_name
+        page_size = max(1, int(limit))
+        with self._connect() as conn:
+            earliest_row = conn.execute(
+                "SELECT MIN(id) AS first_id FROM cortex_events"
+            ).fetchone()
+            earliest = earliest_row["first_id"] if earliest_row else None
+            if earliest is not None and cursor.last_event_id < int(earliest) - 1:
+                raise ConsumerReplayGap(name, cursor.last_event_id, int(earliest))
+            rows = conn.execute(
+                "SELECT e.id, e.event_type, e.signature, e.payload "
+                "FROM cortex_events AS e "
+                "WHERE e.id > ? AND NOT EXISTS ("
+                "  SELECT 1 FROM cortex_consumer_failures AS f "
+                "  WHERE f.consumer_name = ? AND f.event_id = e.id "
+                "    AND f.status = 'quarantined'"
+                ") ORDER BY e.id ASC LIMIT ?",
+                (cursor.last_event_id, name, page_size),
+            ).fetchall()
+        return [_row_to_event(row) for row in rows]
+
+    def ack_consumer(self, consumer_name: str, event_id: int) -> ConsumerCursor:
+        """Advance one cursor exactly once, in event-id order.
+
+        Acknowledging an already-consumed id is idempotent.  Skipping an active
+        event is refused so a consumer cannot accidentally lose observations.
+        """
+        name = self._validate_consumer_name(consumer_name)
+        target = int(event_id)
+        if target <= 0:
+            raise ValueError("event id must be positive")
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT last_event_id FROM cortex_consumers WHERE consumer_name = ?",
+                (name,),
+            ).fetchone()
+            if row is None:
+                self.register_consumer(name)
+                current = 0
+            else:
+                current = int(row["last_event_id"])
+            if target <= current:
+                return self.consumer_cursor(name)
+            if target != current + 1:
+                raise ValueError(
+                    f"consumer {name!r} cannot skip from {current} to {target}"
+                )
+            event = conn.execute(
+                "SELECT id FROM cortex_events WHERE id = ?", (target,)
+            ).fetchone()
+            if event is None:
+                raise ConsumerReplayGap(name, current, target)
+            conn.execute(
+                "UPDATE cortex_consumers SET last_event_id = ?, status = 'active', "
+                "failure_count = 0, updated_at = CURRENT_TIMESTAMP "
+                "WHERE consumer_name = ?",
+                (target, name),
+            )
+            conn.execute(
+                "DELETE FROM cortex_consumer_failures WHERE consumer_name = ? AND event_id = ?",
+                (name, target),
+            )
+        return self.consumer_cursor(name)
+
+    def fail_consumer(
+        self,
+        consumer_name: str,
+        event_id: int,
+        error: str,
+        *,
+        max_attempts: int = 3,
+    ) -> ConsumerCursor:
+        """Record one consumer-local failure and quarantine after bounded retries."""
+        name = self._validate_consumer_name(consumer_name)
+        target = int(event_id)
+        attempts_limit = max(1, int(max_attempts))
+        with self._connect() as conn:
+            consumer = conn.execute(
+                "SELECT last_event_id FROM cortex_consumers WHERE consumer_name = ?",
+                (name,),
+            ).fetchone()
+            if consumer is None:
+                raise ValueError(f"unknown cortex consumer: {name}")
+            current = int(consumer["last_event_id"])
+            if target != current + 1:
+                raise ValueError(
+                    f"consumer {name!r} failure is not for its next event: "
+                    f"cursor={current}, event_id={target}"
+                )
+            event = conn.execute(
+                "SELECT id FROM cortex_events WHERE id = ?", (target,)
+            ).fetchone()
+            if event is None:
+                raise ConsumerReplayGap(name, current, target)
+            prior = conn.execute(
+                "SELECT failure_count FROM cortex_consumer_failures "
+                "WHERE consumer_name = ? AND event_id = ?",
+                (name, target),
+            ).fetchone()
+            attempts = int(prior["failure_count"]) + 1 if prior else 1
+            status = "quarantined" if attempts >= attempts_limit else "retrying"
+            conn.execute(
+                "INSERT INTO cortex_consumer_failures "
+                "(consumer_name, event_id, failure_count, last_error, status, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP) "
+                "ON CONFLICT(consumer_name, event_id) DO UPDATE SET "
+                "failure_count = excluded.failure_count, last_error = excluded.last_error, "
+                "status = excluded.status, updated_at = CURRENT_TIMESTAMP",
+                (name, target, attempts, str(error)[:500], status),
+            )
+            if status == "quarantined":
+                conn.execute(
+                    "UPDATE cortex_consumers SET last_event_id = ?, status = ?, "
+                    "failure_count = ?, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE consumer_name = ?",
+                    (target, status, attempts, name),
+                )
+            else:
+                conn.execute(
+                    "UPDATE cortex_consumers SET status = ?, failure_count = ?, "
+                    "updated_at = CURRENT_TIMESTAMP WHERE consumer_name = ?",
+                    (status, attempts, name),
+                )
+        return self.consumer_cursor(name)
+
     def subscribe(self, handler: Callable[[BusEvent], None]) -> Callable[[], None]:
         """Register an in-process handler. Handlers MUST be idempotent (an event
         may be delivered more than once on replay) and MUST NOT carry authority."""
@@ -294,3 +529,16 @@ class CortexBus:
             ).rowcount
             conn.commit()
         return int(removed)
+
+
+def _row_to_cursor(row: sqlite3.Row) -> ConsumerCursor:
+    return ConsumerCursor(
+        consumer_name=str(row["consumer_name"]),
+        last_event_id=int(row["last_event_id"]),
+        status=str(row["status"]),
+        failure_count=int(row["failure_count"]),
+        updated_at=str(row["updated_at"]),
+    )
+
+
+__all__ = ["BusEvent", "ConsumerCursor", "ConsumerReplayGap", "CortexBus"]

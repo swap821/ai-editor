@@ -2,15 +2,15 @@
 
 **Current Goal:** Execute the Master Convergence Directive: implement Slices 9–24 as independently validated, supervised authority boundaries without weakening the frozen security spine or claiming production readiness.
 
-**Last Completed + Verified Step:** Slice 14 — Atomic Promotion and Recovery, commit `PENDING`.
-- Added immutable promotion request/result contracts and checkpoint-bound PromotionAuthority with contract, policy, capability, baseline, digest, target, freshness, and strength gates plus exact checkpoint recovery.
-- Focused promotion/rollback/audit tests passed: `34 passed in 9.20s`.
-- Full backend gate passed: `2970 passed, 5 skipped, 2 warnings` in `513.77s` with `-o addopts=''`; warnings were the existing HTTPX deprecation and Windows subprocess deallocator warning.
-- Frontend gates passed: typecheck, lint within the existing warning budget, 588 tests, and production build.
+**Last Completed + Verified Step:** Slice 15 — Durable Cortex consumer semantics, commit created locally.
+- Added durable independent consumer cursors, bounded replay, idempotent ordered acknowledgements, consumer-local retry/quarantine, and retention-gap refusal to `CortexBus`; the bus remains observation-only.
+- Focused Cortex/stream tests passed: `23 passed in 2.49s`.
+- Full backend gate passed: `2975 passed, 5 skipped, 2 warnings` in `485.18s` with `-o addopts=''`; warnings were the existing HTTPX deprecation and Windows subprocess deallocator warning.
+- Frontend gates passed: typecheck, lint `122 warnings / 0 errors` under the existing budget, `102` test files / `588` tests, and production build.
 
-**Current Slice:** Slice 15 — Durable Cortex consumer semantics. The cumulative candidate for Slices 15–24 is present unstaged in this isolated worktree; `master` remains untouched.
+**Current Slice:** Slice 16 — Incremental system read models. The cumulative candidate for Slices 16–24 is stashed while Slice 15 is committed/published; `master` remains untouched.
 
-**Single Next Action:** Stage only Slice 15's Cortex bus/dispatcher files and run its focused tests before any wider gate.
+**Single Next Action:** Publish the Slice 15 branch, wait for its GitHub Actions matrix, then restore and stage only Slice 16 read-model files.
 
 **Open Approvals / Blockers:**
 - GitHub SSH preflight remains blocked by local `Host key verification failed`; the authenticated HTTPS `origin` is usable and must be recorded honestly.
@@ -19,6 +19,6 @@
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`); built-in tools continue to work.
 - Pre-existing CSS canon violations in `GagosChrome.css` and `TrustHalo.css` remain out of scope.
 
-**Active Files For This Slice:** `aios/runtime/cortex_bus.py`, `aios/runtime/cortex_bus_dispatcher.py` integration files, and `tests/test_cortex_consumers.py`, `tests/test_cortex_bus.py`, `tests/test_stream_protocol.py`.
+**Active Files For This Slice:** `aios/runtime/cortex_bus.py`, `tests/test_cortex_consumers.py`; Slice 16 candidate remains in the stash.
 
 **Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; each slice must be explicitly staged, tested, and committed from the isolated worktree before the next slice.
