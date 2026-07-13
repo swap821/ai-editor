@@ -44,8 +44,8 @@
 | 17 | One Memory Authority | **DONE** | `93f8699`; focused memory/migration tests `68 passed/2 skipped`, full backend `2986 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29258754146` green across Ubuntu/Windows/macOS/frontend |
 | 18 | Learning and earned autonomy loop | **DONE** | `7299f05`; focused autonomy safety tests `61 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29260138344` green across Ubuntu/Windows/macOS/frontend |
 | 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **DONE** | `f3d8fe6`; focused product-space tests `4 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `592 tests`, and build green; CI run `29261640630` green across Ubuntu/Windows/macOS/frontend |
-| 20 | Constitutionally truthful Living Mirror | **DONE** | Slice 20 commit created locally; focused mirror tests frontend `5 passed` plus backend `10 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; CI pending |
-| 21 | Operations, observability and recovery | **NOT DONE** | Pending Slice 10 |
+| 20 | Constitutionally truthful Living Mirror | **DONE** | `361f11e`; focused mirror tests frontend `5 passed` plus backend `10 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; CI run `29263138253` green across Ubuntu/Windows/macOS/frontend |
+| 21 | Operations, observability and recovery | **DONE** | Slice 21 commit created locally; focused operations/read-model/Cortex tests `12 passed`, full backend `2996 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; Compose config passes with explicit secret and refuses missing secret; CI pending |
 | 22 | CI as production release authority | **NOT DONE** | Pending Slice 10 |
 | 23 | Package the single-developer product | **NOT DONE** | Pending Slice 10 |
 | 24 | Controlled autonomy and v1.0 declaration | **NOT DONE** | Pending Slice 10; strict v1 readiness remains subject to live identity/capability/isolation evidence |
@@ -53,7 +53,7 @@
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
-- Next logical slice: **Slice 21 — Operations, observability, and recovery**.
+- Next logical slice: **Slice 22 — CI as release authority**.
 - Old Slice 8 (Distribution & Bootstrap) feeds new Slice 21 (operations/recovery) and Slice 23 (packaged product).
 
 ## Baseline Evidence
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Stage and validate Slice 21 — Operations, observability, and recovery. Do not infer completion of later slices from the cumulative candidate patch.
+Stage and validate Slice 22 — CI as release authority. Do not infer completion of later slices from the cumulative candidate patch.

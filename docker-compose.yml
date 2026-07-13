@@ -18,12 +18,15 @@ services:
     mem_limit: 4g
     cpus: 2.0
     ports:
-      - "${AIOS_API_PORT:-8000}:${AIOS_API_PORT:-8000}"
+      - "127.0.0.1:${AIOS_API_PORT:-8000}:8000"
     environment:
       - AIOS_API_HOST=0.0.0.0
-      - AIOS_API_PORT=${AIOS_API_PORT:-8000}
+      - AIOS_API_PORT=8000
       - AIOS_API_TOKEN=${AIOS_API_TOKEN:-}
       - AIOS_DATA_DIR=/app/data
+      - AIOS_PROFILE=${AIOS_PROFILE:-production}
+      - AIOS_EXECUTOR_URL=http://executor:8081
+      - AIOS_EXECUTOR_TOKEN=${AIOS_EXECUTOR_TOKEN:-}
     volumes:
       - ./data:/app/data
       - ./.env:/app/.env:ro
@@ -31,6 +34,34 @@ services:
       - aios-net
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  executor:
+    build:
+      context: .
+      dockerfile: Dockerfile.executor
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 2.0
+    environment:
+      - AIOS_EXECUTOR_TOKEN=${AIOS_EXECUTOR_TOKEN:-}
+      - AIOS_EXECUTOR_WORKSPACE_ROOT=/workspace/jobs
+      - AIOS_CONTAINER_RUNTIME=docker
+    expose:
+      - "8081"
+    volumes:
+      # The control plane never receives this socket. The executor is the only
+      # service allowed to request disposable worker containers.
+      - ${AIOS_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      - ./data/executor-workspaces:/workspace/jobs
+    networks:
+      - aios-net
+    command: ["python", "-m", "aios.executor_service"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -46,7 +77,7 @@ services:
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
     ports:
-      - "${AIOS_PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${AIOS_PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
@@ -57,13 +88,36 @@ services:
       aios:
         condition: service_healthy
 
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-}
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    ports:
+      - "127.0.0.1:${AIOS_GATEWAY_PORT:-3000}:8080"
+    networks:
+      - aios-net
+    depends_on:
+      aios:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   grafana:
     image: grafana/grafana:11.3.1
     restart: unless-stopped
     ports:
-      - "${AIOS_GRAFANA_PORT:-3000}:3000"
+      - "127.0.0.1:${AIOS_GRAFANA_PORT:-3001}:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${AIOS_GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${AIOS_GRAFANA_ADMIN_PASSWORD:?AIOS_GRAFANA_ADMIN_PASSWORD must be set}
       - GF_INSTALL_PLUGINS=
     volumes:
       - ./observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
@@ -81,7 +135,7 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
     ports:
-      - "${AIOS_ALERTMANAGER_PORT:-9093}:9093"
+      - "127.0.0.1:${AIOS_ALERTMANAGER_PORT:-9093}:9093"
     volumes:
       - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     networks:
