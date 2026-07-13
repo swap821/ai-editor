@@ -257,3 +257,22 @@ def test_restore_training_ground_never_deletes_inside_git(tmp_path):
         "restore_training_ground deleted something under .git -- this is exactly "
         "the corruption incident the hard constraints warn about"
     )
+
+
+def test_cleanup_stale_rollback_pointer_removes_only_broken_pointer(tmp_path):
+    """A prior interrupted prover must not poison the next isolated run.
+
+    RollbackEngine stores its git database outside the sandbox and leaves a
+    ``gitdir:`` pointer in ``training_ground/.git``. The pointer itself is
+    safe to remove when its target is already gone; rollback database contents
+    remain outside the sandbox and are never traversed by cleanup.
+    """
+    prove_it = _import_prove_it_utils()
+    scope_root = tmp_path / "training_ground"
+    scope_root.mkdir()
+    pointer = scope_root / ".git"
+    pointer.write_text("gitdir: C:/missing/prove-it-rollback\n", encoding="utf-8")
+
+    prove_it.cleanup_stale_rollback_pointer(scope_root)
+
+    assert not pointer.exists()

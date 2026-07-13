@@ -621,6 +621,11 @@ npm run build
 
 The complete source of truth is `aios/config.py`.
 
+`AIOS_SWARM_CLOUD_BURST` is a separate worker-swarm egress control; it does
+not change the router task-class allowlist. Keep it set to `0` for local-only
+swarm execution, and remember that provider policy and the security cage still
+apply.
+
 Common configuration areas include:
 
 ```python
