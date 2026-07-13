@@ -6,6 +6,7 @@ Ollama, spawns a shell, or touches the real sandbox/ledger.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any, Iterator, Optional
 
@@ -14,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from aios import config
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
+from aios.api.deps import get_policy_kernel
 from aios.api.main import (
     app,
     get_bedrock_client,
@@ -31,6 +33,7 @@ from aios.api.main import (
     get_skill_memory,
     get_memory_consolidator,
 )
+from aios.runtime import profiles
 from aios.security import scope_lock
 from aios.core.executor import Executor
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND
@@ -40,6 +43,30 @@ from aios.security.gateway import RateLimiter, Zone
 from aios.security.audit_logger import log_action
 from aios.memory.development import DevelopmentTracker
 from aios.api.main import _EPISODIC, _APPROVALS, _verify_target_key, _verify_target_keys
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_profile():
+    """Keep the process-wide PolicyKernel in the local-first profile unless a test overrides it."""
+    kernel = get_policy_kernel()
+    kernel._active_profile = profiles.get_profile("local-first")
+    yield
+    kernel._active_profile = profiles.get_profile("local-first")
+
+
+def _set_cloud_policy(monkeypatch, *, cloud_tasks=(), prefer_local=True, max_cost="high"):
+    """Drive the router through the kernel's active profile while mirroring legacy config knobs."""
+    base = profiles.get_profile("local-first")
+    profile = replace(
+        base,
+        router_cloud_tasks=tuple(str(t).lower() for t in cloud_tasks),
+        router_prefer_local=prefer_local,
+        router_max_cost=max_cost,
+    )
+    get_policy_kernel()._active_profile = profile
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", tuple(cloud_tasks))
+    monkeypatch.setattr(config, "ROUTER_PREFER_LOCAL", prefer_local)
+    monkeypatch.setattr(config, "ROUTER_MAX_COST", max_cost)
 
 
 class FakeLLM:
@@ -605,7 +632,7 @@ def test_route_event_names_the_model_that_served_after_failover(client, monkeypa
             return {"role": "assistant", "content": "answer from the fallback model"}
 
     fake = FakeBedrockFailover()
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning", "coding"))  # cloud allowed
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning", "coding"))  # cloud allowed
     monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)  # deterministic cascade (no picker chat)
     app.dependency_overrides[get_bedrock_client] = lambda: fake
     # Keep this failover test bedrock-only; real Gemini discovery is irrelevant here.

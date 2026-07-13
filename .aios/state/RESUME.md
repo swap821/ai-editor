@@ -2,25 +2,28 @@
 
 **Current Goal:** Execute the Master Convergence Directive: transform the repository into a local-first sovereign agentic OS with unified authority, isolated execution, and a truthful living GAGOS interface.
 
-**Last Completed + Verified Step:** Slice 3 — Execution Isolation done and validated.
-- Extended `aios/policy/kernel.py` with `ExecutionPolicy`, `execution_policy()`, `build_approved_runner()`, and `validate_execution_backend()` as the single authority for execution-isolation decisions.
-- Routed `Executor.execute_approved` through the kernel: it consults the kernel's isolation policy and dispatches to the approved runner (container/unavailable) or host runner accordingly; unknown backends fail closed.
-- Updated `aios/api/deps.py::get_executor()` and `get_self_apply_engine()` to build the approved runner through the kernel, removing the direct `approved_runner_from_config()` dependency in `deps.py`.
-- Updated `aios/api/main.py` startup validation to call `get_policy_kernel().validate_execution_backend()`.
-- Hardened `DockerRunner` container contract: bind mount now uses `bind-propagation=private`, and regression tests verify mount-breaking cwd characters and the locked-down argv set.
-- Added deterministic tests in `tests/test_policy_kernel.py` (8 new execution-policy cases) and `tests/test_executor.py`.
-- Backend gate: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-fail-under=85` — passing at 91.75% coverage.
+**Last Completed + Verified Step:** Slice 5 — Action Envelope & Deterministic Policy Kernel done and validated.
+- Added immutable domain contracts: `ActionEnvelope`, `ActionType`, `Principal` in `aios/domain/actions/envelope.py`; `PolicyDecision` in `aios/domain/policy/decision.py`.
+- Added application broker `aios/application/action_broker.py` with `ActionBroker` / `PolicyBrokerError` to issue/consume approval tokens and resolve envelopes without leaking token state into the kernel.
+- Extended `aios/policy/kernel.py`:
+  - `RouteAuthority` now carries `action_type` and `capability_required`.
+  - `_ROUTE_AUTHORITY` expanded from ~27 routes to a complete registry covering all 64 mutating API endpoints.
+  - Added `decide(envelope) -> PolicyDecision` that enforces rate limits, delegates command classification to the frozen gateway, and deterministically classifies all other mutations from the registry.
+- Added deterministic tests: `tests/test_action_envelope.py`, `tests/test_policy_decision.py`, `tests/test_action_broker.py`, `tests/test_policy_kernel_decide.py`.
+- Added architecture guard `tests/test_route_registry_conformance.py` that parses every `@router.post/put/delete/patch` and `@app.post/put/delete/patch` decorator and fails any mutating route lacking registry metadata.
+- Fixed full-suite test isolation issue: `/api/v1/council/missions/{mission_id}/rollback` registry rate limit raised from 10 to 60 req/min so `tests/test_routes_gaps.py` council-rollback tests no longer collide in the full suite.
+- Backend gate: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` — passing at 91.84% coverage.
 - Frontend build (`cd frontend && npm run build`) green. CSS canon check (`tools/check_css_canon.py`) still reports 4 pre-existing violations in `GagosChrome.css` / `TrustHalo.css`; unrelated to this slice.
-- Worktree is dirty with Slice 3 changes, ready to commit and push.
+- Commit `65823fb` pushed to `master`; builder lease for `slice-5-action-envelope-policy` released.
 
-**Current Slice:** Slice 4 — to be chosen by operator / next agent.
+**Current Slice:** Slice 6 — to be chosen by operator / next agent.
 
-**Single Next Action:** Commit and push Slice 3, then release the builder lease.
+**Single Next Action:** Await operator direction for Slice 6 scope and next builder assignment.
 
 **Open Approvals / Blockers:**
 - `.claude/settings.json` was corrupted during a hook-blocker repair attempt. It has been removed and the broken copy preserved as `.claude/settings.json.broken`. The operator should restore a known-good `.claude/settings.json` before the next agent session; built-in tools work in this session due to a no-op `hook-handler.cjs`.
 - CSS canon violations in `GagosChrome.css` and `TrustHalo.css` are pre-existing and out of scope.
 
-**Active Files For This Slice:** `aios/policy/kernel.py`, `aios/core/executor.py`, `aios/api/deps.py`, `aios/api/main.py`, `tests/test_policy_kernel.py`, `tests/test_executor.py`.
+**Active Files For This Slice:** `aios/policy/kernel.py`, `aios/domain/actions/envelope.py`, `aios/domain/policy/decision.py`, `aios/application/action_broker.py`, `tests/test_action_envelope.py`, `tests/test_policy_decision.py`, `tests/test_action_broker.py`, `tests/test_policy_kernel_decide.py`, `tests/test_route_registry_conformance.py`.
 
 **Notes Not Yet Promoted:** None.

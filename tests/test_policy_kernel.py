@@ -137,6 +137,10 @@ def test_evaluate_action_earned_autonomy_short_circuits_yellow(kernel, monkeypat
     command = "mkdir training_ground/test_dir"
     _earn_signature(kernel.autonomy, command)
 
+    # Earned autonomy is now governed by the active runtime profile, not raw config.
+    from aios.runtime import profiles
+    monkeypatch.setattr(kernel, "_active_profile", profiles.RUNTIME_PROFILES["operator"])
+
     decision = kernel.evaluate_action(command)
     assert decision.allowed
     assert decision.zone is Zone.YELLOW
