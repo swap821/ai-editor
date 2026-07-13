@@ -38,6 +38,8 @@ jobs:
             - --search-path=${{ github.workspace }}/.github/codeql/extensions
           run-queries:
             - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
+          interpret-results:
+            - --search-path=${{ github.workspace }}/.github/codeql/extensions
     permissions:
       # required for all workflows
       security-events: write
