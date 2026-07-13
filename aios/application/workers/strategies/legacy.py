@@ -19,9 +19,14 @@ class DeterministicWorkerStrategy:
 
     async def run(self, request: Any) -> Any:
         if self.spawner is None:
+            runtime_root = request.context.get("runtime_root")
+            if runtime_root is None:
+                raise StrategyUnavailable(
+                    "deterministic strategy requires runtime_root in context or an explicit spawner"
+                )
             from aios.runtime.spawner import WorkerSpawner
 
-            self.spawner = WorkerSpawner(runtime_root=request.context["runtime_root"])
+            self.spawner = WorkerSpawner(runtime_root=runtime_root)
         return await self.spawner.run(request.contract, claim=request.context.get("claim", True))
 
 

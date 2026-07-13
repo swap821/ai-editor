@@ -43,8 +43,6 @@ class PrivacyBroker:
             reasons.append("CLASSIFICATION_NEVER_EXTERNAL")
         if local_only:
             allowed = [name for name in allowed if name in _LOCAL_PROVIDERS]
-            if not allowed:
-                allowed = ["ollama"]
         if provider is not None:
             if provider not in allowed:
                 reasons.append("PROVIDER_NOT_ALLOWLISTED")
