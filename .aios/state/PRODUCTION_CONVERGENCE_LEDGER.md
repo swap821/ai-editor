@@ -33,27 +33,27 @@
 | 6 | Unify `/chat` and `/generate` under TurnCoordinator | **DONE** | `aios/application/turns/turn_coordinator.py`, unified routes |
 | 7 | MissionContract v1 and transactional mission state | **DONE** | `aios/domain/missions/` v1 `MissionContract`/`MissionState`/`MissionTransition`/`MissionRepository`, `aios/infrastructure/missions/sqlite_mission_repository.py` authoritative SQLite store with WAL + transition audit, `aios/infrastructure/storage/migrations/0001_mission_state.py`, `aios/application/missions/mission_service.py` state machine + double-approve guard + legacy migration + export, `aios/council/council_orchestrator.py` integrated with `MissionService` (dual-write with JSON ledgers), `tests/test_mission_contract_v1.py` (12 passing), full backend + frontend gates green. |
 | 8 | Converge the Queen Council | **DONE** | `aios/council/participation.py` deterministic adaptive `CouncilParticipationPolicy` (required + optional Queens, full-Council only when justified), deterministic adapter Queens `RoutingQueen`/`ReflectionQueen`/`ProjectUnderstandingQueen`, `aios/runtime/contracts.py` extended `QueenVerdict`/`QueenEvidence`, `aios/council/queen_service.py` real service registry with `init_queen_services()` + all 8 Queen service classes, `aios/council/council_orchestrator.py` consumes participation policy, invokes optional Queens in deliberation, gates Critique by policy in execution, optionally routes reviews through `QUEEN_SERVICES` when `AIOS_QUEEN_SERVICES=true`, records Council cost/latency metrics; tests `tests/test_council_participation.py`, `tests/test_queen_services.py`, updated `tests/test_council_orchestrator.py`; full backend + frontend gates green. |
-| 9 | Worker Foundry unification | **NOT DONE** | |
-| 10 | Privacy Broker and model routing | **NOT DONE** | |
-| 11 | Isolated Executor Service | **NOT DONE** | |
-| 12 | Staged workspaces / dormant worktree | **NOT DONE** | |
-| 13 | Evidence and Verification Authorities | **NOT DONE** | |
-| 14 | Atomic Promotion and Recovery | **NOT DONE** | |
-| 15 | Durable Cortex consumer semantics | **NOT DONE** | |
-| 16 | Incremental system read models | **NOT DONE** | |
-| 17 | One Memory Authority | **NOT DONE** | |
-| 18 | Learning and earned autonomy loop | **NOT DONE** | |
-| 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **NOT DONE** | Old Slice 7 "Living Interface" provides seed work |
-| 20 | Constitutionally truthful Living Mirror | **NOT DONE** | Old Slice 7 provides seed work |
-| 21 | Operations, observability and recovery | **NOT DONE** | Old Slice 8 "Distribution & Bootstrap" provides seed work |
-| 22 | CI as production release authority | **NOT DONE** | |
-| 23 | Package the single-developer product | **NOT DONE** | Old Slice 8 provides seed work |
-| 24 | Controlled autonomy and v1.0 declaration | **NOT DONE** | |
+| 9 | Worker Foundry unification | **DONE** | `7a28ee1`; focused worker tests, full backend `2951 passed/4 skipped`, frontend typecheck/lint/tests/build green; scripted prover regression `7 passed` |
+| 10 | Privacy Broker and model routing | **IN PROGRESS** | Cumulative candidate present; focused validation pending |
+| 11 | Isolated Executor Service | **NOT DONE** | Pending Slice 10 |
+| 12 | Staged workspaces / dormant worktree | **NOT DONE** | Pending Slice 10 |
+| 13 | Evidence and Verification Authorities | **NOT DONE** | Pending Slice 10 |
+| 14 | Atomic Promotion and Recovery | **NOT DONE** | Pending Slice 10 |
+| 15 | Durable Cortex consumer semantics | **NOT DONE** | Pending Slice 10 |
+| 16 | Incremental system read models | **NOT DONE** | Pending Slice 10 |
+| 17 | One Memory Authority | **NOT DONE** | Pending Slice 10 |
+| 18 | Learning and earned autonomy loop | **NOT DONE** | Pending Slice 10 |
+| 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **NOT DONE** | Pending Slice 10 |
+| 20 | Constitutionally truthful Living Mirror | **NOT DONE** | Pending Slice 10 |
+| 21 | Operations, observability and recovery | **NOT DONE** | Pending Slice 10 |
+| 22 | CI as production release authority | **NOT DONE** | Pending Slice 10 |
+| 23 | Package the single-developer product | **NOT DONE** | Pending Slice 10 |
+| 24 | Controlled autonomy and v1.0 declaration | **NOT DONE** | Pending Slice 10; strict v1 readiness remains subject to live identity/capability/isolation evidence |
 
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
-- Next logical slice: **Slice 7 — MissionContract v1 and transactional mission state**.
+- Next logical slice: **Slice 10 — Privacy Broker and model routing**.
 - Old Slice 8 (Distribution & Bootstrap) feeds new Slice 21 (operations/recovery) and Slice 23 (packaged product).
 
 ## Baseline Evidence
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Slice 8 — Converge the Queen Council: claim builder lease, branch `kimi/gagos-s08-queen-council`, implement adaptive participation policy, Routing/Reflection/Project-Understanding Queens, and wire `QUEEN_SERVICES` registry into `CouncilOrchestrator`.
+Stage and validate Slice 10 — Privacy Broker and model routing. Do not infer completion of later slices from the cumulative candidate patch.

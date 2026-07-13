@@ -1,24 +1,25 @@
 # GAGOS Sovereign Intelligence AI-OS V1.0 Convergence
 
-**Current Goal:** Execute the Master Convergence Directive: transform the repository into a local-first sovereign agentic OS with unified authority, isolated execution, and a truthful living GAGOS interface.
+**Current Goal:** Execute the Master Convergence Directive: implement Slices 9–24 as independently validated, supervised authority boundaries without weakening the frozen security spine or claiming production readiness.
 
-**Last Completed + Verified Step:** Slice 8 — Converge the Queen Council.
-- Added `aios/council/participation.py` deterministic adaptive `CouncilParticipationPolicy` with required + optional Queens and full-Council only when all conditions are met.
-- Added deterministic adapter Queens: `aios/council/queens/routing.py` (bounded strategy/provider constraints), `aios/council/queens/reflection.py` (prior-failure strengthen-only), `aios/council/queens/project_understanding.py` (project context alignment).
-- Extended `aios/runtime/contracts.py::QueenVerdict` with `QueenEvidence`, `confidence_basis`, `recommended_worker_strategy`, `unresolved_questions`.
-- Refactored `aios/council/queen_service.py` into a real initialized registry (`init_queen_services()`) with bounded-queue service classes for all 8 Queens.
-- Integrated participation policy + new Queens + optional service-registry routing into `aios/council/council_orchestrator.py`; deliberation invokes only justified Queens, Critique is gated by participation in execution, and Council cost/latency metrics are recorded in ledger evidence.
-- Added `tests/test_council_participation.py`, `tests/test_queen_services.py`, and integration assertions in `tests/test_council_orchestrator.py`.
-- Full backend pytest suite green; frontend `npm test` (vitest run) green.
+**Last Completed + Verified Step:** Slice 9 — Worker Foundry unification, commit `7a28ee1`.
+- Added bounded Worker Foundry contracts, scheduler, legacy strategy adapter, and Council integration.
+- Focused Slice 9 tests passed: `18 passed in 1.68s`.
+- Full backend gate passed: `2951 passed, 4 skipped, 1 warning` in `467.12s` with `-o addopts=''`.
+- Frontend gates passed: typecheck, lint within the existing warning budget, 588 tests, and production build.
+- Repaired the scripted prover's stale external rollback-pointer cleanup; `tests/test_prove_it.py` passed `7 passed in 137.79s`.
 
-**Current Slice:** Slice 8 merged and branch deleted; `master` is green at `6a02a4b`.
+**Current Slice:** Slice 10 — Privacy Broker and model routing. The cumulative candidate for Slices 10–24 is present unstaged in this isolated worktree; `master` remains untouched.
 
-**Single Next Action:** Execute **Slice 9 — Worker Foundry unification** per the Master Convergence Directive.
+**Single Next Action:** Stage only Slice 10's privacy/model files and run its focused tests before any wider gate.
 
 **Open Approvals / Blockers:**
-- `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`). Restore a known-good settings file before the next agent session; built-in tools continue to work.
-- CSS canon violations in `GagosChrome.css` and `TrustHalo.css` are pre-existing and out of scope.
+- GitHub SSH preflight remains blocked by local `Host key verification failed`; the authenticated HTTPS `origin` is usable and must be recorded honestly.
+- Docker Desktop is unavailable, so isolated-executor and Docker-backed checks must remain fail-closed or be verified in CI.
+- The strict v1 check is expected to remain blocked until durable identity, exact capabilities, and isolated execution are actually available.
+- `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`); built-in tools continue to work.
+- Pre-existing CSS canon violations in `GagosChrome.css` and `TrustHalo.css` remain out of scope.
 
-**Active Files For This Slice:** `aios/council/council_orchestrator.py`, `aios/council/participation.py`, `aios/council/queen_service.py`, `aios/council/queens/{routing,reflection,project_understanding}.py`, `aios/council/__init__.py`, `aios/council/queens/__init__.py`, `tests/test_council_orchestrator.py`, `tests/test_council_participation.py`, `tests/test_queen_services.py`, `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md`.
+**Active Files For This Slice:** `aios/application/models/`, `aios/domain/privacy/`, `tests/test_privacy_broker.py`, and any first-activation router integration files identified during diff review.
 
-**Notes Not Yet Promoted:** None.
+**Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; each slice must be explicitly staged, tested, and committed from the isolated worktree before the next slice.

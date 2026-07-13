@@ -53,6 +53,7 @@ from aios.domain.missions.mission_contract import (
 from aios.domain.missions.mission_repository import MissionRepository
 from aios.domain.missions.mission_state import MissionState
 from aios.application.missions.mission_service import MissionService
+from aios.application.workers.foundry import WorkerFoundry
 from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
 from aios.runtime.contracts import (
     KingReport,
@@ -116,10 +117,19 @@ class CouncilOrchestrator:
         pheromone_store: PheromoneStore | None = None,
         bus: CortexBus | None = None,
         mission_service: MissionService | None = None,
+        foundry: WorkerFoundry | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
         self.bus = bus
         self.spawner = spawner or WorkerSpawner(runtime_root=self.runtime_root, bus=self.bus)
+        # Slice 9: all temporary worker styles enter through one bounded Foundry.
+        # The deterministic strategy still delegates to the existing spawner so
+        # its security, snapshot and evidence behavior remains unchanged.
+        self.foundry = foundry or WorkerFoundry(
+            runtime_root=self.runtime_root,
+            spawner=self.spawner,
+            bus=self.bus,
+        )
         self.planner = planner or PlannerQueen()
         self.security = security or SecurityQueen()
         self.memory = memory or MemoryQueen()
@@ -332,7 +342,11 @@ class CouncilOrchestrator:
                 capability_digest=f"orchestrator-auto-{contract.snapshot_id or contract.mission_id}",
             )
         self.mission_service.start_execution(contract.mission_id)
-        worker_run = await self.spawner.run(contract, claim=False)
+        worker_run = await self.foundry.run(
+            contract,
+            strategy=contract.metadata.get("worker_strategy"),
+            context={"claim": False},
+        )
         self._persist_event(
             contract.mission_id,
             "worker_spawned",
