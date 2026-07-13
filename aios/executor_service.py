@@ -16,7 +16,7 @@ from fastapi import FastAPI, Header, HTTPException
 from aios import config
 from aios.domain.executor import ExecutorJob, ExecutorResult
 from aios.infrastructure.executor.docker_runner import DockerJobRunner
-from aios.infrastructure.executor.workspace import resolve_staged_workspace
+from aios.infrastructure.executor import workspace as workspace_policy
 
 
 app = FastAPI(
@@ -39,7 +39,7 @@ def _authorized(authorization: str | None) -> bool:
 
 def _workspace_allowed(path: str) -> bool:
     try:
-        resolve_staged_workspace(
+        workspace_policy.resolve_staged_workspace(
             path, os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs")
         )
     except (OSError, ValueError):

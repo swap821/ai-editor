@@ -26,7 +26,6 @@ deterministically without spawning a process.
 from __future__ import annotations
 
 import os
-import shlex
 import shutil
 import signal
 import subprocess
@@ -43,6 +42,7 @@ from aios.security.gateway import (
     Zone,
     reset_sensitive_actions,
 )
+from aios.infrastructure.executor.argv import parse_argv as _parse_argv
 
 #: Environment variables whose *names* indicate a secret; stripped from children.
 _SECRET_NAME_HINTS = (
@@ -377,28 +377,6 @@ def _sanitise_env() -> dict[str, str]:
         current_path = clean.get("PATH", "")
         clean["PATH"] = str(venv_bin) + (os.pathsep + current_path if current_path else "")
     return clean
-
-
-def _parse_argv(command: str) -> list[str]:
-    """Parse one classified command into shell-free, structured argv.
-
-    This is the command-injection validation boundary: authorization has
-    already happened in the gateway, while this function rejects shell
-    composition and values that cannot be represented safely by ``Popen``.
-    """
-    if len(command) > max(config.MAX_COMMAND_CHARS, 1):
-        raise ValueError(f"command exceeds {config.MAX_COMMAND_CHARS} character limit")
-    if not command or any(ch in command for ch in ";&|<>`\r\n\x00"):
-        raise ValueError("shell composition is not permitted")
-    argv = shlex.split(command, posix=os.name != "nt")
-    if os.name == "nt":
-        argv = [
-            arg[1:-1] if len(arg) >= 2 and arg[0] == arg[-1] and arg[0] in "\"'" else arg
-            for arg in argv
-        ]
-    if not argv:
-        raise ValueError("empty command")
-    return argv
 
 
 def _default_runner(

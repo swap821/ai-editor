@@ -7,7 +7,7 @@ import shlex
 from aios.core.executor import DockerRunner
 from aios.domain.executor import ExecutorJob, ExecutorResult
 from aios.application.executor.service import environment_digest, utc_now
-from aios.infrastructure.executor.workspace import resolve_staged_workspace
+from aios.infrastructure.executor import workspace as workspace_policy
 
 
 class DockerJobRunner:
@@ -30,7 +30,7 @@ class DockerJobRunner:
         }
         started = utc_now()
         try:
-            workspace = resolve_staged_workspace(
+            workspace = workspace_policy.resolve_staged_workspace(
                 job.workspace_snapshot,
                 os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs"),
             )
