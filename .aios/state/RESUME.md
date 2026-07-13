@@ -14,11 +14,11 @@
 - Fixed full-suite test isolation issue: `/api/v1/council/missions/{mission_id}/rollback` registry rate limit raised from 10 to 60 req/min so `tests/test_routes_gaps.py` council-rollback tests no longer collide in the full suite.
 - Backend gate: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` — passing at 91.84% coverage.
 - Frontend build (`cd frontend && npm run build`) green. CSS canon check (`tools/check_css_canon.py`) still reports 4 pre-existing violations in `GagosChrome.css` / `TrustHalo.css`; unrelated to this slice.
-- Branch `kimi/gagos-s05-action-envelope-policy` ready to push to `master`; builder lease for `slice-5-action-envelope-policy` to be released after push.
+- Commit `65823fb` pushed to `master`; builder lease for `slice-5-action-envelope-policy` released.
 
-**Current Slice:** Slice 5 — closing out (commit/push/handoff).
+**Current Slice:** Slice 6 — to be chosen by operator / next agent.
 
-**Single Next Action:** Commit and push Slice 5 branch, then release the builder lease and hand off to the next agent / await operator direction for Slice 6.
+**Single Next Action:** Await operator direction for Slice 6 scope and next builder assignment.
 
 **Open Approvals / Blockers:**
 - `.claude/settings.json` was corrupted during a hook-blocker repair attempt. It has been removed and the broken copy preserved as `.claude/settings.json.broken`. The operator should restore a known-good `.claude/settings.json` before the next agent session; built-in tools work in this session due to a no-op `hook-handler.cjs`.
