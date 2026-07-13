@@ -115,6 +115,12 @@ COUNCIL_RUNTIME_DIR: Final[Path] = _env_path(
 COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 # Phase 3A durable Council deliberation store (queen verdicts + events).
 COUNCIL_STATE_DB: Final[Path] = COUNCIL_RUNTIME_DIR / "council_state.db"
+# Slice 7 — authoritative mission state database (JSON ledgers/reports become exports only).
+MISSION_STATE_DB: Final[Path] = DATA_DIR / "aios_missions.db"
+MISSION_EXPORT_DIR: Final[Path] = _env_path(
+    "AIOS_MISSION_EXPORT_DIR", COUNCIL_RUNTIME_DIR / "mission_exports"
+)
+MISSION_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 # Phase 3 "thinking Queens": LLM/memory-backed Queen reasoning. Gracefully
 # degrades to deterministic when no LLM client is injected (the Queens check
 # both this flag AND whether self._llm is not None before reasoning).
@@ -471,7 +477,8 @@ def startup_banner() -> dict[str, object]:
 __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
     "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
-    "COUNCIL_STATE_DB", "COUNCIL_REASONING", "COUNCIL_CRITIQUE",
+    "COUNCIL_STATE_DB", "MISSION_STATE_DB", "MISSION_EXPORT_DIR",
+    "COUNCIL_REASONING", "COUNCIL_CRITIQUE",
     "COUNCIL_KING_REASONING", "VERIFICATION_PROMOTION_FLOOR",
     "WORKER_REASONING", "WORKER_MAX_REPAIRS",
     "WORKER_MAX_FILE_BYTES", "COUNCIL_ORIGINATION", "COUNCIL_WORKSPACE_ROOT",

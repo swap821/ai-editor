@@ -31,7 +31,7 @@
 | 4 | Runtime profiles | **DONE** | `aios/runtime/profiles.py`, runtime-profile endpoint |
 | 5 | ActionEnvelope & Policy Kernel | **DONE** | `aios/domain/actions/`, `aios/application/action_broker.py`, route registry |
 | 6 | Unify `/chat` and `/generate` under TurnCoordinator | **DONE** | `aios/application/turns/turn_coordinator.py`, unified routes |
-| 7 | MissionContract v1 and transactional mission state | **NOT DONE** | `aios/runtime/contracts.py` has v0.1 `MissionContract` schema and `aios/runtime/run_ledger.py` persists JSON ledgers, but there is no v1 contract, mission state machine, repository, transition validation, contract digest, or SQLite as authoritative source. |
+| 7 | MissionContract v1 and transactional mission state | **DONE** | `aios/domain/missions/` v1 `MissionContract`/`MissionState`/`MissionTransition`/`MissionRepository`, `aios/infrastructure/missions/sqlite_mission_repository.py` authoritative SQLite store with WAL + transition audit, `aios/infrastructure/storage/migrations/0001_mission_state.py`, `aios/application/missions/mission_service.py` state machine + double-approve guard + legacy migration + export, `aios/council/council_orchestrator.py` integrated with `MissionService` (dual-write with JSON ledgers), `tests/test_mission_contract_v1.py` (12 passing), full backend + frontend gates green. |
 | 8 | Converge the Queen Council | **NOT DONE** | `aios/council/council_orchestrator.py` always invokes Planner/Security/Memory/Testing and optional Critique; there is no adaptive participation policy, no Routing/Reflection/Project-Understanding Queens, and `aios/council/queen_service.py` registry (`QUEEN_SERVICES`) is empty and unused by production callers. |
 | 9 | Worker Foundry unification | **NOT DONE** | |
 | 10 | Privacy Broker and model routing | **NOT DONE** | |
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Commit and push Slice 8 changes to `kimi/gagos-s06-turn-coordinator`, then hand off the builder lease to the next agent.
+Slice 8 — Converge the Queen Council: claim builder lease, branch `kimi/gagos-s08-queen-council`, implement adaptive participation policy, Routing/Reflection/Project-Understanding Queens, and wire `QUEEN_SERVICES` registry into `CouncilOrchestrator`.

@@ -34,6 +34,15 @@ from aios.council.queens.memory import MemoryQueen
 from aios.council.queens.planner import CouncilMissionRequest, PlannerQueen
 from aios.council.queens.security import SecurityQueen
 from aios.council.queens.testing import TestingQueen
+from aios.domain.missions.mission_contract import (
+    MissionBudget,
+    MissionContract as DomainMissionContract,
+    VerificationPlan,
+)
+from aios.domain.missions.mission_repository import MissionRepository
+from aios.domain.missions.mission_state import MissionState
+from aios.application.missions.mission_service import MissionService
+from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
 from aios.runtime.contracts import (
     KingReport,
     MissionContract,
@@ -90,6 +99,7 @@ class CouncilOrchestrator:
         council_memory: CouncilMemory | None = None,
         pheromone_store: PheromoneStore | None = None,
         bus: CortexBus | None = None,
+        mission_service: MissionService | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
         self.bus = bus
@@ -119,6 +129,45 @@ class CouncilOrchestrator:
                 lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
                 floor=config.PHEROMONE_FLOOR,
             )
+        # Authoritative mission state service (Slice 7). Defaults to an isolated
+        # SQLite store under the runtime root so every orchestrator instance owns
+        # its own mission authority unless one is injected.
+        self.mission_service = mission_service or MissionService(
+            SqliteMissionRepository(self.runtime_root / "missions.db"),
+            export_dir=self.runtime_root / "mission_exports",
+        )
+
+    def _to_domain_contract(
+        self, contract: MissionContract
+    ) -> DomainMissionContract:
+        """Map a runtime v0.1 contract to the authoritative v1 domain contract."""
+        return DomainMissionContract(
+            mission_id=contract.mission_id,
+            parent_mission_id=contract.parent_mission_id,
+            turn_id=getattr(contract, "turn_id", None),
+            project_id=getattr(contract, "project_id", None),
+            operator_id=getattr(contract, "operator_id", None) or "system",
+            goal=contract.goal,
+            worker_type=contract.worker_type,
+            created_by=contract.created_by,
+            risk_level=contract.risk_level,
+            requires_approval=contract.requires_approval,
+            budget=MissionBudget(
+                max_steps=contract.max_steps,
+                timeout_seconds=contract.timeout_seconds,
+            ),
+            scope={"workspace_root": str(contract.workspace_root)},
+            allowed_files=list(contract.allowed_files),
+            forbidden_files=list(contract.forbidden_files),
+            allowed_tools=list(contract.allowed_tools),
+            forbidden_tools=list(contract.forbidden_tools),
+            verification_plan=VerificationPlan(
+                commands=list(contract.verification_commands),
+            ),
+            workspace_root=str(contract.workspace_root),
+            snapshot_id=contract.snapshot_id,
+            metadata=dict(contract.metadata),
+        )
 
     async def run(self, request: CouncilMissionRequest | MissionContract) -> CouncilRun:
         """Full loop: deliberate, then execute when the council does not block.
@@ -145,6 +194,12 @@ class CouncilOrchestrator:
         claim_mission(self.runtime_root, contract.mission_id)
         self._persist_verdict(contract.mission_id, draft.verdict)
 
+        # Slice 7: authoritative mission state starts at DRAFT and moves into
+        # DELIBERATING for the council phase.
+        domain_contract = self._to_domain_contract(contract)
+        self.mission_service.create(domain_contract)
+        self.mission_service.start_deliberation(contract.mission_id)
+
         security_verdict = self.security.review(contract)
         verdicts.append(security_verdict)
         self._persist_verdict(contract.mission_id, security_verdict)
@@ -163,10 +218,21 @@ class CouncilOrchestrator:
             synthesis=synthesis,
         )
         if has_blocking_verdict(verdicts):
+            self.mission_service.block(
+                contract.mission_id,
+                reason=highest_risk([v.risk for v in verdicts]),
+            )
+            self.mission_service.export(contract.mission_id)
             return self._blocked_run(contract=contract, verdicts=verdicts)
+
+        self.mission_service.request_approval(contract.mission_id)
+        export_path = self.mission_service.export(contract.mission_id)
 
         now = _utc_now()
         risk = highest_risk([contract.risk_level, *(v.risk for v in verdicts)])
+        evidence = self._council_evidence(contract, verdicts)
+        evidence["mission_state_authority"] = "sqlite_mission_repository"
+        evidence["mission_state_export_path"] = str(export_path)
         ledger = RunLedger(
             mission_id=contract.mission_id,
             mission=contract.goal,
@@ -179,7 +245,7 @@ class CouncilOrchestrator:
             status="awaiting_approval",
             created_at=now,
             completed_at=None,
-            evidence=self._council_evidence(contract, verdicts),
+            evidence=evidence,
         )
         ledger_path = self.ledger_store.write(ledger)
         report = build_deliberation_report(contract=contract, verdicts=verdicts)
@@ -202,6 +268,14 @@ class CouncilOrchestrator:
     ) -> CouncilRun:
         """Phase 2 (async): the worker acts (post-approval). The mission dir was
         already claimed by deliberate(), so the spawner runs with claim=False."""
+        mission_record = self.mission_service.repository.get(contract.mission_id)
+        if mission_record.state == MissionState.AWAITING_APPROVAL:
+            self.mission_service.approve(
+                contract.mission_id,
+                operator_id="orchestrator",
+                capability_digest=f"orchestrator-auto-{contract.snapshot_id or contract.mission_id}",
+            )
+        self.mission_service.start_execution(contract.mission_id)
         worker_run = await self.spawner.run(contract, claim=False)
         self._persist_event(
             contract.mission_id,
@@ -224,6 +298,16 @@ class CouncilOrchestrator:
             )
             verdicts = [*verdicts, critique_verdict]
             self._persist_verdict(contract.mission_id, critique_verdict)
+
+        if has_blocking_verdict(verdicts):
+            self.mission_service.start_verification(contract.mission_id)
+            self.mission_service.fail(
+                contract.mission_id,
+                reason=f"Council blocked after worker; highest risk {highest_risk([v.risk for v in verdicts])}",
+            )
+        else:
+            self.mission_service.start_verification(contract.mission_id)
+            self.mission_service.complete(contract.mission_id)
 
         signals, synthesis = self._ganglia_for(verdicts)
         contract_with_ganglia = self._apply_ganglia_context(
@@ -254,6 +338,7 @@ class CouncilOrchestrator:
                 complete=self.king_complete,
             )
         report_path = self.report_store.write(report)
+        export_path = self.mission_service.export(contract.mission_id)
         self._persist_event(
             contract.mission_id,
             "report",
@@ -458,6 +543,7 @@ class CouncilOrchestrator:
             status = "failed"
         evidence = dict(worker_run.ledger.evidence)
         evidence.update(self._council_evidence(contract, verdicts))
+        evidence["mission_state_authority"] = "sqlite_mission_repository"
         return worker_run.ledger.model_copy(
             update={
                 "contract": contract,
