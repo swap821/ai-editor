@@ -5,7 +5,7 @@
 // The AIOS_HTTPS_ONLY env flag forces https:// for all API calls. In production
 // deployments, ALWAYS set VITE_AIOS_HTTPS_ONLY=true to prevent credential leakage.
 const FORCE_HTTPS = import.meta.env.VITE_AIOS_HTTPS_ONLY === 'true';
-const RAW_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+const RAW_BASE = import.meta.env.VITE_API_BASE ?? (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
 function enforceHttps(url) {
   if (FORCE_HTTPS && url.startsWith('http://') && !url.includes('localhost') && !url.includes('127.0.0.1')) {

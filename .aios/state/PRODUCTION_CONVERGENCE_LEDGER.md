@@ -46,8 +46,8 @@
 | 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **DONE** | `f3d8fe6`; focused product-space tests `4 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `592 tests`, and build green; CI run `29261640630` green across Ubuntu/Windows/macOS/frontend |
 | 20 | Constitutionally truthful Living Mirror | **DONE** | `361f11e`; focused mirror tests frontend `5 passed` plus backend `10 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; CI run `29263138253` green across Ubuntu/Windows/macOS/frontend |
 | 21 | Operations, observability and recovery | **DONE** | `1b2553a`; focused operations/read-model/Cortex tests `12 passed`, full backend `2996 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; Compose config passes with explicit secret and refuses missing secret; CI run `29264970507` green across Ubuntu/Windows/macOS/frontend |
-| 22 | CI as production release authority | **DONE** | Slice 22 commit created locally; focused release checks `11 passed`, security scan clean, SBOM `449 components`, full backend `3007 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; warning budget `122/124`; CI pending |
-| 23 | Package the single-developer product | **NOT DONE** | Pending Slice 10 |
+| 22 | CI as production release authority | **DONE** | `dccf072`; focused release checks `11 passed`, security scan clean, SBOM `449 components`, full backend `3007 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; warning budget `122/124`; CI run `29268027117` green across all platform, frontend, and release-authority jobs |
+| 23 | Package the single-developer product | **CI REPAIR PENDING** | Local launcher/release checks `21 passed`, full backend `3019 passed/5 skipped/2 warnings`, frontend typecheck/lint/coverage/build green; corrected CI run `29270642692` has all platform jobs green but release-authority failed because `aios/launcher.py` and `tests/test_launcher.py` need Ruff formatting |
 | 24 | Controlled autonomy and v1.0 declaration | **NOT DONE** | Pending Slice 10; strict v1 readiness remains subject to live identity/capability/isolation evidence |
 
 ## New Directive Roadmap (post-save)
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Stage and validate Slice 23 — Package the single-developer product. Do not infer completion of later slices from the cumulative candidate patch.
+Repair the Slice 23 package commit with the production-relative frontend config, rerun CI, and do not infer completion of Slice 24 from the cumulative candidate patch.

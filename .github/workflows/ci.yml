@@ -137,6 +137,7 @@ jobs:
           python -m compileall -q aios tests scripts
           python -m pytest -q -o addopts='' \
             tests/test_release_conformance.py \
+            tests/test_launcher.py \
             tests/test_route_registry_conformance.py \
             tests/test_operations.py \
             tests/test_executor_service.py \
@@ -145,15 +146,16 @@ jobs:
       - name: Ruff check and format gate
         run: |
           ruff check \
-            aios/operations aios/executor_service.py \
+            aios/operations aios/executor_service.py aios/launcher.py \
             scripts/security_scan.py scripts/generate_sbom.py \
-            tests/test_release_conformance.py \
+            tests/test_release_conformance.py tests/test_launcher.py \
             tests/test_operations.py \
             tests/test_executor_service.py
           ruff format --check \
             scripts/security_scan.py scripts/generate_sbom.py \
-            tests/test_release_conformance.py tests/test_operations.py \
-            tests/test_executor_service.py aios/executor_service.py
+            tests/test_release_conformance.py tests/test_launcher.py \
+            tests/test_operations.py tests/test_executor_service.py \
+            aios/executor_service.py aios/launcher.py
 
       - name: Validate production Compose topology
         env:

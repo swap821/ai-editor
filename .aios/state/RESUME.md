@@ -2,16 +2,15 @@
 
 **Current Goal:** Execute the Master Convergence Directive: implement Slices 9–24 as independently validated, supervised authority boundaries without weakening the frozen security spine or claiming production readiness.
 
-**Last Completed + Verified Step:** Slice 22 — CI as release authority, commit created locally.
-- Added tracked-source secret scan, deterministic CycloneDX source SBOM generation, and a monotonic frontend warning-budget checker (`122/124`, next target `100`).
-- Added release-conformance checks for authority import boundaries, worker principal shape, Cortex authority-event blocking, non-root images, executor socket ownership, and clean source scan.
-- Focused release checks passed: `11 passed`; security scan returned `[]`; SBOM generated `449 components`.
-- Full backend gate passed: `3007 passed, 5 skipped, 1 warning` in `468.76s` with `-o addopts=''`; warning was the existing HTTPX deprecation.
-- Frontend gates passed: typecheck, lint `122 warnings / 0 errors`, `104` test files / `597` tests, and production build.
+**Last Completed + Verified Step:** Slice 23 — platform CI is green on `bee4a02`, but release-authority run `29270642692` exposed noncanonical formatting in the new launcher files; formatter repair is staged before republish.
+- Slice 22 is published as commit `dccf072`; corrected CI run `29268027117` is green across all backend platforms, frontend jobs, and release-authority.
+- Slice 23 adds the policy-aware `gagos` launcher, development wrappers, same-origin frontend production base, frontend image, packaged-product runbook, and launcher conformance tests.
+- Slice 23 focused launcher/release checks passed: `21 passed`; full backend passed `3019 passed, 5 skipped, 2 warnings` in `499.82s` with `-o addopts=''`.
+- Slice 23 frontend gates passed: typecheck, lint within the `124`-warning budget, coverage tests, and production build.
 
 **Current Slice:** Slice 23 — Package the single-developer product. The cumulative candidate for Slices 23–24 is stashed while Slice 22 is committed/published; `master` remains untouched.
 
-**Single Next Action:** Stage only Slice 23 launcher/package files and run launcher/bootstrap/package conformance tests before any wider gate.
+**Single Next Action:** Amend Slice 23 with the exact CI Ruff formatting for `aios/launcher.py` and `tests/test_launcher.py`, republish, and rerun CI before staging Slice 24.
 
 **Open Approvals / Blockers:**
 - GitHub SSH preflight remains blocked by local `Host key verification failed`; the authenticated HTTPS `origin` is usable and must be recorded honestly.
@@ -20,6 +19,6 @@
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`); built-in tools continue to work.
 - Pre-existing CSS canon violations in `GagosChrome.css` and `TrustHalo.css` remain out of scope.
 
-**Active Files For This Slice:** `.github/workflows/ci.yml`, `scripts/security_scan.py`, `scripts/generate_sbom.py`, `scripts/check_frontend_warning_budget.mjs`, `.aios/state/FRONTEND_WARNING_BUDGET.json`, `pyproject.toml`, and `tests/test_release_conformance.py`.
+**Active Files For This Slice:** `.github/workflows/ci.yml`, `aios/__main__.py`, `aios/launcher.py`, `Dockerfile.frontend`, `frontend/vite.config.js`, `gagos`, `gagos.cmd`, `docs/operations/PACKAGED_PRODUCT.md`, and `tests/test_launcher.py`.
 
 **Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; each slice must be explicitly staged, tested, and committed from the isolated worktree before the next slice.
