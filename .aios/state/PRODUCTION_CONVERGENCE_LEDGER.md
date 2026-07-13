@@ -20,6 +20,36 @@
 | 7 | Living Interface | **DONE** | `frontend/src/superbrain/lib/activeBrain.ts`, `frontend/src/workbench/GagosChrome.jsx` + `.css` + `.status.test.tsx`, `frontend/src/superbrain/components/ui/SuperbrainHUD.tsx`, `frontend/src/superbrain/components/canvas/IdentityReadout.tsx`; frontend tests + build green, CSS canon 4 pre-existing violations, texture canon OK, backend 91.87% coverage |
 | 8 | Distribution & Bootstrap | **DONE** | `aios/bootstrap.py`, `aios/__main__.py` bootstrap subcommand, `install.ps1`, `aios/api/routes/system.py` `GET /api/v1/system/bootstrap`, `tests/test_bootstrap.py`; backend 91.80%+ coverage, frontend build green, CSS/texture canon same as baseline, `install.ps1` syntax OK |
 
+## New Directive Slice Inventory
+
+| New Slice | Name | Status | Evidence / Note |
+|-----------|------|--------|-----------------|
+| 0 | Establish executable truth | **DONE** | Baseline docs, subsystem registry, green gates |
+| 1 | Repair edge trust boundary | **DONE** | `aios/interfaces/http/edge_security.py`, adversarial tests |
+| 2 | Real Human Sovereign principal | **DONE** | Policy kernel, `aios/policy/kernel.py`, authority centralization |
+| 3 | Exact capabilities | **DONE** | Capability store + policy kernel enforcement |
+| 4 | Runtime profiles | **DONE** | `aios/runtime/profiles.py`, runtime-profile endpoint |
+| 5 | ActionEnvelope & Policy Kernel | **DONE** | `aios/domain/actions/`, `aios/application/action_broker.py`, route registry |
+| 6 | Unify `/chat` and `/generate` under TurnCoordinator | **DONE** | `aios/application/turns/turn_coordinator.py`, unified routes |
+| 7 | MissionContract v1 and transactional mission state | **NOT DONE** | Next planned slice |
+| 8 | Converge the Queen Council | **NOT DONE** | |
+| 9 | Worker Foundry unification | **NOT DONE** | |
+| 10 | Privacy Broker and model routing | **NOT DONE** | |
+| 11 | Isolated Executor Service | **NOT DONE** | |
+| 12 | Staged workspaces / dormant worktree | **NOT DONE** | |
+| 13 | Evidence and Verification Authorities | **NOT DONE** | |
+| 14 | Atomic Promotion and Recovery | **NOT DONE** | |
+| 15 | Durable Cortex consumer semantics | **NOT DONE** | |
+| 16 | Incremental system read models | **NOT DONE** | |
+| 17 | One Memory Authority | **NOT DONE** | |
+| 18 | Learning and earned autonomy loop | **NOT DONE** | |
+| 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **NOT DONE** | Old Slice 7 "Living Interface" provides seed work |
+| 20 | Constitutionally truthful Living Mirror | **NOT DONE** | Old Slice 7 provides seed work |
+| 21 | Operations, observability and recovery | **NOT DONE** | Old Slice 8 "Distribution & Bootstrap" provides seed work |
+| 22 | CI as production release authority | **NOT DONE** | |
+| 23 | Package the single-developer product | **NOT DONE** | Old Slice 8 provides seed work |
+| 24 | Controlled autonomy and v1.0 declaration | **NOT DONE** | |
+
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
