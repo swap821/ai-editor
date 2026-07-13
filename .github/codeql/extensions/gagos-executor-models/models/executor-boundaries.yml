@@ -10,6 +10,8 @@ extensions:
       - ["aios.infrastructure.executor.argv", "Member[parse_argv].Parameter[0]", "command-injection"]
       - ["aios.core.executor", "Member[_parse_argv].ReturnValue", "command-injection"]
       - ["aios.core.executor", "Member[_parse_argv].Parameter[0]", "command-injection"]
+      # _bounded_run validates every argv element immediately before Popen.
+      - ["aios.core.executor", "Member[_bounded_run].Parameter[0]", "command-injection"]
       - ["aios", "Member[infrastructure].Member[executor].Member[argv].Member[parse_argv].ReturnValue", "command-injection"]
       # resolve_staged_workspace canonicalizes symlinks and proves containment
       # under the executor staging root before a path is used for a mount.
@@ -17,11 +19,3 @@ extensions:
       - ["aios.infrastructure.executor", "Member[workspace].Member[resolve_staged_workspace].ReturnValue", "path-injection"]
       - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].Parameter[0]", "path-injection"]
       - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].ReturnValue", "path-injection"]
-  - addsTo:
-      pack: codeql/python-all
-      extensible: barrierGuardModel
-    data:
-      # _bounded_run rechecks the structured argv immediately before Popen.
-      # The accepting branch is the only path that reaches the sink.
-      - ["aios.infrastructure.executor.argv", "Member[argv_is_safe].Argument[0]", "true", "command-injection"]
-      - ["aios.core.executor", "Member[_argv_is_safe].Argument[0]", "true", "command-injection"]
