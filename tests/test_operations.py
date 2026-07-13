@@ -87,7 +87,9 @@ def test_doctor_uses_explicit_profile_for_audit_severity(
         executor_probe=lambda: (True, "available"),
     )
 
-    audit_check = next(check for check in report.checks if check.name == "audit_integrity")
+    audit_check = next(
+        check for check in report.checks if check.name == "audit_integrity"
+    )
     assert audit_check.status == "fatal"
 
 

@@ -2,7 +2,7 @@
 
 **Current Goal:** Execute the Master Convergence Directive: implement Slices 9–24 as independently validated, supervised authority boundaries without weakening the frozen security spine or claiming production readiness.
 
-**Last Completed + Verified Step:** Addressed seven actionable Copilot review threads on PR #141 after merge resolution: nested canonical mirror fields, explicit doctor profile severity, migration digest fallback, Docker socket group configuration, and the unused import. Affected backend checks passed `28 passed, 1 skipped`; frontend typecheck and the targeted mirror file passed (`6 passed`); Compose config passed.
+**Last Completed + Verified Step:** Addressed seven actionable Copilot review threads on PR #141 and matched the pinned Ruff 0.9.10 formatter after the first post-push release-authority run found one formatting mismatch. Affected backend checks passed `28 passed, 1 skipped`; frontend typecheck and the targeted mirror file passed (`6 passed`); Compose config passed; Ruff check and format now pass locally for the changed release test.
 - The PR-side `prove_it.py` cleanup guard and stale-pointer regression test were retained; the current master README changes were preserved.
 - Three CodeQL threads are already resolved; the seven Copilot threads were implemented locally and await post-push review-state refresh. No GitHub replies or manual thread resolutions were submitted.
 - Slice 23 remains remotely green as `9ca0534` / CI `29271483280` across all backend platforms, frontend jobs, and release-authority.
@@ -16,7 +16,7 @@
 
 **Current Slice:** PR #141 review hardening — Slices 9–24 remain independently landed and CI-verified; merge resolution and actionable review fixes are ready for post-push CI confirmation.
 
-**Single Next Action:** Push the review-fix commit and verify the new PR checks, review-thread state, and GitHub mergeability; do not merge to `master`.
+**Single Next Action:** Push the formatter follow-up and verify the new PR checks, review-thread state, and GitHub mergeability; do not merge to `master`.
 
 **Open Approvals / Blockers:**
 - GitHub SSH preflight remains blocked by local `Host key verification failed`; the authenticated HTTPS `origin` is usable and must be recorded honestly.
@@ -27,4 +27,4 @@
 
 **Active Files For This Slice:** `frontend/src/superbrain/lib/mirrorStore.ts`, `aios/operations/doctor.py`, `aios/infrastructure/storage/migrations/__init__.py`, `docker-compose.yml`, affected tests, and final PR/CI evidence.
 
-**Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; the conflict-resolution merge was validated in `C:\tmp\ai-editor-pr-review` without modifying the cumulative dirty worktree.
+**Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; the merge and review fixes were validated in `C:\tmp\ai-editor-pr-review` without modifying the cumulative dirty worktree. The first post-review CI attempt failed only on Ruff formatting in `tests/test_operations.py`; the exact pinned formatter corrected it.
