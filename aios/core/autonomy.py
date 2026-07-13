@@ -117,13 +117,19 @@ class AutonomyLedger:
 
     # -- query -------------------------------------------------------------
 
-    def is_earned(self, action_type: str, target: str) -> bool:
+    def is_earned(
+        self, action_type: str, target: str, enabled: bool | None = None
+    ) -> bool:
         """True only if the feature is enabled AND this signature is ``earned``.
 
         Fail-closed: if the feature flag is off, autonomy is never granted, so a
         deployment that never opts in behaves exactly like today (always YELLOW).
+        When *enabled* is supplied it overrides the global config, allowing the
+        active runtime profile to drive the decision through ``PolicyKernel``.
         """
-        if not config.EARNED_AUTONOMY_ENABLED:
+        if enabled is None:
+            enabled = config.EARNED_AUTONOMY_ENABLED
+        if not enabled:
             return False
         sig = self.signature(action_type, target)
         with get_connection(self.db_path) as conn:

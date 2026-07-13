@@ -285,7 +285,6 @@ def get_alignment_interpreter(
 # --------------------------------------------------------------------------- #
 _APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
-_POLICY_KERNEL: Optional["PolicyKernel"] = None
 
 #: Server-side session manager with httpOnly cookie support.
 #: Sessions are stored by SHA-256 hash only; the raw ID never leaves the server
@@ -332,14 +331,16 @@ def get_approval_store() -> ApprovalStore:
 
 
 def get_policy_kernel() -> "PolicyKernel":
-    """Provide the runtime policy kernel singleton."""
-    global _POLICY_KERNEL
-    if _POLICY_KERNEL is None:
-        # Imported lazily to break the policy -> edge_security -> deps cycle.
-        from aios.policy.kernel import PolicyKernel
+    """Provide the runtime policy kernel singleton.
 
-        _POLICY_KERNEL = PolicyKernel(rate_limiter=_RATE_LIMITER, autonomy_ledger=AutonomyLedger())
-    return _POLICY_KERNEL
+    Delegates to :func:`aios.policy.kernel.get_policy_kernel` so every caller
+    (route dependencies, the execution surface, and the router wiring) shares
+    the same authority instance.
+    """
+    # Imported lazily to break the policy -> edge_security -> deps cycle.
+    from aios.policy.kernel import get_policy_kernel as _kernel_singleton
+
+    return _kernel_singleton(rate_limiter=_RATE_LIMITER, autonomy_ledger=AutonomyLedger())
 
 
 def get_rollback_engine() -> RollbackEngine:

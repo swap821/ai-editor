@@ -47,16 +47,17 @@ _AUTO_IDS = frozenset({"auto", "auto.best", "ollama.auto"})
 
 
 def _router_policy() -> router.Policy:
-    """Build the cross-provider routing policy from operator config.
+    """Build the cross-provider routing policy from the active runtime profile.
 
-    The privacy boundary (``ROUTER_CLOUD_TASKS``) is read fresh each call so it
-    stays operator-owned and overridable; empty -> local-first (cloud off).
+    The privacy boundary is now owned by ``PolicyKernel`` via the runtime
+    profile. The profile is read fresh each call so operator overrides stay
+    effective; an empty ``cloud_tasks`` set means local-first (cloud off).
     """
-    return router.Policy(
-        cloud_tasks=frozenset(config.ROUTER_CLOUD_TASKS),
-        max_cost=config.ROUTER_MAX_COST,
-        prefer_local=config.ROUTER_PREFER_LOCAL,
-    )
+    # Imported lazily to keep the router wiring free of API-layer imports at
+    # module-load time.
+    from aios.api.deps import get_policy_kernel
+
+    return get_policy_kernel().router_policy()
 
 
 def _build_providers(
