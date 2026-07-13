@@ -264,10 +264,12 @@ def cleanup_stale_rollback_pointer(scope_root: Path) -> None:
         target = pointer.parent / target
     target = target.resolve()
     temp_root = Path(tempfile.gettempdir()).resolve()
+    pytest_root = (REPO_ROOT / ".aios" / "tmp" / "pytest-root").resolve()
     prover_owned = temp_root in target.parents and any(
         part.startswith("prove_it_scripted_") for part in target.parts
     )
-    if target.exists() and not prover_owned:
+    pytest_owned = pytest_root in target.parents
+    if target.exists() and not (prover_owned or pytest_owned):
         return
     try:
         pointer.unlink()

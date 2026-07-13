@@ -101,7 +101,7 @@ class WorkerFoundry:
 
     def select(self, strategy: str | WorkerStrategyName | None, contract: Any) -> WorkerStrategy:
         raw = strategy or _contract_strategy(contract)
-        key = str(raw).strip().lower().replace("-", "_")
+        key = (raw.value if isinstance(raw, WorkerStrategyName) else str(raw)).strip().lower().replace("-", "_")
         aliases = {
             # Existing Council Runtime names are explicit strategy aliases,
             # not a permissive unknown-strategy fallback.

@@ -864,6 +864,7 @@ def generate(
         openai=openai_client, anthropic=anthropic_client, task=task,
         metrics=_route_metrics(development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
+        data_classification=ctx.data_classification,
     )
     # The serving model is announced lazily from inside the stream (see
     # `_route_frame`); here we only normalise `model` to the route's view of it.
@@ -1989,6 +1990,7 @@ def chat(
     chat_client, model = _select_chat_client(
         req.model_id, client, bedrock, gemini=gemini,
         openai=openai_client, anthropic=anthropic_client, task=task,
+        data_classification=ctx.data_classification,
     )
     _, model = _active_route(chat_client, bedrock, gemini, model,
                              openai=openai_client, anthropic=anthropic_client)
