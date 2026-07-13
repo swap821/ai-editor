@@ -38,8 +38,8 @@
 | 11 | Isolated Executor Service | **DONE** | `PENDING`; focused executor/runtime tests `41 passed`, full backend `2959 passed/4 skipped`, frontend typecheck/lint/tests/build green |
 | 12 | Staged workspaces / dormant worktree | **DONE** | `PENDING`; focused staged-workspace/worktree tests `8 passed/1 skipped`, full backend `2962 passed/5 skipped`, frontend typecheck/lint/tests/build green |
 | 13 | Evidence and Verification Authorities | **DONE** | `PENDING`; focused evidence/verification tests `24 passed`, full backend `2965 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
-| 14 | Atomic Promotion and Recovery | **IN PROGRESS** | Cumulative candidate present; focused validation pending |
-| 15 | Durable Cortex consumer semantics | **NOT DONE** | Pending Slice 10 |
+| 14 | Atomic Promotion and Recovery | **DONE** | `PENDING`; focused promotion/rollback/audit tests `34 passed`, full backend `2970 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
+| 15 | Durable Cortex consumer semantics | **IN PROGRESS** | Cumulative candidate present; focused validation pending |
 | 16 | Incremental system read models | **NOT DONE** | Pending Slice 10 |
 | 17 | One Memory Authority | **NOT DONE** | Pending Slice 10 |
 | 18 | Learning and earned autonomy loop | **NOT DONE** | Pending Slice 10 |
@@ -53,7 +53,7 @@
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
-- Next logical slice: **Slice 14 — Atomic Promotion and Recovery**.
+- Next logical slice: **Slice 15 — Durable Cortex consumer semantics**.
 - Old Slice 8 (Distribution & Bootstrap) feeds new Slice 21 (operations/recovery) and Slice 23 (packaged product).
 
 ## Baseline Evidence
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Stage and validate Slice 14 — Atomic Promotion and Recovery. Do not infer completion of later slices from the cumulative candidate patch.
+Stage and validate Slice 15 — Durable Cortex consumer semantics. Do not infer completion of later slices from the cumulative candidate patch.
