@@ -128,6 +128,18 @@ def test_message_at_cap_is_accepted(shield_client: TestClient) -> None:
     assert response.status_code == 200
 
 
+def test_generate_route_carries_turn_id_and_mode(shield_client: TestClient) -> None:
+    """Slice 6: the agentic route emits a unique turn_id and canonical mission mode."""
+    response = shield_client.post(
+        "/api/generate",
+        json=_generate("hi", "gen-turn"),
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert '"turn_id"' in body
+    assert '"mode": "mission"' in body
+
+
 def test_prompt_injection_regex_blocked_with_400(shield_client: TestClient) -> None:
     """A classic instruction-override pattern is rejected before routing."""
     response = shield_client.post(

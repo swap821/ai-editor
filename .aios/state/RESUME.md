@@ -2,28 +2,20 @@
 
 **Current Goal:** Execute the Master Convergence Directive: transform the repository into a local-first sovereign agentic OS with unified authority, isolated execution, and a truthful living GAGOS interface.
 
-**Last Completed + Verified Step:** Slice 5 — Action Envelope & Deterministic Policy Kernel done and validated.
-- Added immutable domain contracts: `ActionEnvelope`, `ActionType`, `Principal` in `aios/domain/actions/envelope.py`; `PolicyDecision` in `aios/domain/policy/decision.py`.
-- Added application broker `aios/application/action_broker.py` with `ActionBroker` / `PolicyBrokerError` to issue/consume approval tokens and resolve envelopes without leaking token state into the kernel.
-- Extended `aios/policy/kernel.py`:
-  - `RouteAuthority` now carries `action_type` and `capability_required`.
-  - `_ROUTE_AUTHORITY` expanded from ~27 routes to a complete registry covering all 64 mutating API endpoints.
-  - Added `decide(envelope) -> PolicyDecision` that enforces rate limits, delegates command classification to the frozen gateway, and deterministically classifies all other mutations from the registry.
-- Added deterministic tests: `tests/test_action_envelope.py`, `tests/test_policy_decision.py`, `tests/test_action_broker.py`, `tests/test_policy_kernel_decide.py`.
-- Added architecture guard `tests/test_route_registry_conformance.py` that parses every `@router.post/put/delete/patch` and `@app.post/put/delete/patch` decorator and fails any mutating route lacking registry metadata.
-- Fixed full-suite test isolation issue: `/api/v1/council/missions/{mission_id}/rollback` registry rate limit raised from 10 to 60 req/min so `tests/test_routes_gaps.py` council-rollback tests no longer collide in the full suite.
-- Backend gate: `.venv\Scripts\python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85` — passing at 91.84% coverage.
-- Frontend build (`cd frontend && npm run build`) green. CSS canon check (`tools/check_css_canon.py`) still reports 4 pre-existing violations in `GagosChrome.css` / `TrustHalo.css`; unrelated to this slice.
-- Commit `65823fb` pushed to `master`; builder lease for `slice-5-action-envelope-policy` released.
+**Last Completed + Verified Step:** Saved `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md` (commit `730f24f`).
+- The operator-supplied directive defines the canonical 24-slice roadmap, domain models, operating rules, and acceptance gates.
+- Updated `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md` with a superseded notice and roadmap pointer.
+- The prior 8-slice convergence is retained as historical evidence; it maps to the new directive's Slices 0–6, plus groundwork for Slices 19–21/23.
 
-**Current Slice:** Slice 6 — to be chosen by operator / next agent.
+**Current Slice:** Master Convergence Directive saved; awaiting operator go/no-go on the next slice.
 
-**Single Next Action:** Await operator direction for Slice 6 scope and next builder assignment.
+**Single Next Action:** Claim the builder lease and execute **new directive Slice 7 — MissionContract v1 and transactional mission state**, unless the operator wants to revisit an earlier slice under the stricter new directive.
 
 **Open Approvals / Blockers:**
-- `.claude/settings.json` was corrupted during a hook-blocker repair attempt. It has been removed and the broken copy preserved as `.claude/settings.json.broken`. The operator should restore a known-good `.claude/settings.json` before the next agent session; built-in tools work in this session due to a no-op `hook-handler.cjs`.
+- `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`). Restore a known-good settings file before the next agent session; built-in tools continue to work.
 - CSS canon violations in `GagosChrome.css` and `TrustHalo.css` are pre-existing and out of scope.
+- Builder lease is currently in `review` after Slice 8 handoff; it must be explicitly claimed before any YELLOW/RED work.
 
-**Active Files For This Slice:** `aios/policy/kernel.py`, `aios/domain/actions/envelope.py`, `aios/domain/policy/decision.py`, `aios/application/action_broker.py`, `tests/test_action_envelope.py`, `tests/test_policy_decision.py`, `tests/test_action_broker.py`, `tests/test_policy_kernel_decide.py`, `tests/test_route_registry_conformance.py`.
+**Active Files For This Slice:** `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`, `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md`.
 
 **Notes Not Yet Promoted:** None.

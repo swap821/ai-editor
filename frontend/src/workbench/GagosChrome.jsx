@@ -174,12 +174,14 @@ function formatActiveBrainChip(brain) {
   const model = String(brain.model || '').trim();
   const provider = String(brain.provider || '').trim();
   const privacy = String(brain.privacy || '').trim().toLowerCase();
+  const mode = String(brain.mode || '').trim().toLowerCase();
   const name = model || provider || 'auto';
   const meta = [
     model && provider && provider.toLowerCase() !== model.toLowerCase() ? provider : '',
     privacy,
+    mode,
   ].filter(Boolean).join(' · ');
-  return { name, meta };
+  return { name, meta, mode };
 }
 
 // Backend redaction markers (secret scanner / privacy filter) arrive as literal
@@ -378,6 +380,8 @@ export default function GagosChrome() {
             provider: event.data.provider,
             model: event.data.model,
             privacy: event.data.privacy,
+            turn_id: event.data.turn_id,
+            mode: event.data.mode,
           });
         }
       }),
@@ -993,6 +997,15 @@ export default function GagosChrome() {
           <span className="gagos-dot gagos-dot--supervised" aria-hidden="true" />
           <span className="gagos-pill__main">supervised</span>
         </span>
+        {online && brainChip.mode ? (
+          <span
+            className={`gagos-pill gagos-pill--mode gagos-pill--mode-${brainChip.mode}`}
+            aria-label={`Turn mode: ${brainChip.mode}`}
+          >
+            <span className="gagos-dot gagos-dot--mode" aria-hidden="true" />
+            <span className="gagos-pill__main">{brainChip.mode}</span>
+          </span>
+        ) : null}
       </header>
 
       {verifyToast ? (
