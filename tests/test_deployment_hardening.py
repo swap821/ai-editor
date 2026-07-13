@@ -120,10 +120,10 @@ def test_ci_python_version_matches_dockerfile_and_pin_file() -> None:
     dockerfile_version = match.group(1)
 
     ci = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
-    backend_steps = ci["jobs"]["backend"]["steps"]
     setup_python_step = next(
         step
-        for step in backend_steps
+        for job in ci["jobs"].values()
+        for step in job.get("steps", [])
         if step.get("uses", "").startswith("actions/setup-python")
     )
     ci_version = str(setup_python_step["with"]["python-version"])

@@ -42,6 +42,8 @@ export default function IdentityReadout({ name = 'GAGOS', supervised = true }: I
             provider: event.data.provider as string | undefined,
             model: event.data.model as string | undefined,
             privacy: event.data.privacy as string | undefined,
+            turn_id: event.data.turn_id as string | undefined,
+            mode: event.data.mode as string | undefined,
           });
         }
         if (event.type === 'voice-speaking') speakingRef.current = 1;

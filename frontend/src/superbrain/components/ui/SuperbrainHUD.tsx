@@ -859,6 +859,8 @@ export default function SuperbrainHUD({
     privacy: string;
     task?: string;
     auto?: boolean;
+    turn_id?: string;
+    mode?: string;
   } | null>(null);
 
   /* ----- nervous system: the HUD reacts to the same events as the 3D scene ----- */
@@ -989,8 +991,9 @@ export default function SuperbrainHUD({
           setPendingApproval(getPendingApproval());
           break;
         case 'route': {
-          // The active brain for this turn · which provider/model served it and
-          // whether it stayed local (a policy-permitted cloud escalation reads CLOUD).
+          // The active brain for this turn · which provider/model served it,
+          // whether it stayed local (a policy-permitted cloud escalation reads CLOUD),
+          // and the canonical turn identity + mode from the TurnCoordinator.
           const d = (event.data ?? {}) as Record<string, unknown>;
           if (typeof d.model === 'string' && d.model) {
             setActiveBrain({
@@ -999,8 +1002,11 @@ export default function SuperbrainHUD({
               privacy: String(d.privacy ?? ''),
               task: typeof d.task === 'string' ? d.task : undefined,
               auto: typeof d.auto === 'boolean' ? d.auto : undefined,
+              turn_id: typeof d.turn_id === 'string' ? d.turn_id : undefined,
+              mode: typeof d.mode === 'string' ? d.mode : undefined,
             });
-            appendTermLine(`Brain · ${d.model} (${String(d.privacy ?? '?')})`);
+            const modeTag = typeof d.mode === 'string' ? ` · ${d.mode}` : '';
+            appendTermLine(`Brain · ${d.model} (${String(d.privacy ?? '?')})${modeTag}`);
           }
           break;
         }

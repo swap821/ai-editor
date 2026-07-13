@@ -14,8 +14,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  backend:
+  backend-tests:
     strategy:
       fail-fast: false
       matrix:
@@ -46,7 +49,14 @@ jobs:
       - name: Run test suite with coverage gate
         run: python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85
 
-  frontend:
+  backend:
+    needs: backend-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Backend matrix gate
+        run: echo "Backend tests passed on all platforms"
+
+  frontend-tests:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -82,3 +92,10 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  frontend:
+    needs: frontend-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Frontend gate
+        run: echo "Frontend tests and build passed"
