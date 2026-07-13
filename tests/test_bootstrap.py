@@ -185,6 +185,9 @@ class TestEnvTemplate:
 class TestBootstrapEndpoint:
     def test_bootstrap_status_endpoint(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("AIOS_BOOTSTRAP_SKIP_OLLAMA", "1")
+        monkeypatch.setenv("AIOS_API_HOST", "127.0.0.1")
+        monkeypatch.setenv("AIOS_API_TOKEN", "x" * 32)
+        monkeypatch.setenv("AIOS_DATA_DIR", "/tmp/aios-bootstrap-ci")
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             response = client.get("/api/v1/system/bootstrap")
         assert response.status_code == 200
