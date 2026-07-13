@@ -234,6 +234,47 @@ def sweep_stale_demo_artifacts(scope_root: Path) -> None:
             pass
 
 
+def cleanup_stale_rollback_pointer(scope_root: Path) -> None:
+    """Remove only a broken or prover-owned external ``.git`` pointer.
+
+    ``RollbackEngine`` keeps its database outside ``training_ground`` and
+    leaves a small ``gitdir:`` pointer in the sandbox. The normal restore
+    cleanup must never descend into ``.git`` because that could corrupt a live
+    rollback database. Scripted prover runs intentionally use a fresh temp
+    data directory each time, so an interrupted run can leave a pointer whose
+    target is gone (or points at an older ``prove_it_scripted_*`` directory).
+    Remove that pointer before the next run, while refusing to touch an
+    existing pointer owned by any other runtime.
+    """
+    pointer = Path(scope_root) / ".git"
+    if not pointer.is_file() or pointer.is_symlink():
+        return
+    try:
+        text = pointer.read_text(encoding="utf-8", errors="ignore").strip()
+    except OSError:
+        return
+    prefix = "gitdir:"
+    if not text.lower().startswith(prefix):
+        return
+    raw_target = text[len(prefix):].strip()
+    if not raw_target:
+        return
+    target = Path(raw_target)
+    if not target.is_absolute():
+        target = pointer.parent / target
+    target = target.resolve()
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    prover_owned = temp_root in target.parents and any(
+        part.startswith("prove_it_scripted_") for part in target.parts
+    )
+    if target.exists() and not prover_owned:
+        return
+    try:
+        pointer.unlink()
+    except OSError:
+        pass
+
+
 # --------------------------------------------------------------------------
 # Networking helpers
 # --------------------------------------------------------------------------
@@ -798,6 +839,7 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
     # copy. Snapshot it now and restore it in `finally` so this run leaves no
     # trace on the repo tree, matching the live-mode cleanup contract.
     scope_root = REPO_ROOT / "training_ground"
+    cleanup_stale_rollback_pointer(scope_root)
     sweep_stale_demo_artifacts(scope_root)  # clean slate vs a prior interrupted run
     before_files = snapshot_training_ground(scope_root)
 
@@ -936,6 +978,7 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
         app.dependency_overrides.pop(get_ollama_client, None)
         app.dependency_overrides.pop(get_executor, None)
         deleted = restore_training_ground(scope_root, before_files)
+        cleanup_stale_rollback_pointer(scope_root)
         if deleted:
             print(f"[cleanup] removed demo artifacts from training_ground/: {', '.join(deleted)}")
         shutil.rmtree(tmp_dir, ignore_errors=True)
