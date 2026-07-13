@@ -88,11 +88,10 @@ jobs:
         # Load the repository-local executor boundary models for the Python
         # analysis. The local search path above keeps the barriers versioned
         # with the code they describe; other matrix languages do not need it.
-        packs: ${{ matrix.language == 'python' && 'gagos/executor-models' || '' }}
+        packs: ${{ matrix.language == 'python' && 'gagos/executor-models,codeql/python-queries:AlertSuppression.ql' || '' }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
-        queries: ${{ matrix.language == 'python' && '+codeql/python-queries:AlertSuppression.ql' || '' }}
 
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
