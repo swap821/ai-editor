@@ -38,10 +38,10 @@ jobs:
             - --search-path=${{ github.workspace }}/.github/codeql/extensions
           run-queries:
             - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
-            - ${{ matrix.language == 'python' && '--model-packs=gagos/executor-models' || '' }}
+            - --model-packs=gagos/executor-models
           interpret-results:
             - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
-            - ${{ matrix.language == 'python' && '--model-packs=gagos/executor-models' || '' }}
+            - --model-packs=gagos/executor-models
     permissions:
       # required for all workflows
       security-events: write
