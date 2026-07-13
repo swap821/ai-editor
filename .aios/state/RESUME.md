@@ -2,16 +2,16 @@
 
 **Current Goal:** Execute the Master Convergence Directive: implement Slices 9–24 as independently validated, supervised authority boundaries without weakening the frozen security spine or claiming production readiness.
 
-**Last Completed + Verified Step:** Slice 18 — Governed learning and autonomy, commit created locally.
-- Added immutable learning-attempt, evidence, outcome, proposal, trust, and action-class contracts with explicit verification/promotion lineage.
-- Added governed autonomy service/core integration that earns trust only from verifier-backed outcomes, decays/revokes on failures and policy/tool/model changes, and never earns RED actions.
-- Focused autonomy safety suites passed: `61 passed in 7.39s`.
-- Full backend gate passed: `2992 passed, 5 skipped, 1 warning` in `398.17s` with `-o addopts=''`; warning was the existing HTTPX deprecation.
-- Frontend gates passed: typecheck, lint `122 warnings / 0 errors` under the existing budget, `102` test files / `588` tests, and production build.
+**Last Completed + Verified Step:** Slice 19 — Four product spaces, commit created locally.
+- Added Living Mind, Workbench, Governance, and History product-space navigation with truthful shell-level surfaces and no new authority paths.
+- Added non-WebGL interaction coverage for product-space selection and preserved the existing Superbrain canvas as the Living Mind surface.
+- Focused product-space tests passed: `4 passed`.
+- Full backend gate passed: `2992 passed, 5 skipped, 1 warning` in `483.73s` with `-o addopts=''`; warning was the existing HTTPX deprecation.
+- Frontend gates passed: typecheck, lint `122 warnings / 0 errors`, `103` test files / `592` tests, and production build.
 
-**Current Slice:** Slice 19 — Four product spaces. The cumulative candidate for Slices 19–24 is stashed while Slice 18 is committed/published; `master` remains untouched.
+**Current Slice:** Slice 20 — Constitutionally truthful Living Mirror. The cumulative candidate for Slices 20–24 is stashed while Slice 19 is committed/published; `master` remains untouched.
 
-**Single Next Action:** Stage only Slice 19 product-space files and run frontend/non-WebGL interaction tests before any wider gate.
+**Single Next Action:** Stage only Slice 20 Living Mirror files and run mirror/live-surface tests before any wider gate.
 
 **Open Approvals / Blockers:**
 - GitHub SSH preflight remains blocked by local `Host key verification failed`; the authenticated HTTPS `origin` is usable and must be recorded honestly.
@@ -20,6 +20,6 @@
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`); built-in tools continue to work.
 - Pre-existing CSS canon violations in `GagosChrome.css` and `TrustHalo.css` remain out of scope.
 
-**Active Files For This Slice:** `aios/application/autonomy/**`, `aios/domain/autonomy/**`, `aios/core/autonomy.py`, and `tests/test_governed_autonomy.py`; `tests/test_earned_autonomy_integration.py` and adversarial autonomy tests were regression gates.
+**Active Files For This Slice:** `frontend/src/workbench/ProductSpaces.jsx`, `frontend/src/workbench/ProductSpaces.css`, `frontend/src/workbench/ProductSpaces.test.jsx`, and `frontend/src/superbrain/SuperbrainApp.jsx`.
 
 **Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; each slice must be explicitly staged, tested, and committed from the isolated worktree before the next slice.
