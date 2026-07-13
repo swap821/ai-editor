@@ -97,3 +97,24 @@ def test_docker_job_runner_passes_only_a_validated_workspace(
 
     assert result.status == "completed"
     assert calls[0]["cwd"] == str(workspace.resolve())
+
+
+def test_docker_job_runner_rejects_a_staged_file(monkeypatch, tmp_path) -> None:
+    staging_root = tmp_path / "jobs"
+    staging_root.mkdir()
+    workspace_file = staging_root / "job-1"
+    workspace_file.write_text("not a workspace", encoding="utf-8")
+    monkeypatch.setenv("AIOS_EXECUTOR_WORKSPACE_ROOT", str(staging_root))
+    calls: list[dict[str, object]] = []
+
+    def fake_runner(command, **kwargs):
+        calls.append({"command": command, **kwargs})
+        return "ok", "", 0
+
+    result = DockerJobRunner(runner=fake_runner)(
+        ExecutorJob.model_validate(_job(str(workspace_file)))
+    )
+
+    assert result.status == "failed"
+    assert "workspace is not a directory" in result.reason
+    assert calls == []

@@ -34,6 +34,8 @@ class DockerJobRunner:
                 job.workspace_snapshot,
                 os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs"),
             )
+            if not workspace.is_dir():
+                raise ValueError("workspace is not a directory")
             stdout, stderr, code = self.runner(
                 command,
                 cwd=str(workspace),

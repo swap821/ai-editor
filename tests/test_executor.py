@@ -185,6 +185,11 @@ def test_parse_argv_rejects_null_bytes() -> None:
         _parse_argv("echo\x00unsafe")
 
 
+def test_bounded_runner_rejects_unsafe_structured_argv() -> None:
+    with pytest.raises(ValueError, match="unsafe structured argv"):
+        _bounded_run(["echo", "unsafe;command"], timeout=1)
+
+
 def test_execute_approved_runs_yellow_command() -> None:
     runner = RecordingRunner(out="installed")
     result = _executor(runner).execute_approved("pip install flask")

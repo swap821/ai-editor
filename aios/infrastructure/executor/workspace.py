@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def resolve_staged_workspace(path: str, root: str | Path) -> Path:
-    """Return *path* only when its real path is a directory under *root*.
+    """Return *path* only when its real path is contained under *root*.
 
     Both values are canonicalized before the containment check so traversal and
     symlink escapes cannot reach the Docker mount builder.  This function is
@@ -22,8 +22,6 @@ def resolve_staged_workspace(path: str, root: str | Path) -> Path:
     candidate = os.path.realpath(raw_path)
     if candidate != safe_root and not candidate.startswith(safe_root + os.sep):
         raise ValueError("workspace is outside executor staging root")
-    if not os.path.isdir(candidate):
-        raise ValueError("workspace is not a directory")
     return Path(candidate)
 
 

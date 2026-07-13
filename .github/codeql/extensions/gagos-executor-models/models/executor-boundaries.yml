@@ -17,3 +17,11 @@ extensions:
       - ["aios.infrastructure.executor", "Member[workspace].Member[resolve_staged_workspace].ReturnValue", "path-injection"]
       - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].Parameter[0]", "path-injection"]
       - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].ReturnValue", "path-injection"]
+  - addsTo:
+      pack: codeql/python-all
+      extensible: barrierGuardModel
+    data:
+      # _bounded_run rechecks the structured argv immediately before Popen.
+      # The accepting branch is the only path that reaches the sink.
+      - ["aios.infrastructure.executor.argv", "Member[argv_is_safe].Argument[0]", "true", "command-injection"]
+      - ["aios.core.executor", "Member[_argv_is_safe].Argument[0]", "true", "command-injection"]

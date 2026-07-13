@@ -39,12 +39,12 @@ def _authorized(authorization: str | None) -> bool:
 
 def _workspace_allowed(path: str) -> bool:
     try:
-        workspace_policy.resolve_staged_workspace(
+        workspace = workspace_policy.resolve_staged_workspace(
             path, os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs")
         )
+        return workspace.is_dir()
     except (OSError, ValueError):
         return False
-    return True
 
 
 @app.get("/health")

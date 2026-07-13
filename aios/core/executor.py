@@ -42,7 +42,10 @@ from aios.security.gateway import (
     Zone,
     reset_sensitive_actions,
 )
-from aios.infrastructure.executor.argv import parse_argv as _parse_argv
+from aios.infrastructure.executor.argv import (
+    argv_is_safe as _argv_is_safe,
+    parse_argv as _parse_argv,
+)
 
 #: Environment variables whose *names* indicate a secret; stripped from children.
 _SECRET_NAME_HINTS = (
@@ -119,6 +122,8 @@ def _bounded_run(
     """Run argv while draining pipes but retaining only a bounded prefix."""
     if shell or not capture_output or not text:
         raise ValueError("bounded runner requires shell=False, capture_output=True, text=True")
+    if not _argv_is_safe(argv):
+        raise ValueError("unsafe structured argv")
     limit = max(max_output_bytes or config.MAX_COMMAND_OUTPUT_BYTES, 1024)
     process = subprocess.Popen(
         argv,
