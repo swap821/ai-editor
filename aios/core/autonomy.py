@@ -26,6 +26,7 @@ system's load-bearing invariant — **trust the evidence, not the model**:
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -115,6 +116,37 @@ class AutonomyLedger:
         norm = self._normalize(action_type, target)
         return hashlib.sha256(f"{action_type}|{norm}".encode("utf-8")).hexdigest()
 
+    @classmethod
+    def scoped_signature(
+        cls,
+        action_type: str,
+        target: str,
+        *,
+        project_id: str,
+        tool: str,
+        path_class: str,
+        verification_plan_digest: str,
+        policy_version: str,
+        model_id: str,
+        data_classification: str,
+    ) -> str:
+        """Derive a context-bound action class without widening legacy keys."""
+        normalized = cls._normalize(action_type, target)
+        payload = {
+            "action_type": scan_and_redact(action_type).scrubbed,
+            "target_shape": scan_and_redact(normalized).scrubbed,
+            "project_id": scan_and_redact(project_id).scrubbed,
+            "tool": scan_and_redact(tool).scrubbed,
+            "path_class": scan_and_redact(path_class).scrubbed,
+            "verification_plan_digest": scan_and_redact(verification_plan_digest).scrubbed,
+            "policy_version": scan_and_redact(policy_version).scrubbed,
+            "model_id": scan_and_redact(model_id).scrubbed,
+            "data_classification": scan_and_redact(data_classification).scrubbed,
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
     # -- query -------------------------------------------------------------
 
     def is_earned(
@@ -150,6 +182,25 @@ class AutonomyLedger:
                 "SELECT status, success_count, failure_count, streak "
                 "FROM earned_autonomy WHERE signature = ?",
                 (sig,),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def is_earned_scoped(self, signature: str, *, enabled: bool) -> bool:
+        """Read an already scoped entry from the same durable ledger."""
+        if not enabled:
+            return False
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT status FROM earned_autonomy WHERE signature = ?", (signature,)
+            ).fetchone()
+        return row is not None and str(row["status"]) == "earned"
+
+    def record_for_scoped(self, signature: str) -> dict[str, Any] | None:
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT status, success_count, failure_count, streak "
+                "FROM earned_autonomy WHERE signature = ?",
+                (signature,),
             ).fetchone()
         return dict(row) if row is not None else None
 
@@ -237,6 +288,87 @@ class AutonomyLedger:
             "failure_count": fail,
             "streak": streak,
         }
+
+    def record_scoped_outcome(
+        self,
+        signature: str,
+        *,
+        action_type: str,
+        target_shape: str,
+        success: bool,
+        strength: VerificationStrength = VerificationStrength.STRONG,
+    ) -> dict[str, Any]:
+        """Fold a context-bound outcome into the existing autonomy ledger.
+
+        This deliberately shares ``earned_autonomy`` with the legacy API; the
+        extra context is already committed into ``signature`` by
+        :meth:`scoped_signature`, so project/model/policy changes cannot reuse
+        an older earned row.
+        """
+        eligible_success = success and meets_promotion_floor(strength)
+        now = _now_iso()
+        with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT success_count, failure_count, streak, status "
+                "FROM earned_autonomy WHERE signature = ?",
+                (signature,),
+            ).fetchone()
+            if row is None:
+                if eligible_success:
+                    succ, fail, streak = 1, 0, 1
+                    status = "earned" if streak >= self.min_successes else "probation"
+                    earned_at, revoked_at = (now if status == "earned" else None), None
+                else:
+                    succ, fail, streak, status = 0, 1, 0, "revoked"
+                    earned_at, revoked_at = None, now
+                conn.execute(
+                    "INSERT INTO earned_autonomy "
+                    "(signature, action_type, target_shape, success_count, "
+                    "failure_count, streak, status, earned_at, revoked_at, "
+                    "last_outcome_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (signature, action_type, target_shape, succ, fail, streak, status,
+                     earned_at, revoked_at, now, now),
+                )
+            elif eligible_success:
+                succ = int(row["success_count"]) + 1
+                fail = int(row["failure_count"])
+                streak = int(row["streak"]) + 1
+                status = "earned" if streak >= self.min_successes else "probation"
+                newly_earned = status == "earned" and str(row["status"]) != "earned"
+                conn.execute(
+                    "UPDATE earned_autonomy SET success_count = ?, failure_count = ?, "
+                    "streak = ?, status = ?, last_outcome_at = ?, updated_at = ?"
+                    + (", earned_at = ?" if newly_earned else "")
+                    + " WHERE signature = ?",
+                    (succ, fail, streak, status, now, now, now, signature)
+                    if newly_earned
+                    else (succ, fail, streak, status, now, now, signature),
+                )
+            else:
+                succ = int(row["success_count"])
+                fail = int(row["failure_count"]) + 1
+                streak = 0
+                status = "revoked"
+                conn.execute(
+                    "UPDATE earned_autonomy SET success_count = ?, failure_count = ?, "
+                    "streak = 0, status = 'revoked', revoked_at = ?, "
+                    "last_outcome_at = ?, updated_at = ? WHERE signature = ?",
+                    (succ, fail, now, now, now, signature),
+                )
+        return {
+            "signature": signature,
+            "action_type": action_type,
+            "target_shape": target_shape,
+            "status": status,
+            "success_count": succ,
+            "failure_count": fail,
+            "streak": streak,
+        }
+
+    def revoke_scoped(self, signature: str) -> bool:
+        """Revoke one context-bound class without touching other projects."""
+        return self.revoke(signature)
 
     # -- operator controls -------------------------------------------------
 
