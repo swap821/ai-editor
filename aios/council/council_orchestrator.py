@@ -6,14 +6,18 @@ every verdict and lifecycle event to a durable CouncilState store (best-effort).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from aios import config
 from aios.memory.pheromones import PheromoneStore
+from aios.council import queen_service as queen_service_registry
 from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
 from aios.council.ganglia import (
@@ -23,17 +27,24 @@ from aios.council.ganglia import (
     synthesize_signals,
 )
 from aios.council.king_reasoning import reason_king
+from aios.council.participation import CouncilParticipation, CouncilParticipationPolicy
 from aios.council.queen_verdict import (
     has_blocking_verdict,
     highest_risk,
     verdicts_as_metadata,
 
 )
-from aios.council.queens.critique import CritiqueQueen
-from aios.council.queens.memory import MemoryQueen
-from aios.council.queens.planner import CouncilMissionRequest, PlannerQueen
-from aios.council.queens.security import SecurityQueen
-from aios.council.queens.testing import TestingQueen
+from aios.council.queens import (
+    CouncilMissionRequest,
+    CritiqueQueen,
+    MemoryQueen,
+    PlannerQueen,
+    ProjectUnderstandingQueen,
+    ReflectionQueen,
+    RoutingQueen,
+    SecurityQueen,
+    TestingQueen,
+)
 from aios.domain.missions.mission_contract import (
     MissionBudget,
     MissionContract as DomainMissionContract,
@@ -92,6 +103,11 @@ class CouncilOrchestrator:
         memory: MemoryQueen | None = None,
         testing: TestingQueen | None = None,
         critique: CritiqueQueen | None = None,
+        routing: RoutingQueen | None = None,
+        reflection: ReflectionQueen | None = None,
+        project_understanding: ProjectUnderstandingQueen | None = None,
+        participation_policy: CouncilParticipationPolicy | None = None,
+        use_queen_services: bool | None = None,
         king_complete: Callable[[str], str] | None = None,
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
@@ -108,11 +124,24 @@ class CouncilOrchestrator:
         self.security = security or SecurityQueen()
         self.memory = memory or MemoryQueen()
         self.testing = testing or TestingQueen()
+        self.routing = routing or RoutingQueen()
+        self.reflection = reflection or ReflectionQueen()
+        self.project_understanding = project_understanding or ProjectUnderstandingQueen()
         # Opt-in (AIOS_COUNCIL_CRITIQUE): a second-order check on verification
         # sufficiency. None → the Queen is absent (no behavior change).
         self.critique = critique if critique is not None else (
             CritiqueQueen() if config.COUNCIL_CRITIQUE else None
         )
+        self.participation_policy = participation_policy or CouncilParticipationPolicy()
+        # Opt-in (AIOS_QUEEN_SERVICES): use long-lived async Queen services when
+        # available. Registry is initialized lazily; callers still start/stop.
+        self.use_queen_services = (
+            use_queen_services
+            if use_queen_services is not None
+            else config.QUEEN_SERVICES
+        )
+        if self.use_queen_services:
+            queen_service_registry.init_queen_services()
         # Opt-in (AIOS_COUNCIL_KING_REASONING): an injected LLM `complete` the King
         # uses to reason over the verdicts, clamped strengthen-only. None → off.
         self.king_complete = king_complete
@@ -186,6 +215,7 @@ class CouncilOrchestrator:
         """Phase 1 (sync): Queens deliberate; NO worker spawns. Produces a King
         report with status ``awaiting_approval`` (passed) or ``blocked`` (denied).
         Claims the mission dir so a later execute() need not re-claim."""
+        deliberation_start = time.perf_counter()
         draft = self.planner.draft(request)
         contract = self._apply_pheromone_context(draft.contract)
         verdicts = [draft.verdict]
@@ -200,13 +230,28 @@ class CouncilOrchestrator:
         self.mission_service.create(domain_contract)
         self.mission_service.start_deliberation(contract.mission_id)
 
-        security_verdict = self.security.review(contract)
-        verdicts.append(security_verdict)
-        self._persist_verdict(contract.mission_id, security_verdict)
+        participation = self.participation_policy.decide(
+            contract, prior_verdicts=verdicts
+        )
 
-        memory_verdict = self.memory.review(contract)
-        verdicts.append(memory_verdict)
-        self._persist_verdict(contract.mission_id, memory_verdict)
+        # Required deliberation queens. Testing and critique are execute-phase.
+        execute_phase = {"testing", "critique"}
+        for queen_name in participation.required:
+            if queen_name == "planner":
+                continue  # draft verdict already collected
+            if queen_name in execute_phase:
+                continue
+            verdict = self._review_queen_sync(queen_name, contract)
+            verdicts.append(verdict)
+            self._persist_verdict(contract.mission_id, verdict)
+
+        # Optional deliberation queens. Critique and testing are execute-phase.
+        for queen_name in participation.optional:
+            if queen_name in execute_phase:
+                continue
+            verdict = self._review_queen_sync(queen_name, contract)
+            verdicts.append(verdict)
+            self._persist_verdict(contract.mission_id, verdict)
 
         contract = self._apply_council_context(contract, verdicts)
         signals, synthesis = self._ganglia_for(verdicts)
@@ -233,6 +278,16 @@ class CouncilOrchestrator:
         evidence = self._council_evidence(contract, verdicts)
         evidence["mission_state_authority"] = "sqlite_mission_repository"
         evidence["mission_state_export_path"] = str(export_path)
+        evidence["council_participation"] = {
+            "required": list(participation.required),
+            "optional": list(participation.optional),
+            "reason": participation.reason,
+        }
+        elapsed_ms = int((time.perf_counter() - deliberation_start) * 1000)
+        evidence["council_metrics"] = {
+            "latency_ms": elapsed_ms,
+            "cost_usd": 0.0,
+        }
         ledger = RunLedger(
             mission_id=contract.mission_id,
             mission=contract.goal,
@@ -268,6 +323,7 @@ class CouncilOrchestrator:
     ) -> CouncilRun:
         """Phase 2 (async): the worker acts (post-approval). The mission dir was
         already claimed by deliberate(), so the spawner runs with claim=False."""
+        execute_start = time.perf_counter()
         mission_record = self.mission_service.repository.get(contract.mission_id)
         if mission_record.state == MissionState.AWAITING_APPROVAL:
             self.mission_service.approve(
@@ -292,12 +348,18 @@ class CouncilOrchestrator:
         # Deeper cognition (opt-in): the Critique Queen scrutinizes whether the
         # PASSING verification was actually sufficient (strong + exercised the
         # change). Strengthen-only — it can only add caution, never relax a block.
-        if self.critique is not None:
+        # Gated by participation policy so critique runs only when justified.
+        critique_participation = self.participation_policy.decide(
+            worker_run.contract, prior_verdicts=verdicts
+        )
+        if self.critique is not None and "critique" in critique_participation.optional:
             critique_verdict = self.critique.review(
                 contract=worker_run.contract, testing_verdict=testing_verdict
             )
             verdicts = [*verdicts, critique_verdict]
             self._persist_verdict(contract.mission_id, critique_verdict)
+
+        execute_latency_ms = int((time.perf_counter() - execute_start) * 1000)
 
         if has_blocking_verdict(verdicts):
             self.mission_service.start_verification(contract.mission_id)
@@ -325,6 +387,12 @@ class CouncilOrchestrator:
             worker_run=worker_run,
             verdicts=verdicts,
             contract=contract_with_ganglia,
+            extra_evidence={
+                "council_metrics": {
+                    "execute_latency_ms": execute_latency_ms,
+                    "cost_usd": 0.0,
+                },
+            },
         )
         ledger_path = self.ledger_store.write(ledger)
         report = build_king_report(ledger=ledger, result=worker_run.result)
@@ -414,6 +482,51 @@ class CouncilOrchestrator:
         metadata["ganglia_synthesis"] = synthesis.model_dump()
         metadata["ganglia_authority"] = "proposal/evidence"
         return contract.model_copy(update={"metadata": metadata})
+
+    def _review_queen_sync(
+        self, name: str, contract: MissionContract
+    ) -> QueenVerdict:
+        """Invoke a Queen by name, using the service registry when enabled."""
+        if self.use_queen_services:
+            svc = queen_service_registry.QUEEN_SERVICES.get(name)
+            if svc is not None:
+                return self._run_service_review_sync(svc, contract)
+        queen = self._queen_instance(name)
+        return queen.review(contract)
+
+    def _queen_instance(self, name: str) -> Any:
+        """Return the local Queen instance for *name*."""
+        mapping: dict[str, Any] = {
+            "planner": self.planner,
+            "security": self.security,
+            "memory": self.memory,
+            "testing": self.testing,
+            "critique": self.critique,
+            "routing": self.routing,
+            "reflection": self.reflection,
+            "project_understanding": self.project_understanding,
+        }
+        queen = mapping.get(name)
+        if queen is None:
+            raise ValueError(f"unknown queen: {name}")
+        return queen
+
+    def _run_service_review_sync(
+        self, svc: queen_service_registry.QueenService, contract: MissionContract
+    ) -> QueenVerdict:
+        """Run one async Queen service review from a synchronous context."""
+
+        async def _start_and_submit() -> QueenVerdict:
+            await svc.start()
+            return await svc.submit(contract)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(_start_and_submit())
+        # If we are already inside an event loop, schedule on it without blocking.
+        future = asyncio.run_coroutine_threadsafe(_start_and_submit(), loop)
+        return future.result()
 
     def _council_evidence(
         self,
@@ -533,6 +646,7 @@ class CouncilOrchestrator:
         worker_run: WorkerRun,
         verdicts: list[QueenVerdict],
         contract: MissionContract | None = None,
+        extra_evidence: dict[str, object] | None = None,
     ) -> RunLedger:
         contract = contract or worker_run.contract
         risk = highest_risk(
@@ -544,6 +658,8 @@ class CouncilOrchestrator:
         evidence = dict(worker_run.ledger.evidence)
         evidence.update(self._council_evidence(contract, verdicts))
         evidence["mission_state_authority"] = "sqlite_mission_repository"
+        if extra_evidence:
+            evidence.update(extra_evidence)
         return worker_run.ledger.model_copy(
             update={
                 "contract": contract,

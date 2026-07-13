@@ -2,24 +2,23 @@
 
 **Current Goal:** Execute the Master Convergence Directive: transform the repository into a local-first sovereign agentic OS with unified authority, isolated execution, and a truthful living GAGOS interface.
 
-**Last Completed + Verified Step:** Slice 7 — MissionContract v1 and transactional mission state.
-- Added `aios/domain/missions/` v1 domain model (`MissionContract`, `MissionState`, `MissionTransition`, `MissionRepository`).
-- Added `aios/infrastructure/missions/sqlite_mission_repository.py` authoritative SQLite store with WAL + transition audit history.
-- Added `aios/infrastructure/storage/migrations/0001_mission_state.py` versioned schema migration.
-- Added `aios/application/missions/mission_service.py` state-machine service with double-approve guard, legacy migration, and non-authoritative JSON export.
-- Integrated `MissionService` into `aios/council/council_orchestrator.py` so every council mission is authoritatively tracked alongside JSON ledgers.
-- Added `tests/test_mission_contract_v1.py` (12 passing) covering digest stability, transitions, repository concurrency, double-approve replay, file-tampering independence, and legacy migration.
-- Full backend pytest suite green; frontend `npm test -- --run` green.
+**Last Completed + Verified Step:** Slice 8 — Converge the Queen Council.
+- Added `aios/council/participation.py` deterministic adaptive `CouncilParticipationPolicy` with required + optional Queens and full-Council only when all conditions are met.
+- Added deterministic adapter Queens: `aios/council/queens/routing.py` (bounded strategy/provider constraints), `aios/council/queens/reflection.py` (prior-failure strengthen-only), `aios/council/queens/project_understanding.py` (project context alignment).
+- Extended `aios/runtime/contracts.py::QueenVerdict` with `QueenEvidence`, `confidence_basis`, `recommended_worker_strategy`, `unresolved_questions`.
+- Refactored `aios/council/queen_service.py` into a real initialized registry (`init_queen_services()`) with bounded-queue service classes for all 8 Queens.
+- Integrated participation policy + new Queens + optional service-registry routing into `aios/council/council_orchestrator.py`; deliberation invokes only justified Queens, Critique is gated by participation in execution, and Council cost/latency metrics are recorded in ledger evidence.
+- Added `tests/test_council_participation.py`, `tests/test_queen_services.py`, and integration assertions in `tests/test_council_orchestrator.py`.
+- Full backend pytest suite green; frontend `npm test` (vitest run) green.
 
-**Current Slice:** Slice 7 complete on branch `kimi/gagos-s07-mission-contract`.
+**Current Slice:** Slice 8 complete on branch `kimi/gagos-s08-queen-council`.
 
-**Single Next Action:** Execute **Slice 8 — Converge the Queen Council**: claim builder lease, branch `kimi/gagos-s08-queen-council`, implement adaptive participation policy, add Routing/Reflection/Project-Understanding Queens, and wire the `QUEEN_SERVICES` registry into `CouncilOrchestrator`.
+**Single Next Action:** Execute **Slice 9 — Worker Foundry unification** per the Master Convergence Directive.
 
 **Open Approvals / Blockers:**
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`). Restore a known-good settings file before the next agent session; built-in tools continue to work.
 - CSS canon violations in `GagosChrome.css` and `TrustHalo.css` are pre-existing and out of scope.
-- Builder lease currently held for `gagos-s07-to-s24-convergence`; release after Slice 7 commit/PR/merge and reclaim for Slice 8.
 
-**Active Files For This Slice:** `aios/domain/missions/`, `aios/infrastructure/missions/`, `aios/infrastructure/storage/migrations/`, `aios/application/missions/`, `aios/council/council_orchestrator.py`, `tests/test_mission_contract_v1.py`, `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md`.
+**Active Files For This Slice:** `aios/council/council_orchestrator.py`, `aios/council/participation.py`, `aios/council/queen_service.py`, `aios/council/queens/{routing,reflection,project_understanding}.py`, `aios/council/__init__.py`, `aios/council/queens/__init__.py`, `tests/test_council_orchestrator.py`, `tests/test_council_participation.py`, `tests/test_queen_services.py`, `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md`.
 
 **Notes Not Yet Promoted:** None.
