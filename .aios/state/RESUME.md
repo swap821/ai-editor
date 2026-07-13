@@ -13,7 +13,7 @@
 
 **Current Slice:** Master Convergence Directive saved; repository is on `master` with clean CI gates.
 
-**Single Next Action:** Claim the builder lease and execute **new directive Slice 7 — MissionContract v1 and transactional mission state**, pending operator go-ahead.
+**Single Next Action:** Execute the remaining Master Convergence Directive slices 7–24 in order. Current slice: **Slice 7 — MissionContract v1 and transactional mission state**. Builder lease claimed for task `gagos-s07-to-s24-convergence`.
 
 **Open Approvals / Blockers:**
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`). Restore a known-good settings file before the next agent session; built-in tools continue to work.
