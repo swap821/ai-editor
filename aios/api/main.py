@@ -87,7 +87,6 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     _session_id_from_request,
     _APPROVALS,
     _RATE_LIMITER,
-    _POLICY_KERNEL,
     _SESSION_MANAGER,
 )
 from aios.interfaces.http import edge_security
@@ -189,6 +188,8 @@ async def lifespan(app: FastAPI):
     backend_warning = get_policy_kernel().validate_execution_backend()
     if backend_warning:
         logger.warning("approved_execution_backend", detail=backend_warning)
+    active_profile = get_policy_kernel().active_runtime_profile()
+    logger.info("runtime_profile_active", profile=active_profile.name)
     init_memory_db()
     init_audit_db()
     # Opt-in second injection layer: install the vector blocklist when enabled.
