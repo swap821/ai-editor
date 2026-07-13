@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from fastapi.testclient import TestClient
 
 from aios.domain.executor import ExecutorCapability, ExecutorJob
@@ -98,4 +96,4 @@ def test_docker_job_runner_passes_only_a_validated_workspace(
     )
 
     assert result.status == "completed"
-    assert calls[0]["cwd"] == os.path.normcase(str(workspace.resolve()))
+    assert calls[0]["cwd"] == str(workspace.resolve())

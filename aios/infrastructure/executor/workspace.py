@@ -13,8 +13,8 @@ def resolve_staged_workspace(path: str, root: str | Path) -> Path:
     the trust boundary for the authenticated executor service; callers should
     pass its result onward rather than re-resolving the request value.
     """
-    safe_root = os.path.normcase(os.path.realpath(str(root)))
-    candidate = os.path.normcase(os.path.realpath(str(path)))
+    safe_root = os.path.realpath(str(root))
+    candidate = os.path.realpath(str(path))
     if candidate != safe_root and not candidate.startswith(safe_root + os.sep):
         raise ValueError("workspace is outside executor staging root")
     if not os.path.isdir(candidate):
