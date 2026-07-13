@@ -71,6 +71,26 @@ def test_doctor_reports_executor_as_fatal_only_in_production(
     }
 
 
+def test_doctor_uses_explicit_profile_for_audit_severity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aios import config
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(config, "AUDIT_DB_PATH", tmp_path / "audit.db")
+    monkeypatch.setattr(config, "API_TOKEN", "t" * 32)
+    monkeypatch.setenv("AIOS_PROFILE", "development")
+
+    report = doctor_report(
+        profile="production",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+    )
+
+    audit_check = next(check for check in report.checks if check.name == "audit_integrity")
+    assert audit_check.status == "fatal"
+
+
 def test_backup_manifest_excludes_environment_files_and_round_trips_state(
     tmp_path: Path,
 ) -> None:

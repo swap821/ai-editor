@@ -63,13 +63,13 @@ def _writable(path: Path) -> bool:
         return False
 
 
-def _audit_check() -> DoctorCheck:
+def _audit_check(*, production: bool) -> DoctorCheck:
     if not config.AUDIT_DB_PATH.exists():
         return _check(
             "audit_integrity",
             False,
             "audit database is not initialized",
-            required=os.getenv("AIOS_PROFILE", "development").lower() == "production",
+            required=production,
         )
     try:
         status = verify_chain(db_path=config.AUDIT_DB_PATH)
@@ -104,7 +104,7 @@ def doctor_report(
             required=True,
         )
     )
-    checks.append(_audit_check())
+    checks.append(_audit_check(production=production))
 
     executor_ok, executor_message = (
         executor_probe()

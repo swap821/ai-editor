@@ -79,6 +79,24 @@ describe('Living Mirror reaction registry', () => {
     expect(useMirrorStore.getState().activeCastes).toEqual([]);
   });
 
+  it('applies worker identity and caste from the canonical nested payload', () => {
+    useMirrorStore.getState().applyEvent(7, 'worker.started', {
+      eventId: 'event-7',
+      eventType: 'worker.started',
+      payload: { worker_id: 'worker-nested', role: 'reviewer' },
+    });
+    expect(useMirrorStore.getState().activeWorkers).toEqual(['worker-nested']);
+    expect(useMirrorStore.getState().activeCastes).toEqual(['reviewer']);
+
+    useMirrorStore.getState().applyEvent(8, 'worker.dissolved', {
+      eventId: 'event-8',
+      eventType: 'worker.dissolved',
+      payload: { worker_id: 'worker-nested', role: 'reviewer' },
+    });
+    expect(useMirrorStore.getState().activeWorkers).toEqual([]);
+    expect(useMirrorStore.getState().activeCastes).toEqual([]);
+  });
+
   it('marks the portrait stale when replay requires a fresh snapshot', () => {
     dispatchLivingMirrorEvent(event(5, 'snapshot_required', {}));
     expect(useMirrorStore.getState().status).toBe('stale');

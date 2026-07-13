@@ -75,9 +75,19 @@ def apply_migrations(
         if migration.version in applied:
             continue
         migration.apply(conn)
-        digest = hashlib.sha256(
-            inspect.getsource(migration.__class__).encode("utf-8")
-        ).hexdigest()
+        try:
+            digest_source = inspect.getsource(migration.__class__)
+        except (OSError, TypeError):
+            digest_source = ":".join(
+                (
+                    migration.__class__.__module__,
+                    migration.__class__.__qualname__,
+                    str(migration.version),
+                    migration.name,
+                    str(getattr(migration, "scope", "")),
+                )
+            )
+        digest = hashlib.sha256(digest_source.encode("utf-8")).hexdigest()
         conn.execute(
             "INSERT INTO schema_migrations "
             "(version, name, applied_at, digest) VALUES (?, ?, ?, ?)",

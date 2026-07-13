@@ -112,6 +112,8 @@ def test_control_plane_image_has_non_root_default_and_executor_owns_socket() -> 
     )[0]
     assert "docker.sock" not in control_service
     assert "docker.sock" in executor_service
+    assert "group_add:" in executor_service
+    assert "${AIOS_DOCKER_SOCKET_GID:-999}" in executor_service
 
 
 def test_release_source_scan_is_clean() -> None:

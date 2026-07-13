@@ -91,8 +91,8 @@ export const useMirrorStore = create<CortexMirrorState>()(
 
         switch (type) {
           case 'worker.started': {
-            const role = typeof payload.role === 'string' ? payload.role : '';
-            const workerId = typeof payload.workerId === 'string' ? payload.workerId : typeof payload.worker_id === 'string' ? payload.worker_id : '';
+            const role = typeof eventPayload.role === 'string' ? eventPayload.role : '';
+            const workerId = typeof eventPayload.workerId === 'string' ? eventPayload.workerId : typeof eventPayload.worker_id === 'string' ? eventPayload.worker_id : '';
             if (workerId && !state.activeWorkers.includes(workerId)) nextState.activeWorkers = [...state.activeWorkers, workerId];
             if (role && !state.activeCastes.includes(role)) {
               nextState.activeCastes = [...state.activeCastes, role];
@@ -100,8 +100,8 @@ export const useMirrorStore = create<CortexMirrorState>()(
             break;
           }
           case 'worker.dissolved': {
-            const role = typeof payload.role === 'string' ? payload.role : '';
-            const workerId = typeof payload.workerId === 'string' ? payload.workerId : typeof payload.worker_id === 'string' ? payload.worker_id : '';
+            const role = typeof eventPayload.role === 'string' ? eventPayload.role : '';
+            const workerId = typeof eventPayload.workerId === 'string' ? eventPayload.workerId : typeof eventPayload.worker_id === 'string' ? eventPayload.worker_id : '';
             if (workerId) nextState.activeWorkers = state.activeWorkers.filter((worker) => worker !== workerId);
             if (role) {
               nextState.activeCastes = state.activeCastes.filter((c) => c !== role);
@@ -111,13 +111,13 @@ export const useMirrorStore = create<CortexMirrorState>()(
           case 'worker.completed':
           case 'worker.failed':
           case 'worker.killed': {
-            const workerId = typeof payload.workerId === 'string' ? payload.workerId : typeof payload.worker_id === 'string' ? payload.worker_id : '';
+            const workerId = typeof eventPayload.workerId === 'string' ? eventPayload.workerId : typeof eventPayload.worker_id === 'string' ? eventPayload.worker_id : '';
             if (workerId) nextState.activeWorkers = state.activeWorkers.filter((worker) => worker !== workerId);
             break;
           }
           case 'mission.running':
           case 'mission.started': {
-            const missionId = typeof payload.missionId === 'string' ? payload.missionId : typeof payload.mission_id === 'string' ? payload.mission_id : '';
+            const missionId = typeof eventPayload.missionId === 'string' ? eventPayload.missionId : typeof eventPayload.mission_id === 'string' ? eventPayload.mission_id : '';
             if (missionId && !state.activeMissions.includes(missionId)) nextState.activeMissions = [...state.activeMissions, missionId];
             break;
           }
@@ -125,20 +125,20 @@ export const useMirrorStore = create<CortexMirrorState>()(
           case 'mission.failed':
           case 'mission.cancelled':
           case 'mission.rolled_back': {
-            const missionId = typeof payload.missionId === 'string' ? payload.missionId : typeof payload.mission_id === 'string' ? payload.mission_id : '';
+            const missionId = typeof eventPayload.missionId === 'string' ? eventPayload.missionId : typeof eventPayload.mission_id === 'string' ? eventPayload.mission_id : '';
             if (missionId) nextState.activeMissions = state.activeMissions.filter((mission) => mission !== missionId);
             break;
           }
           case 'model.selected':
           case 'model.started': {
-            const modelId = typeof payload.model === 'string' ? payload.model : typeof payload.model_id === 'string' ? payload.model_id : '';
+            const modelId = typeof eventPayload.model === 'string' ? eventPayload.model : typeof eventPayload.model_id === 'string' ? eventPayload.model_id : '';
             if (modelId && !state.activeModels.includes(modelId)) nextState.activeModels = [...state.activeModels, modelId];
             break;
           }
           case 'model.completed':
           case 'model.failed':
           case 'model.dissolved': {
-            const modelId = typeof payload.model === 'string' ? payload.model : typeof payload.model_id === 'string' ? payload.model_id : '';
+            const modelId = typeof eventPayload.model === 'string' ? eventPayload.model : typeof eventPayload.model_id === 'string' ? eventPayload.model_id : '';
             if (modelId) nextState.activeModels = state.activeModels.filter((model) => model !== modelId);
             break;
           }

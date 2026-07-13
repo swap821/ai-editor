@@ -2,9 +2,9 @@
 
 **Current Goal:** Execute the Master Convergence Directive: implement Slices 9–24 as independently validated, supervised authority boundaries without weakening the frozen security spine or claiming production readiness.
 
-**Last Completed + Verified Step:** Resolved PR #141's merge conflicts against `origin/master` at `b4ee3de`; the merged tree passed the full backend suite (`3019 passed, 5 skipped, 1 warning` in `478.34s`) and the focused prover suite (`8 passed`).
+**Last Completed + Verified Step:** Addressed seven actionable Copilot review threads on PR #141 after merge resolution: nested canonical mirror fields, explicit doctor profile severity, migration digest fallback, Docker socket group configuration, and the unused import. Affected backend checks passed `28 passed, 1 skipped`; frontend typecheck and the targeted mirror file passed (`6 passed`); Compose config passed.
 - The PR-side `prove_it.py` cleanup guard and stale-pointer regression test were retained; the current master README changes were preserved.
-- No GitHub review comments or threads exist; the outstanding PR issue was branch divergence from `master`, not reviewer feedback.
+- Three CodeQL threads are already resolved; the seven Copilot threads were implemented locally and await post-push review-state refresh. No GitHub replies or manual thread resolutions were submitted.
 - Slice 23 remains remotely green as `9ca0534` / CI `29271483280` across all backend platforms, frontend jobs, and release-authority.
 - Slice 24 focused governance/declaration/launcher/release/autonomy checks passed: `63 passed`; security scan clean; SBOM `449 CycloneDX components`.
 - Full backend passed `3019 passed, 5 skipped, 2 warnings` in `542.03s` with `-o addopts=''`; frontend typecheck, lint, coverage, and build passed.
@@ -14,9 +14,9 @@
 - Slice 23 focused launcher/release checks passed: `21 passed`; full backend passed `3019 passed, 5 skipped, 2 warnings` in `499.82s` with `-o addopts=''`.
 - Slice 23 frontend gates passed: typecheck, lint within the `124`-warning budget, coverage tests, and production build.
 
-**Current Slice:** PR #141 conflict resolution — Slices 9–24 remain independently landed and CI-verified; the resolved branch is ready for post-push CI confirmation.
+**Current Slice:** PR #141 review hardening — Slices 9–24 remain independently landed and CI-verified; merge resolution and actionable review fixes are ready for post-push CI confirmation.
 
-**Single Next Action:** Push the conflict-resolution merge commit and verify the new PR checks and GitHub mergeability; do not merge to `master`.
+**Single Next Action:** Push the review-fix commit and verify the new PR checks, review-thread state, and GitHub mergeability; do not merge to `master`.
 
 **Open Approvals / Blockers:**
 - GitHub SSH preflight remains blocked by local `Host key verification failed`; the authenticated HTTPS `origin` is usable and must be recorded honestly.
@@ -25,6 +25,6 @@
 - `.claude/settings.json` remains removed (broken copy preserved as `.claude/settings.json.broken`); built-in tools continue to work.
 - Pre-existing CSS canon violations in `GagosChrome.css` and `TrustHalo.css` remain out of scope.
 
-**Active Files For This Slice:** `.aios/state/RESUME.md`, PR #141 merge resolution, and the final branch/CI evidence.
+**Active Files For This Slice:** `frontend/src/superbrain/lib/mirrorStore.ts`, `aios/operations/doctor.py`, `aios/infrastructure/storage/migrations/__init__.py`, `docker-compose.yml`, affected tests, and final PR/CI evidence.
 
 **Notes Not Yet Promoted:** The supplied patch is cumulative and has no historical slice commits; the conflict-resolution merge was validated in `C:\tmp\ai-editor-pr-review` without modifying the cumulative dirty worktree.

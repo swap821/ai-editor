@@ -46,6 +46,10 @@ services:
     restart: unless-stopped
     mem_limit: 2g
     cpus: 2.0
+    # The mounted Docker socket is normally root:<docker-group>. Set this to
+    # the host socket's numeric group id when it differs from the default.
+    group_add:
+      - "${AIOS_DOCKER_SOCKET_GID:-999}"
     environment:
       - AIOS_EXECUTOR_TOKEN=${AIOS_EXECUTOR_TOKEN:-}
       - AIOS_EXECUTOR_WORKSPACE_ROOT=/workspace/jobs

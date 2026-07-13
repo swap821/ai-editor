@@ -266,3 +266,22 @@ def test_versioned_memory_migration_records_digest(tmp_path: Path) -> None:
         assert len(row[1]) == 64
     finally:
         conn.close()
+
+
+def test_migration_digest_falls_back_when_source_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aios.infrastructure.storage import migrations
+
+    conn = sqlite3.connect(":memory:")
+
+    def unavailable_source(_migration: object) -> str:
+        raise OSError("source unavailable")
+
+    monkeypatch.setattr(migrations.inspect, "getsource", unavailable_source)
+
+    assert migrations.apply_migrations(conn, scope="memory") == [(2, "memory_provenance_v1")]
+    digest = conn.execute(
+        "SELECT digest FROM schema_migrations WHERE version = 2"
+    ).fetchone()[0]
+    assert len(digest) == 64
