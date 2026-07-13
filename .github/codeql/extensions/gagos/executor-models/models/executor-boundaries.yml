@@ -32,4 +32,6 @@ extensions:
       # _argv_is_safe returns true only after every argv element has been
       # checked for empty values, shell composition, and NUL bytes.
       - ["aios.infrastructure.executor.argv", "Member[argv_is_safe].Argument[0]", "true", "command-injection"]
+      - ["aios.infrastructure.executor.argv", "Member[argv_is_safe].Argument[0].ListElement", "true", "command-injection"]
       - ["aios.core.executor", "Member[_argv_is_safe].Argument[0]", "true", "command-injection"]
+      - ["aios.core.executor", "Member[_argv_is_safe].Argument[0].ListElement", "true", "command-injection"]
