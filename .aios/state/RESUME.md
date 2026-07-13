@@ -11,7 +11,7 @@
 - Added `tests/test_council_participation.py`, `tests/test_queen_services.py`, and integration assertions in `tests/test_council_orchestrator.py`.
 - Full backend pytest suite green; frontend `npm test` (vitest run) green.
 
-**Current Slice:** Slice 8 complete on branch `kimi/gagos-s08-queen-council`.
+**Current Slice:** Slice 8 merged and branch deleted; `master` is green at `6a02a4b`.
 
 **Single Next Action:** Execute **Slice 9 — Worker Foundry unification** per the Master Convergence Directive.
 
