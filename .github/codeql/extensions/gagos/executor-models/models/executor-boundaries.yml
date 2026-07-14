@@ -1,0 +1,39 @@
+extensions:
+  - addsTo:
+      pack: codeql/python-all
+      extensible: barrierModel
+    data:
+      # _parse_argv rejects shell composition and NUL bytes before callers use
+      # the resulting argv with shell=False. Authorization remains upstream in
+      # the deterministic gateway and the structured ExecutorJob contract.
+      - ["aios.infrastructure.executor.argv", "Member[parse_argv].ReturnValue", "command-injection"]
+      - ["aios.infrastructure.executor.argv", "Member[parse_argv].ReturnValue.ListElement", "command-injection"]
+      - ["aios.infrastructure.executor.argv", "Member[parse_argv].Parameter[0]", "command-injection"]
+      - ["aios.infrastructure.executor.argv", "Member[parse_argv].Parameter[0].ListElement", "command-injection"]
+      - ["aios.core.executor", "Member[_parse_argv].ReturnValue", "command-injection"]
+      - ["aios.core.executor", "Member[_parse_argv].ReturnValue.ListElement", "command-injection"]
+      - ["aios.core.executor", "Member[_parse_argv].Parameter[0]", "command-injection"]
+      - ["aios.core.executor", "Member[_parse_argv].Parameter[0].ListElement", "command-injection"]
+      # _bounded_run validates every argv element immediately before Popen.
+      - ["aios.core.executor", "Member[_bounded_run].Parameter[0]", "command-injection"]
+      - ["aios.core.executor", "Member[_bounded_run].Parameter[0].ListElement", "command-injection"]
+      - ["aios", "Member[core].Member[executor].Member[_bounded_run].Parameter[0].ListElement", "command-injection"]
+      - ["aios", "Member[infrastructure].Member[executor].Member[argv].Member[parse_argv].ReturnValue", "command-injection"]
+      # resolve_staged_workspace canonicalizes symlinks and proves containment
+      # under the executor staging root before a path is used for a mount.
+      - ["aios.infrastructure.executor", "Member[workspace].Member[resolve_staged_workspace].Parameter[0]", "path-injection"]
+      - ["aios.infrastructure.executor", "Member[workspace].Member[resolve_staged_workspace].ReturnValue", "path-injection"]
+      - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].Parameter[0]", "path-injection"]
+      - ["aios.infrastructure.executor.workspace", "Member[resolve_staged_workspace].ReturnValue", "path-injection"]
+  - addsTo:
+      pack: codeql/python-all
+      extensible: barrierGuardModel
+    data:
+      # _argv_is_safe returns true only after every argv element has been
+      # checked for empty values, shell composition, and NUL bytes.
+      - ["aios.infrastructure.executor.argv", "Member[argv_is_safe].Argument[0]", "true", "command-injection"]
+      - ["aios.infrastructure.executor.argv", "Member[argv_is_safe].Argument[0].ListElement", "true", "command-injection"]
+      - ["aios.core.executor", "Member[_argv_is_safe].Argument[0]", "true", "command-injection"]
+      - ["aios.core.executor", "Member[_argv_is_safe].Argument[0].ListElement", "true", "command-injection"]
+      - ["aios", "Member[infrastructure].Member[executor].Member[argv].Member[argv_is_safe].Argument[0]", "true", "command-injection"]
+      - ["aios", "Member[infrastructure].Member[executor].Member[argv].Member[argv_is_safe].Argument[0].ListElement", "true", "command-injection"]

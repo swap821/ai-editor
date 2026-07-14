@@ -1,0 +1,5 @@
+{
+  "maxWarnings": 124,
+  "nextTarget": 100,
+  "policy": "The budget may only decrease. Lower nextTarget after fixing warnings; never raise maxWarnings."
+}

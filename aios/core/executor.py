@@ -26,7 +26,6 @@ deterministically without spawning a process.
 from __future__ import annotations
 
 import os
-import shlex
 import shutil
 import signal
 import subprocess
@@ -42,6 +41,10 @@ from aios.security.gateway import (
     RateLimiter,
     Zone,
     reset_sensitive_actions,
+)
+from aios.infrastructure.executor.argv import (
+    argv_is_safe as _argv_is_safe,
+    parse_argv as _parse_argv,
 )
 
 #: Environment variables whose *names* indicate a secret; stripped from children.
@@ -119,6 +122,8 @@ def _bounded_run(
     """Run argv while draining pipes but retaining only a bounded prefix."""
     if shell or not capture_output or not text:
         raise ValueError("bounded runner requires shell=False, capture_output=True, text=True")
+    if not _argv_is_safe(argv):
+        raise ValueError("unsafe structured argv")
     limit = max(max_output_bytes or config.MAX_COMMAND_OUTPUT_BYTES, 1024)
     process = subprocess.Popen(
         argv,
@@ -225,7 +230,13 @@ class DockerRunner:
         self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
     ) -> tuple[str, str, int]:
         argv = _parse_argv(command)
-        resolved_cwd = str(Path(cwd).resolve())
+        cwd_path = Path(cwd)
+        if not cwd_path.is_absolute() or ".." in cwd_path.parts:
+            raise ValueError("executor cwd must be an absolute, normalized path")
+        # The scope-lock and structured executor adapters resolve cwd before
+        # crossing this runner boundary. Keep that canonical value unchanged;
+        # re-normalizing a request-derived string is itself a CodeQL path sink.
+        resolved_cwd = str(cwd_path)
         # H4 — Docker mount spec characters can break out of the mount string.
         # Commas, equals, and non-drive-letter colons are separators in the
         # --mount syntax. A normal Windows root ("C:\...") is allowed.
@@ -371,23 +382,6 @@ def _sanitise_env() -> dict[str, str]:
         current_path = clean.get("PATH", "")
         clean["PATH"] = str(venv_bin) + (os.pathsep + current_path if current_path else "")
     return clean
-
-
-def _parse_argv(command: str) -> list[str]:
-    """Parse one already-classified command into argv without invoking a shell."""
-    if len(command) > max(config.MAX_COMMAND_CHARS, 1):
-        raise ValueError(f"command exceeds {config.MAX_COMMAND_CHARS} character limit")
-    if not command or any(ch in command for ch in ";&|<>`\r\n"):
-        raise ValueError("shell composition is not permitted")
-    argv = shlex.split(command, posix=os.name != "nt")
-    if os.name == "nt":
-        argv = [
-            arg[1:-1] if len(arg) >= 2 and arg[0] == arg[-1] and arg[0] in "\"'" else arg
-            for arg in argv
-        ]
-    if not argv:
-        raise ValueError("empty command")
-    return argv
 
 
 def _default_runner(

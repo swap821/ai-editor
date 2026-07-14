@@ -12,7 +12,9 @@ export default defineConfig(({ mode }) => {
   // one place a Vite build can feed the product's env into the lab's env shape —
   // so we bridge VITE_* -> NEXT_PUBLIC_* here instead of editing the ported file.
   const env = loadEnv(mode, process.cwd(), '')
-  const AIOS_BASE = env.VITE_API_BASE || 'http://localhost:8000'
+  // Production is served by the same-origin gateway. An empty base makes all
+  // browser calls relative to that gateway; development keeps the API port.
+  const AIOS_BASE = env.VITE_API_BASE ?? (mode === 'production' ? '' : 'http://localhost:8000')
   let AIOS_ORIGIN = 'http://localhost:8000'
   let AIOS_WS_ORIGIN = 'ws://localhost:8000'
   try {

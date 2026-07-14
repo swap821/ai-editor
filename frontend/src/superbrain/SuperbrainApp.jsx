@@ -25,6 +25,7 @@ import VultureFeed from '../workbench/VultureFeed';
 import VoiceCommandHandler from '../components/VoiceCommandHandler';
 import MobileHUD from '../components/MobileHUD';
 import PanelLauncher from '../workbench/PanelLauncher';
+import ProductSpaces from '../workbench/ProductSpaces';
 import './superbrain.css';
 
 import { startMirrorClient, stopMirrorClient } from './lib/aiosMirror';
@@ -34,13 +35,15 @@ const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas')
 export default function SuperbrainApp() {
   const [booted, setBooted] = useState(false);
   const [activeFile, setActiveFile] = useState(null);
-  const [fileTreeOpen, setFileTreeOpen] = useState(true);
-  const [councilOpen, setCouncilOpen] = useState(true);
-  const [memoryOpen, setMemoryOpen] = useState(true);
-  const [stigmergyOpen, setStigmergyOpen] = useState(true);
-  const [vultureOpen, setVultureOpen] = useState(true);
-  const [ecosystemOpen, setEcosystemOpen] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(true);
+  // Product spaces are the primary surface. Legacy panels remain available
+  // through PanelLauncher, but do not cover the operator's first view.
+  const [fileTreeOpen, setFileTreeOpen] = useState(false);
+  const [councilOpen, setCouncilOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [stigmergyOpen, setStigmergyOpen] = useState(false);
+  const [vultureOpen, setVultureOpen] = useState(false);
+  const [ecosystemOpen, setEcosystemOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [isListening] = useState(false);
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
@@ -74,6 +77,8 @@ export default function SuperbrainApp() {
       <main aria-label="GAGOS" style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
         <GagosChrome />
       </main>
+
+      <ProductSpaces />
 
       {/* Z-index: 15 (TerminalPanel handles its own fixed positioning) */}
       <div style={{ zIndex: 15, position: 'relative' }}>

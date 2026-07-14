@@ -63,6 +63,7 @@ gemini = [
 
 [project.scripts]
 aios = "aios.__main__:main"
+gagos = "aios.launcher:main"
 
 [project.urls]
 Repository = "https://github.com/swap821/ai-editor"

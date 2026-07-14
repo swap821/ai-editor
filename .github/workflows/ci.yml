@@ -83,6 +83,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Enforce monotonic frontend warning budget
+        run: |
+          ./node_modules/.bin/eslint . --format json > /tmp/gagos-eslint-report.json
+          node ../scripts/check_frontend_warning_budget.mjs /tmp/gagos-eslint-report.json
+
       - name: Unit tests + coverage
         # Runs the suite AND measures coverage, enforcing the per-directory
         # floors in vite.config.js (src/superbrain/lib, src/workbench). Coverage
@@ -99,3 +104,82 @@ jobs:
     steps:
       - name: Frontend gate
         run: echo "Frontend tests and build passed"
+
+  release-authority:
+    # This job is intentionally separate from the platform matrix: it checks
+    # the shipped topology and architecture invariants once on Linux, where
+    # the production container toolchain is available.
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend and release tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-licenses ruff==0.9.10
+
+      - name: Tracked-source secret scan
+        run: python scripts/security_scan.py
+
+      - name: Compile and architecture conformance
+        run: |
+          python -m compileall -q aios tests scripts
+          python -m pytest -q -o addopts='' \
+            tests/test_release_conformance.py \
+            tests/test_launcher.py \
+            tests/test_governance.py \
+            tests/test_v1_declaration.py \
+            tests/test_route_registry_conformance.py \
+            tests/test_operations.py \
+            tests/test_executor_service.py \
+            tests/test_deployment_hardening.py
+
+      - name: Ruff check and format gate
+        run: |
+          ruff check \
+            aios/operations aios/application/governance \
+            aios/executor_service.py aios/launcher.py \
+            scripts/security_scan.py scripts/generate_sbom.py \
+            tests/test_release_conformance.py tests/test_launcher.py \
+            tests/test_governance.py tests/test_v1_declaration.py \
+            tests/test_operations.py \
+            tests/test_executor_service.py
+          ruff format --check \
+            scripts/security_scan.py scripts/generate_sbom.py \
+            tests/test_release_conformance.py tests/test_launcher.py \
+            tests/test_governance.py tests/test_v1_declaration.py \
+            tests/test_operations.py tests/test_executor_service.py \
+            aios/executor_service.py aios/launcher.py \
+            aios/application/governance
+
+      - name: Validate production Compose topology
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+        run: docker compose config --quiet
+
+      - name: Generate source manifest SBOM
+        run: python scripts/generate_sbom.py --output sbom.cdx.json
+
+      - name: Generate dependency license inventory
+        run: pip-licenses --format=json > license-report.json
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: gagos-release-evidence
+          path: |
+            sbom.cdx.json
+            license-report.json

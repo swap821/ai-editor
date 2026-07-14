@@ -25,6 +25,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 import uvicorn
 
@@ -80,6 +82,98 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def _print_payload(payload: object, *, as_json: bool = False) -> None:
+    if as_json:
+        print(json.dumps(payload, indent=2, default=str))
+    elif isinstance(payload, dict):
+        for key, value in payload.items():
+            print(f"{key}: {value}")
+    else:
+        print(payload)
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    from aios.operations.doctor import doctor_report
+
+    report = doctor_report()
+    if args.json:
+        _print_payload(report.as_dict(), as_json=True)
+    else:
+        print(f"GAGOS doctor: {'OK' if report.ok else 'FAILED'} ({report.profile})")
+        for check in report.checks:
+            print(f"  [{check.status.upper()}] {check.name}: {check.message}")
+        if report.disabled_capabilities:
+            print(f"  disabled: {', '.join(report.disabled_capabilities)}")
+    return 0 if report.ok else 1
+
+
+def _cmd_backup(args: argparse.Namespace) -> int:
+    from aios.operations.recovery import create_backup, restore_backup, verify_backup
+
+    if args.backup_command == "create":
+        destination = Path(args.output) if args.output else config.DATA_DIR / "backups" / (
+            f"gagos-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
+        )
+        manifest = create_backup(destination=destination)
+        payload = {"output": str(destination.resolve()), "manifest": manifest.as_dict()}
+        _print_payload(payload, as_json=args.json)
+        return 0
+    if args.backup_command == "verify":
+        manifest = verify_backup(Path(args.input))
+        _print_payload({"valid": True, "manifest": manifest.as_dict()}, as_json=args.json)
+        return 0
+    if args.backup_command == "restore":
+        bundle = Path(args.input)
+        safety = Path(args.safety_backup) if args.safety_backup else config.DATA_DIR / "backups" / (
+            f"pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
+        )
+        old_dir = restore_backup(bundle=bundle, safety_backup=safety)
+        _print_payload({"restored": True, "safety_backup": str(safety.resolve()), "old_data": str(old_dir) if old_dir else None}, as_json=args.json)
+        return 0
+    raise ValueError(f"unknown backup command: {args.backup_command}")
+
+
+def _cmd_audit(args: argparse.Namespace) -> int:
+    from aios.operations.recovery import verify_audit
+
+    result = verify_audit()
+    _print_payload(result, as_json=args.json)
+    return 0 if result["valid"] else 1
+
+
+def _cmd_cortex(args: argparse.Namespace) -> int:
+    from aios.operations.recovery import rebuild_projections
+
+    processed = rebuild_projections()
+    _print_payload({"replayed_events": processed, "status": "ok"}, as_json=args.json)
+    return 0
+
+
+def _cmd_memory(args: argparse.Namespace) -> int:
+    from aios.api.deps import get_memory_authority
+
+    get_memory_authority().rebuild_derived_indexes()
+    _print_payload({"status": "ok", "operation": "memory_index_rebuild"}, as_json=args.json)
+    return 0
+
+
+def _cmd_executor(args: argparse.Namespace) -> int:
+    from aios.core.executor import DockerRunner
+
+    if config.APPROVED_EXECUTION_BACKEND != "container":
+        payload = {"available": False, "backend": config.APPROVED_EXECUTION_BACKEND, "reason": "container backend is required"}
+        _print_payload(payload, as_json=args.json)
+        return 1
+    try:
+        DockerRunner().ensure_available()
+    except Exception as exc:  # noqa: BLE001 - CLI reports probe failures
+        payload = {"available": False, "backend": "container", "reason": str(exc)}
+        _print_payload(payload, as_json=args.json)
+        return 1
+    _print_payload({"available": True, "backend": "container"}, as_json=args.json)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m aios", description="GAGOS CLI.")
     parser.add_argument(
@@ -111,11 +205,59 @@ def main(argv: list[str] | None = None) -> int:
         help="Emit machine-readable JSON instead of plain text.",
     )
 
+    doctor_parser = subparsers.add_parser("doctor", help="Report measured runtime posture.")
+    doctor_parser.add_argument("--json", action="store_true", help="Emit JSON.")
+
+    backup_parser = subparsers.add_parser("backup", help="Create, verify or restore state backups.")
+    backup_subparsers = backup_parser.add_subparsers(dest="backup_command", required=True)
+    backup_create = backup_subparsers.add_parser("create", help="Create a verified state archive.")
+    backup_create.add_argument("--output", help="Archive path; defaults to data/backups.")
+    backup_create.add_argument("--json", action="store_true", help="Emit JSON.")
+    backup_verify = backup_subparsers.add_parser("verify", help="Verify an archive manifest and hashes.")
+    backup_verify.add_argument("--input", required=True, help="Archive path.")
+    backup_verify.add_argument("--json", action="store_true", help="Emit JSON.")
+    backup_restore = backup_subparsers.add_parser("restore", help="Restore an archive after verification.")
+    backup_restore.add_argument("--input", required=True, help="Archive path.")
+    backup_restore.add_argument("--safety-backup", help="Pre-restore archive path.")
+    backup_restore.add_argument("--json", action="store_true", help="Emit JSON.")
+
+    audit_parser = subparsers.add_parser("audit", help="Audit-chain operations.")
+    audit_subparsers = audit_parser.add_subparsers(dest="audit_command", required=True)
+    audit_verify = audit_subparsers.add_parser("verify", help="Verify the tamper-evident audit chain.")
+    audit_verify.add_argument("--json", action="store_true", help="Emit JSON.")
+
+    cortex_parser = subparsers.add_parser("cortex", help="Cortex observation recovery operations.")
+    cortex_subparsers = cortex_parser.add_subparsers(dest="cortex_command", required=True)
+    cortex_rebuild = cortex_subparsers.add_parser("rebuild-projections", help="Rebuild derived read models.")
+    cortex_rebuild.add_argument("--json", action="store_true", help="Emit JSON.")
+
+    memory_parser = subparsers.add_parser("memory", help="Memory maintenance operations.")
+    memory_subparsers = memory_parser.add_subparsers(dest="memory_command", required=True)
+    memory_rebuild = memory_subparsers.add_parser("rebuild-index", help="Rebuild derived memory indexes.")
+    memory_rebuild.add_argument("--json", action="store_true", help="Emit JSON.")
+
+    executor_parser = subparsers.add_parser("executor", help="Executor isolation operations.")
+    executor_subparsers = executor_parser.add_subparsers(dest="executor_command", required=True)
+    executor_probe = executor_subparsers.add_parser("probe", help="Probe the configured isolated executor.")
+    executor_probe.add_argument("--json", action="store_true", help="Emit JSON.")
+
     args = parser.parse_args(argv)
 
     command: str | None = args.command
     if command == "bootstrap":
         return _cmd_bootstrap(args)
+    if command == "doctor":
+        return _cmd_doctor(args)
+    if command == "backup":
+        return _cmd_backup(args)
+    if command == "audit" and args.audit_command == "verify":
+        return _cmd_audit(args)
+    if command == "cortex" and args.cortex_command == "rebuild-projections":
+        return _cmd_cortex(args)
+    if command == "memory" and args.memory_command == "rebuild-index":
+        return _cmd_memory(args)
+    if command == "executor" and args.executor_command == "probe":
+        return _cmd_executor(args)
     # Default / no subcommand => serve the API (backwards compatible with ``python -m aios``).
     return _cmd_serve(args)
 

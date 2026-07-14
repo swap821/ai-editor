@@ -28,6 +28,8 @@ from aios import config
 from aios.agents.reflection_agent import ReflectionAgent
 from aios.agents.rollback_engine import RollbackEngine
 from aios.agents.swarm_patterns import SwarmPatternMemory
+from aios.application.memory import MemoryAuthority
+from aios.application.memory.adapters import AdvisoryPheromoneAdapter, LegacySemanticMemoryAdapter
 from aios.core.approvals import ApprovalStore
 from aios.core.autonomy import AutonomyLedger
 from aios.core.alignment import AlignmentInterpreter
@@ -49,6 +51,7 @@ from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
+from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.security.gateway import RateLimiter
 
 #: Lazy cloud-client singletons — built on first use, reused across requests.
@@ -60,6 +63,8 @@ _bedrock_lock = threading.Lock()
 _gemini_lock = threading.Lock()
 _openai_lock = threading.Lock()
 _anthropic_lock = threading.Lock()
+_memory_authority: Optional[MemoryAuthority] = None
+_memory_authority_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -255,6 +260,36 @@ def get_memory_consolidator() -> MemoryConsolidator:
     return MemoryConsolidator()
 
 
+def get_memory_authority() -> MemoryAuthority:
+    """Provide the process-wide provenance and promotion authority for memory.
+
+    Specialized stores remain physically distinct.  The authority owns only
+    their provenance registry and routes recall to one adapter per request;
+    pheromones are attached only as advisory context when enabled.
+    """
+    global _memory_authority
+    if _memory_authority is not None:
+        return _memory_authority
+    with _memory_authority_lock:
+        if _memory_authority is None:
+            adapters = {
+                "semantic": LegacySemanticMemoryAdapter(config.MEMORY_DB_PATH),
+            }
+            pheromone_adapter = None
+            if config.PHEROMONE_ENABLED:
+                from aios.memory.pheromones import PheromoneStore
+
+                pheromone_adapter = AdvisoryPheromoneAdapter(
+                    PheromoneStore(db_path=config.PHEROMONE_DB)
+                )
+            _memory_authority = MemoryAuthority(
+                store=MemoryAuthorityStore(config.MEMORY_DB_PATH),
+                adapters=adapters,
+                pheromone_adapter=pheromone_adapter,
+            )
+    return _memory_authority
+
+
 def get_conversation_state_store() -> ConversationStateStore:
     """Provide durable, unverified shared-understanding state."""
     return ConversationStateStore()
@@ -437,6 +472,7 @@ __all__ = [
     "get_native_planner",
     "get_curriculum_manager",
     "get_memory_consolidator",
+    "get_memory_authority",
     "get_conversation_state_store",
     "get_alignment_evaluation_store",
     "get_alignment_interpreter",

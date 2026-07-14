@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from aios.api.deps import (
     get_alignment_evaluation_store,
     get_conversation_state_store,
+    get_memory_authority,
     get_memory_consolidator,
     get_semantic_facts,
 )
@@ -36,7 +37,7 @@ from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
-from aios.memory.retrieval import hybrid_search
+from aios.domain.memory import MemoryRecallContext
 
 logger = get_logger(__name__)
 
@@ -110,11 +111,17 @@ class AlignmentFeedbackRequest(BaseModel):
 # Memory recall + consolidation
 # --------------------------------------------------------------------------- #
 @router.post("/api/v1/memory/search")
-def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
-    """Hybrid BM25 + FAISS + temporal-decay retrieval over semantic memory."""
+def memory_search(
+    req: MemorySearchRequest,
+    authority=Depends(get_memory_authority),
+) -> dict[str, Any]:
+    """Route semantic recall through the canonical memory authority."""
     from aios.api.main import get_cortex_bus
     bus = get_cortex_bus()
-    results = hybrid_search(req.query, top_k=req.top_k)
+    results = authority.recall(
+        req.query,
+        MemoryRecallContext(limit=req.top_k, include_unverified=True),
+    )
     
     if bus and results:
         from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
@@ -127,12 +134,13 @@ def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
                 source="aios.api.routes.memory",
                 session_id="system",
                 payload={
-                    "id": r.id,
+                    "id": r.external_id or r.record_id or r.content_reference,
                     "text": r.text,
                     "score": r.score
                 }
             )
-            bus.append(canonical.event_type, str(r.id), canonical.to_dict())
+            event_id = r.external_id or r.record_id or r.content_reference
+            bus.append(canonical.event_type, str(event_id), canonical.to_dict())
             if r.memory_type == "workflow" and getattr(r, "verification_status", None) == "trusted":
                 canonical_workflow = CanonicalEvent(
                     event_type=CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED.value,
@@ -142,13 +150,32 @@ def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
                     source="aios.api.routes.memory",
                     session_id="system",
                     payload={
-                        "workflowId": str(r.id),
+                        "workflowId": str(event_id),
                         "query": req.query
                     }
                 )
-                bus.append(canonical_workflow.event_type, str(r.id), canonical_workflow.to_dict())
+                bus.append(
+                    canonical_workflow.event_type,
+                    str(event_id),
+                    canonical_workflow.to_dict(),
+                )
 
-    return {"query": req.query, "results": [asdict(r) for r in results]}
+    return {
+        "query": req.query,
+        "results": [
+            {
+                "id": r.external_id or r.record_id or r.content_reference,
+                "text": r.text,
+                "score": r.score,
+                "bm25": r.bm25,
+                "faiss": r.faiss,
+                "recency": r.recency,
+                "memory_type": r.memory_type,
+                "verification_status": r.verification_status,
+            }
+            for r in results
+        ],
+    }
 
 
 @router.post("/api/v1/memory/consolidate")

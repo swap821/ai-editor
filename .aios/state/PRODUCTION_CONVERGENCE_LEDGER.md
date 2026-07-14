@@ -33,27 +33,27 @@
 | 6 | Unify `/chat` and `/generate` under TurnCoordinator | **DONE** | `aios/application/turns/turn_coordinator.py`, unified routes |
 | 7 | MissionContract v1 and transactional mission state | **DONE** | `aios/domain/missions/` v1 `MissionContract`/`MissionState`/`MissionTransition`/`MissionRepository`, `aios/infrastructure/missions/sqlite_mission_repository.py` authoritative SQLite store with WAL + transition audit, `aios/infrastructure/storage/migrations/0001_mission_state.py`, `aios/application/missions/mission_service.py` state machine + double-approve guard + legacy migration + export, `aios/council/council_orchestrator.py` integrated with `MissionService` (dual-write with JSON ledgers), `tests/test_mission_contract_v1.py` (12 passing), full backend + frontend gates green. |
 | 8 | Converge the Queen Council | **DONE** | `aios/council/participation.py` deterministic adaptive `CouncilParticipationPolicy` (required + optional Queens, full-Council only when justified), deterministic adapter Queens `RoutingQueen`/`ReflectionQueen`/`ProjectUnderstandingQueen`, `aios/runtime/contracts.py` extended `QueenVerdict`/`QueenEvidence`, `aios/council/queen_service.py` real service registry with `init_queen_services()` + all 8 Queen service classes, `aios/council/council_orchestrator.py` consumes participation policy, invokes optional Queens in deliberation, gates Critique by policy in execution, optionally routes reviews through `QUEEN_SERVICES` when `AIOS_QUEEN_SERVICES=true`, records Council cost/latency metrics; tests `tests/test_council_participation.py`, `tests/test_queen_services.py`, updated `tests/test_council_orchestrator.py`; full backend + frontend gates green. |
-| 9 | Worker Foundry unification | **DONE** | `7a28ee1`; focused worker tests, full backend `2951 passed/4 skipped`, frontend typecheck/lint/tests/build green; scripted prover regression `7 passed` |
-| 10 | Privacy Broker and model routing | **DONE** | `PENDING`; focused privacy/router/provider tests `65 passed`, full backend `2956 passed/4 skipped`, frontend typecheck/lint/tests/build green; prover regression `8 passed` |
-| 11 | Isolated Executor Service | **IN PROGRESS** | Cumulative candidate present; focused validation pending |
-| 12 | Staged workspaces / dormant worktree | **NOT DONE** | Pending Slice 10 |
-| 13 | Evidence and Verification Authorities | **NOT DONE** | Pending Slice 10 |
-| 14 | Atomic Promotion and Recovery | **NOT DONE** | Pending Slice 10 |
-| 15 | Durable Cortex consumer semantics | **NOT DONE** | Pending Slice 10 |
-| 16 | Incremental system read models | **NOT DONE** | Pending Slice 10 |
-| 17 | One Memory Authority | **NOT DONE** | Pending Slice 10 |
-| 18 | Learning and earned autonomy loop | **NOT DONE** | Pending Slice 10 |
-| 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **NOT DONE** | Pending Slice 10 |
-| 20 | Constitutionally truthful Living Mirror | **NOT DONE** | Pending Slice 10 |
-| 21 | Operations, observability and recovery | **NOT DONE** | Pending Slice 10 |
-| 22 | CI as production release authority | **NOT DONE** | Pending Slice 10 |
-| 23 | Package the single-developer product | **NOT DONE** | Pending Slice 10 |
-| 24 | Controlled autonomy and v1.0 declaration | **NOT DONE** | Pending Slice 10; strict v1 readiness remains subject to live identity/capability/isolation evidence |
+| 9 | Worker Foundry unification | **DONE** | `8a62b59`; focused worker tests `18 passed`, full backend `2951 passed/4 skipped`, frontend typecheck/lint/tests/build green; scripted prover regression `7 passed` |
+| 10 | Privacy Broker and model routing | **DONE** | `64fd241`; focused privacy/router/provider tests `65 passed`, full backend `2956 passed/4 skipped`, frontend typecheck/lint/tests/build green; prover regression `8 passed` |
+| 11 | Isolated Executor Service | **DONE** | `4d12ac1`; focused executor/runtime tests `41 passed`, full backend `2959 passed/4 skipped`, frontend typecheck/lint/tests/build green |
+| 12 | Staged workspaces / dormant worktree | **DONE** | `2789ddd`; focused staged-workspace/worktree tests `8 passed/1 skipped`, full backend `2962 passed/5 skipped`, frontend typecheck/lint/tests/build green |
+| 13 | Evidence and Verification Authorities | **DONE** | `f567446`; focused evidence/verification tests `24 passed`, full backend `2965 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
+| 14 | Atomic Promotion and Recovery | **DONE** | `c30cb9f`; focused promotion/rollback/audit tests `34 passed`, full backend `2970 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green; first Ubuntu CI setup outage rerun green |
+| 15 | Durable Cortex consumer semantics | **DONE** | `94ec847`; focused Cortex/stream tests `23 passed`, full backend `2975 passed/5 skipped/2 warnings`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29255612887` green across Ubuntu/Windows/macOS/frontend |
+| 16 | Incremental system read models | **DONE** | `7825654`; focused read-model/Cortex tests `26 passed`, full backend `2978 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29257186345` green across Ubuntu/Windows/macOS/frontend |
+| 17 | One Memory Authority | **DONE** | `93f8699`; focused memory/migration tests `68 passed/2 skipped`, full backend `2986 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29258754146` green across Ubuntu/Windows/macOS/frontend |
+| 18 | Learning and earned autonomy loop | **DONE** | `7299f05`; focused autonomy safety tests `61 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `588 tests`, and build green; CI run `29260138344` green across Ubuntu/Windows/macOS/frontend |
+| 19 | Four product spaces (Living Mind, Workbench, Governance, History) | **DONE** | `f3d8fe6`; focused product-space tests `4 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `592 tests`, and build green; CI run `29261640630` green across Ubuntu/Windows/macOS/frontend |
+| 20 | Constitutionally truthful Living Mirror | **DONE** | `361f11e`; focused mirror tests frontend `5 passed` plus backend `10 passed`, full backend `2992 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; CI run `29263138253` green across Ubuntu/Windows/macOS/frontend |
+| 21 | Operations, observability and recovery | **DONE** | `1b2553a`; focused operations/read-model/Cortex tests `12 passed`, full backend `2996 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; Compose config passes with explicit secret and refuses missing secret; CI run `29264970507` green across Ubuntu/Windows/macOS/frontend |
+| 22 | CI as production release authority | **DONE** | `dccf072`; focused release checks `11 passed`, security scan clean, SBOM `449 components`, full backend `3007 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; warning budget `122/124`; CI run `29268027117` green across all platform, frontend, and release-authority jobs |
+| 23 | Package the single-developer product | **DONE** | `9ca0534`; launcher/release checks `21 passed`, full backend `3019 passed/5 skipped/2 warnings`, frontend typecheck/lint/coverage/build green; CI run `29271483280` green across all platform, frontend, and release-authority jobs |
+| 24 | Controlled autonomy and v1.0 declaration | **DONE** | `796bbeb`; focused governance/declaration/launcher/release/autonomy checks `63 passed`, security scan clean, SBOM `449 CycloneDX components`, full backend `3019 passed/5 skipped/2 warnings`, frontend gates green; strict v1 exits `1` with `operator_identity` and `exact_capabilities` blocked; CI run `29273405091` green across all platform, frontend, and release-authority jobs; PR #141 conflict resolution against `origin/master` `b4ee3de` passes the full backend suite (`3019 passed/5 skipped/1 warning`); seven actionable review findings addressed locally with affected checks green; CodeQL executor command/path remediation locally passes `60` focused tests and `21` release/operations checks, with a local model extension committed for GitHub verification; current-master merge `2e37c6e` passes privacy/router/worker/executor checks `73` and chat/generate routing checks `45`; first fresh CodeQL run reduced alerts to `3` and exposed the ignored model-pack layout, now corrected and locally reverified |
 
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.
-- Next logical slice: **Slice 11 — Isolated Executor Service**.
+- Next logical slice: **Slice 23 — Package the single-developer product**.
 - Old Slice 8 (Distribution & Bootstrap) feeds new Slice 21 (operations/recovery) and Slice 23 (packaged product).
 
 ## Baseline Evidence
@@ -80,4 +80,4 @@
 
 ## Next Action
 
-Stage and validate Slice 11 — Isolated Executor Service. Do not infer completion of later slices from the cumulative candidate patch.
+Commit and push the CodeQL model-pack layout correction for PR #141, then verify the fresh CodeQL check, release-authority, review-thread state, and GitHub mergeability. Do not merge to `master` or infer production readiness from green CI alone.

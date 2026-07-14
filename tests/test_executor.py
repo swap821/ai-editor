@@ -19,6 +19,7 @@ from aios.core.executor import (
     validate_approved_execution_backend,
     _bounded_run,
     _default_runner,
+    _parse_argv,
 )
 from aios.security.gateway import RateLimiter
 
@@ -177,6 +178,16 @@ def test_default_runner_keeps_pathed_and_unresolvable_programs_unchanged(
     _default_runner(pathed, cwd=str(tmp_path), env={}, timeout_s=1)
     assert spawned[-1][0] == f".venv{os.sep}Scripts{os.sep}python.exe"
     assert which_calls == ["python"]
+
+
+def test_parse_argv_rejects_null_bytes() -> None:
+    with pytest.raises(ValueError, match="shell composition"):
+        _parse_argv("echo\x00unsafe")
+
+
+def test_bounded_runner_rejects_unsafe_structured_argv() -> None:
+    with pytest.raises(ValueError, match="unsafe structured argv"):
+        _bounded_run(["echo", "unsafe;command"], timeout=1)
 
 
 def test_execute_approved_runs_yellow_command() -> None:

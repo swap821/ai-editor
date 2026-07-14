@@ -28,6 +28,20 @@ jobs:
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
     runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    env:
+      # Make the repository-local model pack resolvable without publishing it
+      # to a registry. The extra search path is harmless for the other matrix
+      # languages, which do not request the Python pack.
+      CODEQL_ACTION_EXTRA_OPTIONS: |
+        database:
+          init:
+            - --search-path=${{ github.workspace }}/.github/codeql/extensions
+          run-queries:
+            - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
+            - --model-packs=gagos/executor-models
+          interpret-results:
+            - --additional-packs=${{ github.workspace }}/.github/codeql/extensions
+            - --model-packs=gagos/executor-models
     permissions:
       # required for all workflows
       security-events: write
@@ -73,12 +87,32 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
+        # Load the repository-local executor boundary models for the Python
+        # analysis. The local search path above keeps the barriers versioned
+        # with the code they describe; other matrix languages do not need it.
+        packs: ${{ matrix.language == 'python' && 'gagos/executor-models' || '' }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
 
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
+
+    - name: Validate executor CodeQL model pack
+      if: matrix.language == 'python'
+      shell: bash
+      run: |
+        CODEQL_BIN="$(find /opt/hostedtoolcache/CodeQL -type f -path '*/codeql/codeql' | sort -V | tail -1)"
+        test -n "$CODEQL_BIN"
+        "$CODEQL_BIN" resolve packs \
+          --search-path="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --additional-packs="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --format=json | grep -F 'gagos/executor-models'
+        "$CODEQL_BIN" resolve extensions-by-pack \
+          --search-path="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --additional-packs="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
+          --model-packs=gagos/executor-models \
+          -- "${GITHUB_WORKSPACE}/.github/codeql/extensions/gagos/executor-models"
 
     # If the analyze step fails for one of the languages you are analyzing with
     # "We were unable to automatically build your code", modify the matrix above
