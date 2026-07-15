@@ -259,9 +259,17 @@ class DockerRunner:
     ) -> tuple[str, str, int]:
         argv = _parse_argv(command)
         # ``ntpath.isabs`` accepts POSIX-looking roots on some Python versions;
-        # use the host platform as the discriminator so Linux/macOS paths never
-        # get rewritten into backslashes before entering the Docker mount spec.
-        windows_daemon_path = os.name == "nt" and ntpath.isabs(cwd)
+        # use the host platform plus explicit drive/UNC syntax as the
+        # discriminator so Linux/macOS paths never get rewritten into
+        # backslashes before entering the Docker mount spec. Explicit Windows
+        # daemon paths remain supported for cross-platform Docker clients.
+        explicit_windows_path = (
+            (len(cwd) >= 3 and cwd[1] == ":" and cwd[0].isalpha())
+            or cwd.startswith("\\\\")
+        )
+        windows_daemon_path = ntpath.isabs(cwd) and (
+            os.name == "nt" or explicit_windows_path
+        )
         if windows_daemon_path:
             cwd_parts = PureWindowsPath(cwd).parts
             if ".." in cwd_parts:
