@@ -168,12 +168,13 @@ ReflectionAgent, and the authority bootstrap's consolidator reuse registered
 specialist stores; direct construction remains only in explicit standalone or
 injected-fake compatibility paths. The latest authoritative backend gate is
 `3,161` collected, `3,153 passed, 8 skipped`, exit `0`, at `91.04%` line
-coverage (`21,144/23,224`) and `80.58%` branch coverage (`5,022/6,232`),
-combined `88.83%`. Checkpoint `d550d21` passed the dependency audit, frontend,
-and Windows backend jobs, while its Ubuntu/macOS jobs exposed five
-platform-sensitive tests. The follow-up fixes canonicalize the self-apply
-project root and distinguish digest-bound resource metadata from action content
-during credential scanning while retaining named-secret rejection. The bounded
+coverage (`21,145/23,225`) and `80.58%` branch coverage (`5,022/6,232`),
+combined `88.83%`. Checkpoint `668f5f2` passed the dependency audit, frontend,
+and Windows backend jobs, while Ubuntu/macOS exposed the remaining
+self-apply mount-root assertion and macOS exposed an integral-timeout contract
+assertion. The final follow-up resolves POSIX paths at the Docker mount boundary
+and preserves integral timeout values while retaining fractional precision. The
+bounded
 packaged runtime probe now proves the authenticated
 MemoryAuthority/generate entry boundary with exact Origin, session-bound CSRF,
 and strong re-authentication; it returned `200 text/event-stream` and reached

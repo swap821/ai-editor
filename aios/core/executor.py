@@ -268,7 +268,7 @@ class DockerRunner:
             cwd_path = Path(cwd)
             if not cwd_path.is_absolute() or ".." in cwd_path.parts:
                 raise ValueError("executor cwd must be an absolute, normalized path")
-            resolved_cwd = str(cwd_path)
+            resolved_cwd = str(cwd_path.resolve())
         # The scope-lock and structured executor adapters resolve cwd before
         # crossing this runner boundary. Keep that canonical value unchanged;
         # re-normalizing a request-derived string is itself a CodeQL path sink.

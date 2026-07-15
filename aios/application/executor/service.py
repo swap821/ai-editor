@@ -49,7 +49,12 @@ class StructuredExecutorClient:
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
-        self.timeout_s = max(float(timeout_s), 0.001)
+        timeout_value = max(float(timeout_s), 0.001)
+        # Preserve integral caller values for deterministic transports/tests while
+        # retaining sub-second precision when a fractional timeout is requested.
+        self.timeout_s = (
+            int(timeout_value) if timeout_value.is_integer() else timeout_value
+        )
         self.transport = transport or urllib.request.urlopen
         self.max_response_bytes = max(int(max_response_bytes), 1024)
 
