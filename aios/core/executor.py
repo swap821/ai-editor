@@ -258,7 +258,10 @@ class DockerRunner:
         self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
     ) -> tuple[str, str, int]:
         argv = _parse_argv(command)
-        windows_daemon_path = ntpath.isabs(cwd)
+        # ``ntpath.isabs`` accepts POSIX-looking roots on some Python versions;
+        # use the host platform as the discriminator so Linux/macOS paths never
+        # get rewritten into backslashes before entering the Docker mount spec.
+        windows_daemon_path = os.name == "nt" and ntpath.isabs(cwd)
         if windows_daemon_path:
             cwd_parts = PureWindowsPath(cwd).parts
             if ".." in cwd_parts:

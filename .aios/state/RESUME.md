@@ -119,7 +119,7 @@ authority/runtime matrices. The active Codex builder lane is
 `gagos-v1-r2-human-sovereign`. Checkpoints `c8e3da0`, `d550d21`, `668f5f2`,
 and `a00c2b2` are committed and pushed to `origin/master`; CodeQL, Dependency
 Graph, frontend, and Windows backend checks passed, while Ubuntu/macOS exposed
-one remaining exact-string path assertion.
+one remaining POSIX path-discriminator bug at the Docker mount boundary.
 
 An isolated real loopback process with `AIOS_PROFILE=production` and
 `AIOS_RUNTIME_PROFILE=operator` proved session bootstrap, operator enrollment,
@@ -130,7 +130,7 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit and push the path-assertion portability fix, then
+**Single Next Action:** Commit and push the POSIX path-discriminator fix, then
 verify the GitHub CI matrix for that exact SHA. The latest local gate is green:
 `3,161` collected, `3,153 passed, 8 skipped`, exit `0`, with `91.04%` line
 coverage (`21,145/23,225`), `80.58%` branch coverage (`5,022/6,232`), and
@@ -174,15 +174,14 @@ mutation boundary fail-closed and do not bypass the audit.
   re-authentication. The old daily-use probe is stale and still returns `403`
   because it omits that browser contract; no probe artifact was written and
   temporary runtime data was removed.
- - GitHub CI for checkpoint `a00c2b2` passed CodeQL, dependency audit, frontend,
-   and Windows backend; Ubuntu/macOS failed only the test's exact lexical
-   `src=` assertion even though the runner is now canonicalizing the mount
-   source. The semantic path assertion fix is locally green; its remote rerun
-   is pending.
+ - GitHub CI for checkpoint `f07c74c` passed CodeQL, dependency audit, frontend,
+   and Windows backend; Ubuntu/macOS showed `ntpath.isabs()` rewriting POSIX
+   roots to backslashes at the Docker mount boundary. The host-platform gate is
+   locally green; its remote rerun is pending.
 
-**Active Files:** The next checkpoint includes the semantic mount-source
-assertion fix in `tests/test_api.py`. The prior transport fixes and continuity
-evidence are landed in `a00c2b2`; R0/R1
+**Active Files:** The next checkpoint includes the host-platform discriminator
+fix in `aios/core/executor.py`; the semantic mount-source regression and prior
+transport fixes are landed in `f07c74c`. R0/R1
 truth surfaces and the R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11 implementation/tests
 remain part of the landed convergence history. R2 added `aios/domain/identity/`,
 `aios/application/identity/`,

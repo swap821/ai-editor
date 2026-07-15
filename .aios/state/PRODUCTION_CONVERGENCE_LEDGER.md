@@ -169,12 +169,13 @@ specialist stores; direct construction remains only in explicit standalone or
 injected-fake compatibility paths. The latest authoritative backend gate is
 `3,161` collected, `3,153 passed, 8 skipped`, exit `0`, at `91.04%` line
 coverage (`21,145/23,225`) and `80.58%` branch coverage (`5,022/6,232`),
-combined `88.83%`. Checkpoint `a00c2b2` passed CodeQL, the dependency audit,
-frontend, and Windows backend jobs, while Ubuntu/macOS failed only the test's
-exact lexical `src=` assertion. The runner resolves POSIX paths at the Docker
-mount boundary and preserves integral timeout values while retaining fractional
-precision; the follow-up changes the regression to compare resolved mount and
-project paths. The
+combined `88.83%`. Checkpoint `f07c74c` passed CodeQL, the dependency audit,
+frontend, and Windows backend jobs, while Ubuntu/macOS exposed the final
+platform bug: `ntpath.isabs()` rewrote POSIX roots into backslashes before the
+Docker mount. The runner resolves POSIX paths at the mount boundary and
+preserves integral timeout values while retaining fractional precision; the
+follow-up gates the Windows branch on `os.name == "nt"` and compares resolved
+mount/project paths. The
 bounded
 packaged runtime probe now proves the authenticated
 MemoryAuthority/generate entry boundary with exact Origin, session-bound CSRF,
