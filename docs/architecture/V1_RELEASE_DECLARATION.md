@@ -23,8 +23,10 @@ verification, rollback, Cortex, mirror, memory, or emergency-control invariant.
 
 The declaration is intentionally not a production-ready claim merely because
 the source compiles or a directory exists. In this checkout the strict
-declaration remains blocked because production runtime proof for the durable
-Human Sovereign identity and the exact capability layer is unavailable. The
+declaration remains blocked because the complete packaged production runtime
+matrix for the durable Human Sovereign identity and exact capability layer is
+unavailable. An isolated loopback production-profile process has now proved
+the authenticated session and governed generate-entry boundary. The
 isolated Executor Service, EmergencyStopController, and packaged production
 authority matrix remain `PARTIAL` until their runtime wiring is proven.
 PromotionAuthority is now verified at the bounded production/demo Council
@@ -48,8 +50,11 @@ device, stores only credential/recovery digests, records bounded login and
 strong re-authentication events, and exposes only opaque cookie sessions with
 rotation and revocation. Privileged mutations resolve the durable principal;
 caller-supplied JSON authority fields and body session IDs are ignored. The
-source and hermetic route proof are green, but production runtime authority
-proof remains open.
+source and hermetic route proof are green. An isolated real
+`AIOS_PROFILE=production` process proved login, strong re-authentication, and
+authenticated session status, and the same contract admitted `/api/generate`
+with `200 text/event-stream` through `human_required`; the full packaged
+production authority matrix remains open.
 
 R3 now provides the exact-capability core: complete operator/device/authentication
 event/session/action/route/method/payload/resource/mission/contract/policy/scope/
@@ -160,8 +165,10 @@ skipped` across `342` collected tests. The follow-on planner/native-planner/
 compaction gate is `73 passed` across `73` collected tests. The authoritative
 package-wide gate exits `0` with `3,159` collected, `3,151 passed, 8 skipped`,
 `91.04%` line coverage (`21,129/23,209`), and `80.57%` branch coverage
-(`5,016/6,226`); combined coverage is `88.82%`. Packaged runtime proof remains
-open: the canonical API health process returned `200`, while the legacy
-daily-use mutation probe correctly returned `403` without an authenticated
-session and CSRF proof. This wave does not
-upgrade the strict declaration.
+(`5,016/6,226`); combined coverage is `88.82%`. The bounded packaged runtime
+probe proved authenticated MemoryAuthority search/fact-queue reads and
+`/api/generate` entry at `200 text/event-stream`, reaching `human_required`
+after exact Origin, session-bound CSRF, and strong re-authentication. The old
+daily-use mutation probe remains stale and correctly returns `403` without
+that browser contract. The full production matrix remains open; this wave
+does not upgrade the strict declaration.

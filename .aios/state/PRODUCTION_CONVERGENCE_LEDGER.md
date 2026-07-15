@@ -169,10 +169,11 @@ specialist stores; direct construction remains only in explicit standalone or
 injected-fake compatibility paths. The authoritative backend gate is `3,159`
 collected, `3,151 passed, 8 skipped`, exit `0`, at `91.04%` line coverage
 (`21,129/23,209`) and `80.57%` branch coverage (`5,016/6,226`), combined
-`88.82%`. Continue R11 with a bounded packaged runtime-proof probe over the
-MemoryAuthority boundary, keeping source-only evidence separate from runtime
-proof. The canonical API health process returned `200`, but the existing
-daily-use probe received the expected `403` because it does not bootstrap an
-authenticated session and CSRF proof. Leave Human Sovereign,
+`88.82%`. The bounded packaged runtime probe now proves the authenticated
+MemoryAuthority/generate entry boundary with exact Origin, session-bound CSRF,
+and strong re-authentication; it returned `200 text/event-stream` and reached
+`human_required` without writing a file. Continue R11 by keeping this runtime
+evidence separate from the still-open full production matrix. The old
+daily-use probe remains incompatible and receives the expected `403`. Leave Human Sovereign,
 exact-capability, mirror, and emergency-stop runtime authority gates open. Do
 not infer overall production readiness from completed waves.

@@ -116,14 +116,24 @@ topology. The focused R8 gate is `119 passed, 3 skipped`; the host-visible
 workspace mapping fixes Docker Desktop socket semantics. R1/R2/R3 and the
 overall v1 declaration remain **PARTIAL** for packaged production
 authority/runtime matrices. The active Codex builder lane is
-`gagos-v1-r2-human-sovereign`. No commit or push has been made.
+`gagos-v1-r2-human-sovereign`. Checkpoint `c8e3da0` is committed and pushed
+to `origin/master`; its CodeQL and Dependency Graph runs passed, while the
+three backend CI jobs stopped before tests on vulnerable `setuptools==81.0.0`.
 
-**Single Next Action:** Start the next bounded packaged runtime-proof probe for
-the R11 MemoryAuthority boundary with an authenticated operator session,
-exact Origin, and session-bound CSRF proof. The canonical API health probe
-reached `200`, while the legacy `tools/daily_use_probe.py` was refused at
-`/api/generate` with `403` because it does not establish that browser contract;
-do not weaken the gate or broaden into emergency-stop work.
+An isolated real loopback process with `AIOS_PROFILE=production` and
+`AIOS_RUNTIME_PROFILE=operator` proved session bootstrap, operator enrollment,
+login, strong re-authentication, authenticated MemoryAuthority search and
+fact-queue reads, and `/api/generate` entry: the endpoint returned
+`200 text/event-stream` and reached `human_required` after `turn.started`,
+`plan`, and `route` events. Temporary runtime data was removed; no probe file
+was written. The legacy daily-use probe remains stale because it does not
+bootstrap this browser session contract.
+
+**Single Next Action:** Commit and push the secure dependency-lock repair, then
+verify the GitHub CI matrix for that exact SHA. The repair upgrades Torch to
+`2.13.0` (which permits secure `setuptools==83.0.0`) and raises the build-system
+floor accordingly. Keep the mutation boundary fail-closed and do not bypass
+the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -156,10 +166,15 @@ do not weaken the gate or broaden into emergency-stop work.
   worker events are consumed by the existing worker read model, and direct
   generation `rolePass`/`swarm` requests fail closed as experimental. This is
   a wave-level verification, not overall production readiness.
-- The live API health process proof is green, but the existing daily-use probe
-  is stale for the current mutation boundary: `/api/generate` correctly
-  returned `403` until a valid authenticated session and CSRF proof are
-  bootstrapped. No probe artifact was written and the temporary API was stopped.
+- The live API process proof is green through the authenticated turn boundary:
+  `/api/generate` returned `200 text/event-stream` and reached the governed
+  `human_required` pause after exact Origin, session-bound CSRF, and strong
+  re-authentication. The old daily-use probe is stale and still returns `403`
+  because it omits that browser contract; no probe artifact was written and
+  temporary runtime data was removed.
+- GitHub CI for checkpoint `c8e3da0` failed before backend tests because the
+  lock pinned vulnerable `setuptools==81.0.0` while `torch==2.12.1` required
+  `setuptools<82`; the minimal dependency repair is pending its remote rerun.
 
 **Active Files:** R0/R1 truth surfaces and the R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11 implementation/tests
 remain unstaged. R2 added `aios/domain/identity/`, `aios/application/identity/`,

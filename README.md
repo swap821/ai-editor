@@ -522,9 +522,12 @@ tests. The focused provider/architecture/API regression is `188 passed`.
 authoritative package-wide gate exits `0` with `3,159` collected,
 `3,151 passed, 8 skipped`, `91.04%` line coverage (`21,129/23,209`), and
 `80.57%` branch coverage (`5,016/6,226`); combined coverage is `88.82%`.
-Packaged runtime proof remains open: the canonical API health process returned
-`200`, while the legacy daily-use mutation probe correctly returned `403`
-because it does not bootstrap an authenticated session and CSRF proof.
+An isolated production-profile loopback process proved operator enrollment,
+login, strong re-authentication, authenticated MemoryAuthority reads, and
+`/api/generate` entry at `200 text/event-stream`, reaching `human_required`
+with no filesystem write. The legacy daily-use probe remains stale and
+correctly returns `403` because it does not bootstrap the browser session and
+CSRF contract; the complete packaged runtime matrix remains open.
 
 | Area | Current Reality |
 |------|-----------------|
