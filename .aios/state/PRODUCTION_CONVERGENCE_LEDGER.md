@@ -91,17 +91,18 @@ two-layer distinction as `source_present` and `runtime_proven`.
 
 ## Latest CI Repair Checkpoint — 2026-07-15
 
-Commit `384ab660375d62f92d6c74629eea1416a9d906b4` is synchronized with
+Commit `39b34e645ba4a2094595463c5b7a49a500091c48` is synchronized with
 `origin/master`. Its cross-platform path/timeout repair passed CodeQL,
 dependency audit, frontend, and all Ubuntu/macOS/Windows backend jobs in run
-`29433023004`; only the release-authority Docker proof failed, with
-`docker compose exec` killed by exit `137` before pytest output. The repair now
-keeps only the lightweight private executor resident, runs the control-plane
-integration test in a one-shot Compose container, waits for executor health,
-prints container diagnostics, and supplies the required workspace-root variable
-to teardown. Focused local release/integration tests pass `14 passed, 3 skipped`;
-the remote verification run is pending, so the packaged isolation gate remains
-**PARTIAL** until that job is green.
+`29435327884`; the repaired release-authority Docker proof then reached pytest
+but failed because UID `65534` could not write the bind-mounted
+`/app/data/executor-workspaces`. The next repair prepares that ephemeral shared
+workspace with explicit permissions before startup. The workflow keeps only
+the lightweight private executor resident, runs the control-plane integration
+test in a one-shot Compose container, waits for executor health, prints
+diagnostics, and supplies the required workspace-root variable to teardown.
+Focused local release/integration tests pass `14 passed, 3 skipped`; the
+packaged isolation gate remains **PARTIAL** until the next remote run is green.
 
 ## New Directive Roadmap (post-save)
 

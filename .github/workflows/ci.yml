@@ -185,6 +185,11 @@ jobs:
           AIOS_PROFILE: production
         run: |
           touch .env
+          # Both services intentionally run as UID 65534. The checkout-owned
+          # bind mount must therefore be writable before the control-plane
+          # probe stages its disposable workspace.
+          mkdir -p data/executor-workspaces
+          chmod 0777 data data/executor-workspaces
           export AIOS_DOCKER_SOCKET_GID="$(stat -c '%g' /var/run/docker.sock)"
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
           # Keep only the lightweight privileged service resident. The

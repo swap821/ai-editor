@@ -231,17 +231,17 @@ The frozen security spine is untouched.
 
 ## Active CI Repair Checkpoint — 2026-07-15
 
-`384ab660375d62f92d6c74629eea1416a9d906b4` is pushed to `origin/master`.
-Its source, architecture, secret-scan, Ruff, frontend, and Ubuntu/macOS/Windows
-backend gates passed, but release-authority run `29433023004` was red only
-because `docker compose exec` was killed with exit `137` before pytest output;
-teardown also lacked `AIOS_EXECUTOR_HOST_WORKSPACE_ROOT`. The focused local
-release/integration gate for the workflow repair is `14 passed, 3 skipped` and
+`39b34e645ba4a2094595463c5b7a49a500091c48` is pushed to `origin/master`.
+Its matrix, frontend, and aggregate gates passed in run `29435327884`, but the
+repaired release-authority one-shot probe exposed a bind-mount permissions
+failure: UID `65534` could not create `/app/data/executor-workspaces`. The
+focused local release/integration gate remains `14 passed, 3 skipped` and
 Compose config passes. The current workflow runs only the lightweight executor
-resident and executes the control-plane proof as a one-shot Compose container.
+resident, prepares the ephemeral shared workspace with explicit permissions,
+and executes the control-plane proof as a one-shot Compose container.
 
-**Single next action:** commit and push this workflow repair, then verify the
-fresh GitHub Actions run is green, including `release-authority`.
+**Single next action:** commit and push the bind-mount permission repair, then
+verify the fresh GitHub Actions run is green, including `release-authority`.
 
 **Open blockers:** no source blocker; final remote CI evidence is pending.
 The local Docker daemon did not complete this ML-heavy image startup within
