@@ -138,3 +138,35 @@ def test_verifier_is_non_consuming_until_explicit_consume(tmp_path):
     verifier.consume(token, binding)
     with pytest.raises(CapabilityError):
         verifier.verify(token, binding)
+
+
+def test_resource_metadata_entropy_does_not_block_exact_capability(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "resource-path.db")
+    payload = {
+        "path": (
+            "/home/runner/work/ai-editor/ai-editor/.aios/tmp/"
+            "pytest-session-09c93a69/pytest-of-runner/pytest-0/editable.txt"
+        ),
+        "content": "safe replacement",
+    }
+    binding = _binding(
+        route="/api/v1/files/edit",
+        action_type="edit",
+        payload_digest=payload_digest(payload),
+    )
+
+    token = authority.issue(binding, action_payload=payload)
+    assert authority.consume(token, binding).action_payload == payload
+
+
+def test_resource_metadata_named_secret_is_still_rejected(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "resource-secret.db")
+    payload = {"path": "/tmp/api_key=sk-12345678901234567890123456789012"}
+    binding = _binding(
+        route="/api/v1/files/edit",
+        action_type="edit",
+        payload_digest=payload_digest(payload),
+    )
+
+    with pytest.raises(CapabilityError, match="credential-like"):
+        authority.issue(binding, action_payload=payload)

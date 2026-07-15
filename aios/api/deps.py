@@ -621,7 +621,7 @@ def get_self_apply_engine(
             )
         return isolated_runner(
             "python -m pytest tests/ -q",
-            cwd=str(config.PROJECT_ROOT),
+            cwd=str(config.PROJECT_ROOT.resolve()),
             env=env,
             timeout_s=timeout_s,
         )

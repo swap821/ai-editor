@@ -16,6 +16,67 @@ from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
 from aios.security.secret_scanner import scan_and_redact
 
 
+# Resource/authority metadata is already bound into the capability digest and
+# resource digest.  Its opaque path/session/mission identifiers can contain
+# runner-generated entropy (notably pytest's POSIX temp paths), which must not
+# be mistaken for credential material.  Named secret patterns are still
+# scanned for these fields; only the generic entropy pass is ignored.
+_RESOURCE_METADATA_KEYS = frozenset(
+    {
+        "path",
+        "filepath",
+        "filePath",
+        "root",
+        "workspaceRoot",
+        "workspace_root",
+        "sourceId",
+        "source_id",
+        "missionId",
+        "mission_id",
+        "proposalId",
+        "proposal_id",
+        "snapshotId",
+        "snapshot_id",
+        "workerId",
+        "worker_id",
+        "sessionId",
+        "session_id",
+        "contractDigest",
+        "contract_digest",
+    }
+)
+
+
+def _action_payload_contains_secret(payload: dict[str, Any]) -> bool:
+    """Scan action content while tolerating entropy in bound resource metadata."""
+
+    metadata_findings: list[str] = []
+
+    def mask_resource_metadata(value: Any, *, key: str | None = None) -> Any:
+        if isinstance(value, dict):
+            return {
+                name: mask_resource_metadata(child, key=str(name))
+                for name, child in value.items()
+            }
+        if isinstance(value, list):
+            return [mask_resource_metadata(child, key=key) for child in value]
+        if key in _RESOURCE_METADATA_KEYS and isinstance(value, str):
+            metadata_scan = scan_and_redact(value)
+            metadata_findings.extend(
+                finding
+                for finding in metadata_scan.findings
+                if finding != "HIGH_ENTROPY"
+            )
+            return "<bound-resource-metadata>"
+        return value
+
+    masked = mask_resource_metadata(payload)
+    content_scan = scan_and_redact(
+        json.dumps(masked, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    )
+    return bool(metadata_findings or content_scan.detected)
+
+
 class CapabilityError(RuntimeError):
     """Raised when a capability is missing, altered, expired, or revoked."""
 
@@ -49,10 +110,7 @@ class CapabilityAuthority:
         if action_payload is not None:
             if payload_digest(action_payload) != binding.payload_digest:
                 raise CapabilityError("capability action payload does not match its digest")
-            scan = scan_and_redact(
-                json.dumps(action_payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-            )
-            if scan.detected:
+            if _action_payload_contains_secret(action_payload):
                 raise CapabilityError(
                     "capability action payload contains credential-like data"
                 )

@@ -166,10 +166,15 @@ metrics/skills/trails reads also use the authority. The current documented
 compatibility construction seams are frozen by an architecture guard. Planner,
 ReflectionAgent, and the authority bootstrap's consolidator reuse registered
 specialist stores; direct construction remains only in explicit standalone or
-injected-fake compatibility paths. The authoritative backend gate is `3,159`
-collected, `3,151 passed, 8 skipped`, exit `0`, at `91.04%` line coverage
-(`21,129/23,209`) and `80.57%` branch coverage (`5,016/6,226`), combined
-`88.82%`. The bounded packaged runtime probe now proves the authenticated
+injected-fake compatibility paths. The latest authoritative backend gate is
+`3,161` collected, `3,153 passed, 8 skipped`, exit `0`, at `91.04%` line
+coverage (`21,144/23,224`) and `80.58%` branch coverage (`5,022/6,232`),
+combined `88.83%`. Checkpoint `d550d21` passed the dependency audit, frontend,
+and Windows backend jobs, while its Ubuntu/macOS jobs exposed five
+platform-sensitive tests. The follow-up fixes canonicalize the self-apply
+project root and distinguish digest-bound resource metadata from action content
+during credential scanning while retaining named-secret rejection. The bounded
+packaged runtime probe now proves the authenticated
 MemoryAuthority/generate entry boundary with exact Origin, session-bound CSRF,
 and strong re-authentication; it returned `200 text/event-stream` and reached
 `human_required` without writing a file. Continue R11 by keeping this runtime

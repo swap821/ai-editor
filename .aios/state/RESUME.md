@@ -116,9 +116,10 @@ topology. The focused R8 gate is `119 passed, 3 skipped`; the host-visible
 workspace mapping fixes Docker Desktop socket semantics. R1/R2/R3 and the
 overall v1 declaration remain **PARTIAL** for packaged production
 authority/runtime matrices. The active Codex builder lane is
-`gagos-v1-r2-human-sovereign`. Checkpoint `c8e3da0` is committed and pushed
-to `origin/master`; its CodeQL and Dependency Graph runs passed, while the
-three backend CI jobs stopped before tests on vulnerable `setuptools==81.0.0`.
+`gagos-v1-r2-human-sovereign`. Checkpoints `c8e3da0` and `d550d21` are
+committed and pushed to `origin/master`; CodeQL, Dependency Graph, frontend,
+and Windows backend checks passed, while the Ubuntu/macOS backend jobs exposed
+five platform-sensitive test failures after the dependency audit was repaired.
 
 An isolated real loopback process with `AIOS_PROFILE=production` and
 `AIOS_RUNTIME_PROFILE=operator` proved session bootstrap, operator enrollment,
@@ -129,11 +130,12 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit and push the secure dependency-lock repair, then
-verify the GitHub CI matrix for that exact SHA. The repair upgrades Torch to
-`2.13.0` (which permits secure `setuptools==83.0.0`) and raises the build-system
-floor accordingly. Keep the mutation boundary fail-closed and do not bypass
-the audit.
+**Single Next Action:** Commit and push the cross-platform boundary fix, then
+verify the GitHub CI matrix for that exact SHA. The local authoritative package
+gate is green: `3,161` collected, `3,153 passed, 8 skipped`, exit `0`, with
+`91.04%` line coverage (`21,144/23,224`), `80.58%` branch coverage
+(`5,022/6,232`), and `88.83%` combined coverage. Keep the mutation boundary
+fail-closed and do not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -172,12 +174,18 @@ the audit.
   re-authentication. The old daily-use probe is stale and still returns `403`
   because it omits that browser contract; no probe artifact was written and
   temporary runtime data was removed.
-- GitHub CI for checkpoint `c8e3da0` failed before backend tests because the
-  lock pinned vulnerable `setuptools==81.0.0` while `torch==2.12.1` required
-  `setuptools<82`; the minimal dependency repair is pending its remote rerun.
+ - GitHub CI for checkpoint `d550d21` passed the dependency audit, frontend, and
+   Windows backend jobs but Ubuntu/macOS failed five platform-sensitive tests:
+   one unresolved self-apply root comparison and four false credential-like
+   refusals for POSIX pytest paths. The source fix is locally green; its remote
+   rerun is pending.
 
-**Active Files:** R0/R1 truth surfaces and the R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11 implementation/tests
-remain unstaged. R2 added `aios/domain/identity/`, `aios/application/identity/`,
+**Active Files:** The next checkpoint includes the cross-platform fixes in
+`aios/api/deps.py`, `aios/application/capabilities/authority.py`, and
+`tests/test_exact_capabilities.py`, plus this continuity evidence. R0/R1 truth
+surfaces and the R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11 implementation/tests remain
+part of the landed convergence history. R2 added `aios/domain/identity/`,
+`aios/application/identity/`,
 `aios/infrastructure/identity/`, `aios/api/routes/auth.py`, the identity
 dependency providers, session persistence support, and identity route registry
 entries. R3 added `aios/domain/capabilities/`,
