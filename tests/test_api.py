@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterator, Optional
 
@@ -1883,8 +1884,11 @@ def test_self_apply_verifier_runs_through_container_from_project_root(monkeypatc
     assert docker_argv, "expected the verify suite to run through the container"
     argv = docker_argv[0]
     assert argv[:3] == ["docker", "run", "--rm"]
-    expected_src = str(config.PROJECT_ROOT.resolve())
-    assert any(f"src={expected_src}" in tok for tok in argv)  # project root mounted
+    expected_src = config.PROJECT_ROOT.resolve()
+    mount = next((tok for tok in argv if tok.startswith("type=bind,")), "")
+    assert mount, "expected the project root bind mount"
+    mounted_src = mount.split("src=", 1)[1].split(",dst=", 1)[0]
+    assert Path(mounted_src).resolve() == expected_src  # project root mounted
     assert argv[-5:] == ["python", "-m", "pytest", "tests/", "-q"]
 
 

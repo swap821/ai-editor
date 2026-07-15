@@ -169,11 +169,12 @@ specialist stores; direct construction remains only in explicit standalone or
 injected-fake compatibility paths. The latest authoritative backend gate is
 `3,161` collected, `3,153 passed, 8 skipped`, exit `0`, at `91.04%` line
 coverage (`21,145/23,225`) and `80.58%` branch coverage (`5,022/6,232`),
-combined `88.83%`. Checkpoint `668f5f2` passed the dependency audit, frontend,
-and Windows backend jobs, while Ubuntu/macOS exposed the remaining
-self-apply mount-root assertion and macOS exposed an integral-timeout contract
-assertion. The final follow-up resolves POSIX paths at the Docker mount boundary
-and preserves integral timeout values while retaining fractional precision. The
+combined `88.83%`. Checkpoint `a00c2b2` passed CodeQL, the dependency audit,
+frontend, and Windows backend jobs, while Ubuntu/macOS failed only the test's
+exact lexical `src=` assertion. The runner resolves POSIX paths at the Docker
+mount boundary and preserves integral timeout values while retaining fractional
+precision; the follow-up changes the regression to compare resolved mount and
+project paths. The
 bounded
 packaged runtime probe now proves the authenticated
 MemoryAuthority/generate entry boundary with exact Origin, session-bound CSRF,
