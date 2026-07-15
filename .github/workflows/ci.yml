@@ -187,7 +187,21 @@ jobs:
           touch .env
           export AIOS_DOCKER_SOCKET_GID="$(stat -c '%g' /var/run/docker.sock)"
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
-          docker compose up -d --build aios executor
+          # Keep only the lightweight privileged service resident. The
+          # control-plane proof below runs as a one-shot container so CI does
+          # not need a second Python interpreter inside the live API process.
+          docker compose up -d --build --wait executor
+
+      - name: Report private Executor Service state
+        if: ${{ always() }}
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=80 executor
 
       - name: Prove private Executor Service isolation
         env:
@@ -198,7 +212,8 @@ jobs:
           AIOS_PROFILE: production
         run: |
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
-          docker compose exec -T -e AIOS_EXECUTOR_INTEGRATION=1 aios \
+          docker compose run --rm --no-deps --use-aliases --build \
+            -e AIOS_EXECUTOR_INTEGRATION=1 aios \
             python -m pytest -q -o addopts= tests/test_executor_integration.py
 
       - name: Tear down private Executor Service topology
@@ -206,6 +221,7 @@ jobs:
         env:
           AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
           AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
           AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
         run: docker compose down -v --remove-orphans
 

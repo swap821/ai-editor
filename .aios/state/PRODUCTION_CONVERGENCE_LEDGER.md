@@ -89,6 +89,20 @@ two-layer distinction as `source_present` and `runtime_proven`.
 | EmergencyStopController | **PARTIAL** | Source exists; all real side-effect boundaries are not runtime-proven |
 | Other source-only gates | **PARTIAL** | Source evidence is retained as advisory until a real runtime proof is recorded |
 
+## Latest CI Repair Checkpoint — 2026-07-15
+
+Commit `384ab660375d62f92d6c74629eea1416a9d906b4` is synchronized with
+`origin/master`. Its cross-platform path/timeout repair passed CodeQL,
+dependency audit, frontend, and all Ubuntu/macOS/Windows backend jobs in run
+`29433023004`; only the release-authority Docker proof failed, with
+`docker compose exec` killed by exit `137` before pytest output. The repair now
+keeps only the lightweight private executor resident, runs the control-plane
+integration test in a one-shot Compose container, waits for executor health,
+prints container diagnostics, and supplies the required workspace-root variable
+to teardown. Focused local release/integration tests pass `14 passed, 3 skipped`;
+the remote verification run is pending, so the packaged isolation gate remains
+**PARTIAL** until that job is green.
+
 ## New Directive Roadmap (post-save)
 
 - Remaining roadmap follows `docs/architecture/MASTER_CONVERGENCE_DIRECTIVE.md`.

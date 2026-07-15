@@ -229,6 +229,24 @@ consolidation and semantic-indexer dependencies, and an AST guard for
 legacy-store construction seams.
 The frozen security spine is untouched.
 
+## Active CI Repair Checkpoint — 2026-07-15
+
+`384ab660375d62f92d6c74629eea1416a9d906b4` is pushed to `origin/master`.
+Its source, architecture, secret-scan, Ruff, frontend, and Ubuntu/macOS/Windows
+backend gates passed, but release-authority run `29433023004` was red only
+because `docker compose exec` was killed with exit `137` before pytest output;
+teardown also lacked `AIOS_EXECUTOR_HOST_WORKSPACE_ROOT`. The focused local
+release/integration gate for the workflow repair is `14 passed, 3 skipped` and
+Compose config passes. The current workflow runs only the lightweight executor
+resident and executes the control-plane proof as a one-shot Compose container.
+
+**Single next action:** commit and push this workflow repair, then verify the
+fresh GitHub Actions run is green, including `release-authority`.
+
+**Open blockers:** no source blocker; final remote CI evidence is pending.
+The local Docker daemon did not complete this ML-heavy image startup within
+the bounded reproduction window, so it is not release evidence.
+
 **Verification Evidence:** Exact-capability core `15 passed`; exact approval
 resume matrix `20 passed`; API generate/terminal/execute gate passed; API gap
 gate passed; ActionBroker/approval/release conformance gate passed; R1 focused
