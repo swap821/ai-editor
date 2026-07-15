@@ -24,33 +24,35 @@ from pydantic import BaseModel, Field
 import aios
 from aios import config
 from aios.api.deps import (
-    get_approval_store,
+    get_capability_authority,
     get_autonomy,
     get_development_tracker,
+    get_memory_authority,
     get_policy_kernel,
+    require_privileged_operator,
 )
-from aios.core.approvals import ApprovalStore
+from aios.application.capabilities.authority import CapabilityAuthority
 from aios.core.autonomy import AutonomyLedger
+from aios.domain.identity.models import Principal
 from aios.core.metrics import CONTENT_TYPE_LATEST, generate_latest, get_collector
 from aios.logging_config import get_logger
 from aios.memory.db import get_connection
 from aios.memory.development import DevelopmentTracker
-from aios.memory.episodic import EpisodicMemory
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 from aios.bootstrap import run_bootstrap
 from aios.security.gateway import classify
+from aios.api.action_guard import enforce_action_boundary
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 
 #: Process-wide metrics collector (get_collector() returns the module singleton
 #: from aios.core.metrics, so this is the SAME object main's middleware uses).
 _METRICS = get_collector()
 
-#: Stateless DB wrapper over the shared episodic store (same DB as main's
-#: ``_EPISODIC``; every call opens a fresh connection).
-_EPISODIC = EpisodicMemory()
+#: Authority-owned episodic facade over the shared chronological store.
+_EPISODIC = get_memory_authority().adapters["episodic"]
 
 
 # --------------------------------------------------------------------------- #
@@ -136,13 +138,18 @@ def bootstrap_status() -> BootstrapResponse:
 @router.get("/metrics")
 def metrics(
     tracker: DevelopmentTracker = Depends(get_development_tracker),
-    approvals: ApprovalStore = Depends(get_approval_store),
+    capabilities: CapabilityAuthority = Depends(get_capability_authority),
     autonomy: AutonomyLedger = Depends(get_autonomy),
+    authority: Any = Depends(get_memory_authority),
 ) -> Response:
     """Prometheus scrapable operational metrics."""
+    if authority.owns_store("development", tracker):
+        tracker_metrics = authority.development_summary()
+    else:
+        tracker_metrics = tracker.summary()
     _METRICS.update(
-        tracker.summary(),
-        approvals.grant_count(),
+        tracker_metrics,
+        capabilities.consumed_count(),
         autonomy.earned_count(),
         audit_db_path=config.AUDIT_DB_PATH,
     )
@@ -180,14 +187,9 @@ def intent_preview(req: IntentPreviewRequest) -> IntentPreviewResponse:
 # --------------------------------------------------------------------------- #
 # Onboarding milestones
 # --------------------------------------------------------------------------- #
-def _has_any_approval_grant(store: ApprovalStore) -> bool:
-    """True if any approval has ever been redeemed (cross-session)."""
-    if store.db_path is not None:
-        with store._connect() as conn:
-            row = conn.execute("SELECT COUNT(*) AS n FROM approval_grants").fetchone()
-            return int(row["n"]) > 0
-    with store._lock:
-        return any(store._grants.values())
+def _has_any_approval_grant(authority: CapabilityAuthority) -> bool:
+    """True if any exact capability has ever been consumed (cross-session)."""
+    return authority.has_any_grant()
 
 
 def _has_verified_success() -> bool:
@@ -217,14 +219,14 @@ def _has_cloud_route() -> bool:
 
 @router.get("/api/v1/onboarding/state")
 def onboarding_state(
-    approvals: ApprovalStore = Depends(get_approval_store),
+    capabilities: CapabilityAuthority = Depends(get_capability_authority),
     autonomy: AutonomyLedger = Depends(get_autonomy),
 ) -> OnboardingStateResponse:
     """Return which first-run milestones have been reached."""
     ledger = autonomy.ledger_map()
     return OnboardingStateResponse(
         firstDirective=_EPISODIC.count(None) > 0,
-        firstApproval=_has_any_approval_grant(approvals),
+        firstApproval=_has_any_approval_grant(capabilities),
         firstVerify=_has_verified_success(),
         firstCloudRoute=_has_cloud_route(),
         firstAutonomy=ledger["summary"]["earned"] > 0,
@@ -323,7 +325,10 @@ def get_runtime_profile() -> dict[str, Any]:
 
 
 @router.post("/api/v1/system/config")
-def set_system_config(req: SystemConfigRequest) -> dict[str, Any]:
+def set_system_config(
+    req: SystemConfigRequest,
+    principal: Principal = Depends(require_privileged_operator),
+) -> dict[str, Any]:
     """Persist operator settings to disk, ignoring env-hardcoded overrides."""
     current = get_system_config()
     payload = req.model_dump()
@@ -335,7 +340,7 @@ def set_system_config(req: SystemConfigRequest) -> dict[str, Any]:
         payload["autonomy"] = current["autonomy"]
         
     _SETTINGS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    log_action("operator", f"updated system config: {payload}", "YELLOW")
+    log_action(principal.principal_id, f"updated system config: {payload}", "YELLOW")
     return {"status": "saved", **payload}
 
 
@@ -375,7 +380,10 @@ def _reexec_after_delay(delay_seconds: float) -> None:
 
 
 @router.post("/api/v1/system/restart")
-def restart_system(req: SystemRestartRequest) -> dict[str, Any]:
+def restart_system(
+    req: SystemRestartRequest,
+    principal: Principal = Depends(require_privileged_operator),
+) -> dict[str, Any]:
     """Restart the live backend process.
 
     Fail-closed on the confirmation flag (ConstitutionEnforcer.check_command
@@ -389,6 +397,6 @@ def restart_system(req: SystemRestartRequest) -> dict[str, Any]:
     if not req.confirm:
         raise HTTPException(status_code=422, detail="confirm must be true to restart the server")
 
-    log_action("operator", "restarting server process (self-exec)", "RED")
+    log_action(principal.principal_id, "restarting server process (self-exec)", "RED")
     threading.Thread(target=_reexec_after_delay, args=(0.5,), daemon=True).start()
     return {"status": "restarting", "etaSeconds": 0.5}

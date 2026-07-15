@@ -395,6 +395,137 @@ GAGOS is an **alpha research prototype** under active architectural convergence.
 
 The repository already contains unusually deep working substrates, but not every subsystem has yet converged into one production-grade causal spine.
 
+### v1 release truth
+
+Use `gagos v1-check --json` or `gagos v1-check --strict` for the executable
+release declaration. Each blocking gate reports both `source_present` and
+`runtime_proven`; source presence alone never counts as production readiness.
+
+On the current `5e73a37` baseline, durable Human Sovereign identity is now
+`PARTIAL` (source and hermetic authority proof exist; production runtime proof
+is unavailable), while exact capabilities are now `PARTIAL`: the server-issued
+exact-capability core and hermetic route proof exist, and production approval
+issuance is migrated; the legacy ApprovalStore compatibility adapter remains
+outside the production dependency graph, while the production ActionBroker
+now fronts the exact command/approval/rollback family and the universal
+pre-dispatch guard covers ordinary mutating routes. Runtime proof remains open.
+The isolated Executor Service,
+PromotionAuthority, EmergencyStopController, and TurnCoordinator are
+`PARTIAL` until their production wiring has real runtime proof. The strict
+check must remain non-zero until those blockers are resolved by the Human
+Sovereign and verified through the required runtime evidence.
+
+The R0 executable-truth reset and R1 HTTP trust-boundary repair are now
+self-verified in this checkout. Browser mutations require a validated session,
+exact Origin, and matching CSRF proof; privileged routes ignore JSON body
+session identifiers; and untrusted proxy/Host/Origin claims are rejected.
+These repairs do not change the blocked/partial release status without the
+required production runtime evidence.
+
+R2 now has a durable single-operator identity with device records, bounded
+authentication events, one-time local enrollment material, hashed-only
+credential storage, opaque sessions, rotation, revocation, and strong
+re-authentication for privileged routes. Anonymous local sessions and
+caller-supplied authority fields are not treated as operator authority. R3 now
+adds complete capability binding, canonical digests, server-owned replay payloads,
+durable same-session grant cursors, atomic one-use/revocation, and ActionBroker
+payload/route/method checks. R4 adds the complete immutable ActionEnvelope fields,
+fail-closed unknown-route/action/version checks, and a universal
+`ActionEnvelope -> PolicyKernel -> ActionBroker` dependency before ordinary
+mutating handlers. Generate, terminal, execute, rollback, and Council rollback
+now issue exact capabilities; RED routes are refused before side effects and
+YELLOW routes challenge with exact capabilities. Full packaged runtime
+authority proof remains open. R5 is verified at its declared boundary:
+`/api/v1/chat` and
+`/api/generate` enter the registered `TurnCoordinator` handler spine,
+mission/governance mode is explicit request metadata rather than an
+unconditional route default, and both conversational and generation pipelines
+are now application-owned. Focused handler and full backend gates are green;
+a real isolated production-profile process proved chat/generate lifecycles,
+durable Cortex events, two exact approval pauses/resumes, no-write-before-
+approval, and final verification without leaving files behind.
+`TurnCoordinator` is verified for this wave; the overall v1 declaration remains
+partial for the other packaged authority/runtime gates.
+
+R6 now makes the SQLite mission repository authoritative for Council mission
+approval and rejection. A real Human Sovereign principal, exact consumed
+capability digest, authentication event, session, contract digest, and runtime
+contract digest are required and persisted; JSON decisions/reports are emitted
+only after the authoritative transition. Concurrent duplicate approvals,
+approval after rejection, altered contracts, synthetic approval actors, and
+unapproved execution are refused. The focused and broader R6 regression gates
+are green, including a real Council-originated worker execution. This is a
+verified wave boundary, not an overall v1 readiness claim; the strict release
+still has packaged authority and executor/recovery blockers.
+
+R7 is verified at its declared WorkerFoundry boundary: handler-less temporary
+strategies are no longer advertised by default, lifecycle observations use the
+canonical `worker.*` events with derived principal and contract context, and
+direct generation `rolePass`/`swarm` requests fail closed as experimental until
+Foundry owns them. The latest full backend gate is `3,096 passed, 5 skipped` at
+`89.22%` coverage; overall production readiness remains partial.
+
+R8 is `VERIFIED` at its declared private Executor boundary: the structured
+client validates authenticated job identity and isolation proof, production/demo
+paths refuse host or local-Docker fallback, and Compose/CI encode the
+control-plane/private-executor topology. The focused R8 gate is `119 passed,
+3 skipped`. A live source-bearing no-socket control-plane probe reached the
+private service and disposable worker, proving non-root execution, no network,
+staged-workspace confinement, bounded/truncated output, timeout refusal, and
+missing-service refusal. Overall production readiness remains partial while
+staged workspaces, evidence/promotion, memory, mirror, and emergency-control
+waves remain open.
+
+R9 is `VERIFIED` at the staged-workspace boundary. Production/demo Council
+execution now stages each enrolled project before WorkerFoundry admits a mutable
+worker; durable mission leases enforce one owner, enrollment, no symlinks, no
+path traversal, and deterministic baselines/diffs. MissionService cleans the
+stage after terminal success and retains it after failed verification for
+evidence inspection. R10 is now `VERIFIED` at the bounded
+evidence/verification/promotion/rollback boundary: EvidenceBundle binds worker
+output to its mission and environment, VerificationAuthority rejects weak or
+mismatched proof, and PromotionAuthority owns checkpoint, exact apply,
+post-promotion smoke, completion, or rollback. The R10 focused gate is `66
+passed, 1 skipped`; the latest authoritative full backend gate exits `0` with
+all tests passing at `88.94%` coverage. Overall production readiness remains
+partial while packaged identity/capability proof, memory, mirror, and
+emergency-control waves remain open.
+
+R11 is currently `PARTIAL` at the MemoryAuthority boundary. Recall events now
+carry authority-derived trust, advisory/unverified memory cannot become verified
+through event emission, episodic turn writes plus conversation restore and
+semantic chat indexing use authority adapters, production specialized recall
+uses authority adapters, and production fact/development/skill/lesson/
+reflection/consolidation/planner/compaction writes dispatch through authority
+adapters. Council lesson recall and mission-scoped append-only deliberation
+evidence also use scoped adapters. Contradiction reconciliation, supersession,
+consolidator bulk status reads, default-chat confidence calibration reads, and
+reflection lesson reads now dispatch through MemoryAuthority in the production
+path, with direct-store bypass regressions covered. Advisory pheromone
+operations, Council context, hibernation preview, and system onboarding
+episodic counts also route through authority-owned adapters. The process-wide
+working/semantic compactor facades in `aios/api/main.py`, Cortex self-model
+production wiring, consolidation and semantic-indexer dependencies, and the
+development metrics/skills/trails read routes and system metrics now use the
+authority as well, including the mirror snapshot's development and skill
+reads. Specialist dependency providers return the canonical
+facts/development/skills/lessons stores while explicit injected fakes remain
+supported. Planner, ReflectionAgent, and the authority bootstrap's
+consolidator reuse those registered stores rather than opening parallel
+production databases. Generate-pipeline facts, skills, lessons, self-model,
+and confidence-calibration reads now require authority ownership before taking
+the authority path, preserving explicit noncanonical fakes.
+The post-write affected gate
+is `340 passed, 2 skipped` across `342` collected tests. The follow-on
+planner/native-planner/compaction gate is `73 passed` across `73` collected
+tests. The focused provider/architecture/API regression is `188 passed`.
+authoritative package-wide gate exits `0` with `3,159` collected,
+`3,151 passed, 8 skipped`, `91.04%` line coverage (`21,129/23,209`), and
+`80.57%` branch coverage (`5,016/6,226`); combined coverage is `88.82%`.
+Packaged runtime proof remains open: the canonical API health process returned
+`200`, while the legacy daily-use mutation probe correctly returned `403`
+because it does not bootstrap an authenticated session and CSRF proof.
+
 | Area | Current Reality |
 |------|-----------------|
 | Deterministic security gateway | ✅ Implemented |

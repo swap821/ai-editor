@@ -1,15 +1,296 @@
 # GAGOS Sovereign Intelligence AI-OS V1.0 Convergence
 
-**Current Goal:** Resolve PR #141 review and CI issues while preserving the supervised executor contract and frozen security spine.
+**Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
+solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
-**Last Completed + Verified Step:** Pushed final PR head `d2d3a0581409538a4bfb28626ed5af87d666502c`. Executor runtime/path regressions pass locally (`41 passed` focused); GitHub CI runs `29289906482` and `29289904530` are green across backend macOS/Linux/Windows, frontend, and release-authority. CodeQL Advanced run `29289906557` and aggregate `CodeQL` check `86951059812` are green without a suppression query; the local model pack and element-level argv guard are loaded and eliminate the command-line alert.
+**Last Completed + Verified Step:** R11's Planner, ReflectionAgent, and
+MemoryConsolidator production defaults now reuse registered MemoryAuthority
+specialist stores instead of constructing parallel stores; generate-pipeline
+facts/skills/lessons/self-model and confidence-calibration reads now require
+ownership before using authority paths; explicit injected fakes remain
+compatible. The focused authority/planner/reflection gate is `89` passed before
+the follow-on ownership regressions. The package-wide gate is
+green: `3,159` collected, `3,151 passed, 8 skipped`, exit `0`, with `91.04%`
+line coverage (`21,129/23,209`) and `80.57%` branch coverage (`5,016/6,226`);
+combined coverage is `88.82%`.
+Production fact proposals,
+developmental outcomes, skill attempts/reuse, reflection lessons,
+consolidation, planner/compaction, Council lesson recall, and append-only
+Council deliberation evidence now route through MemoryAuthority adapters while
+explicit injected fakes remain compatible. R10 remains verified at the bounded
+evidence-to-promotion
+boundary: Production/demo Council execution sends staged worker output through
+EvidenceBundle, VerificationAuthority, PromotionAuthority, recovery checkpoint,
+exact apply, post-promotion smoke, and completion/rollback. R9 remains verified
+at the staged-workspace boundary, and R8 remains verified at its
+declared private Executor boundary: a live source-bearing no-socket control-
+plane probe reached the private service and disposable worker, proving UID
+65534, no network, staged-workspace confinement, bounded/truncated output,
+timeout refusal, and missing-service refusal. R7 remains verified at its
+declared WorkerFoundry boundary; the overall v1 declaration remains partial.
 
-**Current Slice:** PR #141 review hardening — executor argv/path boundaries, current-master merge, Copilot fixes, and remote CI/CodeQL verification are complete.
+R6 is now verified at its declared
+boundary. Mission approval is authoritative in the SQLite mission repository:
+the approval/rejection transition is serialized with `BEGIN IMMEDIATE`, binds a
+real Human Sovereign principal, exact consumed capability digest,
+authentication event, session, and runtime contract digest, and rejects
+synthetic/system approval actors, stale or altered contracts, duplicate
+approvals, and approval after rejection. Council origination transitions the
+mission before writing its JSON projection or scheduling the real worker; the
+worker refuses to execute an unapproved or tampered mission. R6 adversarial
+authority/concurrency proof is green, including one-winner concurrent
+approval, terminal rejection, restart durability, runtime-contract tamper
+refusal, and real Council-originated execution. R5 remains verified at its declared
+boundary. The application spine owns both production SSE pipelines:
+`ConversationTurnHandler` owns `/api/v1/chat`, and `generate_pipeline.py`
+owns `/api/generate` preparation and streaming behind `TurnCoordinator`; the
+HTTP routes only validate/build context, inject runtime dependencies, invoke
+the coordinator, and serialize the result. `turn.started` now precedes
+`route` and terminal `done`/`error` frames. R4 universal action authority is
+complete and self-verified. Immutable ActionEnvelope metadata now enters the
+method-aware PolicyKernel and production ActionBroker before every ordinary
+state-changing route dispatch; the exact streaming/approval/rollback family
+retains its bespoke broker flow. GREEN conversation/session routes remain
+compatible with local conversation cookies, YELLOW routes issue and consume
+exact capabilities, and RED routes are refused before their handlers. The
+universal route conformance test and the full backend/frontend gates are green.
+R3 provides a durable server-issued
+  exact-capability core with complete binding fields, canonical payload/resource
+digests, opaque token storage, server-owned replay payloads, durable same-session
+grant cursors, expiry, atomic single-use consumption, revocation, and a
+non-consuming complete-binding verifier. Generate, terminal, execute, both
+rollback routes, and Council rollback issue exact capabilities; ActionBroker also
+rejects altered payload, route, and method attempts before consuming its dormant
+compatibility token. The legacy ApprovalStore adapter remains outside the
+production graph; production HTTP command routes now enter the exact broker.
+R2 provides a durable single-operator
+enrollment record, generated credential/recovery material with hashed-only
+persistence, durable device and bounded authentication events, opaque
+server-side sessions, logout/revocation, strong privileged session rotation,
+and principal dependencies across the privileged mutation surface. The
+adversarial identity matrix, affected-route gate, full backend suite, backend
+coverage gate, and frontend gates passed. Kimi/Claude are unavailable; the
+operator authorized Codex to continue solo, so R0, R1, and R2 are self-verified
+for continuity but have no independent reviewer verdict.
 
-**Single Next Action:** Obtain the remaining GitHub branch-protection/review approval and merge PR #141; do not merge autonomously.
+**Current Slice:** R11 is **PARTIAL**. `MemoryAuthority` now maps recall status
+to truthful event trust, the memory route uses a valid Cortex phase, episodic
+turn writes/session restore and semantic chat indexing cross authority adapters,
+production specialized recall uses authority adapters, and production
+fact/development/skill/lesson/reflection/consolidation/planner/compaction paths
+dispatch through authority adapters. Council lesson recall and mission-scoped
+append-only deliberation evidence now use scoped authority adapters. The
+consolidator's contradiction reconciliation, supersession, and bulk status
+reads, plus default-chat confidence calibration and reflection lesson reads,
+also route through MemoryAuthority in production. Generate-pipeline facts,
+skills, lessons, self-model, and confidence calibration now require ownership
+before taking the authority path. The post-write
+affected gate is `340 passed, 2 skipped`; the follow-on
+planner/native-planner/compaction gate is `73 passed` across `73` collected
+tests; advisory pheromone query/deposit/reinforcement/decay, Council context,
+hibernation preview, and system onboarding episodic counts now use
+authority-owned adapters. The process-wide working/semantic compactor facades
+in `aios/api/main.py` are authority-owned, Cortex self-model production wiring
+reads through `MemoryAuthority`, the consolidation dependency returns the
+authority-owned service, the semantic-indexer dependency returns the
+authority-owned semantic adapter, and the development metrics/skills/trails
+and operator-model read routes, plus system metrics, now dispatch through
+MemoryAuthority when their stores are authority-owned. Planner, ReflectionAgent,
+and the authority bootstrap's consolidator now reuse registered specialist
+stores; only explicit standalone or injected-fake compatibility paths construct
+legacy stores. The focused development/architecture/authority/metrics gate is
+`40 passed`, and the focused planner/reflection/authority gate is `89 passed`.
+The package-wide gate is `3,159` collected, `3,151 passed, 8 skipped`, exit `0`,
+at `91.04%` line coverage (`21,129/23,209`) and `80.57%` branch coverage
+(`5,016/6,226`); combined coverage is `88.82%`. Packaged
+runtime-proof seams remain open. R10 is
+verified at
+the bounded evidence/verification/promotion boundary; R9 remains verified at
+the staged-workspace boundary, and R8 is verified at
+its private Executor boundary with the live no-socket proof described above.
+`StructuredExecutorClient` authenticates and validates private-service job
+responses, production/demo dependency paths refuse local host/Docker fallback,
+the worker runtime routes its production default through the private service,
+and Compose/CI contain the intended control-plane-without-Docker-socket
+topology. The focused R8 gate is `119 passed, 3 skipped`; the host-visible
+workspace mapping fixes Docker Desktop socket semantics. R1/R2/R3 and the
+overall v1 declaration remain **PARTIAL** for packaged production
+authority/runtime matrices. The active Codex builder lane is
+`gagos-v1-r2-human-sovereign`. No commit or push has been made.
 
-**Open Approvals / Blockers:** GitHub reports `mergeable=MERGEABLE` but `mergeStateStatus=BLOCKED`; all visible status checks are green. Docker Desktop is unavailable locally, so Docker-backed behavior remains CI-verified only. Local full-suite invocation timed out without a failure report; rely on the green multi-platform CI matrix for full-suite evidence.
+**Single Next Action:** Start the next bounded packaged runtime-proof probe for
+the R11 MemoryAuthority boundary with an authenticated operator session,
+exact Origin, and session-bound CSRF proof. The canonical API health probe
+reached `200`, while the legacy `tools/daily_use_probe.py` was refused at
+`/api/generate` with `403` because it does not establish that browser contract;
+do not weaken the gate or broaden into emergency-stop work.
 
-**Active Files For This Slice:** `aios/core/executor.py`, executor infrastructure validator/argv modules, `.github/codeql/extensions/gagos/executor-models/`, `.github/workflows/codeql.yml`, focused executor tests, and this continuity record.
+**Open Approvals / Blockers:**
+- Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
+  isolated real production-profile HTTP proof exist; the full packaged runtime
+  matrix remains open.
+- Exact-capability source, hermetic route/adversarial proof, and an isolated real
+  production-profile issue/consume/replay probe are green; the legacy
+  ApprovalStore compatibility adapter remains outside the production graph.
+- R4 source and full gates are green, but the complete packaged production
+  authority matrix remains open; source/test evidence is not runtime readiness.
+- R5 has application-owned conversation and generation handlers with explicit
+  mode semantics. A real isolated production-profile process proved identity/
+  session rotation, chat success/failure SSE, generate lifecycle, exact
+  approval pause/resume across two approvals, no-write-before-approval, final
+  verification, and durable Cortex sequences. The overall v1 declaration still
+  has unrelated source-present/runtime-unproven gates.
+- R6 now makes the SQLite mission repository authoritative for Human Sovereign
+  approval/rejection and places JSON decision/report files after that fact as
+  projections. The action-capability digest is consumed before the serialized
+  mission transition; cross-store capability/mission atomicity remains a
+  bounded architectural risk to revisit if R7 runtime proof exposes it.
+- R1 and the R2 identity foundation have no independent reviewer verdict; their
+  production release status remains `PARTIAL` until the required runtime
+  authority proof exists.
+- The R8 private Executor, R9 staged-workspace, and R10 bounded promotion
+  boundaries are verified. Packaged production proof for identity, exact
+  capabilities, and EmergencyStopController remains open; R14 must still ingest
+  durable runtime evidence before strict release can pass.
+- R7 has no handler-less strategy in the default Foundry registry, canonical
+  worker events are consumed by the existing worker read model, and direct
+  generation `rolePass`/`swarm` requests fail closed as experimental. This is
+  a wave-level verification, not overall production readiness.
+- The live API health process proof is green, but the existing daily-use probe
+  is stale for the current mutation boundary: `/api/generate` correctly
+  returned `403` until a valid authenticated session and CSRF proof are
+  bootstrapped. No probe artifact was written and the temporary API was stopped.
 
-**Notes Not Yet Promoted:** The final model pack uses the standard `qlpack.yml` layout and explicit `--model-packs`; the workflow includes a fail-fast local-pack resolution check. No GitHub review threads were manually replied to or resolved. The PR checkout is isolated at `C:\tmp\ai-editor-pr-review`; the cumulative dirty worktree was not modified.
+**Active Files:** R0/R1 truth surfaces and the R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11 implementation/tests
+remain unstaged. R2 added `aios/domain/identity/`, `aios/application/identity/`,
+`aios/infrastructure/identity/`, `aios/api/routes/auth.py`, the identity
+dependency providers, session persistence support, and identity route registry
+entries. R3 added `aios/domain/capabilities/`,
+`aios/application/capabilities/`, `aios/infrastructure/capabilities/`, exact
+capability providers, durable replay-chain payload/cursor support, exact
+issuance for generate, terminal, execute, both rollback routes, and Council
+rollback, plus the frontend command replay field. R4 added the complete
+ActionEnvelope binding fields, fail-closed kernel checks, the production exact
+ActionBroker provider, `aios/api/action_guard.py`, universal router/main-route
+dependencies, and adversarial RED/YELLOW/session compatibility tests. R5 added
+named `ConversationTurnHandler`, `AdvisoryTurnHandler`, `MissionTurnHandler`,
+and `GovernanceTurnHandler` registrations plus coordinator-backed application
+pipelines for `/api/v1/chat` and `/api/generate`, including generation
+preparation, capability handling, approval resume, tool/verification streaming,
+and terminal lifecycle mapping. The frozen security spine is untouched.
+R6 added the authoritative mission approval migration/repository/service,
+Council approval/rejection integration, runtime contract binding, frontend
+capability retry, and adversarial approval tests. The frozen security spine is
+untouched. R7 added the default strategy quarantine, canonical worker lifecycle
+event mapping, worker contract-context fields, fail-closed experimental
+generation selection for `rolePass`/`swarm`, and WorkerFoundry conformance
+tests. R8 added the private Executor client/service adapter, production/demo
+fail-closed runner selection, disposable-worker timeout/unavailable response
+handling, Compose/CI topology proof wiring, and executor integration tests.
+R9 made staged workspaces mandatory for production/demo Council mutation:
+`StagedWorkspaceManager` now owns mission leases, enrollment/symlink/path
+checks, baseline/diff data, and cleanup; WorkerFoundry receives only the stage,
+MissionService cleans terminal success, and failed verification retains the
+stage for evidence inspection. R10 added EvidenceBundle binding, target-aware
+VerificationAuthority checks, durable lease revalidation, production
+PromotionAuthority wiring, recovery checkpoints, exact staged apply, post-
+promotion smoke, and rollback recovery. R11 added authority-derived recall
+trust, canonical memory event phases, episodic authority adapters for turn
+writes/session restore, semantic indexing, specialized recall adapters,
+contradiction/supersession and reflection recall dispatch, advisory pheromone
+operations, authority-backed hibernation and onboarding reads, authority-owned
+working/semantic process facades, Cortex self-model access, the authority-owned
+consolidation and semantic-indexer dependencies, and an AST guard for
+legacy-store construction seams.
+The frozen security spine is untouched.
+
+**Verification Evidence:** Exact-capability core `15 passed`; exact approval
+resume matrix `20 passed`; API generate/terminal/execute gate passed; API gap
+gate passed; ActionBroker/approval/release conformance gate passed; R1 focused
+suite `47 passed`; R2 identity matrix `13 passed`; affected route/registry gate
+`196 passed, 2 skipped`; the R4 envelope/kernel/broker/route gate is green
+(`all targeted tests`); the command/exact-capability route gate is green
+(`10` tests);
+full `tests/test_api.py` is green; the API gap/routes batch is green; the
+Council/resume/core/conformance batch is green; the focused R5
+handler/chat/generate/approval/conformance gate is green with `49 passed`,
+plan-stage and telemetry files are green with `7` and `5` passed, Council
+origination is green with `8 passed`, and the latest full backend coverage
+gate exits `0` at `88.99%` above the 85% floor with no failures among the
+non-skipped tests. The R8 focused client/service,
+runtime, launcher, deployment, and release gate is `119 passed, 3 skipped`;
+Ruff check and format gates pass for the R8 paths. Compose configuration
+validates. A live source-bearing no-socket control-plane probe reached the
+private service and disposable worker and passed the full isolation contract:
+UID 65534, no network, staged workspace confinement, bounded/truncated output,
+timeout refusal, missing-service refusal, and absent control-plane Docker
+socket. The executor image was rebuilt from the locally verified
+`python:3.12-slim` digest after the Docker Hub EOF was bypassed by a local
+mirror pull.
+Frontend typecheck passed, lint is `0 errors / 123 warnings`, frontend tests
+are `598 passed` across `104` files, Vite transformed `1932` modules, texture
+canon passed, and release/declaration conformance is green. The CSS canon
+checker still reports `5` pre-existing violations in untouched workbench CSS.
+Real isolated production-profile HTTP probes passed health, enrollment, login,
+strong re-authentication/session rotation, authenticated session, exact
+capability issue, exact consume/reject, replay refusal, chat success/failure
+SSE, generate lifecycle, two exact approval pauses/resumes,
+no-write-before-approval, final verification, and durable Cortex
+`turn.started`/`route.selected`/`turn.completed` plus `turn.failed` sequences.
+The generated probe files were absent before the first pause and appeared only
+after the corresponding approvals, then were removed. R6 authority proof is
+`36 passed` in the focused mission/council batch; the broader council/action/
+release regression is `102 passed`; R7 focused proof is `39 passed`; R9
+focused proof is `59 passed, 1 skipped`; R10 focused proof is `66 passed,
+1 skipped`; R11 recall proof is `66 passed, 2 skipped`; the pheromone/
+hibernation/route/Council/architecture gate is `129 passed`; the onboarding
+and API-gap gate is green; the post-write
+affected gate is `340 passed, 2 skipped` across `342` collected tests; the
+planner/native-planner/compaction gate is `73 passed` across `73` collected
+tests. The post-semantic-provider authoritative full backend gate exited `0`
+with `3,159` tests collected, `3,151 passed, 8 skipped`, `91.04%` line
+coverage (`21,129/23,209`), and `80.57%` branch coverage (`5,016/6,226`).
+Frontend typecheck passes, lint is `0 errors / 123 warnings`
+under the 124-warning budget, and frontend tests are `598 passed` across
+`104` files.
+`python -m aios.launcher
+v1-check --json` confirms
+the executable declaration has no persistent runtime-proof input and remains
+non-ready with the other packaged authority/runtime gates still partial. This
+does not invalidate the ephemeral R5/R6 real-process probes; it records only what
+the checker can currently consume. Strict release remains intentionally
+non-zero for the remaining waves.
+
+**Notes Not Yet Promoted:** R0/R1 handoffs and the current R2 checkpoint are
+continuity records only; do not claim independent approval or production
+readiness. The R2 foundation uses generated local enrollment material rather
+than plaintext passwords. Privileged routes must not regain JSON body-session
+authorization or caller-supplied authority fields. R4 preserves this boundary:
+the test-only legacy client retry is not production auto-approval, RED routes
+remain pre-dispatch refusals, and no direct route-level capability issuance,
+approval-store access, executor authorization, or mutation bypass was restored.
+R5 is verified at its declared boundary, but this is not an overall v1 release
+claim: the strict declaration remains non-zero for the other runtime-proof
+gates and no independent reviewer verdict exists. R6 is a wave-level authority
+verification, not an overall v1 release claim; capability consumption and the
+mission transition are not one physical database transaction, so that
+cross-store boundary must remain visible during the later recovery waves. R8 is
+now runtime-proven at its declared private Executor boundary. Its host-visible
+workspace mapping is explicit because a socket-mounted Docker daemon resolves
+bind sources in the host filesystem namespace, not in the executor container
+namespace. The full ML-heavy control-plane image remains an environmental
+build-cost concern; CI still reproduces the integration test against the
+packaged control-plane image. R9 is now verified at its declared
+staged-workspace boundary. R10 is verified at its bounded
+evidence/verification/promotion/rollback boundary. R11 corrected recall trust
+semantics, migrated episodic turn/session access and semantic indexing, routed
+specialized recall plus production writes/planner/compaction through
+MemoryAuthority, added scoped Council lesson/deliberation adapters, routed
+advisory pheromone, hibernation, and onboarding reads through the authority,
+migrated the process-wide working/semantic compactor facades plus Cortex
+self-model access, bound the consolidation and semantic-indexer dependencies
+to authority-owned adapters, and migrated development metrics/skills/trails
+and operator-model reads through
+MemoryAuthority. The package-wide gate is green; the next checkpoint is the
+remaining documented compatibility seams outside those authority-owned paths.
+The frozen security spine is untouched.

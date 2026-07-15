@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from aios import config
@@ -19,8 +19,9 @@ from aios.learning.meta_loop import assess_meta_loop, collect_meta_loop_evidence
 from aios.maintenance.ecosystem_scanner import EcosystemReport, scan_environment
 from aios.maintenance.vulture_sanitation import VultureReport, scan_vulture_targets
 from aios.policy.constitution import build_constitution
+from aios.api.action_guard import enforce_action_boundary
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 
 _LAST_VULTURE_SCAN: dict[str, Any] | None = None
 _LAST_ECOSYSTEM_SCAN: dict[str, Any] | None = None

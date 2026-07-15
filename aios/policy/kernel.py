@@ -32,6 +32,7 @@ class RouteAuthority:
     body_limit_bytes: int | None = None
     action_type: ActionType = ActionType.UNKNOWN
     capability_required: Optional[str] = None
+    policy_version: str = "v1"
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,21 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # ------------------------------------------------------------------ #
     "/api/v1/auth/session": RouteAuthority(
         "GREEN", 60, "public", audit_event="auth_session", action_type=ActionType.AUTH_SESSION_CREATE
+    ),
+    "/api/v1/auth/enroll": RouteAuthority(
+        # Bootstrap is already one-time and identity-gated inside the
+        # enrollment service; no existing Human Sovereign exists yet from
+        # which an exact capability could be issued.
+        "GREEN", 3, "public", audit_event="auth_operator_enroll", action_type=ActionType.AUTH_OPERATOR_ENROLL
+    ),
+    "/api/v1/auth/login": RouteAuthority(
+        "GREEN", 10, "public", audit_event="auth_operator_login", action_type=ActionType.AUTH_OPERATOR_LOGIN
+    ),
+    "/api/v1/auth/reauth": RouteAuthority(
+        # The credential itself is the authentication proof and the handler
+        # rotates the session; requiring a pre-existing capability here would
+        # make the privileged authentication bootstrap circular.
+        "GREEN", 10, "session", audit_event="auth_operator_reauth", action_type=ActionType.AUTH_OPERATOR_REAUTH
     ),
     # ------------------------------------------------------------------ #
     # Council
@@ -457,7 +473,7 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "GREEN", 120, "session", audit_event="generate", action_type=ActionType.GENERATE
     ),
     "/api/terminal": RouteAuthority(
-        "YELLOW", 20, "session", audit_event="terminal_command", action_type=ActionType.TERMINAL
+        "YELLOW", 20, "session", audit_event="terminal_command", action_type=ActionType.COMMAND
     ),
     "/api/v1/memory/compact": RouteAuthority(
         "YELLOW",
@@ -465,6 +481,25 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "server-session",
         audit_event="memory_compact",
         action_type=ActionType.MEMORY_COMPACT,
+    ),
+}
+
+# A path can expose more than one HTTP mutation.  Keep the path registry as
+# the public route metadata surface, but make the method-specific authority
+# explicit wherever the same path has different actions.  In particular,
+# ``/auth/session`` is session creation on POST and session destruction on
+# DELETE; treating DELETE as the POST action would make the envelope lie about
+# the mutation it is authorising.
+_METHOD_ROUTE_AUTHORITY: dict[tuple[str, str], RouteAuthority] = {
+    (
+        "DELETE",
+        "/api/v1/auth/session",
+    ): RouteAuthority(
+        "GREEN",
+        60,
+        "public",
+        audit_event="auth_session_destroy",
+        action_type=ActionType.AUTH_SESSION_DESTROY,
     ),
 }
 
@@ -496,7 +531,15 @@ class PolicyKernel:
         self.autonomy = autonomy_ledger or AutonomyLedger()
         self.constitution = constitution or build_constitution()
         self._route_table = _ROUTE_AUTHORITY
-        self._fallback = RouteAuthority("GREEN", 120, "public", audit_event="")
+        # Unknown routes are never allowed to inherit a permissive policy.
+        self._fallback = RouteAuthority(
+            "RED",
+            0,
+            "unknown",
+            confirm_required=True,
+            audit_event="policy_unknown_route",
+            action_type=ActionType.UNKNOWN,
+        )
         self._endpoint_hits: dict[str, list[tuple[str, float]]] = {}
         self._endpoint_hits_lock = threading.Lock()
         self._window_s = 60.0
@@ -515,8 +558,12 @@ class PolicyKernel:
     def endpoint_hits(self) -> dict[str, list[tuple[str, float]]]:
         return self._endpoint_hits
 
-    def route_authority(self, path: str) -> RouteAuthority:
-        """Return authority metadata for a route path (GREEN default)."""
+    def route_authority(self, path: str, method: str | None = None) -> RouteAuthority:
+        """Return method-aware authority metadata, failing closed when unknown."""
+        if method:
+            method_authority = _METHOD_ROUTE_AUTHORITY.get((method.upper(), path))
+            if method_authority is not None:
+                return method_authority
         exact = self._route_table.get(path)
         if exact is not None:
             return exact
@@ -624,7 +671,9 @@ class PolicyKernel:
     # ------------------------------------------------------------------ #
     # Deterministic ActionEnvelope -> PolicyDecision authority
     # ------------------------------------------------------------------ #
-    def decide(self, envelope: ActionEnvelope) -> PolicyDecision:
+    def decide(
+        self, envelope: ActionEnvelope, *, check_rate_limit: bool = True
+    ) -> PolicyDecision:
         """Return a deterministic PolicyDecision for an ActionEnvelope.
 
         Commands are evaluated through the frozen security gateway (via
@@ -632,20 +681,60 @@ class PolicyKernel:
         route registry. Rate limits are enforced before any classification.
         """
         route = envelope.route
-        authority = self.route_authority(route)
+        authority = self.route_authority(route, envelope.http_method)
         audit_event = authority.audit_event or "action_evaluated"
 
-        try:
-            self.check_endpoint_rate_limit(route, envelope.principal.client_ip)
-        except HTTPException as exc:
+        if authority.action_type is ActionType.UNKNOWN:
             return PolicyDecision(
                 envelope_id=envelope.action_id,
                 route=route,
                 blocked=True,
                 zone=Zone.RED,
-                reason=f"rate limited: {exc.detail}",
-                audit_event="rate_limit",
+                reason=f"unknown route {route} is blocked by policy",
+                audit_event=audit_event,
             )
+
+        if envelope.action_type is not authority.action_type:
+            return PolicyDecision(
+                envelope_id=envelope.action_id,
+                route=route,
+                blocked=True,
+                zone=Zone.RED,
+                reason=(
+                    f"route {route} requires action type "
+                    f"{authority.action_type.value}, got {envelope.action_type.value}"
+                ),
+                audit_event="policy_action_type_mismatch",
+            )
+
+        if envelope.policy_version != authority.policy_version:
+            return PolicyDecision(
+                envelope_id=envelope.action_id,
+                route=route,
+                blocked=True,
+                zone=Zone.RED,
+                reason=(
+                    f"route {route} requires policy version {authority.policy_version}, "
+                    f"got {envelope.policy_version}"
+                ),
+                audit_event="policy_version_mismatch",
+            )
+
+        if check_rate_limit:
+            try:
+                self.check_endpoint_rate_limit(
+                    self.rate_limited_route_path(route) or route,
+                    envelope.principal.client_ip,
+                )
+            except HTTPException as exc:
+                return PolicyDecision(
+                    envelope_id=envelope.action_id,
+                    route=route,
+                    blocked=True,
+                    zone=Zone.RED,
+                    reason=f"rate limited: {exc.detail}",
+                    audit_event="rate_limit",
+                )
 
         if envelope.action_type is ActionType.COMMAND:
             command = str(envelope.payload.get("command", ""))
@@ -843,9 +932,18 @@ class PolicyKernel:
     def build_approved_runner(self) -> Optional[Any]:
         """Build the configured runner for human-approved arbitrary commands.
 
-        Imported lazily so the policy kernel does not depend on the execution
-        surface at module-load time.
+        Production and demo profiles cross the private Executor Service.  The
+        legacy local Docker/host adapter remains available only to development
+        and test profiles; it is never constructed by a production control
+        plane.
         """
+        profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+        if profile in {"production", "demo"}:
+            from aios.application.executor.service import (
+                private_executor_runner_from_config,
+            )
+
+            return private_executor_runner_from_config()
         from aios.core.executor import approved_runner_from_config
 
         return approved_runner_from_config()
@@ -856,6 +954,14 @@ class PolicyKernel:
         Returns a warning string (host mode / unavailable container) or ``None``
         when the container backend is ready. Raises for an unknown backend.
         """
+        profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+        if profile in {"production", "demo"}:
+            if not config.EXECUTOR_URL or not config.EXECUTOR_TOKEN:
+                return (
+                    "private Executor Service is not configured; approved and "
+                    "worker execution will FAIL CLOSED"
+                )
+            return None
         from aios.core.executor import validate_approved_execution_backend
 
         return validate_approved_execution_backend()

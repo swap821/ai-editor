@@ -118,3 +118,44 @@ def test_control_plane_image_has_non_root_default_and_executor_owns_socket() -> 
 
 def test_release_source_scan_is_clean() -> None:
     assert scan() == ()
+
+
+def test_r3_migrated_routes_do_not_issue_legacy_approval_tokens() -> None:
+    for relative in (
+        "aios/api/main.py",
+        "aios/api/routes/actions.py",
+        "aios/api/routes/council.py",
+    ):
+        source = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        assert "approvals.issue(" not in source, relative
+        assert "approval_store.issue(" not in source, relative
+        assert "LegacyApprovalAdapter" not in source, relative
+        assert "approvals.redeem(" not in source, relative
+        assert "approvals.consume(" not in source, relative
+
+
+def test_action_broker_uses_exact_capability_authority_in_production() -> None:
+    source = (REPO_ROOT / "aios" / "application" / "action_broker.py").read_text(
+        encoding="utf-8"
+    )
+    assert "CapabilityAuthority" in source
+    assert "capabilities.issue" in source
+    assert "capabilities.consume" in source
+    assert "legacy test adapter" in source
+    assert "from aios.core.approvals" not in source
+
+
+def test_convergence_ledger_uses_truthful_status_taxonomy() -> None:
+    ledger = (
+        REPO_ROOT / ".aios" / "state" / "PRODUCTION_CONVERGENCE_LEDGER.md"
+    ).read_text(encoding="utf-8")
+
+    assert "**DONE**" not in ledger
+    for status in ("VERIFIED", "PARTIAL", "DORMANT", "BLOCKED"):
+        assert status in ledger
+    assert "Real Human Sovereign principal | **PARTIAL**" in ledger
+    assert "Exact capabilities | **PARTIAL**" in ledger
+    assert "TurnCoordinator | **VERIFIED**" in ledger
+    assert "PromotionAuthority | **PARTIAL**" in ledger
+    assert "EmergencyStopController | **PARTIAL**" in ledger
+    assert "Isolated Executor Service | **PARTIAL**" in ledger

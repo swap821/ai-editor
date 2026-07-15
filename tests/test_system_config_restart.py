@@ -67,13 +67,13 @@ def test_post_system_config_rejects_missing_fields(client) -> None:
 
 def test_restart_requires_explicit_confirm(client) -> None:
     resp = client.post("/api/v1/system/restart", json={"confirm": False})
-    assert resp.status_code == 422
+    assert resp.status_code == 403
 
     resp2 = client.post("/api/v1/system/restart", json={})
-    assert resp2.status_code == 422
+    assert resp2.status_code == 403
 
 
-def test_restart_confirmed_schedules_reexec_without_blocking_response(client, monkeypatch) -> None:
+def test_restart_is_blocked_before_reexec(client, monkeypatch) -> None:
     calls = []
     monkeypatch.setattr(
         "aios.api.routes.system._reexec_after_delay",
@@ -82,16 +82,8 @@ def test_restart_confirmed_schedules_reexec_without_blocking_response(client, mo
 
     resp = client.post("/api/v1/system/restart", json={"confirm": True})
 
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "restarting"
-    # The background thread races the test process; give it a moment.
-    import time
-
-    for _ in range(20):
-        if calls:
-            break
-        time.sleep(0.05)
-    assert calls, "expected the restart thread to invoke _reexec_after_delay"
+    assert resp.status_code == 403
+    assert calls == []
 
 
 def test_reexec_argv_reconstruction_is_actually_importable(monkeypatch) -> None:

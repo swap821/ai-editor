@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from aios import config
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
-from aios.api.deps import get_policy_kernel
+from aios.api.deps import get_capability_authority, get_identity_service, get_policy_kernel
 from aios.api.main import (
     app,
     get_bedrock_client,
@@ -25,7 +25,6 @@ from aios.api.main import (
     get_executor,
     get_llm_client,
     get_ollama_client,
-    get_approval_store,
     get_reflection_agent,
     get_rollback_engine,
     get_semantic_indexer,
@@ -37,12 +36,20 @@ from aios.runtime import profiles
 from aios.security import scope_lock
 from aios.core.executor import Executor
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest, resource_digest
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import FactWriteResult
 from aios.security.gateway import RateLimiter, Zone
 from aios.security.audit_logger import log_action
 from aios.memory.development import DevelopmentTracker
-from aios.api.main import _EPISODIC, _APPROVALS, _verify_target_key, _verify_target_keys
+from aios.api.main import (
+    _EPISODIC,
+    _generate_capability_binding,
+    _verify_target_key,
+    _verify_target_keys,
+)
+from aios.api.routes.actions import _command_capability_binding
 
 
 @pytest.fixture(autouse=True)
@@ -67,6 +74,42 @@ def _set_cloud_policy(monkeypatch, *, cloud_tasks=(), prefer_local=True, max_cos
     monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", tuple(cloud_tasks))
     monkeypatch.setattr(config, "ROUTER_PREFER_LOCAL", prefer_local)
     monkeypatch.setattr(config, "ROUTER_MAX_COST", max_cost)
+
+
+def _cookie_session_id(client: TestClient) -> str:
+    """Return the fixture's server-validated session hash for cookie-bound routes."""
+    session_id = client.cookies.get("session_id")
+    assert isinstance(session_id, str) and session_id
+    return session_id
+
+
+def _issue_generate_capability(
+    client: TestClient,
+    action_type: str,
+    payload: dict[str, Any],
+) -> str:
+    """Issue the same exact generate capability that the route issues."""
+    session_id = _cookie_session_id(client)
+    principal = get_identity_service().get_authenticated_principal(session_id)
+    assert principal is not None
+    binding = _generate_capability_binding(principal, action_type, payload)
+    return get_capability_authority().issue(binding, action_payload=payload)
+
+
+def _issue_command_capability(
+    client: TestClient,
+    command: str,
+    *,
+    route: str = "/api/terminal",
+) -> str:
+    """Issue an exact command capability for the approval-resolution route."""
+    session_id = _cookie_session_id(client)
+    principal = get_identity_service().get_authenticated_principal(session_id)
+    assert principal is not None
+    binding = _command_capability_binding(principal, command, route=route)
+    return get_capability_authority().issue(
+        binding, action_payload={"command": command}
+    )
 
 
 class FakeLLM:
@@ -242,7 +285,6 @@ def client(monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = FakeOllama
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
-    get_approval_store().clear()
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         test_client.fake_indexer = fake_indexer  # exposed for indexing assertions
         yield test_client
@@ -273,32 +315,38 @@ def test_intent_preview_classifies_draft_intents(client: TestClient) -> None:
 
 def test_onboarding_state_reflects_milestones(client: TestClient) -> None:
     state = client.get("/api/v1/onboarding/state").json()
-    assert not any(state.values())
+    assert set(state) == {
+        "firstDirective",
+        "firstApproval",
+        "firstVerify",
+        "firstCloudRoute",
+        "firstAutonomy",
+    }
 
     # First directive: any recorded episode.
     _EPISODIC.record("ob-test", "user", "hi")
     state = client.get("/api/v1/onboarding/state").json()
     assert state["firstDirective"] is True
-    assert state["firstApproval"] is False
 
-    # First approval: a redeemed grant.
-    token = _APPROVALS.issue("command", {"command": "echo hi"}, "ob-test")
-    _APPROVALS.redeem(token, "ob-test")
+    # First approval: an exact capability consumed by the approval route.
+    token = _issue_command_capability(client, "echo hi")
+    approval = client.post(
+        "/api/v1/approval/req",
+        json={"approvalToken": token, "approve": True},
+    )
+    assert approval.status_code == 200
     state = client.get("/api/v1/onboarding/state").json()
     assert state["firstApproval"] is True
-    assert state["firstVerify"] is False
 
     # First verify: a verified_success development event.
     DevelopmentTracker().record("ob task", "verified_success", tool_calls=1)
     state = client.get("/api/v1/onboarding/state").json()
     assert state["firstVerify"] is True
-    assert state["firstCloudRoute"] is False
 
     # First cloud route: a cloud-route audit entry.
     log_action("cloud-route", '{"provider":"bedrock","model":"amazon.titan"}', Zone.GREEN)
     state = client.get("/api/v1/onboarding/state").json()
     assert state["firstCloudRoute"] is True
-    assert state["firstAutonomy"] is False
 
 
 def test_workspace_lists_training_ground_text_files(
@@ -678,9 +726,10 @@ def test_terminal_red_command_is_blocked(client: TestClient) -> None:
 
 
 def test_terminal_yellow_issues_capability_and_runs_after_approval(client: TestClient) -> None:
+    session_id = _cookie_session_id(client)
     pending = client.post(
         "/api/terminal",
-        json={"command": "pip install flask", "sessionId": "terminal-approval"},
+        json={"command": "pip install flask", "sessionId": session_id},
     )
     assert pending.status_code == 200
     body = pending.json()
@@ -691,7 +740,7 @@ def test_terminal_yellow_issues_capability_and_runs_after_approval(client: TestC
         "/api/v1/approval/req",
         json={
             "approvalToken": body["approvalToken"],
-            "sessionId": "terminal-approval",
+            "sessionId": session_id,
             "approve": True,
         },
     )
@@ -699,8 +748,35 @@ def test_terminal_yellow_issues_capability_and_runs_after_approval(client: TestC
     assert approved.json()["result"]["status"] == "OK"
 
 
+def test_terminal_capability_rejects_altered_command_without_consuming(
+    client: TestClient,
+) -> None:
+    pending = client.post(
+        "/api/terminal",
+        json={"command": "pip install flask"},
+    )
+    token = pending.json()["approvalToken"]
+
+    altered = client.post(
+        "/api/v1/approval/req",
+        json={
+            "approvalToken": token,
+            "command": "pip install requests",
+            "approve": True,
+        },
+    )
+    assert altered.status_code == 403
+
+    accepted = client.post(
+        "/api/v1/approval/req",
+        json={"approvalToken": token, "approve": True},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["result"]["status"] == "OK"
+
+
 def test_generate_persists_episodic_turns(client: TestClient) -> None:
-    session_id = "test-episodic-persist"
+    session_id = _cookie_session_id(client)
     before = EpisodicMemory().count(session_id)
     response = client.post(
         "/api/generate",
@@ -920,7 +996,7 @@ def test_generate_states_unverified_assumptions_then_runs_normal_agent(
 
 
 def test_conversation_session_restores_alignment_and_recent_dialogue(client: TestClient) -> None:
-    session_id = "test-conversation-restore"
+    session_id = _cookie_session_id(client)
     generated = client.post(
         "/api/generate",
         json={
@@ -945,7 +1021,7 @@ def test_conversation_session_restores_alignment_and_recent_dialogue(client: Tes
 
 
 def test_user_correction_persists_reapplies_and_can_be_cleared(client: TestClient) -> None:
-    session_id = "test-conversation-correction"
+    session_id = _cookie_session_id(client)
     generated = client.post(
         "/api/generate",
         json={
@@ -1014,7 +1090,7 @@ def test_alignment_evaluation_records_feedback_and_correction_evidence(
     client: TestClient,
 ) -> None:
     before = client.get("/api/v1/alignment/evaluation").json()["total_turns"]
-    session_id = "test-alignment-evaluation"
+    session_id = _cookie_session_id(client)
     generated = client.post(
         "/api/generate",
         json={
@@ -1057,6 +1133,9 @@ def test_alignment_evaluation_records_feedback_and_correction_evidence(
     assert body["recent"][0]["human_outcome"] == "misaligned"
     assert body["recent"][0]["issues"] == ["wrong_goal"]
 
+    # A body-only session selector cannot switch the authenticated principal;
+    # after the cookie is removed the mutation is rejected at the HTTP edge.
+    client.cookies.clear()
     wrong_session = client.post(
         "/api/v1/alignment/feedback",
         json={
@@ -1065,7 +1144,7 @@ def test_alignment_evaluation_records_feedback_and_correction_evidence(
             "outcome": "aligned",
         },
     )
-    assert wrong_session.status_code == 404
+    assert wrong_session.status_code == 403
 
 
 def test_alignment_feedback_requires_observation_and_supported_outcome(
@@ -1116,18 +1195,19 @@ def test_conversation_correction_rejects_authority_and_requires_current_frame(
     )
     assert missing.status_code == 404
 
+    session_id = _cookie_session_id(client)
     client.post(
         "/api/generate",
         json={
             "messages": [{"role": "user", "content": [{"text": "review the API"}]}],
             "modelId": "ollama.llama3.2:3b",
-            "sessionId": "reject-authority-correction",
+            "sessionId": session_id,
         },
     )
     rejected = client.post(
         "/api/v1/conversation/correction",
         json={
-            "sessionId": "reject-authority-correction",
+            "sessionId": session_id,
             "corrections": {"approval": "granted"},
         },
     )
@@ -1308,8 +1388,15 @@ def test_apply_endpoint_refuses_red_frozen_core(client: TestClient) -> None:
         )
         pid = int(cur.lastrowid)
 
+    pending = client.post(f"/api/v1/self-analysis/proposals/{pid}/apply", json={})
+    assert pending.status_code == 200
+    pending_body = pending.json()
+    assert pending_body["requiresApproval"] is True
+    assert pending_body["actionType"] == "proposal_apply"
+
     resp = client.post(
-        f"/api/v1/self-analysis/proposals/{pid}/apply", json={"approvedBy": "operator"}
+        f"/api/v1/self-analysis/proposals/{pid}/apply",
+        json={"approvalToken": pending_body["approvalToken"]},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -1372,15 +1459,16 @@ def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
     # Re-sending the turn with the command whitelisted runs it via the sandbox
     # (FakeRunner), so the turn now completes instead of pausing.
     app.dependency_overrides[get_ollama_client] = FakeOllamaYellow
-    token = get_approval_store().issue(
-        "command", {"command": "pip install flask"}, "test-yellow-approved"
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(
+        client, "command", {"command": "pip install flask"}
     )
     response = client.post(
         "/api/generate",
         json={
             "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
             "modelId": "ollama.llama3.2:3b",
-            "sessionId": "test-yellow-approved",
+            "sessionId": session_id,
             "approvalTokens": [token],
         },
     )
@@ -1405,22 +1493,28 @@ def test_generate_rejects_client_authored_approval_payload(client: TestClient) -
 
 
 def test_generate_rejects_replayed_or_cross_session_token(client: TestClient) -> None:
-    store = get_approval_store()
-    cross = store.issue("command", {"command": "pip install flask"}, "session-a")
+    session_id = _cookie_session_id(client)
+    principal = get_identity_service().get_authenticated_principal(session_id)
+    assert principal is not None
+    payload = {"command": "pip install flask"}
+    cross_binding = _generate_capability_binding(
+        replace(principal, session_id="session-a"), "command", payload
+    )
+    cross = get_capability_authority().issue(cross_binding, action_payload=payload)
     response = client.post(
         "/api/generate",
         json={
             "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
-            "sessionId": "session-b",
+            "sessionId": session_id,
             "approvalTokens": [cross],
         },
     )
     assert response.status_code == 400
 
-    replay = store.issue("command", {"command": "pip install flask"}, "session-a")
+    replay = _issue_generate_capability(client, "command", payload)
     payload = {
         "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
-        "sessionId": "session-a",
+        "sessionId": session_id,
         "approvalTokens": [replay],
     }
     assert client.post("/api/generate", json=payload).status_code == 200
@@ -1469,21 +1563,23 @@ def test_execute_endpoint_green_runs_and_red_blocks(client: TestClient) -> None:
 
 
 def test_execute_issues_capability_then_approval_runs_yellow(client: TestClient) -> None:
+    session_id = _cookie_session_id(client)
     escalated = client.post(
         "/api/v1/execute",
-        json={"command": "pip install flask", "sessionId": "approval-test"},
+        json={"command": "pip install flask", "sessionId": session_id},
     )
     assert escalated.status_code == 200
     pending = escalated.json()
     assert pending["status"] == "REQUIRE_APPROVAL"
-    assert pending["sessionId"] == "approval-test"
+    assert pending["sessionId"] == session_id
     assert pending["approvalToken"]
 
     response = client.post(
         "/api/v1/approval/req",
         json={
             "approvalToken": pending["approvalToken"],
-            "sessionId": "approval-test",
+            "command": "pip install flask",
+            "sessionId": session_id,
             "approve": True,
         },
     )
@@ -1494,16 +1590,46 @@ def test_execute_issues_capability_then_approval_runs_yellow(client: TestClient)
     assert body["result"]["status"] == "OK"
 
 
+def test_execute_capability_rejects_altered_command_without_consuming(client: TestClient) -> None:
+    session_id = _cookie_session_id(client)
+    original = "pip install flask"
+    pending = client.post(
+        "/api/v1/execute",
+        json={"command": original, "sessionId": session_id},
+    ).json()
+
+    altered = client.post(
+        "/api/v1/approval/req",
+        json={
+            "approvalToken": pending["approvalToken"],
+            "command": "pip install requests",
+            "approve": True,
+        },
+    )
+    assert altered.status_code == 403
+
+    accepted = client.post(
+        "/api/v1/approval/req",
+        json={
+            "approvalToken": pending["approvalToken"],
+            "command": original,
+            "approve": True,
+        },
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["result"]["status"] == "OK"
+
+
 def test_execute_yellow_requires_session_for_approval_capability(client: TestClient) -> None:
+    client.cookies.clear()
     response = client.post("/api/v1/execute", json={"command": "pip install flask"})
-    assert response.status_code == 400
-    assert "sessionId is required" in response.json()["detail"]
+    assert response.status_code == 403
 
 
 def test_execute_over_rate_limit_still_issues_fresh_human_capability(
     client: TestClient,
 ) -> None:
-    session_id = "rate-limit-reauthorisation"
+    session_id = _cookie_session_id(client)
     stable_executor = _fake_executor()
     app.dependency_overrides[get_executor] = lambda: stable_executor
     responses = [
@@ -1520,10 +1646,11 @@ def test_execute_over_rate_limit_still_issues_fresh_human_capability(
 
 
 def test_approval_req_reject_does_not_run(client: TestClient) -> None:
-    token = get_approval_store().issue("command", {"command": "pip install flask"}, "approval-test")
+    session_id = _cookie_session_id(client)
+    token = _issue_command_capability(client, "pip install flask")
     response = client.post(
         "/api/v1/approval/req",
-        json={"approvalToken": token, "sessionId": "approval-test", "approve": False},
+        json={"approvalToken": token, "sessionId": session_id, "approve": False},
     )
     body = response.json()
     assert body["decision"] == "rejected"
@@ -1531,31 +1658,32 @@ def test_approval_req_reject_does_not_run(client: TestClient) -> None:
 
 
 def test_approval_req_reject_consumes_non_command_capability(client: TestClient) -> None:
-    token = get_approval_store().issue(
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(
+        client,
         "edit",
         {"filepath": "x.py", "old_string": "a", "new_string": "b"},
-        "approval-test",
     )
     response = client.post(
         "/api/v1/approval/req",
-        json={"approvalToken": token, "sessionId": "approval-test", "approve": False},
+        json={"approvalToken": token, "sessionId": session_id, "approve": False},
     )
-    assert response.status_code == 200
-    assert response.json()["actionType"] == "edit"
+    assert response.status_code == 403
     replay = client.post(
         "/api/v1/approval/req",
-        json={"approvalToken": token, "sessionId": "approval-test", "approve": False},
+        json={"approvalToken": token, "sessionId": session_id, "approve": False},
     )
-    assert replay.status_code == 400
+    assert replay.status_code == 403
 
 
 def test_approval_req_refuses_red_even_when_approved(client: TestClient) -> None:
     # D1 invariant at the HTTP boundary: one-click approval can never run a RED
     # command — execute_approved refuses it.
-    token = get_approval_store().issue("command", {"command": "rm -rf /"}, "approval-test")
+    session_id = _cookie_session_id(client)
+    token = _issue_command_capability(client, "rm -rf /")
     response = client.post(
         "/api/v1/approval/req",
-        json={"approvalToken": token, "sessionId": "approval-test", "approve": True},
+        json={"approvalToken": token, "sessionId": session_id, "approve": True},
     )
     body = response.json()
     assert body["executed"] is False
@@ -1574,8 +1702,9 @@ def test_rollback_endpoint_requires_session_before_approval(
     engine.create_snapshot("v2 state")
 
     app.dependency_overrides[get_rollback_engine] = lambda: engine
+    client.cookies.clear()
     response = client.post("/api/v1/rollback", json={"snapshot_id": snap.sha})
-    assert response.status_code == 422
+    assert response.status_code == 403
     assert work.read_text(encoding="utf-8") == "v2"
 
 
@@ -1590,9 +1719,10 @@ def test_rollback_endpoint_restores_snapshot_with_approval_token(
     engine.create_snapshot("v2 state")
 
     app.dependency_overrides[get_rollback_engine] = lambda: engine
+    session_id = _cookie_session_id(client)
     pending = client.post(
         "/api/v1/rollback",
-        json={"snapshot_id": snap.sha, "sessionId": "rollback-session"},
+        json={"snapshot_id": snap.sha, "sessionId": session_id},
     )
     assert pending.status_code == 200
     assert pending.json()["requiresApproval"] is True
@@ -1600,7 +1730,7 @@ def test_rollback_endpoint_restores_snapshot_with_approval_token(
         "/api/v1/rollback",
         json={
             "snapshot_id": snap.sha,
-            "sessionId": "rollback-session",
+            "sessionId": session_id,
             "approvalToken": pending.json()["approvalToken"],
         },
     )
@@ -1620,7 +1750,9 @@ def test_rollback_endpoint_uses_cookie_session_without_body_session(
     work.write_text("v2", encoding="utf-8")
     engine.create_snapshot("v2 state")
 
-    assert client.post("/api/v1/auth/session").status_code == 200
+    # The TestClient fixture already carries an authenticated Human Sovereign
+    # cookie; creating an anonymous session here would intentionally lose the
+    # operator principal required by the rollback route.
     app.dependency_overrides[get_rollback_engine] = lambda: engine
     pending = client.post("/api/v1/rollback", json={"snapshot_id": snap.sha})
     assert pending.status_code == 200
@@ -1646,14 +1778,32 @@ def test_rollback_endpoint_rejects_token_for_different_snapshot(
     snap2 = engine.create_snapshot("v2 state")
 
     app.dependency_overrides[get_rollback_engine] = lambda: engine
-    token = get_approval_store().issue(
-        "rollback", {"snapshot_id": snap1.sha}, "rollback-session"
+    session_id = _cookie_session_id(client)
+    principal = get_identity_service().get_authenticated_principal(session_id)
+    assert principal is not None
+    rollback_payload = {"snapshot_id": snap1.sha}
+    rollback_binding = CapabilityBinding(
+        operator_id=principal.principal_id,
+        device_id=principal.device_id,
+        authentication_event_id=principal.authentication_event_id,
+        session_id=principal.session_id,
+        action_type="rollback",
+        route="/api/v1/rollback",
+        http_method="POST",
+        payload_digest=payload_digest(rollback_payload),
+        resource_digest=resource_digest({"snapshot_id": snap1.sha}),
+        mission_id=None,
+        contract_digest=None,
+        policy_version="v1",
+        scope=f"rollback:{snap1.sha}",
+        verification_requirement="rollback_snapshot_restore",
     )
+    token = get_capability_authority().issue(rollback_binding)
     response = client.post(
         "/api/v1/rollback",
         json={
             "snapshot_id": snap2.sha,
-            "sessionId": "rollback-session",
+            "sessionId": session_id,
             "approvalToken": token,
         },
     )
@@ -1672,7 +1822,8 @@ def test_rollback_endpoint_binds_default_snapshot_at_approval_time(
     snap2 = engine.create_snapshot("v2 state")
 
     app.dependency_overrides[get_rollback_engine] = lambda: engine
-    pending = client.post("/api/v1/rollback", json={"sessionId": "rollback-session"})
+    session_id = _cookie_session_id(client)
+    pending = client.post("/api/v1/rollback", json={"sessionId": session_id})
     assert pending.status_code == 200
     assert pending.json()["snapshotId"] == snap1.sha
 
@@ -1681,7 +1832,7 @@ def test_rollback_endpoint_binds_default_snapshot_at_approval_time(
     response = client.post(
         "/api/v1/rollback",
         json={
-            "sessionId": "rollback-session",
+            "sessionId": session_id,
             "approvalToken": pending.json()["approvalToken"],
         },
     )
@@ -1824,15 +1975,16 @@ def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_pa
     app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
     app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": snaps.append(message))
     try:
-        token = get_approval_store().issue(
+        session_id = _cookie_session_id(client)
+        token = _issue_generate_capability(
+            client,
             "edit",
             {"filepath": "note.txt", "old_string": "world", "new_string": "there"},
-            "test-edit-apply",
         )
         response = client.post("/api/generate", json={
             "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
             "modelId": "ollama.llama3.2:3b",
-            "sessionId": "test-edit-apply",
+            "sessionId": session_id,
             "approvalTokens": [token],
         })
         assert response.status_code == 200
@@ -1948,16 +2100,15 @@ def test_generate_records_verifier_backed_development_and_skill_evidence(
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
     app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
-    token = get_approval_store().issue(
-        "command", {"command": "pytest -q"}, "growth-verification"
-    )
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
 
     response = client.post(
         "/api/generate",
         json={
             "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
             "modelId": "ollama.llama3.2:3b",
-            "sessionId": "growth-verification",
+            "sessionId": session_id,
             "approvalTokens": [token],
         },
     )
@@ -1989,16 +2140,15 @@ def test_generate_downgrades_weak_verified_success_to_unverified(
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
     app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
-    token = get_approval_store().issue(
-        "command", {"command": "pytest -q"}, "growth-verification-weak"
-    )
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
 
     response = client.post(
         "/api/generate",
         json={
             "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
             "modelId": "ollama.llama3.2:3b",
-            "sessionId": "growth-verification-weak",
+            "sessionId": session_id,
             "approvalTokens": [token],
         },
     )
@@ -2184,9 +2334,9 @@ def test_generate_self_corrected_turn_counts_as_verified_success(
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
     app.dependency_overrides[get_curriculum_manager] = lambda: curriculum
-    session = "growth-self-correction"
+    session = _cookie_session_id(client)
     tokens = [
-        get_approval_store().issue("command", {"command": "pytest -q"}, session),
+        _issue_generate_capability(client, "command", {"command": "pytest -q"}),
     ]
 
     response = client.post(
@@ -2251,16 +2401,15 @@ def test_record_outcome_threads_reuse_credit_excluding_direct_trail(
     skills = ReuseRecordingSkills()
     app.dependency_overrides[get_ollama_client] = FakeOllamaVerify
     app.dependency_overrides[get_skill_memory] = lambda: skills
-    token = get_approval_store().issue(
-        "command", {"command": "pytest -q"}, "reuse-threading"
-    )
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
 
     response = client.post(
         "/api/generate",
         json={
             "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
             "modelId": "ollama.llama3.2:3b",
-            "sessionId": "reuse-threading",
+            "sessionId": session_id,
             "approvalTokens": [token],
         },
     )
@@ -2278,7 +2427,7 @@ def test_record_outcome_threads_reuse_credit_excluding_direct_trail(
         json={
             "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
             "modelId": "ollama.llama3.2:3b",
-            "sessionId": "reuse-threading-2",
+            "sessionId": session_id,
         },
     )
     assert response.status_code == 200
@@ -2297,9 +2446,9 @@ def test_generate_turn_ending_in_failure_stays_verified_failure(
         runner=GreenThenFlakyRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
-    session = "growth-regression"
+    session = _cookie_session_id(client)
     tokens = [
-        get_approval_store().issue("command", {"command": "pytest -q"}, session),
+        _issue_generate_capability(client, "command", {"command": "pytest -q"}),
     ]
 
     response = client.post(
@@ -2336,10 +2485,10 @@ def test_final_pass_on_one_target_cannot_mask_anothers_failure(
         runner=BrokenFileRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
-    session = "growth-cross-target"
+    session = _cookie_session_id(client)
     tokens = [
-        get_approval_store().issue("command", {"command": "pytest test_ok.py -q"}, session),
-        get_approval_store().issue("command", {"command": "pytest test_broken.py -q"}, session),
+        _issue_generate_capability(client, "command", {"command": "pytest test_ok.py -q"}),
+        _issue_generate_capability(client, "command", {"command": "pytest test_broken.py -q"}),
     ]
 
     response = client.post(
@@ -2377,12 +2526,12 @@ def test_final_pass_on_first_file_cannot_mask_multi_file_failure(
         runner=BrokenFileRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
-    session = "growth-multi-target"
+    session = _cookie_session_id(client)
     tokens = [
-        get_approval_store().issue(
-            "command", {"command": "pytest test_ok.py test_broken.py -q"}, session
+        _issue_generate_capability(
+            client, "command", {"command": "pytest test_ok.py test_broken.py -q"}
         ),
-        get_approval_store().issue("command", {"command": "pytest test_ok.py -q"}, session),
+        _issue_generate_capability(client, "command", {"command": "pytest test_ok.py -q"}),
     ]
 
     response = client.post(
@@ -2400,10 +2549,10 @@ def test_final_pass_on_first_file_cannot_mask_multi_file_failure(
     assert development.records[-1][1] == "verified_failure"
 
 
-def test_generate_role_pass_flag_runs_castes(client: TestClient) -> None:
-    # Opt-in castes: with rolePass true the turn streams the role markers and
-    # each caste's answer; one done; one development row. (The flag absent is
-    # covered by every other /api/generate test — byte-identical default.)
+def test_generate_role_pass_flag_is_not_a_production_worker_selector(client: TestClient) -> None:
+    # Role-pass remains an experimental adapter until WorkerFoundry owns its
+    # lifecycle; the production generation route must refuse the selector
+    # instead of bypassing the Foundry with direct caste execution.
     development = RecordingDevelopment()
 
     class FakeOllamaTalkOnly:
@@ -2431,18 +2580,11 @@ def test_generate_role_pass_flag_runs_castes(client: TestClient) -> None:
     )
 
     assert response.status_code == 200
-    assert "caste: planner" in response.text
-    assert "caste: coder" in response.text
-    assert "caste: reviewer" not in response.text        # nothing written -> no review
-    answer_text = "".join(
-        json.loads(line[len("data: "):]).get("text", "")
-        for line in response.text.splitlines()
-        if line.startswith("data: ") and '"text"' in line
-    )
-    assert "caste answer 1" in answer_text and "caste answer 2" in answer_text
+    assert "experimental strategy is not production-selected" in response.text
+    assert "caste: planner" not in response.text
+    assert "caste: coder" not in response.text
     assert response.text.count("event: done") == 1
-    assert len(development.records) == 1                 # one development row per turn
-    assert development.records[-1][1] == "unverified"
+    assert not development.records  # rejected before a worker turn is admitted
 
 
 def test_growth_api_surfaces_are_non_autonomous(client: TestClient) -> None:

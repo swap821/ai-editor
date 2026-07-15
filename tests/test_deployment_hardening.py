@@ -13,6 +13,7 @@ Guards the top-3 fixes picked from the 2026-07-05 deployment-hardening audit:
    because the C-extension-heavy stack -- torch/faiss-cpu/numpy -- can behave
    differently across interpreter minor versions).
 """
+
 from __future__ import annotations
 
 import re
@@ -22,9 +23,11 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "Dockerfile"
+EXECUTOR_DOCKERFILE = REPO_ROOT / "Dockerfile.executor"
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 PYTHON_VERSION_FILE = REPO_ROOT / ".python-version"
+DOCKERIGNORE = REPO_ROOT / ".dockerignore"
 
 
 def _dockerfile_lines() -> list[str]:
@@ -33,6 +36,24 @@ def _dockerfile_lines() -> list[str]:
 
 def _load_compose() -> dict:
     return yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))
+
+
+def test_dockerignore_excludes_local_locked_control_artifacts() -> None:
+    """Docker builds must not archive mutable local agent/IDE directories.
+
+    These directories are not runtime inputs and can be held open by the local
+    coordination tooling. Including them makes the Windows Docker context
+    nondeterministic and can prevent the production image from building at all.
+    """
+    entries = {
+        line.strip()
+        for line in DOCKERIGNORE.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    missing = {".swarm", ".vscode", "GAG demo"} - entries
+    assert not missing, (
+        f"Docker context includes locked local artifacts: {sorted(missing)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +93,23 @@ def test_dockerfile_app_directory_writable_by_non_root_user() -> None:
     )
 
 
+def test_executor_image_uses_minimal_runtime_closure() -> None:
+    """The Docker-socket owner must not install the full ML control plane."""
+    text = EXECUTOR_DOCKERFILE.read_text(encoding="utf-8")
+    assert "requirements-executor.txt" in text
+    assert "requirements.txt" not in text
+    assert "COPY aios /app/aios" in text
+    assert "COPY . /app" not in text
+    assert "docker.io docker-cli" in text
+    assert "git docker.io" not in text
+
+
+def test_executor_image_prepares_non_root_data_directory() -> None:
+    text = EXECUTOR_DOCKERFILE.read_text(encoding="utf-8")
+    assert "mkdir -p /app/data" in text
+    assert re.search(r"chown\s+-R\s+65534:65534\s+/app", text)
+
+
 # ---------------------------------------------------------------------------
 # 2. Restart policy + resource limits in docker-compose.yml
 # ---------------------------------------------------------------------------
@@ -104,6 +142,23 @@ def test_aios_service_has_memory_and_cpu_limits() -> None:
     assert has_top_level_limits or has_deploy_limits, (
         "aios service declares no memory/CPU resource limits"
     )
+
+
+def test_only_private_executor_service_receives_docker_socket() -> None:
+    services = _load_compose()["services"]
+    aios_volumes = "\n".join(str(item) for item in services["aios"].get("volumes", []))
+    executor_volumes = "\n".join(
+        str(item) for item in services["executor"].get("volumes", [])
+    )
+    assert "docker.sock" not in aios_volumes
+    assert "docker.sock" in executor_volumes
+    executor_environment = "\n".join(
+        str(item) for item in services["executor"].get("environment", [])
+    )
+    assert "AIOS_EXECUTOR_DAEMON_WORKSPACE_ROOT" in executor_environment
+    assert "AIOS_EXECUTOR_HOST_WORKSPACE_ROOT" in executor_volumes
+    assert services["executor"]["image"] == "aios-executor:local"
+    assert services["aios"]["depends_on"]["executor"]["condition"] == "service_healthy"
 
 
 # ---------------------------------------------------------------------------

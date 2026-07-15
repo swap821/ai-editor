@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from dataclasses import replace
 
 from aios.domain.actions.envelope import ActionEnvelope, ActionType, Principal
 from aios.policy.kernel import PolicyKernel
@@ -111,12 +112,38 @@ def test_decide_templated_route(kernel):
     assert decision.zone is Zone.YELLOW
 
 
-def test_decide_unknown_route_is_green_fallback(kernel):
+def test_decide_unknown_route_is_red_and_blocked(kernel):
     envelope = ActionEnvelope(
         route="/not/registered/anywhere",
         action_type=ActionType.UNKNOWN,
         principal=Principal(session_id="sess-1"),
     )
     decision = kernel.decide(envelope)
-    assert decision.allowed
-    assert decision.zone is Zone.GREEN
+    assert decision.blocked
+    assert decision.zone is Zone.RED
+    assert "unknown route" in decision.reason.lower()
+
+
+def test_decide_registered_route_with_wrong_action_type_is_red_and_blocked(kernel):
+    envelope = ActionEnvelope(
+        route="/api/v1/plan",
+        action_type=ActionType.COMMAND,
+        principal=Principal(session_id="sess-1"),
+    )
+    decision = kernel.decide(envelope)
+    assert decision.blocked
+    assert decision.zone is Zone.RED
+    assert "action type" in decision.reason.lower()
+
+
+def test_decide_registered_route_with_wrong_policy_version_is_red_and_blocked(kernel):
+    envelope = ActionEnvelope(
+        route="/api/v1/plan",
+        action_type=ActionType.PLAN,
+        policy_version="policy:v0",
+        principal=Principal(session_id="sess-1"),
+    )
+    decision = kernel.decide(envelope)
+    assert decision.blocked
+    assert decision.zone is Zone.RED
+    assert "policy version" in decision.reason.lower()

@@ -18,7 +18,7 @@ class TurnResult:
     """
 
     context: TurnContext
-    events: AsyncIterator[dict[str, Any]]
+    events: AsyncIterator[Any]
     outcome: Optional[dict[str, Any]] = None
 
     @staticmethod

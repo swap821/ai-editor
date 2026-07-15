@@ -27,13 +27,12 @@ from aios.api.main import (
     get_ollama_client,
     get_semantic_indexer,
     get_skill_memory,
-    get_approval_store,
 )
 from aios.core.executor import Executor
 from aios.memory.skills import SkillMemory
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
-from tests.test_api import FakeIndexer, FakeLLM, RecordingAudit
+from tests.test_api import FakeIndexer, FakeLLM, RecordingAudit, _issue_generate_capability
 
 _SELF_TESTING_FILE = (
     "def add(a, b):\n"
@@ -91,7 +90,6 @@ def client(monkeypatch) -> Iterator[TestClient]:
         audit_log=RecordingAudit(),
         approved_runner=_runner,
     )
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
             test_client._skills = skills  # type: ignore[attr-defined]
@@ -105,17 +103,19 @@ def client(monkeypatch) -> Iterator[TestClient]:
 
 def test_granted_write_mints_skill_evidence(client: TestClient) -> None:
     """Approve -> grant applies -> STRONG verify -> the skill MUST record."""
-    token = get_approval_store().issue(
+    session_id = str(client.cookies.get("session_id"))
+    assert session_id and session_id != "None"
+    token = _issue_generate_capability(
+        client,
         "create",
         {"filepath": "training_ground/test_add.py", "content": _SELF_TESTING_FILE},
-        "grant-steps-session",
     )
     response = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [
             {"text": "create test_add.py with an add function and its test, then verify"}
         ]}],
         "modelId": "ollama.llama3.2:3b",
-        "sessionId": "grant-steps-session",
+        "sessionId": session_id,
         "approvalTokens": [token],
     })
     assert response.status_code == 200

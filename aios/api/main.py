@@ -18,6 +18,7 @@ Collaborators (LLM client, executor, rollback engine) are supplied via
 dependency injection so tests can override them with fakes/sandboxes and avoid
 any network, model, or host side effects.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,16 +46,25 @@ from aios import config
 from aios.logging_config import configure_logging, get_logger, session_log_key
 from aios.core.metrics import MetricsMiddleware
 from aios.agents.reflection_agent import ReflectionAgent
-from aios.agents.role_pass import run_role_pass
-from aios.agents.swarm import run_swarm
 from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
 from aios.core.executor import Executor
 from aios.core.confidence_filter import gate as confidence_gate
-from aios.core.planner import Planner, PlannerError, plan_to_prompt_block, serialize_plan
-from aios.core.events import event_for_sse, CanonicalEvent, CanonicalEventType, TrustLevel, EventPhase
+from aios.core.planner import (
+    Planner,
+    PlannerError,
+    plan_to_prompt_block,
+    serialize_plan,
+)
+from aios.core.events import (
+    event_for_sse,
+    CanonicalEvent,
+    CanonicalEventType,
+    TrustLevel,
+    EventPhase,
+)
 from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules import these from main
     get_alignment_evaluation_store,
     get_alignment_interpreter,
@@ -68,6 +78,7 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_gemini_client,
     get_llm_client,
     get_memory_consolidator,
+    get_memory_authority,
     get_mistake_memory,
     get_native_planner,
     get_ollama_client,
@@ -78,14 +89,17 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_skill_memory,
     get_swarm_pattern_memory,
     get_session_manager,
+    get_identity_service,
+    get_authenticated_principal,
+    require_privileged_operator,
     get_executor,
-    get_approval_store,
+    get_action_broker,
+    get_capability_authority,
     get_policy_kernel,
     get_rollback_engine,
     get_self_apply_engine,
     get_edit_snapshot,
     _session_id_from_request,
-    _APPROVALS,
     _RATE_LIMITER,
     _SESSION_MANAGER,
 )
@@ -96,7 +110,13 @@ from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
-from aios.application.turns import TurnContext, TurnCoordinator, TurnMode
+from aios.application.turns import (
+    RuntimeDeps,
+    TurnContext,
+    TurnCoordinator,
+    TurnMode,
+    production_handlers,
+)
 from aios.core.model_selector import TASK_FAST, infer_task
 from aios.core.router_wiring import (
     _AUTO_IDS,
@@ -110,7 +130,17 @@ from aios.core.router_wiring import (
     _router_policy,
     _select_chat_client,
 )
-from aios.core.approvals import ApprovalError, ApprovalStore
+from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
+from aios.application.action_broker import ActionBroker, PolicyBrokerError
+from aios.api.action_guard import enforce_action_boundary
+from aios.domain.actions.envelope import (
+    ActionEnvelope,
+    ActionType,
+    Principal as EnvelopePrincipal,
+)
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest, resource_digest
+from aios.domain.identity.models import Principal
 from aios.core.alignment import (
     AlignmentInterpreter,
     apply_user_corrections,
@@ -120,19 +150,17 @@ from aios.core.native_planner import NativePlanner
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.compaction import MemoryCompactor
+from aios.application.memory.adapters import MemoryCompactionAdapter
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
-from aios.memory.development import DevelopmentTracker
-from aios.memory.mistake import MistakeMemory
 from aios.memory.relevance import signature as task_signature
 from aios.memory.embeddings import VectorIndex
-from aios.memory.episodic import EpisodicMemory
 from aios.memory.fact_extraction import extract_candidates
 from aios.memory.facts import SemanticFacts
+from aios.memory.mistake import MistakeMemory
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
-from aios.memory.working import WorkingMemory
 from aios.runtime.contracts import KingReport, RunLedger
 from aios.runtime.cortex_bus import CortexBus
 from aios.runtime.cortex_bus_dispatcher import CortexBusDispatcher
@@ -185,7 +213,9 @@ async def lifespan(app: FastAPI):
                 "or when AIOS_TRUST_PROXY_HEADERS is enabled"
             )
         if len(config.API_TOKEN) < 32:
-            raise RuntimeError("AIOS_API_TOKEN must be at least 32 characters for non-loopback use")
+            raise RuntimeError(
+                "AIOS_API_TOKEN must be at least 32 characters for non-loopback use"
+            )
     backend_warning = get_policy_kernel().validate_execution_backend()
     if backend_warning:
         logger.warning("approved_execution_backend", detail=backend_warning)
@@ -219,7 +249,9 @@ async def lifespan(app: FastAPI):
             # per-turn recall path reads this handler's cache (falling back to
             # inline synthesis until the first event lands) — that is what
             # actually takes the synthesis off the hot path.
-            _self_model_handler = SelfModelHandler(DevelopmentTracker(), MistakeMemory())
+            _self_model_handler = SelfModelHandler(
+                memory_authority=get_memory_authority()
+            )
             _cortex_bus.subscribe(_self_model_handler)
             _cortex_dispatcher = _build_cortex_dispatcher(_cortex_bus)
             _cortex_dispatcher.start()
@@ -232,9 +264,13 @@ async def lifespan(app: FastAPI):
     # Boot attestation: hash the security spine and log integrity.
     try:
         from aios.boot_attestation import attest_boot
+
         attestation = attest_boot(Path(config.PROJECT_ROOT))
-        logger.info("boot_attestation", integrity=attestation["integrity"],
-                    spine_hash=attestation["hash"][:16])
+        logger.info(
+            "boot_attestation",
+            integrity=attestation["integrity"],
+            spine_hash=attestation["hash"][:16],
+        )
     except Exception as exc:  # noqa: BLE001 - never block startup
         logger.warning("boot_attestation_failed", exc_info=exc)
     yield
@@ -258,6 +294,7 @@ app = FastAPI(
 
 
 # ── Cortex bus W2 helpers ─────────────────────────────────────────────────────
+
 
 def _build_cortex_dispatcher(bus: CortexBus) -> CortexBusDispatcher:
     """Factory for the dispatcher (isolated so tests can call it directly)."""
@@ -305,6 +342,7 @@ def _append_turn_completed(
     except Exception:  # noqa: BLE001 — best-effort; never break a turn
         logger.warning("cortex_bus_append_failed", exc_info=True)
 
+
 # Browser clients (the Vite front-end) run on a different origin, so the API
 # must opt them in explicitly. Origins come from config (env-overridable).
 #
@@ -323,7 +361,13 @@ app.add_middleware(
     allow_origins=_validate_cors_origins(config.API_CORS_ORIGINS),
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-AIOS-Capability",
+        "X-Correlation-ID",
+        "X-Request-ID",
+    ],
 )
 app.add_middleware(MetricsMiddleware)
 
@@ -372,9 +416,13 @@ async def bind_request_context(request: Request, call_next):
 
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     clear_contextvars()
-    bind_contextvars(request_id=request_id, method=request.method, path=request.url.path)
+    bind_contextvars(
+        request_id=request_id, method=request.method, path=request.url.path
+    )
     try:
-        session_id = await edge_security.extract_session_id(request, allow_body_fallback=True)
+        session_id = await edge_security.extract_session_id(
+            request, allow_body_fallback=True
+        )
         if session_id:
             bind_contextvars(session_id_hash=session_log_key(session_id))
         response = await call_next(request)
@@ -389,6 +437,7 @@ async def bind_request_context(request: Request, call_next):
 #: backdoor. Tests that need unauthenticated access should use an explicit
 #: loopback client address.
 _LOOPBACK_HOSTS = edge_security.LOOPBACK_HOSTS
+
 
 def _is_private_ip(ip: str) -> bool:
     """Return True if *ip* is loopback, link-local, or RFC 1918/4193 address."""
@@ -449,21 +498,23 @@ def _check_endpoint_rate_limit(path: str, client_ip: str) -> None:
 
 @app.middleware("http")
 async def endpoint_rate_limit(request: Request, call_next):
-    """Apply per-endpoint, per-IP rate limits before the request reaches handlers."""
-    if request.method != "OPTIONS":
-        path = _rate_limited_route_path(request)
-        if path is not None:
-            client_ip = edge_security.real_client_ip(request)
-            try:
-                _POLICY_KERNEL.check_endpoint_rate_limit(path, client_ip)
-            except HTTPException:
-                return JSONResponse(
-                    status_code=429,
-                    content={"detail": f"Rate limit exceeded for {path}"},
-                )
+    """Preflight only the legacy approval parser that can reject before broker.
+
+    Ordinary routes are counted by ``PolicyKernel``.  The approval-resume
+    route still inspects a bearer from its body before it can reach its broker
+    call, so this uses the same kernel bucket to prevent invalid-token floods.
+    """
+    if request.method != "OPTIONS" and request.url.path == "/api/v1/approval/req":
+        try:
+            _POLICY_KERNEL.check_endpoint_rate_limit(
+                "/api/v1/approval/req", edge_security.real_client_ip(request)
+            )
+        except HTTPException:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded for /api/v1/approval/req"},
+            )
     return await call_next(request)
-
-
 
 
 def get_compactor() -> MemoryCompactor:
@@ -482,6 +533,9 @@ def get_compactor() -> MemoryCompactor:
                     semantic=_SEMANTIC,
                     episodic=_EPISODIC,
                     index=_VECTOR_INDEX,
+                )
+                get_memory_authority().register_adapter(
+                    "compaction", MemoryCompactionAdapter(_COMPACTOR)
                 )
     return _COMPACTOR
 
@@ -508,7 +562,9 @@ class GenerateRequest(BaseModel):
     configured Bedrock and never silently changes providers.
     """
 
-    messages: list[dict[str, Any]] = Field(default_factory=lambda: cast(list[dict[str, Any]], []))
+    messages: list[dict[str, Any]] = Field(
+        default_factory=lambda: cast(list[dict[str, Any]], [])
+    )
     model_id: Optional[str] = Field(None, alias="modelId")
     session_id: str = Field("ui-session", alias="sessionId")
     approval_tokens: list[str] = Field(default_factory=list, alias="approvalTokens")
@@ -518,20 +574,117 @@ class GenerateRequest(BaseModel):
     approved_commands: list[str] = Field(default_factory=list, alias="approvedCommands")
     #: File edits the human has authorised this turn (the edit analog of
     #: ``approvedCommands``), each ``{filepath, old_string, new_string}``.
-    approved_edits: list[dict[str, Any]] = Field(default_factory=list, alias="approvedEdits")
+    approved_edits: list[dict[str, Any]] = Field(
+        default_factory=list, alias="approvedEdits"
+    )
     #: New files the human has authorised this turn (the create analog of
     #: ``approvedEdits``), each ``{filepath, content}``.
-    approved_creations: list[dict[str, Any]] = Field(default_factory=list, alias="approvedCreations")
-    #: Opt-in sequential role-pass castes (planner -> coder -> reviewer over
-    #: the one supervised loop). Absent/false -> the endpoint behaves
-    #: byte-identically to the single-agent loop.
+    approved_creations: list[dict[str, Any]] = Field(
+        default_factory=list, alias="approvedCreations"
+    )
+    #: Experimental role-pass selector. It is intentionally not production
+    #: selected until WorkerFoundry owns its lifecycle.
     role_pass: bool = Field(False, alias="rolePass")
-    #: Opt-in ephemeral worker swarm: decompose -> N gated workers -> synthesize
-    #: (ant-colony stigmergy over the same supervised loop). Absent/false ->
-    #: unchanged. Takes precedence over rolePass when both are set.
+    #: Experimental swarm selector. It is intentionally not production selected
+    #: until WorkerFoundry owns its lifecycle. Takes precedence over rolePass
+    #: when both are set for the refusal message.
     swarm: bool = Field(False, alias="swarm")
+    #: Explicitly opt into mission authority for this turn.  The route no
+    #: longer upgrades every forge request to mission mode implicitly.
+    mission_requested: bool = Field(False, alias="missionRequested")
+    #: Explicit governance semantics are separate from mission semantics.
+    governance_requested: bool = Field(False, alias="governanceRequested")
 
     model_config = {"populate_by_name": True}
+
+
+def _generate_capability_binding(
+    principal: Principal,
+    action_type: str,
+    payload: dict[str, Any],
+    *,
+    route: str = "/api/generate",
+) -> CapabilityBinding:
+    """Bind one generate approval to the authenticated human and exact action."""
+    if action_type not in {"command", "edit", "create"}:
+        raise CapabilityError(f"unsupported generate capability action: {action_type}")
+    return CapabilityBinding(
+        operator_id=principal.principal_id,
+        device_id=principal.device_id,
+        authentication_event_id=principal.authentication_event_id,
+        session_id=principal.session_id,
+        action_type=action_type,
+        route=route,
+        http_method="POST",
+        payload_digest=payload_digest(payload),
+        resource_digest=resource_digest({"workspace": "training_ground"}),
+        mission_id=None,
+        contract_digest=None,
+        policy_version="v1",
+        scope="training_ground/",
+        verification_requirement=(
+            "command_exit_zero"
+            if action_type == "command"
+            else "write_auto_verify_pass"
+        ),
+    )
+
+
+def _generate_action_envelope(
+    principal: Principal,
+    request: Request,
+    action_type: str,
+    payload: dict[str, Any],
+) -> ActionEnvelope:
+    """Build the R4 envelope for one streamed generate approval."""
+    return ActionEnvelope(
+        route="/api/generate",
+        action_type=ActionType.GENERATE,
+        http_method="POST",
+        payload=payload,
+        principal=EnvelopePrincipal(
+            session_id=principal.session_id,
+            actor_source="session",
+            client_ip=principal.client_address or "127.0.0.1",
+        ),
+        request_id=principal.request_id or request.headers.get("x-request-id"),
+        operator_id=principal.principal_id,
+        device_id=principal.device_id,
+        authentication_event_id=principal.authentication_event_id,
+        resource={"workspace": "training_ground"},
+        requested_capability=f"generate.{action_type}",
+        correlation_id=(
+            request.headers.get("x-correlation-id")
+            or principal.request_id
+            or request.headers.get("x-request-id")
+            or str(uuid.uuid4())
+        ),
+    )
+
+
+def _validate_generate_action_payload(
+    action_type: str,
+    payload: object,
+) -> dict[str, Any]:
+    """Accept only the server-issued payload shapes the tool loop can replay."""
+    if not isinstance(payload, dict):
+        raise CapabilityError("generate capability payload is not an object")
+    required = {
+        "command": ("command",),
+        "edit": ("filepath", "old_string", "new_string"),
+        "create": ("filepath", "content"),
+    }.get(action_type)
+    if required is None or any(
+        not isinstance(payload.get(key), str) for key in required
+    ):
+        raise CapabilityError("generate capability payload is malformed")
+    if any(
+        not str(payload[key]).strip()
+        for key in required
+        if key in {"command", "filepath"}
+    ):
+        raise CapabilityError("generate capability payload contains an empty target")
+    return dict(payload)
 
 
 class ChatRequest(BaseModel):
@@ -563,8 +716,6 @@ class TerminalRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
-
     model_config = {"populate_by_name": True}
 
 
@@ -573,12 +724,12 @@ class TerminalRequest(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
-
-
-@app.post("/api/v1/memory/compact")
+@app.post("/api/v1/memory/compact", dependencies=[Depends(enforce_action_boundary)])
 def memory_compact(
     req: MemoryCompactRequest,
+    _principal: Any = Depends(require_privileged_operator),
     compactor: MemoryCompactor = Depends(get_compactor),
+    authority=Depends(get_memory_authority),
 ) -> JSONResponse:
     """Operator-triggered memory compaction (audited "sleep" sweep).
 
@@ -587,18 +738,15 @@ def memory_compact(
     removed when dry-run is enabled; when disabled, performs the sweep and
     writes one audit entry under actor ``sleep-consolidation``.
     """
-    result = compactor.compact(dry_run=req.dry_run)
+    authority_adapters = getattr(authority, "adapters", {})
+    if "compaction" in authority_adapters and authority.owns_store(
+        "compaction", compactor
+    ):
+        result = authority.compact_memory(dry_run=req.dry_run)
+    else:
+        result = compactor.compact(dry_run=req.dry_run)
     status_code = 200 if req.dry_run else 202
     return JSONResponse(content=result, status_code=status_code)
-
-
-
-
-
-
-
-
-
 
 
 # --------------------------------------------------------------------------- #
@@ -647,29 +795,43 @@ def _sse(
     if turn_id is not None and seq is not None:
         event_obj = event_for_sse(event, data, turn_id=turn_id, seq=seq)
         data = event_obj.to_sse_payload()
-        
+
         bus = get_cortex_bus()
         if bus is not None:
             # Opportunistic mapping to a canonical event for the truthful journal
             canonical_type = event
-            if event == "done":
+            if event == "turn.started":
+                canonical_type = CanonicalEventType.TURN_STARTED.value
+            elif event == "route":
+                canonical_type = CanonicalEventType.ROUTE_SELECTED.value
+            elif event == "human_required":
+                canonical_type = CanonicalEventType.APPROVAL_REQUIRED.value
+            elif event == "done":
                 canonical_type = CanonicalEventType.TURN_COMPLETED.value
             elif event == "error":
                 canonical_type = CanonicalEventType.TURN_FAILED.value
-                
+
             canonical = CanonicalEvent(
                 event_type=canonical_type,
                 phase=event_obj.phase.value,
-                status="completed" if event == "done" else "in_progress",
+                status=(
+                    "completed"
+                    if event == "done"
+                    else "failed"
+                    if event == "error"
+                    else "in_progress"
+                ),
                 trust=TrustLevel.ADVISORY.value,
                 source="aios.api.main.sse",
                 session_id=turn_id,
                 turn_id=turn_id,
                 sequence=seq,
-                payload=data
+                payload=data,
             )
             try:
-                bus.append(canonical.event_type, canonical.event_id, canonical.to_dict())
+                bus.append(
+                    canonical.event_type, canonical.event_id, canonical.to_dict()
+                )
             except Exception:
                 pass
     payload = json.dumps(data, ensure_ascii=False)
@@ -688,19 +850,19 @@ def _sse_writer(turn_id: str) -> Callable[[str, dict[str, Any]], str]:
 
     return write
 
+
 #: Agent event type -> SSE event name the front-end's stream reader understands.
 _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
 
-#: Episodic (L2) memory facade — the durable, chronological record of every turn.
-_EPISODIC = EpisodicMemory()
+#: Process-wide memory facades are all authority-owned adapters.  The
+#: compatibility names remain because the compactor and legacy tests consume
+#: these narrow interfaces.
+_MEMORY_AUTHORITY = get_memory_authority()
+_EPISODIC = _MEMORY_AUTHORITY.adapters["episodic"]
+_WORKING = _MEMORY_AUTHORITY.adapters["working"]
+_SEMANTIC = _MEMORY_AUTHORITY.adapters["semantic"]
 
-#: Working (L1) memory facade — session-scoped RAM-only state.
-_WORKING = WorkingMemory()
-
-#: Semantic (L3) memory facade — durable knowledge chunks + vectors.
-_SEMANTIC = SemanticMemory()
-
-#: FAISS vector index shared with semantic memory.
+#: FAISS vector index exposed by the authority-owned semantic adapter.
 _VECTOR_INDEX = _SEMANTIC.index
 
 #: Process-wide audited memory compactor so working-session touch timestamps are
@@ -793,10 +955,11 @@ from aios.api.turn_pipeline import (
 )
 
 
-@app.post("/api/generate")
+@app.post("/api/generate", dependencies=[Depends(enforce_action_boundary)])
 def generate(
     req: GenerateRequest,
     request: Request,
+    _principal: Principal = Depends(require_privileged_operator),
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
@@ -807,7 +970,8 @@ def generate(
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
     snapshot: Callable[..., object] = Depends(get_edit_snapshot),
     planner_llm: LLMClient = Depends(get_llm_client),
-    approvals: ApprovalStore = Depends(get_approval_store),
+    capabilities: CapabilityAuthority = Depends(get_capability_authority),
+    broker: ActionBroker = Depends(get_action_broker),
     mistakes: MistakeMemory = Depends(get_mistake_memory),
     development: DevelopmentTracker = Depends(get_development_tracker),
     skills: SkillMemory = Depends(get_skill_memory),
@@ -818,9 +982,14 @@ def generate(
     native_planner: NativePlanner = Depends(get_native_planner),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
-    alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-    alignment_interpreter: Optional[AlignmentInterpreter] = Depends(get_alignment_interpreter),
+    alignment_evaluation: AlignmentEvaluationStore = Depends(
+        get_alignment_evaluation_store
+    ),
+    alignment_interpreter: Optional[AlignmentInterpreter] = Depends(
+        get_alignment_interpreter
+    ),
     facts: SemanticFacts = Depends(get_semantic_facts),
+    memory_authority=Depends(get_memory_authority),
     compactor: MemoryCompactor = Depends(get_compactor),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
@@ -839,1017 +1008,74 @@ def generate(
     """
     chat_messages = _to_chat_messages(req.messages)
     user_text = _latest_user(chat_messages)
-    session_id = _session_id_from_request(request, req.session_id)
+    # Agentic generation can execute tools and therefore must be bound to the
+    # authenticated operator session.  The legacy body sessionId remains part
+    # of the request model for compatibility, but it is never authoritative.
+    session_id = _principal.session_id
     _enforce_conversation_rate_limit(session_id)
     if len(user_text) > 2000:
+        raise HTTPException(status_code=422, detail="Input exceeds 2000 characters.")
+    if injection_reason := _check_prompt_injection(user_text):
         raise HTTPException(
-            status_code=422, detail="Input exceeds 2000 characters."
+            status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}"
         )
-    if (injection_reason := _check_prompt_injection(user_text)):
-        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
 
     ctx = _build_turn_context(
         session_id,
         user_text,
         model_id=req.model_id,
         approval_tokens=req.approval_tokens,
-        mission_requested=True,
+        mission_requested=req.mission_requested,
+        governance_requested=req.governance_requested,
     )
-    # The agent routes by PURPOSE: infer the task from the user's message so 'auto'
-    # picks a coder for code, a reasoner for analysis, etc. (require_tools still
-    # keeps the loop on a tool-capable model regardless of the inferred task).
-    task = infer_task(user_text)
-    chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini,
-        openai=openai_client, anthropic=anthropic_client, task=task,
-        metrics=_route_metrics(development, req.model_id),
-        calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
-        data_classification=ctx.data_classification,
+    runtime = RuntimeDeps(
+        chat_client=client,
+        bedrock=bedrock,
+        gemini=gemini,
+        openai_client=openai_client,
+        anthropic_client=anthropic_client,
+        executor=executor,
+        indexer=indexer,
+        reflector=reflector,
+        snapshot=snapshot,
+        planner_llm=planner_llm,
+        mistakes=mistakes,
+        development=development,
+        skills=skills,
+        swarm_patterns=swarm_patterns,
+        autonomy=autonomy,
+        curriculum=curriculum,
+        cerebellum=cerebellum,
+        consolidator=consolidator,
+        conversation_state=conversation_state,
+        alignment_evaluation=alignment_evaluation,
+        alignment_interpreter=alignment_interpreter,
+        facts=facts,
+        memory_authority=memory_authority,
+        compactor=compactor,
+        extra={
+            "route": "/api/generate",
+            "request_model": req,
+            "http_request": request,
+            "principal": _principal,
+            "capabilities": capabilities,
+            "broker": broker,
+        },
     )
-    # The serving model is announced lazily from inside the stream (see
-    # `_route_frame`); here we only normalise `model` to the route's view of it.
-    _, model = _active_route(chat_client, bedrock, gemini, model,
-                             openai=openai_client, anthropic=anthropic_client)
-
-    def _route_meta() -> dict[str, Any]:
-        """Development metadata for the model that ACTUALLY served (post-failover)."""
-        p, m = _active_route(chat_client, bedrock, gemini, model,
-                             openai=openai_client, anthropic=anthropic_client)
-        return {
-            "provider": p,
-            "model": m,
-            "privacy": "local" if p == router.PROVIDER_OLLAMA else "cloud",
-            "task": task,
-            "auto": req.model_id in _AUTO_IDS,
-            "turn_id": ctx.turn_id,
-            "mode": ctx.mode.value,
-        }
-
-    compactor.touch_working_session(session_id)
-    if req.approved_commands or req.approved_edits or req.approved_creations:
-        raise HTTPException(
-            status_code=400,
-            detail="raw approved payloads are not accepted; use server-issued approvalTokens",
-        )
-    approved_commands: list[str] = []
-    approved_edits: list[dict[str, Any]] = []
-    approved_creations: list[dict[str, Any]] = []
-    try:
-        if not req.approval_tokens:
-            approvals.clear_session(session_id)
-        for token in req.approval_tokens:
-            action = approvals.redeem(token, session_id)
-            if action.action_type == "command":
-                executor.reset_sensitive_actions(session_id)
-        for action in approvals.grants(session_id):
-            if action.action_type == "command":
-                approved_commands.append(str(action.payload["command"]))
-            elif action.action_type == "edit":
-                approved_edits.append(action.payload)
-            elif action.action_type == "create":
-                approved_creations.append(action.payload)
-    except (ApprovalError, KeyError) as exc:
-        raise HTTPException(status_code=400, detail=f"invalid approval token: {exc}") from exc
-    # Approval-resume continuation (ratified option A, S3): a resume (tokens
-    # present) replays the convo tail this session stashed at its last pause.
-    # A token-LESS fresh directive on the same session must NOT inherit a
-    # stale tail from an abandoned pause -- clear it instead, mirroring the
-    # approvals.clear_session() sibling call just above.
-    resume_tail = (
-        turn_state.take(session_id)
-        if req.approval_tokens
-        else (turn_state.clear(session_id) or None)
+    from aios.application.turns.generate_pipeline import (
+        prepare_generate_state,
+        stream_generate,
     )
 
-    def event_stream() -> Iterator[str]:
-        sse = _sse_writer(ctx.turn_id)
-        if not user_text:
-            yield sse("error", {"text": "No user message provided."})
-            return
-
-        # Telemetry (Phase 1 lap-counter, roadmap SS1): observation-only, never
-        # gates or blocks a turn (record_run fails open). `_dispatch_path` starts
-        # at the worst-case honest default and is only ever UPGRADED to a more
-        # specific value once a real event proves it (playbook/native-plan
-        # replay) -- so a turn that never emits one of those events is
-        # correctly counted as `llm` (or `refused_offline` under the offline
-        # guard). `_max_zone` is a coarse approximation (see scoping notes):
-        # it starts GREEN and is only ever raised, never lowered, toward the
-        # worst zone actually observed this turn.
-        _turn_started = time.perf_counter()
-        _dispatch_path = (
-            telemetry.DISPATCH_REFUSED_OFFLINE if config.OFFLINE_MODE else telemetry.DISPATCH_LLM
-        )
-        _max_zone = Zone.GREEN.value
-        _ZONE_RANK = {Zone.GREEN.value: 0, Zone.YELLOW.value: 1, Zone.RED.value: 2}
-
-        def _bump_zone(new_zone: str) -> None:
-            nonlocal _max_zone
-            if _ZONE_RANK.get(new_zone, 0) > _ZONE_RANK.get(_max_zone, 0):
-                _max_zone = new_zone
-
-        def _record_telemetry(verified_outcome: str) -> None:
-            provider, served_model = _active_route(
-                chat_client, bedrock, gemini, model,
-                openai=openai_client, anthropic=anthropic_client,
-            )
-            telemetry.record_run(
-                session_id=session_id,
-                task_signature=task_signature(user_text),
-                dispatch_path=_dispatch_path,
-                provider=provider,
-                model=served_model,
-                verified_outcome=verified_outcome,
-                latency_ms=round((time.perf_counter() - _turn_started) * 1000),
-                max_zone=_max_zone,
-            )
-
-        # The ACTIVE BRAIN for this turn: which provider/model served it + a privacy
-        # indicator, so the UI can show the voyaging mind's current brain. Emitted
-        # LAZILY — only once a model has actually served (the first text/tool_call/
-        # code), and again whenever a mid-loop failover switches the serving model —
-        # so the badge names the model that did the work, never a ranked-but-
-        # uninvocable primary that silently failed over. A `FailoverChatClient` only
-        # knows which candidate served AFTER its first `chat()` returns; announcing
-        # before that would advertise the cascade head, which may not be invocable.
-        # Purely informational; the cage decides regardless.
-        announced_route: Optional[tuple[str, str]] = None
-
-        def _route_frame() -> Optional[str]:
-            nonlocal announced_route
-            p, m = _active_route(chat_client, bedrock, gemini, model,
-                                 openai=openai_client, anthropic=anthropic_client)
-            if (p, m) == announced_route:
-                return None  # unchanged since the last announcement — don't repeat
-            announced_route = (p, m)
-            return sse(
-                "route",
-                {
-                    "provider": p,
-                    "model": m,
-                    "privacy": "local" if p == router.PROVIDER_OLLAMA else "cloud",
-                    "task": task,
-                    "auto": req.model_id in _AUTO_IDS,
-                    "turn_id": ctx.turn_id,
-                    "mode": ctx.mode.value,
-                },
-            )
-
-        # 1. Understand + apply the deterministic communication policy + recall.
-        #    The alignment frame is advisory. Its communication policy may pause
-        #    a context-free request to ask a question, but it has no execution or
-        #    approval authority and is never treated as evidence. When the
-        #    interpreter is disabled (AIOS_INTERPRET_ALIGNMENT=false) the turn
-        #    skips interpretation entirely: no frame, observation, or ask-pause.
-        context_parts: list[str] = []
-        alignment = None
-        # Hoisted above the (conditional) alignment block: the plan stage below
-        # must be able to read it even when AIOS_INTERPRET_ALIGNMENT is off.
-        _cerebellum_matched = False
-        if alignment_interpreter is not None:
-            base_alignment = alignment_interpreter.understand(chat_messages)
-            alignment = base_alignment
-            active_correction = conversation_state.active_correction(session_id)
-            if active_correction is not None:
-                try:
-                    alignment = apply_user_corrections(
-                        alignment,
-                        active_correction["corrections"],
-                        revision=int(active_correction["revision"]),
-                    )
-                except (TypeError, ValueError) as exc:
-                    # Corrupt optional continuity state must never break chat or
-                    # silently gain authority.
-                    logger.warning("Failed to apply active user correction", exc_info=exc)
-            context_parts.append(alignment.to_prompt_block())
-            alignment_payload = alignment.as_dict()
-            base_alignment_payload = base_alignment.as_dict()
-            try:
-                observation_id = (
-                    alignment_evaluation.latest_observation_id(session_id)
-                    if req.approval_tokens
-                    else alignment_evaluation.record(session_id, alignment_payload)
-                )
-                if observation_id is not None:
-                    alignment_payload["evaluation"] = {
-                        "observation_id": observation_id,
-                        "automatic_policy_updates": False,
-                    }
-                    base_alignment_payload["evaluation"] = alignment_payload["evaluation"]
-            except Exception as exc:  # noqa: BLE001 - evaluation must never break the chat
-                logger.warning("Failed to record alignment evaluation", exc_info=exc)
-            try:
-                if active_correction is not None and alignment.correction.active:
-                    conversation_state.refresh_active_correction(
-                        session_id,
-                        base_frame=base_alignment_payload,
-                        corrected_frame=alignment_payload,
-                    )
-                else:
-                    conversation_state.save(session_id, alignment_payload)
-            except Exception as exc:  # noqa: BLE001 - continuity must never break the chat
-                logger.warning("Failed to persist alignment frame", exc_info=exc)
-            yield sse("alignment", alignment_payload)
-            if alignment.communication.ambiguity_action == "ask":
-                question = alignment.communication.clarifying_question
-                _record_episode(session_id, "user", user_text)
-                _record_episode(session_id, "assistant", question)
-                approvals.clear_session(session_id)
-                yield sse("text_chunk", {"text": question})
-                # An advisory early exit is still a real turn -- count it
-                # (aborted), or every clarification-asked turn silently
-                # vanishes from telemetry.
-                _record_telemetry(telemetry.OUTCOME_ABORTED)
-                yield sse("done", {})
-                return
-
-        # ── Sovereignty S1: cerebellum pre-check ──────────────────
-        # If a compiled playbook matches the user message, skip the
-        # confidence gate — the actual replay happens inside
-        # ToolAgent.run() (below), which dispatches every step through
-        # self._dispatch (the FULL security pipeline: classify(),
-        # scope_lock, audit_logger, verifier). This pre-check only
-        # matches and announces; it never dispatches a tool call
-        # itself, so there is no parallel security path. Deliberately
-        # OUTSIDE the alignment block: ToolAgent replays a matched
-        # playbook regardless of AIOS_INTERPRET_ALIGNMENT, so the match
-        # announcement — and the plan stage's reflex-skip below — must
-        # not depend on the interpreter being enabled.
-        if user_text:
-            try:
-                _cb_match = cerebellum.match(user_text)
-            except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal
-                logger.warning("Cerebellum match failed", exc_info=exc)
-                _cb_match = None
-            if _cb_match is not None:
-                _cerebellum_matched = True
-                yield sse("cerebellum_match", {
-                    "goal": _cb_match.goal_pattern,
-                    "playbook_id": _cb_match.id,
-                    "step_count": len(_cb_match.steps),
-                })
-
-        if alignment is not None and not _cerebellum_matched:
-            confidence, confidence_calibration = _calibrate_default_confidence(
-                " ".join(part for part in (user_text, alignment.goal, alignment.intent) if part),
-                alignment.confidence,
-                reflector=reflector,
-                development=development,
-                skills=skills,
-            )
-            confidence_result = confidence_gate(confidence)
-            if not confidence_result.passed:
-                question = (
-                    "I am not confident enough in my understanding to proceed. "
-                    "What should I clarify before continuing?"
-                )
-                if alignment.unknowns:
-                    question = (
-                        "I am not confident enough in my understanding to proceed. "
-                        f"Please clarify: {alignment.unknowns[0]}"
-                    )
-                payload = {
-                    "confidence": confidence,
-                    "threshold": config.CONFIDENCE_THRESHOLD,
-                    "reason": confidence_result.reason,
-                    "goal": alignment.goal,
-                    "intent": alignment.intent,
-                    "question": question,
-                    "calibration": confidence_calibration,
-                }
-                _record_episode(session_id, "user", user_text)
-                _record_episode(session_id, "assistant", question)
-                approvals.clear_session(session_id)
-                yield sse("confidence.gated", payload)
-                yield sse("text_chunk", {"text": question})
-                # A confidence-gated turn is still a real turn -- count it.
-                _record_telemetry(telemetry.OUTCOME_ABORTED)
-                yield sse("done", {})
-                return
-
-        # ── Mandatory plan stage (Product-Phase-1 close-out; AIOS_PLAN_STAGE) ──
-        # The SAME deterministic Planner behind POST /api/v1/plan, run
-        # unconditionally on every non-reflex FIRST turn: native-first
-        # (verified experience templates), LLM fallback. The plan is ADVISORY
-        # context — it has no execution or approval authority; escalated
-        # steps still pause at the gateway's per-action approval surface when
-        # they actually execute, and telemetry's dispatch_path is NOT
-        # upgraded here (the plan advises the turn; it does not serve it —
-        # see the invariant where _dispatch_path is initialized). Fail-open
-        # by design: any planner failure (including offline-mode native
-        # misses) logs, emits nothing, and the turn proceeds — the confidence
-        # gate and approval surface remain the safety layer. Skipped on
-        # reflex turns (a matched playbook exists precisely to avoid this
-        # consultation) and on approval-resume turns (the goal was already
-        # planned when the turn first ran; re-planning mid-approved-action
-        # would inject a second, possibly different plan).
-        if (
-            config.PLAN_STAGE_ENABLED
-            and user_text
-            and not _cerebellum_matched
-            and not req.approval_tokens
-        ):
-            # Announce BEFORE the (blocking) planner consultation so the
-            # stream is never silent for a full LLM completion — time-to-
-            # first-byte stays bounded and the UI can show the phase.
-            yield sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "plan",
-                    "output": "Plan stage: decomposing the goal into confidence-gated steps…",
-                    "id": "plan-stage",
-                },
-            )
-            try:
-                _stage_planner = Planner(
-                    planner_llm,
-                    native=native_planner,
-                    mistakes=mistakes,
-                    development=development,
-                    skills=skills,
-                )
-                _stage_plan = _stage_planner.plan(user_text)
-            except PlannerError as exc:
-                logger.warning("Plan stage failed open: %s", exc)
-            except Exception as exc:  # noqa: BLE001 - planning is advisory, never fatal
-                logger.warning("Plan stage failed open", exc_info=exc)
-            else:
-                yield sse("plan", serialize_plan(_stage_plan))
-                context_parts.append(plan_to_prompt_block(_stage_plan))
-
-        semantic = _recall_memory(user_text)
-        if semantic:
-            context_parts.append(semantic)
-            yield sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "query_knowledge",
-                    "output": semantic[:400],
-                    "id": "memory-recall",
-                },
-            )
-
-        lessons = _recall_lessons(reflector, session_id, user_text)
-        if lessons:
-            block = "RELEVANT LESSONS (verified cross-task or pending from this task):\n" + "\n".join(
-                f"- [{le.get('verification_status', 'pending')}; {le['error_type']}] "
-                f"{le['lesson_text']}"
-                for le in lessons
-            )
-            context_parts.append(block)
-            yield sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "reflect",
-                    "output": f"Recalled {len(lessons)} past lesson(s); filtered for relevance.",
-                    "id": "lesson-recall",
-                },
-            )
-
-        recalled_skills = _recall_skills(skills, user_text)
-        if recalled_skills:
-            skill_block = "VERIFIED REUSABLE WORKFLOWS:\n" + "\n".join(
-                f"- For {skill['goal_pattern']}: {' -> '.join(skill['steps'])} "
-                f"(verified success rate {skill['success_rate']:.0%})"
-                for skill in recalled_skills
-            )
-            context_parts.append(skill_block)
-            yield sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "query_skills",
-                    "output": f"Recalled {len(recalled_skills)} verified workflow(s).",
-                    "id": "skill-recall",
-                },
-            )
-
-        facts_result = _recall_facts(facts, user_text)
-        if facts_result:
-            context_parts.append(facts_result.text)
-            yield sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "query_facts",
-                    "output": facts_result.text[:400],
-                    "id": "fact-recall",
-                },
-            )
-            for inf in facts_result.inferences:
-                yield sse("graph_inference", inf)
-                if inf.get("reached_horizon"):
-                    yield sse("graph_horizon", {
-                        "entity": inf.get("entity", "?"),
-                        "confidence": inf.get("combined_confidence", 0),
-                    })
-
-        # Narrative self (opt-in): a grounded, verified-only autobiographical
-        # self-model joins the recalled context — the organism reasoning with an
-        # honest sense of what it's actually reliable at. Fail-closed: empty when
-        # there's too little verified evidence.
-        if config.NARRATIVE_SELF_ENABLED:
-            # W2: when the cortex bus is on, the self-model was synthesized OFF
-            # the hot path by SelfModelHandler (turn.completed observer) — read
-            # its cache. Fall back to inline synthesis when the bus is off
-            # (default: identical to pre-W2 behavior) or before the first
-            # observation has been processed.
-            cached_self_model = (
-                _self_model_handler.recall()
-                if config.CORTEX_BUS and _self_model_handler is not None
-                else None
-            )
-            self_model_block = (
-                cached_self_model
-                if cached_self_model is not None
-                else _recall_self_model(development, MistakeMemory())
-            )
-            if self_model_block:
-                context_parts.append(self_model_block)
-                yield sse(
-                    "step",
-                    {
-                        "type": "tool_result",
-                        "tool": "self_model",
-                        "output": self_model_block[:400],
-                        "id": "self-model-recall",
-                    },
-                )
-
-        memory_context = "\n\n".join(context_parts) or None
-
-        # Seed for the fail->confirm tracker (see _recall_pending_commands): this
-        # session's still-pending lessons + their failed commands, so a lesson
-        # recorded before an approval pause is promoted when its exact command
-        # finally succeeds in the replayed continuation of the turn.
-        recalled_pending = _recall_pending_commands(reflector, session_id)
-
-        # 2. Persist the user turn.
-        _record_episode(session_id, "user", user_text)
-
-        # 3. Agentic loop with recalled context + lessons + reflection + confirmation.
-        #    `chat_client` is local Ollama or cloud Bedrock per the selected model.
-        #    The factory exists so the role-pass castes can stamp out per-role
-        #    views (system prompt + tool subset) over the SAME gated wiring.
-        # C4: streaming function for real-time cloud token delivery.
-        _stream_fn = getattr(chat_client, "stream_chat_with_tools", None)
-
-        def make_agent(**overrides: Any) -> ToolAgent:
-            return ToolAgent(
-                chat_client,
-                executor,
-                model=model,
-                session_id=session_id,
-                memory_context=memory_context,
-                on_failure=_make_failure_hook(reflector, session_id),
-                confirm_lesson=_make_confirm_hook(reflector, consolidator),
-                # Confirm-across-approval-boundary: seed the fail->confirm tracker
-                # so a lesson recorded before an approval pause is still promoted
-                # when its exact command later succeeds in the replayed turn.
-                recalled_pending=recalled_pending,
-                approved_commands=approved_commands,
-                approved_edits=approved_edits,
-                approved_creations=approved_creations,
-                snapshot=snapshot,
-                # The Planner needs a COMPLETION client (.complete()); pass the local
-                # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
-                # so planning always uses the local completion model.
-                planner_llm=planner_llm,
-                # Self-Analysis T2 (propose_fixes) drafts diffs with the SAME completion
-                # client (not chat_client). It only writes proposals to the report —
-                # never edits or applies source.
-                self_analysis_llm=planner_llm,
-                # Earned-autonomy bridge: opt-in, off by default. When enabled and
-                # a write class has earned it, the turn applies it without pausing
-                # (still gated, audited, and revoked instantly on a verified fail).
-                autonomy=autonomy,
-                # Approval-resume continuation (ratified option A, S3): the prior
-                # pause's convo tail for this session, or None. Model context
-                # only -- carries no authority of its own.
-                resume_tail=resume_tail,
-                # Sovereignty S1: compiled-experience engine. Matches verified
-                # skill arcs and replays them through _dispatch without an LLM.
-                cerebellum=cerebellum,
-                # Sovereignty S3: native symbolic planner. Plans known task
-                # shapes from verified experience without an LLM call.
-                native_planner=native_planner,
-                # C4: stream tokens in real-time when the cloud client supports it.
-                stream_fn=_stream_fn if callable(_stream_fn) else None,
-                **overrides,
-            )
-
-        # Cloud-burst factory: when the ant-colony's CLOUD_BROKER labels a subtask
-        # as cloud-eligible, it runs through a dedicated cloud chat client. The
-        # provider is surfaced in `cloud_route` SSE frames so the UI can mark the
-        # leg as having left the local machine.
-        cloud_client: Optional[Any] = None
-        cloud_provider: Optional[str] = None
-        cloud_model: Optional[str] = None
-        if req.swarm and config.SWARM_CLOUD_BURST_ENABLED:
-            if config.BEDROCK_ENABLED:
-                cloud_client = BedrockClient()
-                cloud_provider = "bedrock"
-                cloud_model = config.BEDROCK_MODEL
-            elif config.GEMINI_ENABLED:
-                cloud_client = GeminiClient()
-                cloud_provider = "gemini"
-                cloud_model = config.GEMINI_MODEL
-
-        def make_cloud_agent(**overrides: Any) -> ToolAgent:
-            if cloud_client is None:
-                raise RuntimeError("Cloud burst requested but no cloud provider is configured")
-            return ToolAgent(
-                cloud_client,
-                executor,
-                model=cloud_model,
-                session_id=session_id,
-                memory_context=memory_context,
-                on_failure=_make_failure_hook(reflector, session_id),
-                confirm_lesson=_make_confirm_hook(reflector, consolidator),
-                # Confirm-across-approval-boundary: seed the fail->confirm tracker
-                # so a lesson recorded before an approval pause is still promoted
-                # when its exact command later succeeds in the replayed turn.
-                recalled_pending=recalled_pending,
-                approved_commands=approved_commands,
-                approved_edits=approved_edits,
-                approved_creations=approved_creations,
-                snapshot=snapshot,
-                planner_llm=planner_llm,
-                self_analysis_llm=planner_llm,
-                autonomy=autonomy,
-                resume_tail=resume_tail,
-                **overrides,
-            )
-        answer_parts: list[str] = []
-        workflow_steps: list[str] = []
-        blocked_actions = 0
-        verification_evidence: list[str] = []
-        verify_verdicts: dict[str, str] = {}
-        #: Per-target verification strength (parallel to the verdict dicts), so the
-        #: turn's calibration strength is the WEAKEST authoritative PASS — a strong
-        #: verify on one target can never launder a weak one, and a model's advisory
-        #: verify can never raise the authoritative strength (see ``record_outcome``).
-        verify_strengths: dict[str, VerificationStrength] = {}
-        #: Verdicts from the FORCED auto-verify only (id ``autoverify-*``). This is
-        #: the authoritative evidence for the turn's outcome; the model's own
-        #: ``verify`` tool calls are advisory and must not override it.
-        auto_verdicts: dict[str, str] = {}
-        auto_strengths: dict[str, VerificationStrength] = {}
-        communication_notice = (
-            alignment.communication_notice() if alignment is not None else ""
-        )
-        if communication_notice:
-            answer_parts.append(communication_notice)
-            yield sse("text_chunk", {"text": communication_notice})
-
-        mastered_levels: list[tuple[str, int]] = []
-
-        def record_outcome(outcome: str) -> None:
-            """Best-effort development, skill, and curriculum evidence write."""
-            # The strength of this turn's authoritative verification gates ALL
-            # calibration (roadmap Phase 1): a below-floor (weak) green must not
-            # calibrate the router/planner, promote a swarm pattern, or advance
-            # curriculum mastery. Strength is the WEAKEST authoritative target
-            # strength (auto-verify if any ran, else the model's own verify) — not
-            # the last PASS across all evidence. This defeats laundering: a model
-            # cannot append a STRONG advisory verify to raise a turn whose forced
-            # auto-verify was weak, and one strong target cannot mask a weak one.
-            authoritative_strengths = auto_strengths or verify_strengths
-            turn_strength = (
-                min(authoritative_strengths.values())
-                if authoritative_strengths
-                else VerificationStrength.NONE
-            )
-            # A weak verified_success is recorded as 'unverified' so it is excluded
-            # from router/planner calibration (reuses the existing exclusion).
-            dev_outcome = (
-                "unverified"
-                if outcome == "verified_success" and not meets_promotion_floor(turn_strength)
-                else outcome
-            )
-            try:
-                development.record(
-                    user_text,
-                    dev_outcome,
-                    tool_calls=len(workflow_steps),
-                    human_interventions=len(req.approval_tokens),
-                    blocked_actions=blocked_actions,
-                    metadata=_route_meta(),
-                )
-            except Exception as exc:  # noqa: BLE001 - metrics must never break chat
-                logger.warning("Development metrics recording failed", exc_info=exc)
-            if config.FACTS_AUTO_EXTRACT:
-                try:
-                    proposed_count = 0
-                    for fact_subject, fact_predicate, fact_object in extract_candidates(
-                        user_text,
-                        max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
-                    ):
-                        r = facts.strengthen_or_propose(
-                            fact_subject, fact_predicate, fact_object,
-                        )
-                        if r.proposed or r.reason == "strengthened":
-                            proposed_count += 1
-                    if proposed_count and _cortex_bus:
-                        canonical = CanonicalEvent(
-                            event_type=CanonicalEventType.FACTS_PROPOSED.value,
-                            phase=EventPhase.WONDER.value,
-                            status="success",
-                            trust=TrustLevel.VERIFIED.value,
-                            source="generate",
-                            session_id=session_id,
-                            turn_id=ctx.turn_id,
-                            payload={"count": proposed_count},
-                        )
-                        _cortex_bus.append(
-                            canonical.event_type,
-                            session_id,
-                            canonical.to_dict(),
-                        )
-                except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
-                    logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
-            if outcome not in {"verified_success", "verified_failure"}:
-                return
-            passed = outcome == "verified_success"
-            if passed:
-                evidence = next(
-                    (
-                        item
-                        for item in reversed(verification_evidence)
-                        if item.startswith("[VERIFY PASS]")
-                    ),
-                    "",
-                )
-            else:
-                evidence = next(
-                    (
-                        item
-                        for item in reversed(verification_evidence)
-                        if item.startswith("[VERIFY FAIL]")
-                    ),
-                    "",
-                )
-            direct_id: Optional[int] = None
-            if workflow_steps:
-                try:
-                    # Gate promotion on verification strength (roadmap Phase 1): the
-                    # strength token is stamped into the [VERIFY ...] evidence by the
-                    # Verifier (command-aware), so a weak green cannot mint a
-                    # verified skill. On a fail, success=False makes strength moot.
-                    direct_id = skills.record_attempt(
-                        user_text,
-                        workflow_steps,
-                        success=passed,
-                        strength=turn_strength,
-                    )
-                except Exception as exc:  # noqa: BLE001 - skill learning is best-effort
-                    logger.warning("Failed to record skill attempt", exc_info=exc)
-            # Reuse pheromone: trails that were recalled into this turn's
-            # context share its verifier verdict — minus the trail the agent
-            # re-walked directly, which record_attempt already credited.
-            # Exclude ONLY the trail the agent re-walked directly (already credited
-            # by record_attempt) so it isn't double-credited. When direct_id is
-            # None (no direct walk, or record_attempt failed) there is nothing to
-            # exclude, so every recalled trail correctly earns reuse credit. The
-            # explicit None check documents that intent (the old `!= direct_id` was
-            # an always-true int-vs-None compare — same behavior, but a smell).
-            reused_ids = [
-                int(s["skill_id"])
-                for s in recalled_skills
-                if direct_id is None or int(s["skill_id"]) != direct_id
-            ]
-            if reused_ids:
-                try:
-                    skills.record_reuse(reused_ids, success=passed)
-                except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
-                    logger.warning("Failed to record skill reuse credit", exc_info=exc)
-            if swarm_plan:
-                try:
-                    swarm_patterns.record_attempt(
-                        user_text, swarm_plan, success=passed, strength=turn_strength
-                    )
-                except Exception as exc:  # noqa: BLE001 - pattern learning is best-effort
-                    logger.warning("Failed to record swarm pattern attempt", exc_info=exc)
-            try:
-                curriculum.record_matching(
-                    user_text,
-                    passed=passed,
-                    evidence=evidence,
-                    strength=turn_strength,
-                    on_mastered=lambda skill, level: mastered_levels.append((skill, level)),
-                )
-            except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
-                logger.warning("Failed to record curriculum match", exc_info=exc)
-
-        try:
-            if req.swarm:
-                event_source = run_swarm(
-                    make_agent,
-                    chat_messages,
-                    pattern_memory=swarm_patterns,
-                    make_cloud_agent=make_cloud_agent if cloud_client is not None else None,
-                    cloud_provider=cloud_provider,
-                )
-            elif req.role_pass:
-                event_source = run_role_pass(make_agent, chat_messages)
-            else:
-                event_source = make_agent().run(chat_messages)
-        except Exception as exc:  # noqa: BLE001 - agent construction must not kill SSE
-            logger.error("Tool-loop construction failed", exc_info=exc)
-            yield sse("error", {"text": f"Internal error: {exc}"})
-            # A turn killed by construction failure is still a real turn -- count it.
-            _record_telemetry(telemetry.OUTCOME_ABORTED)
-            yield sse("done", {})
-            return
-        def _safe_iter(source):
-            """Wrap a generator so exceptions during iteration are logged, not silent."""
-            try:
-                yield from source
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Tool-loop iteration failed", exc_info=exc)
-                yield {"type": "error", "text": f"Internal error: {exc}"}
-                yield {"type": "done"}
-
-        swarm_plan: Optional[list[str]] = None
-        for ev in _safe_iter(event_source):
-            kind = ev["type"]
-            if kind in ("tool_call", "text", "code", "done", "human_required"):
-                # A model produced output (or the turn is ending) -> the failover
-                # client now names the model that ACTUALLY served. Announce (or
-                # refresh on failover) the brain BEFORE the event, so the badge
-                # tracks the real worker. `done`/`human_required` are a fallback:
-                # they guarantee the badge still appears for a turn whose model
-                # served no text/tool_call (e.g. an empty answer). `_route_frame`
-                # is idempotent, so this never double-announces an unchanged route.
-                route_frame = _route_frame()
-                if route_frame is not None:
-                    yield route_frame
-            if kind in _STEP_EVENTS:
-                if kind == "tool_call":
-                    workflow_steps.append(_workflow_step(ev))
-                elif kind == "tool_blocked":
-                    blocked_actions += 1
-                    # Coarse max_zone approximation (scoping report SS5.2): a
-                    # blocked tool call is the strongest per-event signal
-                    # available today that this turn touched a RED-classified
-                    # action (the real per-call Zone is computed by the
-                    # security gateway but discarded before it reaches this
-                    # event dict). Known false positive: a caste-permission
-                    # block also yields status=="blocked" without a Zone.RED
-                    # verdict -- accepted until Zone is threaded through.
-                    _bump_zone(Zone.RED.value)
-                if kind == "tool_result":
-                    output = str(ev.get("output", ""))
-                    # Provenance gate: ONLY the verify tool (the model's `verify`
-                    # and the forced `autoverify-*`, both emitted with tool=="verify")
-                    # may contribute authoritative verification evidence. Without
-                    # this, any tool whose output a model controls — e.g.
-                    # `echo "[VERIFY PASS] 5 passed (strength=STRONG)"` auto-executed
-                    # GREEN — would forge a passing verdict and a STRONG strength,
-                    # laundering a hollow turn into calibration. The string prefix is
-                    # necessary but not sufficient; trusted provenance is.
-                    if ev.get("tool") == "verify" and (
-                        output.startswith("[VERIFY PASS]") or output.startswith("[VERIFY FAIL]")
-                    ):
-                        verification_evidence.append(output)
-                        raw_target = str(ev.get("target") or "")
-                        keys = (
-                            _verify_target_keys(raw_target)
-                            if raw_target
-                            # Unattributed evidence keys uniquely: its verdict
-                            # can never be cleared by a later PASS elsewhere
-                            # (fail-closed).
-                            else [f"unattributed-{len(verification_evidence)}"]
-                        )
-                        verdict = "PASS" if output.startswith("[VERIFY PASS]") else "FAIL"
-                        strength = strength_from_text(output)
-                        for key in keys:
-                            verify_verdicts[key] = verdict
-                            verify_strengths[key] = strength
-                        # The FORCED auto-verify (run by the system after a write) is
-                        # the authoritative evidence; the model's OWN `verify` tool
-                        # call is advisory. A model running a broken verify command —
-                        # e.g. a mis-pathed `pytest training_ground/test_x.py` from the
-                        # sandbox cwd → exit 4, 0 tests — must NOT fail a turn whose
-                        # written code actually passes the forced check.
-                        if str(ev.get("id", "")).startswith("autoverify"):
-                            for key in keys:
-                                auto_verdicts[key] = verdict
-                                auto_strengths[key] = strength
-                        # Surface a typed verification frame so the UI can celebrate or
-                        # reflect without parsing the raw tool output.
-                        for key in keys:
-                            yield sse(
-                                "verify_result",
-                                {
-                                    "verdict": verdict.lower(),
-                                    "target": key,
-                                    "output": output[:320],
-                                },
-                            )
-                yield sse("step", ev)
-            elif kind == "native_plan":
-                if _dispatch_path != telemetry.DISPATCH_PLAYBOOK:
-                    _dispatch_path = telemetry.DISPATCH_NATIVE_PLAN
-                yield sse("native_plan", ev)
-            elif kind == "text":
-                answer_parts.append(ev["text"])
-                yield sse("text_chunk", {"text": ev["text"]})
-            elif kind == "code_chunk":
-                # Incremental reveal of the final code block (the model is
-                # non-streaming, so this is emit-time chunking, not raw tokens).
-                yield sse("code_chunk", {"code": ev["code"], "language": ev["language"]})
-            elif kind == "code":
-                yield sse("code", {"code": ev["code"], "language": ev["language"]})
-            elif kind == "error":
-                yield sse("error", {"text": ev["text"]})
-            elif kind == "earned_autonomy":
-                # The earned-autonomy bridge auto-applied a write with NO human
-                # pause — the write class earned it by verified-success evidence.
-                # Surface it so the brain can show itself acting on its own
-                # earned trust (still gated, audited, and revocable).
-                yield sse("earned_autonomy", ev)
-            elif kind.startswith("cerebellum_"):
-                # Sovereignty S1: the cerebellum replayed a compiled playbook.
-                # Forward all cerebellum events to the SSE stream so the
-                # organism body renders the reflex phase (orange, low
-                # metabolism, no brain churn).
-                if kind == "cerebellum_step_done":
-                    workflow_steps.append(
-                        f"{ev.get('tool', '?')}: cerebellum replay"
-                    )
-                elif kind == "cerebellum_done":
-                    _dispatch_path = telemetry.DISPATCH_PLAYBOOK
-                yield sse(kind, ev)
-            elif kind == "swarm_plan":
-                # Plan event from the ant-colony; used internally for pattern
-                # recording and also surfaced to the UI so the HUD can render it.
-                swarm_plan = ev.get("plan")
-                yield sse(kind, ev)
-            elif kind in ("caste_start", "caste_end", "cloud_route"):
-                # Observational swarm lifecycle frames for the 3D HUD.
-                if kind == "cloud_route" and cloud_provider:
-                    try:
-                        log_action(
-                            "cloud-route",
-                            json.dumps({"provider": cloud_provider, "model": cloud_model}),
-                            Zone.GREEN,
-                        )
-                    except Exception as exc:  # noqa: BLE001 - audit must never break the stream
-                        logger.warning("Failed to record cloud-route audit entry", exc_info=exc)
-                yield sse(kind, ev)
-            elif kind == "human_required":
-                # The agent paused on a YELLOW command. Ask the UI for approval;
-                # the turn ends here (no answer recorded) and is replayed once the
-                # human authorises the command. Surface the *command* in plain
-                # language — never the raw classifier reason, which embeds the
-                # matched regex pattern (e.g. "\\bpip\\s+install\\b") and belongs
-                # in the audit log, not in a human approval prompt. Shape matches
-                # the frontend's pendingAction handler ({commands, explanation}).
-                _bump_zone(Zone.YELLOW.value)
-                cmd = ev["command"]
-                edit = ev.get("edit")
-                creation = ev.get("creation")
-                # Approval-resume continuation (ratified option A, S2): pop the
-                # convo tail off the event BEFORE any payload is built below --
-                # it must never reach `payload`/the SSE wire. Stashed under this
-                # session id so a later resume (token redeemed above) can pop it
-                # back out and splice it into the next ToolAgent.run's convo.
-                # The token itself lives only in `payload` (issued just below),
-                # never in the tail -- the tail carries no authority.
-                _convo_tail = ev.pop("_convo_tail", None)
-                if _convo_tail:
-                    turn_state.stash(session_id, _convo_tail)
-                try:
-                    if edit is not None:
-                        token = approvals.issue("edit", edit, session_id)
-                        # An edit_file approval: surface the unified diff + the edit
-                        # triple so the UI shows the diff and re-sends it as an
-                        # approved edit on resume (a snapshot is taken before writing).
-                        payload = {
-                            "input": {
-                                "edits": [edit],
-                                "approvalToken": token,
-                                "diff": ev.get("diff", ""),
-                                "explanation": (
-                                    "The agent wants to edit a file. Review the diff "
-                                    "and approve to apply it. A snapshot is taken first, "
-                                    "then an available sibling test runs automatically."
-                                ),
-                            },
-                            "text": f"Approval required to apply an edit to {ev.get('filepath', '')}",
-                            "requiresApproval": True,
-                        }
-                    elif creation is not None:
-                        token = approvals.issue("create", creation, session_id)
-                        # A create_file approval: surface the all-additions diff + the
-                        # {filepath, content} pair so the UI shows the new file and
-                        # re-sends it as an approved creation on resume (a snapshot is
-                        # taken before writing, so the new file stays revertible).
-                        payload = {
-                            "input": {
-                                "creations": [creation],
-                                "approvalToken": token,
-                                "diff": ev.get("diff", ""),
-                                "explanation": (
-                                    "The agent wants to create a new file. Review the "
-                                    "contents and approve to write it. A snapshot is "
-                                    "taken first, then an available sibling test runs "
-                                    "automatically."
-                                ),
-                            },
-                            "text": f"Approval required to create {ev.get('filepath', '')}",
-                            "requiresApproval": True,
-                        }
-                    else:
-                        token = approvals.issue("command", {"command": cmd}, session_id)
-                        payload = {
-                            "input": {
-                                "commands": [cmd],
-                                "approvalToken": token,
-                                "explanation": (
-                                    "The agent wants to run a caution-level command "
-                                    "(e.g. a package install, git write, or file "
-                                    "change). Review it and approve to let it run."
-                                ),
-                            },
-                            "text": f"Approval required to run: {cmd}",
-                            "requiresApproval": True,
-                        }
-                except ApprovalError as exc:
-                    logger.warning("Approval payload refused before token issue", exc_info=exc)
-                    approvals.clear_session(session_id)
-                    yield sse("error", {"text": f"Approval request refused: {exc}"})
-                    return
-                try:
-                    development.record(
-                        user_text,
-                        "paused",
-                        tool_calls=len(workflow_steps),
-                        human_interventions=len(req.approval_tokens),
-                        blocked_actions=blocked_actions,
-                        metadata=_route_meta(),
-                    )
-                except Exception as exc:  # noqa: BLE001 - metrics must never break approval
-                    logger.warning("Development metrics recording failed for paused turn", exc_info=exc)
-                # A turn that pauses for approval and is never resumed must still
-                # be counted -- otherwise every YELLOW-gated turn (a large share
-                # of real traffic) silently vanishes from telemetry entirely.
-                _record_telemetry(telemetry.OUTCOME_ABORTED)
-                yield sse("human_required", payload)
-            elif kind == "done":
-                # 4. Persist the answer (L2) and consolidate the turn into L3.
-                answer = "".join(answer_parts)
-                _record_episode(session_id, "assistant", answer)
-                _index_turn(indexer, user_text, answer)
-                # The turn's outcome is the PER-TARGET final verdict: for every
-                # target that was verified this turn, its LAST verdict must be
-                # PASS. A turn that fails, self-corrects, and re-verifies the
-                # same target green IS a verified success — the loop's whole
-                # design is verify -> reflect -> fix (operator decision
-                # 2026-06-11, refined the same day from global last-evidence-
-                # wins) — but a final PASS on one target can no longer mask an
-                # unresolved FAIL on another.
-                if not verification_evidence:
-                    record_outcome("unverified")
-                    _record_telemetry(telemetry.OUTCOME_UNVERIFIED)
-                else:
-                    # The FORCED auto-verify is authoritative; fall back to the
-                    # model's own verify only when nothing was auto-verified.
-                    authoritative = auto_verdicts or verify_verdicts
-                    if any(v == "FAIL" for v in authoritative.values()):
-                        record_outcome("verified_failure")
-                        _record_telemetry(telemetry.OUTCOME_FAIL)
-                    else:
-                        record_outcome("verified_success")
-                        _record_telemetry(telemetry.OUTCOME_PASS)
-                # B5 growth: announce curriculum mastery so the body's lattice
-                # can harden. Additive frame; fires only on the transition and
-                # only under the STRONG promotion floor (gated inside
-                # record_matching), so a weak green can never make the body
-                # celebrate growth that did not happen.
-                for mastered_skill, mastered_level in mastered_levels:
-                    yield sse(
-                        "skill.mastered",
-                        {
-                            "skill": mastered_skill,
-                            "level": mastered_level,
-                            "source": "curriculum",
-                        },
-                    )
-                approvals.clear_session(session_id)
-                turn_state.clear(session_id)
-                yield sse("done", {})
-                # Cortex bus W2: emit a cold-path observation AFTER the done
-                # frame so the hot path is never delayed. Best-effort and
-                # completely skipped when CORTEX_BUS is off (the default).
-                _append_turn_completed(_cortex_bus, session_id, ctx.turn_id)
-
+    turn = TurnCoordinator(
+        deps=runtime,
+        handlers=production_handlers(
+            stream_generate,
+            preparer=prepare_generate_state,
+        ),
+    ).coordinate(ctx)
     return StreamingResponse(
-        event_stream(),
+        turn.events,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -1938,7 +1164,7 @@ def _stream_chat_chunks(
         yield word
 
 
-@app.post("/api/v1/chat")
+@app.post("/api/v1/chat", dependencies=[Depends(enforce_action_boundary)])
 def chat(
     req: ChatRequest,
     request: Request,
@@ -1950,6 +1176,7 @@ def chat(
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     facts: SemanticFacts = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
+    memory_authority=Depends(get_memory_authority),
 ) -> StreamingResponse:
     """Stream a lean Hinglish conversational reply (the GAGOS voice mind).
 
@@ -1970,11 +1197,19 @@ def chat(
     ``/api/generate``. Best-effort persistence never breaks the chat.
     """
     session_id = _session_id_from_request(request, req.session_id)
-    compactor.touch_working_session(session_id)
+    authority_adapters = getattr(memory_authority, "adapters", {})
+    if "compaction" in authority_adapters and memory_authority.owns_store(
+        "compaction", compactor
+    ):
+        memory_authority.touch_working_session(session_id)
+    else:
+        compactor.touch_working_session(session_id)
     _enforce_conversation_rate_limit(session_id)
     user_text = req.transcript.strip()
-    if (injection_reason := _check_prompt_injection(user_text)):
-        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
+    if injection_reason := _check_prompt_injection(user_text):
+        raise HTTPException(
+            status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}"
+        )
 
     ctx = _build_turn_context(
         session_id,
@@ -1983,162 +1218,69 @@ def chat(
         approval_tokens=[],
     )
 
-    # Route by purpose (general for chitchat, coding for code talk, etc.). The
-    # privacy gate lives inside _select_chat_client via _router_policy(): with the
-    # default empty ROUTER_CLOUD_TASKS, `auto` stays local-only. Never force cloud.
+    # The application handler owns provider selection, prompt construction,
+    # streaming, persistence, and terminal lifecycle.  The HTTP route only
+    # supplies validated input plus injected infrastructure callbacks.
     task = infer_task(user_text)
-    chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini,
-        openai=openai_client, anthropic=anthropic_client, task=task,
-        data_classification=ctx.data_classification,
-    )
-    _, model = _active_route(chat_client, bedrock, gemini, model,
-                             openai=openai_client, anthropic=anthropic_client)
-
-    def event_stream() -> Iterator[str]:
-        sse = _sse_writer(ctx.turn_id)
-        # Telemetry (Phase 1 lap-counter, roadmap SS1): this endpoint has no tool
-        # loop and never verifies anything, so dispatch_path is always `llm` and
-        # verified_outcome is always `unverified` -- except a turn that never
-        # reached the model (empty transcript / a transport failure), which is
-        # honestly counted as `aborted` rather than silently producing zero rows.
-        _turn_started = time.perf_counter()
-
-        def _record_chat_telemetry(verified_outcome: str) -> None:
-            provider, served_model = _active_route(
-                chat_client, bedrock, gemini, model,
-                openai=openai_client, anthropic=anthropic_client,
-            )
-            telemetry.record_run(
-                session_id=session_id,
-                task_signature=task_signature(user_text) if user_text else None,
-                dispatch_path=telemetry.DISPATCH_LLM,
-                provider=provider,
-                model=served_model,
-                verified_outcome=verified_outcome,
-                latency_ms=round((time.perf_counter() - _turn_started) * 1000),
-            )
-
-        if not user_text:
-            _record_chat_telemetry(telemetry.OUTCOME_ABORTED)
-            yield sse("error", {"text": "No transcript provided."})
-            return
-
-        # Build the conversational system prompt via PromptWriter: prioritized,
-        # budgeted sections assembled declaratively.
-        from aios.core.prompt_writer import PromptSection, PromptWriter
-
-        prompt_sections = [
-            PromptSection(
-                name="operator_facts",
-                priority=90,
-                render=lambda: _operator_facts_block(facts),
-                max_tokens=800,
-            ),
-            PromptSection(
-                name="recall",
-                priority=70,
-                render=lambda: _recall_memory(user_text),
-                max_tokens=1500,
-            ),
-        ]
-        system_prompt = PromptWriter(
-            CHAT_SYSTEM_PROMPT, prompt_sections, total_budget=4000
-        ).assemble(user_text)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_text},
-        ]
-
-        _record_episode(session_id, "user", user_text)
-
-        # The ACTIVE BRAIN for this turn (the UI 'voyaging mind' badge): provider/
-        # model that actually served + privacy indicator. For streaming clients,
-        # the first chunk proves which failover candidate won; route is still the
-        # first frame emitted, but it is not guessed before the provider answers.
-        route_sent = False
-        text_parts: list[str] = []
-
-        def route_payload() -> dict[str, Any]:
-            active_provider, active_model = _active_route(
-                chat_client, bedrock, gemini, model,
-                openai=openai_client, anthropic=anthropic_client,
-            )
-            return {
-                "provider": active_provider,
-                "model": active_model,
-                "privacy": "local" if active_provider == router.PROVIDER_OLLAMA else "cloud",
+    turn = TurnCoordinator(
+        deps=RuntimeDeps(
+            bedrock=bedrock,
+            gemini=gemini,
+            openai_client=openai_client,
+            anthropic_client=anthropic_client,
+            indexer=indexer,
+            facts=facts,
+            memory_authority=get_memory_authority(),
+            compactor=compactor,
+            extra={
+                "route": "/api/v1/chat",
+                "user_text": user_text,
+                "model_id": req.model_id,
                 "task": task,
-                "auto": req.model_id in _AUTO_IDS,
-                "turn_id": ctx.turn_id,
-                "mode": ctx.mode.value,
-            }
-
-        # ONE no-tool chat stream => pure text, no tool loop, no file writes.
-        try:
-            for chunk in _stream_chat_chunks(chat_client, messages, model=model):
-                if not route_sent:
-                    yield sse("route", route_payload())
-                    route_sent = True
-                text_parts.append(chunk)
-                yield sse("text_chunk", {"text": chunk})
-        except LLMError as exc:
-            _record_chat_telemetry(telemetry.OUTCOME_ABORTED)
-            yield sse("error", {"text": str(exc)})
-            return
-
-        if not route_sent:
-            yield sse("route", route_payload())
-        text = "".join(text_parts).strip()
-        if not text:
-            text = "(no answer)"
-            yield sse("text_chunk", {"text": text})
-
-        _record_episode(session_id, "assistant", text)
-        _index_turn(indexer, user_text, text)
-        if config.FACTS_AUTO_EXTRACT:
-            try:
-                proposed_count = 0
-                for s, p, o in extract_candidates(
-                    user_text,
-                    max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
-                ):
-                    result = facts.strengthen_or_propose(s, p, o)
-                    if result.proposed or result.reason == "strengthened":
-                        proposed_count += 1
-                if proposed_count and _cortex_bus:
-                    canonical = CanonicalEvent(
-                        event_type=CanonicalEventType.FACTS_PROPOSED.value,
-                        phase=EventPhase.WONDER.value,
-                        status="success",
-                        trust=TrustLevel.VERIFIED.value,
-                        source="chat",
-                        session_id=session_id,
-                        turn_id=ctx.turn_id,
-                        payload={"count": proposed_count},
-                    )
-                    _cortex_bus.append(
-                        canonical.event_type,
-                        session_id,
-                        canonical.to_dict(),
-                    )
-            except Exception:
-                logger.warning("Chat fact extraction failed", exc_info=True)
-        _record_chat_telemetry(telemetry.OUTCOME_UNVERIFIED)
-        yield sse("done", {})
-
+                "select_chat_client": lambda selected_task: _select_chat_client(
+                    req.model_id,
+                    client,
+                    bedrock,
+                    gemini=gemini,
+                    openai=openai_client,
+                    anthropic=anthropic_client,
+                    task=selected_task,
+                    data_classification=ctx.data_classification,
+                ),
+                "active_route": _active_route,
+                "sse_writer": _sse_writer,
+                "stream_chat_chunks": _stream_chat_chunks,
+                "record_episode": _record_episode,
+                "index_turn": _index_turn,
+                "operator_facts_block": _operator_facts_block,
+                "recall_memory": _recall_memory,
+                "chat_system_prompt": CHAT_SYSTEM_PROMPT,
+                "facts_auto_extract": config.FACTS_AUTO_EXTRACT,
+                "facts_auto_extract_max": config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
+                "cortex_bus": _cortex_bus,
+                "logger": logger,
+                "telemetry": telemetry,
+                "task_signature": task_signature,
+                "ollama_provider": router.PROVIDER_OLLAMA,
+                "auto_ids": _AUTO_IDS,
+            },
+        ),
+        handlers=production_handlers(),
+    ).coordinate(ctx)
     return StreamingResponse(
-        event_stream(),
+        turn.events,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-@app.post("/api/terminal")
+@app.post("/api/terminal", dependencies=[Depends(enforce_action_boundary)])
 def terminal(
     req: TerminalRequest,
+    request: Request,
+    _principal: Principal = Depends(require_privileged_operator),
     executor: Executor = Depends(get_executor),
-    approvals: ApprovalStore = Depends(get_approval_store),
+    broker: ActionBroker = Depends(get_action_broker),
 ) -> dict[str, Any]:
     """Run a UI-terminal command through the security gateway + sandbox.
 
@@ -2147,7 +1289,59 @@ def terminal(
     reported as needing approval, and only GREEN runs in the scope-locked
     sandbox. Every outcome is audited by the executor.
     """
-    result = executor.execute(req.command, session_id=req.session_id)
+    # Shell-command approval capabilities are bound to the validated browser
+    # session.  Ignore the legacy body field so it cannot select another
+    # principal or smuggle a privileged session through JSON.
+    session_id = _principal.session_id
+    payload = {"command": req.command}
+    envelope = ActionEnvelope(
+        route=request.url.path,
+        action_type=ActionType.COMMAND,
+        http_method=request.method,
+        payload=payload,
+        principal=EnvelopePrincipal(
+            session_id=_principal.session_id,
+            actor_source="session",
+            client_ip=_principal.client_address or "127.0.0.1",
+        ),
+        request_id=_principal.request_id or request.headers.get("x-request-id"),
+        operator_id=_principal.principal_id,
+        device_id=_principal.device_id,
+        authentication_event_id=_principal.authentication_event_id,
+        resource={"workspace": "training_ground"},
+        requested_capability="command.execute",
+        correlation_id=(
+            request.headers.get("x-correlation-id")
+            or _principal.request_id
+            or request.headers.get("x-request-id")
+            or str(uuid.uuid4())
+        ),
+    )
+    try:
+        decision = broker.submit(
+            envelope,
+            capability_binding=_generate_capability_binding(
+                _principal,
+                "command",
+                payload,
+                route="/api/terminal",
+            ),
+        )
+    except PolicyBrokerError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    if decision.blocked:
+        return {"output": f"[BLOCKED] {decision.reason}", "isError": True}
+    if decision.requires_approval:
+        return {
+            "output": f"[APPROVAL REQUIRED] {decision.reason}",
+            "isError": False,
+            "requiresApproval": True,
+            "approvalToken": decision.approval_token,
+            "command": req.command,
+        }
+
+    result = executor.execute(req.command, session_id=session_id)
 
     if result.status == "OK":
         output = (result.stdout or "") + (result.stderr or "")
@@ -2156,19 +1350,10 @@ def terminal(
             "isError": bool(result.exit_code),
         }
     if result.status == "REQUIRE_APPROVAL":
-        if not req.session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="sessionId is required to approve a YELLOW command",
-            )
-        token = approvals.issue("command", {"command": req.command}, req.session_id)
-        return {
-            "output": f"[APPROVAL REQUIRED] {result.reason}",
-            "isError": False,
-            "requiresApproval": True,
-            "approvalToken": token,
-            "command": req.command,
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="executor disagreed with ActionBroker decision",
+        )
     # BLOCKED / TIMEOUT / ERROR
     return {"output": f"[{result.status}] {result.reason}", "isError": True}
 

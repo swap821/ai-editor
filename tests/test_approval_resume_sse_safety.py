@@ -28,7 +28,6 @@ from aios.api.main import (
     get_ollama_client,
     get_semantic_indexer,
     get_skill_memory,
-    get_approval_store,
     get_cerebellum,
     get_development_tracker,
     get_swarm_pattern_memory,
@@ -161,7 +160,6 @@ def client(monkeypatch) -> Iterator[TestClient]:
         audit_log=RecordingAudit(),
         approved_runner=_runner,
     )
-    get_approval_store().clear()
     turn_state.clear("sse-safety-session")
     turn_state.clear("done-clears-session")
     turn_state.clear("stale-pause-session")
@@ -189,7 +187,8 @@ def _extract_approval_token(body: str) -> str:
 def test_convo_tail_key_never_appears_in_sse_body_and_token_never_in_stash(
     client: TestClient,
 ) -> None:
-    session_id = "sse-safety-session"
+    session_id = str(client.cookies.get("session_id"))
+    assert session_id and session_id != "None"
 
     resp1 = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],
@@ -225,7 +224,8 @@ def test_convo_tail_key_never_appears_in_sse_body_and_token_never_in_stash(
 
 
 def test_done_clears_turn_state(client: TestClient) -> None:
-    session_id = "done-clears-session"
+    session_id = str(client.cookies.get("session_id"))
+    assert session_id and session_id != "None"
 
     resp1 = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],
@@ -251,7 +251,8 @@ def test_done_clears_turn_state(client: TestClient) -> None:
 def test_stale_pause_then_tokenless_directive_does_not_inherit_tail(
     client: TestClient,
 ) -> None:
-    session_id = "stale-pause-session"
+    session_id = str(client.cookies.get("session_id"))
+    assert session_id and session_id != "None"
 
     resp1 = client.post("/api/generate", json={
         "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],

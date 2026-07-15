@@ -96,7 +96,8 @@ def test_chat_streams_text_chunk_then_done(
     )
     assert response.status_code == 200
     body = response.text
-    # route announced, the reply streamed as text_chunk(s), terminal done.
+    # lifecycle starts, route is announced, reply streams as text_chunk(s), then done.
+    assert "event: turn.started" in body
     assert "event: route" in body
     assert "event: text_chunk" in body
     assert "event: done" in body
@@ -109,6 +110,7 @@ def test_chat_streams_text_chunk_then_done(
     # the reply text actually reached the wire.
     assert "ho" in body and "jayega" in body
     # text_chunk precedes done.
+    assert body.index("event: turn.started") < body.index("event: route")
     assert body.index("event: text_chunk") < body.index("event: done")
 
 

@@ -33,6 +33,8 @@ class ApprovedAction:
     action_type: str
     payload: dict[str, Any]
     session_id: str
+    route: Optional[str] = None
+    http_method: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -118,14 +120,18 @@ class ApprovalStore:
                     action_type TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
                     session_id TEXT NOT NULL,
-                    expires_at REAL NOT NULL
+                    expires_at REAL NOT NULL,
+                    route TEXT,
+                    http_method TEXT
                 );
                 CREATE TABLE IF NOT EXISTS approval_grants (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     action_type TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
                     session_id TEXT NOT NULL,
-                    expires_at REAL NOT NULL
+                    expires_at REAL NOT NULL,
+                    route TEXT,
+                    http_method TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_approval_pending_expiry
                     ON approval_pending(expires_at);
@@ -137,6 +143,14 @@ class ApprovalStore:
             for table in ("approval_pending", "approval_grants"):
                 if table not in _KNOWN_TABLES:
                     raise ValueError(f"unexpected table: {table}")
+                columns = {
+                    str(row[1])
+                    for row in conn.execute(f"PRAGMA table_info({table})").fetchall()  # noqa: S608
+                }
+                if "route" not in columns:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN route TEXT")  # noqa: S608
+                if "http_method" not in columns:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN http_method TEXT")  # noqa: S608
                 rows = conn.execute(f"SELECT DISTINCT session_id FROM {table}").fetchall()  # noqa: S608
                 for row in rows:
                     session_id = str(row["session_id"])
@@ -149,20 +163,43 @@ class ApprovalStore:
 
     @staticmethod
     def _row_action(row: sqlite3.Row, session_id: Optional[str] = None) -> ApprovedAction:
+        keys = set(row.keys())
+        route = str(row["route"]) if "route" in keys and row["route"] else None
+        http_method = (
+            str(row["http_method"]).upper()
+            if "http_method" in keys and row["http_method"]
+            else None
+        )
         return ApprovedAction(
             action_type=str(row["action_type"]),
             payload=json.loads(str(row["payload_json"])),
             session_id=session_id or str(row["session_id"]),
+            route=route,
+            http_method=http_method,
         )
 
-    def issue(self, action_type: str, payload: dict[str, Any], session_id: str) -> str:
+    def issue(
+        self,
+        action_type: str,
+        payload: dict[str, Any],
+        session_id: str,
+        *,
+        route: Optional[str] = None,
+        http_method: Optional[str] = None,
+    ) -> str:
         """Record an exact action and return its opaque approval token."""
         if action_type not in {"command", "edit", "create", "rollback"}:
             raise ApprovalError(f"unsupported approval action: {action_type}")
         if not session_id:
             raise ApprovalError("approval requires a session id")
         token = secrets.token_urlsafe(32)
-        action = ApprovedAction(action_type, dict(payload), session_id)
+        action = ApprovedAction(
+            action_type,
+            dict(payload),
+            session_id,
+            route=route,
+            http_method=http_method.upper() if http_method else None,
+        )
         expires_at = self._clock() + self.timeout_s
         if self.db_path is not None:
             serialized = json.dumps(action.payload, separators=(",", ":"), sort_keys=True)
@@ -177,14 +214,16 @@ class ApprovalStore:
                 self._prune_db(conn)
                 conn.execute(
                     "INSERT INTO approval_pending "
-                    "(token_digest, action_type, payload_json, session_id, expires_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
+                    "(token_digest, action_type, payload_json, session_id, expires_at, route, http_method) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         self._token_digest(token),
                         action.action_type,
                         serialized,
                         self._session_digest(action.session_id),
                         expires_at,
+                        action.route,
+                        action.http_method,
                     ),
                 )
             return token
@@ -209,7 +248,7 @@ class ApprovalStore:
                 # race: two concurrent connections cannot both see the row.
                 row = conn.execute(
                     "DELETE FROM approval_pending WHERE token_digest = ? RETURNING "
-                    "action_type, payload_json, session_id, expires_at",
+                    "action_type, payload_json, session_id, expires_at, route, http_method",
                     (digest,),
                 ).fetchone()
             if row is None:
@@ -229,6 +268,41 @@ class ApprovalStore:
                 raise ApprovalError("approval token is unknown or already used")
             if pending.expires_at < self._clock():
                 raise ApprovalError("approval token expired")
+            if pending.action.session_id != session_id:
+                raise ApprovalError("approval token belongs to a different session")
+            return pending.action
+
+    def peek(self, token: str, session_id: str) -> ApprovedAction:
+        """Read a pending action without consuming it.
+
+        The ActionBroker uses this to compare the complete envelope before the
+        one-time consume.  A mismatched payload must not burn the operator's
+        capability or turn a failed authorization attempt into a side effect.
+        """
+        if not token:
+            raise ApprovalError("approval token is required")
+        if self.db_path is not None:
+            digest = self._token_digest(token)
+            with self._connect() as conn:
+                self._prune_db(conn)
+                row = conn.execute(
+                    "SELECT action_type, payload_json, session_id, expires_at, route, http_method "
+                    "FROM approval_pending WHERE token_digest = ?",
+                    (digest,),
+                ).fetchone()
+            if row is None:
+                raise ApprovalError("approval token is unknown or already used")
+            if float(row["expires_at"]) < self._clock():
+                raise ApprovalError("approval token expired")
+            stored_session = str(row["session_id"])
+            if stored_session not in {session_id, self._session_digest(session_id)}:
+                raise ApprovalError("approval token belongs to a different session")
+            return self._row_action(row, session_id)
+        with self._lock:
+            self._prune_locked()
+            pending = self._pending.get(token)
+            if pending is None:
+                raise ApprovalError("approval token is unknown or already used")
             if pending.action.session_id != session_id:
                 raise ApprovalError("approval token belongs to a different session")
             return pending.action
@@ -253,12 +327,15 @@ class ApprovalStore:
                 self._prune_db(conn)
                 conn.execute(
                     "INSERT INTO approval_grants "
-                    "(action_type, payload_json, session_id, expires_at) VALUES (?, ?, ?, ?)",
+                    "(action_type, payload_json, session_id, expires_at, route, http_method) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
                     (
                         action.action_type,
                         json.dumps(action.payload, separators=(",", ":"), sort_keys=True),
                         self._session_digest(action.session_id),
                         expires_at,
+                        action.route,
+                        action.http_method,
                     ),
                 )
             return action
@@ -275,7 +352,7 @@ class ApprovalStore:
             with self._connect() as conn:
                 self._prune_db(conn)
                 rows = conn.execute(
-                    "SELECT action_type, payload_json, session_id FROM approval_grants "
+                    "SELECT action_type, payload_json, session_id, route, http_method FROM approval_grants "
                     "WHERE session_id IN (?, ?) ORDER BY id",
                     (self._session_digest(session_id), session_id),
                 ).fetchall()

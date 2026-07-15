@@ -34,7 +34,7 @@ class SqliteMissionRepository(MissionRepository):
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode=WAL")
@@ -58,6 +58,7 @@ class SqliteMissionRepository(MissionRepository):
             contract=MissionContract.model_validate_json(row["contract_json"]),
             state=MissionState(row["state"]),
             contract_digest=row["contract_digest"],
+            runtime_contract_digest=row["runtime_contract_digest"],
             capability_digest=row["capability_digest"],
             policy_version=row["policy_version"],
             exported_path=row["exported_path"],
@@ -66,7 +67,11 @@ class SqliteMissionRepository(MissionRepository):
         )
 
     def create(
-        self, contract: MissionContract, state: MissionState = MissionState.DRAFT
+        self,
+        contract: MissionContract,
+        state: MissionState = MissionState.DRAFT,
+        *,
+        runtime_contract_digest: str | None = None,
     ) -> MissionRecord:
         digest = contract.digest()
         now = _utc_now()
@@ -77,8 +82,8 @@ class SqliteMissionRepository(MissionRepository):
                     INSERT INTO missions (
                         mission_id, parent_mission_id, turn_id, project_id, operator_id,
                         contract_json, contract_digest, capability_digest, policy_version,
-                        state, exported_path, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        runtime_contract_digest, state, exported_path, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         contract.mission_id,
@@ -90,6 +95,7 @@ class SqliteMissionRepository(MissionRepository):
                         digest,
                         contract.capability_digest,
                         contract.policy_version,
+                        runtime_contract_digest,
                         state.value,
                         None,
                         contract.created_at,
@@ -119,10 +125,17 @@ class SqliteMissionRepository(MissionRepository):
         actor: str,
         reason: str | None = None,
         capability_digest: str | None = None,
+        contract_digest: str | None = None,
+        authentication_event_id: str | None = None,
+        session_id: str | None = None,
     ) -> MissionRecord:
         with self._connect() as conn:
+            # Serialize read/validate/update so two concurrent approvals cannot
+            # both observe AWAITING_APPROVAL and both transition it.
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                "SELECT state FROM missions WHERE mission_id = ?", (mission_id,)
+                "SELECT state, contract_digest FROM missions WHERE mission_id = ?",
+                (mission_id,),
             ).fetchone()
             if row is None:
                 raise MissionNotFoundError(f"mission {mission_id!r} not found")
@@ -131,17 +144,53 @@ class SqliteMissionRepository(MissionRepository):
                 raise MissionTransitionError(
                     f"invalid transition {from_state.value} -> {to_state.value}"
                 )
+            if to_state in {MissionState.APPROVED, MissionState.REJECTED}:
+                if actor.strip().lower() in {
+                    "system",
+                    "orchestrator",
+                    "council",
+                    "planner",
+                    "worker",
+                    "scheduler",
+                } or actor.startswith("orchestrator-auto-"):
+                    raise MissionTransitionError(
+                        "Human Sovereign operator is required for approval"
+                    )
+                if not capability_digest:
+                    raise MissionTransitionError(
+                        "exact capability digest is required for approval"
+                    )
+                if not contract_digest:
+                    raise MissionTransitionError(
+                        "contract digest is required for approval"
+                    )
+                if contract_digest != row["contract_digest"]:
+                    raise MissionTransitionError(
+                        "contract digest does not match authoritative mission"
+                    )
+                if not authentication_event_id or not session_id:
+                    raise MissionTransitionError(
+                        "authentication event and session are required for approval"
+                    )
             now = _utc_now()
-            conn.execute(
-                "UPDATE missions SET state = ?, updated_at = ? WHERE mission_id = ?",
-                (to_state.value, now, mission_id),
-            )
+            if to_state in {MissionState.APPROVED, MissionState.REJECTED}:
+                conn.execute(
+                    "UPDATE missions SET state = ?, operator_id = ?, "
+                    "capability_digest = ?, updated_at = ? WHERE mission_id = ?",
+                    (to_state.value, actor, capability_digest, now, mission_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE missions SET state = ?, updated_at = ? WHERE mission_id = ?",
+                    (to_state.value, now, mission_id),
+                )
             conn.execute(
                 """
                 INSERT INTO mission_transitions (
                     mission_id, from_state, to_state, actor, reason,
-                    capability_digest, recorded_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    capability_digest, contract_digest, authentication_event_id,
+                    session_id, recorded_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mission_id,
@@ -150,10 +199,12 @@ class SqliteMissionRepository(MissionRepository):
                     actor,
                     reason,
                     capability_digest,
+                    contract_digest,
+                    authentication_event_id,
+                    session_id,
                     now,
                 ),
             )
-            conn.commit()
         return self.get(mission_id)
 
     def list_by_project(self, project_id: str) -> list[MissionRecord]:
@@ -189,7 +240,8 @@ class SqliteMissionRepository(MissionRepository):
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT from_state, to_state, actor, reason, capability_digest, recorded_at
+                SELECT from_state, to_state, actor, reason, capability_digest,
+                       contract_digest, authentication_event_id, session_id, recorded_at
                 FROM mission_transitions
                 WHERE mission_id = ?
                 ORDER BY id ASC
@@ -203,6 +255,9 @@ class SqliteMissionRepository(MissionRepository):
                 "actor": row["actor"],
                 "reason": row["reason"],
                 "capability_digest": row["capability_digest"],
+                "contract_digest": row["contract_digest"],
+                "authentication_event_id": row["authentication_event_id"],
+                "session_id": row["session_id"],
                 "recorded_at": row["recorded_at"],
             }
             for row in rows
@@ -224,8 +279,8 @@ class SqliteMissionRepository(MissionRepository):
                 INSERT OR REPLACE INTO missions (
                     mission_id, parent_mission_id, turn_id, project_id, operator_id,
                     contract_json, contract_digest, capability_digest, policy_version,
-                    state, exported_path, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    runtime_contract_digest, state, exported_path, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mission_id,
@@ -237,6 +292,7 @@ class SqliteMissionRepository(MissionRepository):
                     digest,
                     contract.capability_digest,
                     contract.policy_version,
+                    None,
                     state.value,
                     exported_path,
                     contract.created_at,

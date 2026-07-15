@@ -78,6 +78,7 @@ dicts so the API layer can forward them as SSE and tests can assert on them
 without HTTP. The chat client and executor are injected, so tests drive the full
 loop with a scripted fake and touch neither Ollama nor a shell.
 """
+
 from __future__ import annotations
 
 import ast
@@ -131,6 +132,7 @@ class AgentLoopError(Exception):
     tool call(s) without making progress, we stop the loop rather than
     letting it consume resources or potentially cause harm.
     """
+
     pass
 
 
@@ -404,9 +406,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
 #: Exact allowlist used by the textual-tool-call fallback. A local model that
 #: emits ``{"name":"read_file","arguments":{...}}`` as prose may still use a
 #: real advertised tool, but can never invent a new dispatcher route.
-_TOOL_NAMES = frozenset(
-    str(spec["function"]["name"]) for spec in TOOL_SPECS
-)
+_TOOL_NAMES = frozenset(str(spec["function"]["name"]) for spec in TOOL_SPECS)
 
 
 class ChatClient(Protocol):
@@ -418,8 +418,7 @@ class ChatClient(Protocol):
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
 
 def _coerce_args(raw: object) -> dict[str, Any]:
@@ -468,7 +467,9 @@ def _validate_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         args = _coerce_args(raw_args)
         # Validate arguments are primitives only -- no nested objects
-        if not all(isinstance(v, (str, int, float, bool, type(None))) for v in args.values()):
+        if not all(
+            isinstance(v, (str, int, float, bool, type(None))) for v in args.values()
+        ):
             log_action(
                 "tool-agent",
                 f"Blocked tool call '{name}' with non-primitive arguments",
@@ -557,9 +558,7 @@ def _extract_text_tool_calls(
             pass
 
     # ---- TIER 2: Markdown code block with JSON ----
-    code_block_match = re.search(
-        r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL
-    )
+    code_block_match = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)
     if code_block_match:
         cleaned = code_block_match.group(1).strip()
         calls = _validated_from_structured_payload(cleaned)
@@ -570,9 +569,7 @@ def _extract_text_tool_calls(
     # ReAct parses prose narration, so keep it restricted to an explicit
     # "Action:" line plus JSON args, then the normal allowlist/primitive filter.
     if enable_react_recovery:
-        for match in re.finditer(
-            r"(?ims)^\s*action:\s*([a-z0-9_]+)\s*(\{.*)", content
-        ):
+        for match in re.finditer(r"(?ims)^\s*action:\s*([a-z0-9_]+)\s*(\{.*)", content):
             try:
                 args_obj, _ = json.JSONDecoder().raw_decode(match.group(2))
             except json.JSONDecodeError:
@@ -656,6 +653,7 @@ class ToolAgent:
         resume_tail: Optional[list[dict[str, Any]]] = None,
         cerebellum: Optional[Cerebellum] = None,
         native_planner: Optional[Any] = None,
+        memory_authority: Optional[Any] = None,
         stream_fn: Optional[Callable[..., Iterator[Any]]] = None,
     ) -> None:
         self.llm = llm
@@ -743,7 +741,11 @@ class ToolAgent:
         #: and reused by the ``plan`` tool; ``None`` when no planner LLM is injected,
         #: in which case ``plan`` degrades gracefully. We never rewrite planner.py.
         self._planner: Optional[Planner] = (
-            Planner(planner_llm, native=native_planner)
+            Planner(
+                planner_llm,
+                native=native_planner,
+                memory_authority=memory_authority,
+            )
             if planner_llm is not None
             else None
         )
@@ -794,14 +796,17 @@ class ToolAgent:
         harm (e.g., repeated file reads, repeated failed commands).
         """
         current = [
-            (str(c.get("function", {}).get("name", "")), str(c.get("function", {}).get("arguments", {})))
+            (
+                str(c.get("function", {}).get("name", "")),
+                str(c.get("function", {}).get("arguments", {})),
+            )
             for c in tool_calls
         ]
         self._tool_call_history.extend(current)
 
         # Check 1: last N calls are all identical (repeating the same action)
         if len(self._tool_call_history) >= self._repeated_tool_threshold:
-            last_n = self._tool_call_history[-self._repeated_tool_threshold:]
+            last_n = self._tool_call_history[-self._repeated_tool_threshold :]
             if len(set(last_n)) == 1:
                 return True
 
@@ -822,7 +827,6 @@ class ToolAgent:
         self._tool_call_history = []
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
-
         """Event types: ``tool_call``, ``tool_result``, ``tool_blocked``,
         ``human_required`` (pauses the turn for YELLOW approval), ``text``,
         ``code``, ``done``, ``error``.
@@ -833,7 +837,8 @@ class ToolAgent:
         specs = TOOL_SPECS
         if self.allowed_tools is not None:
             specs = [
-                spec for spec in TOOL_SPECS
+                spec
+                for spec in TOOL_SPECS
                 if str(spec["function"]["name"]) in self.allowed_tools
             ]
         # Reset loop-safety tracking at the start of each fresh run.
@@ -868,8 +873,11 @@ class ToolAgent:
             and not self.resume_tail
         ):
             _user_text = next(
-                (str(m.get("content", "")) for m in reversed(messages)
-                 if m.get("role") == "user"),
+                (
+                    str(m.get("content", ""))
+                    for m in reversed(messages)
+                    if m.get("role") == "user"
+                ),
                 "",
             )
             try:
@@ -879,7 +887,8 @@ class ToolAgent:
             if _playbook is not None:
                 _replay_ok = True
                 for _ev in self.cerebellum.replay(
-                    _playbook, dispatch_fn=self._dispatch_approved,
+                    _playbook,
+                    dispatch_fn=self._dispatch_approved,
                 ):
                     yield _ev
                     if _ev.get("type") == "cerebellum_abort":
@@ -892,8 +901,7 @@ class ToolAgent:
                         "replay_count": _playbook.replay_count,
                     }
                     yield from self._finish(
-                        f"Completed from compiled experience: "
-                        f"{_playbook.goal_pattern}"
+                        f"Completed from compiled experience: {_playbook.goal_pattern}"
                     )
                     return
                 # Aborted — fall through to the LLM loop below.
@@ -927,9 +935,7 @@ class ToolAgent:
             streamed_text: bool = False
             if self.stream_fn is not None:
                 try:
-                    msg, streamed_text = yield from self._stream_iteration(
-                        convo, specs
-                    )
+                    msg, streamed_text = yield from self._stream_iteration(convo, specs)
                 except LLMError as exc:
                     yield {"type": "error", "text": f"Local inference error: {exc}"}
                     return
@@ -964,7 +970,10 @@ class ToolAgent:
                 }
                 yield {"type": "done"}
                 return
-            assistant_msg: dict[str, Any] = {"role": "assistant", "content": msg.get("content", "")}
+            assistant_msg: dict[str, Any] = {
+                "role": "assistant",
+                "content": msg.get("content", ""),
+            }
             if tool_calls:
                 assistant_msg["tool_calls"] = tool_calls
             convo.append(assistant_msg)
@@ -1024,7 +1033,11 @@ class ToolAgent:
                         self._audit(
                             "earned-autonomy",
                             f"AUTO-GRANT {name}: {_target}"
-                            + (f" (earned, {_ev['success_count']} verified)" if _ev else " (earned)"),
+                            + (
+                                f" (earned, {_ev['success_count']} verified)"
+                                if _ev
+                                else " (earned)"
+                            ),
                             Zone.YELLOW,
                         )
                         self._grant_earned(name, args)
@@ -1056,7 +1069,7 @@ class ToolAgent:
                         # synthetic re-append needed. Popped off the event by
                         # main.py before it reaches the SSE payload -- this key
                         # must NEVER be emitted to the client.
-                        pause_event["_convo_tail"] = list(convo[1 + len(messages):])
+                        pause_event["_convo_tail"] = list(convo[1 + len(messages) :])
                         yield pause_event
                         return
                 if status == "blocked":
@@ -1076,7 +1089,10 @@ class ToolAgent:
                     if name == "verify":
                         result_event["target"] = str(args.get("command", ""))
                     yield result_event
-                    if name == "plan" and getattr(self, "_last_native_source", None) is not None:
+                    if (
+                        name == "plan"
+                        and getattr(self, "_last_native_source", None) is not None
+                    ):
                         ns = self._last_native_source
                         yield {
                             "type": "native_plan",
@@ -1146,7 +1162,9 @@ class ToolAgent:
             name, args, self.approved_edits, self.approved_creations
         )
 
-    def _pre_apply_grants(self, convo: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
+    def _pre_apply_grants(
+        self, convo: list[dict[str, Any]]
+    ) -> Iterator[dict[str, Any]]:
         """Apply granted-but-unlanded writes through the same gated paths.
 
         Runs at the start of a replayed turn, before the first model call.
@@ -1176,8 +1194,12 @@ class ToolAgent:
                 # approve -> grant applies -> STRONG verify) could never mint
                 # a skill. noop replays yield it too so the FINAL (done)
                 # replay's recipe carries every write of the approval chain.
-                yield {"type": "tool_call", "tool": "create_file",
-                       "input": {"filepath": filepath}, "id": call_id}
+                yield {
+                    "type": "tool_call",
+                    "tool": "create_file",
+                    "input": {"filepath": filepath},
+                    "id": call_id,
+                }
             if status == "noop":
                 # Already landed on an earlier replay -- STILL queue it for verify so
                 # the FINAL (done) replay carries the verdict. Skipping it loses the
@@ -1185,13 +1207,21 @@ class ToolAgent:
                 applied.append((index, filepath, "create_file"))
                 continue
             if status == "ok":
-                yield {"type": "tool_result", "tool": "create_file",
-                       "output": output[:_PREVIEW_LIMIT], "id": call_id}
+                yield {
+                    "type": "tool_result",
+                    "tool": "create_file",
+                    "output": output[:_PREVIEW_LIMIT],
+                    "id": call_id,
+                }
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
                 applied.append((index, filepath, "create_file"))
             else:
-                yield {"type": "tool_blocked", "tool": "create_file",
-                       "reason": output[:_PREVIEW_LIMIT], "id": call_id}
+                yield {
+                    "type": "tool_blocked",
+                    "tool": "create_file",
+                    "reason": output[:_PREVIEW_LIMIT],
+                    "id": call_id,
+                }
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
         for index, (filepath, _grant) in enumerate(self.approved_edits.items()):
             # _edit_file substitutes the approved (old, new) pair itself.
@@ -1199,23 +1229,39 @@ class ToolAgent:
             call_id = f"grant-edit-{index}"
             if status in ("ok", "noop"):
                 # Same workflow-step accounting as granted creations above.
-                yield {"type": "tool_call", "tool": "edit_file",
-                       "input": {"filepath": filepath}, "id": call_id}
+                yield {
+                    "type": "tool_call",
+                    "tool": "edit_file",
+                    "input": {"filepath": filepath},
+                    "id": call_id,
+                }
             if status == "noop":
-                applied.append((index, filepath, "edit_file"))  # verify on the done-replay too
+                applied.append(
+                    (index, filepath, "edit_file")
+                )  # verify on the done-replay too
                 continue
             if status == "ok":
-                yield {"type": "tool_result", "tool": "edit_file",
-                       "output": output[:_PREVIEW_LIMIT], "id": call_id}
+                yield {
+                    "type": "tool_result",
+                    "tool": "edit_file",
+                    "output": output[:_PREVIEW_LIMIT],
+                    "id": call_id,
+                }
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
                 applied.append((index, filepath, "edit_file"))
             else:
-                yield {"type": "tool_blocked", "tool": "edit_file",
-                       "reason": output[:_PREVIEW_LIMIT], "id": call_id}
+                yield {
+                    "type": "tool_blocked",
+                    "tool": "edit_file",
+                    "reason": output[:_PREVIEW_LIMIT],
+                    "id": call_id,
+                }
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
         # Phase 2 -- every granted file is now on disk; verify against the truth.
         for index, filepath, action_type in applied:
-            yield from self._auto_verify(filepath, index, convo, action_type=action_type)
+            yield from self._auto_verify(
+                filepath, index, convo, action_type=action_type
+            )
 
     def _reflect(
         self,
@@ -1291,8 +1337,12 @@ class ToolAgent:
         )
 
     def _auto_verify(
-        self, filepath: str, index: int, convo: list[dict[str, Any]],
-        *, action_type: str = "create_file",
+        self,
+        filepath: str,
+        index: int,
+        convo: list[dict[str, Any]],
+        *,
+        action_type: str = "create_file",
     ) -> Iterator[dict[str, Any]]:
         # Force a verification after a successful write -- evidence over narration.
         p = Path(filepath)
@@ -1301,7 +1351,8 @@ class ToolAgent:
 
         abs_file = (self.read_root / filepath).resolve()
         test_abs = (
-            abs_file if p.stem.startswith("test_")
+            abs_file
+            if p.stem.startswith("test_")
             else abs_file.with_name(f"test_{p.stem}.py")
         )
         if not test_abs.is_file():
@@ -1310,8 +1361,12 @@ class ToolAgent:
                 f"(looked for {test_abs.name}); the change is UNVERIFIED -- "
                 "do not assume it works."
             )
-            yield {"type": "tool_result", "tool": "verify",
-                   "output": note[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
+            yield {
+                "type": "tool_result",
+                "tool": "verify",
+                "output": note[:_PREVIEW_LIMIT],
+                "id": f"autoverify-{index}",
+            }
             convo.append({"role": "tool", "content": note})
             return
 
@@ -1331,14 +1386,22 @@ class ToolAgent:
 
         output, status, _failed = self._verify(command, approved=True)
         if status == "blocked":
-            yield {"type": "tool_blocked", "tool": "verify",
-                   "reason": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}"}
+            yield {
+                "type": "tool_blocked",
+                "tool": "verify",
+                "reason": output[:_PREVIEW_LIMIT],
+                "id": f"autoverify-{index}",
+            }
             verified_ok = False  # an unverifiable change is fail-closed
             verify_strength = VerificationStrength.NONE
         else:
-            yield {"type": "tool_result", "tool": "verify",
-                   "output": output[:_PREVIEW_LIMIT], "id": f"autoverify-{index}",
-                   "target": command}
+            yield {
+                "type": "tool_result",
+                "tool": "verify",
+                "output": output[:_PREVIEW_LIMIT],
+                "id": f"autoverify-{index}",
+                "target": command,
+            }
             verified_ok = output.lstrip().startswith("[VERIFY PASS]")
             verify_strength = strength_from_text(output)
         convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
@@ -1457,7 +1520,9 @@ class ToolAgent:
             return self._propose_fixes(args.get("limit", 25))
         return (f"Unknown tool '{name}'.", "blocked", False)
 
-    def _dispatch_approved(self, name: str, args: dict[str, Any]) -> tuple[str, str, bool]:
+    def _dispatch_approved(
+        self, name: str, args: dict[str, Any]
+    ) -> tuple[str, str, bool]:
         """Dispatch a step as PRE-APPROVED. Used ONLY by cerebellum replay.
 
         A compiled playbook is built exclusively from a skill that already
@@ -1509,7 +1574,9 @@ class ToolAgent:
     def _read_directory(self, path: str) -> tuple[str, str, bool]:
         return tool_handlers.read_directory(path, read_root=self.read_root)
 
-    def _edit_file(self, filepath: str, old_string: str, new_string: str) -> tuple[str, str, bool]:
+    def _edit_file(
+        self, filepath: str, old_string: str, new_string: str
+    ) -> tuple[str, str, bool]:
         return tool_handlers.edit_file(
             filepath,
             old_string,

@@ -4,10 +4,12 @@ Drives one mission: Planner drafts, Security/Memory deliberate, a worker runs,
 Testing verifies, and a King report is produced. Phase 3A optionally persists
 every verdict and lifecycle event to a durable CouncilState store (best-effort).
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -27,12 +29,12 @@ from aios.council.ganglia import (
     synthesize_signals,
 )
 from aios.council.king_reasoning import reason_king
-from aios.council.participation import CouncilParticipation, CouncilParticipationPolicy
+from aios.council.reasoning import MistakeBackedRetriever
+from aios.council.participation import CouncilParticipationPolicy
 from aios.council.queen_verdict import (
     has_blocking_verdict,
     highest_risk,
     verdicts_as_metadata,
-
 )
 from aios.council.queens import (
     CouncilMissionRequest,
@@ -45,16 +47,24 @@ from aios.council.queens import (
     SecurityQueen,
     TestingQueen,
 )
+from aios.application.evidence import EvidenceAuthority, VerificationAuthority
 from aios.domain.missions.mission_contract import (
     MissionBudget,
     MissionContract as DomainMissionContract,
     VerificationPlan,
 )
-from aios.domain.missions.mission_repository import MissionRepository
+from aios.domain.evidence import VerificationObservation, VerificationPlanV1
+from aios.domain.capabilities.digest import payload_digest
+from aios.domain.missions.mission_repository import MissionTransitionError
 from aios.domain.missions.mission_state import MissionState
 from aios.application.missions.mission_service import MissionService
+from aios.application.promotion import PromotionAuthority, WorkspacePromotionRuntime
+from aios.domain.promotion import PromotionRequest, PromotionResult, PromotionStatus
 from aios.application.workers.foundry import WorkerFoundry
-from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
+from aios.application.workspaces import StagedWorkspaceManager
+from aios.infrastructure.missions.sqlite_mission_repository import (
+    SqliteMissionRepository,
+)
 from aios.runtime.contracts import (
     KingReport,
     MissionContract,
@@ -70,12 +80,26 @@ from aios.runtime.king_report import (
 )
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.spawner import WorkerRun, WorkerSpawner, claim_mission
+from aios.core.verification_strength import (
+    VerificationStrength,
+    parse_test_counts,
+    strength_from_name,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _ledger_strength(ledger: RunLedger) -> int:
+    return int(
+        strength_from_name(
+            ledger.verification.get("strength"),
+            VerificationStrength.NONE,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -118,10 +142,59 @@ class CouncilOrchestrator:
         bus: CortexBus | None = None,
         mission_service: MissionService | None = None,
         foundry: WorkerFoundry | None = None,
+        workspace_manager: StagedWorkspaceManager | None = None,
+        evidence_authority: EvidenceAuthority | None = None,
+        verification_authority: VerificationAuthority | None = None,
+        promotion_authority: PromotionAuthority | None = None,
+        promotion_runtime: WorkspacePromotionRuntime | None = None,
+        memory_authority: Any | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
         self.bus = bus
-        self.spawner = spawner or WorkerSpawner(runtime_root=self.runtime_root, bus=self.bus)
+        self.spawner = spawner or WorkerSpawner(
+            runtime_root=self.runtime_root, bus=self.bus
+        )
+        if workspace_manager is None and os.getenv(
+            "AIOS_PROFILE", "development"
+        ).strip().lower() in {
+            "production",
+            "demo",
+        }:
+            workspace_manager = StagedWorkspaceManager(
+                config.EXECUTOR_WORKSPACE_ROOT,
+                enrolled_roots=(config.COUNCIL_WORKSPACE_ROOT, *config.SCOPE_ROOTS),
+            )
+        self.workspace_manager = workspace_manager
+        self.evidence_authority = evidence_authority or EvidenceAuthority()
+        self.verification_authority = verification_authority or VerificationAuthority(
+            self.evidence_authority
+        )
+        production_profile = os.getenv(
+            "AIOS_PROFILE", "development"
+        ).strip().lower() in {
+            "production",
+            "demo",
+        }
+        if (
+            promotion_runtime is None
+            and workspace_manager is not None
+            and production_profile
+        ):
+            promotion_runtime = WorkspacePromotionRuntime(
+                workspace_manager,
+                self.runtime_root,
+            )
+        self.promotion_runtime = promotion_runtime
+        if (
+            promotion_authority is None
+            and workspace_manager is not None
+            and production_profile
+        ):
+            promotion_authority = PromotionAuthority(
+                workspace_manager,
+                verification=self.verification_authority,
+            )
+        self.promotion_authority = promotion_authority
         # Slice 9: all temporary worker styles enter through one bounded Foundry.
         # The deterministic strategy still delegates to the existing spawner so
         # its security, snapshot and evidence behavior remains unchanged.
@@ -129,18 +202,30 @@ class CouncilOrchestrator:
             runtime_root=self.runtime_root,
             spawner=self.spawner,
             bus=self.bus,
+            workspace_manager=self.workspace_manager,
         )
         self.planner = planner or PlannerQueen()
         self.security = security or SecurityQueen()
-        self.memory = memory or MemoryQueen()
+        if memory is not None:
+            self.memory = memory
+        elif memory_authority is not None and config.COUNCIL_REASONING:
+            self.memory = MemoryQueen(
+                MistakeBackedRetriever(authority=memory_authority)
+            )
+        else:
+            self.memory = MemoryQueen()
         self.testing = testing or TestingQueen()
         self.routing = routing or RoutingQueen()
         self.reflection = reflection or ReflectionQueen()
-        self.project_understanding = project_understanding or ProjectUnderstandingQueen()
+        self.project_understanding = (
+            project_understanding or ProjectUnderstandingQueen()
+        )
         # Opt-in (AIOS_COUNCIL_CRITIQUE): a second-order check on verification
         # sufficiency. None → the Queen is absent (no behavior change).
-        self.critique = critique if critique is not None else (
-            CritiqueQueen() if config.COUNCIL_CRITIQUE else None
+        self.critique = (
+            critique
+            if critique is not None
+            else (CritiqueQueen() if config.COUNCIL_CRITIQUE else None)
         )
         self.participation_policy = participation_policy or CouncilParticipationPolicy()
         # Opt-in (AIOS_QUEEN_SERVICES): use long-lived async Queen services when
@@ -161,8 +246,15 @@ class CouncilOrchestrator:
         self.council_state = council_state
         # Optional v10 deliberation memory. None → no persistence.
         self.council_memory = council_memory
+        # Optional mission-scoped memory authority. The Council adapter is
+        # bound to the same runtime-local CouncilMemory instance.
+        self.memory_authority = memory_authority
         self.pheromone_store = pheromone_store
-        if self.pheromone_store is None and config.PHEROMONE_ENABLED:
+        if (
+            self.pheromone_store is None
+            and self.memory_authority is None
+            and config.PHEROMONE_ENABLED
+        ):
             self.pheromone_store = PheromoneStore(
                 db_path=config.PHEROMONE_DB,
                 lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
@@ -174,11 +266,10 @@ class CouncilOrchestrator:
         self.mission_service = mission_service or MissionService(
             SqliteMissionRepository(self.runtime_root / "missions.db"),
             export_dir=self.runtime_root / "mission_exports",
+            workspace_manager=self.workspace_manager,
         )
 
-    def _to_domain_contract(
-        self, contract: MissionContract
-    ) -> DomainMissionContract:
+    def _to_domain_contract(self, contract: MissionContract) -> DomainMissionContract:
         """Map a runtime v0.1 contract to the authoritative v1 domain contract."""
         return DomainMissionContract(
             mission_id=contract.mission_id,
@@ -209,15 +300,16 @@ class CouncilOrchestrator:
         )
 
     async def run(self, request: CouncilMissionRequest | MissionContract) -> CouncilRun:
-        """Full loop: deliberate, then execute when the council does not block.
+        """Deliberate a mission and return its proposal for human approval.
 
-        Preserves the original one-shot behavior. The HTTP origination flow uses
-        deliberate() and execute() separately so a human approves between them.
+        A programmatic one-shot caller must not become an approval authority.
+        Execution is a separate phase entered only after the authoritative
+        mission repository records an authenticated Human Sovereign approval.
         """
         deliberation = self.deliberate(request)
         if has_blocking_verdict(deliberation.verdicts):
             return deliberation
-        return await self.execute(deliberation.contract, deliberation.verdicts)
+        return deliberation
 
     def deliberate(
         self, request: CouncilMissionRequest | MissionContract
@@ -233,12 +325,6 @@ class CouncilOrchestrator:
         # (and the later execute() phase, which spawns with claim=False).
         claim_mission(self.runtime_root, contract.mission_id)
         self._persist_verdict(contract.mission_id, draft.verdict)
-
-        # Slice 7: authoritative mission state starts at DRAFT and moves into
-        # DELIBERATING for the council phase.
-        domain_contract = self._to_domain_contract(contract)
-        self.mission_service.create(domain_contract)
-        self.mission_service.start_deliberation(contract.mission_id)
 
         participation = self.participation_policy.decide(
             contract, prior_verdicts=verdicts
@@ -272,6 +358,15 @@ class CouncilOrchestrator:
             signals=signals,
             synthesis=synthesis,
         )
+        # Slice 7: persist the final, fully contextualized runtime contract as
+        # the authoritative mission proposal before any terminal or approval
+        # transition is recorded.  The JSON ledger remains a projection.
+        domain_contract = self._to_domain_contract(contract)
+        self.mission_service.create(
+            domain_contract,
+            runtime_contract_digest=payload_digest(contract.model_dump(mode="json")),
+        )
+        self.mission_service.start_deliberation(contract.mission_id)
         if has_blocking_verdict(verdicts):
             self.mission_service.block(
                 contract.mission_id,
@@ -335,11 +430,17 @@ class CouncilOrchestrator:
         already claimed by deliberate(), so the spawner runs with claim=False."""
         execute_start = time.perf_counter()
         mission_record = self.mission_service.repository.get(contract.mission_id)
-        if mission_record.state == MissionState.AWAITING_APPROVAL:
-            self.mission_service.approve(
-                contract.mission_id,
-                operator_id="orchestrator",
-                capability_digest=f"orchestrator-auto-{contract.snapshot_id or contract.mission_id}",
+        if mission_record.state is not MissionState.APPROVED:
+            raise MissionTransitionError(
+                "human approval is required before mission execution"
+            )
+        if (
+            mission_record.runtime_contract_digest
+            and mission_record.runtime_contract_digest
+            != payload_digest(contract.model_dump(mode="json"))
+        ):
+            raise MissionTransitionError(
+                "runtime contract digest does not match authoritative mission"
             )
         self.mission_service.start_execution(contract.mission_id)
         worker_run = await self.foundry.run(
@@ -375,12 +476,54 @@ class CouncilOrchestrator:
 
         execute_latency_ms = int((time.perf_counter() - execute_start) * 1000)
 
+        promotion_result: PromotionResult | None = None
+        promotion_bundle_digest: str | None = None
         if has_blocking_verdict(verdicts):
             self.mission_service.start_verification(contract.mission_id)
             self.mission_service.fail(
                 contract.mission_id,
                 reason=f"Council blocked after worker; highest risk {highest_risk([v.risk for v in verdicts])}",
+                retain_workspace=True,
             )
+        elif self.promotion_authority is not None:
+            self.mission_service.start_verification(contract.mission_id)
+            try:
+                promotion_result, promotion_bundle_digest = self._promote_worker(
+                    contract=contract,
+                    worker_run=worker_run,
+                )
+            except Exception as exc:  # noqa: BLE001 - promotion fails closed
+                _LOGGER.warning(
+                    "council_promotion_failed_closed",
+                    mission_id=contract.mission_id,
+                    exc_info=exc,
+                )
+                self.mission_service.fail(
+                    contract.mission_id,
+                    reason=f"Promotion pipeline failed closed: {type(exc).__name__}",
+                    retain_workspace=True,
+                )
+                promotion_result = PromotionResult(
+                    mission_id=contract.mission_id,
+                    action_id=f"promotion:{contract.mission_id}",
+                    status=PromotionStatus.FAILED,
+                    reason_codes=("promotion_pipeline_exception", type(exc).__name__),
+                )
+            else:
+                if promotion_result.status is PromotionStatus.PROMOTED:
+                    self.mission_service.complete(
+                        contract.mission_id,
+                        evidence_digest=promotion_bundle_digest,
+                    )
+                else:
+                    self.mission_service.fail(
+                        contract.mission_id,
+                        reason=(
+                            "Promotion refused: "
+                            + ",".join(promotion_result.reason_codes)
+                        ),
+                        retain_workspace=True,
+                    )
         else:
             self.mission_service.start_verification(contract.mission_id)
             self.mission_service.complete(contract.mission_id)
@@ -397,16 +540,30 @@ class CouncilOrchestrator:
             signals=signals,
             synthesis=synthesis,
         )
+        extra_evidence: dict[str, object] = {
+            "council_metrics": {
+                "execute_latency_ms": execute_latency_ms,
+                "cost_usd": 0.0,
+            },
+        }
+        if promotion_result is not None:
+            extra_evidence["promotion"] = promotion_result.model_dump(mode="json")
+            if promotion_bundle_digest is not None:
+                extra_evidence["evidence_bundle_digest"] = promotion_bundle_digest
         ledger = self._enrich_worker_ledger(
             worker_run=worker_run,
             verdicts=verdicts,
             contract=contract_with_ganglia,
-            extra_evidence={
-                "council_metrics": {
-                    "execute_latency_ms": execute_latency_ms,
-                    "cost_usd": 0.0,
-                },
-            },
+            extra_evidence=extra_evidence,
+            status_override=(
+                worker_run.ledger.status
+                if promotion_result is None
+                else (
+                    "completed"
+                    if promotion_result.status is PromotionStatus.PROMOTED
+                    else "failed"
+                )
+            ),
         )
         ledger_path = self.ledger_store.write(ledger)
         report = build_king_report(ledger=ledger, result=worker_run.result)
@@ -420,7 +577,7 @@ class CouncilOrchestrator:
                 complete=self.king_complete,
             )
         report_path = self.report_store.write(report)
-        export_path = self.mission_service.export(contract.mission_id)
+        self.mission_service.export(contract.mission_id)
         self._persist_event(
             contract.mission_id,
             "report",
@@ -437,14 +594,148 @@ class CouncilOrchestrator:
             report_path=report_path,
         )
 
+    def _promote_worker(
+        self,
+        *,
+        contract: MissionContract,
+        worker_run: WorkerRun,
+    ) -> tuple[PromotionResult, str]:
+        if self.workspace_manager is None or self.promotion_authority is None:
+            raise RuntimeError("promotion authority is not configured")
+        if self.promotion_runtime is None:
+            raise RuntimeError("promotion runtime adapters are not configured")
+        lease = self.workspace_manager.for_mission(contract.mission_id)
+        if lease is None:
+            raise RuntimeError("worker completed without a durable staged lease")
+        diff = self.workspace_manager.diff(lease)
+        workspace_digest = str(diff["workspace_digest"])
+        diff_digest = str(diff["diff_digest"])
+        contract_digest = payload_digest(contract.model_dump(mode="json"))
+        environment_digest = payload_digest(
+            {
+                "backend": worker_run.handle.backend,
+                "executor_policy": worker_run.contract.metadata.get(
+                    "executor_policy", "default"
+                ),
+                "profile": os.getenv("AIOS_PROFILE", "development"),
+            }
+        )
+        commands = worker_run.ledger.verification.get("commands", [])
+        if not isinstance(commands, list):
+            commands = []
+        targets = tuple(worker_run.result.files_touched or contract.allowed_files)
+        bundle = self.evidence_authority.bundle(
+            mission_id=contract.mission_id,
+            worker_id=worker_run.handle.worker_id,
+            contract_digest=contract_digest,
+            workspace_digest=workspace_digest,
+            diff_digest=diff_digest,
+            executor_job_id=worker_run.handle.worker_id,
+            environment_digest=environment_digest,
+            commands=commands,
+            verification_strength=_ledger_strength(worker_run.ledger),
+            targets_exercised=targets,
+            started_at=worker_run.result.started_at,
+            ended_at=worker_run.result.ended_at,
+        )
+        verification_results = []
+        for entry in commands:
+            if not isinstance(entry, dict):
+                continue
+            raw_command = entry.get("command", "")
+            command = (
+                raw_command
+                if isinstance(raw_command, str)
+                else " ".join(str(part) for part in raw_command)
+            )
+            passed_count, failed_count = parse_test_counts(
+                str(entry.get("stdout") or "") + str(entry.get("stderr") or "")
+            )
+            observation = VerificationObservation(
+                command=command,
+                exit_code=entry.get("returncode"),
+                stdout=str(entry.get("stdout") or ""),
+                stderr=str(entry.get("stderr") or ""),
+                passed_count=passed_count,
+                failed_count=failed_count,
+                tool_version=str(entry.get("tool_version") or "worker-executor"),
+                observed_at=worker_run.result.ended_at,
+            )
+            for target in targets:
+                verification_results.append(
+                    self.verification_authority.verify(
+                        mission_id=contract.mission_id,
+                        action_id=f"promotion:{contract.mission_id}",
+                        worker_id=worker_run.handle.worker_id,
+                        target=target,
+                        plan=VerificationPlanV1(
+                            intended_behavior=contract.goal,
+                            targets=(target,),
+                            required_tests=(command,),
+                            minimum_strength=int(VerificationStrength.STRONG),
+                        ),
+                        workspace_digest=workspace_digest,
+                        diff_digest=diff_digest,
+                        environment_digest=environment_digest,
+                        observation=observation,
+                    )
+                )
+        record = self.mission_service.repository.get(contract.mission_id)
+        request = PromotionRequest(
+            mission_id=contract.mission_id,
+            action_id=f"promotion:{contract.mission_id}",
+            worker_id=worker_run.handle.worker_id,
+            executor_job_id=worker_run.handle.worker_id,
+            environment_digest=environment_digest,
+            project_root=lease.project_root,
+            lease=lease,
+            current_state=MissionState.VERIFYING,
+            contract_digest=contract_digest,
+            authoritative_contract_digest=record.runtime_contract_digest
+            or contract_digest,
+            policy_version=record.policy_version,
+            authoritative_policy_version=record.policy_version,
+            workspace_digest=workspace_digest,
+            diff_digest=diff_digest,
+            verification_results=tuple(verification_results),
+            evidence_bundle=bundle,
+            required_targets=targets,
+            required_strength=int(VerificationStrength.STRONG),
+            freshness_seconds=300,
+        )
+        result = self.promotion_authority.promote(
+            request,
+            create_checkpoint=self.promotion_runtime.create_checkpoint,
+            apply_staged_diff=self.promotion_runtime.apply_staged_diff,
+            smoke_test=self.promotion_runtime.post_promotion_smoke,
+            restore_checkpoint=self.promotion_runtime.restore_checkpoint,
+            emit_observation=lambda req, promotion: self._persist_event(
+                req.mission_id,
+                "promotion",
+                payload=promotion.model_dump(mode="json"),
+            ),
+        )
+        return result, bundle.digest()
+
     def _apply_pheromone_context(self, contract: MissionContract) -> MissionContract:
         """Attach decayed pheromone hints as non-authoritative contract context."""
-        if not config.PHEROMONE_ENABLED or self.pheromone_store is None:
+        if not config.PHEROMONE_ENABLED:
             return contract
         if not contract.allowed_files:
             return contract
+        if self.memory_authority is None and self.pheromone_store is None:
+            return contract
         try:
-            contexts = self.pheromone_store.for_contract(list(contract.allowed_files))
+            if self.memory_authority is not None:
+                contexts = self.memory_authority.pheromone_for_contract(
+                    list(contract.allowed_files)
+                )
+                context_source = "MemoryAuthority.pheromone_for_contract"
+            else:
+                contexts = self.pheromone_store.for_contract(
+                    list(contract.allowed_files)
+                )
+                context_source = "PheromoneStore.for_contract"
         except Exception as exc:  # noqa: BLE001 - pheromones may suggest, never block
             _LOGGER.warning("pheromone_context_unavailable", exc_info=exc)
             return contract
@@ -457,7 +748,7 @@ class CouncilOrchestrator:
         metadata = dict(contract.metadata)
         metadata["pheromone_context_count"] = len(contexts)
         metadata["pheromone_context_non_authoritative"] = True
-        metadata["pheromone_context_source"] = "PheromoneStore.for_contract"
+        metadata["pheromone_context_source"] = context_source
         return contract.model_copy(
             update={"pheromone_context": combined[:20], "metadata": metadata}
         )
@@ -470,9 +761,7 @@ class CouncilOrchestrator:
         metadata = dict(contract.metadata)
         metadata["council_verdicts"] = verdicts_as_metadata(verdicts)
         constraints = [
-            constraint
-            for verdict in verdicts
-            for constraint in verdict.constraints
+            constraint for verdict in verdicts for constraint in verdict.constraints
         ]
         if constraints:
             metadata["council_constraints"] = constraints
@@ -497,9 +786,7 @@ class CouncilOrchestrator:
         metadata["ganglia_authority"] = "proposal/evidence"
         return contract.model_copy(update={"metadata": metadata})
 
-    def _review_queen_sync(
-        self, name: str, contract: MissionContract
-    ) -> QueenVerdict:
+    def _review_queen_sync(self, name: str, contract: MissionContract) -> QueenVerdict:
         """Invoke a Queen by name, using the service registry when enabled."""
         if self.use_queen_services:
             svc = queen_service_registry.QUEEN_SERVICES.get(name)
@@ -562,7 +849,9 @@ class CouncilOrchestrator:
     ) -> CouncilRun:
         now = _utc_now()
         # Mission already claimed by deliberate() before this is reached.
-        risk = highest_risk([contract.risk_level, *(verdict.risk for verdict in verdicts)])
+        risk = highest_risk(
+            [contract.risk_level, *(verdict.risk for verdict in verdicts)]
+        )
         result = WorkerResult(
             mission_id=contract.mission_id,
             worker_id="council-preflight",
@@ -645,6 +934,22 @@ class CouncilOrchestrator:
         if self.council_memory is None:
             return
         try:
+            recorder = getattr(
+                self.memory_authority, "record_council_deliberation", None
+            )
+            adapters = getattr(self.memory_authority, "adapters", {})
+            if (
+                callable(recorder)
+                and isinstance(adapters, dict)
+                and "council" in adapters
+            ):
+                recorder(
+                    mission_id=mission_id,
+                    verdicts=verdicts,
+                    signals=signals,
+                    synthesis=synthesis,
+                )
+                return
             self.council_memory.record_deliberation(
                 mission_id=mission_id,
                 verdicts=verdicts,
@@ -661,6 +966,7 @@ class CouncilOrchestrator:
         verdicts: list[QueenVerdict],
         contract: MissionContract | None = None,
         extra_evidence: dict[str, object] | None = None,
+        status_override: str | None = None,
     ) -> RunLedger:
         contract = contract or worker_run.contract
         risk = highest_risk(
@@ -669,6 +975,8 @@ class CouncilOrchestrator:
         status = worker_run.ledger.status
         if has_blocking_verdict(verdicts):
             status = "failed"
+        if status_override is not None:
+            status = status_override
         evidence = dict(worker_run.ledger.evidence)
         evidence.update(self._council_evidence(contract, verdicts))
         evidence["mission_state_authority"] = "sqlite_mission_repository"

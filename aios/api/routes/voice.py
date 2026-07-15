@@ -16,8 +16,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from aios import config
+from aios.api.action_guard import enforce_action_boundary
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 
 #: Voice service singletons — built lazily on first voice request.
 _stt_service: Optional[Any] = None

@@ -120,6 +120,14 @@ def _production_preflight(config: LauncherConfig) -> None:
             "production start refused: Docker is unavailable; host execution "
             "is not a production fallback"
         )
+    if (
+        os.getenv("AIOS_APPROVED_EXECUTION_BACKEND", "container").strip().lower()
+        == "host"
+    ):
+        raise LauncherError(
+            "production start refused: host execution backend is forbidden; "
+            "use the private Executor Service"
+        )
     missing = [
         name for name in _SECRET_NAMES if _is_placeholder(_secret_value(config, name))
     ]
@@ -310,9 +318,7 @@ def v1_check(config: LauncherConfig, *, strict: bool, as_json: bool) -> int:
             f"{'READY' if declaration.ready else 'NOT READY'} ({config.profile})"
         )
         for gate in declaration.gates:
-            print(
-                f"  [{'OK' if gate.passed else 'BLOCKED'}] {gate.name}: {gate.evidence}"
-            )
+            print(f"  [{gate.status}] {gate.name}: {gate.evidence}")
     return 0 if declaration.ready or not strict else 1
 
 

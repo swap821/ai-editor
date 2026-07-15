@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -17,8 +16,11 @@ from aios.domain.missions.mission_repository import (
     MissionTransitionError,
 )
 from aios.domain.missions.mission_state import MissionState, MissionTransition
-from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
+from aios.infrastructure.missions.sqlite_mission_repository import (
+    SqliteMissionRepository,
+)
 from aios.application.missions.mission_service import MissionService
+from aios.application.workspaces import StagedWorkspaceManager
 
 
 @pytest.fixture
@@ -66,7 +68,9 @@ def test_contract_digest_changes_with_field() -> None:
     assert a.digest() != b.digest()
 
 
-def test_repository_creates_mission_in_draft_state(repository: SqliteMissionRepository) -> None:
+def test_repository_creates_mission_in_draft_state(
+    repository: SqliteMissionRepository,
+) -> None:
     contract = _contract()
     record = repository.create(contract)
     assert isinstance(record, MissionRecord)
@@ -74,7 +78,9 @@ def test_repository_creates_mission_in_draft_state(repository: SqliteMissionRepo
     assert record.contract_digest == contract.digest()
 
 
-def test_repository_get_missing_mission_raises(repository: SqliteMissionRepository) -> None:
+def test_repository_get_missing_mission_raises(
+    repository: SqliteMissionRepository,
+) -> None:
     with pytest.raises(MissionNotFoundError):
         repository.get("missing")
 
@@ -95,6 +101,9 @@ def test_valid_state_transitions(repository: SqliteMissionRepository) -> None:
         MissionState.APPROVED,
         actor="operator-1",
         capability_digest="cap-1",
+        contract_digest=contract.digest(),
+        authentication_event_id="auth-1",
+        session_id="session-1",
     )
     assert record.state == MissionState.APPROVED
     record = repository.apply_transition(
@@ -121,12 +130,18 @@ def test_service_double_approve_guard(service: MissionService) -> None:
         contract.mission_id,
         operator_id="operator-1",
         capability_digest="cap-1",
+        contract_digest=contract.digest(),
+        authentication_event_id="auth-1",
+        session_id="session-1",
     )
     with pytest.raises(MissionTransitionError, match="capability already consumed"):
         service.double_approve_guard(
             contract.mission_id,
             operator_id="operator-1",
             capability_digest="cap-1",
+            contract_digest=contract.digest(),
+            authentication_event_id="auth-1",
+            session_id="session-1",
         )
 
 
@@ -197,3 +212,34 @@ def test_transition_history_is_recorded(service: MissionService) -> None:
     states = [h["to_state"] for h in history]
     assert states == ["deliberating", "awaiting_approval"]
     assert all(h["actor"] for h in history)
+
+
+def test_service_cleans_staged_workspace_after_terminal_completion(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    manager = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
+    repository = SqliteMissionRepository(tmp_path / "missions.db")
+    service = MissionService(repository, workspace_manager=manager)
+    contract = _contract(workspace_root=str(project))
+
+    service.create(contract)
+    lease = manager.stage(contract.mission_id, project)
+    service.start_deliberation(contract.mission_id)
+    service.request_approval(contract.mission_id)
+    service.approve(
+        contract.mission_id,
+        operator_id="operator-1",
+        capability_digest="cap-1",
+        contract_digest=contract.digest(),
+        authentication_event_id="auth-1",
+        session_id="session-1",
+    )
+    service.start_execution(contract.mission_id)
+    service.start_verification(contract.mission_id)
+    service.complete(contract.mission_id)
+
+    assert not Path(lease.workspace_path).exists()
+    assert manager.for_mission(contract.mission_id) is None

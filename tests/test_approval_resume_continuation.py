@@ -42,7 +42,6 @@ from aios.api.main import (
     get_ollama_client,
     get_semantic_indexer,
     get_skill_memory,
-    get_approval_store,
 )
 from aios.core.executor import Executor
 from aios.memory.skills import SkillMemory
@@ -154,7 +153,6 @@ def client(monkeypatch) -> Iterator[TestClient]:
         audit_log=RecordingAudit(),
         approved_runner=_runner,
     )
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
             test_client._skills = skills  # type: ignore[attr-defined]

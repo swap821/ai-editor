@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from aios.application.turns import TurnContext, TurnCoordinator, TurnMode
+from aios.application.turns import (
+    TurnContext,
+    TurnCoordinator,
+    TurnMode,
+    production_handlers,
+)
 
 
 class TestModeClassification:
@@ -65,6 +70,64 @@ class TestTurnContext:
 
 
 class TestCoordinatorRegistration:
+    def test_production_handlers_cover_every_mode(self) -> None:
+        handlers = production_handlers(
+            lambda _ctx, _runtime: iter([{"type": "handled"}])
+        )
+        assert set(handlers) == set(TurnMode)
+        coordinator = TurnCoordinator(deps=None, handlers=handlers)
+
+        async def collect(mode: TurnMode):
+            ctx = TurnContext(
+                turn_id=f"t-{mode.value}",
+                session_id="s-1",
+                operator_id=None,
+                project_id=None,
+                directive="hello",
+                mode=mode,
+                model_id=None,
+                approval_tokens=(),
+            )
+            return [event async for event in coordinator.coordinate(ctx).events]
+
+        import asyncio
+
+        for mode in TurnMode:
+            assert asyncio.run(collect(mode)) == [{"type": "handled"}]
+
+    def test_preparer_runs_during_coordinate_before_stream_creation(self) -> None:
+        order: list[str] = []
+
+        def prepare(_ctx: TurnContext, _runtime) -> None:
+            order.append("prepared")
+
+        def stream(_ctx: TurnContext, _runtime):
+            order.append("stream-created")
+            return iter([{"type": "handled"}])
+
+        coordinator = TurnCoordinator(
+            deps=None,
+            handlers=production_handlers(stream, preparer=prepare),
+        )
+        ctx = TurnContext(
+            turn_id="t-prepare",
+            session_id="s-prepare",
+            operator_id=None,
+            project_id=None,
+            directive="hello",
+            mode=TurnMode.CONVERSATION,
+            model_id=None,
+            approval_tokens=(),
+        )
+
+        result = coordinator.coordinate(ctx)
+        assert order == ["prepared"]
+
+        import asyncio
+
+        assert asyncio.run(result.events.__anext__()) == {"type": "handled"}
+        assert order == ["prepared", "stream-created"]
+
     def test_register_and_coordinate_conversation(self) -> None:
         coordinator = TurnCoordinator(deps=None)
         captured: list[TurnContext] = []

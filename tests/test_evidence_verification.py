@@ -84,12 +84,21 @@ def test_stale_workspace_or_diff_invalidates_verification() -> None:
         diff_digest="diff-1",
         environment_digest="env-1",
         observation=VerificationObservation(
-            command="python -m pytest", exit_code=0, stdout="1 passed", tool_version="pytest 9"
+            command="python -m pytest",
+            exit_code=0,
+            stdout="1 passed",
+            tool_version="pytest 9",
         ),
     )
     assert authority.is_current(
-        result, workspace_digest="workspace-1", diff_digest="diff-1", now=result.observed_at
+        result,
+        workspace_digest="workspace-1",
+        diff_digest="diff-1",
+        now=result.observed_at,
     )
     assert not authority.is_current(
-        result, workspace_digest="workspace-2", diff_digest="diff-1", now=result.observed_at
+        result,
+        workspace_digest="workspace-2",
+        diff_digest="diff-1",
+        now=result.observed_at,
     )

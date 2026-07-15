@@ -5,6 +5,7 @@ enrolled project.  The callbacks are infrastructure seams: the authority
 decides whether they may be called, while snapshot, patch application and
 mission persistence remain owned by their existing adapters.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -37,7 +38,9 @@ class CheckpointRestorer(Protocol):
 
 
 class MissionCompleter(Protocol):
-    def __call__(self, request: PromotionRequest, evidence_ids: tuple[str, ...]) -> None: ...
+    def __call__(
+        self, request: PromotionRequest, evidence_ids: tuple[str, ...]
+    ) -> None: ...
 
 
 class PromotionObserver(Protocol):
@@ -96,9 +99,8 @@ class PromotionAuthority:
 
         if request.requires_capability:
             try:
-                capability_valid = (
-                    consume_capability is not None
-                    and bool(consume_capability(request))
+                capability_valid = consume_capability is not None and bool(
+                    consume_capability(request)
                 )
             except Exception:  # noqa: BLE001 - capability failures deny, never escape
                 capability_valid = False
@@ -165,6 +167,30 @@ class PromotionAuthority:
             reasons.append("contract_digest_mismatch")
         if request.policy_version != request.authoritative_policy_version:
             reasons.append("policy_version_mismatch")
+        bundle = request.evidence_bundle
+        if bundle is None:
+            reasons.append("evidence_bundle_missing")
+        else:
+            if bundle.mission_id != request.mission_id:
+                reasons.append("evidence_mission_mismatch")
+            if bundle.worker_id != request.worker_id:
+                reasons.append("evidence_worker_mismatch")
+            if bundle.contract_digest != request.contract_digest:
+                reasons.append("evidence_contract_mismatch")
+            if bundle.executor_job_id != request.executor_job_id:
+                reasons.append("evidence_executor_job_mismatch")
+            if bundle.environment_digest != request.environment_digest:
+                reasons.append("evidence_environment_mismatch")
+            if bundle.workspace_digest != request.workspace_digest:
+                reasons.append("evidence_workspace_mismatch")
+            if bundle.diff_digest != request.diff_digest:
+                reasons.append("evidence_diff_mismatch")
+            if bundle.verification_strength < request.required_strength:
+                reasons.append("evidence_strength_insufficient")
+            if not set(request.required_targets).issubset(
+                set(bundle.targets_exercised)
+            ):
+                reasons.append("evidence_target_missing")
         if request.requires_capability:
             if not request.capability_id or not request.capability_digest:
                 reasons.append("capability_binding_missing")
@@ -173,14 +199,22 @@ class PromotionAuthority:
                 and request.capability_digest != request.authoritative_capability_digest
             ):
                 reasons.append("capability_digest_mismatch")
-        if request.lease.mission_id != request.mission_id:
-            reasons.append("workspace_mission_mismatch")
-        if self._resolve(request.project_root) != self._resolve(request.lease.project_root):
-            reasons.append("workspace_project_mismatch")
-
         try:
-            self.workspace_manager.verify_baseline(request.lease)
-            diff = self.workspace_manager.diff(request.lease)
+            # A request carries a frozen lease, but the durable metadata under
+            # the workspace manager is authoritative across restarts.  Never
+            # promote from a caller-forged lease object or an unregistered
+            # workspace path.
+            durable_lease = self.workspace_manager.load(request.lease.lease_id)
+            if durable_lease != request.lease:
+                reasons.append("workspace_lease_mismatch")
+            if durable_lease.mission_id != request.mission_id:
+                reasons.append("workspace_mission_mismatch")
+            if self._resolve(request.project_root) != self._resolve(
+                durable_lease.project_root
+            ):
+                reasons.append("workspace_project_mismatch")
+            self.workspace_manager.verify_baseline(durable_lease)
+            diff = self.workspace_manager.diff(durable_lease)
             if diff["workspace_digest"] != request.workspace_digest:
                 reasons.append("workspace_digest_mismatch")
             if diff["diff_digest"] != request.diff_digest:
@@ -213,7 +247,10 @@ class PromotionAuthority:
                     freshness_seconds=request.freshness_seconds,
                 ):
                     reasons.append("verification_stale")
-                if not result.meets_requirement or result.strength < request.required_strength:
+                if (
+                    not result.meets_requirement
+                    or result.strength < request.required_strength
+                ):
                     reasons.append("verification_strength_insufficient")
         return tuple(dict.fromkeys(reasons))
 

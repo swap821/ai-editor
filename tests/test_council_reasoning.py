@@ -1,4 +1,5 @@
 """Tests for Phase 3 thinking Queens: narrow-only reasoning + memory retrieval."""
+
 from __future__ import annotations
 
 import json
@@ -8,7 +9,11 @@ import pytest
 from aios import config
 from aios.council.queens.memory import MemoryQueen
 from aios.council.queens.planner import CouncilMissionRequest, PlannerQueen
-from aios.council.reasoning import MemoryRetrieval, reconcile_plan
+from aios.council.reasoning import (
+    MemoryRetrieval,
+    MistakeBackedRetriever,
+    reconcile_plan,
+)
 from aios.runtime.contracts import MissionContract
 
 
@@ -56,6 +61,7 @@ def _contract(**over: object) -> MissionContract:
 
 # --- reconcile_plan: the security core (narrow-only) -----------------------
 
+
 def test_reconcile_is_narrow_only_under_adversarial_plan() -> None:
     """An LLM trying to widen scope / lower risk / clear approval is fully clamped."""
     plan = {
@@ -95,7 +101,11 @@ def test_reconcile_allows_raising_risk_and_adding_approval() -> None:
         request_risk="GREEN",
         request_requires_approval=False,
         request_verification=[],
-        plan={"risk_level": "RED", "requires_approval": True, "files_to_touch": ["a.py"]},
+        plan={
+            "risk_level": "RED",
+            "requires_approval": True,
+            "files_to_touch": ["a.py"],
+        },
     )
     assert out.risk_level == "RED"
     assert out.requires_approval is True
@@ -146,7 +156,11 @@ def test_reconcile_tolerates_non_list_fields() -> None:
         request_risk="YELLOW",
         request_requires_approval=True,
         request_verification=[],
-        plan={"files_to_touch": "a.py", "verification_commands": "pytest", "steps": None},
+        plan={
+            "files_to_touch": "a.py",
+            "verification_commands": "pytest",
+            "steps": None,
+        },
     )
     assert out.allowed_files == ["a.py"]
     assert out.verification_commands == []  # garbage string ignored
@@ -155,7 +169,10 @@ def test_reconcile_tolerates_non_list_fields() -> None:
 
 # --- PlannerQueen reasoning -------------------------------------------------
 
-def test_planner_applies_reasoning_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+
+def test_planner_applies_reasoning_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
     payload = json.dumps(
         {
@@ -168,7 +185,10 @@ def test_planner_applies_reasoning_when_enabled(monkeypatch: pytest.MonkeyPatch)
         }
     )
     draft = PlannerQueen(llm=FakeLLM(payload)).draft(_request())
-    assert draft.contract.metadata["council_plan"] == ["read Login.jsx", "add aria-label"]
+    assert draft.contract.metadata["council_plan"] == [
+        "read Login.jsx",
+        "add aria-label",
+    ]
     assert "python -m pytest tests -q" in draft.contract.verification_commands
     assert draft.verdict.confidence == pytest.approx(0.71)
     assert draft.verdict.metadata["reasoned"] is True
@@ -178,7 +198,10 @@ def test_planner_reasoning_cannot_widen_scope(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
     payload = json.dumps(
         {
-            "files_to_touch": ["frontend/src/pages/Login.jsx", "aios/security/gateway.py"],
+            "files_to_touch": [
+                "frontend/src/pages/Login.jsx",
+                "aios/security/gateway.py",
+            ],
             "risk_level": "GREEN",
             "requires_approval": False,
             "confidence": 1.0,
@@ -214,17 +237,22 @@ def test_planner_deterministic_when_no_llm(monkeypatch: pytest.MonkeyPatch) -> N
 
 # --- MemoryQueen retrieval --------------------------------------------------
 
+
 def test_memory_allows_when_no_failures(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
     queen = MemoryQueen(
-        retriever=FakeRetriever(MemoryRetrieval(hints=["reuse X"], cautions=[], block=False))
+        retriever=FakeRetriever(
+            MemoryRetrieval(hints=["reuse X"], cautions=[], block=False)
+        )
     )
     verdict = queen.review(_contract())
     assert verdict.verdict == "allow"
     assert "reuse X" in verdict.constraints
 
 
-def test_memory_defers_on_relevant_prior_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_memory_defers_on_relevant_prior_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
     queen = MemoryQueen(
         retriever=FakeRetriever(
@@ -249,6 +277,28 @@ def test_memory_deterministic_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(config, "COUNCIL_REASONING", False)
     queen = MemoryQueen(retriever=FakeRetriever(MemoryRetrieval(block=True)))
     assert queen.review(_contract()).verdict == "allow"  # flag off ignores retriever
+
+
+def test_mistake_retriever_uses_memory_authority() -> None:
+    class Authority:
+        def recall_verified_lessons(
+            self, goal: str, limit: int
+        ) -> list[dict[str, object]]:
+            assert goal == "Improve login page"
+            assert limit == 5
+            return [
+                {
+                    "error_type": "TestFailure",
+                    "lesson_text": "run the focused suite",
+                    "relevance": 0.8,
+                }
+            ]
+
+    result = MistakeBackedRetriever(authority=Authority()).retrieve(
+        "Improve login page"
+    )
+    assert result.block is True
+    assert "run the focused suite" in result.cautions[0]
 
 
 def _ledger_with(commands: list[dict]) -> object:
@@ -280,12 +330,16 @@ def test_testing_queen_stamps_strong_from_pytest_ledger() -> None:
 def test_testing_queen_stamps_weak_for_non_test_command() -> None:
     from aios.council.queens.testing import TestingQueen
 
-    ledger = _ledger_with([{"command": ["echo", "ok"], "returncode": 0, "stdout": "ok"}])
+    ledger = _ledger_with(
+        [{"command": ["echo", "ok"], "returncode": 0, "stdout": "ok"}]
+    )
     verdict = TestingQueen().verify(contract=_contract(), ledger=ledger)
     assert verdict.metadata["verification_strength"] == "WEAK"
 
 
-def test_memory_retrieval_error_falls_back_to_allow(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_memory_retrieval_error_falls_back_to_allow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
 
     class Boom:

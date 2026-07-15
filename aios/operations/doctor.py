@@ -1,4 +1,5 @@
 """Read-only production posture report for the local control plane."""
+
 from __future__ import annotations
 
 import os
@@ -74,11 +75,18 @@ def _audit_check(*, production: bool) -> DoctorCheck:
     try:
         status = verify_chain(db_path=config.AUDIT_DB_PATH)
     except Exception as exc:  # noqa: BLE001 - doctor must report, not crash
-        return _check("audit_integrity", False, f"audit verification unavailable: {exc}", required=True)
+        return _check(
+            "audit_integrity",
+            False,
+            f"audit verification unavailable: {exc}",
+            required=True,
+        )
     return _check(
         "audit_integrity",
         bool(status.valid),
-        "audit hash chain verified" if status.valid else "audit hash chain failed verification",
+        "audit hash chain verified"
+        if status.valid
+        else "audit hash chain failed verification",
         required=True,
     )
 
@@ -90,7 +98,9 @@ def doctor_report(
     executor_probe: Callable[[], tuple[bool, str]] | None = None,
 ) -> DoctorReport:
     """Return measured posture without starting models or changing projects."""
-    resolved_profile = (profile or os.getenv("AIOS_PROFILE", "development")).strip().lower()
+    resolved_profile = (
+        (profile or os.getenv("AIOS_PROFILE", "development")).strip().lower()
+    )
     production = resolved_profile == "production"
     checks: list[DoctorCheck] = []
     data_writable = _writable(config.DATA_DIR)
@@ -116,7 +126,9 @@ def doctor_report(
             else f"{config.CONTAINER_RUNTIME} runtime is unavailable",
         )
     )
-    checks.append(_check("executor", executor_ok, executor_message, required=production))
+    checks.append(
+        _check("executor", executor_ok, executor_message, required=production)
+    )
 
     roots = project_roots if project_roots is not None else config.SCOPE_ROOTS
     root_ok = bool(roots) and all(path.exists() and path.is_dir() for path in roots)
@@ -132,9 +144,23 @@ def doctor_report(
     )
 
     if production and not config.API_TOKEN:
-        checks.append(_check("operator_token", False, "production API token is not configured", required=True))
+        checks.append(
+            _check(
+                "operator_token",
+                False,
+                "production API token is not configured",
+                required=True,
+            )
+        )
     else:
-        checks.append(_check("operator_token", True, "operator token posture is configured for this profile", required=False))
+        checks.append(
+            _check(
+                "operator_token",
+                True,
+                "operator token posture is configured for this profile",
+                required=False,
+            )
+        )
 
     disabled = [
         name

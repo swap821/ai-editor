@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+
 from fastapi.testclient import TestClient
 
 from aios.domain.executor import ExecutorCapability, ExecutorJob
@@ -85,6 +87,7 @@ def test_docker_job_runner_passes_only_a_validated_workspace(
     workspace = staging_root / "job-1"
     workspace.mkdir(parents=True)
     monkeypatch.setenv("AIOS_EXECUTOR_WORKSPACE_ROOT", str(staging_root))
+    monkeypatch.setenv("AIOS_EXECUTOR_DAEMON_WORKSPACE_ROOT", str(staging_root))
     calls: list[dict[str, object]] = []
 
     def fake_runner(command, **kwargs):
@@ -97,3 +100,45 @@ def test_docker_job_runner_passes_only_a_validated_workspace(
 
     assert result.status == "completed"
     assert calls[0]["cwd"] == str(workspace.resolve())
+
+
+def test_docker_job_runner_maps_container_workspace_to_daemon_root(
+    monkeypatch, tmp_path
+) -> None:
+    staging_root = tmp_path / "jobs"
+    workspace = staging_root / "job-1"
+    workspace.mkdir(parents=True)
+    daemon_root = tmp_path / "daemon-visible-jobs"
+    daemon_root.mkdir()
+    monkeypatch.setenv("AIOS_EXECUTOR_WORKSPACE_ROOT", str(staging_root))
+    monkeypatch.setenv("AIOS_EXECUTOR_DAEMON_WORKSPACE_ROOT", str(daemon_root))
+    calls: list[dict[str, object]] = []
+
+    def fake_runner(command, **kwargs):
+        calls.append({"command": command, **kwargs})
+        return "ok", "", 0
+
+    result = DockerJobRunner(runner=fake_runner)(
+        ExecutorJob.model_validate(_job(str(workspace)))
+    )
+
+    assert result.status == "completed"
+    assert calls[0]["cwd"] == str(daemon_root / "job-1")
+
+
+def test_docker_job_runner_reports_timeout_as_timeout(monkeypatch, tmp_path) -> None:
+    staging_root = tmp_path / "jobs"
+    workspace = staging_root / "job-1"
+    workspace.mkdir(parents=True)
+    monkeypatch.setenv("AIOS_EXECUTOR_WORKSPACE_ROOT", str(staging_root))
+    monkeypatch.setenv("AIOS_EXECUTOR_DAEMON_WORKSPACE_ROOT", str(staging_root))
+
+    def timeout_runner(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout_s"])
+
+    result = DockerJobRunner(runner=timeout_runner)(
+        ExecutorJob.model_validate(_job(str(workspace)))
+    )
+
+    assert result.status == "timeout"
+    assert result.isolation_verified is False

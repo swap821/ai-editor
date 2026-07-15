@@ -36,8 +36,9 @@ def test_route_authority_templated_match(kernel):
 
 def test_route_authority_fallback(kernel):
     authority = kernel.route_authority("/not/in/table")
-    assert authority.authority_class == "GREEN"
-    assert authority.rate_limit_per_minute == 120
+    assert authority.authority_class == "RED"
+    assert authority.rate_limit_per_minute == 0
+    assert authority.action_type.value == "unknown"
 
 
 # --------------------------------------------------------------------------- #
@@ -213,6 +214,19 @@ def test_request_authority_raises_when_edge_check_fails(kernel, monkeypatch):
     with pytest.raises(Exception) as exc_info:
         kernel.request_authority(_request("/api/v1/execute"))
     assert exc_info.value.status_code == 401
+
+
+def test_request_authority_unknown_route_is_fail_closed(kernel, monkeypatch):
+    monkeypatch.setattr(
+        "aios.policy.kernel.edge_security.check_api_token_or_loopback",
+        lambda _r: None,
+    )
+    monkeypatch.setattr(
+        "aios.policy.kernel.edge_security.check_mutation_origin_or_token",
+        lambda _r: None,
+    )
+    summary = kernel.request_authority(_request("/not/in/table", method="POST"))
+    assert summary["authority"].authority_class == "RED"
 
 
 # --------------------------------------------------------------------------- #

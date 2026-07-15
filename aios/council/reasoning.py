@@ -11,6 +11,7 @@ Nothing in this module performs network or model calls directly: PlannerQueen /
 MemoryQueen receive an injected ``LLMClient`` / retriever, so tests use fakes and
 need neither Ollama nor a populated memory DB.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,7 +39,7 @@ def _max_risk(current: str, proposed: object) -> RiskLevel:
     base = current if current in _RISK_ORDER else "RED"
     if not isinstance(proposed, str) or proposed not in _RISK_ORDER:
         return base  # type: ignore[return-value]
-    return (proposed if _RISK_ORDER[proposed] > _RISK_ORDER[base] else base)  # type: ignore[return-value]
+    return proposed if _RISK_ORDER[proposed] > _RISK_ORDER[base] else base  # type: ignore[return-value]
 
 
 def _clamp01(value: object, *, default: float = 0.6) -> float:
@@ -92,7 +93,9 @@ def reconcile_plan(
       * ``requires_approval`` — may only be set True, never cleared.
       * ``verification_commands`` — UNION (may add; existing preserved).
     """
-    narrowed = [f for f in _str_list(plan.get("files_to_touch")) if f in request_allowed]
+    narrowed = [
+        f for f in _str_list(plan.get("files_to_touch")) if f in request_allowed
+    ]
     allowed_files = narrowed or list(request_allowed)  # never widen, never empty
 
     forbidden_files = list(
@@ -105,8 +108,12 @@ def reconcile_plan(
         plan.get("requires_approval") is True
     )
 
-    proposed_verif = [c for c in _str_list(plan.get("verification_commands")) if c.strip()]
-    verification_commands = list(dict.fromkeys([*request_verification, *proposed_verif]))
+    proposed_verif = [
+        c for c in _str_list(plan.get("verification_commands")) if c.strip()
+    ]
+    verification_commands = list(
+        dict.fromkeys([*request_verification, *proposed_verif])
+    )
 
     steps = [s for s in _str_list(plan.get("steps")) if s.strip()]
 
@@ -176,7 +183,9 @@ class MemoryRetrieval:
     """What the Memory Queen learned about a mission before it runs."""
 
     hints: list[str] = field(default_factory=list)
-    cautions: list[str] = field(default_factory=list)  # relevant prior verified failures
+    cautions: list[str] = field(
+        default_factory=list
+    )  # relevant prior verified failures
     block: bool = False  # a strong exact-shape failure → DENY
 
 
@@ -184,8 +193,7 @@ class MemoryRetrieval:
 class CouncilMemoryRetriever(Protocol):
     """Read-only adapter the Memory Queen consults before a mission."""
 
-    def retrieve(self, goal: str) -> MemoryRetrieval:
-        ...
+    def retrieve(self, goal: str) -> MemoryRetrieval: ...
 
 
 class MistakeBackedRetriever:
@@ -200,16 +208,23 @@ class MistakeBackedRetriever:
         self,
         mistakes: Optional[MistakeMemory] = None,
         *,
+        authority: Any | None = None,
         block_relevance: float = 0.6,
         limit: int = 5,
     ) -> None:
-        self._mistakes = mistakes or MistakeMemory()
+        self._authority = authority
+        self._mistakes = mistakes or (
+            None if authority is not None else MistakeMemory()
+        )
         self._block_relevance = block_relevance
         self._limit = limit
 
     def retrieve(self, goal: str) -> MemoryRetrieval:
         try:
-            lessons = self._mistakes.relevant_verified(goal, limit=self._limit)
+            if self._authority is not None:
+                lessons = self._authority.recall_verified_lessons(goal, self._limit)
+            else:
+                lessons = self._mistakes.relevant_verified(goal, limit=self._limit)
         except Exception as exc:  # noqa: BLE001 - retrieval must never break deliberation
             _LOGGER.warning("council_memory_retrieval_failed", exc_info=exc)
             return MemoryRetrieval()

@@ -65,6 +65,7 @@ _SSE_TO_COGNITION: dict[str, EventType] = {
     "error": EventType.SYNTHESIS,
     "human_required": EventType.APPROVAL_REQUIRED,
     "route": EventType.ROUTE,
+    "turn.started": EventType.DIRECTIVE,
     "step": EventType.KNOWLEDGE_ACQUIRED,
     "swarm_plan": EventType.AGENT_DISPATCH,
     "text_chunk": EventType.SYNTHESIS,
@@ -166,15 +167,21 @@ class TrustLevel(str, Enum):
 
 
 class CanonicalEventType(str, Enum):
+    TURN_STARTED = "turn.started"
     ALIGNMENT_DECLARED = "alignment.declared"
     PLAN_CREATED = "plan.created"
     ROUTE_SELECTED = "route.selected"
     APPROVAL_REQUIRED = "approval.required"
     APPROVAL_DECIDED = "approval.decided"
     TOOL_LIFECYCLE_CHANGED = "tool.lifecycle.changed"
+    WORKER_REQUESTED = "worker.requested"
+    WORKER_ADMITTED = "worker.admitted"
     VERIFICATION_COMPLETED = "verification.completed"
     WORKER_STARTED = "worker.started"
+    WORKER_AWAITING_CAPABILITY = "worker.awaiting_capability"
     WORKER_COMPLETED = "worker.completed"
+    WORKER_FAILED = "worker.failed"
+    WORKER_KILLED = "worker.killed"
     WORKER_DISSOLVED = "worker.dissolved"
     AUTONOMY_GRANT_CHANGED = "autonomy.grant.changed"
     LEARNING_SKILL_MASTERED = "learning.skill.mastered"

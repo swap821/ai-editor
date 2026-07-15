@@ -37,9 +37,16 @@ class SelfModelHandler:
         cached = handler.recall()  # None until the first event is processed
     """
 
-    def __init__(self, development: Any, mistakes: Any) -> None:
+    def __init__(
+        self,
+        development: Any | None = None,
+        mistakes: Any | None = None,
+        *,
+        memory_authority: Any | None = None,
+    ) -> None:
         self._development = development
         self._mistakes = mistakes
+        self._memory_authority = memory_authority
         self._cache: Optional[str] = None
         self._lock = threading.Lock()
 
@@ -48,8 +55,11 @@ class SelfModelHandler:
         if event.event_type != _HANDLED_EVENT_TYPE:
             return
         try:
-            model = synthesize_self_model(self._development, self._mistakes)
-            text = render_self_model(model) or None
+            if self._memory_authority is not None:
+                text = self._memory_authority.self_model() or None
+            else:
+                model = synthesize_self_model(self._development, self._mistakes)
+                text = render_self_model(model) or None
         except Exception:  # noqa: BLE001 — self-model is advisory; never block the bus
             logger.warning(
                 "self_model_handler_synthesis_failed",

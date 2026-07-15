@@ -31,6 +31,13 @@ class PheromoneStoreLike(Protocol):
         ...
 
 
+class MemoryAuthorityLike(Protocol):
+    """Minimal authority surface required for advisory hibernation reads."""
+
+    def pheromone_query(self, *args: Any, **kwargs: Any) -> list[Any]:
+        ...
+
+
 @dataclass(frozen=True)
 class HibernationReport:
     mode: str
@@ -67,12 +74,14 @@ class HibernationManager:
         *,
         repo_root: str | Path = config.PROJECT_ROOT,
         compactor: CompactorLike | None = None,
+        memory_authority: MemoryAuthorityLike | None = None,
         pheromone_store: PheromoneStoreLike | None = None,
         audit_db_path: str | Path = config.AUDIT_DB_PATH,
         budget_guard: BudgetGuard | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.compactor = compactor
+        self.memory_authority = memory_authority
         self.pheromone_store = pheromone_store
         self.audit_db_path = Path(audit_db_path)
         self.budget_guard = budget_guard or BudgetGuard(mode="hibernation")
@@ -120,9 +129,12 @@ class HibernationManager:
         return result
 
     def _pheromone_preview(self) -> dict[str, Any]:
-        if self.pheromone_store is None:
+        if self.memory_authority is None and self.pheromone_store is None:
             return {"skipped": True, "reason": "pheromone store not configured"}
-        pheromones = self.pheromone_store.query(min_strength=0.0)
+        if self.memory_authority is not None:
+            pheromones = self.memory_authority.pheromone_query(min_strength=0.0)
+        else:
+            pheromones = self.pheromone_store.query(min_strength=0.0)
         return {
             "dry_run": True,
             "signals_seen": len(pheromones),

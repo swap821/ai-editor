@@ -3,6 +3,7 @@
 Trace values are correlation metadata only. They never authenticate a caller,
 grant capabilities, or widen a mission scope.
 """
+
 from __future__ import annotations
 
 import re
@@ -14,7 +15,9 @@ from typing import Iterator, Mapping
 
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
-_TRACE: ContextVar["TraceContext | None"] = ContextVar("gagos_trace_context", default=None)
+_TRACE: ContextVar["TraceContext | None"] = ContextVar(
+    "gagos_trace_context", default=None
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +47,8 @@ class TraceContext:
         allowed = {
             key: _normalize_id(value) if value is not None else None
             for key, value in values.items()
-            if key in {
+            if key
+            in {
                 "turn_id",
                 "mission_id",
                 "action_id",

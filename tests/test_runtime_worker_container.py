@@ -5,6 +5,7 @@ arbitrary commands a worker runs, and they must go through the Phase 2 container
 boundary (container-by-default, host a loud opt-out), fail-closed — never a silent
 host run when the container is unavailable.
 """
+
 from __future__ import annotations
 
 import os
@@ -46,7 +47,9 @@ def _runtime(tmp_path: Path, commands: list[str], command_runner=None) -> Worker
 
 
 def test_run_command_routes_through_the_container(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "container"
+    )
     docker_argv: list[list[str]] = []
 
     def fake_run(argv, **kwargs):
@@ -54,7 +57,9 @@ def test_run_command_routes_through_the_container(tmp_path, monkeypatch) -> None
         return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
 
     monkeypatch.setattr("aios.core.executor._bounded_run", fake_run)
-    rt = _runtime(tmp_path, ["echo ok"])  # no command_runner -> config-selected DockerRunner
+    rt = _runtime(
+        tmp_path, ["echo ok"]
+    )  # no command_runner -> config-selected DockerRunner
 
     result = rt.run_command(["echo", "ok"])
 
@@ -62,9 +67,13 @@ def test_run_command_routes_through_the_container(tmp_path, monkeypatch) -> None
     assert docker_argv, "verification did not run through the container"
     argv = docker_argv[0]
     assert argv[:3] == ["docker", "run", "--rm"]
-    assert ["--network", "none"] == argv[argv.index("--network"):argv.index("--network") + 2]
+    assert ["--network", "none"] == argv[
+        argv.index("--network") : argv.index("--network") + 2
+    ]
     assert "--read-only" in argv and "--cap-drop" in argv
-    assert any("dst=/workspace" in tok for tok in argv)  # the worker's workspace is mounted
+    assert any(
+        "dst=/workspace" in tok for tok in argv
+    )  # the worker's workspace is mounted
     assert argv[-2:] == ["echo", "ok"]
 
 
@@ -81,7 +90,9 @@ def test_run_command_fails_closed_when_container_unavailable(tmp_path) -> None:
 
 
 def test_run_command_host_opt_out_runs_on_host(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
+    )
     # `--version` needs no quoting (avoids the Windows shlex quote-retention quirk)
     # and proves real host execution: a container path here would fail closed (no
     # docker), so a 0 exit with the interpreter's version is host execution.
@@ -95,10 +106,38 @@ def test_run_command_host_opt_out_runs_on_host(tmp_path, monkeypatch) -> None:
     assert "Python" in (result["stdout"] + result["stderr"])
 
 
-def test_restricted_environment_propagates_execution_backend(tmp_path, monkeypatch) -> None:
+def test_restricted_environment_propagates_execution_backend(
+    tmp_path, monkeypatch
+) -> None:
     # The worker must honor the operator's backend choice; the var was previously
     # stripped, so a host-opt-out worker would wrongly default back to container.
     monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     backend = ControlledSubprocessBackend(tmp_path / "runtime")
     env = backend._restricted_environment()
     assert env.get("AIOS_APPROVED_EXECUTION_BACKEND") == "host"
+
+
+def test_production_worker_routes_verification_to_private_executor_service(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("AIOS_PROFILE", "production")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
+    )
+    calls: list[dict[str, object]] = []
+
+    def private_runner(command, *, cwd, env, timeout_s):
+        calls.append({"command": command, "cwd": cwd, "timeout_s": timeout_s})
+        return "private", "", 0
+
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.private_executor_runner_from_config",
+        lambda: private_runner,
+    )
+    rt = _runtime(tmp_path, ["echo ok"])
+
+    result = rt.run_command(["echo", "ok"])
+
+    assert result["returncode"] == 0
+    assert result["stdout"] == "private"
+    assert calls and calls[0]["command"] == "echo ok"

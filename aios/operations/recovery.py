@@ -1,4 +1,5 @@
 """Explicit, integrity-checked recovery operations for the local control plane."""
+
 from __future__ import annotations
 
 import hashlib
@@ -86,10 +87,7 @@ def create_backup(
     destination = Path(destination).resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     files = _data_files(data_dir, destination)
-    hashes = {
-        path.relative_to(data_dir).as_posix(): _sha256(path)
-        for path in files
-    }
+    hashes = {path.relative_to(data_dir).as_posix(): _sha256(path) for path in files}
     manifest = BackupManifest(
         schema_version="1",
         created_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -98,8 +96,12 @@ def create_backup(
     )
     with tarfile.open(destination, mode="w:gz") as archive:
         for path in files:
-            archive.add(path, arcname=path.relative_to(data_dir).as_posix(), recursive=False)
-        payload = json.dumps(manifest.as_dict(), sort_keys=True, separators=(",", ":")).encode()
+            archive.add(
+                path, arcname=path.relative_to(data_dir).as_posix(), recursive=False
+            )
+        payload = json.dumps(
+            manifest.as_dict(), sort_keys=True, separators=(",", ":")
+        ).encode()
         info = tarfile.TarInfo("manifest.json")
         info.size = len(payload)
         info.mtime = int(datetime.now(timezone.utc).timestamp())
@@ -144,7 +146,9 @@ def verify_backup(bundle: Path) -> BackupManifest:
                 _safe_member(name)
                 member = members[name]
                 if not member.isfile():
-                    raise RecoveryError(f"backup member is not a regular file: {name!r}")
+                    raise RecoveryError(
+                        f"backup member is not a regular file: {name!r}"
+                    )
                 handle = archive.extractfile(member)
                 if handle is None:
                     raise RecoveryError(f"backup member is unreadable: {name!r}")
@@ -167,7 +171,11 @@ def restore_backup(
     destination = Path(data_dir).resolve()
     if destination.exists() and any(destination.iterdir()) and safety_backup is None:
         raise RecoveryError("non-empty data directory requires a safety backup")
-    if safety_backup is not None and destination.exists() and any(destination.iterdir()):
+    if (
+        safety_backup is not None
+        and destination.exists()
+        and any(destination.iterdir())
+    ):
         create_backup(data_dir=destination, destination=Path(safety_backup))
 
     parent = destination.parent
@@ -188,7 +196,10 @@ def restore_backup(
                 os.chmod(target, member.mode & 0o777)
         old_dir: Path | None = None
         if destination.exists():
-            old_dir = parent / f"{destination.name}.pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+            old_dir = (
+                parent
+                / f"{destination.name}.pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+            )
             destination.rename(old_dir)
         staging.rename(destination)
         return old_dir
@@ -211,12 +222,18 @@ def rebuild_projections(*, bus: CortexBus | None = None) -> int:
     owned_bus = bus is None
     resolved_bus = bus or CortexBus()
     projection_path = Path(resolved_bus.db_path).with_name("system_portrait.db")
-    for path in (projection_path, projection_path.with_suffix(".db-wal"), projection_path.with_suffix(".db-shm")):
+    for path in (
+        projection_path,
+        projection_path.with_suffix(".db-wal"),
+        projection_path.with_suffix(".db-shm"),
+    ):
         try:
             path.unlink()
         except FileNotFoundError:
             pass
-    resolved_bus.reset_consumer(IncrementalSystemProjection.consumer_name, start_event_id=0)
+    resolved_bus.reset_consumer(
+        IncrementalSystemProjection.consumer_name, start_event_id=0
+    )
     projection = IncrementalSystemProjection(projection_path)
     processed = projection.process_available(resolved_bus)
     if owned_bus:

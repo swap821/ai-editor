@@ -98,12 +98,17 @@ class SessionManager:
         raw_id = secrets.token_urlsafe(32)
         session_hash = hashlib.sha256(raw_id.encode()).hexdigest()
         now = time.time()
+        session_data = dict(data) if data else {}
+        # Every session gets a server-generated double-submit CSRF proof.  It is
+        # persisted with the session so the proof remains bound across restarts;
+        # callers cannot choose it through the public session endpoint.
+        session_data.setdefault("csrf_token", secrets.token_urlsafe(32))
         self._sessions[session_hash] = Session(
             session_id=raw_id,
             session_hash=session_hash,
             created_at=now,
             last_accessed=now,
-            data=dict(data) if data else {},
+            data=session_data,
         )
         self._persist_session(self._sessions[session_hash])
         return raw_id
@@ -135,6 +140,22 @@ class SessionManager:
         if session:
             self.invalidate_session(cookie_hash)
         return None
+
+    def ensure_csrf_token(self, cookie_hash: Optional[str]) -> Optional[str]:
+        """Return and persist the CSRF proof for a valid session."""
+        session = self.validate_session(cookie_hash)
+        if session is None:
+            return None
+        token = session.data.get("csrf_token")
+        if not isinstance(token, str) or len(token) < 32:
+            token = secrets.token_urlsafe(32)
+            session.data["csrf_token"] = token
+            self._persist_session(session)
+        return token
+
+    def persist_session(self, session: Session) -> None:
+        """Persist an already validated session after an authority update."""
+        self._persist_session(session)
 
     def invalidate_session(self, cookie_hash: Optional[str]) -> None:
         """Remove a session (logout). No-op if the session does not exist."""

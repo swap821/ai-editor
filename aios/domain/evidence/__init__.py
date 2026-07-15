@@ -1,6 +1,8 @@
 """Canonical evidence records and verification plans."""
 
 from .contracts import (
+    EvidenceBundle,
+    EvidenceCommand,
     EvidenceRecord,
     EvidenceType,
     VerificationObservation,
@@ -9,6 +11,8 @@ from .contracts import (
 )
 
 __all__ = [
+    "EvidenceBundle",
+    "EvidenceCommand",
     "EvidenceRecord",
     "EvidenceType",
     "VerificationObservation",

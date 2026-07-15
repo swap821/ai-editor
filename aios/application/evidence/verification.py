@@ -1,4 +1,5 @@
 """Target-specific verification authority built on the existing strength rules."""
+
 from __future__ import annotations
 
 import hashlib

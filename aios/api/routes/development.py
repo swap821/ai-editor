@@ -17,16 +17,21 @@ from aios.api.deps import (
     get_autonomy,
     get_curriculum_manager,
     get_development_tracker,
+    require_privileged_operator,
     get_semantic_facts,
     get_skill_memory,
+    get_memory_authority,
 )
 from aios.core.autonomy import AutonomyLedger
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
 from aios.memory.facts import SemanticFacts
 from aios.memory.skills import SkillMemory
+from aios.domain.identity.models import Principal
+from aios.api.action_guard import enforce_action_boundary
+from aios.application.memory.authority import MemoryAuthority
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 
 
 class CurriculumTaskRequest(BaseModel):
@@ -43,16 +48,22 @@ class CurriculumTaskRequest(BaseModel):
 @router.get("/api/v1/development/metrics")
 def development_metrics(
     tracker: DevelopmentTracker = Depends(get_development_tracker),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> dict[str, Any]:
     """Return measured behavior-change and verification coverage metrics."""
+    if authority.owns_store("development", tracker):
+        return authority.development_summary()
     return tracker.summary()
 
 
 @router.get("/api/v1/operator/model")
 def operator_model(
     facts: SemanticFacts = Depends(get_semantic_facts),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> dict[str, Any]:
     """Structured snapshot of what the system knows about the operator."""
+    if authority.owns_store("facts", facts):
+        return authority.operator_model()
     from aios.memory.operator_model import render_operator_model
 
     return render_operator_model(facts)
@@ -62,18 +73,24 @@ def operator_model(
 def development_skills(
     status: Optional[str] = None,
     skills: SkillMemory = Depends(get_skill_memory),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> dict[str, Any]:
     """List candidate and verified procedural skills."""
+    if authority.owns_store("skills", skills):
+        return {"skills": authority.skills_list(status=status)}
     return {"skills": skills.list(status=status)}
 
 
 @router.get("/api/v1/development/trails")
 def development_trails(
     skills: SkillMemory = Depends(get_skill_memory),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> dict[str, Any]:
     """The pheromone map: every trail's computed strength, decay, and reuse
     evidence as of now, plus superseded-fragment lineage and the constants in
     effect — read-only observability and the tuning evidence base."""
+    if authority.owns_store("skills", skills):
+        return authority.skills_trail_map()
     return skills.trail_map()
 
 
@@ -199,6 +216,7 @@ def development_autonomy(
 @router.post("/api/v1/development/autonomy/revoke")
 def development_autonomy_revoke(
     signature: str,
+    _principal: Principal = Depends(require_privileged_operator),
     autonomy: AutonomyLedger = Depends(get_autonomy),
 ) -> dict[str, Any]:
     """Operator force-revoke of an earned signature — human authority over the
@@ -218,6 +236,7 @@ def development_curriculum(
 @router.post("/api/v1/development/curriculum")
 def add_curriculum_task(
     req: CurriculumTaskRequest,
+    _principal: Principal = Depends(require_privileged_operator),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
 ) -> dict[str, Any]:
     """Define a curriculum task without executing it."""
@@ -258,6 +277,7 @@ def curriculum_proposals(
 @router.post("/api/v1/development/curriculum/proposals/accept")
 def accept_curriculum_proposal(
     req: dict[str, Any],
+    _principal: Principal = Depends(require_privileged_operator),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
 ) -> dict[str, Any]:
     """Accept a mined proposal, adding it to the live curriculum."""

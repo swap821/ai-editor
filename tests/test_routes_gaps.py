@@ -16,7 +16,7 @@ QUEEN_SERVICES registry dict directly) so nothing touches real on-disk state.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +24,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aios import config
+from aios.api.deps import get_capability_authority
 from aios.api.main import app, get_council_runtime_root
-from aios.api.routes.council import get_approval_store
-from aios.core.approvals import ApprovalStore
+from aios.domain.capabilities.digest import payload_digest
 from aios.runtime.contracts import KingReport, MissionContract, QueenVerdict, RunLedger
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
@@ -34,6 +34,12 @@ from aios.runtime.run_ledger import RunLedgerStore
 
 def _client_overrides(runtime_root: Path) -> None:
     app.dependency_overrides[get_council_runtime_root] = lambda: runtime_root
+
+
+def _cookie_session_id(client: TestClient) -> str:
+    session_id = client.cookies.get("session_id")
+    assert isinstance(session_id, str) and session_id
+    return session_id
 
 
 def _seed_mission(
@@ -524,14 +530,14 @@ def test_council_rollback_422_when_no_session_available(tmp_path: Path) -> None:
     _client_overrides(runtime_root)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            client.cookies.clear()
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
                 json={},
             )
     finally:
         app.dependency_overrides.clear()
-    assert response.status_code == 422
-    assert response.json()["detail"] == "sessionId or session cookie is required"
+    assert response.status_code == 403
 
 
 def test_council_rollback_403_when_requested_snapshot_mismatches(tmp_path: Path) -> None:
@@ -559,9 +565,10 @@ def test_council_rollback_issues_approval_token_when_none_supplied(tmp_path: Pat
     _client_overrides(runtime_root)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = _cookie_session_id(client)
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
-                json={"sessionId": "s-issue"},
+                json={"sessionId": session_id},
             )
     finally:
         app.dependency_overrides.clear()
@@ -599,25 +606,32 @@ def test_council_rollback_400_when_token_is_for_a_different_action(tmp_path: Pat
     _seed_mission(runtime_root, rollback_id="snap-real", ledger_rollback_id="snap-real")
     _client_overrides(runtime_root)
 
-    approvals_dir = tmp_path / "approvals-db"
-    approvals_dir.mkdir()
-    store = ApprovalStore(db_path=approvals_dir / "approvals.db")
-    app.dependency_overrides[get_approval_store] = lambda: store
-    token = store.issue("edit", {"mission_id": "mission-gap-1", "snapshot_id": "snap-real"}, "s-wrongtype")
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = _cookie_session_id(client)
+            pending = client.post(
+                "/api/v1/council/missions/mission-gap-1/rollback",
+                json={"snapshotId": "snap-real"},
+            )
+            assert pending.status_code == 200
+            authority = get_capability_authority()
+            original = authority.inspect(pending.json()["approvalToken"])
+            token = authority.issue(
+                replace(original.binding, action_type="edit"),
+                action_payload={"mission_id": "mission-gap-1", "snapshot_id": "snap-real"},
+            )
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
                 json={
                     "snapshotId": "snap-real",
                     "approvalToken": token,
-                    "sessionId": "s-wrongtype",
+                    "sessionId": session_id,
                 },
             )
     finally:
         app.dependency_overrides.clear()
-    assert response.status_code == 400
-    assert response.json()["detail"] == "approval token is not for rollback"
+    assert response.status_code == 403
+    assert "binding mismatch" in response.json()["detail"]
 
 
 def test_council_rollback_403_when_token_payload_mismatches(tmp_path: Path) -> None:
@@ -628,29 +642,36 @@ def test_council_rollback_403_when_token_payload_mismatches(tmp_path: Path) -> N
     _seed_mission(runtime_root, rollback_id="snap-real", ledger_rollback_id="snap-real")
     _client_overrides(runtime_root)
 
-    approvals_dir = tmp_path / "approvals-db"
-    approvals_dir.mkdir()
-    store = ApprovalStore(db_path=approvals_dir / "approvals.db")
-    app.dependency_overrides[get_approval_store] = lambda: store
-    token = store.issue(
-        "rollback",
-        {"mission_id": "some-other-mission", "snapshot_id": "snap-real"},
-        "s-payload-mismatch",
-    )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = _cookie_session_id(client)
+            pending = client.post(
+                "/api/v1/council/missions/mission-gap-1/rollback",
+                json={"snapshotId": "snap-real"},
+            )
+            assert pending.status_code == 200
+            authority = get_capability_authority()
+            original = authority.inspect(pending.json()["approvalToken"])
+            other_payload = {"mission_id": "some-other-mission", "snapshot_id": "snap-real"}
+            token = authority.issue(
+                replace(
+                    original.binding,
+                    payload_digest=payload_digest(other_payload),
+                ),
+                action_payload=other_payload,
+            )
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
                 json={
                     "snapshotId": "snap-real",
                     "approvalToken": token,
-                    "sessionId": "s-payload-mismatch",
+                    "sessionId": session_id,
                 },
             )
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 403
-    assert "does not match" in response.json()["detail"]
+    assert "binding mismatch" in response.json()["detail"]
 
 
 def test_council_rollback_500_on_rollback_error(
@@ -665,14 +686,6 @@ def test_council_rollback_500_on_rollback_error(
     _seed_mission(runtime_root, rollback_id="snap-real", ledger_rollback_id="snap-real")
     _client_overrides(runtime_root)
 
-    approvals_dir = tmp_path / "approvals-db"
-    approvals_dir.mkdir()
-    store = ApprovalStore(db_path=approvals_dir / "approvals.db")
-    app.dependency_overrides[get_approval_store] = lambda: store
-    token = store.issue(
-        "rollback", {"mission_id": "mission-gap-1", "snapshot_id": "snap-real"}, "s-engine-fail"
-    )
-
     def _boom(self, workspace_root, snapshot_id):
         raise RollbackError("git repo is in a detached state")
 
@@ -681,12 +694,19 @@ def test_council_rollback_500_on_rollback_error(
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = _cookie_session_id(client)
+            pending = client.post(
+                "/api/v1/council/missions/mission-gap-1/rollback",
+                json={"snapshotId": "snap-real"},
+            )
+            assert pending.status_code == 200
+            token = pending.json()["approvalToken"]
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
                 json={
                     "snapshotId": "snap-real",
                     "approvalToken": token,
-                    "sessionId": "s-engine-fail",
+                    "sessionId": session_id,
                 },
             )
     finally:
@@ -712,14 +732,6 @@ def test_council_rollback_500_when_result_not_restored(
     _seed_mission(runtime_root, rollback_id="snap-real", ledger_rollback_id="snap-real")
     _client_overrides(runtime_root)
 
-    approvals_dir = tmp_path / "approvals-db"
-    approvals_dir.mkdir()
-    store = ApprovalStore(db_path=approvals_dir / "approvals.db")
-    app.dependency_overrides[get_approval_store] = lambda: store
-    token = store.issue(
-        "rollback", {"mission_id": "mission-gap-1", "snapshot_id": "snap-real"}, "s-not-restored"
-    )
-
     def _not_restored(self, workspace_root, snapshot_id):
         return _FakeResult(restored=False, head_sha="deadbeef", reason="no snapshot commit found")
 
@@ -728,12 +740,19 @@ def test_council_rollback_500_when_result_not_restored(
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = _cookie_session_id(client)
+            pending = client.post(
+                "/api/v1/council/missions/mission-gap-1/rollback",
+                json={"snapshotId": "snap-real"},
+            )
+            assert pending.status_code == 200
+            token = pending.json()["approvalToken"]
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
                 json={
                     "snapshotId": "snap-real",
                     "approvalToken": token,
-                    "sessionId": "s-not-restored",
+                    "sessionId": session_id,
                 },
             )
     finally:
@@ -760,14 +779,6 @@ def test_council_rollback_succeeds_and_updates_artifacts(
     _seed_mission(runtime_root, rollback_id="snap-real", ledger_rollback_id="snap-real")
     _client_overrides(runtime_root)
 
-    approvals_dir = tmp_path / "approvals-db"
-    approvals_dir.mkdir()
-    store = ApprovalStore(db_path=approvals_dir / "approvals.db")
-    app.dependency_overrides[get_approval_store] = lambda: store
-    token = store.issue(
-        "rollback", {"mission_id": "mission-gap-1", "snapshot_id": "snap-real"}, "s-success"
-    )
-
     def _restored(self, workspace_root, snapshot_id):
         return _FakeResult(restored=True, head_sha="cafef00d", reason="restored cleanly")
 
@@ -776,12 +787,19 @@ def test_council_rollback_succeeds_and_updates_artifacts(
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = _cookie_session_id(client)
+            pending = client.post(
+                "/api/v1/council/missions/mission-gap-1/rollback",
+                json={"snapshotId": "snap-real"},
+            )
+            assert pending.status_code == 200
+            token = pending.json()["approvalToken"]
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
                 json={
                     "snapshotId": "snap-real",
                     "approvalToken": token,
-                    "sessionId": "s-success",
+                    "sessionId": session_id,
                 },
             )
             detail = client.get("/api/v1/council/missions/mission-gap-1")

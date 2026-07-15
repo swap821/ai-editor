@@ -9,10 +9,12 @@ from __future__ import annotations
 import shutil
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from aios import config
+from aios.api.deps import require_privileged_operator
+from aios.domain.identity.models import Principal
 from aios.security.audit_logger import (
     AuditError,
     get_anchor,
@@ -21,8 +23,9 @@ from aios.security.audit_logger import (
     rotate_audit_key,
     verify_chain,
 )
+from aios.api.action_guard import enforce_action_boundary
 
-router = APIRouter(tags=["Security"])
+router = APIRouter(tags=["Security"], dependencies=[Depends(enforce_action_boundary)])
 
 
 @router.get("/api/v1/security/audit")
@@ -53,7 +56,10 @@ class RotateTokensRequest(BaseModel):
     confirm: bool = Field(False, description="Must be explicitly true to rotate tokens")
 
 @router.post("/api/v1/security/tokens/rotate")
-def security_rotate_tokens(req: RotateTokensRequest) -> dict[str, Any]:
+def security_rotate_tokens(
+    req: RotateTokensRequest,
+    principal: Principal = Depends(require_privileged_operator),
+) -> dict[str, Any]:
     """Rotate the audit-ledger's Ed25519 signing key.
 
     Old entries remain verifiable under the retired key; new entries sign
@@ -64,7 +70,7 @@ def security_rotate_tokens(req: RotateTokensRequest) -> dict[str, Any]:
         
     try:
         new_key_id = rotate_audit_key()
-        log_action("operator", "rotated audit signing key", "YELLOW")
+        log_action(principal.principal_id, "rotated audit signing key", "YELLOW")
     except AuditError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"status": "rotated", "newKeyId": new_key_id}
@@ -77,7 +83,10 @@ class SandboxClearRequest(BaseModel):
 
 
 @router.post("/api/v1/security/sandbox/clear")
-def security_sandbox_clear(req: SandboxClearRequest) -> dict[str, Any]:
+def security_sandbox_clear(
+    req: SandboxClearRequest,
+    principal: Principal = Depends(require_privileged_operator),
+) -> dict[str, Any]:
     """Delete the contents of every configured sandbox scope root.
 
     Fail-closed on the confirmation flag and on scope: only ever removes
@@ -110,8 +119,8 @@ def security_sandbox_clear(req: SandboxClearRequest) -> dict[str, Any]:
                     child.unlink()
                 removed.append(str(child))
             except OSError as exc:
-                log_action("operator", f"sandbox clear failed for {child}: {exc}", "RED")
+                log_action(principal.principal_id, f"sandbox clear failed for {child}: {exc}", "RED")
                 raise HTTPException(status_code=500, detail=f"failed to remove {child}: {exc}") from exc
 
-    log_action("operator", f"cleared sandbox scope roots ({len(removed)} entries removed)", "YELLOW")
+    log_action(principal.principal_id, f"cleared sandbox scope roots ({len(removed)} entries removed)", "YELLOW")
     return {"status": "cleared", "removedCount": len(removed), "removed": removed}

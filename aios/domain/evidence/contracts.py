@@ -1,8 +1,11 @@
 """Immutable, provenance-bound evidence contracts."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import StrEnum
+import hashlib
+import json
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,6 +45,44 @@ class VerificationObservation(BaseModel):
     failed_count: int = 0
     tool_version: str = "unknown"
     observed_at: str = Field(default_factory=lambda: _utc_now())
+
+
+class EvidenceCommand(BaseModel):
+    """Redacted command identity retained in a mission evidence bundle."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    command: str
+    return_code: int | None
+    stdout_digest: str
+    stderr_digest: str
+    tool_version: str
+    observed_at: str = Field(default_factory=lambda: _utc_now())
+
+
+class EvidenceBundle(BaseModel):
+    """Immutable worker evidence binding all promotion-relevant identities."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mission_id: str
+    worker_id: str
+    contract_digest: str
+    workspace_digest: str
+    diff_digest: str
+    executor_job_id: str
+    environment_digest: str
+    commands: tuple[EvidenceCommand, ...] = ()
+    verification_strength: int = 0
+    targets_exercised: tuple[str, ...] = ()
+    started_at: str
+    ended_at: str
+
+    def digest(self) -> str:
+        payload = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class EvidenceRecord(BaseModel):
@@ -94,6 +135,8 @@ def _utc_now() -> str:
 
 
 __all__ = [
+    "EvidenceBundle",
+    "EvidenceCommand",
     "EvidenceRecord",
     "EvidenceType",
     "VerificationObservation",

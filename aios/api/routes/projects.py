@@ -8,16 +8,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from aios.cognition.repo_map import SymbolRepoMapLimits, scan_symbol_repo_map, scope_hints_for_contract
 from aios.memory.project_passport import ProjectPassport
 from aios.memory.project_passport import RepoScanLimits, harvest_project_passport
 from aios.runtime.contracts import MissionContract
+from aios.api.action_guard import enforce_action_boundary
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 _LAST_PROJECT_PASSPORT_SCAN: dict[str, object] | None = None
 _LAST_SYMBOL_REPO_MAP_SCAN: dict[str, object] | None = None
 

@@ -2,15 +2,156 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from aios import config
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
+
+
+def test_production_orchestrator_wires_one_staged_workspace_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AIOS_PROFILE", "production")
+    monkeypatch.setattr(config, "EXECUTOR_WORKSPACE_ROOT", tmp_path / "staged")
+    monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "projects")
+    orchestrator = CouncilOrchestrator(runtime_root=tmp_path / "runtime")
+
+    assert orchestrator.workspace_manager is not None
+    assert orchestrator.foundry.workspace_manager is orchestrator.workspace_manager
+    assert (
+        orchestrator.mission_service.workspace_manager is orchestrator.workspace_manager
+    )
+
+
+def test_production_council_promotes_only_after_staged_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AIOS_PROFILE", "production")
+    monkeypatch.setattr(config, "EXECUTOR_WORKSPACE_ROOT", tmp_path / "staged")
+    monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "projects")
+    project = _workspace(tmp_path / "projects")
+    runtime_root = tmp_path / "runtime"
+
+    from aios.application.workers.foundry import WorkerFoundry
+    from aios.application.workspaces import StagedWorkspaceManager
+    from aios.runtime.backends import WorkerHandle
+    from aios.runtime.contracts import RunLedger, WorkerResult
+    from aios.runtime.king_report import build_king_report
+    from aios.runtime.spawner import WorkerRun, WorkerSpawner
+
+    class FakeSpawner:
+        async def run(self, contract, *, claim=True):  # noqa: ANN001
+            target = Path(contract.workspace_root) / "frontend/src/pages/Login.jsx"
+            target.write_text(
+                target.read_text(encoding="utf-8") + "// promoted heartbeat\n",
+                encoding="utf-8",
+            )
+            handle = WorkerHandle(
+                worker_id="worker-production-promotion",
+                mission_id=contract.mission_id,
+                backend="fake_executor",
+                status="dead",
+            )
+            observed_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+            result = WorkerResult(
+                mission_id=contract.mission_id,
+                worker_id=handle.worker_id,
+                status="completed",
+                summary="staged worker completed",
+                files_touched=["frontend/src/pages/Login.jsx"],
+                evidence={
+                    "verification": [
+                        {
+                            "command": "python -m pytest tests -q",
+                            "returncode": 0,
+                            "stdout": "1 passed",
+                            "stderr": "",
+                        }
+                    ]
+                },
+                risk_after="GREEN",
+                started_at=observed_at,
+                ended_at=observed_at,
+            )
+            ledger = RunLedger(
+                mission_id=contract.mission_id,
+                mission=contract.goal,
+                risk_before=contract.risk_level,
+                risk_after=result.risk_after,
+                contract=contract,
+                workers_created=[handle.worker_id],
+                files_allowed=list(contract.allowed_files),
+                files_touched=list(result.files_touched),
+                verification={
+                    "commands": result.evidence["verification"],
+                    "strength": "STRONG",
+                },
+                status=result.status,
+                created_at=result.started_at,
+                completed_at=result.ended_at,
+                evidence=result.evidence,
+            )
+            return WorkerRun(
+                contract=contract,
+                handle=handle,
+                result=result,
+                ledger=ledger,
+                report=build_king_report(ledger=ledger, result=result),
+                ledger_path=runtime_root / "fake-ledger.json",
+                report_path=runtime_root / "fake-report.json",
+            )
+
+    manager = StagedWorkspaceManager(
+        tmp_path / "staged",
+        enrolled_roots=(config.COUNCIL_WORKSPACE_ROOT,),
+    )
+    orchestrator = CouncilOrchestrator(
+        runtime_root=runtime_root,
+        spawner=WorkerSpawner(runtime_root=runtime_root),
+        workspace_manager=manager,
+        foundry=WorkerFoundry(
+            spawner=FakeSpawner(),
+            workspace_manager=manager,
+        ),
+    )
+    deliberation = orchestrator.deliberate(
+        _request(
+            project,
+            mission_id="mission-production-promotion",
+            allowed_files=["frontend/src/pages/Login.jsx"],
+            verification_commands=["python -m pytest tests -q"],
+        )
+    )
+    record = orchestrator.mission_service.repository.get("mission-production-promotion")
+    orchestrator.mission_service.approve(
+        "mission-production-promotion",
+        operator_id="human-sovereign-test",
+        capability_digest="sha256:promotion-approval",
+        contract_digest=record.contract_digest,
+        authentication_event_id="auth-production-promotion",
+        session_id="session-production-promotion",
+    )
+
+    run = asyncio.run(
+        orchestrator.execute(deliberation.contract, deliberation.verdicts)
+    )
+
+    assert run.report.status == "completed"
+    assert "// promoted heartbeat" in (
+        project / "frontend/src/pages/Login.jsx"
+    ).read_text(encoding="utf-8")
+    assert (
+        orchestrator.workspace_manager.for_mission("mission-production-promotion")
+        is None
+    )
+    assert run.ledger.evidence["promotion"]["status"] == "promoted"
 
 
 def _workspace(tmp_path: Path, *, failing_test: bool = False) -> Path:
@@ -20,7 +161,11 @@ def _workspace(tmp_path: Path, *, failing_test: bool = False) -> Path:
     target.write_text("export function Login() { return null; }\n", encoding="utf-8")
     tests_dir = workspace / "tests"
     tests_dir.mkdir()
-    test_body = "def test_smoke():\n    assert False\n" if failing_test else "def test_smoke():\n    assert True\n"
+    test_body = (
+        "def test_smoke():\n    assert False\n"
+        if failing_test
+        else "def test_smoke():\n    assert True\n"
+    )
     (tests_dir / "test_smoke.py").write_text(test_body, encoding="utf-8")
     return workspace
 
@@ -51,7 +196,11 @@ class _DenySecurity:
         from aios.runtime.contracts import QueenVerdict
 
         return QueenVerdict(
-            queen="security", verdict="deny", risk="RED", reason="denied for test", confidence=0.9
+            queen="security",
+            verdict="deny",
+            risk="RED",
+            reason="denied for test",
+            confidence=0.9,
         )
 
 
@@ -79,6 +228,17 @@ def test_execute_after_deliberate_runs_worker_without_collision(
 
     deliberation = orchestrator.deliberate(_request(workspace))
     assert deliberation.report.status == "awaiting_approval"
+    authority = orchestrator.mission_service.repository.get(
+        deliberation.contract.mission_id
+    )
+    orchestrator.mission_service.approve(
+        deliberation.contract.mission_id,
+        operator_id="human-sovereign-test",
+        capability_digest="sha256:test-approval",
+        contract_digest=authority.contract_digest,
+        authentication_event_id="auth-test-approval",
+        session_id="session-test-approval",
+    )
 
     run = asyncio.run(
         orchestrator.execute(deliberation.contract, deliberation.verdicts)
@@ -112,9 +272,10 @@ def test_council_orchestrator_persists_deliberation_to_state(tmp_path: Path) -> 
 
     verdicts = state.verdicts_for(request.mission_id)
     queens = {verdict["queen_name"] for verdict in verdicts}
-    assert {"planner", "security", "memory", "testing"} <= queens
+    assert {"planner", "security", "memory"} <= queens
+    assert "testing" not in queens  # testing is an execution-phase verdict
     events = state.events_for(request.mission_id)
-    assert any(event["event_type"] == "report" for event in events)
+    assert any(event["event_type"] == "deliberated" for event in events)
 
 
 def test_council_orchestrator_attaches_ganglia_and_memory_evidence(
@@ -158,7 +319,10 @@ def test_ganglia_security_veto_remains_blocking_and_non_authorizing(
     assert synthesis["status"] == "blocked"
     assert synthesis["security_veto"] is True
     assert synthesis["can_authorize"] is False
-    assert memory.deliberations_for(request.mission_id)[0]["payload"]["synthesis"] == synthesis
+    assert (
+        memory.deliberations_for(request.mission_id)[0]["payload"]["synthesis"]
+        == synthesis
+    )
 
 
 def test_council_orchestrator_runs_full_loop_and_records_report(
@@ -181,29 +345,23 @@ def test_council_orchestrator_runs_full_loop_and_records_report(
     )
 
     target = workspace / "frontend" / "src" / "pages" / "Login.jsx"
-    assert run.worker_run is not None
-    assert run.worker_run.handle.status == "dead"
-    assert run.report.status == "completed"
+    assert run.worker_run is None
+    assert run.report.status == "awaiting_approval"
     assert run.report.recommendation == "approve"
-    assert run.ledger.status == "completed"
-    assert "// Council Runtime deterministic worker heartbeat" in target.read_text(
+    assert run.ledger.status == "awaiting_approval"
+    assert "// Council Runtime deterministic worker heartbeat" not in target.read_text(
         encoding="utf-8"
     )
     assert [verdict.queen for verdict in run.verdicts] == [
         "planner",
         "security",
         "memory",
-        "testing",
     ]
-    assert run.verdicts[-1].verdict == "allow"
     assert run.ledger.council_verdicts == run.verdicts
-    assert run.ledger.verification["commands"][0]["returncode"] == 0
-    assert run.report.council_summary["council_verdicts"][-1]["queen"] == "testing"
-    assert run.report.council_summary["ganglia_signals"][-1]["source"] == "testing"
     assert run.report.council_summary["ganglia_synthesis"]["can_authorize"] is False
     deliberations = memory.deliberations_for(request.mission_id)
-    assert len(deliberations) == 2
-    assert deliberations[-1]["payload"]["signals"][-1]["source"] == "testing"
+    assert len(deliberations) == 1
+    assert deliberations[-1]["payload"]["signals"][-1]["source"] == "memory"
     assert run.report.council_summary["model_routing"] == {}
     assert run.ledger_path.exists()
     assert run.report_path.exists()
@@ -221,7 +379,9 @@ def test_council_orchestrator_blocks_protected_allowed_file_before_worker(
         allowed_files=["aios/security/gateway.py"],
     )
 
-    run = asyncio.run(CouncilOrchestrator(runtime_root=tmp_path / "runtime").run(request))
+    run = asyncio.run(
+        CouncilOrchestrator(runtime_root=tmp_path / "runtime").run(request)
+    )
 
     assert run.worker_run is None
     assert run.ledger.status == "blocked"
@@ -242,7 +402,20 @@ def test_testing_queen_failure_changes_king_report_to_rollback(
         mission_id="mission-phase2-verification-fails",
     )
 
-    run = asyncio.run(CouncilOrchestrator(runtime_root=tmp_path / "runtime").run(request))
+    orchestrator = CouncilOrchestrator(runtime_root=tmp_path / "runtime")
+    deliberation = orchestrator.deliberate(request)
+    authority = orchestrator.mission_service.repository.get(request.mission_id)
+    orchestrator.mission_service.approve(
+        request.mission_id,
+        operator_id="human-sovereign-test",
+        capability_digest="sha256:test-failure-approval",
+        contract_digest=authority.contract_digest,
+        authentication_event_id="auth-test-failure",
+        session_id="session-test-failure",
+    )
+    run = asyncio.run(
+        orchestrator.execute(deliberation.contract, deliberation.verdicts)
+    )
 
     assert run.worker_run is not None
     assert run.worker_run.result.status == "failed"

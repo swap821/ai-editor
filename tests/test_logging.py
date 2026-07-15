@@ -86,7 +86,9 @@ def test_middleware_hashes_session_id_before_logging(
     monkeypatch,
 ) -> None:
     raw_session = "private-session-for-logs"
-    expected_hash = logging_config.session_log_key(raw_session)
+    cookie_session = client.cookies.get("session_id")
+    assert isinstance(cookie_session, str) and cookie_session
+    expected_hash = logging_config.session_log_key(cookie_session)
     probe_logger = logging_config.get_logger("tests.logging")
 
     from aios.api.routes.system import IntentPreviewResponse

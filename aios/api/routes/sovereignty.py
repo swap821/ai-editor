@@ -3,19 +3,23 @@ Rollback Registry, Audit Anchor, Policy Engine.
 
 Extracted from aios/api/main.py.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from aios import config
 from aios.runtime.budget_guard import BudgetGuard
 from aios.runtime.hibernation import HibernationManager, HibernationPolicyError
+from aios.api.deps import get_memory_authority, require_privileged_operator
+from aios.domain.identity.models import Principal
+from aios.api.action_guard import enforce_action_boundary
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 _LAST_HIBERNATION_REPORT: dict[str, Any] | None = None
 
 
@@ -25,24 +29,37 @@ def council_services() -> dict:
     if not config.QUEEN_SERVICES:
         raise HTTPException(status_code=404, detail="queen services not enabled")
     from aios.council.queen_service import QUEEN_SERVICES
+
     return {"services": {name: svc.health() for name, svc in QUEEN_SERVICES.items()}}
 
 
 @router.get("/api/v1/pheromones/surface")
-def pheromone_surface(resource: str | None = None, ptype: str | None = None) -> dict:
+def pheromone_surface(
+    resource: str | None = None,
+    ptype: str | None = None,
+    authority: Any = Depends(get_memory_authority),
+) -> dict:
     """Query the pheromone store."""
     if not config.PHEROMONE_ENABLED:
         raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore, PheromoneType
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
+    from aios.memory.pheromones import PheromoneType
+
     ptype_enum = PheromoneType(ptype) if ptype else None
-    results = store.query(resource=resource, ptype=ptype_enum)
-    return {"pheromones": [
-        {"id": p.pheromone_id, "type": p.ptype.value, "resource": p.resource,
-         "depositor": p.depositor, "strength": round(p.strength, 4),
-         "payload": p.payload, "created_at": p.created_at}
-        for p in results
-    ]}
+    results = authority.pheromone_query(resource=resource, ptype=ptype_enum)
+    return {
+        "pheromones": [
+            {
+                "id": p.pheromone_id,
+                "type": p.ptype.value,
+                "resource": p.resource,
+                "depositor": p.depositor,
+                "strength": round(p.strength, 4),
+                "payload": p.payload,
+                "created_at": p.created_at,
+            }
+            for p in results
+        ]
+    }
 
 
 @router.get("/api/v1/runtime/surface")
@@ -51,6 +68,7 @@ def live_surface_snapshot() -> dict:
     if not config.LIVE_SURFACE:
         raise HTTPException(status_code=404, detail="live surface not enabled")
     from aios.runtime.live_surface import LiveSurface
+
     surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
     return surface.snapshot()
 
@@ -71,7 +89,11 @@ class HibernationRunRequest(BaseModel):
 
 
 @router.post("/api/v1/hibernation/run")
-def hibernation_run(req: HibernationRunRequest) -> dict:
+def hibernation_run(
+    req: HibernationRunRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+    authority: Any = Depends(get_memory_authority),
+) -> dict:
     """Run local-only hibernation maintenance in proposal/evidence mode."""
     global _LAST_HIBERNATION_REPORT
     compactor = None
@@ -81,16 +103,11 @@ def hibernation_run(req: HibernationRunRequest) -> dict:
         compactor = get_compactor()
     except Exception:
         compactor = None
-    pheromone_store = None
-    if config.PHEROMONE_ENABLED:
-        from aios.memory.pheromones import PheromoneStore
-
-        pheromone_store = PheromoneStore(db_path=config.PHEROMONE_DB)
     try:
         report = HibernationManager(
             repo_root=req.repo_root or config.PROJECT_ROOT,
             compactor=compactor,
-            pheromone_store=pheromone_store,
+            memory_authority=authority if config.PHEROMONE_ENABLED else None,
             budget_guard=BudgetGuard(mode="hibernation"),
         ).run(
             allow_writes=req.allow_writes,
@@ -145,16 +162,24 @@ def rollback_registry_query(
     if not config.ROLLBACK_REGISTRY:
         raise HTTPException(status_code=404, detail="rollback registry not enabled")
     from aios.runtime.rollback_registry import RollbackRegistry
+
     registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
     entries = registry.query(
         mission_id=mission_id, file_pattern=file_pattern, workspace_root=workspace_root
     )
-    return {"entries": [
-        {"snapshot_id": e.snapshot_id, "mission_id": e.mission_id,
-         "workspace_root": e.workspace_root, "created_at": e.created_at,
-         "files_covered": e.files_covered, "metadata": e.metadata}
-        for e in entries
-    ]}
+    return {
+        "entries": [
+            {
+                "snapshot_id": e.snapshot_id,
+                "mission_id": e.mission_id,
+                "workspace_root": e.workspace_root,
+                "created_at": e.created_at,
+                "files_covered": e.files_covered,
+                "metadata": e.metadata,
+            }
+            for e in entries
+        ]
+    }
 
 
 @router.get("/api/v1/runtime/rollbacks/health")
@@ -163,6 +188,7 @@ def rollback_registry_health() -> dict:
     if not config.ROLLBACK_REGISTRY:
         raise HTTPException(status_code=404, detail="rollback registry not enabled")
     from aios.runtime.rollback_registry import RollbackRegistry
+
     registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
     return registry.health()
 
@@ -178,6 +204,7 @@ def audit_anchor() -> dict:
     if not config.AUDIT_ANCHOR_API:
         raise HTTPException(status_code=404, detail="audit anchor API not enabled")
     from aios.audit_anchor import get_external_anchor
+
     return get_external_anchor()
 
 
@@ -187,6 +214,7 @@ def audit_anchor_verify(req: AuditAnchorVerifyRequest) -> dict:
     if not config.AUDIT_ANCHOR_API:
         raise HTTPException(status_code=404, detail="audit anchor API not enabled")
     from aios.audit_anchor import verify_anchor
+
     return verify_anchor(req.expected_hash)
 
 
@@ -196,32 +224,46 @@ def policy_current() -> dict:
     if not config.POLICY_ENGINE:
         raise HTTPException(status_code=404, detail="policy engine not enabled")
     from aios.policy.engine import PolicyEngine
+
     engine = PolicyEngine(db_path=config.POLICY_DB)
     policies = engine.current_policies()
-    return {"policies": [
-        {"policy_id": p.policy_id, "version": p.version, "constraint": p.constraint,
-         "status": p.status.value, "proposed_by": p.proposed_by,
-         "enacted_at": p.enacted_at}
-        for p in policies
-    ]}
+    return {
+        "policies": [
+            {
+                "policy_id": p.policy_id,
+                "version": p.version,
+                "constraint": p.constraint,
+                "status": p.status.value,
+                "proposed_by": p.proposed_by,
+                "enacted_at": p.enacted_at,
+            }
+            for p in policies
+        ]
+    }
 
 
 class PolicyProposeRequest(BaseModel):
     constraint: str
-    proposed_by: str = Field(..., alias="proposedBy")
+    # Deprecated compatibility field. The durable operator principal is the
+    # only authority source for policy provenance.
+    proposed_by: str = Field("", alias="proposedBy")
     model_config = {"populate_by_name": True}
 
 
 @router.post("/api/v1/policy/propose")
-def policy_propose(req: PolicyProposeRequest) -> dict:
+def policy_propose(
+    req: PolicyProposeRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Propose a new additive-only policy constraint."""
     if not config.POLICY_ENGINE:
         raise HTTPException(status_code=404, detail="policy engine not enabled")
     from aios.policy.engine import PolicyEngine
+
     engine = PolicyEngine(db_path=config.POLICY_DB)
     if not engine.validate_additive(req.constraint):
         raise HTTPException(status_code=400, detail="constraint must be additive-only")
-    policy_id = engine.propose(req.constraint, proposed_by=req.proposed_by)
+    policy_id = engine.propose(req.constraint, proposed_by=_principal.principal_id)
     return {"policy_id": policy_id}
 
 
@@ -236,25 +278,35 @@ def policy_propose(req: PolicyProposeRequest) -> dict:
 class PheromoneDepositRequest(BaseModel):
     ptype: str
     resource: str
-    depositor: str
+    # Deprecated compatibility field; provenance is bound to the principal.
+    depositor: str = ""
     strength: float = 1.0
     payload: dict = Field(default_factory=dict)
 
 
 @router.post("/api/v1/pheromones/deposit")
-def pheromone_deposit(req: PheromoneDepositRequest) -> dict:
+def pheromone_deposit(
+    req: PheromoneDepositRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+    authority: Any = Depends(get_memory_authority),
+) -> dict:
     """Deposit a new pheromone signal."""
     if not config.PHEROMONE_ENABLED:
         raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore, PheromoneType
+    from aios.memory.pheromones import PheromoneType
+
     try:
         ptype_enum = PheromoneType(req.ptype)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"invalid pheromone type: {req.ptype}")
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
-    pid = store.deposit(
-        ptype=ptype_enum, resource=req.resource,
-        depositor=req.depositor, strength=req.strength, payload=req.payload,
+        raise HTTPException(
+            status_code=400, detail=f"invalid pheromone type: {req.ptype}"
+        )
+    pid = authority.pheromone_deposit(
+        ptype=ptype_enum,
+        resource=req.resource,
+        depositor=_principal.principal_id,
+        strength=req.strength,
+        payload=req.payload,
     )
     return {"pheromone_id": pid}
 
@@ -266,24 +318,27 @@ class PheromoneReinforceRequest(BaseModel):
 
 
 @router.post("/api/v1/pheromones/reinforce")
-def pheromone_reinforce(req: PheromoneReinforceRequest) -> dict:
+def pheromone_reinforce(
+    req: PheromoneReinforceRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+    authority: Any = Depends(get_memory_authority),
+) -> dict:
     """Reinforce an existing pheromone signal."""
     if not config.PHEROMONE_ENABLED:
         raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
-    store.reinforce(req.pheromone_id, boost=req.boost)
+    authority.pheromone_reinforce(req.pheromone_id, boost=req.boost)
     return {"reinforced": True}
 
 
 @router.post("/api/v1/pheromones/decay")
-def pheromone_decay() -> dict:
+def pheromone_decay(
+    _principal: Principal = Depends(require_privileged_operator),
+    authority: Any = Depends(get_memory_authority),
+) -> dict:
     """Run decay sweep — prune signals below floor strength."""
     if not config.PHEROMONE_ENABLED:
         raise HTTPException(status_code=404, detail="pheromone store not enabled")
-    from aios.memory.pheromones import PheromoneStore
-    store = PheromoneStore(db_path=config.PHEROMONE_DB)
-    pruned = store.decay_all()
+    pruned = authority.pheromone_decay()
     return {"pruned": pruned}
 
 
@@ -300,29 +355,40 @@ class LiveSurfaceEmitRequest(BaseModel):
 
 
 @router.post("/api/v1/runtime/surface/emit")
-def live_surface_emit(req: LiveSurfaceEmitRequest) -> dict:
+def live_surface_emit(
+    req: LiveSurfaceEmitRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Emit an ephemeral coordination signal."""
     if not config.LIVE_SURFACE:
         raise HTTPException(status_code=404, detail="live surface not enabled")
     from aios.runtime.live_surface import LiveSurface, SignalType
+
     try:
         stype_enum = SignalType(req.stype)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"invalid signal type: {req.stype}")
     surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
     signal_id = surface.emit(
-        stype=stype_enum, resource=req.resource,
-        worker_id=req.worker_id, ttl_seconds=req.ttl_seconds, payload=req.payload,
+        stype=stype_enum,
+        resource=req.resource,
+        worker_id=req.worker_id,
+        ttl_seconds=req.ttl_seconds,
+        payload=req.payload,
     )
     return {"signal_id": signal_id}
 
 
 @router.delete("/api/v1/runtime/surface/{signal_id}")
-def live_surface_revoke(signal_id: int) -> dict:
+def live_surface_revoke(
+    signal_id: int,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Revoke a live surface signal."""
     if not config.LIVE_SURFACE:
         raise HTTPException(status_code=404, detail="live surface not enabled")
     from aios.runtime.live_surface import LiveSurface
+
     surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
     revoked = surface.revoke(signal_id)
     if not revoked:
@@ -331,11 +397,14 @@ def live_surface_revoke(signal_id: int) -> dict:
 
 
 @router.post("/api/v1/runtime/surface/sweep")
-def live_surface_sweep() -> dict:
+def live_surface_sweep(
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Sweep expired signals from the live surface."""
     if not config.LIVE_SURFACE:
         raise HTTPException(status_code=404, detail="live surface not enabled")
     from aios.runtime.live_surface import LiveSurface
+
     surface = LiveSurface(db_path=config.LIVE_SURFACE_DB)
     swept = surface.sweep_expired()
     return {"swept": swept}
@@ -354,26 +423,35 @@ class RollbackRegisterRequest(BaseModel):
 
 
 @router.post("/api/v1/runtime/rollbacks/register")
-def rollback_register(req: RollbackRegisterRequest) -> dict:
+def rollback_register(
+    req: RollbackRegisterRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Register a new snapshot point in the rollback registry."""
     if not config.ROLLBACK_REGISTRY:
         raise HTTPException(status_code=404, detail="rollback registry not enabled")
     from aios.runtime.rollback_registry import RollbackRegistry
+
     registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
     registry.register(
-        snapshot_id=req.snapshot_id, mission_id=req.mission_id,
+        snapshot_id=req.snapshot_id,
+        mission_id=req.mission_id,
         workspace_root=req.workspace_root,
-        files_covered=req.files_covered, metadata=req.metadata,
+        files_covered=req.files_covered,
+        metadata=req.metadata,
     )
     return {"registered": True, "snapshot_id": req.snapshot_id}
 
 
 @router.post("/api/v1/runtime/rollbacks/prune")
-def rollback_prune() -> dict:
+def rollback_prune(
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Prune rollback entries past the retention window."""
     if not config.ROLLBACK_REGISTRY:
         raise HTTPException(status_code=404, detail="rollback registry not enabled")
     from aios.runtime.rollback_registry import RollbackRegistry
+
     registry = RollbackRegistry(db_path=config.ROLLBACK_REGISTRY_DB)
     pruned = registry.prune()
     return {"pruned": pruned}
@@ -388,6 +466,7 @@ def audit_anchor_history(limit: int = 10) -> dict:
     if not config.AUDIT_ANCHOR_API:
         raise HTTPException(status_code=404, detail="audit anchor API not enabled")
     from aios.audit_anchor import anchor_history
+
     entries = anchor_history(limit=limit)
     return {"entries": entries, "count": len(entries)}
 
@@ -402,11 +481,16 @@ class PolicyVoteRequest(BaseModel):
 
 
 @router.post("/api/v1/policy/{policy_id}/vote")
-def policy_vote(policy_id: str, req: PolicyVoteRequest) -> dict:
+def policy_vote(
+    policy_id: str,
+    req: PolicyVoteRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Cast a queen's vote on a proposed policy."""
     if not config.POLICY_ENGINE:
         raise HTTPException(status_code=404, detail="policy engine not enabled")
     from aios.policy.engine import PolicyEngine
+
     engine = PolicyEngine(db_path=config.POLICY_DB)
     try:
         engine.vote(policy_id, queen=req.queen, approve=req.approve, reason=req.reason)
@@ -421,36 +505,50 @@ class PolicyEnactRequest(BaseModel):
 
 
 @router.post("/api/v1/policy/{policy_id}/enact")
-def policy_enact(policy_id: str, req: PolicyEnactRequest) -> dict:
+def policy_enact(
+    policy_id: str,
+    req: PolicyEnactRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Enact a proposed policy if it has enough approvals."""
     if not config.POLICY_ENGINE:
         raise HTTPException(status_code=404, detail="policy engine not enabled")
     from aios.policy.engine import PolicyEngine
+
     engine = PolicyEngine(db_path=config.POLICY_DB)
     try:
         policy = engine.enact(policy_id, required_approvals=req.required_approvals)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {
-        "enacted": True, "policy_id": policy.policy_id,
-        "version": policy.version, "enacted_at": policy.enacted_at,
+        "enacted": True,
+        "policy_id": policy.policy_id,
+        "version": policy.version,
+        "enacted_at": policy.enacted_at,
     }
 
 
 class PolicySuspendRequest(BaseModel):
-    suspended_by: str = Field(..., alias="suspendedBy")
+    # Deprecated compatibility field. The durable operator principal is the
+    # only authority source for policy provenance.
+    suspended_by: str = Field("", alias="suspendedBy")
     model_config = {"populate_by_name": True}
 
 
 @router.post("/api/v1/policy/{policy_id}/suspend")
-def policy_suspend(policy_id: str, req: PolicySuspendRequest) -> dict:
+def policy_suspend(
+    policy_id: str,
+    req: PolicySuspendRequest,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Suspend an enacted policy."""
     if not config.POLICY_ENGINE:
         raise HTTPException(status_code=404, detail="policy engine not enabled")
     from aios.policy.engine import PolicyEngine
+
     engine = PolicyEngine(db_path=config.POLICY_DB)
     try:
-        policy = engine.suspend(policy_id, suspended_by=req.suspended_by)
+        policy = engine.suspend(policy_id, suspended_by=_principal.principal_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"suspended": True, "policy_id": policy.policy_id}
@@ -462,25 +560,37 @@ def policy_chain() -> dict:
     if not config.POLICY_ENGINE:
         raise HTTPException(status_code=404, detail="policy engine not enabled")
     from aios.policy.engine import PolicyEngine
+
     engine = PolicyEngine(db_path=config.POLICY_DB)
     chain = engine.policy_chain()
-    return {"policies": [
-        {"policy_id": p.policy_id, "version": p.version, "constraint": p.constraint,
-         "status": p.status.value, "proposed_by": p.proposed_by,
-         "enacted_at": p.enacted_at}
-        for p in chain
-    ]}
+    return {
+        "policies": [
+            {
+                "policy_id": p.policy_id,
+                "version": p.version,
+                "constraint": p.constraint,
+                "status": p.status.value,
+                "proposed_by": p.proposed_by,
+                "enacted_at": p.enacted_at,
+            }
+            for p in chain
+        ]
+    }
 
 
 # --- Queen Services management endpoints ---
 
 
 @router.post("/api/v1/council/services/{name}/start")
-async def council_service_start(name: str) -> dict:
+async def council_service_start(
+    name: str,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Start a registered queen service."""
     if not config.QUEEN_SERVICES:
         raise HTTPException(status_code=404, detail="queen services not enabled")
     from aios.council.queen_service import QUEEN_SERVICES
+
     service = QUEEN_SERVICES.get(name)
     if service is None:
         raise HTTPException(status_code=404, detail=f"service '{name}' not registered")
@@ -489,11 +599,15 @@ async def council_service_start(name: str) -> dict:
 
 
 @router.post("/api/v1/council/services/{name}/stop")
-async def council_service_stop(name: str) -> dict:
+async def council_service_stop(
+    name: str,
+    _principal: Principal = Depends(require_privileged_operator),
+) -> dict:
     """Stop a registered queen service."""
     if not config.QUEEN_SERVICES:
         raise HTTPException(status_code=404, detail="queen services not enabled")
     from aios.council.queen_service import QUEEN_SERVICES
+
     service = QUEEN_SERVICES.get(name)
     if service is None:
         raise HTTPException(status_code=404, detail=f"service '{name}' not registered")

@@ -106,6 +106,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 MEMORY_DB_PATH: Final[Path] = DATA_DIR / "aios_memory.db"
 APPROVAL_DB_PATH: Final[Path] = DATA_DIR / "aios_approvals.db"
 SESSION_DB_PATH: Final[Path] = DATA_DIR / "aios_sessions.db"
+IDENTITY_DB_PATH: Final[Path] = DATA_DIR / "aios_identity.db"
+CAPABILITY_DB_PATH: Final[Path] = DATA_DIR / "aios_capabilities.db"
 AUDIT_DB_PATH: Final[Path] = DATA_DIR / "aios_audit.db"
 FAISS_INDEX_PATH: Final[Path] = DATA_DIR / "vector_index.faiss"
 ROLLBACK_DIR: Final[Path] = _env_path("AIOS_ROLLBACK_DIR", DATA_DIR / "rollback")
@@ -252,6 +254,17 @@ CONTAINER_CPUS: Final[float] = _env_float("AIOS_CONTAINER_CPUS", 1.0)
 CONTAINER_PIDS_LIMIT: Final[int] = _env_int("AIOS_CONTAINER_PIDS_LIMIT", 128)
 MAX_COMMAND_CHARS: Final[int] = _env_int("AIOS_MAX_COMMAND_CHARS", 8192)
 MAX_COMMAND_OUTPUT_BYTES: Final[int] = _env_int("AIOS_MAX_COMMAND_OUTPUT_BYTES", 1_048_576)
+EXECUTOR_URL: Final[str] = _env_str(
+    "AIOS_EXECUTOR_URL", "http://127.0.0.1:8081"
+).rstrip("/")
+EXECUTOR_TOKEN: Final[str] = os.getenv("AIOS_EXECUTOR_TOKEN", "")
+EXECUTOR_HTTP_TIMEOUT_S: Final[float] = _env_float("AIOS_EXECUTOR_HTTP_TIMEOUT_S", 30.0)
+EXECUTOR_WORKSPACE_ROOT: Final[Path] = _env_path(
+    "AIOS_EXECUTOR_WORKSPACE_ROOT", DATA_DIR / "executor-workspaces"
+)
+EXECUTOR_REMOTE_WORKSPACE_ROOT: Final[str] = _env_str(
+    "AIOS_EXECUTOR_REMOTE_WORKSPACE_ROOT", "/workspace/jobs"
+)
 
 OLLAMA_HOST: Final[str] = _env_str("OLLAMA_HOST", "http://127.0.0.1:11434")
 LLM_MODEL: Final[str] = _env_str("AIOS_LLM_MODEL", "llama3.1:8b")
@@ -436,6 +449,7 @@ POLICY_DB: Final[Path] = DATA_DIR / "policy.db"
 API_HOST: Final[str] = _env_str("AIOS_API_HOST", "127.0.0.1")
 API_PORT: Final[int] = _env_int("AIOS_API_PORT", 8000)
 API_TOKEN: Final[str] = _env_str("AIOS_API_TOKEN", "")
+PACKAGED_GATEWAY_HOST: Final[str] = _env_str("AIOS_PACKAGED_GATEWAY_HOST", "gateway")
 TRUST_PROXY_HEADERS: Final[bool] = _env_bool("AIOS_TRUST_PROXY_HEADERS", False)
 TRUSTED_PROXIES: Final[frozenset[str]] = frozenset(
     filter(None, _env_str("AIOS_TRUSTED_PROXIES", "").split(","))
@@ -476,6 +490,7 @@ def startup_banner() -> dict[str, object]:
 
 __all__ = [
     "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
+    "SESSION_DB_PATH", "IDENTITY_DB_PATH", "CAPABILITY_DB_PATH",
     "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
     "COUNCIL_STATE_DB", "MISSION_STATE_DB", "MISSION_EXPORT_DIR",
     "COUNCIL_REASONING", "COUNCIL_CRITIQUE",
@@ -507,7 +522,9 @@ __all__ = [
     "SCOPE_ROOTS", "VERIFY_RUNNER", "APPROVED_EXECUTION_BACKEND",
     "CONTAINER_RUNTIME", "CONTAINER_IMAGE", "CONTAINER_MEMORY_MB",
     "CONTAINER_CPUS", "CONTAINER_PIDS_LIMIT", "MAX_COMMAND_CHARS",
-    "MAX_COMMAND_OUTPUT_BYTES", "OLLAMA_HOST", "LLM_MODEL",
+    "MAX_COMMAND_OUTPUT_BYTES", "EXECUTOR_URL", "EXECUTOR_TOKEN",
+    "EXECUTOR_HTTP_TIMEOUT_S", "EXECUTOR_WORKSPACE_ROOT",
+    "EXECUTOR_REMOTE_WORKSPACE_ROOT", "OLLAMA_HOST", "LLM_MODEL",
     "LLM_REQUEST_TIMEOUT_S", "LLM_TEMPERATURE", "LLM_NUM_CTX",
     "INDEX_CHAT", "REFLECT_ON_FAILURE", "INTERPRET_ALIGNMENT", "OFFLINE_MODE",
     "BEDROCK_REGION", "BEDROCK_MODEL", "BEDROCK_MAX_TOKENS", "BEDROCK_ENABLED",
@@ -529,7 +546,7 @@ __all__ = [
     "AUDIT_ANCHOR_API",
     "SELF_CONSISTENCY", "SELF_CONSISTENCY_N",
     "POLICY_ENGINE", "POLICY_DB",
-    "API_HOST", "API_PORT", "API_TOKEN", "TRUST_PROXY_HEADERS",
+    "API_HOST", "API_PORT", "API_TOKEN", "PACKAGED_GATEWAY_HOST", "TRUST_PROXY_HEADERS",
     "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
     "startup_banner",
 ]

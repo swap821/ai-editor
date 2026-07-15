@@ -17,20 +17,36 @@ process state (approval store, session manager, executor/rate-limiter,
 self-apply, edit snapshots, the memory compactor's singleton cluster) stay in
 ``main.py``.
 """
+
 from __future__ import annotations
 
+import os
 import threading
-from typing import Any, Callable, Optional
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent
 from aios.agents.rollback_engine import RollbackEngine
 from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.application.memory import MemoryAuthority
-from aios.application.memory.adapters import AdvisoryPheromoneAdapter, LegacySemanticMemoryAdapter
-from aios.core.approvals import ApprovalStore
+from aios.application.capabilities.authority import CapabilityAuthority
+from aios.application.capabilities.verifier import CapabilityVerifier
+from aios.application.action_broker import ActionBroker
+from aios.application.identity.service import IdentityService
+from aios.application.memory.adapters import (
+    AdvisoryPheromoneAdapter,
+    EpisodicMemoryAdapter,
+    LegacySemanticMemoryAdapter,
+    MemoryConsolidationAdapter,
+    MistakeMemoryAdapter,
+    DevelopmentHistoryAdapter,
+    SemanticFactsAdapter,
+    SkillMemoryAdapter,
+    WorkingMemoryAdapter,
+)
 from aios.core.autonomy import AutonomyLedger
 from aios.core.alignment import AlignmentInterpreter
 from aios.core.bedrock import BedrockClient
@@ -41,18 +57,23 @@ from aios.core.llm import LLMClient, LLMError, OllamaClient
 from aios.core.native_planner import NativePlanner
 from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
 from aios.core.session_manager import SessionManager
+from aios.domain.identity.models import Principal, PrincipalType
 from aios.core.verifier import Verifier
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
+from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
-from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
+from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.security.gateway import RateLimiter
+
+if TYPE_CHECKING:
+    from aios.policy.kernel import PolicyKernel
 
 #: Lazy cloud-client singletons — built on first use, reused across requests.
 _bedrock_client: Optional[BedrockClient] = None
@@ -65,6 +86,8 @@ _openai_lock = threading.Lock()
 _anthropic_lock = threading.Lock()
 _memory_authority: Optional[MemoryAuthority] = None
 _memory_authority_lock = threading.Lock()
+_identity_service: Optional[IdentityService] = None
+_identity_service_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -144,6 +167,7 @@ def get_openai_client() -> Optional[Any]:
         if _openai_client is not None:
             return _openai_client
         from aios.core.openai_compat import OpenAICompatClient
+
         _openai_client = OpenAICompatClient()
     return _openai_client
 
@@ -159,18 +183,25 @@ def get_anthropic_client() -> Optional[Any]:
         if _anthropic_client is not None:
             return _anthropic_client
         from aios.core.anthropic_direct import AnthropicDirectClient
+
         _anthropic_client = AnthropicDirectClient()
     return _anthropic_client
 
 
-def get_semantic_indexer() -> Optional[SemanticMemory]:
+def get_semantic_indexer() -> Optional[Any]:
     """Provide the L3 semantic writer used to index completed chat turns.
 
     Returns ``None`` when :data:`aios.config.INDEX_CHAT` is disabled (so no
     embedding model is loaded). Overridden in tests with a fake recorder so the
     suite never loads the real embedder or mutates the on-disk vector index.
     """
-    return SemanticMemory() if config.INDEX_CHAT else None
+    if not config.INDEX_CHAT:
+        return None
+    authority = get_memory_authority()
+    adapter = authority.adapters.get("semantic")
+    if adapter is None:
+        raise RuntimeError("memory authority semantic adapter is unavailable")
+    return adapter
 
 
 def get_reflection_agent(
@@ -181,12 +212,34 @@ def get_reflection_agent(
     Returns ``None`` when :data:`aios.config.REFLECT_ON_FAILURE` is disabled.
     Reuses the injected LLM client so it is fully overridable in tests.
     """
-    return ReflectionAgent(llm) if config.REFLECT_ON_FAILURE else None
+    if not config.REFLECT_ON_FAILURE:
+        return None
+    authority = get_memory_authority()
+    if isinstance(authority, MemoryAuthority):
+        lessons = authority.adapters.get("lessons")
+        store = getattr(lessons, "store", None)
+        return ReflectionAgent(
+            llm,
+            mistakes=store if isinstance(store, MistakeMemory) else None,
+            memory_authority=authority,
+        )
+    # Direct callers and tests may invoke this provider without FastAPI
+    # resolving the Depends marker; retain the old injectable behavior there.
+    return ReflectionAgent(llm)
 
 
 def get_swarm_pattern_memory() -> SwarmPatternMemory:
     """Provide the ant-colony swarm's decomposition-pattern memory."""
     return SwarmPatternMemory()
+
+
+def _authority_store(name: str, expected_type: type[Any]) -> Any:
+    """Return a canonical specialist store or fail closed."""
+    adapter = get_memory_authority().adapters.get(name)
+    store = getattr(adapter, "store", None)
+    if not isinstance(store, expected_type):
+        raise RuntimeError(f"memory authority {name} store is unavailable")
+    return store
 
 
 def get_semantic_facts() -> SemanticFacts:
@@ -197,13 +250,15 @@ def get_semantic_facts() -> SemanticFacts:
     personalization is dormant, never fabricated, when nothing is known. Cheap
     and stateless (opens a fresh connection per call). Overridden in tests.
     """
-    return SemanticFacts()
+    return _authority_store("facts", SemanticFacts)
 
 
 def get_development_tracker(
     facts: SemanticFacts = Depends(get_semantic_facts),
 ) -> DevelopmentTracker:
     """Provide the evidence-backed developmental metrics store."""
+    if get_memory_authority().owns_store("facts", facts):
+        return _authority_store("development", DevelopmentTracker)
     return DevelopmentTracker(facts=facts)
 
 
@@ -231,6 +286,8 @@ def get_skill_memory(
     the sovereignty engine stays in sync with skill trust status. The facts
     store enables S2 cross-store ingestion on skill promotion.
     """
+    if get_memory_authority().owns_store("facts", facts):
+        return _authority_store("skills", SkillMemory)
     return SkillMemory(cerebellum=cerebellum, facts=facts)
 
 
@@ -238,6 +295,8 @@ def get_mistake_memory(
     facts: SemanticFacts = Depends(get_semantic_facts),
 ) -> MistakeMemory:
     """Provide mistake memory with knowledge graph ingestion wiring."""
+    if get_memory_authority().owns_store("facts", facts):
+        return _authority_store("lessons", MistakeMemory)
     return MistakeMemory(facts=facts)
 
 
@@ -247,7 +306,12 @@ def get_native_planner(
     facts: SemanticFacts = Depends(get_semantic_facts),
 ) -> NativePlanner:
     """Provide the sovereignty S3 native symbolic planner."""
-    return NativePlanner(skills=skills, patterns=patterns, facts=facts)
+    return NativePlanner(
+        skills=skills,
+        patterns=patterns,
+        facts=facts,
+        memory_authority=get_memory_authority(),
+    )
 
 
 def get_curriculum_manager() -> CurriculumManager:
@@ -256,8 +320,49 @@ def get_curriculum_manager() -> CurriculumManager:
 
 
 def get_memory_consolidator() -> MemoryConsolidator:
-    """Provide the evidence-gated trusted-memory promotion service."""
-    return MemoryConsolidator()
+    """Provide the authority-owned trusted-memory promotion service.
+
+    The process authority owns the canonical consolidation adapter. Returning
+    that wrapped service keeps route ownership checks on the authority path;
+    dependency overrides can still provide explicit test doubles.
+    """
+    authority = get_memory_authority()
+    adapter = authority.adapters.get("consolidation")
+    service = getattr(adapter, "service", None)
+    if not isinstance(service, MemoryConsolidator):
+        raise RuntimeError("memory authority consolidation adapter is unavailable")
+    return service
+
+
+def _sync_pheromone_adapter(authority: MemoryAuthority) -> None:
+    """Keep the advisory adapter aligned with the live configured store.
+
+    The process authority is intentionally a singleton, while tests and local
+    operators may switch the pheromone database path between isolated runs.
+    Refresh only when the configured path/decay policy changes; normal calls do
+    not recreate the specialist store.
+    """
+    if not config.PHEROMONE_ENABLED:
+        authority.pheromone_adapter = None
+        return
+    current = getattr(authority.pheromone_adapter, "store", None)
+    configured_path = str(config.PHEROMONE_DB)
+    if (
+        current is not None
+        and str(getattr(current, "_db_path", "")) == configured_path
+        and getattr(current, "_lambda", None) == config.PHEROMONE_LAMBDA_DECAY
+        and getattr(current, "_floor", None) == config.PHEROMONE_FLOOR
+    ):
+        return
+    from aios.memory.pheromones import PheromoneStore
+
+    authority.pheromone_adapter = AdvisoryPheromoneAdapter(
+        PheromoneStore(
+            db_path=config.PHEROMONE_DB,
+            lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
+            floor=config.PHEROMONE_FLOOR,
+        )
+    )
 
 
 def get_memory_authority() -> MemoryAuthority:
@@ -269,24 +374,34 @@ def get_memory_authority() -> MemoryAuthority:
     """
     global _memory_authority
     if _memory_authority is not None:
+        _sync_pheromone_adapter(_memory_authority)
         return _memory_authority
     with _memory_authority_lock:
         if _memory_authority is None:
             adapters = {
+                "working": WorkingMemoryAdapter(WorkingMemory()),
+                "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
                 "semantic": LegacySemanticMemoryAdapter(config.MEMORY_DB_PATH),
+                "facts": SemanticFactsAdapter(SemanticFacts()),
+                "skills": SkillMemoryAdapter(SkillMemory()),
+                "lessons": MistakeMemoryAdapter(MistakeMemory()),
+                "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
             }
-            pheromone_adapter = None
-            if config.PHEROMONE_ENABLED:
-                from aios.memory.pheromones import PheromoneStore
-
-                pheromone_adapter = AdvisoryPheromoneAdapter(
-                    PheromoneStore(db_path=config.PHEROMONE_DB)
-                )
             _memory_authority = MemoryAuthority(
                 store=MemoryAuthorityStore(config.MEMORY_DB_PATH),
                 adapters=adapters,
-                pheromone_adapter=pheromone_adapter,
             )
+            consolidation = MemoryConsolidationAdapter(
+                MemoryConsolidator(
+                    semantic=adapters["semantic"].store,
+                    mistakes=adapters["lessons"].store,
+                    facts=adapters["facts"].store,
+                    memory_authority=_memory_authority,
+                )
+            )
+            _memory_authority.register_adapter("consolidation", consolidation)
+            _sync_pheromone_adapter(_memory_authority)
+            consolidation.bind_authority(_memory_authority)
     return _memory_authority
 
 
@@ -314,11 +429,13 @@ def get_alignment_interpreter(
 
 # --------------------------------------------------------------------------- #
 # Stateful / security-adjacent providers (tranche 2)
-# _APPROVALS and _RATE_LIMITER are DB-backed (durable, multi-process safe by
+# _CAPABILITIES and _RATE_LIMITER are DB-backed (durable, multi-process safe by
 # design); _SESSION_MANAGER holds the process's session state. They live here
-# so route modules can Depends() on them without importing main.
+# so route modules can Depends() on them without importing main. The former
+# ApprovalStore compatibility surface is intentionally not constructed in the
+# production dependency graph.
 # --------------------------------------------------------------------------- #
-_APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
+_CAPABILITIES = CapabilityAuthority(db_path=config.CAPABILITY_DB_PATH)
 _RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
 
 #: Server-side session manager with httpOnly cookie support.
@@ -336,6 +453,52 @@ def get_session_manager() -> SessionManager:
     return _SESSION_MANAGER
 
 
+def get_identity_service() -> IdentityService:
+    """Provide the durable Human Sovereign identity authority singleton."""
+    global _identity_service
+    if _identity_service is not None:
+        return _identity_service
+    with _identity_service_lock:
+        if _identity_service is None:
+            _identity_service = IdentityService(
+                identity_db_path=config.IDENTITY_DB_PATH,
+                session_db_path=config.SESSION_DB_PATH,
+            )
+    return _identity_service
+
+
+def get_authenticated_principal(
+    request: Request,
+    identity: IdentityService = Depends(get_identity_service),
+) -> Principal:
+    """Resolve the operator only from the opaque server-side session cookie."""
+    principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
+    if principal is None:
+        raise HTTPException(
+            status_code=401, detail="authenticated operator session required"
+        )
+    client_address = request.client.host if request.client is not None else ""
+    return replace(
+        principal,
+        request_id=request.headers.get("x-request-id", ""),
+        client_address=client_address,
+    )
+
+
+def require_privileged_operator(
+    principal: Principal = Depends(get_authenticated_principal),
+) -> Principal:
+    """Require an authenticated Human Sovereign principal for control-plane work."""
+    if principal.principal_type is not PrincipalType.OPERATOR:
+        raise HTTPException(status_code=403, detail="Human Sovereign operator required")
+    if principal.authentication_level != "privileged":
+        raise HTTPException(
+            status_code=403,
+            detail="recent strong Human Sovereign re-authentication required",
+        )
+    return principal
+
+
 def _session_id_from_request(request: Request, fallback: Optional[str] = None) -> str:
     """Prefer the validated httpOnly session cookie, then body fallback.
 
@@ -351,18 +514,34 @@ def _session_id_from_request(request: Request, fallback: Optional[str] = None) -
 
 
 def get_executor() -> Executor:
-    """Provide the default scope-constrained executor. Overridden in tests."""
+    """Provide the default executor; production crosses the private service."""
     kernel = get_policy_kernel()
+    approved_runner = kernel.build_approved_runner()
+    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    command_runner = (
+        approved_runner
+        if profile in {"production", "demo"}
+        and getattr(approved_runner, "is_private_service", False)
+        else None
+    )
     return Executor(
-        approved_runner=kernel.build_approved_runner(),
+        runner=command_runner,
+        approved_runner=approved_runner,
         rate_limiter=_RATE_LIMITER,
         policy_kernel=kernel,
     )
 
 
-def get_approval_store() -> ApprovalStore:
-    """Provide the durable local multi-worker approval capability store."""
-    return _APPROVALS
+def get_capability_authority() -> CapabilityAuthority:
+    """Provide the server-issued exact capability authority."""
+    return _CAPABILITIES
+
+
+def get_capability_verifier(
+    authority: CapabilityAuthority = Depends(get_capability_authority),
+) -> CapabilityVerifier:
+    """Provide complete-binding capability verification for application routes."""
+    return CapabilityVerifier(authority)
 
 
 def get_policy_kernel() -> "PolicyKernel":
@@ -375,7 +554,17 @@ def get_policy_kernel() -> "PolicyKernel":
     # Imported lazily to break the policy -> edge_security -> deps cycle.
     from aios.policy.kernel import get_policy_kernel as _kernel_singleton
 
-    return _kernel_singleton(rate_limiter=_RATE_LIMITER, autonomy_ledger=AutonomyLedger())
+    return _kernel_singleton(
+        rate_limiter=_RATE_LIMITER, autonomy_ledger=AutonomyLedger()
+    )
+
+
+def get_action_broker(
+    kernel: "PolicyKernel" = Depends(get_policy_kernel),
+    capabilities: CapabilityAuthority = Depends(get_capability_authority),
+) -> ActionBroker:
+    """Provide the production ActionEnvelope -> PolicyKernel broker chain."""
+    return ActionBroker(kernel, capabilities=capabilities)
 
 
 def get_rollback_engine() -> RollbackEngine:
@@ -392,7 +581,14 @@ def get_self_apply_engine(
     — there is deliberately no agent tool that applies. Overridden in tests with a
     fake verifier + temp project root so no real shell/suite runs.
     """
-    isolated_runner = get_policy_kernel().build_approved_runner()
+    isolated_runner = executor.approved_runner
+    # Development/test callers may inject only the ordinary runner. Preserve
+    # the legacy container-backed verifier contract for those callers while
+    # keeping production/demo strictly dependent on the Executor Service
+    # runner constructed by ``get_executor``.
+    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    if isolated_runner is None and profile not in {"production", "demo"}:
+        isolated_runner = get_policy_kernel().build_approved_runner()
 
     def project_root_runner(
         command: str, *, cwd: str, env: dict[str, str], timeout_s: int
@@ -414,7 +610,9 @@ def get_self_apply_engine(
         project root bind-mounted so it tests the proposed change.
         """
         if command != DEFAULT_VERIFY_COMMAND:
-            raise ValueError("self-apply verifier accepts only the fixed project test command")
+            raise ValueError(
+                "self-apply verifier accepts only the fixed project test command"
+            )
         if isolated_runner is None:
             raise RuntimeError(
                 "self-apply requires the container execution boundary; host mode "
@@ -444,6 +642,7 @@ def get_edit_snapshot() -> Callable[..., object]:
     command turns pay nothing. Fail-closed: a snapshot failure propagates so the
     agent refuses the edit (no unprotected write). Overridden in tests with a recorder.
     """
+
     def snapshot(message: str = "pre-edit snapshot") -> None:
         # Let failures propagate: the agent treats a snapshot error as fail-closed
         # and refuses the edit, so a write is never applied without a captured
@@ -477,8 +676,10 @@ __all__ = [
     "get_alignment_evaluation_store",
     "get_alignment_interpreter",
     "get_session_manager",
+    "get_identity_service",
+    "get_authenticated_principal",
+    "require_privileged_operator",
     "get_executor",
-    "get_approval_store",
     "get_policy_kernel",
     "get_rollback_engine",
     "get_self_apply_engine",

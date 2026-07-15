@@ -10,25 +10,46 @@ import asyncio
 import json
 from typing import Any, Optional, AsyncGenerator
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from aios.api.main import get_cortex_bus
 from aios.runtime.cortex_bus import CortexBus, BusEvent
 from aios.application.read_models.projection import get_system_projection
+from aios.application.memory.authority import MemoryAuthority
+from aios.api.deps import get_development_tracker, get_memory_authority, get_skill_memory
 from aios.domain.read_models import MetricEnvelope, MetricStatus
+from aios.memory.development import DevelopmentTracker
+from aios.memory.skills import SkillMemory
 
 router = APIRouter(prefix="/api/v1/mirror", tags=["Mirror"])
 
-from aios.api.deps import get_development_tracker, get_skill_memory
-from aios.memory.development import DevelopmentTracker
-from aios.memory.skills import SkillMemory
+
+def _read_development_summary(
+    tracker: Optional[DevelopmentTracker], authority: MemoryAuthority
+) -> dict[str, Any]:
+    if tracker is None:
+        return {}
+    if authority.owns_store("development", tracker):
+        return authority.development_summary()
+    return tracker.summary()
+
+
+def _read_skill_trails(
+    skills: Optional[SkillMemory], authority: MemoryAuthority
+) -> dict[str, Any]:
+    if skills is None:
+        return {"trails": []}
+    if authority.owns_store("skills", skills):
+        return authority.skills_trail_map()
+    return skills.trail_map()
 
 @router.get("/snapshot")
 def get_snapshot(
     bus: Optional[CortexBus] = Depends(get_cortex_bus),
     tracker: Optional[DevelopmentTracker] = Depends(get_development_tracker),
     skills: Optional[SkillMemory] = Depends(get_skill_memory),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> JSONResponse:
     """Return the organism's current truthful state (fresh boot state)."""
     if bus is None:
@@ -59,7 +80,7 @@ def get_snapshot(
             source="cortex_events.pending_count",
             freshness=0,
         )
-        tracker_metrics = tracker.summary() if tracker else {}
+        tracker_metrics = _read_development_summary(tracker, authority)
         for key in ("verified_success_rate", "average_tool_calls"):
             value = tracker_metrics.get(key)
             projected_metrics[key] = MetricEnvelope(
@@ -76,7 +97,7 @@ def get_snapshot(
                 ),
                 freshness=0 if value is not None else None,
             )
-        trail_data = skills.trail_map() if skills else {"trails": []}
+        trail_data = _read_skill_trails(skills, authority)
         trails = trail_data.get("trails", [])
         return JSONResponse(
             content={
@@ -108,8 +129,8 @@ def get_snapshot(
             }
         )
 
-    metrics = tracker.summary() if tracker else {}
-    trail_data = skills.trail_map() if skills else {"trails": []}
+    metrics = _read_development_summary(tracker, authority)
+    trail_data = _read_skill_trails(skills, authority)
     trails = trail_data.get("trails", [])
     verified_trails = sum(1 for trail in trails if trail.get("status") == "verified")
     phase = "idle"
@@ -156,9 +177,6 @@ def get_snapshot(
             }
         }
     )
-
-
-from fastapi import Query
 
 @router.get("/stream")
 async def stream_journal(

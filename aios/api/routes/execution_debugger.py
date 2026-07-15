@@ -19,8 +19,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from aios.api.routes.council import council_missions, get_council_runtime_root
+from aios.api.action_guard import enforce_action_boundary
 
-router = APIRouter(tags=["Execution Debugger"])
+router = APIRouter(
+    tags=["Execution Debugger"], dependencies=[Depends(enforce_action_boundary)]
+)
 
 
 @router.get("/api/v1/execution/debugger/state")

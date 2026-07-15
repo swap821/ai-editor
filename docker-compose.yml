@@ -4,7 +4,10 @@
 # requires a non-empty AIOS_API_TOKEN of at least 32 characters. Set it in a
 # .env file or in the environment before running:
 #
-#   AIOS_API_TOKEN=<32-char-token> docker compose up --build
+#   AIOS_API_TOKEN=<32-char-token> \
+#   AIOS_EXECUTOR_HOST_WORKSPACE_ROOT=<absolute-host-workspace-root> \
+#   AIOS_DOCKER_SOCKET_GID=<socket-group-id> \
+#   docker compose up --build
 #
 name: aios
 
@@ -32,6 +35,9 @@ services:
       - ./.env:/app/.env:ro
     networks:
       - aios-net
+    depends_on:
+      executor:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -40,6 +46,7 @@ services:
       start_period: 5s
 
   executor:
+    image: aios-executor:local
     build:
       context: .
       dockerfile: Dockerfile.executor
@@ -53,14 +60,19 @@ services:
     environment:
       - AIOS_EXECUTOR_TOKEN=${AIOS_EXECUTOR_TOKEN:-}
       - AIOS_EXECUTOR_WORKSPACE_ROOT=/workspace/jobs
+      - AIOS_EXECUTOR_DAEMON_WORKSPACE_ROOT=${AIOS_EXECUTOR_HOST_WORKSPACE_ROOT:?AIOS_EXECUTOR_HOST_WORKSPACE_ROOT must be set}
       - AIOS_CONTAINER_RUNTIME=docker
     expose:
       - "8081"
     volumes:
       # The control plane never receives this socket. The executor is the only
       # service allowed to request disposable worker containers.
-      - ${AIOS_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
-      - ./data/executor-workspaces:/workspace/jobs
+      - type: bind
+        source: ${AIOS_DOCKER_SOCKET:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+      - type: bind
+        source: ${AIOS_EXECUTOR_HOST_WORKSPACE_ROOT:?AIOS_EXECUTOR_HOST_WORKSPACE_ROOT must be set}
+        target: /workspace/jobs
     networks:
       - aios-net
     command: ["python", "-m", "aios.executor_service"]

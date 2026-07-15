@@ -26,7 +26,22 @@ from pydantic import BaseModel, Field
 
 from aios import config
 from aios.logging_config import get_logger
-from aios.core.approvals import ApprovalError, ApprovalStore
+from aios.application.action_broker import ActionBroker, PolicyBrokerError
+from aios.application.missions.mission_service import MissionService
+from aios.domain.actions.envelope import (
+    ActionEnvelope,
+    ActionType,
+    Principal as EnvelopePrincipal,
+)
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest, resource_digest
+from aios.domain.missions.mission_repository import (
+    MissionNotFoundError,
+    MissionTransitionError,
+)
+from aios.infrastructure.missions.sqlite_mission_repository import (
+    SqliteMissionRepository,
+)
 from aios.agents.rollback_engine import RollbackError
 from aios.runtime.contracts import KingReport, RunLedger
 from aios.runtime.king_report import KingReportStore
@@ -38,6 +53,15 @@ from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
 from aios.runtime.cortex_bus import CortexBus
+from aios.api.deps import (
+    get_action_broker,
+    get_memory_authority,
+    require_privileged_operator,
+)
+from aios.application.memory.adapters import CouncilMemoryAdapter
+from aios.domain.identity.models import Principal
+from aios.api.action_guard import enforce_action_boundary
+
 
 # Cross-cutting helpers shared with other route modules still living in
 # main.py — imported rather than duplicated so there is exactly one
@@ -45,34 +69,34 @@ from aios.runtime.cortex_bus import CortexBus
 def _check_prompt_injection(text):
     """Deferred proxy to avoid circular dependency with main.py."""
     from aios.api.main import _check_prompt_injection as _impl
+
     return _impl(text)
 
 
 def _enforce_conversation_rate_limit(session_id):
     """Deferred proxy to avoid circular dependency with main.py."""
     from aios.api.main import _enforce_conversation_rate_limit as _impl
+
     return _impl(session_id)
 
 
 def _session_id_from_request(request, fallback=None):
     """Deferred proxy to avoid circular dependency with main.py."""
     from aios.api.main import _session_id_from_request as _impl
+
     return _impl(request, fallback)
 
-
-def get_approval_store():
-    """Deferred proxy to avoid circular dependency with main.py."""
-    from aios.api.main import get_approval_store as _impl
-    return _impl()
 
 def get_cortex_bus():
     """Deferred proxy to avoid circular dependency with main.py."""
     from aios.api.main import get_cortex_bus as _impl
+
     return _impl()
+
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 
 
 # --------------------------------------------------------------------------- #
@@ -84,6 +108,7 @@ class CouncilDecisionRequest(BaseModel):
     mission_id: str = Field(..., alias="missionId")
     request_id: str | None = Field(None, alias="requestId")
     reason: str = ""
+    contract_digest: str | None = Field(None, alias="contractDigest")
 
     model_config = {"populate_by_name": True}
 
@@ -185,15 +210,21 @@ def _read_council_json(path: Path) -> dict[str, Any] | None:
 
 
 def _king_decision(runtime_root: Path, mission_id: str) -> dict[str, Any] | None:
-    return _read_council_json(_mission_dir(runtime_root, mission_id) / "king_decision.json")
+    return _read_council_json(
+        _mission_dir(runtime_root, mission_id) / "king_decision.json"
+    )
 
 
-def _pending_approvals_for_dashboard(runtime_root: Path, mission_id: str) -> list[dict[str, Any]]:
+def _pending_approvals_for_dashboard(
+    runtime_root: Path, mission_id: str
+) -> list[dict[str, Any]]:
     approvals_dir = _mission_dir(runtime_root, mission_id) / "approvals"
     if not approvals_dir.is_dir():
         return []
     pending: list[dict[str, Any]] = []
-    for request_path in sorted(approvals_dir.glob("*.request.json"), key=lambda path: path.stat().st_mtime):
+    for request_path in sorted(
+        approvals_dir.glob("*.request.json"), key=lambda path: path.stat().st_mtime
+    ):
         request_id = request_path.name.removesuffix(".request.json")
         response_path = approvals_dir / f"{request_id}.response.json"
         if response_path.exists():
@@ -221,7 +252,11 @@ def _council_summary_from_artifacts(
     ledger: RunLedger | None,
     updated_at: float,
 ) -> dict[str, Any]:
-    verification = report.verification_result if isinstance(report.verification_result, dict) else {}
+    verification = (
+        report.verification_result
+        if isinstance(report.verification_result, dict)
+        else {}
+    )
     commands = []
     raw_commands = verification.get("commands", [])
     if isinstance(raw_commands, list):
@@ -250,7 +285,9 @@ def _council_summary_from_artifacts(
         "verificationPassed": all(
             isinstance(command, dict) and command.get("returncode") == 0
             for command in commands
-        ) if commands else None,
+        )
+        if commands
+        else None,
         "councilVerdicts": report.council_summary.get("council_verdicts", []),
         "gangliaSignals": report.council_summary.get("ganglia_signals", []),
         "gangliaSynthesis": report.council_summary.get("ganglia_synthesis"),
@@ -267,13 +304,16 @@ def _write_council_decision(
     runtime_root: Path,
     req: CouncilDecisionRequest,
     approved: bool,
+    principal_id: str,
 ) -> dict[str, Any]:
     safe_id = _validate_council_mission_id(req.mission_id)
     mission_dir = _mission_dir(runtime_root, safe_id)
     if not mission_dir.is_dir():
         raise HTTPException(status_code=404, detail="council mission not found")
 
-    request_id = _validate_council_request_id(req.request_id) if req.request_id else None
+    request_id = (
+        _validate_council_request_id(req.request_id) if req.request_id else None
+    )
     # One-shot mission-level decision under origination: an atomic mkdir lock makes
     # the King decision final and single. This closes the double-execute race (two
     # concurrent approves: only one wins the lock) and makes reject terminal (a
@@ -294,7 +334,9 @@ def _write_council_decision(
         if not request_path.exists():
             raise HTTPException(status_code=404, detail="approval request not found")
         if response_path.exists():
-            raise HTTPException(status_code=409, detail="approval request already decided")
+            raise HTTPException(
+                status_code=409, detail="approval request already decided"
+            )
         response_path.write_text(
             json.dumps(
                 {
@@ -303,7 +345,7 @@ def _write_council_decision(
                     "approved": approved,
                     "reason": req.reason,
                     "decided_at": decided_at,
-                    "decided_by": "king_dashboard",
+                    "decided_by": principal_id,
                 },
                 indent=2,
             ),
@@ -318,7 +360,7 @@ def _write_council_decision(
         "approved": approved,
         "reason": req.reason,
         "decided_at": decided_at,
-        "decided_by": "king_dashboard",
+        "decided_by": principal_id,
     }
     (mission_dir / "king_decision.json").write_text(
         json.dumps(decision, indent=2),
@@ -338,37 +380,51 @@ def _resolve_council_workspace(raw: Optional[str]) -> Path:
         base.mkdir(parents=True, exist_ok=True)
         return base
     if os.path.isabs(raw) or ".." in PurePosixPath(raw).parts:
-        raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
+        raise HTTPException(
+            status_code=422, detail="workspaceRoot escapes the council workspace"
+        )
     candidate = (base / raw).resolve()
     try:
         candidate.relative_to(base)
     except ValueError:
-        raise HTTPException(status_code=422, detail="workspaceRoot escapes the council workspace")
+        raise HTTPException(
+            status_code=422, detail="workspaceRoot escapes the council workspace"
+        )
     candidate.mkdir(parents=True, exist_ok=True)
     return candidate
 
 
-def _validate_mission_scope(allowed_files: list[str], workspace_root: Path) -> list[str]:
+def _validate_mission_scope(
+    allowed_files: list[str], workspace_root: Path
+) -> list[str]:
     """Confine allowed_files to workspace_root — explicit, fail-closed, no traversal."""
     base = workspace_root.resolve()
     safe: list[str] = []
     for raw in allowed_files:
         if not isinstance(raw, str) or not raw.strip():
-            raise HTTPException(status_code=422, detail="allowedFiles entries must be non-empty")
+            raise HTTPException(
+                status_code=422, detail="allowedFiles entries must be non-empty"
+            )
         if any(ch in raw for ch in "*?[]"):
-            raise HTTPException(status_code=422, detail=f"glob not allowed in scope: {raw}")
+            raise HTTPException(
+                status_code=422, detail=f"glob not allowed in scope: {raw}"
+            )
         if os.path.isabs(raw) or ".." in PurePosixPath(raw).parts:
             raise HTTPException(status_code=422, detail=f"unsafe allowed file: {raw}")
         resolved = (base / raw).resolve()
         try:
             resolved.relative_to(base)
         except ValueError:
-            raise HTTPException(status_code=422, detail=f"allowed file escapes workspace: {raw}")
+            raise HTTPException(
+                status_code=422, detail=f"allowed file escapes workspace: {raw}"
+            )
         safe.append(PurePosixPath(raw).as_posix())
     return safe
 
 
-def _write_failed_council_report(runtime_root: Path, mission_id: str, reason: str) -> None:
+def _write_failed_council_report(
+    runtime_root: Path, mission_id: str, reason: str
+) -> None:
     """Persist a minimal failed report so a background failure is visible to the poll."""
     try:
         KingReportStore(runtime_root).write(
@@ -384,25 +440,38 @@ def _write_failed_council_report(runtime_root: Path, mission_id: str, reason: st
             )
         )
     except Exception as exc:  # noqa: BLE001 - best-effort failure surface
-        logger.warning("council_failed_report_write_failed", mission_id=mission_id, exc_info=exc)
+        logger.warning(
+            "council_failed_report_write_failed", mission_id=mission_id, exc_info=exc
+        )
 
 
-def _run_council_deliberation(runtime_root: Path, request: CouncilMissionRequest, bus: CortexBus | None = None) -> None:
+def _run_council_deliberation(
+    runtime_root: Path, request: CouncilMissionRequest, bus: CortexBus | None = None
+) -> None:
     """Background: deliberate only (no worker). Failures surface as a failed report."""
     try:
         council_state = CouncilState(db_path=runtime_root / "council_state.db")
+        council_memory = CouncilMemory(state=council_state)
+        memory_authority = get_memory_authority().with_adapter(
+            "council", CouncilMemoryAdapter(council_memory)
+        )
         CouncilOrchestrator(
             runtime_root=runtime_root,
             council_state=council_state,
-            council_memory=CouncilMemory(state=council_state),
+            council_memory=council_memory,
+            memory_authority=memory_authority,
             bus=bus,
         ).deliberate(request)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
-        logger.warning("council_deliberation_failed", mission_id=request.mission_id, exc_info=exc)
+        logger.warning(
+            "council_deliberation_failed", mission_id=request.mission_id, exc_info=exc
+        )
         _write_failed_council_report(runtime_root, request.mission_id, str(exc))
 
 
-def _run_council_execution(runtime_root: Path, mission_id: str, bus: CortexBus | None = None) -> None:
+def _run_council_execution(
+    runtime_root: Path, mission_id: str, bus: CortexBus | None = None
+) -> None:
     """Background: run the approved worker — reads the deliberated ledger for the
     contract + verdicts, executes (worker acts), and writes the final report."""
     try:
@@ -412,13 +481,20 @@ def _run_council_execution(runtime_root: Path, mission_id: str, bus: CortexBus |
         if has_blocking_verdict(list(ledger.council_verdicts)):
             raise RuntimeError("ledger carries a blocking verdict; refusing to execute")
         council_state = CouncilState(db_path=runtime_root / "council_state.db")
+        council_memory = CouncilMemory(state=council_state)
+        memory_authority = get_memory_authority().with_adapter(
+            "council", CouncilMemoryAdapter(council_memory)
+        )
         orchestrator = CouncilOrchestrator(
             runtime_root=runtime_root,
             council_state=council_state,
-            council_memory=CouncilMemory(state=council_state),
+            council_memory=council_memory,
+            memory_authority=memory_authority,
             bus=bus,
         )
-        asyncio.run(orchestrator.execute(ledger.contract, list(ledger.council_verdicts)))
+        asyncio.run(
+            orchestrator.execute(ledger.contract, list(ledger.council_verdicts))
+        )
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning("council_execution_failed", mission_id=mission_id, exc_info=exc)
         _write_failed_council_report(runtime_root, mission_id, str(exc))
@@ -426,7 +502,9 @@ def _run_council_execution(runtime_root: Path, mission_id: str, bus: CortexBus |
 
 def _council_rollback_target(ledger: RunLedger, report: KingReport) -> str:
     if report.status == "rolled_back":
-        raise HTTPException(status_code=409, detail="council mission already rolled back")
+        raise HTTPException(
+            status_code=409, detail="council mission already rolled back"
+        )
     snapshot_id = ledger.rollback_id or report.rollback_id or ledger.snapshot_id
     if not snapshot_id:
         raise HTTPException(
@@ -489,6 +567,7 @@ def _write_council_rollback_artifacts(
 def council_originate(
     req: CouncilMissionOriginationRequest,
     background: BackgroundTasks,
+    principal: Principal = Depends(require_privileged_operator),
     runtime_root: Path = Depends(get_council_runtime_root),
     bus: Optional[CortexBus] = Depends(get_cortex_bus),
 ) -> dict[str, Any]:
@@ -500,9 +579,11 @@ def council_originate(
     """
     if not config.COUNCIL_ORIGINATION:
         raise HTTPException(status_code=404, detail="council origination is disabled")
-    _enforce_conversation_rate_limit(req.session_id)
-    if (injection_reason := _check_prompt_injection(req.goal)):
-        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
+    _enforce_conversation_rate_limit(principal.session_id)
+    if injection_reason := _check_prompt_injection(req.goal):
+        raise HTTPException(
+            status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}"
+        )
     workspace_root = _resolve_council_workspace(req.workspace_root)
     safe_allowed = _validate_mission_scope(req.allowed_files, workspace_root)
     mission_id = f"mission-{uuid.uuid4().hex[:12]}"
@@ -556,9 +637,17 @@ def council_missions(
             continue
         try:
             report = reports.read(mission_id)
-            ledger = ledgers.read(mission_id) if ledgers.path_for(mission_id).exists() else None
+            ledger = (
+                ledgers.read(mission_id)
+                if ledgers.path_for(mission_id).exists()
+                else None
+            )
         except Exception as exc:  # noqa: BLE001 - one corrupt artifact must not kill the dashboard
-            logger.warning("council_dashboard_artifact_skipped", mission_id=mission_id, exc_info=exc)
+            logger.warning(
+                "council_dashboard_artifact_skipped",
+                mission_id=mission_id,
+                exc_info=exc,
+            )
             continue
         items.append(
             _council_summary_from_artifacts(
@@ -591,8 +680,27 @@ def council_mission_detail(
         report = reports.read(safe_id)
         ledger = ledgers.read(safe_id) if ledgers.path_for(safe_id).exists() else None
     except Exception as exc:  # noqa: BLE001 - a corrupt artifact is a 422, not a 500
-        logger.warning("council_dashboard_artifact_corrupt", mission_id=safe_id, exc_info=exc)
-        raise HTTPException(status_code=422, detail="council artifact is corrupt") from exc
+        logger.warning(
+            "council_dashboard_artifact_corrupt", mission_id=safe_id, exc_info=exc
+        )
+        raise HTTPException(
+            status_code=422, detail="council artifact is corrupt"
+        ) from exc
+    authority: dict[str, Any] | None = None
+    try:
+        authoritative = SqliteMissionRepository(runtime_root / "missions.db").get(
+            safe_id
+        )
+        authority = {
+            "store": "sqlite_mission_repository",
+            "state": authoritative.state.value,
+            "operatorId": authoritative.operator_id,
+            "contractDigest": authoritative.contract_digest,
+            "runtimeContractDigest": authoritative.runtime_contract_digest,
+            "capabilityDigest": authoritative.capability_digest,
+        }
+    except MissionNotFoundError:
+        pass
     return {
         "missionId": safe_id,
         "summary": _council_summary_from_artifacts(
@@ -606,6 +714,7 @@ def council_mission_detail(
         "ledger": ledger.model_dump() if ledger is not None else None,
         "pendingApprovals": _pending_approvals_for_dashboard(runtime_root, safe_id),
         "kingDecision": _king_decision(runtime_root, safe_id),
+        "missionAuthority": authority,
     }
 
 
@@ -622,8 +731,12 @@ def council_report(
     try:
         report = store.read(safe_id)
     except Exception as exc:  # noqa: BLE001 - a corrupt artifact is a 422, not a 500
-        logger.warning("council_report_artifact_corrupt", mission_id=safe_id, exc_info=exc)
-        raise HTTPException(status_code=422, detail="council report is corrupt") from exc
+        logger.warning(
+            "council_report_artifact_corrupt", mission_id=safe_id, exc_info=exc
+        )
+        raise HTTPException(
+            status_code=422, detail="council report is corrupt"
+        ) from exc
     return {"missionId": safe_id, "report": report.model_dump()}
 
 
@@ -632,8 +745,9 @@ def council_mission_rollback(
     mission_id: str,
     req: CouncilRollbackRequest,
     request: Request,
+    _principal: Principal = Depends(require_privileged_operator),
     runtime_root: Path = Depends(get_council_runtime_root),
-    approvals: ApprovalStore = Depends(get_approval_store),
+    broker: ActionBroker = Depends(get_action_broker),
 ) -> dict[str, Any]:
     """Restore one Council mission workspace to its pre-worker snapshot."""
     safe_id = _validate_council_mission_id(mission_id)
@@ -645,8 +759,12 @@ def council_mission_rollback(
         report = reports.read(safe_id)
         ledger = ledgers.read(safe_id)
     except Exception as exc:  # noqa: BLE001 - corrupt artifacts are caller-visible
-        logger.warning("council_rollback_artifact_corrupt", mission_id=safe_id, exc_info=exc)
-        raise HTTPException(status_code=422, detail="council artifact is corrupt") from exc
+        logger.warning(
+            "council_rollback_artifact_corrupt", mission_id=safe_id, exc_info=exc
+        )
+        raise HTTPException(
+            status_code=422, detail="council artifact is corrupt"
+        ) from exc
 
     snapshot_id = _council_rollback_target(ledger, report)
     if req.snapshot_id and req.snapshot_id != snapshot_id:
@@ -654,32 +772,80 @@ def council_mission_rollback(
             status_code=403,
             detail="requested snapshot does not match council mission rollback target",
         )
-    session_id = _session_id_from_request(request, req.session_id)
+    # Mission rollback is destructive: a JSON session id cannot select the
+    # principal. Only the validated httpOnly cookie may bind its approval.
+    session_id = _session_id_from_request(request, None)
     if not session_id:
-        raise HTTPException(status_code=422, detail="sessionId or session cookie is required")
+        raise HTTPException(
+            status_code=422, detail="a valid session cookie is required"
+        )
 
     payload = {"mission_id": safe_id, "snapshot_id": snapshot_id}
-    if not req.approval_token:
-        token = approvals.issue("rollback", payload, session_id)
+    resource = {
+        "workspace_root": str(ledger.contract.workspace_root),
+        "snapshot_id": snapshot_id,
+    }
+    envelope = ActionEnvelope(
+        route=request.url.path,
+        action_type=ActionType.COUNCIL_MISSION_ROLLBACK,
+        http_method=request.method,
+        payload=payload,
+        principal=EnvelopePrincipal(
+            session_id=_principal.session_id,
+            actor_source="session",
+            client_ip=_principal.client_address or "127.0.0.1",
+        ),
+        request_id=_principal.request_id or request.headers.get("x-request-id"),
+        operator_id=_principal.principal_id,
+        device_id=_principal.device_id,
+        authentication_event_id=_principal.authentication_event_id,
+        mission_id=safe_id,
+        contract_digest=payload_digest(ledger.contract.model_dump(mode="json")),
+        resource=resource,
+        policy_version=getattr(ledger.contract, "policy_version", "v1"),
+        requested_capability="council.rollback",
+        correlation_id=(
+            request.headers.get("x-correlation-id")
+            or _principal.request_id
+            or request.headers.get("x-request-id")
+            or str(uuid.uuid4())
+        ),
+    )
+    binding = CapabilityBinding(
+        operator_id=_principal.principal_id,
+        device_id=_principal.device_id,
+        authentication_event_id=_principal.authentication_event_id,
+        session_id=_principal.session_id,
+        action_type="rollback",
+        route=request.url.path,
+        http_method=request.method,
+        payload_digest=payload_digest(payload),
+        resource_digest=resource_digest(resource),
+        mission_id=safe_id,
+        contract_digest=payload_digest(ledger.contract.model_dump(mode="json")),
+        policy_version=getattr(ledger.contract, "policy_version", "v1"),
+        scope=f"mission:{safe_id}/rollback",
+        verification_requirement="rollback_snapshot_restore",
+    )
+    try:
+        decision = broker.submit(
+            envelope,
+            capability_token=req.approval_token,
+            capability_binding=binding,
+        )
+    except PolicyBrokerError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if decision.blocked:
+        raise HTTPException(status_code=403, detail=decision.reason)
+    if decision.requires_approval:
         return {
             "requiresApproval": True,
-            "approvalToken": token,
+            "approvalToken": decision.approval_token,
             "actionType": "rollback",
             "missionId": safe_id,
             "snapshotId": snapshot_id,
             "executed": False,
         }
-    try:
-        action = approvals.consume(req.approval_token, session_id)
-    except ApprovalError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    if action.action_type != "rollback":
-        raise HTTPException(status_code=400, detail="approval token is not for rollback")
-    if action.payload != payload:
-        raise HTTPException(
-            status_code=403,
-            detail="approval token does not match council mission rollback target",
-        )
     try:
         result = SnapshotManager(runtime_root).rollback_snapshot(
             ledger.contract.workspace_root,
@@ -710,6 +876,8 @@ def council_mission_rollback(
 def council_approve(
     req: CouncilDecisionRequest,
     background: BackgroundTasks,
+    request: Request,
+    principal: Principal = Depends(require_privileged_operator),
     runtime_root: Path = Depends(get_council_runtime_root),
     bus: Optional[CortexBus] = Depends(get_cortex_bus),
 ) -> dict[str, Any]:
@@ -719,7 +887,79 @@ def council_approve(
     ``awaiting_approval`` schedules execute() in the background — this is the gate
     where a human authorizes the worker to act.
     """
-    result = _write_council_decision(runtime_root=runtime_root, req=req, approved=True)
+    # Mission-level Council origination is authorized by the SQLite mission
+    # record.  The JSON King decision is only a projection written after the
+    # authoritative transition succeeds.
+    if config.COUNCIL_ORIGINATION and req.request_id is None:
+        safe_id = _validate_council_mission_id(req.mission_id)
+        try:
+            mission_service = MissionService(
+                SqliteMissionRepository(runtime_root / "missions.db"),
+                export_dir=runtime_root / "mission_exports",
+            )
+            authoritative = mission_service.repository.get(safe_id)
+        except MissionNotFoundError as exc:
+            # Legacy report-only artifacts cannot authorize execution.  Keep
+            # the historical projection endpoint available, but it must never
+            # schedule a worker without an authoritative mission row.
+            result = _write_council_decision(
+                runtime_root=runtime_root,
+                req=req,
+                approved=True,
+                principal_id=principal.principal_id,
+            )
+            return result
+
+        guard = getattr(request.state, "action_guard", None)
+        capability_digest = getattr(guard, "capability_digest", None)
+        if not capability_digest:
+            raise HTTPException(
+                status_code=403,
+                detail="consumed exact capability is required for mission approval",
+            )
+        if not req.contract_digest:
+            raise HTTPException(
+                status_code=403,
+                detail="authoritative contract digest is required for mission approval",
+            )
+        if req.contract_digest != authoritative.contract_digest:
+            raise HTTPException(
+                status_code=403,
+                detail="contract digest does not match authoritative mission",
+            )
+        try:
+            approved = mission_service.approve(
+                safe_id,
+                operator_id=principal.principal_id,
+                capability_digest=capability_digest,
+                contract_digest=req.contract_digest,
+                authentication_event_id=principal.authentication_event_id,
+                session_id=principal.session_id,
+            )
+        except MissionTransitionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        result = _write_council_decision(
+            runtime_root=runtime_root,
+            req=req,
+            approved=True,
+            principal_id=principal.principal_id,
+        )
+        result["missionAuthority"] = {
+            "store": "sqlite_mission_repository",
+            "state": approved.state.value,
+            "operatorId": approved.operator_id,
+            "contractDigest": approved.contract_digest,
+            "runtimeContractDigest": approved.runtime_contract_digest,
+            "capabilityDigest": approved.capability_digest,
+        }
+    else:
+        result = _write_council_decision(
+            runtime_root=runtime_root,
+            req=req,
+            approved=True,
+            principal_id=principal.principal_id,
+        )
     if config.COUNCIL_ORIGINATION and req.request_id is None:
         safe_id = result["missionId"]
         store = KingReportStore(runtime_root)
@@ -738,7 +978,73 @@ def council_approve(
 @router.post("/api/v1/council/reject")
 def council_reject(
     req: CouncilDecisionRequest,
+    request: Request,
+    principal: Principal = Depends(require_privileged_operator),
     runtime_root: Path = Depends(get_council_runtime_root),
 ) -> dict[str, Any]:
     """Record King rejection for a Council mission or pending worker request."""
-    return _write_council_decision(runtime_root=runtime_root, req=req, approved=False)
+    if config.COUNCIL_ORIGINATION and req.request_id is None:
+        safe_id = _validate_council_mission_id(req.mission_id)
+        try:
+            mission_service = MissionService(
+                SqliteMissionRepository(runtime_root / "missions.db"),
+                export_dir=runtime_root / "mission_exports",
+            )
+            authoritative = mission_service.repository.get(safe_id)
+        except MissionNotFoundError:
+            return _write_council_decision(
+                runtime_root=runtime_root,
+                req=req,
+                approved=False,
+                principal_id=principal.principal_id,
+            )
+        guard = getattr(request.state, "action_guard", None)
+        capability_digest = getattr(guard, "capability_digest", None)
+        if not capability_digest:
+            raise HTTPException(
+                status_code=403,
+                detail="consumed exact capability is required for mission rejection",
+            )
+        if not req.contract_digest:
+            raise HTTPException(
+                status_code=403,
+                detail="authoritative contract digest is required for mission rejection",
+            )
+        if req.contract_digest != authoritative.contract_digest:
+            raise HTTPException(
+                status_code=403,
+                detail="contract digest does not match authoritative mission",
+            )
+        try:
+            rejected = mission_service.reject(
+                safe_id,
+                operator_id=principal.principal_id,
+                reason=req.reason or "Operator rejected mission",
+                capability_digest=capability_digest,
+                contract_digest=req.contract_digest,
+                authentication_event_id=principal.authentication_event_id,
+                session_id=principal.session_id,
+            )
+        except MissionTransitionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        result = _write_council_decision(
+            runtime_root=runtime_root,
+            req=req,
+            approved=False,
+            principal_id=principal.principal_id,
+        )
+        result["missionAuthority"] = {
+            "store": "sqlite_mission_repository",
+            "state": rejected.state.value,
+            "operatorId": rejected.operator_id,
+            "contractDigest": rejected.contract_digest,
+            "runtimeContractDigest": rejected.runtime_contract_digest,
+            "capabilityDigest": rejected.capability_digest,
+        }
+        return result
+    return _write_council_decision(
+        runtime_root=runtime_root,
+        req=req,
+        approved=False,
+        principal_id=principal.principal_id,
+    )

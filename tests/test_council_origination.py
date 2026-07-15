@@ -108,8 +108,14 @@ def test_approve_triggers_execution_and_worker_acts(
             assert client.get(
                 f"/api/v1/council/missions/{mission_id}"
             ).json()["report"]["status"] == "awaiting_approval"
+            contract_digest = client.get(
+                f"/api/v1/council/missions/{mission_id}"
+            ).json()["missionAuthority"]["contractDigest"]
 
-            approve = client.post("/api/v1/council/approve", json={"missionId": mission_id})
+            approve = client.post(
+                "/api/v1/council/approve",
+                json={"missionId": mission_id, "contractDigest": contract_digest},
+            )
             after = client.get(f"/api/v1/council/missions/{mission_id}")
             rollback_id = after.json()["report"]["rollback_id"]
             modified_text = (workspace / "target.txt").read_text(encoding="utf-8")
@@ -117,6 +123,7 @@ def test_approve_triggers_execution_and_worker_acts(
                 f"/api/v1/council/missions/{mission_id}/rollback",
                 json={"snapshotId": rollback_id, "sessionId": "s-exec"},
             )
+            assert pending_rollback.status_code == 200, pending_rollback.text
             restored = client.post(
                 f"/api/v1/council/missions/{mission_id}/rollback",
                 json={
@@ -167,7 +174,13 @@ def test_reject_does_not_execute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
                     "sessionId": "s-reject",
                 },
             ).json()["missionId"]
-            rejected = client.post("/api/v1/council/reject", json={"missionId": mission_id})
+            contract_digest = client.get(
+                f"/api/v1/council/missions/{mission_id}"
+            ).json()["missionAuthority"]["contractDigest"]
+            rejected = client.post(
+                "/api/v1/council/reject",
+                json={"missionId": mission_id, "contractDigest": contract_digest},
+            )
             after = client.get(f"/api/v1/council/missions/{mission_id}")
     finally:
         app.dependency_overrides.clear()
@@ -198,12 +211,21 @@ def test_second_decision_is_rejected_409(tmp_path: Path, monkeypatch: pytest.Mon
                     "sessionId": "s-2dec",
                 },
             ).json()["missionId"]
-            first = client.post("/api/v1/council/approve", json={"missionId": mission_id})
-            second = client.post("/api/v1/council/approve", json={"missionId": mission_id})
+            contract_digest = client.get(
+                f"/api/v1/council/missions/{mission_id}"
+            ).json()["missionAuthority"]["contractDigest"]
+            first = client.post(
+                "/api/v1/council/approve",
+                json={"missionId": mission_id, "contractDigest": contract_digest},
+            )
+            second = client.post(
+                "/api/v1/council/approve",
+                json={"missionId": mission_id, "contractDigest": contract_digest},
+            )
     finally:
         app.dependency_overrides.clear()
 
-    assert first.status_code == 200
+    assert first.status_code == 200, first.text
     assert second.status_code == 409  # decision is one-shot
 
 
@@ -226,8 +248,17 @@ def test_reject_blocks_a_later_approve(tmp_path: Path, monkeypatch: pytest.Monke
                     "sessionId": "s-r2dec",
                 },
             ).json()["missionId"]
-            rejected = client.post("/api/v1/council/reject", json={"missionId": mission_id})
-            approved = client.post("/api/v1/council/approve", json={"missionId": mission_id})
+            contract_digest = client.get(
+                f"/api/v1/council/missions/{mission_id}"
+            ).json()["missionAuthority"]["contractDigest"]
+            rejected = client.post(
+                "/api/v1/council/reject",
+                json={"missionId": mission_id, "contractDigest": contract_digest},
+            )
+            approved = client.post(
+                "/api/v1/council/approve",
+                json={"missionId": mission_id, "contractDigest": contract_digest},
+            )
             after = client.get(f"/api/v1/council/missions/{mission_id}")
     finally:
         app.dependency_overrides.clear()

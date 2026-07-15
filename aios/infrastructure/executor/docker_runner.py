@@ -1,8 +1,10 @@
 """Compatibility adapter from structured jobs to the existing Docker runner."""
+
 from __future__ import annotations
 
 import os
 import shlex
+import subprocess
 
 from aios.core.executor import DockerRunner
 from aios.domain.executor import ExecutorJob, ExecutorResult
@@ -34,20 +36,36 @@ class DockerJobRunner:
                 job.workspace_snapshot,
                 os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs"),
             )
+            daemon_workspace = workspace_policy.daemon_workspace_path(
+                workspace,
+                staged_root=os.getenv(
+                    "AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs"
+                ),
+                daemon_root=os.getenv("AIOS_EXECUTOR_DAEMON_WORKSPACE_ROOT", ""),
+            )
             stdout, stderr, code = self.runner(
                 command,
-                cwd=str(workspace),
+                cwd=daemon_workspace,
                 env=env,
                 timeout_s=job.resource_limits.timeout_seconds,
             )
-        except TimeoutError:
+        except (TimeoutError, subprocess.TimeoutExpired):
             return ExecutorResult(
                 job_id=job.job_id,
                 status="timeout",
-                isolation_verified=True,
+                isolation_verified=False,
                 started_at=started,
                 ended_at=utc_now(),
                 reason="executor timeout",
+            )
+        except OSError as exc:
+            return ExecutorResult(
+                job_id=job.job_id,
+                status="unavailable",
+                isolation_verified=False,
+                started_at=started,
+                ended_at=utc_now(),
+                reason=f"executor unavailable: {exc}",
             )
         except Exception as exc:  # noqa: BLE001 - normalize cage failures
             return ExecutorResult(

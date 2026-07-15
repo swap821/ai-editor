@@ -1,4 +1,5 @@
 """Collision-safe staged workspaces for bounded mission execution."""
+
 from __future__ import annotations
 
 import hashlib
@@ -36,12 +37,18 @@ class StagedWorkspaceManager:
     ) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self._mission_markers = self.root / ".mission-leases"
+        self._mission_markers.mkdir(parents=True, exist_ok=True)
         self.enrolled_roots = tuple(Path(path).resolve() for path in enrolled_roots)
         self.retention_seconds = max(1, retention_seconds)
         self._mission_leases: dict[str, StagedWorkspace] = {}
 
     def stage(self, mission_id: str, project_root: str | Path) -> StagedWorkspace:
-        if not mission_id or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for char in mission_id):
+        if not mission_id or any(
+            char
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+            for char in mission_id
+        ):
             raise WorkspacePathViolation("mission id contains unsafe path characters")
         source = self._enrolled_root(project_root)
         if mission_id in self._mission_leases:
@@ -49,20 +56,36 @@ class StagedWorkspaceManager:
         existing = self._find_metadata(mission_id)
         if existing is not None:
             raise WorkspaceCollision(f"mission already owns a workspace: {mission_id}")
-        self._reject_symlinks(source)
-        baseline = tree_digest(source)
+        marker = self._mission_markers / mission_id
+        try:
+            marker.mkdir(exist_ok=False)
+        except FileExistsError as exc:
+            raise WorkspaceCollision(
+                f"mission already owns a workspace: {mission_id}"
+            ) from exc
         lease_id = uuid.uuid4().hex
         destination = self.root / lease_id
-        destination.mkdir(parents=True, exist_ok=False)
-        self._copy_tree(source, destination)
-        lease = StagedWorkspace(
-            lease_id=lease_id,
-            mission_id=mission_id,
-            project_root=str(source),
-            workspace_path=str(destination),
-            baseline_digest=baseline,
-        )
-        self._write_metadata(lease)
+        try:
+            self._reject_symlinks(source)
+            baseline = tree_digest(source)
+            destination.mkdir(parents=True, exist_ok=False)
+            self._copy_tree(source, destination)
+            lease = StagedWorkspace(
+                lease_id=lease_id,
+                mission_id=mission_id,
+                project_root=str(source),
+                workspace_path=str(destination),
+                baseline_digest=baseline,
+            )
+            self._write_metadata(lease)
+        except BaseException:
+            if destination.exists():
+                shutil.rmtree(destination, ignore_errors=True)
+            try:
+                marker.rmdir()
+            except OSError:
+                pass
+            raise
         self._mission_leases[mission_id] = lease
         return lease
 
@@ -70,10 +93,34 @@ class StagedWorkspaceManager:
         metadata = self.root / lease_id / ".gagos-workspace.json"
         if not metadata.is_file():
             raise FileNotFoundError(f"staged workspace not found: {lease_id}")
-        lease = StagedWorkspace.model_validate_json(metadata.read_text(encoding="utf-8"))
-        if Path(lease.workspace_path).resolve() != (self.root / lease_id).resolve():
+        lease = StagedWorkspace.model_validate_json(
+            metadata.read_text(encoding="utf-8")
+        )
+        if (
+            self._enrolled_root(lease.project_root)
+            != Path(lease.project_root).resolve()
+        ):
+            raise WorkspacePathViolation("workspace project root is not enrolled")
+        workspace_path = Path(lease.workspace_path).resolve()
+        if (
+            workspace_path != (self.root / lease_id).resolve()
+            or not workspace_path.is_dir()
+        ):
             raise WorkspacePathViolation("workspace metadata path escapes manager root")
         return lease
+
+    def for_mission(self, mission_id: str) -> StagedWorkspace | None:
+        """Return the durable lease for a mission, including after restart."""
+        lease = self._mission_leases.get(mission_id) or self._find_metadata(mission_id)
+        if lease is None:
+            return None
+        return self.load(lease.lease_id)
+
+    def cleanup_for_mission(self, mission_id: str, *, retain: bool = False) -> None:
+        """Release a mission lease after its terminal lifecycle transition."""
+        lease = self.for_mission(mission_id)
+        if lease is not None:
+            self.cleanup(lease, retain=retain)
 
     def verify_baseline(self, lease: StagedWorkspace) -> None:
         current = tree_digest(Path(lease.project_root).resolve())
@@ -89,7 +136,9 @@ class StagedWorkspaceManager:
         added = sorted(set(staged) - set(baseline))
         deleted = sorted(set(baseline) - set(staged))
         modified = sorted(
-            path for path in set(staged) & set(baseline) if staged[path] != baseline[path]
+            path
+            for path in set(staged) & set(baseline)
+            if staged[path] != baseline[path]
         )
         payload = {
             "lease_id": lease.lease_id,
@@ -145,17 +194,24 @@ class StagedWorkspaceManager:
         try:
             path.relative_to(self.root)
         except ValueError as exc:
-            raise WorkspacePathViolation("workspace cleanup path escapes manager root") from exc
+            raise WorkspacePathViolation(
+                "workspace cleanup path escapes manager root"
+            ) from exc
         if retain:
             return
         shutil.rmtree(path, ignore_errors=False)
         self._mission_leases.pop(lease.mission_id, None)
+        marker = self._mission_markers / lease.mission_id
+        try:
+            marker.rmdir()
+        except FileNotFoundError:
+            pass
 
     def _enrolled_root(self, project_root: str | Path) -> Path:
         resolved = Path(project_root).resolve()
         if not self.enrolled_roots:
             raise WorkspacePathViolation("no enrolled project roots configured")
-        if resolved not in self.enrolled_roots:
+        if not any(_is_within(resolved, enrolled) for enrolled in self.enrolled_roots):
             raise WorkspacePathViolation("project root is not enrolled")
         if not resolved.is_dir():
             raise WorkspacePathViolation("project root is not a directory")
@@ -164,7 +220,9 @@ class StagedWorkspaceManager:
     def _find_metadata(self, mission_id: str) -> StagedWorkspace | None:
         for metadata in self.root.glob("*/.gagos-workspace.json"):
             try:
-                lease = StagedWorkspace.model_validate_json(metadata.read_text(encoding="utf-8"))
+                lease = StagedWorkspace.model_validate_json(
+                    metadata.read_text(encoding="utf-8")
+                )
             except Exception:  # noqa: BLE001 - corrupted derived state is ignored
                 continue
             if lease.mission_id == mission_id:
@@ -194,9 +252,13 @@ class StagedWorkspaceManager:
         for current, directories, files in os.walk(root, followlinks=False):
             current_path = Path(current)
             if current_path.is_symlink():
-                raise WorkspacePathViolation("symlinked project directory is not allowed")
+                raise WorkspacePathViolation(
+                    "symlinked project directory is not allowed"
+                )
             if any((current_path / name).is_symlink() for name in directories + files):
-                raise WorkspacePathViolation("symlinks are not allowed in enrolled projects")
+                raise WorkspacePathViolation(
+                    "symlinks are not allowed in enrolled projects"
+                )
 
 
 def tree_digest(root: Path) -> str:
@@ -219,11 +281,13 @@ def _file_map(root: Path) -> dict[str, str]:
         directories[:] = sorted(name for name in directories if name != ".git")
         current_path = Path(current)
         for name in sorted(files):
-            if name == ".gagos-workspace.json":
+            if name in {".gagos-workspace.json", ".git"}:
                 continue
             source = current_path / name
             if source.is_symlink():
-                raise WorkspacePathViolation("symlink encountered while hashing workspace")
+                raise WorkspacePathViolation(
+                    "symlink encountered while hashing workspace"
+                )
             relative = source.relative_to(root).as_posix()
             result[relative] = hashlib.sha256(source.read_bytes()).hexdigest()
     return result
@@ -231,6 +295,14 @@ def _file_map(root: Path) -> dict[str, str]:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _is_within(candidate: Path, root: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 __all__ = [

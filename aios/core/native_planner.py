@@ -12,6 +12,7 @@ pipeline (confidence gate, tool agent, security gateway) treats native
 and LLM plans identically. The difference is the source of the plan
 and the source of the confidence — verified evidence vs. LLM guess.
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,6 +36,7 @@ class NativePlanResult:
     ``evidence_confidence`` is derived entirely from verification history
     (success rate, freshness, relevance) — never from an LLM's self-report.
     """
+
     steps: list[TaskStep]
     source: str
     source_id: int
@@ -72,12 +74,14 @@ class NativePlanner:
         facts: Optional[Any] = None,
         min_relevance: float = MIN_RELEVANCE,
         min_confidence: float = MIN_EVIDENCE_CONFIDENCE,
+        memory_authority: Optional[Any] = None,
     ) -> None:
         self._skills = skills
         self._patterns = patterns
         self._facts = facts
         self.min_relevance = min_relevance
         self.min_confidence = min_confidence
+        self.memory_authority = memory_authority
 
     def try_plan(self, goal: str) -> NativePlanResult | None:
         """Attempt to plan *goal* from verified experience.
@@ -118,9 +122,7 @@ class NativePlanner:
         if not subtasks:
             return None
 
-        evidence_conf = round(
-            match["success_rate"] * match["relevance"], 4
-        )
+        evidence_conf = round(match["success_rate"] * match["relevance"], 4)
         if evidence_conf < self.min_confidence:
             return None
 
@@ -150,7 +152,12 @@ class NativePlanner:
         if self._skills is None:
             return None
         try:
-            matches = self._skills.relevant_verified(goal, limit=1)
+            matches = (
+                self.memory_authority.recall_skills(goal, 1)
+                if self.memory_authority is not None
+                and self.memory_authority.owns_store("skills", self._skills)
+                else self._skills.relevant_verified(goal, limit=1)
+            )
         except Exception:
             logger.warning("skill recall failed", exc_info=True)
             return None
@@ -165,9 +172,7 @@ class NativePlanner:
         if not arc_steps:
             return None
 
-        evidence_conf = round(
-            match["strength"] * match["relevance"], 4
-        )
+        evidence_conf = round(match["strength"] * match["relevance"], 4)
         if evidence_conf < self.min_confidence:
             return None
 
@@ -198,6 +203,7 @@ class NativePlanner:
             return None
         try:
             from aios.core.graph_ingestion import find_entities
+
             all_entities: list[str] = []
             for step in steps:
                 all_entities.extend(find_entities(step))
@@ -205,7 +211,12 @@ class NativePlanner:
                 return None
 
             for entity in all_entities[:5]:
-                edges = self._facts.traverse_weighted(entity, max_depth=1)
+                edges = (
+                    self.memory_authority.facts_traverse_weighted(entity, max_depth=1)
+                    if self.memory_authority is not None
+                    and self.memory_authority.owns_store("facts", self._facts)
+                    else self._facts.traverse_weighted(entity, max_depth=1)
+                )
                 if not edges:
                     return False
             return True

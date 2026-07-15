@@ -23,17 +23,19 @@ commands run as the backend OS user. The process spawn is injected
 (:class:`Runner`) so tests can drive the full gateway+audit pipeline
 deterministically without spawning a process.
 """
+
 from __future__ import annotations
 
 import os
+import ntpath
 import shutil
 import signal
 import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable, Optional, Protocol
+from pathlib import Path, PureWindowsPath
+from typing import TYPE_CHECKING, Callable, Optional, Protocol
 
 from aios import config
 from aios.security.audit_logger import log_action
@@ -47,12 +49,34 @@ from aios.infrastructure.executor.argv import (
     parse_argv as _parse_argv,
 )
 
+if TYPE_CHECKING:
+    from aios.policy.kernel import PolicyKernel
+
 #: Environment variables whose *names* indicate a secret; stripped from children.
 _SECRET_NAME_HINTS = (
-    "KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "BEARER",
-    "AUTH", "APIKEY", "PIN", "PASSPHRASE", "DATABASE", "CONNECTION",
-    "WEBHOOK", "MNEMONIC", "KEYSTORE", "CERTIFICATE", "PRIVATE",
-    "SIGNING", "ENCRYPTION", "ACCESS", "REFRESH", "SESSION",
+    "KEY",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "PASSWD",
+    "CREDENTIAL",
+    "BEARER",
+    "AUTH",
+    "APIKEY",
+    "PIN",
+    "PASSPHRASE",
+    "DATABASE",
+    "CONNECTION",
+    "WEBHOOK",
+    "MNEMONIC",
+    "KEYSTORE",
+    "CERTIFICATE",
+    "PRIVATE",
+    "SIGNING",
+    "ENCRYPTION",
+    "ACCESS",
+    "REFRESH",
+    "SESSION",
 )
 #: Variables removed regardless of value (no home/identity propagation).
 # fmt: off
@@ -104,8 +128,7 @@ class Runner(Protocol):
 
     def __call__(
         self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
-    ) -> tuple[str, str, int]:
-        ...
+    ) -> tuple[str, str, int]: ...
 
 
 def _bounded_run(
@@ -121,7 +144,9 @@ def _bounded_run(
 ) -> subprocess.CompletedProcess[str]:
     """Run argv while draining pipes but retaining only a bounded prefix."""
     if shell or not capture_output or not text:
-        raise ValueError("bounded runner requires shell=False, capture_output=True, text=True")
+        raise ValueError(
+            "bounded runner requires shell=False, capture_output=True, text=True"
+        )
     if not _argv_is_safe(argv):
         raise ValueError("unsafe structured argv")
     limit = max(max_output_bytes or config.MAX_COMMAND_OUTPUT_BYTES, 1024)
@@ -155,8 +180,7 @@ def _bounded_run(
             return
 
     readers = [
-        threading.Thread(target=drain, args=(index,), daemon=True)
-        for index in range(2)
+        threading.Thread(target=drain, args=(index,), daemon=True) for index in range(2)
     ]
     for reader in readers:
         reader.start()
@@ -200,7 +224,9 @@ class DockerRunner:
         memory_mb: int = config.CONTAINER_MEMORY_MB,
         cpus: float = config.CONTAINER_CPUS,
         pids_limit: int = config.CONTAINER_PIDS_LIMIT,
-        process_runner: Optional[Callable[..., subprocess.CompletedProcess[str]]] = None,
+        process_runner: Optional[
+            Callable[..., subprocess.CompletedProcess[str]]
+        ] = None,
     ) -> None:
         self.runtime = runtime
         self.image = image
@@ -223,26 +249,37 @@ class DockerRunner:
         except Exception as exc:  # noqa: BLE001 - converted to configuration failure
             raise RuntimeError(f"isolated execution unavailable: {exc}") from exc
         if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout or "image inspection failed").strip()
+            detail = (
+                completed.stderr or completed.stdout or "image inspection failed"
+            ).strip()
             raise RuntimeError(f"isolated execution unavailable: {detail}")
 
     def __call__(
         self, command: str, *, cwd: str, env: dict[str, str], timeout_s: int
     ) -> tuple[str, str, int]:
         argv = _parse_argv(command)
-        cwd_path = Path(cwd)
-        if not cwd_path.is_absolute() or ".." in cwd_path.parts:
-            raise ValueError("executor cwd must be an absolute, normalized path")
+        windows_daemon_path = ntpath.isabs(cwd)
+        if windows_daemon_path:
+            cwd_parts = PureWindowsPath(cwd).parts
+            if ".." in cwd_parts:
+                raise ValueError("executor cwd must be an absolute, normalized path")
+            resolved_cwd = ntpath.normpath(cwd)
+        else:
+            cwd_path = Path(cwd)
+            if not cwd_path.is_absolute() or ".." in cwd_path.parts:
+                raise ValueError("executor cwd must be an absolute, normalized path")
+            resolved_cwd = str(cwd_path)
         # The scope-lock and structured executor adapters resolve cwd before
         # crossing this runner boundary. Keep that canonical value unchanged;
         # re-normalizing a request-derived string is itself a CodeQL path sink.
-        resolved_cwd = str(cwd_path)
         # H4 — Docker mount spec characters can break out of the mount string.
         # Commas, equals, and non-drive-letter colons are separators in the
         # --mount syntax. A normal Windows root ("C:\...") is allowed.
         colon_scan = (
             resolved_cwd[2:]
-            if len(resolved_cwd) >= 2 and resolved_cwd[1] == ":" and resolved_cwd[0].isalpha()
+            if len(resolved_cwd) >= 2
+            and resolved_cwd[1] == ":"
+            and resolved_cwd[0].isalpha()
             else resolved_cwd
         )
         if any(ch in resolved_cwd for ch in ",=") or ":" in colon_scan:
@@ -323,6 +360,16 @@ class UnavailableIsolationRunner:
 
 def approved_runner_from_config() -> Optional[Runner]:
     """Build the configured runner for human-approved arbitrary-code commands."""
+    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    if profile in {"production", "demo"}:
+        # Production never constructs a local Docker or host runner.  Keep the
+        # import lazy so this compatibility module remains usable by tests and
+        # development callers without creating an application-layer cycle.
+        from aios.application.executor.service import (
+            private_executor_runner_from_config,
+        )
+
+        return private_executor_runner_from_config()
     if config.APPROVED_EXECUTION_BACKEND == "host":
         return None
     if config.APPROVED_EXECUTION_BACKEND == "container":
@@ -341,6 +388,15 @@ def validate_approved_execution_backend() -> Optional[str]:
     development-only warning. Only an UNKNOWN backend value (real misconfiguration)
     still raises. Returns ``None`` when the container backend is ready and silent.
     """
+    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    if profile in {"production", "demo"}:
+        if not config.EXECUTOR_URL or not config.EXECUTOR_TOKEN:
+            return (
+                "private Executor Service is not configured; approved and worker "
+                "execution will FAIL CLOSED"
+            )
+        return None
+
     runner = approved_runner_from_config()
     if isinstance(runner, DockerRunner):
         try:
@@ -380,7 +436,9 @@ def _sanitise_env() -> dict[str, str]:
     venv_bin = config.PROJECT_ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin")
     if venv_bin.is_dir():
         current_path = clean.get("PATH", "")
-        clean["PATH"] = str(venv_bin) + (os.pathsep + current_path if current_path else "")
+        clean["PATH"] = str(venv_bin) + (
+            os.pathsep + current_path if current_path else ""
+        )
     return clean
 
 
@@ -484,10 +542,23 @@ class Executor:
         # Imported lazily to break the api-deps -> executor -> policy cycle.
         from aios.policy.kernel import PolicyKernel
 
+        profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+        if runner is None and profile in {"production", "demo"}:
+            from aios.application.executor.service import (
+                private_executor_runner_from_config,
+            )
+
+            runner = private_executor_runner_from_config()
         self.runner: Runner = runner or _default_runner
         self.approved_runner = approved_runner
+        if self.approved_runner is None and getattr(
+            self.runner, "is_private_service", False
+        ):
+            self.approved_runner = self.runner
         self.rate_limiter = rate_limiter
-        self.policy_kernel = policy_kernel or PolicyKernel(rate_limiter=self.rate_limiter)
+        self.policy_kernel = policy_kernel or PolicyKernel(
+            rate_limiter=self.rate_limiter
+        )
         self.timeout_s = timeout_s
         self.actor = actor
         #: Audit sink; defaults to the real tamper-evident ledger. Injectable so
@@ -510,7 +581,9 @@ class Executor:
         cwd.mkdir(parents=True, exist_ok=True)
         return cwd
 
-    def execute(self, command: str, *, session_id: Optional[str] = None) -> ExecutionResult:
+    def execute(
+        self, command: str, *, session_id: Optional[str] = None
+    ) -> ExecutionResult:
         """Classify, gate, audit, and (if allowed) run *command*.
 
         A RED command is blocked and never run; a YELLOW command is reported as

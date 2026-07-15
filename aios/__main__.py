@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -158,6 +159,28 @@ def _cmd_memory(args: argparse.Namespace) -> int:
 
 
 def _cmd_executor(args: argparse.Namespace) -> int:
+    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    if profile in {"production", "demo"}:
+        from aios.application.executor.service import StructuredExecutorClient
+
+        client = StructuredExecutorClient(
+            base_url=config.EXECUTOR_URL,
+            token=config.EXECUTOR_TOKEN,
+            timeout_s=config.EXECUTOR_HTTP_TIMEOUT_S,
+        )
+        try:
+            client.health()
+        except Exception as exc:  # noqa: BLE001 - CLI reports a truthful refusal
+            payload = {
+                "available": False,
+                "backend": "private_service",
+                "reason": str(exc),
+            }
+            _print_payload(payload, as_json=args.json)
+            return 1
+        _print_payload({"available": True, "backend": "private_service"}, as_json=args.json)
+        return 0
+
     from aios.core.executor import DockerRunner
 
     if config.APPROVED_EXECUTION_BACKEND != "container":

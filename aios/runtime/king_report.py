@@ -1,4 +1,5 @@
 """Human-facing KingReport generation for Council Runtime v0.1."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,16 +26,29 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
         if verdict.verdict in {"deny", "defer"}
     ]
     if denied:
-        status = "failed" if any(v.verdict == "deny" for v in denied) else "needs_revision"
+        status = (
+            "failed" if any(v.verdict == "deny" for v in denied) else "needs_revision"
+        )
         if any(v.queen == "security" and v.verdict == "deny" for v in denied):
             recommendation = "reject"
         elif ledger.rollback_id and ledger.files_touched:
             recommendation = "rollback"
         else:
             recommendation = "revise"
+        human_summary = "Council blocked approval: " + "; ".join(
+            f"{verdict.queen}: {verdict.reason}" for verdict in denied
+        )
+    elif ledger.status in {"failed", "rolled_back", "blocked"}:
+        status = "rolled_back" if ledger.status == "rolled_back" else "failed"
+        recommendation = "rollback" if ledger.rollback_id else "revise"
+        promotion = ledger.evidence.get("promotion")
+        reason = (
+            promotion.get("reason_codes", ledger.status)
+            if isinstance(promotion, dict)
+            else ledger.status
+        )
         human_summary = (
-            "Council blocked approval: "
-            + "; ".join(f"{verdict.queen}: {verdict.reason}" for verdict in denied)
+            f"The mission did not reach an authoritative completed state: {reason}."
         )
     elif result.status == "completed":
         status = "completed"
@@ -53,7 +67,9 @@ def build_king_report(*, ledger: RunLedger, result: WorkerResult) -> KingReport:
         human_summary = "Worker was killed before successful completion."
     else:
         status = "failed"
-        recommendation = "rollback" if ledger.rollback_id and ledger.files_touched else "revise"
+        recommendation = (
+            "rollback" if ledger.rollback_id and ledger.files_touched else "revise"
+        )
         human_summary = f"Worker ended with status {result.status}: {result.summary}"
 
     intelligence = _latest_intelligence(ledger)
@@ -194,10 +210,12 @@ class KingReportStore:
 
     def __init__(self, runtime_root: str | Path) -> None:
         from aios.runtime import _safe_resolve
+
         self.runtime_root = _safe_resolve(runtime_root)
 
     def path_for(self, mission_id: str) -> Path:
         from aios.security.path_sanitizer import sanitize_path
+
         base = self.runtime_root / "missions"
         candidate = sanitize_path(base, mission_id)
         return candidate / "king_report.json"

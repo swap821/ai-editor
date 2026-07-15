@@ -13,13 +13,17 @@ or touches the real store. The in-process throttle dict is reset per test.
 """
 from __future__ import annotations
 
+import hashlib
+from datetime import datetime, timezone
 from typing import Iterator, Optional
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 import aios.api.main as main
 import aios.security.gateway as gateway
+from aios.api.deps import get_session_manager
 from aios.api.main import (
     _CONVERSATION_HITS,
     _CONVERSATION_RATE_MAX,
@@ -28,12 +32,14 @@ from aios.api.main import (
     get_bedrock_client,
     get_executor,
     get_gemini_client,
+    get_authenticated_principal,
     get_llm_client,
     get_ollama_client,
     get_semantic_indexer,
 )
 from aios.core.executor import Executor
 from aios.security.gateway import RateLimiter
+from aios.domain.identity.models import Principal, PrincipalType
 
 
 class _StubOllama:
@@ -85,6 +91,30 @@ def _fake_executor() -> Executor:
     return Executor(runner=_FakeRunner(), rate_limiter=RateLimiter(), audit_log=_RecordingAudit())
 
 
+def _fake_privileged_principal(request: Request) -> Principal:
+    """Keep throttle tests focused on rate state, with an explicit auth seam."""
+    return Principal(
+        principal_id="operator:test-throttle",
+        principal_type=PrincipalType.OPERATOR,
+        display_name="Throttle Test Operator",
+        session_id=request.cookies.get("session_id", ""),
+        authentication_level="privileged",
+        authenticated_at=datetime.now(timezone.utc),
+        device_id="device:test-throttle",
+        authentication_event_id="event:test-throttle",
+    )
+
+
+def _bind_fresh_session(client: TestClient) -> str:
+    manager = get_session_manager()
+    raw = manager.create_session()
+    cookie_hash = hashlib.sha256(raw.encode()).hexdigest()
+    csrf = manager.ensure_csrf_token(cookie_hash)
+    client.cookies.set("session_id", cookie_hash)
+    client.cookies.set("csrf_token", csrf)
+    return cookie_hash
+
+
 @pytest.fixture()
 def shield_client() -> Iterator[TestClient]:
     """Wire the generate endpoint with fakes and a clean throttle window."""
@@ -96,6 +126,7 @@ def shield_client() -> Iterator[TestClient]:
     app.dependency_overrides[get_bedrock_client] = lambda: None
     app.dependency_overrides[get_gemini_client] = lambda: None
     app.dependency_overrides[get_alignment_interpreter] = lambda: None
+    app.dependency_overrides[get_authenticated_principal] = _fake_privileged_principal
     with TestClient(app, client=("127.0.0.1", 12345)) as client:
         yield client
     app.dependency_overrides.clear()
@@ -129,15 +160,26 @@ def test_message_at_cap_is_accepted(shield_client: TestClient) -> None:
 
 
 def test_generate_route_carries_turn_id_and_mode(shield_client: TestClient) -> None:
-    """Slice 6: the agentic route emits a unique turn_id and canonical mission mode."""
+    """An explicit mission request emits the canonical mission mode."""
     response = shield_client.post(
         "/api/generate",
-        json=_generate("hi", "gen-turn"),
+        json={**_generate("hi", "gen-turn"), "missionRequested": True},
     )
     assert response.status_code == 200
     body = response.text
+    assert "event: turn.started" in body
     assert '"turn_id"' in body
     assert '"mode": "mission"' in body
+
+
+def test_generate_does_not_inherit_mission_mode(shield_client: TestClient) -> None:
+    """R5: mission authority must be explicitly requested by the caller."""
+    response = shield_client.post(
+        "/api/generate",
+        json=_generate("hi", "gen-default-mode"),
+    )
+    assert response.status_code == 200
+    assert '"mode": "conversation"' in response.text
 
 
 def test_prompt_injection_regex_blocked_with_400(shield_client: TestClient) -> None:
@@ -197,15 +239,16 @@ def test_throttle_is_per_session(
 ) -> None:
     """One flooded session must not throttle a different session."""
     monkeypatch.setattr(main, "_CONVERSATION_RATE_MAX", 3)
-    flooded = "gen-a"
+    flooded = _bind_fresh_session(shield_client)
     for _ in range(3):
         shield_client.post("/api/generate", json=_generate("hi", flooded))
     assert (
         shield_client.post("/api/generate", json=_generate("hi", flooded)).status_code
         == 429
     )
+    fresh = _bind_fresh_session(shield_client)
     assert (
-        shield_client.post("/api/generate", json=_generate("hi", "gen-b")).status_code
+        shield_client.post("/api/generate", json=_generate("hi", fresh)).status_code
         == 200
     )
 
@@ -215,7 +258,7 @@ def test_throttle_window_expiry_lets_traffic_resume(
 ) -> None:
     """Once the sliding window advances past old hits, traffic resumes."""
     monkeypatch.setattr(main, "_CONVERSATION_RATE_MAX", 3)
-    session = "gen-window"
+    session = _bind_fresh_session(shield_client)
     clock = {"t": 1000.0}
     monkeypatch.setattr(main.time, "monotonic", lambda: clock["t"])
     for _ in range(3):
@@ -241,9 +284,10 @@ def test_expired_sessions_are_evicted_from_the_map(
     clock = {"t": 5000.0}
     monkeypatch.setattr(main.time, "monotonic", lambda: clock["t"])
     for i in range(5):
+        session = _bind_fresh_session(shield_client)
         assert (
             shield_client.post(
-                "/api/generate", json=_generate("hi", f"gen-ephemeral-{i}")
+                "/api/generate", json=_generate("hi", session)
             ).status_code
             == 200
         )
@@ -251,7 +295,7 @@ def test_expired_sessions_are_evicted_from_the_map(
     clock["t"] += main._CONVERSATION_RATE_WINDOW_S + 1.0
     assert (
         shield_client.post(
-            "/api/generate", json=_generate("hi", "gen-survivor")
+            "/api/generate", json=_generate("hi", _bind_fresh_session(shield_client))
         ).status_code
         == 200
     )

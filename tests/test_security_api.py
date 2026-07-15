@@ -66,11 +66,13 @@ def test_tokens_rotate_returns_new_key_id(client) -> None:
 
 
 def test_sandbox_clear_requires_explicit_confirm(client) -> None:
+    # Sandbox deletion is RED at the universal action boundary.  The handler
+    # must never receive either malformed or merely-confirmed input.
     resp = client.post("/api/v1/security/sandbox/clear", json={"confirm": False})
-    assert resp.status_code == 422
+    assert resp.status_code == 403
 
     resp2 = client.post("/api/v1/security/sandbox/clear", json={})
-    assert resp2.status_code == 422
+    assert resp2.status_code == 403
 
 
 def test_sandbox_clear_removes_only_scope_root_contents(client, tmp_path, monkeypatch) -> None:
@@ -86,11 +88,10 @@ def test_sandbox_clear_removes_only_scope_root_contents(client, tmp_path, monkey
 
     resp = client.post("/api/v1/security/sandbox/clear", json={"confirm": True})
 
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["removedCount"] == 2
+    assert resp.status_code == 403
     assert sandbox.exists()  # the root itself survives
-    assert list(sandbox.iterdir()) == []
+    assert (sandbox / "leftover.txt").exists()
+    assert (sandbox / "subdir" / "nested.txt").exists()
 
 
 def test_sandbox_clear_refuses_project_root(client, monkeypatch) -> None:
@@ -100,4 +101,4 @@ def test_sandbox_clear_refuses_project_root(client, monkeypatch) -> None:
 
     resp = client.post("/api/v1/security/sandbox/clear", json={"confirm": True})
 
-    assert resp.status_code == 409
+    assert resp.status_code == 403

@@ -307,6 +307,24 @@ def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
     assert "bind-propagation=private" in mount
 
 
+def test_docker_runner_accepts_explicit_windows_daemon_workspace_path() -> None:
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    DockerRunner(image="test-image", process_runner=fake_run)(
+        "python -c pass",
+        cwd=r"C:\host\executor-workspaces\job-1",
+        env={},
+        timeout_s=3,
+    )
+
+    mount = calls[0][0][calls[0][0].index("--mount") + 1]
+    assert mount.startswith(r"type=bind,src=C:\host\executor-workspaces\job-1,")
+
+
 def test_docker_runner_rejects_mount_breaking_cwd_characters(tmp_path) -> None:
     runner = DockerRunner(image="test-image")
     for bad in ("path,with,commas", "path=equals"):

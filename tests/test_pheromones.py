@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import time
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -190,6 +189,43 @@ def test_council_loads_pheromone_context_into_contract(tmp_path: Path, monkeypat
     assert run.contract.metadata["pheromone_context_non_authoritative"] is True
     memory_verdict = next(v for v in run.verdicts if v.queen == "memory")
     assert any("[success-trail] src/foo.py" in item for item in memory_verdict.constraints)
+
+
+def test_council_prefers_authority_pheromone_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from aios import config
+    from aios.council.council_orchestrator import CouncilOrchestrator
+    from aios.runtime.contracts import MissionContract
+
+    class Authority:
+        def pheromone_for_contract(self, allowed_files: list[str]) -> list[str]:
+            assert allowed_files == ["src/foo.py"]
+            return ["authority-sourced hint"]
+
+    class ForbiddenStore:
+        def for_contract(self, allowed_files: list[str]) -> list[str]:
+            raise AssertionError("Council bypassed the authority-owned adapter")
+
+    monkeypatch.setattr(config, "PHEROMONE_ENABLED", True)
+    orchestrator = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime-authority",
+        memory_authority=Authority(),
+        pheromone_store=ForbiddenStore(),
+    )
+    contract = MissionContract(
+        mission_id="mission-authority-pheromone",
+        goal="use advisory context",
+        worker_type="scout",
+        created_by="test",
+        workspace_root=str(tmp_path),
+        allowed_files=["src/foo.py"],
+    )
+
+    enriched = orchestrator._apply_pheromone_context(contract)
+
+    assert enriched.pheromone_context == ["authority-sourced hint"]
+    assert enriched.metadata["pheromone_context_source"] == (
+        "MemoryAuthority.pheromone_for_contract"
+    )
 
 
 def test_pheromone_context_cannot_override_red_security_decision(

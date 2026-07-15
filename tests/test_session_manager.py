@@ -30,7 +30,22 @@ def test_create_and_validate_roundtrip() -> None:
     session = manager.validate_session(_hash(raw))
     assert session is not None
     assert session.data["user"] == "x"
+    assert isinstance(session.data["csrf_token"], str)
+    assert len(session.data["csrf_token"]) >= 32
     assert session.session_id == raw  # raw kept only in memory
+
+
+def test_ensure_csrf_token_repairs_legacy_session() -> None:
+    manager = SessionManager()
+    raw = manager.create_session()
+    cookie_hash = _hash(raw)
+    del manager._sessions[cookie_hash].data["csrf_token"]
+
+    token = manager.ensure_csrf_token(cookie_hash)
+
+    assert isinstance(token, str)
+    assert len(token) >= 32
+    assert manager.validate_session(cookie_hash).data["csrf_token"] == token
 
 
 def test_validate_rejects_missing_and_unknown() -> None:
@@ -108,7 +123,8 @@ def test_durable_store_validates_cookie_hash_after_restart(tmp_path) -> None:
     assert session is not None
     assert session.session_hash == cookie_hash
     assert session.session_id == ""  # raw id is intentionally not persisted
-    assert session.data == {"user": "operator"}
+    assert session.data["user"] == "operator"
+    assert isinstance(session.data["csrf_token"], str)
     assert raw not in store.read_bytes().decode("latin1", errors="ignore")
 
 
@@ -139,4 +155,5 @@ def test_durable_upgrade_carries_data_and_destroys_old_hash(tmp_path) -> None:
     assert third.validate_session(old_hash) is None
     upgraded = third.validate_session(new_hash)
     assert upgraded is not None
-    assert upgraded.data == {"role": "user"}
+    assert upgraded.data["role"] == "user"
+    assert isinstance(upgraded.data["csrf_token"], str)

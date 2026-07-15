@@ -22,7 +22,6 @@ import aios.api.main as api_main
 from aios import config
 from aios.api.main import (
     app,
-    get_approval_store,
     get_autonomy,
     get_cerebellum,
     get_development_tracker,
@@ -203,7 +202,6 @@ def stage_client(tmp_path) -> Iterator[TestClient]:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     _isolate_turn_memory(tmp_path, PlanningAlignedLLM)
-    get_approval_store().clear()
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -273,7 +271,6 @@ def test_plan_stage_fails_open_on_unusable_plan(tmp_path, monkeypatch) -> None:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     _isolate_turn_memory(tmp_path, AlignedOnlyLLM)
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             response = _generate(client, "plan-stage-fail-open", "plan stage probe xyzzy quux")
@@ -298,7 +295,6 @@ def test_confidence_gated_turn_skips_plan_stage(tmp_path, monkeypatch) -> None:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     _isolate_turn_memory(tmp_path, PlanningAlignedLLM)
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             response = _generate(client, "plan-stage-gated", "plan stage probe xyzzy quux")
@@ -320,38 +316,38 @@ def test_plan_stage_coexists_with_approval_pause(tmp_path, monkeypatch) -> None:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     _isolate_turn_memory(tmp_path, PlanningAlignedLLM)
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             response = _generate(client, "plan-stage-approval", "plan stage probe xyzzy quux")
+
+            assert response.status_code == 200
+            assert len(_plan_events(response.text)) == 1
+            assert "event: human_required" in response.text
+
+            # Keep the same cookie-bound principal for the approval resume.
+            paused = [p for name, p in _sse_events(response.text) if name == "human_required"]
+            token = paused[0].get("input", {}).get("approvalToken")
+            assert token
+            app.dependency_overrides[get_ollama_client] = lambda: YellowOllama()
+            app.dependency_overrides[get_executor] = _fake_executor
+            app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
+            resume = client.post(
+                "/api/generate",
+                json={
+                    "messages": [
+                        {"role": "user", "content": [{"text": "plan stage probe xyzzy quux"}]}
+                    ],
+                    "modelId": "ollama.llama3.2:3b",
+                    "sessionId": str(client.cookies.get("session_id")),
+                    "approvalTokens": [token],
+                },
+            )
     finally:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert len(_plan_events(response.text)) == 1
     assert "event: human_required" in response.text
-
-    # Approval-resume guard: replaying the turn with the granted token must
-    # NOT re-plan the same goal (no second `plan` event, no second planner
-    # LLM call injected mid-approved-action).
-    paused = [p for name, p in _sse_events(response.text) if name == "human_required"]
-    token = paused[0].get("input", {}).get("approvalToken")
-    assert token
-    with TestClient(app, client=("127.0.0.1", 12345)) as client2:
-        app.dependency_overrides[get_ollama_client] = lambda: YellowOllama()
-        app.dependency_overrides[get_executor] = _fake_executor
-        app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
-        resume = client2.post(
-            "/api/generate",
-            json={
-                "messages": [
-                    {"role": "user", "content": [{"text": "plan stage probe xyzzy quux"}]}
-                ],
-                "modelId": "ollama.llama3.2:3b",
-                "sessionId": "plan-stage-approval",
-                "approvalTokens": [token],
-            },
-        )
     assert resume.status_code == 200
     assert _plan_events(resume.text) == []
 
@@ -368,7 +364,6 @@ def test_plan_stage_runs_with_alignment_interpreter_disabled(
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     _isolate_turn_memory(tmp_path, PlanningAlignedLLM)
     app.dependency_overrides[get_alignment_interpreter] = lambda: None
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             response = _generate(client, "plan-stage-no-align", "plan stage probe xyzzy quux")

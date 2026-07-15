@@ -29,6 +29,7 @@ class MissionRecord:
         contract: MissionContract,
         state: MissionState,
         contract_digest: str,
+        runtime_contract_digest: str | None,
         capability_digest: str | None,
         policy_version: str,
         exported_path: str | None = None,
@@ -43,6 +44,7 @@ class MissionRecord:
         self.contract = contract
         self.state = state
         self.contract_digest = contract_digest
+        self.runtime_contract_digest = runtime_contract_digest
         self.capability_digest = capability_digest
         self.policy_version = policy_version
         self.exported_path = exported_path
@@ -59,6 +61,7 @@ class MissionRecord:
             "contract": self.contract.model_dump(mode="json"),
             "state": self.state.value,
             "contract_digest": self.contract_digest,
+            "runtime_contract_digest": self.runtime_contract_digest,
             "capability_digest": self.capability_digest,
             "policy_version": self.policy_version,
             "exported_path": self.exported_path,
@@ -71,7 +74,13 @@ class MissionRepository(ABC):
     """Abstract authoritative store for mission lifecycle state."""
 
     @abstractmethod
-    def create(self, contract: MissionContract, state: MissionState = MissionState.DRAFT) -> MissionRecord:
+    def create(
+        self,
+        contract: MissionContract,
+        state: MissionState = MissionState.DRAFT,
+        *,
+        runtime_contract_digest: str | None = None,
+    ) -> MissionRecord:
         """Persist a new mission contract as the authoritative record."""
 
     @abstractmethod
@@ -87,8 +96,15 @@ class MissionRepository(ABC):
         actor: str,
         reason: str | None = None,
         capability_digest: str | None = None,
+        contract_digest: str | None = None,
+        authentication_event_id: str | None = None,
+        session_id: str | None = None,
     ) -> MissionRecord:
-        """Atomically transition a mission if the transition is valid."""
+        """Atomically transition a mission if the transition is valid.
+
+        Approval transitions additionally carry the complete sovereign proof
+        checked at the edge and must be rejected without it.
+        """
 
     @abstractmethod
     def list_by_project(self, project_id: str) -> list[MissionRecord]:

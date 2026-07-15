@@ -69,12 +69,23 @@ async function fetchJson(path, signal) {
 async function postJson(path, body) {
   const session = await ensureSession();
   const sessionBody = session.bodySessionId ? { sessionId: session.bodySessionId } : {};
-  const response = await fetch(`${API_BASE}${path}`, {
+  const request = (capability) => fetch(`${API_BASE}${path}`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+    headers: {
+      'Content-Type': 'application/json',
+      ...API_HEADERS,
+      ...(capability ? { 'X-AIOS-Capability': capability } : {}),
+    },
     body: JSON.stringify({ ...sessionBody, ...body }),
   });
+  let response = await request('');
+  if (response.status === 428) {
+    const detail = await response.json();
+    const token = detail?.detail?.approvalToken;
+    if (!token) throw new Error('HTTP 428');
+    response = await request(token);
+  }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
@@ -309,6 +320,7 @@ export default function CouncilDashboard() {
       const data = await postJson(`/api/v1/council/${approved ? 'approve' : 'reject'}`, {
         missionId: selectedSummary.missionId,
         requestId: pendingApproval?.requestId,
+        contractDigest: detail.missionAuthority?.contractDigest,
         reason: approved ? 'Approved from Council dashboard' : 'Rejected from Council dashboard',
       });
       const remainingApprovals = pendingApproval

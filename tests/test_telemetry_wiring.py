@@ -21,7 +21,6 @@ import json
 import aios.api.main as api_main
 from aios.api.main import (
     app,
-    get_approval_store,
     get_autonomy,
     get_bedrock_client,
     get_cerebellum,
@@ -176,7 +175,6 @@ def generate_client(tmp_path) -> Iterator[TestClient]:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
     _isolate_turn_memory(tmp_path)
-    get_approval_store().clear()
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -186,7 +184,8 @@ def test_generate_plain_llm_turn_records_telemetry_row(generate_client: TestClie
     """A plain no-tool-call turn lands exactly one telemetry row: dispatch_path
     'llm' (no playbook/native-plan matched), unverified (nothing was verified),
     with the REAL serving provider/model and a real measured latency."""
-    session_id = "telemetry-wiring-llm"
+    session_id = str(generate_client.cookies.get("session_id"))
+    assert session_id and session_id != "None"
     response = generate_client.post(
         "/api/generate",
         json={
@@ -218,10 +217,10 @@ def test_generate_paused_turn_records_aborted_telemetry_row(tmp_path) -> None:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
     _isolate_turn_memory(tmp_path)
-    get_approval_store().clear()
-    session_id = "telemetry-wiring-paused"
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = str(client.cookies.get("session_id"))
+            assert session_id and session_id != "None"
             response = client.post(
                 "/api/generate",
                 json={
@@ -264,10 +263,10 @@ def test_confidence_gated_turn_records_aborted_telemetry_row(
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     _isolate_turn_memory(tmp_path)
-    get_approval_store().clear()
-    session_id = "telemetry-wiring-gated"
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            session_id = str(client.cookies.get("session_id"))
+            assert session_id and session_id != "None"
             response = client.post(
                 "/api/generate",
                 json={
@@ -338,7 +337,8 @@ def test_chat_turn_records_telemetry_row(
     """/api/v1/chat has no tool loop -- dispatch_path is always 'llm' and
     verified_outcome is always 'unverified' (nothing is ever verified here)."""
     client, _ = chat_client_fixture
-    session_id = "telemetry-wiring-chat"
+    session_id = str(client.cookies.get("session_id"))
+    assert session_id and session_id != "None"
     response = client.post(
         "/api/v1/chat",
         json={"transcript": "kaise ho?", "sessionId": session_id},
@@ -361,7 +361,8 @@ def test_chat_without_transcript_records_aborted_telemetry_row(
 ) -> None:
     """An empty transcript never reaches the model -- still counted, as aborted."""
     client, ollama = chat_client_fixture
-    session_id = "telemetry-wiring-chat-empty"
+    session_id = str(client.cookies.get("session_id"))
+    assert session_id and session_id != "None"
     response = client.post(
         "/api/v1/chat",
         json={"transcript": "   ", "sessionId": session_id},

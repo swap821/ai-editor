@@ -78,6 +78,11 @@ class WorkerSpec(BaseModel):
     priority: int = 0
     max_steps: int = 1
     timeout_seconds: int = 1
+    allowed_tools: tuple[str, ...] = ()
+    scope: dict[str, Any] = Field(default_factory=dict)
+    budgets: dict[str, Any] = Field(default_factory=dict)
+    data_classification: str = "internal"
+    executor_policy: str = "default"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

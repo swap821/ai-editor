@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from aios import config
+from aios.application.executor.service import private_executor_runner_from_config
 from aios.core.executor import DockerRunner, _sanitise_env
 from aios.runtime.contracts import MissionContract, WorkerResult
 from aios.runtime.intelligence_gateway import (
@@ -192,7 +193,25 @@ class WorkerRuntime:
         #     yields a non-zero result, NEVER a silent host fallback.
         runner = self._command_runner
         backend = config.APPROVED_EXECUTION_BACKEND
-        if runner is None and backend == "host":
+        profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+        if runner is None and profile in {"production", "demo"}:
+            # Worker-side verification is part of the production control-plane
+            # boundary.  The private client refuses missing service/auth or an
+            # unstaged workspace; this branch never falls back to host or local
+            # Docker execution.
+            active = private_executor_runner_from_config()
+            try:
+                stdout, stderr, returncode = active(
+                    shlex.join(command),
+                    cwd=str(self.workspace_root),
+                    env=_sanitise_env(),
+                    timeout_s=self.contract.timeout_seconds,
+                )
+            except subprocess.TimeoutExpired:
+                raise
+            except Exception as exc:  # noqa: BLE001 - fail closed
+                stdout, stderr, returncode = "", f"[private executor unavailable] {exc}", 1
+        elif runner is None and backend == "host":
             try:
                 proc = subprocess.run(
                     command,

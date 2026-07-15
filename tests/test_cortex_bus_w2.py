@@ -13,13 +13,10 @@ carries no authority-bearing payload keys.
 """
 from __future__ import annotations
 
-import threading
 import time
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
-
-import pytest
 
 from aios.runtime.cortex_bus import BusEvent, CortexBus
 from aios.runtime.cortex_bus_dispatcher import CortexBusDispatcher
@@ -285,6 +282,25 @@ class TestSelfModelConsumer:
         )
         handler(event)
         handler(event)  # replay — must not raise
+
+    def test_handler_uses_authority_self_model_when_bound(self) -> None:
+        from aios.runtime.self_model_handler import SelfModelHandler
+
+        class Authority:
+            def self_model(self) -> str:
+                return "authority-grounded self-model"
+
+        handler = SelfModelHandler(memory_authority=Authority())
+        handler(
+            BusEvent(
+                id=3,
+                event_type="turn.completed",
+                signature="session-authority",
+                payload={},
+            )
+        )
+
+        assert handler.recall() == "authority-grounded self-model"
 
 
 # ── W3 guard: observation-type contract + latency ────────────────────────────

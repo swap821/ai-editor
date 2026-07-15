@@ -19,11 +19,13 @@ from aios.core.metrics import get_collector
 _METRICS = get_collector()
 from aios.api.main import (
     app,
-    get_approval_store,
+    get_capability_authority,
     get_autonomy,
     get_development_tracker,
 )
-from aios.core.approvals import ApprovalStore
+from aios.application.capabilities.authority import CapabilityAuthority
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest, resource_digest
 from aios.core.autonomy import AutonomyLedger
 from aios.memory.development import DevelopmentTracker
 from aios.security import audit_logger as audit_mod
@@ -41,8 +43,8 @@ def _reset_collector():
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch) -> TestClient:
     """TestClient with isolated approval/memory/audit databases."""
-    app.dependency_overrides[get_approval_store] = lambda: ApprovalStore(
-        db_path=tmp_path / "approvals.db"
+    app.dependency_overrides[get_capability_authority] = lambda: CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db"
     )
     app.dependency_overrides[get_development_tracker] = lambda: DevelopmentTracker(
         db_path=tmp_path / "memory.db"
@@ -83,10 +85,27 @@ def test_metrics_reflect_development_summary(client: TestClient, tmp_path: Path)
 def test_metrics_reflect_approval_and_autonomy_counts(
     client: TestClient, tmp_path: Path
 ) -> None:
-    # One approval issued and redeemed.
-    store = ApprovalStore(db_path=tmp_path / "approvals.db")
-    token = store.issue("edit", {"path": "training_ground/a.py"}, "session-1")
-    store.redeem(token, "session-1")
+    # One exact capability issued and consumed.
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    payload = {"path": "training_ground/a.py"}
+    binding = CapabilityBinding(
+        operator_id="operator-1",
+        device_id="device-1",
+        authentication_event_id="auth-1",
+        session_id="session-1",
+        action_type="edit",
+        route="/api/generate",
+        http_method="POST",
+        payload_digest=payload_digest(payload),
+        resource_digest=resource_digest({"workspace": "training_ground"}),
+        mission_id=None,
+        contract_digest=None,
+        policy_version="v1",
+        scope="training_ground/",
+        verification_requirement="write_auto_verify_pass",
+    )
+    token = authority.issue(binding, action_payload=payload)
+    authority.consume(token, binding)
 
     # One earned-autonomy signature (min_successes=1 so a single success earns).
     app.dependency_overrides[get_autonomy] = lambda: AutonomyLedger(

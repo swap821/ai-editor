@@ -51,6 +51,19 @@ def test_production_refuses_placeholder_credentials(
         launcher._production_preflight(config)
 
 
+def test_production_refuses_host_execution_backend(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = _config(tmp_path)
+    monkeypatch.setattr(launcher.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setenv("AIOS_API_TOKEN", "a" * 40)
+    monkeypatch.setenv("AIOS_EXECUTOR_TOKEN", "b" * 40)
+    monkeypatch.setenv("AIOS_GRAFANA_ADMIN_PASSWORD", "c" * 20)
+    monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
+    with pytest.raises(launcher.LauncherError, match="host execution backend"):
+        launcher._production_preflight(config)
+
+
 def test_development_start_uses_argument_vector_and_records_pid(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -91,6 +104,8 @@ def test_same_origin_gateway_is_loopback_only_and_proxies_api() -> None:
     assert "127.0.0.1:${AIOS_GATEWAY_PORT:-3000}:8080" in compose
     assert "dockerfile: Dockerfile.frontend" in compose
     assert "proxy_pass http://aios:8000" in nginx
+    assert "proxy_set_header Host gateway" in nginx
+    assert "server_name localhost 127.0.0.1 gateway" in nginx
     assert "proxy_buffering off" in nginx
     assert "nginxinc/nginx-unprivileged" in dockerfile
 

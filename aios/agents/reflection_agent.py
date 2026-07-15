@@ -12,6 +12,7 @@ Safeguards (Blueprint Q6):
   * ``confidence_delta`` is clamped to ``[-1.0, 0.0]`` by the storage layer, so
     a lesson can only reduce the planner's confidence, never inflate it.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,16 @@ from aios.core.verification_strength import VerificationStrength
 from aios.memory.mistake import MistakeMemory
 
 logger = logging.getLogger(__name__)
+
+
+def _authority_store(authority: Any | None, name: str) -> Any | None:
+    """Return a registered specialist store without constructing a shadow store."""
+    if authority is None:
+        return None
+    adapters = getattr(authority, "adapters", {})
+    adapter = adapters.get(name) if hasattr(adapters, "get") else None
+    return getattr(adapter, "store", None)
+
 
 REFLECT_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
 Analyse the failed action, identify the root cause, and formulate a generalised lesson so
@@ -105,9 +116,15 @@ class ReflectionAgent:
         *,
         mistakes: Optional[MistakeMemory] = None,
         db_path: Path = config.MEMORY_DB_PATH,
+        memory_authority: Optional[Any] = None,
     ) -> None:
         self.llm = llm
-        self.mistakes = mistakes or MistakeMemory(db_path)
+        self.memory_authority = memory_authority
+        self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
+        # Keep the legacy constructor only for standalone callers. API/runtime
+        # callers already have an authority-owned lesson store to reuse.
+        if memory_authority is None:
+            self.mistakes = self.mistakes or MistakeMemory(db_path)
 
     #: How many times to ask the model for a parseable lesson before giving up.
     #: ``json_mode`` makes a valid JSON object the norm, but a small local model
@@ -142,6 +159,19 @@ class ReflectionAgent:
             except ReflectionError as exc:
                 last_error = exc
         raise last_error or ReflectionError("Reflection produced no output.")
+
+    def _authority_owns_lessons(self) -> bool:
+        """Use authority lesson operations only for its canonical store."""
+        if self.memory_authority is None:
+            return False
+        owns_store = getattr(self.memory_authority, "owns_store", None)
+        if not callable(owns_store):
+            # Preserve lightweight authority fakes that predate ownership checks.
+            return True
+        try:
+            return bool(owns_store("lessons", self.mistakes))
+        except Exception:  # noqa: BLE001 - lesson recall/write is best effort
+            return False
 
     def reflect(
         self,
@@ -184,18 +214,28 @@ class ReflectionAgent:
         fix_applied = str(data["fix_applied"]).strip()
         lesson_text = str(data["lesson_text"]).strip()
 
-        mistake_id, recurrence = self.mistakes.record_or_increment(
-            task_id=task_id,
-            error_type=error_type,
-            root_cause=root_cause,
-            fix_applied=fix_applied,
-            lesson_text=lesson_text,
-            confidence_delta=confidence_delta,
-            failed_command=command,
-        )
+        record_kwargs = {
+            "task_id": task_id,
+            "error_type": error_type,
+            "root_cause": root_cause,
+            "fix_applied": fix_applied,
+            "lesson_text": lesson_text,
+            "confidence_delta": confidence_delta,
+            "failed_command": command,
+        }
+        if self._authority_owns_lessons():
+            mistake_id, recurrence = self.memory_authority.record_lesson_or_increment(
+                **record_kwargs
+            )
+        else:
+            mistake_id, recurrence = self.mistakes.record_or_increment(**record_kwargs)
 
         # Re-read the stored (clamped) delta so the return value is accurate.
-        stored = self.mistakes.get(mistake_id)
+        stored = (
+            self.memory_authority.lesson_get(mistake_id)
+            if self._authority_owns_lessons()
+            else self.mistakes.get(mistake_id)
+        )
         stored_delta = float(stored["confidence_delta"]) if stored else confidence_delta
 
         return Reflection(
@@ -216,7 +256,10 @@ class ReflectionAgent:
         strength: VerificationStrength = VerificationStrength.STRONG,
     ) -> None:
         """Promote a lesson after it proves itself with strong enough evidence."""
-        self.mistakes.promote(mistake_id, strength=strength)
+        if self._authority_owns_lessons():
+            self.memory_authority.promote_lesson(mistake_id, strength=strength)
+        else:
+            self.mistakes.promote(mistake_id, strength=strength)
 
     def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
         """``(mistake_id, failed_command)`` for this task's pending lessons.
@@ -224,6 +267,8 @@ class ReflectionAgent:
         Used to seed the tool loop's fail->confirm tracker at the start of a turn
         so a lesson recorded before an approval pause is still promoted when its
         exact command later succeeds (the in-memory tracker is per-run())."""
+        if self._authority_owns_lessons():
+            return self.memory_authority.pending_lesson_commands(task_id)
         return self.mistakes.pending_command_pairs(task_id)
 
     def recall_pending(self, task_id: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -233,7 +278,11 @@ class ReflectionAgent:
         earlier turns of the same session. Each dict carries ``mistake_id``,
         ``error_type`` and ``lesson_text``.
         """
-        rows = self.mistakes.pending_for_task(task_id, limit)
+        rows = (
+            self.memory_authority.pending_lessons_for_task(task_id, limit)
+            if self._authority_owns_lessons()
+            else self.mistakes.pending_for_task(task_id, limit)
+        )
         return [
             {
                 "mistake_id": int(row["id"]),
@@ -247,6 +296,8 @@ class ReflectionAgent:
         self, task_text: str, task_id: str, limit: int = 5
     ) -> list[dict[str, Any]]:
         """Recall same-task pending lessons plus verified cross-session lessons."""
+        if self._authority_owns_lessons():
+            return self.memory_authority.recall_lessons(task_text, task_id, limit)
         pending = [
             {**lesson, "verification_status": "pending", "relevance": 1.0}
             for lesson in self.recall_pending(task_id, limit)

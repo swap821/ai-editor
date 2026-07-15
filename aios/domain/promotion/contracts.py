@@ -4,6 +4,7 @@ Promotion is deliberately a separate domain boundary from execution and
 verification.  A worker can produce a staged diff and evidence, but it cannot
 turn either into an authoritative project mutation.
 """
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -11,7 +12,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aios.domain.evidence import VerificationResult
+from aios.domain.evidence import EvidenceBundle, VerificationResult
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.workspaces import StagedWorkspace
 
@@ -30,6 +31,9 @@ class PromotionRequest(BaseModel):
 
     mission_id: str
     action_id: str
+    worker_id: str
+    executor_job_id: str
+    environment_digest: str
     project_root: str
     lease: StagedWorkspace
     current_state: MissionState
@@ -40,6 +44,7 @@ class PromotionRequest(BaseModel):
     workspace_digest: str
     diff_digest: str
     verification_results: tuple[VerificationResult, ...]
+    evidence_bundle: EvidenceBundle | None = None
     required_targets: tuple[str, ...] = ()
     required_strength: Annotated[int, Field(ge=0)] = 0
     freshness_seconds: Annotated[int, Field(ge=0)] = 300

@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
+from aios.domain.capabilities.digest import payload_digest as _payload_digest
+from aios.domain.capabilities.digest import resource_digest as _resource_digest
+
 
 class ActionType(str, Enum):
     """Canonical action categories recognised by the deterministic policy kernel.
@@ -73,6 +76,9 @@ class ActionType(str, Enum):
     SYSTEM_RESTART = "system_restart"
     AUTH_SESSION_CREATE = "auth_session_create"
     AUTH_SESSION_DESTROY = "auth_session_destroy"
+    AUTH_OPERATOR_ENROLL = "auth_operator_enroll"
+    AUTH_OPERATOR_LOGIN = "auth_operator_login"
+    AUTH_OPERATOR_REAUTH = "auth_operator_reauth"
     INTENT_PREVIEW = "intent_preview"
     PROJECT_PASSPORT_SCAN = "project_passport_scan"
     PROJECT_SCOPE_HINTS = "project_scope_hints"
@@ -111,6 +117,57 @@ class ActionEnvelope:
     action_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     request_id: Optional[str] = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # R4: the complete immutable authority binding.  These fields are optional
+    # only for legacy domain callers; production request builders must provide
+    # the authenticated identity and policy context explicitly.
+    operator_id: Optional[str] = None
+    device_id: Optional[str] = None
+    authentication_event_id: Optional[str] = None
+    mission_id: Optional[str] = None
+    contract_digest: Optional[str] = None
+    resource: Any = field(default_factory=dict)
+    resource_digest: Optional[str] = None
+    payload_digest: Optional[str] = None
+    policy_version: str = "v1"
+    data_classification: str = "PROJECT_INTERNAL"
+    requested_capability: Optional[str] = None
+    correlation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+    def __post_init__(self) -> None:
+        """Normalize and validate the exact action binding at construction."""
+        if not self.route.strip():
+            raise ValueError("route must be non-empty")
+        if not isinstance(self.payload, dict):
+            raise ValueError("payload must be an object")
+        if not self.policy_version.strip():
+            raise ValueError("policy_version must be non-empty")
+        if not self.data_classification.strip():
+            raise ValueError("data_classification must be non-empty")
+        for name in (
+            "operator_id",
+            "device_id",
+            "authentication_event_id",
+            "mission_id",
+            "contract_digest",
+            "requested_capability",
+        ):
+            value = getattr(self, name)
+            if value is not None and not str(value).strip():
+                raise ValueError(f"{name} must be non-empty when provided")
+
+        object.__setattr__(self, "http_method", self.http_method.upper())
+        computed_payload_digest = _payload_digest(self.payload)
+        if self.payload_digest is not None and self.payload_digest != computed_payload_digest:
+            raise ValueError("payload_digest does not match payload")
+        object.__setattr__(self, "payload_digest", computed_payload_digest)
+
+        computed_resource_digest = _resource_digest(self.resource)
+        if self.resource_digest is not None and self.resource_digest != computed_resource_digest:
+            raise ValueError("resource_digest does not match resource")
+        object.__setattr__(self, "resource_digest", computed_resource_digest)
+
+        if not self.correlation_id.strip():
+            raise ValueError("correlation_id must be non-empty")
 
     @property
     def session_id(self) -> Optional[str]:

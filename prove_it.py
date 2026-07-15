@@ -735,6 +735,20 @@ class ScriptedBrain:
     def list_models(self) -> dict:
         return {"available": True, "models": ["scripted-brain:demo"]}
 
+    def complete(self, prompt: str, *, system: str = "") -> str:
+        """Return a deterministic advisory plan without contacting Ollama."""
+        return json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_id": "1",
+                        "description": "Follow the supervised file-creation workflow.",
+                        "confidence": 0.95,
+                    }
+                ]
+            }
+        )
+
     def chat(self, messages: list, *, tools=None, model=None) -> dict:
         self._turn += 1
         if self._turn == 1:
@@ -809,7 +823,7 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
 
     from fastapi.testclient import TestClient
 
-    from aios.api.main import app, get_executor, get_ollama_client
+    from aios.api.main import app, get_executor, get_llm_client, get_ollama_client
     from aios.core.executor import Executor
     from aios.security.gateway import RateLimiter
 
@@ -833,6 +847,7 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
     )
 
     scripted_brain = ScriptedBrain()
+    app.dependency_overrides[get_llm_client] = lambda: scripted_brain
     app.dependency_overrides[get_ollama_client] = lambda: scripted_brain
     app.dependency_overrides[get_executor] = lambda: real_executor
 
@@ -845,9 +860,40 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
     sweep_stale_demo_artifacts(scope_root)  # clean slate vs a prior interrupted run
     before_files = snapshot_training_ground(scope_root)
 
-    session_id = f"prove-it-scripted-{uuid.uuid4().hex[:12]}"
     try:
-        with TestClient(app, client=("127.0.0.1", 12345), headers={"Sec-Fetch-Site": "same-origin"}) as client:
+        with TestClient(
+            app,
+            client=("127.0.0.1", 12345),
+            headers={
+                "Sec-Fetch-Site": "same-origin",
+                "Origin": "http://localhost:5173",
+                "Host": "localhost:8000",
+            },
+        ) as client:
+            enrollment = client.post(
+                "/api/v1/auth/enroll", json={"displayName": "GAGOS Proof Operator"}
+            )
+            if enrollment.status_code != 201:
+                raise ProveItFailure(
+                    "POST /api/v1/auth/enroll failed: "
+                    f"HTTP {enrollment.status_code}: {enrollment.text[:300]}"
+                )
+            credential = enrollment.json().get("enrollmentCredential")
+            login = client.post("/api/v1/auth/login", json={"credential": credential})
+            if login.status_code != 200:
+                raise ProveItFailure(
+                    "POST /api/v1/auth/login failed: "
+                    f"HTTP {login.status_code}: {login.text[:300]}"
+                )
+            reauth = client.post("/api/v1/auth/reauth", json={"credential": credential})
+            if reauth.status_code != 200:
+                raise ProveItFailure(
+                    "POST /api/v1/auth/reauth failed: "
+                    f"HTTP {reauth.status_code}: {reauth.text[:300]}"
+                )
+            session_id = str(client.cookies.get("session_id"))
+            if not session_id or session_id == "None":
+                raise ProveItFailure("session bootstrap did not set a session cookie")
             directive = DEMO_DIRECTIVE
             body = {
                 "messages": [{"role": "user", "content": [{"text": directive}]}],
@@ -978,6 +1024,7 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
             return 0 if checklist.all_proved else 1
     finally:
         app.dependency_overrides.pop(get_ollama_client, None)
+        app.dependency_overrides.pop(get_llm_client, None)
         app.dependency_overrides.pop(get_executor, None)
         deleted = restore_training_ground(scope_root, before_files)
         cleanup_stale_rollback_pointer(scope_root)

@@ -26,7 +26,6 @@ from aios.api.routes.system import (  # moved in the monolith split (tranche 2)
 )
 from aios.api.main import (
     app,
-    _APPROVALS,
     _EPISODIC,
     _check_prompt_injection,
     _crag_cloud_source,
@@ -48,7 +47,6 @@ from aios.api.main import (
     _verify_target_keys,
     _workflow_step,
     get_anthropic_client,
-    get_approval_store,
     get_autonomy,
     get_bedrock_client,
     get_compactor,
@@ -69,7 +67,9 @@ from aios.api.main import (
     get_session_manager,
     get_skill_memory,
 )
-from aios.core.approvals import ApprovalStore
+from aios.application.capabilities.authority import CapabilityAuthority
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest, resource_digest
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
 from aios.memory.curriculum import CurriculumManager
@@ -136,7 +136,6 @@ def client() -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = FakeOllama
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: fake_indexer
-    get_approval_store().clear()
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         test_client.fake_indexer = fake_indexer
         yield test_client
@@ -147,13 +146,13 @@ def client() -> Iterator[TestClient]:
 # _is_private_ip / _real_client_ip  (lines 397-444)
 # --------------------------------------------------------------------------- #
 def test_is_private_ip_empty_string_is_treated_as_unsafe() -> None:
-    assert _is_private_ip("") is True
-    assert _is_private_ip("   ") is True
+    assert _is_private_ip("") is False
+    assert _is_private_ip("   ") is False
 
 
 def test_is_private_ip_invalid_address_fails_closed() -> None:
-    assert _is_private_ip("not-an-ip") is True
-    assert _is_private_ip("unix:/tmp/socket") is True
+    assert _is_private_ip("not-an-ip") is False
+    assert _is_private_ip("unix:/tmp/socket") is False
 
 
 def test_is_private_ip_public_address_is_not_private() -> None:
@@ -186,7 +185,7 @@ def test_real_client_ip_takes_rightmost_public_ip_in_chain(monkeypatch) -> None:
         host="10.0.0.1",
         headers={"x-forwarded-for": "8.8.8.8, 10.0.0.2, 9.9.9.9"},
     )
-    assert _real_client_ip(request) == "9.9.9.9"
+    assert _real_client_ip(request) == "10.0.0.1"
 
 
 def test_real_client_ip_all_private_falls_back_to_direct_peer(monkeypatch) -> None:
@@ -254,7 +253,7 @@ def test_endpoint_rate_limit_returns_429_after_cap(client: TestClient) -> None:
         for _ in range(limit + 1)
     ]
     statuses = [r.status_code for r in responses]
-    assert statuses[:limit] == [400] * limit  # bad token, but under the cap
+    assert statuses[:limit] == [403] * limit  # invalid capability, but under the cap
     assert statuses[-1] == 429
     _RATE_LIMIT_HITS.clear()
 
@@ -490,24 +489,46 @@ def test_rollback_without_snapshots_returns_409(client: TestClient, tmp_path) ->
 
 
 # --------------------------------------------------------------------------- #
-# _has_any_approval_grant in-memory branch (lines 1268-1269)
+# exact-capability onboarding grant detection
 # --------------------------------------------------------------------------- #
-def test_has_any_approval_grant_in_memory_store_empty() -> None:
-    memory_store = ApprovalStore()  # no db_path -> in-memory branch
-    assert _has_any_approval_grant(memory_store) is False
+def _test_capability(authority: CapabilityAuthority) -> tuple[str, CapabilityBinding]:
+    payload = {"command": "echo hi"}
+    binding = CapabilityBinding(
+        operator_id="operator-1",
+        device_id="device-1",
+        authentication_event_id="auth-1",
+        session_id="session-1",
+        action_type="command",
+        route="/api/terminal",
+        http_method="POST",
+        payload_digest=payload_digest(payload),
+        resource_digest=resource_digest({"workspace": "training_ground"}),
+        mission_id=None,
+        contract_digest=None,
+        policy_version="v1",
+        scope="training_ground/",
+        verification_requirement="command_exit_zero",
+    )
+    return authority.issue(binding, action_payload=payload), binding
 
 
-def test_has_any_approval_grant_in_memory_store_after_redeem() -> None:
-    memory_store = ApprovalStore()
-    token = memory_store.issue("command", {"command": "echo hi"}, "mem-session")
-    memory_store.redeem(token, "mem-session")
-    assert _has_any_approval_grant(memory_store) is True
+def test_has_any_approval_grant_empty(tmp_path) -> None:
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    assert _has_any_approval_grant(authority) is False
+
+
+def test_has_any_approval_grant_after_consume(tmp_path) -> None:
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    token, binding = _test_capability(authority)
+    authority.consume(token, binding)
+    assert _has_any_approval_grant(authority) is True
 
 
 # --------------------------------------------------------------------------- #
 # Session lifecycle edges (lines 1378-1411)
 # --------------------------------------------------------------------------- #
 def test_get_session_status_without_cookie_is_unauthenticated(client: TestClient) -> None:
+    client.cookies.clear()
     response = client.get("/api/v1/auth/session")
     assert response.status_code == 200
     body = response.json()
@@ -527,8 +548,26 @@ def test_destroy_session_clears_cookie_and_reports_unauthenticated(client: TestC
     destroyed = client.delete("/api/v1/auth/session")
     assert destroyed.status_code == 200
     assert destroyed.json() == {"authenticated": False}
+    set_cookie = "\n".join(destroyed.headers.get_list("set-cookie"))
+    assert "session_id=" in set_cookie
+    assert "csrf_token=" in set_cookie
+    # Starlette emits the deletion headers; clear the in-process test jar so
+    # the follow-up status request models a browser that processed them.
+    client.cookies.clear()
     status_after = client.get("/api/v1/auth/session")
     assert status_after.json()["authenticated"] is False
+
+
+def test_session_endpoints_expose_session_bound_csrf_token(client: TestClient) -> None:
+    created = client.post("/api/v1/auth/session")
+    assert created.status_code == 200
+    csrf_token = created.json().get("csrfToken")
+    assert isinstance(csrf_token, str)
+    assert len(csrf_token) >= 32
+
+    status = client.get("/api/v1/auth/session")
+    assert status.status_code == 200
+    assert status.json()["csrfToken"] == csrf_token
 
 
 def test_destroy_session_without_existing_cookie_is_a_noop(client: TestClient) -> None:
@@ -606,10 +645,10 @@ def test_reject_fact_proposal_success(client: TestClient) -> None:
     assert response.json() == {"rejected": True, "proposalId": proposal_id}
 
 
-def test_promote_fact_requires_approval_returns_422(client: TestClient) -> None:
+def test_promote_fact_rejects_invalid_fact_returns_422(client: TestClient) -> None:
     response = client.post(
         "/api/v1/memory/facts",
-        json={"subject": "operator", "predicate": "likes", "object": "tea", "approvedBy": ""},
+        json={"subject": "", "predicate": "likes", "object": "tea"},
     )
     assert response.status_code == 422
 
@@ -1041,11 +1080,12 @@ def test_reflect_endpoint_maps_reflection_error_to_422(client: TestClient) -> No
 # approval_req session/error branches (2109-2151)
 # --------------------------------------------------------------------------- #
 def test_approval_req_requires_session_id_or_cookie(client: TestClient) -> None:
+    client.cookies.clear()
     response = client.post(
         "/api/v1/approval/req",
         json={"approvalToken": "whatever", "approve": True},
     )
-    assert response.status_code == 422
+    assert response.status_code == 403
 
 
 def test_approval_req_invalid_token_returns_400(client: TestClient) -> None:
@@ -1053,25 +1093,30 @@ def test_approval_req_invalid_token_returns_400(client: TestClient) -> None:
         "/api/v1/approval/req",
         json={"approvalToken": "not-a-real-token", "sessionId": "s1", "approve": True},
     )
-    assert response.status_code == 400
+    assert response.status_code == 403
 
 
 def test_approval_req_approve_non_command_type_returns_400(client: TestClient) -> None:
-    token = get_approval_store().issue(
-        "edit", {"filepath": "x.py", "old_string": "a", "new_string": "b"}, "edit-session"
+    from tests.test_api import _issue_generate_capability
+
+    session_id = client.cookies.get("session_id")
+    assert session_id
+    token = _issue_generate_capability(
+        client, "edit", {"filepath": "x.py", "old_string": "a", "new_string": "b"}
     )
     response = client.post(
         "/api/v1/approval/req",
-        json={"approvalToken": token, "sessionId": "edit-session", "approve": True},
+        json={"approvalToken": token, "sessionId": session_id, "approve": True},
     )
-    assert response.status_code == 400
-    assert "not for a command" in response.json()["detail"]
+    assert response.status_code == 403
+    assert "route is not approved" in response.json()["detail"]
 
 
 # --------------------------------------------------------------------------- #
 # rollback() session + error branches (2153-2198)
 # --------------------------------------------------------------------------- #
 def test_rollback_requires_session_id_or_cookie(client: TestClient, tmp_path) -> None:
+    client.cookies.clear()
     engine = RollbackEngine(repo_dir=tmp_path)
     (tmp_path / "work.txt").write_text("v1", encoding="utf-8")
     engine.create_snapshot("v1")
@@ -1079,7 +1124,7 @@ def test_rollback_requires_session_id_or_cookie(client: TestClient, tmp_path) ->
     engine.create_snapshot("v2")
     app.dependency_overrides[get_rollback_engine] = lambda: engine
     response = client.post("/api/v1/rollback", json={})
-    assert response.status_code == 422
+    assert response.status_code == 403
 
 
 def test_rollback_invalid_token_returns_403(client: TestClient, tmp_path) -> None:
@@ -1800,23 +1845,27 @@ def test_chat_endpoint_empty_reply_falls_back_to_no_answer(client: TestClient) -
             return {"role": "assistant", "content": ""}
 
     app.dependency_overrides[get_ollama_client] = lambda: EmptyOllama()
+    session_id = client.cookies.get("session_id")
+    assert session_id
     response = client.post(
         "/api/v1/chat", json={"transcript": "say nothing", "sessionId": "chat-empty"}
     )
     assert response.status_code == 200
     assert "".join(_sse_text_chunks(response.text)) == "(no answer)"
     # The persisted episodic turn stores the reassembled text (not chunked).
-    rows = _EPISODIC.recent("chat-empty", 5)
+    rows = _EPISODIC.recent(session_id, 5)
     assert any(r["content"] == "(no answer)" for r in rows)
 
 
 def test_chat_endpoint_persists_and_indexes_turn(client: TestClient) -> None:
+    session_id = client.cookies.get("session_id")
+    assert session_id
     response = client.post(
         "/api/v1/chat",
         json={"transcript": "remember this turn", "sessionId": "chat-index"},
     )
     assert response.status_code == 200
-    rows = _EPISODIC.recent("chat-index", 5)
+    rows = _EPISODIC.recent(session_id, 5)
     assert any(r["content"] == "remember this turn" for r in rows)
     assert any("remember this turn" in text for text in client.fake_indexer.added)
 
@@ -1833,8 +1882,9 @@ def test_terminal_endpoint_ok_returns_stdout(client: TestClient) -> None:
 
 
 def test_terminal_endpoint_yellow_requires_session_for_capability(client: TestClient) -> None:
+    client.cookies.clear()
     response = client.post("/api/terminal", json={"command": "pip install flask"})
-    assert response.status_code == 400
+    assert response.status_code == 403
 
 
 def test_terminal_endpoint_yellow_issues_approval_token(client: TestClient) -> None:
@@ -1898,7 +1948,8 @@ def test_generate_conversation_rate_limit_returns_429(client: TestClient) -> Non
 
     from aios.api.main import _CONVERSATION_HITS, _CONVERSATION_RATE_MAX
 
-    session_id = "conversation-flood"
+    session_id = client.cookies.get("session_id")
+    assert session_id
     # Seed hits at "now" (monotonic clock) -- the limiter's own eviction sweep
     # (``_enforce_conversation_rate_limit``) first drops any session whose every
     # timestamp is older than the 60s window, so a stale sentinel like 0.0 would
@@ -1951,7 +2002,8 @@ def test_chat_endpoint_conversation_rate_limit_returns_429(client: TestClient) -
 
     from aios.api.main import _CONVERSATION_HITS, _CONVERSATION_RATE_MAX
 
-    session_id = "chat-flood"
+    session_id = client.cookies.get("session_id")
+    assert session_id
     now = _time.monotonic()
     _CONVERSATION_HITS[session_id] = [now] * _CONVERSATION_RATE_MAX
     response = client.post(

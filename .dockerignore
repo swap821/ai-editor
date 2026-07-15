@@ -1,6 +1,9 @@
 .git
 .claude
 .aios
+.swarm
+.vscode
+GAG demo
 .env
 .venv
 .coverage

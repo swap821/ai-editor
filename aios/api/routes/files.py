@@ -8,10 +8,11 @@ from pydantic import BaseModel, Field
 from aios import config
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
 from aios.security.scope_lock import is_path_in_scope
+from aios.api.action_guard import enforce_action_boundary
 
 _enforcer = ConstitutionEnforcer()
 
-router = APIRouter(tags=["Files"])
+router = APIRouter(tags=["Files"], dependencies=[Depends(enforce_action_boundary)])
 
 class ReadFileRequest(BaseModel):
     path: str = Field(..., description="Absolute path to the file to read")

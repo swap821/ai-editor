@@ -19,7 +19,9 @@ def _project(tmp_path: Path) -> Path:
     return project
 
 
-def test_worker_changes_stay_out_of_real_project_and_diff_is_reproducible(tmp_path: Path) -> None:
+def test_worker_changes_stay_out_of_real_project_and_diff_is_reproducible(
+    tmp_path: Path,
+) -> None:
     project = _project(tmp_path)
     manager = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
     lease = manager.stage("mission-1", project)
@@ -68,3 +70,44 @@ def test_unenrolled_and_symlinked_projects_are_rejected(tmp_path: Path) -> None:
         pytest.skip("symlinks unavailable on this platform")
     with pytest.raises(WorkspacePathViolation):
         manager.stage("mission-2", project)
+
+
+def test_enrollment_allows_a_descendant_without_widening_root(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    manager = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
+
+    lease = manager.stage("mission-nested", project / "src")
+
+    assert Path(lease.project_root) == (project / "src").resolve()
+    assert Path(lease.workspace_path).is_dir()
+
+
+def test_failed_copy_releases_the_mission_lease(tmp_path: Path, monkeypatch) -> None:
+    project = _project(tmp_path)
+    manager = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
+    original_copy = manager._copy_tree
+
+    def fail_once(source: Path, destination: Path) -> None:
+        monkeypatch.setattr(manager, "_copy_tree", original_copy)
+        raise OSError("copy failed")
+
+    monkeypatch.setattr(manager, "_copy_tree", fail_once)
+    with pytest.raises(OSError, match="copy failed"):
+        manager.stage("mission-retry", project)
+
+    lease = manager.stage("mission-retry", project)
+    assert lease.mission_id == "mission-retry"
+
+
+def test_cleanup_for_mission_removes_workspace_and_lease_marker(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    manager = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
+    lease = manager.stage("mission-cleanup", project)
+    workspace = Path(lease.workspace_path)
+
+    manager.cleanup_for_mission("mission-cleanup")
+
+    assert not workspace.exists()
+    assert manager.for_mission("mission-cleanup") is None
+    replacement = manager.stage("mission-cleanup", project)
+    assert replacement.mission_id == "mission-cleanup"

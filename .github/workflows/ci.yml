@@ -149,26 +149,65 @@ jobs:
         run: |
           ruff check \
             aios/operations aios/application/governance \
+            aios/application/executor aios/infrastructure/executor \
             aios/executor_service.py aios/launcher.py \
             scripts/security_scan.py scripts/generate_sbom.py \
             tests/test_release_conformance.py tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
             tests/test_operations.py \
-            tests/test_executor_service.py
+            tests/test_executor_service.py tests/test_executor_client.py \
+            tests/test_executor_integration.py tests/test_runtime_worker_container.py
           ruff format --check \
             scripts/security_scan.py scripts/generate_sbom.py \
             tests/test_release_conformance.py tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
             tests/test_operations.py tests/test_executor_service.py \
+            tests/test_executor_client.py tests/test_executor_integration.py \
+            tests/test_runtime_worker_container.py \
             aios/executor_service.py aios/launcher.py \
-            aios/application/governance
+            aios/application/governance aios/application/executor \
+            aios/infrastructure/executor
 
       - name: Validate production Compose topology
         env:
           AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
           AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
           AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
         run: docker compose config --quiet
+
+      - name: Start private Executor Service topology
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+          AIOS_PROFILE: production
+        run: |
+          touch .env
+          export AIOS_DOCKER_SOCKET_GID="$(stat -c '%g' /var/run/docker.sock)"
+          export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          docker compose up -d --build aios executor
+
+      - name: Prove private Executor Service isolation
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+          AIOS_PROFILE: production
+        run: |
+          export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          docker compose exec -T -e AIOS_EXECUTOR_INTEGRATION=1 aios \
+            python -m pytest -q -o addopts= tests/test_executor_integration.py
+
+      - name: Tear down private Executor Service topology
+        if: ${{ always() }}
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+        run: docker compose down -v --remove-orphans
 
       - name: Generate source manifest SBOM
         run: python scripts/generate_sbom.py --output sbom.cdx.json

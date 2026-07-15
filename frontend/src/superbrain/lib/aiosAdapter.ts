@@ -435,6 +435,7 @@ export async function rejectPendingApproval(): Promise<void> {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         approvalToken: pending.token,
+        ...(pending.command ? { command: pending.command } : {}),
         ...sessionFields,
         approve: false,
       }),

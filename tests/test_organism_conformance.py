@@ -36,13 +36,18 @@ from aios.api.main import (
     get_ollama_client,
     get_semantic_facts,
     get_semantic_indexer,
-    get_approval_store,
     get_skill_memory,
 )
 from aios.memory.db import init_memory_db
 from aios.memory.facts import SemanticFacts
 from aios.memory.skills import SkillMemory
-from tests.test_api import FakeIndexer, FakeLLM, FakeOllama, _fake_executor
+from tests.test_api import (
+    FakeIndexer,
+    FakeLLM,
+    FakeOllama,
+    _fake_executor,
+    _issue_generate_capability,
+)
 
 PHASES = {"chemotaxis", "reflex", "emotion", "narrative", "wonder"}
 
@@ -88,7 +93,6 @@ def client(facts_db: SemanticFacts) -> Iterator[TestClient]:
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_semantic_facts] = lambda: facts_db
-    get_approval_store().clear()
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -192,7 +196,6 @@ def test_bus_carries_only_observations_on_a_real_turn(
     app.dependency_overrides[get_executor] = _fake_executor
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_semantic_facts] = lambda: facts_db
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             # The lifespan must have wired the observer — not a test harness.
@@ -352,22 +355,19 @@ def test_skill_promotion_is_synchronous_and_never_rides_the_bus(
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_semantic_facts] = lambda: facts_db
     app.dependency_overrides[get_skill_memory] = lambda: skills
-    get_approval_store().clear()
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
-            token = get_approval_store().issue(
-                "command", {"command": "pytest -q"}, "w3-promotion"
-            )
+            session_id = str(client.cookies.get("session_id"))
+            assert session_id and session_id != "None"
+            token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
             user_text = "verify the project"
             # SAME user text + SAME token id/session each turn -> the SAME
             # goal/steps trail (signature_v2) reinforces across all 3 attempts.
             for _ in range(3):
-                frames = _turn_with_session(client, user_text, "w3-promotion", [token])
+                frames = _turn_with_session(client, user_text, session_id, [token])
                 assert [e for e, _ in frames][-1] == "done"
                 # Re-issue a fresh token for the next turn (tokens are single-use).
-                token = get_approval_store().issue(
-                    "command", {"command": "pytest -q"}, "w3-promotion"
-                )
+                token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
 
             # --- Assert A: the authority outcome landed SYNCHRONOUSLY -------
             with sql.connect(tmp_path / "w3_skills.db") as conn:

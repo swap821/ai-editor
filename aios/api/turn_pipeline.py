@@ -12,6 +12,7 @@ client-provider factories in ``aios/api/deps.py`` (``get_gemini_client``,
 ``aios/core/`` would make core/ depend on api/, a new layering inversion of
 exactly the kind this extraction is meant to fix, not a smaller one.
 """
+
 from __future__ import annotations
 
 import re
@@ -21,16 +22,26 @@ from typing import Any, Optional
 
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
-from aios.api.deps import get_bedrock_client, get_gemini_client, get_ollama_client
+from aios.api.deps import (
+    get_bedrock_client,
+    get_gemini_client,
+    get_memory_authority,
+    get_ollama_client,
+)
 from aios.core.websearch import web_search
 from aios.logging_config import get_logger
 from aios.memory.consolidation import MemoryConsolidator
-from aios.memory.crag import CragAction, evaluate_retrieval, external_retrieve, refine_context
+from aios.memory.crag import (
+    CragAction,
+    evaluate_retrieval,
+    external_retrieve,
+    refine_context,
+)
 from aios.memory.development import DevelopmentTracker
-from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
 from aios.memory.retrieval import hybrid_search
+from aios.domain.memory import MemoryRecallContext
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -38,13 +49,26 @@ from aios.security.secret_scanner import scan_and_redact
 
 logger = get_logger(__name__)
 
-#: Stateless DB wrapper (fresh connection per call) -- a separate instance
-#: from main.py's own ``_EPISODIC`` is fine, both point at the same
-#: ``config.MEMORY_DB_PATH``.
-_EPISODIC = EpisodicMemory()
+
+def _authority_owns(authority: Any | None, name: str, candidate: Any) -> bool:
+    """Use authority reads only for the authority's canonical store."""
+    owns_store = getattr(authority, "owns_store", None)
+    if not callable(owns_store):
+        # Lightweight authority fakes predate the ownership API; retain their
+        # explicit authority behavior while real authorities fail closed below.
+        return authority is not None
+    try:
+        return bool(owns_store(name, candidate))
+    except Exception:  # noqa: BLE001 - advisory recall must remain available
+        return False
 
 
-def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Optional[str]:
+def _operator_facts_block(
+    facts: SemanticFacts,
+    subject: str = "operator",
+    *,
+    authority: Any | None = None,
+) -> Optional[str]:
     """Build a REAL-facts-only personalization block, or ``None`` when dormant.
 
     Reads human-approved active facts for *subject* (newest-first) and renders
@@ -53,7 +77,11 @@ def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Op
     Best-effort: any store error degrades to ``None`` rather than breaking chat.
     """
     try:
-        rows = facts.facts_for(subject)
+        rows = (
+            authority.facts_for(subject)
+            if _authority_owns(authority, "facts", facts)
+            else facts.facts_for(subject)
+        )
     except Exception as exc:  # noqa: BLE001 - personalization is an enhancement, never fatal
         logger.warning("Failed to load operator facts block", exc_info=exc)
         return None
@@ -69,7 +97,10 @@ def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Op
 
 
 def _recall_self_model(
-    development: DevelopmentTracker, mistakes: MistakeMemory
+    development: DevelopmentTracker,
+    mistakes: MistakeMemory,
+    *,
+    authority: Any | None = None,
 ) -> Optional[str]:
     """Synthesize the grounded, verified-only autobiographical self-model paragraph.
 
@@ -78,7 +109,12 @@ def _recall_self_model(
     a failure degrades to ``None`` and never blocks the turn.
     """
     try:
-        text = render_self_model(synthesize_self_model(development, mistakes))
+        text = (
+            authority.self_model()
+            if _authority_owns(authority, "development", development)
+            and _authority_owns(authority, "lessons", mistakes)
+            else render_self_model(synthesize_self_model(development, mistakes))
+        )
     except Exception as exc:  # noqa: BLE001 - the self-model is advisory recall
         logger.warning("Failed to synthesize self-model", exc_info=exc)
         return None
@@ -93,7 +129,12 @@ class FactRecallResult:
     inferences: list[dict] = field(default_factory=list)
 
 
-def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[FactRecallResult]:
+def _recall_facts(
+    facts: SemanticFacts,
+    user_text: str,
+    *,
+    authority: Any | None = None,
+) -> Optional[FactRecallResult]:
     """Recall relevant semantic facts (+ single-hop neighbors) for the forge.
 
     Returns a ``FactRecallResult`` with both the prompt-ready text AND the raw
@@ -103,8 +144,13 @@ def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[FactRecallRe
     user_text = (user_text or "").strip()
     if not user_text:
         return None
+    authority_bound = _authority_owns(authority, "facts", facts)
     try:
-        matched = facts.search(user_text)
+        matched = (
+            authority.facts_search(user_text)
+            if authority_bound
+            else facts.search(user_text)
+        )
     except Exception as exc:  # noqa: BLE001 - recall is advisory
         logger.warning("Failed to search semantic facts", exc_info=exc)
         return None
@@ -122,16 +168,21 @@ def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[FactRecallRe
         expanded.add((str(row["subject"]), str(row["predicate"]), str(row["object"])))
     for node in nodes:
         try:
-            for row in facts.neighbors(node):
-                expanded.add((str(row["subject"]), str(row["predicate"]), str(row["object"])))
+            neighbor_rows = (
+                authority.facts_neighbors(node)
+                if authority_bound
+                else facts.neighbors(node)
+            )
+            for row in neighbor_rows:
+                expanded.add(
+                    (str(row["subject"]), str(row["predicate"]), str(row["object"]))
+                )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to load neighbors for %s", node, exc_info=exc)
 
     if not expanded:
         return None
-    triples = "\n".join(
-        f"- {s} {p} {o}" for s, p, o in sorted(expanded)
-    )
+    triples = "\n".join(f"- {s} {p} {o}" for s, p, o in sorted(expanded))
 
     # S2: if any matched entity has deeper associations, include the
     # highest-confidence inference chain as structured context.
@@ -139,7 +190,11 @@ def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[FactRecallRe
     inference_events: list[dict] = []
     for node in list(nodes)[:5]:
         try:
-            edges = facts.traverse_weighted(node, max_depth=3, min_path_confidence=0.3)
+            edges = (
+                authority.facts_traverse_weighted(node)
+                if authority_bound
+                else facts.traverse_weighted(node, max_depth=3, min_path_confidence=0.3)
+            )
             if edges:
                 from aios.core.inference import infer
 
@@ -149,19 +204,25 @@ def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[FactRecallRe
                         f"  Inference ({result.combined_confidence:.0%} confidence): "
                         f"{result.answer}"
                     )
-                    inference_events.append({
-                        "query": result.query,
-                        "chain": [
-                            {"subject": s.subject, "predicate": s.predicate,
-                             "object": s.object, "depth": s.depth,
-                             "confidence": s.confidence}
-                            for s in result.chain
-                        ],
-                        "combined_confidence": result.combined_confidence,
-                        "answer": result.answer,
-                        "reached_horizon": result.reached_horizon,
-                        "entity": node,
-                    })
+                    inference_events.append(
+                        {
+                            "query": result.query,
+                            "chain": [
+                                {
+                                    "subject": s.subject,
+                                    "predicate": s.predicate,
+                                    "object": s.object,
+                                    "depth": s.depth,
+                                    "confidence": s.confidence,
+                                }
+                                for s in result.chain
+                            ],
+                            "combined_confidence": result.combined_confidence,
+                            "answer": result.answer,
+                            "reached_horizon": result.reached_horizon,
+                            "entity": node,
+                        }
+                    )
         except Exception:
             logger.warning("traverse_weighted failed for %s", node, exc_info=True)
 
@@ -296,14 +357,24 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     *trust*). CRAG fails soft to the unrefined block on any error.
     """
     try:
-        hits = hybrid_search(query, top_k=top_k)
+        hits = get_memory_authority().recall(
+            query,
+            MemoryRecallContext(
+                memory_types=("semantic",),
+                limit=top_k,
+                include_unverified=True,
+            ),
+            retrieval_fn=hybrid_search,
+        )
     except Exception as exc:  # noqa: BLE001 - recall is an enhancement, never fatal
         logger.warning("Memory recall failed; continuing without context", exc_info=exc)
         return None
     if not hits:
         return None
     trusted = [
-        hit for hit in hits if getattr(hit, "verification_status", "unverified") == "verified"
+        hit
+        for hit in hits
+        if getattr(hit, "verification_status", "unverified") == "verified"
     ]
     unverified = [hit for hit in hits if hit not in trusted]
 
@@ -335,9 +406,13 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
                 # any; otherwise no memory context (the anti-hallucination win).
                 return (_MEM_EXTERNAL_HEADER + external_body) if external_body else None
 
-            trusted_body = refine_context(query, [h.text for h in trusted]) if trusted else ""
+            trusted_body = (
+                refine_context(query, [h.text for h in trusted]) if trusted else ""
+            )
             unverified_body = (
-                refine_context(query, [h.text for h in unverified]) if unverified else ""
+                refine_context(query, [h.text for h in unverified])
+                if unverified
+                else ""
             )
             crag_blocks: list[str] = []
             if trusted_body:
@@ -355,7 +430,9 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
 
     blocks: list[str] = []
     if trusted:
-        blocks.append(_MEM_TRUSTED_HEADER + "\n".join(f"- {hit.text}" for hit in trusted))
+        blocks.append(
+            _MEM_TRUSTED_HEADER + "\n".join(f"- {hit.text}" for hit in trusted)
+        )
     if unverified:
         blocks.append(
             _MEM_UNVERIFIED_HEADER + "\n".join(f"- {hit.text}" for hit in unverified)
@@ -368,19 +445,35 @@ def _record_episode(session_id: str, role: str, content: str) -> None:
     if not content or not content.strip():
         return
     try:
-        _EPISODIC.record(session_id, role, scan_and_redact(content).scrubbed)
+        get_memory_authority().record_episodic(
+            session_id, role, scan_and_redact(content).scrubbed
+        )
     except Exception as exc:  # noqa: BLE001 - persistence must not break the chat
         logger.warning("Failed to record episodic memory", exc_info=exc)
 
 
 def _recall_lessons(
-    reflector: Optional[ReflectionAgent], session_id: str, query: str, limit: int = 5
+    reflector: Optional[ReflectionAgent],
+    session_id: str,
+    query: str,
+    limit: int = 5,
+    *,
+    authority: Any | None = None,
 ) -> list[dict[str, Any]]:
     """Best-effort recall of pending same-task and verified cross-task lessons.
 
     Carries lessons learned in earlier turns into the current one so the agent
     reasons with them. Recalled pending lessons remain advisory. Never fatal.
     """
+    if (
+        isinstance(reflector, ReflectionAgent)
+        and _authority_owns(authority, "lessons", reflector.mistakes)
+    ):
+        try:
+            return authority.recall_lessons(query, session_id, limit)
+        except Exception as exc:  # noqa: BLE001 - lesson recall is advisory
+            logger.warning("Failed to recall lessons through authority", exc_info=exc)
+            return []
     if reflector is None:
         return []
     try:
@@ -410,10 +503,20 @@ def _recall_pending_commands(
         return []
 
 
-def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict[str, Any]]:
+def _recall_skills(
+    skills: SkillMemory,
+    query: str,
+    limit: int = 3,
+    *,
+    authority: Any | None = None,
+) -> list[dict[str, Any]]:
     """Best-effort recall of reusable workflows backed by repeated verification."""
     try:
-        return skills.relevant_verified(query, limit)
+        return (
+            authority.recall_skills(query, limit)
+            if _authority_owns(authority, "skills", skills)
+            else skills.relevant_verified(query, limit)
+        )
     except Exception as exc:  # noqa: BLE001 - skill recall is an enhancement, never fatal
         logger.warning("Failed to recall verified skills", exc_info=exc)
         return []
@@ -471,7 +574,11 @@ def _workflow_step(event: dict[str, Any]) -> str:
 
 
 def _index_turn(
-    indexer: Optional[SemanticMemory], user_text: str, answer: str
+    indexer: Optional[SemanticMemory],
+    user_text: str,
+    answer: str,
+    *,
+    authority: Any | None = None,
 ) -> None:
     """Embed a completed Q->A turn into L3 semantic memory so future recall finds it.
 
@@ -485,15 +592,22 @@ def _index_turn(
     try:
         payload = f"UNVERIFIED_CHAT\nUser: {user_text}\nAssistant: {answer}"
         clean = scan_and_redact(payload).scrubbed
-        try:
-            indexer.add(clean, memory_type="chat", verification_status="unverified")
-        except TypeError:
-            indexer.add(clean)
+        if authority is not None:
+            authority.record_semantic_chat(clean, indexer=indexer)
+        else:
+            try:
+                indexer.add(clean, memory_type="chat", verification_status="unverified")
+            except TypeError:
+                indexer.add(clean)
     except Exception as exc:  # noqa: BLE001 - indexing must not break the chat
-        logger.warning("Failed to index completed turn into semantic memory", exc_info=exc)
+        logger.warning(
+            "Failed to index completed turn into semantic memory", exc_info=exc
+        )
 
 
-def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str) -> Optional[Any]:
+def _make_failure_hook(
+    reflector: Optional[ReflectionAgent], session_id: str
+) -> Optional[Any]:
     """Build the agent's on-failure hook from a reflection agent (or ``None``).
 
     The hook records a structured lesson in the Mistake pool and returns a small
@@ -524,6 +638,8 @@ def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str) ->
 def _make_confirm_hook(
     reflector: Optional[ReflectionAgent],
     consolidator: Optional[MemoryConsolidator] = None,
+    *,
+    authority: Any | None = None,
 ):
     """Build the agent's lesson-confirmation hook (promotes pending->verified).
 
@@ -537,7 +653,12 @@ def _make_confirm_hook(
         try:
             reflector.confirm_lesson(mistake_id)
             if consolidator is not None:
-                consolidator.consolidate_lesson(mistake_id)
+                if authority is not None and isinstance(
+                    consolidator, MemoryConsolidator
+                ):
+                    authority.consolidate_lesson(mistake_id)
+                else:
+                    consolidator.consolidate_lesson(mistake_id)
         except Exception as exc:  # noqa: BLE001 - confirmation must never break the chat
             logger.warning("Failed to confirm/consolidate lesson", exc_info=exc)
 
@@ -551,6 +672,7 @@ def _calibrate_default_confidence(
     reflector: Optional[ReflectionAgent],
     development: DevelopmentTracker,
     skills: SkillMemory,
+    authority: Any | None = None,
 ) -> tuple[float, dict[str, Any]]:
     """Apply planner-style verified-memory calibration to the default chat gate."""
     started = time.perf_counter()
@@ -566,21 +688,36 @@ def _calibrate_default_confidence(
     verified_skills: list[dict[str, Any]] = []
     if reflector is not None:
         try:
-            lessons = reflector.mistakes.relevant_verified(query, limit=5)
+            lessons = (
+                authority.recall_verified_lessons(query, 5)
+                if _authority_owns(authority, "lessons", reflector.mistakes)
+                else reflector.mistakes.relevant_verified(query, limit=5)
+            )
         except Exception:  # noqa: BLE001 - default chat remains available if memory is down
             pass
     try:
-        outcome = development.relevant_success_rate(query)
+        outcome = (
+            authority.development_success_rate(query)
+            if _authority_owns(authority, "development", development)
+            else development.relevant_success_rate(query)
+        )
     except Exception:  # noqa: BLE001 - default chat remains available if metrics are down
         pass
     try:
-        verified_skills = skills.relevant_verified(query, limit=3)
+        verified_skills = (
+            authority.recall_skills(query, 3)
+            if _authority_owns(authority, "skills", skills)
+            else skills.relevant_verified(query, limit=3)
+        )
     except Exception:  # noqa: BLE001 - default chat remains available if memory is down
         pass
 
     lesson_adjustment = max(
         -0.4,
-        sum(float(item["confidence_delta"]) * float(item["relevance"]) for item in lessons),
+        sum(
+            float(item["confidence_delta"]) * float(item["relevance"])
+            for item in lessons
+        ),
     )
     history_adjustment = 0.0
     if outcome is not None:
@@ -600,10 +737,7 @@ def _calibrate_default_confidence(
             0.0,
             min(
                 1.0,
-                confidence
-                + lesson_adjustment
-                + history_adjustment
-                + skill_adjustment,
+                confidence + lesson_adjustment + history_adjustment + skill_adjustment,
             ),
         ),
         6,

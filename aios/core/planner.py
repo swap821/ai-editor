@@ -12,6 +12,7 @@ The planner never executes anything; it only proposes. Like the reflection
 agent, it depends on the :class:`~aios.core.llm.LLMClient` protocol, so tests
 inject a deterministic fake and need neither Ollama nor a model.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,16 @@ from aios.core.llm import LLMClient
 from aios.memory.development import DevelopmentTracker
 from aios.memory.mistake import MistakeMemory
 from aios.memory.skills import SkillMemory
+
+
+def _authority_store(authority: Any | None, name: str) -> Any | None:
+    """Return a registered specialist store without constructing a shadow store."""
+    if authority is None:
+        return None
+    adapters = getattr(authority, "adapters", {})
+    adapter = adapters.get(name) if hasattr(adapters, "get") else None
+    return getattr(adapter, "store", None)
+
 
 PLAN_SYSTEM_PROMPT = """You are the planning module of a supervised AI operating system.
 Decompose the user's goal into 3 to 6 concrete, ordered sub-tasks. For each sub-task,
@@ -189,12 +200,24 @@ class Planner:
         development: Optional[DevelopmentTracker] = None,
         skills: Optional[SkillMemory] = None,
         native: Optional["NativePlanner"] = None,
+        memory_authority: Optional[Any] = None,
     ) -> None:
         self.llm = llm
         self.threshold = threshold
-        self.mistakes = mistakes or MistakeMemory()
-        self.development = development or DevelopmentTracker()
-        self.skills = skills or SkillMemory()
+        self.memory_authority = memory_authority
+        # Production callers pass the authority without specialist stores. Reuse
+        # its registered stores so calibration cannot open parallel databases;
+        # direct construction remains an explicit compatibility path for tests
+        # and standalone callers without an authority.
+        self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
+        self.development = development or _authority_store(
+            memory_authority, "development"
+        )
+        self.skills = skills or _authority_store(memory_authority, "skills")
+        if memory_authority is None:
+            self.mistakes = self.mistakes or MistakeMemory()
+            self.development = self.development or DevelopmentTracker()
+            self.skills = self.skills or SkillMemory()
         self._native = native
         self._last_native_source: Optional[Any] = None
 
@@ -205,21 +228,39 @@ class Planner:
         outcome = None
         verified_skills: list[dict[str, Any]] = []
         try:
-            lessons = self.mistakes.relevant_verified(query, limit=5)
+            lessons = (
+                self.memory_authority.recall_verified_lessons(query, 5)
+                if self.memory_authority is not None
+                and self.memory_authority.owns_store("lessons", self.mistakes)
+                else self.mistakes.relevant_verified(query, limit=5)
+            )
         except Exception:  # noqa: BLE001 - planning remains available if memory is down
             pass
         try:
-            outcome = self.development.relevant_success_rate(query)
+            outcome = (
+                self.memory_authority.development_success_rate(query)
+                if self.memory_authority is not None
+                and self.memory_authority.owns_store("development", self.development)
+                else self.development.relevant_success_rate(query)
+            )
         except Exception:  # noqa: BLE001 - planning remains available if metrics are down
             pass
         try:
-            verified_skills = self.skills.relevant_verified(query, limit=3)
+            verified_skills = (
+                self.memory_authority.recall_skills(query, 3)
+                if self.memory_authority is not None
+                and self.memory_authority.owns_store("skills", self.skills)
+                else self.skills.relevant_verified(query, limit=3)
+            )
         except Exception:  # noqa: BLE001 - planning remains available if memory is down
             pass
 
         lesson_adjustment = max(
             -0.4,
-            sum(float(item["confidence_delta"]) * float(item["relevance"]) for item in lessons),
+            sum(
+                float(item["confidence_delta"]) * float(item["relevance"])
+                for item in lessons
+            ),
         )
         history_adjustment = 0.0
         if outcome is not None:
