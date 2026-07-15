@@ -231,21 +231,21 @@ The frozen security spine is untouched.
 
 ## Active CI Repair Checkpoint — 2026-07-15
 
-`39b34e645ba4a2094595463c5b7a49a500091c48` is pushed to `origin/master`.
-Its matrix, frontend, and aggregate gates passed in run `29435327884`, but the
-repaired release-authority one-shot probe exposed a bind-mount permissions
-failure: UID `65534` could not create `/app/data/executor-workspaces`. The
-focused local release/integration gate remains `14 passed, 3 skipped` and
-Compose config passes. The current workflow runs only the lightweight executor
-resident, prepares the ephemeral shared workspace with explicit permissions,
-and executes the control-plane proof as a one-shot Compose container.
+`65d403b2707135f1f7d9dd30145591646ca7ca0c` is pushed to `origin/master`.
+CI run `29436664457` is green across Ubuntu/macOS/Windows backend, frontend,
+both aggregate gates, and release-authority; CodeQL run `29436664480` is also
+green. The release-authority proof now waits for the lightweight private
+executor, prepares the UID `65534` shared workspace, runs the control-plane
+integration suite in a one-shot container, and completes teardown cleanly.
 
-**Single next action:** commit and push the bind-mount permission repair, then
-verify the fresh GitHub Actions run is green, including `release-authority`.
+**Single next action:** continue the next ordered R11 repair wave from the
+current MemoryAuthority compatibility-seam inventory, keeping the verified CI
+baseline pinned to `65d403b2707135f1f7d9dd30145591646ca7ca0c`.
 
-**Open blockers:** no source blocker; final remote CI evidence is pending.
-The local Docker daemon did not complete this ML-heavy image startup within
-the bounded reproduction window, so it is not release evidence.
+**Open blockers:** R11 remains partial and the full packaged production
+authority matrix remains open; no CI blocker remains. The local Docker daemon
+did not complete the ML-heavy image startup within the bounded reproduction
+window, so only the GitHub release-authority run is runtime evidence.
 
 **Verification Evidence:** Exact-capability core `15 passed`; exact approval
 resume matrix `20 passed`; API generate/terminal/execute gate passed; API gap

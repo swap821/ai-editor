@@ -91,18 +91,18 @@ two-layer distinction as `source_present` and `runtime_proven`.
 
 ## Latest CI Repair Checkpoint — 2026-07-15
 
-Commit `39b34e645ba4a2094595463c5b7a49a500091c48` is synchronized with
+Commit `65d403b2707135f1f7d9dd30145591646ca7ca0c` is synchronized with
 `origin/master`. Its cross-platform path/timeout repair passed CodeQL,
 dependency audit, frontend, and all Ubuntu/macOS/Windows backend jobs in run
-`29435327884`; the repaired release-authority Docker proof then reached pytest
-but failed because UID `65534` could not write the bind-mounted
-`/app/data/executor-workspaces`. The next repair prepares that ephemeral shared
-workspace with explicit permissions before startup. The workflow keeps only
-the lightweight private executor resident, runs the control-plane integration
-test in a one-shot Compose container, waits for executor health, prints
-diagnostics, and supplies the required workspace-root variable to teardown.
-Focused local release/integration tests pass `14 passed, 3 skipped`; the
-packaged isolation gate remains **PARTIAL** until the next remote run is green.
+`29435327884`; its follow-on permission repair passed all backend matrix,
+frontend, aggregate, and release-authority jobs in run `29436664457`, while
+CodeQL run `29436664480` also passed. The workflow keeps only the lightweight
+private executor resident, prepares the UID `65534` shared workspace, runs the
+control-plane integration test in a one-shot Compose container, waits for
+executor health, prints diagnostics, and supplies the required workspace-root
+variable to teardown. Focused local release/integration tests pass `14 passed,
+3 skipped`; the packaged isolation gate is now runtime-proven at its declared
+CI boundary, while overall R11 and v1 readiness remain **PARTIAL**.
 
 ## New Directive Roadmap (post-save)
 
