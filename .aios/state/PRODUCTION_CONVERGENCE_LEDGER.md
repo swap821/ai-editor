@@ -91,9 +91,10 @@ two-layer distinction as `source_present` and `runtime_proven`.
 
 ## Latest CI Repair Checkpoint — 2026-07-16
 
-Commit `71bd9d6f98a27ca6ae972523e03ffce87c306fae` is synchronized with
-`origin/master`. Its local focused/full backend and frontend gates pass; exact-
-tip GitHub CI and CodeQL are pending. The previous checkpoint already proved
+Commit `e4a918adc39909cc395ef35b66946b324592afd0` is synchronized with
+`origin/master`. Exact-tip CI run `29485413218` and CodeQL run `29485413276`
+are green across the backend matrix, frontend, aggregate, release-authority,
+and CodeQL jobs. The previous checkpoint already proved
 the lightweight private executor release boundary with the UID `65534` shared
 workspace and one-shot control-plane integration container. Overall R11 and v1
 readiness remain **PARTIAL**.
@@ -180,9 +181,8 @@ semantic recall, episodic persistence, and `/api/v1/chat` coordinator wiring
 use the injected MemoryAuthority rather than silently consulting the process
 global. The latest authoritative backend gate is `3,161` collected,
 `3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
-tests/build are green. Checkpoint `71bd9d6` is pushed and awaits exact-tip
-CI/CodeQL confirmation; the previous checkpoint passed CodeQL, the dependency
-audit,
+tests/build are green. Checkpoint `e4a918a` is exact-tip CI/CodeQL green; the
+previous checkpoint passed CodeQL, the dependency audit,
 frontend, and Windows backend jobs, while Ubuntu/macOS exposed the existing
 explicit Windows daemon-path test after the POSIX host-platform gate was
 tightened. The runner resolves POSIX paths at the mount boundary, preserves

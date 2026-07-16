@@ -134,9 +134,10 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Verify the GitHub CI matrix and CodeQL for pushed tip
-`71bd9d6f98a27ca6ae972523e03ffce87c306fae`, then continue the next ordered R11
-compatibility-seam repair. The latest local gate is green: `3,161` collected,
+**Single Next Action:** Continue the next ordered R11 compatibility-seam repair
+after verifying the green exact-tip workflow for
+`e4a918adc39909cc395ef35b66946b324592afd0`; keep the mutation boundary
+fail-closed. The latest local gate is green: `3,161` collected,
 `3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
 tests and build also pass. Keep the mutation boundary fail-closed and do not
 bypass the audit.
@@ -233,13 +234,13 @@ The frozen security spine is untouched.
 
 ## Active CI Repair Checkpoint — 2026-07-16
 
-`71bd9d6f98a27ca6ae972523e03ffce87c306fae` is pushed to `origin/master`.
-Its local focused and full backend/frontend gates are green; remote CI and
-CodeQL verification for this exact tip are pending.
+`e4a918adc39909cc395ef35b66946b324592afd0` is pushed to `origin/master`.
+Exact-tip CI run `29485413218` and CodeQL run `29485413276` are green across
+the backend matrix, frontend, aggregate, release-authority, and CodeQL jobs.
 
 **Single next action:** continue the next ordered R11 repair wave from the
-current MemoryAuthority compatibility-seam inventory after exact-tip CI and
-CodeQL complete for `71bd9d6f98a27ca6ae972523e03ffce87c306fae`.
+current MemoryAuthority compatibility-seam inventory; keep the exact green
+baseline pinned to `e4a918adc39909cc395ef35b66946b324592afd0`.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon
