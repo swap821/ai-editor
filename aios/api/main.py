@@ -1230,7 +1230,7 @@ def chat(
             anthropic_client=anthropic_client,
             indexer=indexer,
             facts=facts,
-            memory_authority=get_memory_authority(),
+            memory_authority=memory_authority,
             compactor=compactor,
             extra={
                 "route": "/api/v1/chat",

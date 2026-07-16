@@ -1481,6 +1481,24 @@ def test_record_episode_persists_scrubbed_content() -> None:
     assert any(r["content"] == "hello there" for r in rows)
 
 
+def test_record_episode_uses_injected_authority(monkeypatch) -> None:
+    calls: list[tuple[str, str, str]] = []
+
+    class Authority:
+        def record_episodic(self, session_id: str, role: str, content: str) -> int:
+            calls.append((session_id, role, content))
+            return 1
+
+    monkeypatch.setattr(
+        "aios.api.turn_pipeline.get_memory_authority",
+        lambda: pytest.fail("episodic write used the process-global authority"),
+    )
+
+    _record_episode("session-injected", "assistant", "hello authority", authority=Authority())
+
+    assert calls == [("session-injected", "assistant", "hello authority")]
+
+
 def test_recall_lessons_none_reflector_returns_empty() -> None:
     assert _recall_lessons(None, "session", "query") == []
 
@@ -1662,6 +1680,30 @@ def test_recall_memory_swallows_hybrid_search_exception(monkeypatch) -> None:
 def test_recall_memory_returns_none_when_no_hits(monkeypatch) -> None:
     monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: [])
     assert _recall_memory("query") is None
+
+
+def test_recall_memory_uses_injected_authority(monkeypatch) -> None:
+    class Hit:
+        text = "injected semantic memory"
+        verification_status = "verified"
+
+    class Authority:
+        def recall(self, query, context, *, retrieval_fn):
+            assert query == "query"
+            assert context.include_unverified is True
+            assert retrieval_fn is not None
+            return (Hit(),)
+
+    monkeypatch.setattr(
+        "aios.api.turn_pipeline.get_memory_authority",
+        lambda: pytest.fail("semantic recall used the process-global authority"),
+    )
+    monkeypatch.setattr(config, "CRAG", False)
+
+    result = _recall_memory("query", authority=Authority())
+
+    assert result is not None
+    assert "injected semantic memory" in result
 
 
 def test_recall_memory_without_crag_builds_trusted_and_unverified_blocks(monkeypatch) -> None:

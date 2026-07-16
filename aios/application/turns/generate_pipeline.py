@@ -441,8 +441,12 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         yield sse("alignment", alignment_payload)
         if alignment.communication.ambiguity_action == "ask":
             question = alignment.communication.clarifying_question
-            _record_episode(session_id, "user", user_text)
-            _record_episode(session_id, "assistant", question)
+            _record_episode(
+                session_id, "user", user_text, authority=runtime.memory_authority
+            )
+            _record_episode(
+                session_id, "assistant", question, authority=runtime.memory_authority
+            )
             capabilities.clear_grants(session_id, route="/api/generate")
             yield sse("text_chunk", {"text": question})
             # An advisory early exit is still a real turn -- count it
@@ -512,8 +516,12 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 "question": question,
                 "calibration": confidence_calibration,
             }
-            _record_episode(session_id, "user", user_text)
-            _record_episode(session_id, "assistant", question)
+            _record_episode(
+                session_id, "user", user_text, authority=runtime.memory_authority
+            )
+            _record_episode(
+                session_id, "assistant", question, authority=runtime.memory_authority
+            )
             capabilities.clear_grants(session_id, route="/api/generate")
             yield sse("confidence.gated", payload)
             yield sse("text_chunk", {"text": question})
@@ -574,7 +582,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             yield sse("plan", serialize_plan(_stage_plan))
             context_parts.append(plan_to_prompt_block(_stage_plan))
 
-    semantic = _recall_memory(user_text)
+    semantic = _recall_memory(user_text, authority=runtime.memory_authority)
     if semantic:
         context_parts.append(semantic)
         yield sse(
@@ -707,7 +715,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     recalled_pending = _recall_pending_commands(reflector, session_id)
 
     # 2. Persist the user turn.
-    _record_episode(session_id, "user", user_text)
+    _record_episode(
+        session_id, "user", user_text, authority=runtime.memory_authority
+    )
 
     # 3. Agentic loop with recalled context + lessons + reflection + confirmation.
     #    `chat_client` is local Ollama or cloud Bedrock per the selected model.
@@ -1271,7 +1281,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         elif kind == "done":
             # 4. Persist the answer (L2) and consolidate the turn into L3.
             answer = "".join(answer_parts)
-            _record_episode(session_id, "assistant", answer)
+            _record_episode(
+                session_id, "assistant", answer, authority=runtime.memory_authority
+            )
             _index_turn(
                 indexer,
                 user_text,

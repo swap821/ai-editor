@@ -341,7 +341,9 @@ def _crag_llm_judge(query: str, passage: str) -> float:
     return max(0.0, min(1.0, float(match.group(0))))
 
 
-def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
+def _recall_memory(
+    query: str, top_k: int = 3, *, authority: Any | None = None
+) -> Optional[str]:
     """Best-effort hybrid recall of relevant semantic memories for *query*.
 
     Returns a prompt-ready knowledge block, or ``None`` when there is nothing
@@ -357,7 +359,8 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     *trust*). CRAG fails soft to the unrefined block on any error.
     """
     try:
-        hits = get_memory_authority().recall(
+        memory_authority = authority or get_memory_authority()
+        hits = memory_authority.recall(
             query,
             MemoryRecallContext(
                 memory_types=("semantic",),
@@ -440,12 +443,15 @@ def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
     return "\n\n".join(blocks)
 
 
-def _record_episode(session_id: str, role: str, content: str) -> None:
+def _record_episode(
+    session_id: str, role: str, content: str, *, authority: Any | None = None
+) -> None:
     """Persist one turn to L2 episodic memory. Best-effort; never fatal."""
     if not content or not content.strip():
         return
     try:
-        get_memory_authority().record_episodic(
+        memory_authority = authority or get_memory_authority()
+        memory_authority.record_episodic(
             session_id, role, scan_and_redact(content).scrubbed
         )
     except Exception as exc:  # noqa: BLE001 - persistence must not break the chat
