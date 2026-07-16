@@ -91,6 +91,15 @@ The clean local backend gate is `3,166` collected, `3,158 passed, 8 skipped`,
 the Vite build is green. Exact remote CI/CodeQL remains to be verified after
 push.
 
+**R11 Reflection authority checkpoint — 2026-07-16:** `ReflectionAgent` now
+refuses implicit `MistakeMemory(db_path)` construction without
+`MemoryAuthority` or an explicit lesson store; `get_reflection_agent` also
+fails closed when the authority is unavailable. The focused
+Reflection/offline/API/architecture gate is `36 passed`; the clean local
+backend gate is `3,168` collected, `3,160 passed, 8 skipped`, `88.86%`
+combined coverage, with the existing frontend gate green. Exact remote
+CI/CodeQL remains to be verified after push.
+
 **R11 Planner CI checkpoint — 2026-07-16:** Repair commit
 `a163ba00af793c236efc052985160468e37b6165` is synchronized with
 `origin/master`; exact-tip CI run `29496704967` and CodeQL run `29496705025`

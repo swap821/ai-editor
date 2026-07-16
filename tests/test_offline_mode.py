@@ -11,6 +11,7 @@ from aios.core.confidence_filter import TaskStep
 from aios.core.native_planner import NativePlanner, NativePlanResult
 from aios.core.planner import Planner, PlannerError
 from aios.agents.reflection_agent import ReflectionAgent
+from aios.memory.mistake import MistakeMemory
 
 
 # ── Fakes ──────────────────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ def test_reflection_offline_skips_silently(
     init_memory_db(db)
 
     llm = FakeLLM()
-    reflector = ReflectionAgent(llm, db_path=db)
+    reflector = ReflectionAgent(llm, mistakes=MistakeMemory(db), db_path=db)
     result = reflector.reflect("bad_command", "error: something went wrong")
     assert result is None
     assert llm.called is False
@@ -125,7 +126,7 @@ def test_reflection_online_calls_llm(
     init_memory_db(db)
 
     llm = FakeLLM()
-    reflector = ReflectionAgent(llm, db_path=db)
+    reflector = ReflectionAgent(llm, mistakes=MistakeMemory(db), db_path=db)
     # The LLM output won't parse properly, but the LLM WILL be called.
     try:
         reflector.reflect("cmd", "error text")

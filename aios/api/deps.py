@@ -223,9 +223,7 @@ def get_reflection_agent(
             mistakes=store if isinstance(store, MistakeMemory) else None,
             memory_authority=authority,
         )
-    # Direct callers and tests may invoke this provider without FastAPI
-    # resolving the Depends marker; retain the old injectable behavior there.
-    return ReflectionAgent(llm)
+    raise RuntimeError("MemoryAuthority is required for the reflection agent")
 
 
 def get_swarm_pattern_memory() -> SwarmPatternMemory:

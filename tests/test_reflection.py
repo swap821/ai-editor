@@ -77,6 +77,14 @@ def db_path(tmp_path: Path) -> Path:
     return path
 
 
+def test_reflection_refuses_implicit_legacy_store(db_path: Path) -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="MemoryAuthority or an explicit mistake store is required",
+    ):
+        ReflectionAgent(FakeLLM(_VALID), db_path=db_path)
+
+
 def test_reflect_writes_pending_lesson(db_path: Path) -> None:
     agent = ReflectionAgent(FakeLLM(_VALID), mistakes=MistakeMemory(db_path))
     reflection = agent.reflect("cat missing.txt", "No such file", task_id="t1")

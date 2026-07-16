@@ -9,10 +9,13 @@ neither `MemoryAuthority` nor an explicit store is injected. `ToolAgent` and
 the application turn factory now carry explicit planner stores alongside the
 authority, while offline sovereignty and standalone tests inject their stores.
 The architecture quarantine manifest no longer lists `aios/core/planner.py`.
-Focused Planner/native/offline/architecture tests passed (`40`), the affected
-ToolAgent/native-plan/proof checks passed (`6`), and the clean package-wide gate
-passed: `3,166` collected, `3,158 passed, 8 skipped`, exit `0`, with combined
-coverage of `88.85%`. Frontend tests passed (`598` across `104` files), and the
+`ReflectionAgent` now also refuses implicit `MistakeMemory(db_path)` creation,
+and the reflection dependency provider fails closed without authority. Focused
+Planner/native/offline/architecture tests passed (`40`), the affected
+ToolAgent/native-plan/proof checks passed (`6`), the Reflection/offline/API/
+architecture gate passed (`36`), and the clean package-wide gate passed:
+`3,168` collected, `3,160 passed, 8 skipped`, exit `0`, with combined coverage
+of `88.86%`. Frontend tests passed (`598` across `104` files), and the
 production Vite build passed.
 Production fact proposals,
 developmental outcomes, skill attempts/reuse, reflection lessons,
@@ -106,13 +109,16 @@ persistence, and `/api/v1/chat` coordinator wiring use the injected
 `MemoryAuthority`; process-global fallback remains only for standalone
 compatibility callers. Planner now refuses implicit legacy-store construction;
 ToolAgent and both turn-agent factories carry explicit planner stores, and the
-offline sovereignty proof injects its existing skill store. The focused
+offline sovereignty proof injects its existing skill store. ReflectionAgent
+and its dependency provider now fail closed without an authority or explicit
+lesson store. The focused
 development/architecture/authority/metrics gate is `40 passed`; the focused
 Planner/native/offline/architecture gate is `40 passed`, and the affected
-ToolAgent/native-plan/proof checks are `6 passed`. The package-wide gate is
-`3,166` collected, `3,158 passed, 8 skipped`, exit `0`, at combined coverage
-`88.85%`. Frontend tests are `598 passed` across `104` files and the production
-Vite build passed. Packaged
+ToolAgent/native-plan/proof checks are `6 passed`; the Reflection/offline/API/
+architecture gate is `36 passed`. The package-wide gate is `3,168` collected,
+`3,160 passed, 8 skipped`, exit `0`, at combined coverage `88.86%`. Frontend
+tests are `598 passed` across `104` files and the production Vite build passed.
+Packaged
 runtime-proof seams remain open. R10 is
 verified at
 the bounded evidence/verification/promotion boundary; R9 remains verified at
@@ -241,14 +247,11 @@ The frozen security spine is untouched.
 
 ## Active CI Repair Checkpoint — 2026-07-16
 
-Planner authority repair commit `a163ba00af793c236efc052985160468e37b6165`
-is pushed to `origin/master`. Exact-tip CI run `29496704967` and CodeQL run
-`29496705025` are green across the backend matrix, frontend, aggregate,
-release-authority, and CodeQL jobs.
+The working tree contains the locally verified ReflectionAgent authority
+repair; its commit/push SHA and exact remote runs are the next checkpoint.
 
-**Single next action:** continue the next ordered R11 repair wave from the
-remaining documented compatibility seams, starting with ReflectionAgent or
-the dependency bootstrap after a fresh seam audit.
+**Single next action:** stage, commit, push this ReflectionAgent authority wave,
+then verify the exact pushed SHA across CI and CodeQL.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon

@@ -121,10 +121,10 @@ class ReflectionAgent:
         self.llm = llm
         self.memory_authority = memory_authority
         self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
-        # Keep the legacy constructor only for standalone callers. API/runtime
-        # callers already have an authority-owned lesson store to reuse.
-        if memory_authority is None:
-            self.mistakes = self.mistakes or MistakeMemory(db_path)
+        if memory_authority is None and self.mistakes is None:
+            raise RuntimeError(
+                "MemoryAuthority or an explicit mistake store is required"
+            )
 
     #: How many times to ask the model for a parseable lesson before giving up.
     #: ``json_mode`` makes a valid JSON object the norm, but a small local model

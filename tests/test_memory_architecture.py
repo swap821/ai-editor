@@ -23,7 +23,6 @@ _LEGACY_TYPES = frozenset(
 # production bypass is introduced. R11 removes entries as each seam migrates
 # behind MemoryAuthority adapters.
 _KNOWN_COMPATIBILITY_SEAMS = {
-    "aios/agents/reflection_agent.py",
     "aios/api/deps.py",
     "aios/api/routes/council.py",
     "aios/application/memory/adapters.py",

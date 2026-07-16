@@ -431,6 +431,15 @@ def test_get_reflection_agent_present_when_enabled(monkeypatch) -> None:
     assert isinstance(agent, ReflectionAgent)
 
 
+def test_get_reflection_agent_refuses_missing_authority(monkeypatch) -> None:
+    import aios.api.deps as deps_mod
+
+    monkeypatch.setattr(config, "REFLECT_ON_FAILURE", True)
+    monkeypatch.setattr(deps_mod, "get_memory_authority", lambda: object())
+    with pytest.raises(RuntimeError, match="MemoryAuthority is required"):
+        get_reflection_agent(FakeLLM())
+
+
 def test_get_mistake_memory_wires_facts_store() -> None:
     from aios.memory.mistake import MistakeMemory
 

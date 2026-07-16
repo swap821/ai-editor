@@ -33,6 +33,7 @@ from aios.core.native_planner import NativePlanner
 from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db, get_connection
 from aios.memory.facts import SemanticFacts
+from aios.memory.mistake import MistakeMemory
 from aios.memory.skills import SkillMemory
 
 
@@ -312,7 +313,9 @@ def main() -> None:
 
             # 17. Reflection returns None in offline mode
             from aios.agents.reflection_agent import ReflectionAgent
-            reflector = ReflectionAgent(_OfflineLLM(), db_path=db_path)
+            reflector = ReflectionAgent(
+                _OfflineLLM(), mistakes=MistakeMemory(db_path), db_path=db_path
+            )
             reflection_result = reflector.reflect("bad_cmd", "error output")
             _evidence(
                 "reflect() returns None in offline mode",
