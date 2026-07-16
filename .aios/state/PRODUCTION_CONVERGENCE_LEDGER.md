@@ -288,3 +288,10 @@ coverage; the affected authority/API/approval regression set is `205 passed`.
 The architecture manifest now records two remaining R11 construction seams:
 `aios/api/deps.py` and `aios/api/routes/council.py`. R11 remains partial; keep
 packaged runtime authority proof separate from source-level green evidence.
+
+**R11 Semantic adapter docs-tip CI checkpoint — 2026-07-16:** The continuity
+tip `864352afb2429d6aa5a0c88f0ba951859a83e209` passed CI run `29513971752`
+and CodeQL run `29513969945` after the Windows job was rerun. The first
+Windows attempt timed out in the sabotage proof; the first retry failed a
+different stateful Council 403; the second retry passed. All required jobs are
+green and the source wave remains unchanged. R11 remains partial.

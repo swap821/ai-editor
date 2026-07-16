@@ -295,6 +295,12 @@ architecture gate, and affected authority/API/approval batch are green
 run exposed a stateful rollback `403`, but the exact test passed in isolation
 and the final clean run had no failure marker.
 
+The continuity tip `864352a` was also verified green after rerunning the
+Windows job: CI `29513971752` and CodeQL `29513969945` completed successfully.
+The first Windows attempt timed out in the sabotage proof and the first retry
+hit a different stateful Council 403; the second retry passed. These are
+environmental suite flakes, not adapter-wave failures.
+
 **Single next action:** audit the two remaining R11 construction seams in
 `aios/api/deps.py` (authority bootstrap/advisory pheromone) and
 `aios/api/routes/council.py` (scoped CouncilMemory). Add a red-first guard
