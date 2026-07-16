@@ -439,3 +439,9 @@ CI/CodeQL verification were pending at this local checkpoint.
 passed CI `29540174920` and CodeQL `29540174909`. The canonical advisory-wrapper
 guard is now green locally and on the immutable hosted tip. The next cursor is
 the ordered R11/R13 packaged-runtime proof seam; overall V1 remains partial.
+
+**R11 advisory pheromone guard continuity checkpoint hosted verification
+complete — 2026-07-17:** Follow-up docs tip
+`29ce9bb9f2e9ab14e3d683852919422a33a46d87` passed CI `29540544540` and CodeQL
+`29540544508`. Local `HEAD` and `origin/master` match the exact hosted SHA;
+the source repair remains green and the overall V1 declaration remains partial.

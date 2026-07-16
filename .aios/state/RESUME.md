@@ -12,6 +12,9 @@ The focused pheromone/memory-architecture gate passed, and the full backend
 gate passed with exit `0` at `88.85%` coverage. Source and hosted verification
 are complete for this wave: source `a986f314eac088e12a46e04a0ac644e11a36661a`
 is pushed, CI `29540174920` succeeded, and CodeQL `29540174909` succeeded.
+The continuity-only follow-up `29ce9bb9f2e9ab14e3d683852919422a33a46d87` is
+also pushed and green in CI `29540544540` and CodeQL `29540544508`; local
+`HEAD` and `origin/master` match that exact tip.
 
 **Current Checkpoint (2026-07-17):** R12's Cortex bus now accepts only a
 `CanonicalEvent`; every production producer passes the canonical envelope, the
