@@ -48,17 +48,14 @@ from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
-from aios.council.council_memory import CouncilMemory
-from aios.council.council_state import CouncilState
 from aios.council.queen_verdict import has_blocking_verdict
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
 from aios.runtime.cortex_bus import CortexBus
 from aios.api.deps import (
     get_action_broker,
-    get_memory_authority,
+    get_council_memory_scope,
     require_privileged_operator,
 )
-from aios.application.memory.adapters import CouncilMemoryAdapter
 from aios.domain.identity.models import Principal
 from aios.api.action_guard import enforce_action_boundary
 
@@ -450,10 +447,8 @@ def _run_council_deliberation(
 ) -> None:
     """Background: deliberate only (no worker). Failures surface as a failed report."""
     try:
-        council_state = CouncilState(db_path=runtime_root / "council_state.db")
-        council_memory = CouncilMemory(state=council_state)
-        memory_authority = get_memory_authority().with_adapter(
-            "council", CouncilMemoryAdapter(council_memory)
+        council_state, council_memory, memory_authority = get_council_memory_scope(
+            runtime_root
         )
         CouncilOrchestrator(
             runtime_root=runtime_root,
@@ -480,10 +475,8 @@ def _run_council_execution(
         # (guards against an on-disk ledger tampered between deliberate and approve).
         if has_blocking_verdict(list(ledger.council_verdicts)):
             raise RuntimeError("ledger carries a blocking verdict; refusing to execute")
-        council_state = CouncilState(db_path=runtime_root / "council_state.db")
-        council_memory = CouncilMemory(state=council_state)
-        memory_authority = get_memory_authority().with_adapter(
-            "council", CouncilMemoryAdapter(council_memory)
+        council_state, council_memory, memory_authority = get_council_memory_scope(
+            runtime_root
         )
         orchestrator = CouncilOrchestrator(
             runtime_root=runtime_root,

@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 import threading
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from fastapi import Depends, HTTPException, Request
@@ -74,6 +75,8 @@ from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.security.gateway import RateLimiter
 
 if TYPE_CHECKING:
+    from aios.council.council_memory import CouncilMemory
+    from aios.council.council_state import CouncilState
     from aios.policy.kernel import PolicyKernel
 
 #: Lazy cloud-client singletons — built on first use, reused across requests.
@@ -292,6 +295,30 @@ def get_memory_authority() -> MemoryAuthority:
             _sync_pheromone_adapter(_memory_authority)
             consolidation.bind_authority(_memory_authority)
     return _memory_authority
+
+
+def get_council_memory_scope(
+    runtime_root: str | Path,
+) -> tuple[CouncilState, CouncilMemory, MemoryAuthority]:
+    """Build the mission-local Council memory scope from the canonical authority.
+
+    Council evidence is isolated per runtime root, so it must not be attached to
+    the process-wide registry.  The copied authority keeps every shared adapter
+    intact while the scoped Council adapter owns the exact mission-local store.
+    This composition root is the only API-layer owner of the physical Council
+    state construction; routes receive the already-bound scope.
+    """
+    from aios.application.memory.adapters import CouncilMemoryAdapter
+    from aios.council.council_memory import CouncilMemory
+    from aios.council.council_state import CouncilState
+
+    root = Path(runtime_root)
+    council_state = CouncilState(db_path=root / "council_state.db")
+    council_memory = CouncilMemory(state=council_state)
+    authority = get_memory_authority().with_adapter(
+        "council", CouncilMemoryAdapter(council_memory)
+    )
+    return council_state, council_memory, authority
 
 
 def _authority_store(name: str, expected_type: type[Any]) -> Any:
@@ -670,6 +697,7 @@ __all__ = [
     "get_curriculum_manager",
     "get_memory_consolidator",
     "get_memory_authority",
+    "get_council_memory_scope",
     "get_conversation_state_store",
     "get_alignment_evaluation_store",
     "get_alignment_interpreter",

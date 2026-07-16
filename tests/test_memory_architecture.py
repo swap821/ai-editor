@@ -24,7 +24,6 @@ _LEGACY_TYPES = frozenset(
 # behind MemoryAuthority adapters.
 _KNOWN_COMPATIBILITY_SEAMS = {
     "aios/api/deps.py",
-    "aios/api/routes/council.py",
 }
 
 
@@ -42,6 +41,15 @@ def test_legacy_memory_construction_is_explicitly_quarantined() -> None:
         )
     }
     assert violations == _KNOWN_COMPATIBILITY_SEAMS
+
+
+def test_council_scope_dependency_binds_exact_mission_memory(tmp_path: Path) -> None:
+    from aios.api.deps import get_council_memory_scope
+
+    state, memory, authority = get_council_memory_scope(tmp_path)
+
+    assert state.db_path == tmp_path / "council_state.db"
+    assert authority.adapters["council"].store is memory
 
 
 def test_main_memory_facades_are_authority_owned_adapters() -> None:

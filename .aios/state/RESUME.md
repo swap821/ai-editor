@@ -36,6 +36,18 @@ green in CI `29533017263` across Ubuntu, macOS, Windows, frontend, aggregate,
 release-authority, and private Executor isolation; CodeQL `29533017285` is
 green across all analysis jobs.
 
+The next ordered R11 composition seam is now locally repaired: the Council
+route no longer constructs `CouncilState`/`CouncilMemory` directly. A shared
+`get_council_memory_scope` composition provider now creates the mission-local
+state and binds the exact store through a copied `MemoryAuthority`; the AST
+quarantine manifest therefore contains only the canonical `aios/api/deps.py`
+bootstrap seam. The red-first guard failed before the provider existed and the
+focused R11/Council batch passed (`96`); the exact package gate passed with
+`3,175` collected, `3,167 passed, 8 skipped`, exit `0`, and `88.85%` combined
+coverage. Frontend typecheck, lint (`0` errors, `123` warnings), coverage
+(`76.07%` scoped-lib functions), and build remain green. Hosted CI and CodeQL
+for this local source wave are pending.
+
 **Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
 neither `MemoryAuthority` nor an explicit store is injected. `ToolAgent` and
@@ -189,15 +201,16 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Audit the next documented R11 composition seams in
-`aios/api/deps.py` and `aios/api/routes/council.py`, add a red-first guard
-before any source change, and keep the packaged runtime proof separate from
-source-level green evidence. R12's cursor/schema repair is fully green on the
-exact pushed tip: the mirror/Cortex gate passed (`13`), the complete frontend
-suite passed (`600`), frontend coverage passed at `76.07%` scoped-lib
-functions, the production build passed, CI `29533017263` passed all required
-jobs, and CodeQL `29533017285` passed all analyses. Keep the mutation boundary
-fail-closed and do not bypass the audit.
+**Single Next Action:** Commit and push this R11 Council composition repair,
+require complete hosted CI and CodeQL evidence for the exact tip, then audit
+the remaining canonical `aios/api/deps.py` authority-bootstrap/advisory-
+pheromone seam with a new red-first guard. Keep the packaged runtime proof
+separate from source-level green evidence. R12's cursor/schema repair is fully
+green on the exact pushed tip: the mirror/Cortex gate passed (`13`), the
+complete frontend suite passed (`600`), frontend coverage passed at `76.07%`
+scoped-lib functions, the production build passed, CI `29533017263` passed all
+required jobs, and CodeQL `29533017285` passed all analyses. Keep the mutation
+boundary fail-closed and do not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -217,6 +230,10 @@ fail-closed and do not bypass the audit.
   the pre-repair broad fixture violated the new transport contract; the
   fixture correction is now hosted-green in CI `29533017263`. CodeQL
   `29533017285` passed for the exact final tip.
+- The R11 Council composition repair is locally green with the route-level
+  physical-store construction removed and the exact scoped adapter binding
+  tested. Its exact hosted CI and CodeQL evidence is pending until the source
+  checkpoint is committed and pushed.
 - R4 source and full gates are green, but the complete packaged production
   authority matrix remains open; source/test evidence is not runtime readiness.
 - R5 has application-owned conversation and generation handlers with explicit

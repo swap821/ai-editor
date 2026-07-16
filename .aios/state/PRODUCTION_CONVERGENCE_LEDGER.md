@@ -393,3 +393,16 @@ Ubuntu, macOS, Windows, frontend coverage/build, aggregate, release-authority,
 and private Executor isolation. CodeQL `29533017285` passed all actions,
 Python, and JavaScript/TypeScript analyses. The frontend coverage repair kept
 the 73% scoped-lib function floor unchanged and measured `76.07%` locally.
+
+**R11 Council composition seam local checkpoint — 2026-07-17:** The
+red-first architecture guard failed because `aios/api/routes/council.py`
+constructed its mission-local `CouncilState`/`CouncilMemory` directly. The
+route now receives both deliberation and execution scopes from
+`get_council_memory_scope` in the canonical API composition root; the copied
+`MemoryAuthority` owns the exact scoped Council adapter, and the quarantine
+manifest now lists only `aios/api/deps.py`. The focused R11/Council gate passed
+(`96`), the exact package gate passed with `3,175` collected, `3,167 passed,
+8 skipped`, exit `0`, and `88.85%` coverage; frontend typecheck, lint,
+coverage, and build also passed. Hosted CI and CodeQL are pending for this
+source wave. The remaining R11 audit is the authority bootstrap/advisory
+pheromone seam in `aios/api/deps.py`.
