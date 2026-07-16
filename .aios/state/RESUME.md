@@ -31,6 +31,10 @@ SSE ids and canonical `eventType`, so the new fail-closed client ignored its
 events. That fixture now sends canonical frames and asserts the reaction path;
 the local full coverage gate passes with `76.07%` scoped-lib functions and
 the threshold remains unchanged.
+Exact pushed follow-up tip `3004e7d1cae1688caed79b8861019c85b4e6b8c` is now
+green in CI `29533017263` across Ubuntu, macOS, Windows, frontend, aggregate,
+release-authority, and private Executor isolation; CodeQL `29533017285` is
+green across all analysis jobs.
 
 **Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
@@ -185,15 +189,15 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit the canonicalized mirror fixture plus continuity
-checkpoint, push it to `origin/master`, and verify the exact hosted CI and
-CodeQL tip. The red-first replay-gap test failed before repair; the mirror/
-Cortex gate passed (`13`), the complete frontend suite passed (`600`), the
-frontend coverage gate now passes at `76.07%` scoped-lib functions, and the
-production build passed. The prior hosted coverage failure is recorded as a
-test-fixture contract miss; do not lower the threshold or invent a cursor to
-make a gate pass. Keep the mutation boundary fail-closed and do not bypass
-the audit.
+**Single Next Action:** Audit the next documented R11 composition seams in
+`aios/api/deps.py` and `aios/api/routes/council.py`, add a red-first guard
+before any source change, and keep the packaged runtime proof separate from
+source-level green evidence. R12's cursor/schema repair is fully green on the
+exact pushed tip: the mirror/Cortex gate passed (`13`), the complete frontend
+suite passed (`600`), frontend coverage passed at `76.07%` scoped-lib
+functions, the production build passed, CI `29533017263` passed all required
+jobs, and CodeQL `29533017285` passed all analyses. Keep the mutation boundary
+fail-closed and do not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -210,8 +214,9 @@ the audit.
   full frontend tests, typecheck, lint, production build, backend mirror/Cortex
   gate, and full frontend coverage (`76.07%` scoped-lib functions). The first
   exact hosted CI attempt failed only at that coverage step (`70.75%`) because
-  the pre-repair broad fixture violated the new transport contract; the fixture
-  correction is ready for the next exact-tip run. CodeQL `29532113056` passed.
+  the pre-repair broad fixture violated the new transport contract; the
+  fixture correction is now hosted-green in CI `29533017263`. CodeQL
+  `29533017285` passed for the exact final tip.
 - R4 source and full gates are green, but the complete packaged production
   authority matrix remains open; source/test evidence is not runtime readiness.
 - R5 has application-owned conversation and generation handlers with explicit

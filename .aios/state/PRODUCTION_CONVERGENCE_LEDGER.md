@@ -386,3 +386,10 @@ sends canonical frames with durable ids and verifies that the reaction path
 executes. The full local coverage gate passes at `76.07%` scoped-lib functions;
 CodeQL `29532113056` passed, and the corrected follow-up tip still needs exact
 hosted CI verification.
+
+**R12 cursor/schema hosted verification complete — 2026-07-17:** Exact pushed
+tip `3004e7d1cae1688caed79b8861019c85b4e6b8c` passed CI `29533017263` across
+Ubuntu, macOS, Windows, frontend coverage/build, aggregate, release-authority,
+and private Executor isolation. CodeQL `29533017285` passed all actions,
+Python, and JavaScript/TypeScript analyses. The frontend coverage repair kept
+the 73% scoped-lib function floor unchanged and measured `76.07%` locally.
