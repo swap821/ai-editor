@@ -241,11 +241,14 @@ The frozen security spine is untouched.
 
 ## Active CI Repair Checkpoint — 2026-07-16
 
-The working tree contains the next R11 Planner authority repair and is locally
-verified; the commit/push SHA and exact remote runs are the next checkpoint.
+Planner authority repair commit `a163ba00af793c236efc052985160468e37b6165`
+is pushed to `origin/master`. Exact-tip CI run `29496704967` and CodeQL run
+`29496705025` are green across the backend matrix, frontend, aggregate,
+release-authority, and CodeQL jobs.
 
-**Single next action:** stage, commit, push this Planner authority wave, then
-verify the exact pushed SHA across CI and CodeQL.
+**Single next action:** continue the next ordered R11 repair wave from the
+remaining documented compatibility seams, starting with ReflectionAgent or
+the dependency bootstrap after a fresh seam audit.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon

@@ -91,6 +91,12 @@ The clean local backend gate is `3,166` collected, `3,158 passed, 8 skipped`,
 the Vite build is green. Exact remote CI/CodeQL remains to be verified after
 push.
 
+**R11 Planner CI checkpoint — 2026-07-16:** Repair commit
+`a163ba00af793c236efc052985160468e37b6165` is synchronized with
+`origin/master`; exact-tip CI run `29496704967` and CodeQL run `29496705025`
+completed successfully across frontend, Ubuntu/macOS/Windows backend,
+aggregate, release-authority, and CodeQL jobs.
+
 ## Current authority readiness at the audited baseline
 
 The slice evidence above records what was tested or shipped; it does not by
