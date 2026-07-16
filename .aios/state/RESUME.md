@@ -46,7 +46,9 @@ focused R11/Council batch passed (`96`); the exact package gate passed with
 `3,175` collected, `3,167 passed, 8 skipped`, exit `0`, and `88.85%` combined
 coverage. Frontend typecheck, lint (`0` errors, `123` warnings), coverage
 (`76.07%` scoped-lib functions), and build remain green. Hosted CI and CodeQL
-for this local source wave are pending.
+are green for the exact source tip: CI `29536342306` passed frontend, all three
+backend platforms, aggregate, release-authority, and private Executor isolation;
+CodeQL `29536339651` passed Actions, Python, and JavaScript/TypeScript.
 
 **Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
@@ -201,10 +203,9 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit and push this R11 Council composition repair,
-require complete hosted CI and CodeQL evidence for the exact tip, then audit
-the remaining canonical `aios/api/deps.py` authority-bootstrap/advisory-
-pheromone seam with a new red-first guard. Keep the packaged runtime proof
+**Single Next Action:** Audit the remaining canonical `aios/api/deps.py`
+authority-bootstrap/advisory-pheromone seam with a new red-first guard, then
+run the same local and hosted gates before advancing R11. Keep the packaged runtime proof
 separate from source-level green evidence. R12's cursor/schema repair is fully
 green on the exact pushed tip: the mirror/Cortex gate passed (`13`), the
 complete frontend suite passed (`600`), frontend coverage passed at `76.07%`
@@ -232,8 +233,10 @@ boundary fail-closed and do not bypass the audit.
   `29533017285` passed for the exact final tip.
 - The R11 Council composition repair is locally green with the route-level
   physical-store construction removed and the exact scoped adapter binding
-  tested. Its exact hosted CI and CodeQL evidence is pending until the source
-  checkpoint is committed and pushed.
+  tested. Exact source tip `7a5262710b210d7be75d872ad368d58b67d1eb75` passed
+  CI `29536342306` across the full matrix and release-authority/private
+  Executor proof; CodeQL `29536339651` passed all analyses. The docs-only
+  checkpoint that follows is separately verified below.
 - R4 source and full gates are green, but the complete packaged production
   authority matrix remains open; source/test evidence is not runtime readiness.
 - R5 has application-owned conversation and generation handlers with explicit

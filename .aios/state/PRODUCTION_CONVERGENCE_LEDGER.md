@@ -406,3 +406,12 @@ manifest now lists only `aios/api/deps.py`. The focused R11/Council gate passed
 coverage, and build also passed. Hosted CI and CodeQL are pending for this
 source wave. The remaining R11 audit is the authority bootstrap/advisory
 pheromone seam in `aios/api/deps.py`.
+
+**R11 Council composition seam hosted verification complete — 2026-07-17:**
+Exact source tip `7a5262710b210d7be75d872ad368d58b67d1eb75` passed CI
+`29536342306` across frontend, Ubuntu/macOS/Windows backend, aggregate,
+release-authority, and private Executor isolation. CodeQL `29536339651` passed
+Actions, Python, and JavaScript/TypeScript. The route-level construction bypass
+is removed; R11 remains partial only at the remaining canonical `deps.py`
+authority-bootstrap/advisory-pheromone seam and the separate packaged runtime
+proof frontier.
