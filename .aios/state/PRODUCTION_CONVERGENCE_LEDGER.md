@@ -248,6 +248,17 @@ R11 remains partial. Continue at the next ordered compatibility seam, starting
 with the Council route/adapter boundary, while keeping runtime authority proof
 separate from source-level green evidence.
 
+**R12 Mirror replay-recovery local checkpoint — 2026-07-16:** The mirror
+stream no longer silently swallows replay failures. `ConsumerReplayGap` and
+other replay exceptions are logged and surfaced as a `snapshot_required` SSE
+event; gap metadata includes the cursor and earliest retained event. The
+red-first replay-gap test failed before repair. Focused mirror/Cortex tests
+passed (`13`), the adjacent event/projection/API gate passed (`203`), the
+projection/Cortex bus gate passed (`38`), and the clean package gate passed
+with `3,173` collected, `3,165 passed, 8 skipped`, exit `0`, and `88.86%`
+coverage. R12 remains partial; canonical event unification and frontend mirror
+truth remain open.
+
 **R11 Reflection CI checkpoint — 2026-07-16:** Exact pushed repair tip
 `12e691b8e0c4054d86233b403a584feacf3b245e` passed CI run `29500130518` and
 CodeQL run `29500130475`; all required platform, frontend, aggregate,

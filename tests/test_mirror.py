@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aios.api.main import app, get_cortex_bus
-from aios.runtime.cortex_bus import BusEvent
+from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap
 
 client = TestClient(app, client=("127.0.0.1", 12345))
 
@@ -161,6 +161,31 @@ def test_mirror_stream_recovery(mock_cortex_bus):
                     assert lines[2] == "id: 1"
                     assert "eventType" in lines[3]
                     assert "plan.created" in lines[3]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_mirror_stream_emits_snapshot_required_on_replay_gap(mock_cortex_bus):
+    mock_cortex_bus.fetch_since.side_effect = ConsumerReplayGap(
+        "mirror", 1, 7
+    )
+    app.dependency_overrides[get_cortex_bus] = lambda: mock_cortex_bus
+    try:
+        with patch("fastapi.Request.is_disconnected") as mock_is_disconnected:
+            async def fake_is_disconnected():
+                return True
+
+            mock_is_disconnected.side_effect = fake_is_disconnected
+
+            with TestClient(app, client=("127.0.0.1", 12345)) as client:
+                with client.stream(
+                    "GET", "/api/v1/mirror/stream", headers={"Last-Event-ID": "1"}
+                ) as response:
+                    lines = [line for line in response.iter_lines() if line]
+
+        assert lines[0] == "event: snapshot_required"
+        assert '"reason": "replay_gap"' in lines[1]
+        assert '"earliest_event_id": 7' in lines[1]
     finally:
         app.dependency_overrides.clear()
 

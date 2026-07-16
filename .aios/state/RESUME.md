@@ -151,17 +151,15 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Stage, commit, and push the current Council authority-
-boundary repair with its continuity evidence, then verify the exact-tip CI and
-CodeQL workflows. The red-first unbound-authority test failed before repair;
-the focused Council plus authority regression gate passed (`231 passed`), and
-the clean package-wide gate passed with `3,172` collected, `3,164 passed,
-8 skipped`, exit `0`, and `88.86%` coverage. The repair preserves explicit
-`CouncilMemory`-only compatibility callers but refuses an authority-backed
-orchestrator unless its `council` adapter owns the exact mission-local store.
-The source commit `e3bb5a8` is pushed; exact CI `29518614467` and CodeQL
-`29518614365` both passed all required jobs. Keep the mutation boundary
-fail-closed and do not bypass the audit.
+**Single Next Action:** Stage, commit, and push the R12 mirror replay-recovery
+repair with its continuity evidence, then verify exact-tip CI and CodeQL. The
+red-first replay-gap test failed before repair; the mirror/Cortex gate passed
+(`13`), the adjacent event/projection/API gate passed (`203`), the
+projection/Cortex bus gate passed (`38`), and the clean package gate passed
+with `3,173` collected, `3,165 passed, 8 skipped`, exit `0`, and `88.86%`
+coverage. `/api/v1/mirror/stream` now exposes replay gaps and failures as
+`snapshot_required` rather than silently swallowing them. Keep the mutation
+boundary fail-closed and do not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an

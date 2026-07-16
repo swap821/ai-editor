@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any, Optional, AsyncGenerator
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from aios.api.main import get_cortex_bus
-from aios.runtime.cortex_bus import CortexBus, BusEvent
+from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap, CortexBus
 from aios.application.read_models.projection import get_system_projection
 from aios.application.memory.authority import MemoryAuthority
 from aios.api.deps import get_development_tracker, get_memory_authority, get_skill_memory
@@ -23,6 +24,7 @@ from aios.memory.development import DevelopmentTracker
 from aios.memory.skills import SkillMemory
 
 router = APIRouter(prefix="/api/v1/mirror", tags=["Mirror"])
+logger = logging.getLogger(__name__)
 
 
 def _read_development_summary(
@@ -195,6 +197,8 @@ async def stream_journal(
         queue: asyncio.Queue[BusEvent] = asyncio.Queue(maxsize=256)
         queue_overflowed = asyncio.Event()
         loop = asyncio.get_running_loop()
+        replay_issue: dict[str, Any] | None = None
+        unsubscribe = lambda: None
 
         def _on_event(event: BusEvent) -> None:
             # Dispatcher runs in a separate thread, use the captured loop
@@ -214,13 +218,34 @@ async def stream_journal(
                         queue_overflowed.set()
                         break
                     queue.put_nowait(ev)
+            except ConsumerReplayGap as exc:
+                logger.warning(
+                    "mirror_replay_gap",
+                    extra={
+                        "consumer": exc.consumer_name,
+                        "cursor": exc.cursor,
+                        "earliest_event_id": exc.earliest_event_id,
+                    },
+                )
+                replay_issue = {
+                    "reason": "replay_gap",
+                    "cursor": exc.cursor,
+                    "earliest_event_id": exc.earliest_event_id,
+                }
             except Exception:
-                pass
+                logger.warning("mirror_replay_failed", exc_info=True)
+                replay_issue = {"reason": "replay_failed"}
 
         # 2. Subscription: Listen for live events
         unsubscribe = bus.subscribe(_on_event)
 
         try:
+            if replay_issue is not None:
+                yield (
+                    "event: snapshot_required\n"
+                    f"data: {json.dumps(replay_issue, ensure_ascii=False)}\n\n"
+                )
+
             # 3. Stream loop with heartbeat
             while not await request.is_disconnected():
                 if queue_overflowed.is_set():
