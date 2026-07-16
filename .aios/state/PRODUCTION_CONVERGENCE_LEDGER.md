@@ -278,3 +278,13 @@ coverage. A prior full-suite Windows run exposed one stateful rollback `403`
 instead of `200`; the exact test passed in isolation, and the final clean run
 completed without a failure marker. Remote verification is pending for the
 source wave; R11 remains partial.
+
+**R11 Semantic adapter CI checkpoint — 2026-07-16:** Exact pushed repair tip
+`11d1d4a852e452509271b0efd62f6e50e4733314` passed CI run `29512847189` and
+CodeQL run `29512847479`; all required platform, frontend, aggregate,
+release-authority, and analysis jobs completed successfully. The local gate
+is `3,171` collected, `3,163 passed, 8 skipped`, with `88.85%` combined
+coverage; the affected authority/API/approval regression set is `205 passed`.
+The architecture manifest now records two remaining R11 construction seams:
+`aios/api/deps.py` and `aios/api/routes/council.py`. R11 remains partial; keep
+packaged runtime authority proof separate from source-level green evidence.

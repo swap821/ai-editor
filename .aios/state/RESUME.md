@@ -282,18 +282,23 @@ quarantine manifest no longer lists `aios/memory/consolidation.py`. The clean
 package-wide gate passed with exit `0`: `3,170` collected, `3,162 passed,
 8 skipped`, and `88.85%` combined coverage.
 
-The next R11 adapter wave is locally implemented: `LegacySemanticMemoryAdapter`
-now requires an explicit `SemanticMemory` instance, and the authority
-composition root creates that physical store before wrapping it. The red-first
-adapter refusal test, architecture gate, and affected authority/API/approval
-batch are green (`205 passed`). The clean package-wide gate completed with
-`3,171` collected, `3,163 passed, 8 skipped`, and `88.85%` coverage; one prior
-full-suite Windows run exposed a stateful rollback `403`, but the exact test
-passed in isolation and the final clean run had no failure marker.
+The semantic adapter repair commit
+`11d1d4a852e452509271b0efd62f6e50e4733314` is pushed to `origin/master`.
+Exact-tip CI `29512847189` and CodeQL `29512847479` completed successfully
+across the required platform, frontend, aggregate, release-authority, and
+analysis jobs. `LegacySemanticMemoryAdapter` now requires an explicit
+`SemanticMemory` instance, and the authority composition root creates that
+physical store before wrapping it. The red-first adapter refusal test,
+architecture gate, and affected authority/API/approval batch are green
+(`205 passed`). The clean package-wide gate completed with `3,171` collected,
+`3,163 passed, 8 skipped`, and `88.85%` coverage; one prior full-suite Windows
+run exposed a stateful rollback `403`, but the exact test passed in isolation
+and the final clean run had no failure marker.
 
-**Single next action:** stage, commit, and push the adapter wave, then verify
-its exact pushed SHA across CI and CodeQL before auditing the two remaining R11
-construction seams in `aios/api/deps.py` and `aios/api/routes/council.py`.
+**Single next action:** audit the two remaining R11 construction seams in
+`aios/api/deps.py` (authority bootstrap/advisory pheromone) and
+`aios/api/routes/council.py` (scoped CouncilMemory). Add a red-first guard
+before changing either seam.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon
