@@ -415,3 +415,12 @@ Actions, Python, and JavaScript/TypeScript. The route-level construction bypass
 is removed; R11 remains partial only at the remaining canonical `deps.py`
 authority-bootstrap/advisory-pheromone seam and the separate packaged runtime
 proof frontier.
+
+**R11 Council composition docs checkpoint hosted verification complete —
+2026-07-17:** The docs-only tip `5e78af9b2a2b1cfd0de5d70a6762e0c87057342b`
+passed CI `29537224831` after one bounded retry of Ubuntu's stateful Council
+test; the rerun passed Ubuntu, Windows, macOS, aggregate, frontend,
+release-authority, and private Executor isolation. CodeQL `29537224826` passed
+Actions, Python, and JavaScript/TypeScript. The first Ubuntu attempt failed
+only at `test_approve_triggers_execution_and_worker_acts` with a credential-like
+capability-payload 403 after coverage had passed; no source change was made.

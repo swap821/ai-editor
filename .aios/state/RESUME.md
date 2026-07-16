@@ -49,6 +49,11 @@ coverage. Frontend typecheck, lint (`0` errors, `123` warnings), coverage
 are green for the exact source tip: CI `29536342306` passed frontend, all three
 backend platforms, aggregate, release-authority, and private Executor isolation;
 CodeQL `29536339651` passed Actions, Python, and JavaScript/TypeScript.
+The docs-only checkpoint `5e78af9b2a2b1cfd0de5d70a6762e0c87057342b` then
+passed CI `29537224831` after one bounded Ubuntu retry: the first attempt
+hit the known stateful Council capability-payload 403, while the retry passed
+Ubuntu, Windows, macOS, aggregate, frontend, release-authority, and private
+Executor isolation. CodeQL `29537224826` passed all analyses.
 
 **Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
@@ -236,7 +241,8 @@ boundary fail-closed and do not bypass the audit.
   tested. Exact source tip `7a5262710b210d7be75d872ad368d58b67d1eb75` passed
   CI `29536342306` across the full matrix and release-authority/private
   Executor proof; CodeQL `29536339651` passed all analyses. The docs-only
-  checkpoint that follows is separately verified below.
+  checkpoint `5e78af9` also passed CI `29537224831` after a bounded Ubuntu
+  retry and CodeQL `29537224826`.
 - R4 source and full gates are green, but the complete packaged production
   authority matrix remains open; source/test evidence is not runtime readiness.
 - R5 has application-owned conversation and generation handlers with explicit
