@@ -21,18 +21,28 @@ describe('aiosMirror', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    const listeners: Record<string, (event: Event) => void> = {};
     mockEventSource = {
       onopen: null,
       onerror: null,
       onmessage: null,
       close: vi.fn(),
+      listeners,
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners[type] = listener as (event: Event) => void;
+      }),
     };
     vi.stubGlobal('EventSource', vi.fn(function() { return mockEventSource; }));
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ history: [] }),
     }));
-    useMirrorStore.setState({ status: 'offline' });
+    useMirrorStore.setState({
+      status: 'offline',
+      lastEventId: null,
+      snapshotRequired: false,
+      lastAnnouncement: null,
+    });
   });
 
   afterEach(() => {
@@ -61,6 +71,9 @@ describe('aiosMirror', () => {
       type: 'aios.cognitive_action',
       lastEventId: '1',
       data: JSON.stringify({
+        schemaVersion: '1.0',
+        eventId: 'event-1',
+        eventType: 'aios.cognitive_action',
         payload: { label: 'THINK', body: 'thinking', redacted: false }
       })
     });
@@ -79,6 +92,9 @@ describe('aiosMirror', () => {
       type: 'step',
       lastEventId: '2',
       data: JSON.stringify({
+        schemaVersion: '1.0',
+        eventId: 'event-2',
+        eventType: 'step',
         payload: { type: 'tool_call', tool: 'write_file', output: '' }
       })
     });
@@ -96,6 +112,9 @@ describe('aiosMirror', () => {
       type: 'step',
       lastEventId: '3',
       data: JSON.stringify({
+        schemaVersion: '1.0',
+        eventId: 'event-3',
+        eventType: 'step',
         payload: { type: 'tool_result', tool: 'run_command', output: '[VERIFY PASS] tests passed' }
       })
     });
@@ -149,5 +168,62 @@ describe('aiosMirror', () => {
     mockEventSource.onmessage({ type: 'route', data: JSON.stringify({ payload: {} }) });
 
     // Minimal assertions to bump coverage
+  });
+
+  it('seeds the durable cursor and refreshes measured state on snapshot_required', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'online', state: 'measured', last_event_id: 4 }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'online', state: 'measured', last_event_id: 9 }),
+      } as Response);
+
+    await startMirrorClient();
+    expect(useMirrorStore.getState().lastEventId).toBe(4);
+    expect(vi.mocked(EventSource)).toHaveBeenCalledWith(
+      'http://localhost:8000/api/v1/mirror/stream?last_event_id=4',
+    );
+
+    mockEventSource.listeners.snapshot_required(new MessageEvent('snapshot_required', {
+      data: JSON.stringify({ reason: 'replay_gap' }),
+    }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(useMirrorStore.getState().lastEventId).toBe(9);
+    expect(useMirrorStore.getState().snapshotRequired).toBe(false);
+    expect(useMirrorStore.getState().status).toBe('online');
+  });
+
+  it('ignores events without a durable cursor or canonical event type', async () => {
+    await startMirrorClient();
+
+    mockEventSource.onmessage({
+      type: 'step',
+      lastEventId: '',
+      data: JSON.stringify({
+        schemaVersion: '1.0',
+        eventId: 'event-missing-cursor',
+        eventType: 'step',
+        payload: { type: 'tool_call', tool: 'write_file' },
+      }),
+    });
+    expect(useMirrorStore.getState().lastEventId).toBeNull();
+
+    mockEventSource.onmessage({
+      type: 'step',
+      lastEventId: '4',
+      data: JSON.stringify({
+        schemaVersion: '1.0',
+        eventId: 'event-missing-type',
+        payload: { type: 'tool_call', tool: 'write_file' },
+      }),
+    });
+    expect(useMirrorStore.getState().lastEventId).toBeNull();
+    expect(useMirrorStore.getState().lastAnnouncement).toBe('Malformed mirror event ignored.');
   });
 });

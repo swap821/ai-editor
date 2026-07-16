@@ -26,6 +26,7 @@ export interface CortexMirrorState {
   // Reducers
   setStatus: (status: 'offline' | 'online' | 'stale') => void;
   setAnnouncement: (announcement: string | null) => void;
+  setSnapshotRequired: (reason?: string) => void;
   setSnapshot: (data: Record<string, unknown>) => void;
   applyEvent: (id: number, type: string, payload: Record<string, unknown>) => void;
 }
@@ -49,6 +50,13 @@ export const useMirrorStore = create<CortexMirrorState>()(
 
     setStatus: (status) => set({ status }),
     setAnnouncement: (lastAnnouncement) => set({ lastAnnouncement }),
+    setSnapshotRequired: (reason) => set({
+      status: 'stale',
+      snapshotRequired: true,
+      lastAnnouncement: reason
+        ? `Mirror replay paused (${reason}); a fresh snapshot is required.`
+        : 'Mirror replay paused; a fresh snapshot is required.',
+    }),
     
     setSnapshot: (data) => {
       set((state) => ({
@@ -60,6 +68,11 @@ export const useMirrorStore = create<CortexMirrorState>()(
         activeWorkers: Array.isArray(data.active_workers) ? data.active_workers : state.activeWorkers,
         activeModels: Array.isArray(data.active_models) ? data.active_models : state.activeModels,
         snapshotRequired: data.snapshot_required === true,
+        lastEventId: typeof data.last_event_id === 'number'
+          && Number.isSafeInteger(data.last_event_id)
+          && data.last_event_id >= 0
+          ? data.last_event_id
+          : state.lastEventId,
         bootFacts: data.boot_facts && typeof data.boot_facts === 'object' ? data.boot_facts as Record<string, unknown> : state.bootFacts,
       }));
     },

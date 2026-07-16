@@ -362,3 +362,16 @@ source.
 private Executor isolation proof. CodeQL `29528718788` is also green. The
 first release-authority attempt failed only from runner disk exhaustion while
 building the heavyweight test image; no source change was required.
+
+**R12 cursor/schema consumer local checkpoint — 2026-07-17:** The frontend
+mirror now seeds its durable cursor from `last_event_id`, handles named
+`snapshot_required` SSE frames by marking the view stale and refreshing the
+measured snapshot, and ignores frames without a durable SSE cursor or
+canonical `eventType`. Red-first focused tests passed (`13`); the complete
+frontend suite passed (`104` files, `600` tests), typecheck passed, lint passed
+with `0` errors and `123` existing warnings, the production build passed, and
+the focused backend mirror/Cortex compatibility gate passed. Local coverage
+under Node `24.16.0` reports `70.75%` scoped lib functions against the `73%`
+floor, while the hosted Node `20` baseline on the prior exact tip reports
+`75.59%`; the threshold was not changed. Commit and hosted verification are
+the next checkpoint.

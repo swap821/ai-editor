@@ -17,6 +17,19 @@ release-authority, private Executor isolation, and CodeQL checks are green for
 the exact current tip. The one failed attempt was runner disk exhaustion while
 installing the heavyweight Docker test image; no source change was needed.
 
+The next R12 cursor/schema consumer seam is now locally repaired: the
+frontend seeds its durable cursor from the snapshot, handles named
+`snapshot_required` frames by marking stale and refreshing measured state, and
+ignores events missing either a durable SSE cursor or canonical `eventType`.
+Focused frontend tests pass (`13` across the mirror and registry files).
+The complete frontend suite passes (`104` files, `600` tests), typecheck and
+lint pass (`0` errors, `123` existing warnings), the production build passes,
+and the focused backend mirror/Cortex compatibility gate passes. The local
+coverage command still reports the scoped lib function floor at `70.75%` under
+the workstation's Node `24.16.0`; hosted CI uses Node `20` and measured the
+same baseline at `75.59%`, so the threshold remains unchanged and the exact
+source tip must be validated by hosted CI after push.
+
 **Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
 neither `MemoryAuthority` nor an explicit store is injected. `ToolAgent` and
@@ -170,18 +183,14 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Begin the next ordered R12 repair seam: audit the
-Cortex event cursor/schema consumers across the mirror read path and frontend
-truth surface, add a red-first continuity test, and keep the same canonical
-event envelope fail-closed. The
-red-first replay-gap test failed before repair; the mirror/Cortex gate passed
-(`13`), the adjacent event/projection/API gate passed (`203`), the
-projection/Cortex bus gate passed (`38`), and the clean package gate passed
-with `3,174` collected, `3,166 passed, 8 skipped`, exit `0`, and `88.85%`
-coverage. `/api/v1/mirror/stream` exposes replay gaps and failures as
-`snapshot_required`; source tip `e49dbe4` and its exact CI `29521716118` plus
-CodeQL `29521716110` are already green. Keep the mutation boundary fail-closed
-and do not bypass the audit.
+**Single Next Action:** Commit the cursor/schema repair plus continuity
+checkpoint, push it to `origin/master`, and verify the exact hosted CI and
+CodeQL tip. The red-first replay-gap test failed before repair; the mirror/
+Cortex gate passed (`13`), the complete frontend suite passed (`600`), the
+backend compatibility gate passed, and the production build passed. The local
+coverage discrepancy is recorded above; do not lower the threshold or invent
+a cursor to make a gate pass. Keep the mutation boundary fail-closed and do
+not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -194,6 +203,11 @@ and do not bypass the audit.
   passed formatting and private Executor isolation after a bounded rerun;
   exact CI `29528718805` and CodeQL `29528718788` are green for
   `06581df71f6682874ea803eeb5a29579d8756a8c`.
+- The current cursor/schema source repair is locally green for focused behavior,
+  full frontend tests, typecheck, lint, production build, and the backend
+  mirror/Cortex gate. Hosted validation is the remaining checkpoint because
+  this workstation's Node 24 V8 coverage reports `70.75%` scoped functions
+  while the CI Node 20 baseline reports `75.59%`.
 - R4 source and full gates are green, but the complete packaged production
   authority matrix remains open; source/test evidence is not runtime readiness.
 - R5 has application-owned conversation and generation handlers with explicit
@@ -230,7 +244,10 @@ and do not bypass the audit.
    explicit drive/UNC compatibility fix is locally green; its remote rerun is
    pending.
 
-**Active Files:** The current checkpoint includes the canonical Cortex bus
+**Active Files:** The current checkpoint includes the frontend mirror cursor/
+schema repair in `frontend/src/superbrain/lib/aiosMirror.ts`,
+`frontend/src/superbrain/lib/mirrorStore.ts`, and
+`frontend/src/superbrain/lib/aiosMirror.test.ts`, plus the canonical Cortex bus
 boundary in `aios/runtime/cortex_bus.py`, canonical producer call sites under
 `aios/api/`, `aios/application/`, `aios/core/`, and `aios/runtime/`, plus the
 focused test migrations and `tests/cortex_event_helpers.py`. The earlier
