@@ -14,9 +14,13 @@ and the reflection dependency provider fails closed without authority. Focused
 Planner/native/offline/architecture tests passed (`40`), the affected
 ToolAgent/native-plan/proof checks passed (`6`), the Reflection/offline/API/
 architecture gate passed (`36`), and the clean package-wide gate passed:
-`3,168` collected, `3,160 passed, 8 skipped`, exit `0`, with combined coverage
+`3,169` collected, `3,161 passed, 8 skipped`, exit `0`, with combined coverage
 of `88.86%`. Frontend tests passed (`598` across `104` files), and the
 production Vite build passed.
+Specialist dependency providers now require a real `MemoryAuthority` and
+return only canonical development, skill, and lesson stores; the affected
+provider/API regression set passed (`206`), and explicit fact overrides remain
+compatible without creating shadow stores.
 Production fact proposals,
 developmental outcomes, skill attempts/reuse, reflection lessons,
 consolidation, planner/compaction, Council lesson recall, and append-only
@@ -115,8 +119,8 @@ lesson store. The focused
 development/architecture/authority/metrics gate is `40 passed`; the focused
 Planner/native/offline/architecture gate is `40 passed`, and the affected
 ToolAgent/native-plan/proof checks are `6 passed`; the Reflection/offline/API/
-architecture gate is `36 passed`. The package-wide gate is `3,168` collected,
-`3,160 passed, 8 skipped`, exit `0`, at combined coverage `88.86%`. Frontend
+architecture gate is `36 passed`. The package-wide gate is `3,169` collected,
+`3,161 passed, 8 skipped`, exit `0`, at combined coverage `88.86%`. Frontend
 tests are `598 passed` across `104` files and the production Vite build passed.
 Packaged
 runtime-proof seams remain open. R10 is
@@ -253,9 +257,22 @@ Exact-tip CI run `29500130518` and CodeQL run `29500130475` completed
 successfully across the required platform, frontend, aggregate,
 release-authority, and analysis jobs.
 
-**Single next action:** audit and repair the next ordered R11 compatibility
-seam, beginning with `aios/api/deps.py`; add a red-first boundary test before
-changing construction or fallback behavior.
+The docs-only tip `caced2d` is now fully green after one final Windows rerun:
+CI `29501141244` passed all platform, frontend, aggregate, and
+release-authority jobs, and CodeQL `29501141308` passed. Two earlier Windows
+attempts failed different unrelated stateful API assertions; no
+provider-wave assertion failed in those runs.
+
+The next R11 provider wave is locally implemented but not yet committed:
+`get_development_tracker`, `get_skill_memory`, and `get_mistake_memory` now
+require a real `MemoryAuthority` and return only its canonical specialist
+stores. Explicit overridden fact stores remain compatible because they never
+authorize construction of a parallel specialist store. The red-first provider
+test and the affected API/dependency regression set are green (`206 passed`).
+
+**Single next action:** stage, commit, and push this provider-authority wave,
+then verify its exact pushed SHA across CI and CodeQL before auditing the next
+R11 compatibility seam.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon

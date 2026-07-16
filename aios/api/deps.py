@@ -231,6 +231,66 @@ def get_swarm_pattern_memory() -> SwarmPatternMemory:
     return SwarmPatternMemory()
 
 
+def _sync_pheromone_adapter(authority: MemoryAuthority) -> None:
+    """Keep the advisory adapter aligned with the live configured store."""
+    if not config.PHEROMONE_ENABLED:
+        authority.pheromone_adapter = None
+        return
+    current = getattr(authority.pheromone_adapter, "store", None)
+    configured_path = str(config.PHEROMONE_DB)
+    if (
+        current is not None
+        and str(getattr(current, "_db_path", "")) == configured_path
+        and getattr(current, "_lambda", None) == config.PHEROMONE_LAMBDA_DECAY
+        and getattr(current, "_floor", None) == config.PHEROMONE_FLOOR
+    ):
+        return
+    from aios.memory.pheromones import PheromoneStore
+
+    authority.pheromone_adapter = AdvisoryPheromoneAdapter(
+        PheromoneStore(
+            db_path=config.PHEROMONE_DB,
+            lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
+            floor=config.PHEROMONE_FLOOR,
+        )
+    )
+
+
+def get_memory_authority() -> MemoryAuthority:
+    """Provide the process-wide provenance and promotion authority for memory."""
+    global _memory_authority
+    if _memory_authority is not None:
+        _sync_pheromone_adapter(_memory_authority)
+        return _memory_authority
+    with _memory_authority_lock:
+        if _memory_authority is None:
+            adapters = {
+                "working": WorkingMemoryAdapter(WorkingMemory()),
+                "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
+                "semantic": LegacySemanticMemoryAdapter(config.MEMORY_DB_PATH),
+                "facts": SemanticFactsAdapter(SemanticFacts()),
+                "skills": SkillMemoryAdapter(SkillMemory()),
+                "lessons": MistakeMemoryAdapter(MistakeMemory()),
+                "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
+            }
+            _memory_authority = MemoryAuthority(
+                store=MemoryAuthorityStore(config.MEMORY_DB_PATH),
+                adapters=adapters,
+            )
+            consolidation = MemoryConsolidationAdapter(
+                MemoryConsolidator(
+                    semantic=adapters["semantic"].store,
+                    mistakes=adapters["lessons"].store,
+                    facts=adapters["facts"].store,
+                    memory_authority=_memory_authority,
+                )
+            )
+            _memory_authority.register_adapter("consolidation", consolidation)
+            _sync_pheromone_adapter(_memory_authority)
+            consolidation.bind_authority(_memory_authority)
+    return _memory_authority
+
+
 def _authority_store(name: str, expected_type: type[Any]) -> Any:
     """Return a canonical specialist store or fail closed."""
     adapter = get_memory_authority().adapters.get(name)
@@ -253,11 +313,17 @@ def get_semantic_facts() -> SemanticFacts:
 
 def get_development_tracker(
     facts: SemanticFacts = Depends(get_semantic_facts),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> DevelopmentTracker:
-    """Provide the evidence-backed developmental metrics store."""
-    if get_memory_authority().owns_store("facts", facts):
-        return _authority_store("development", DevelopmentTracker)
-    return DevelopmentTracker(facts=facts)
+    """Provide the canonical evidence-backed developmental metrics store.
+
+    ``facts`` remains in the dependency graph for compatibility with routes
+    that override that input with an isolated test double. It must never cause
+    this provider to construct a parallel developmental store.
+    """
+    if not isinstance(authority, MemoryAuthority):
+        raise RuntimeError("MemoryAuthority is required")
+    return _authority_store("development", DevelopmentTracker)
 
 
 def get_autonomy() -> AutonomyLedger:
@@ -275,6 +341,7 @@ def get_cerebellum() -> Cerebellum:
 def get_skill_memory(
     cerebellum: Cerebellum = Depends(get_cerebellum),
     facts: SemanticFacts = Depends(get_semantic_facts),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> SkillMemory:
     """Provide verification-backed procedural skill memory.
 
@@ -284,18 +351,19 @@ def get_skill_memory(
     the sovereignty engine stays in sync with skill trust status. The facts
     store enables S2 cross-store ingestion on skill promotion.
     """
-    if get_memory_authority().owns_store("facts", facts):
-        return _authority_store("skills", SkillMemory)
-    return SkillMemory(cerebellum=cerebellum, facts=facts)
+    if not isinstance(authority, MemoryAuthority):
+        raise RuntimeError("MemoryAuthority is required")
+    return _authority_store("skills", SkillMemory)
 
 
 def get_mistake_memory(
     facts: SemanticFacts = Depends(get_semantic_facts),
+    authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> MistakeMemory:
     """Provide mistake memory with knowledge graph ingestion wiring."""
-    if get_memory_authority().owns_store("facts", facts):
-        return _authority_store("lessons", MistakeMemory)
-    return MistakeMemory(facts=facts)
+    if not isinstance(authority, MemoryAuthority):
+        raise RuntimeError("MemoryAuthority is required")
+    return _authority_store("lessons", MistakeMemory)
 
 
 def get_native_planner(
@@ -330,77 +398,6 @@ def get_memory_consolidator() -> MemoryConsolidator:
     if not isinstance(service, MemoryConsolidator):
         raise RuntimeError("memory authority consolidation adapter is unavailable")
     return service
-
-
-def _sync_pheromone_adapter(authority: MemoryAuthority) -> None:
-    """Keep the advisory adapter aligned with the live configured store.
-
-    The process authority is intentionally a singleton, while tests and local
-    operators may switch the pheromone database path between isolated runs.
-    Refresh only when the configured path/decay policy changes; normal calls do
-    not recreate the specialist store.
-    """
-    if not config.PHEROMONE_ENABLED:
-        authority.pheromone_adapter = None
-        return
-    current = getattr(authority.pheromone_adapter, "store", None)
-    configured_path = str(config.PHEROMONE_DB)
-    if (
-        current is not None
-        and str(getattr(current, "_db_path", "")) == configured_path
-        and getattr(current, "_lambda", None) == config.PHEROMONE_LAMBDA_DECAY
-        and getattr(current, "_floor", None) == config.PHEROMONE_FLOOR
-    ):
-        return
-    from aios.memory.pheromones import PheromoneStore
-
-    authority.pheromone_adapter = AdvisoryPheromoneAdapter(
-        PheromoneStore(
-            db_path=config.PHEROMONE_DB,
-            lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
-            floor=config.PHEROMONE_FLOOR,
-        )
-    )
-
-
-def get_memory_authority() -> MemoryAuthority:
-    """Provide the process-wide provenance and promotion authority for memory.
-
-    Specialized stores remain physically distinct.  The authority owns only
-    their provenance registry and routes recall to one adapter per request;
-    pheromones are attached only as advisory context when enabled.
-    """
-    global _memory_authority
-    if _memory_authority is not None:
-        _sync_pheromone_adapter(_memory_authority)
-        return _memory_authority
-    with _memory_authority_lock:
-        if _memory_authority is None:
-            adapters = {
-                "working": WorkingMemoryAdapter(WorkingMemory()),
-                "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
-                "semantic": LegacySemanticMemoryAdapter(config.MEMORY_DB_PATH),
-                "facts": SemanticFactsAdapter(SemanticFacts()),
-                "skills": SkillMemoryAdapter(SkillMemory()),
-                "lessons": MistakeMemoryAdapter(MistakeMemory()),
-                "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
-            }
-            _memory_authority = MemoryAuthority(
-                store=MemoryAuthorityStore(config.MEMORY_DB_PATH),
-                adapters=adapters,
-            )
-            consolidation = MemoryConsolidationAdapter(
-                MemoryConsolidator(
-                    semantic=adapters["semantic"].store,
-                    mistakes=adapters["lessons"].store,
-                    facts=adapters["facts"].store,
-                    memory_authority=_memory_authority,
-                )
-            )
-            _memory_authority.register_adapter("consolidation", consolidation)
-            _sync_pheromone_adapter(_memory_authority)
-            consolidation.bind_authority(_memory_authority)
-    return _memory_authority
 
 
 def get_conversation_state_store() -> ConversationStateStore:

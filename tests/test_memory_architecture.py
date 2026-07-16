@@ -216,9 +216,9 @@ def test_specialist_dependency_providers_return_authority_stores() -> None:
     facts = get_semantic_facts()
 
     assert facts is authority.adapters["facts"].store
-    assert get_development_tracker(facts) is authority.adapters["development"].store
-    assert get_skill_memory(None, facts) is authority.adapters["skills"].store
-    assert get_mistake_memory(facts) is authority.adapters["lessons"].store
+    assert get_development_tracker(facts, authority) is authority.adapters["development"].store
+    assert get_skill_memory(None, facts, authority) is authority.adapters["skills"].store
+    assert get_mistake_memory(facts, authority) is authority.adapters["lessons"].store
 
 
 def test_mirror_snapshot_helpers_use_authority_for_owned_stores() -> None:

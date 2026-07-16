@@ -442,15 +442,20 @@ def test_get_reflection_agent_refuses_missing_authority(monkeypatch) -> None:
 
 def test_get_mistake_memory_wires_facts_store() -> None:
     from aios.memory.mistake import MistakeMemory
+    from aios.api.deps import get_memory_authority
 
-    mm = get_mistake_memory(SemanticFacts())
+    authority = get_memory_authority()
+    mm = get_mistake_memory(authority.adapters["facts"].store, authority)
     assert isinstance(mm, MistakeMemory)
 
 
 def test_get_semantic_facts_and_development_tracker_wiring() -> None:
+    from aios.api.deps import get_memory_authority
+
+    authority = get_memory_authority()
     facts = get_semantic_facts()
     assert isinstance(facts, SemanticFacts)
-    tracker = get_development_tracker(facts)
+    tracker = get_development_tracker(facts, authority)
     assert isinstance(tracker, DevelopmentTracker)
 
 
@@ -465,12 +470,33 @@ def test_get_compactor_returns_singleton() -> None:
 
 
 def test_get_skill_memory_wires_cerebellum_and_facts() -> None:
+    from aios.api.deps import get_memory_authority
     from aios.core.cerebellum import Cerebellum
     from aios.memory.skills import SkillMemory
 
     cb = Cerebellum()
-    skills = get_skill_memory(cb, SemanticFacts())
+    authority = get_memory_authority()
+    skills = get_skill_memory(cb, authority.adapters["facts"].store, authority)
     assert isinstance(skills, SkillMemory)
+
+
+def test_specialist_dependency_providers_refuse_missing_authority() -> None:
+    """Provider seams must not create a shadow store without authority."""
+    from aios.api.deps import (
+        get_development_tracker,
+        get_mistake_memory,
+        get_skill_memory,
+    )
+
+    missing_authority = object()
+    facts = SemanticFacts()
+
+    with pytest.raises(RuntimeError, match="MemoryAuthority"):
+        get_development_tracker(facts, missing_authority)
+    with pytest.raises(RuntimeError, match="MemoryAuthority"):
+        get_skill_memory(None, facts, missing_authority)
+    with pytest.raises(RuntimeError, match="MemoryAuthority"):
+        get_mistake_memory(facts, missing_authority)
 
 
 def test_get_autonomy_returns_ledger() -> None:
