@@ -306,3 +306,11 @@ passed (`231`), and the clean package gate passed with `3,172` collected,
 `3,164 passed, 8 skipped`, exit `0`, and `88.86%` coverage. The two documented
 composition-root seams in `aios/api/deps.py` and `aios/api/routes/council.py`
 remain for the next audit; R11 remains partial.
+
+**R11 Council authority-boundary CI checkpoint — 2026-07-16:** Exact pushed
+repair tip `e3bb5a8dad68e8780408be83391e759a6cf3b087` passed CI run
+`29518614467` across Ubuntu, macOS, Windows, frontend, aggregate, and
+release-authority jobs. CodeQL run `29518614365` also passed all analysis jobs.
+The local package gate is `3,172` collected, `3,164 passed, 8 skipped`, with
+`88.86%` coverage. R11 remains partial; keep packaged runtime authority proof
+separate from source-level green evidence.

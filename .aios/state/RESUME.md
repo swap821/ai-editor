@@ -159,7 +159,9 @@ the clean package-wide gate passed with `3,172` collected, `3,164 passed,
 8 skipped`, exit `0`, and `88.86%` coverage. The repair preserves explicit
 `CouncilMemory`-only compatibility callers but refuses an authority-backed
 orchestrator unless its `council` adapter owns the exact mission-local store.
-Keep the mutation boundary fail-closed and do not bypass the audit.
+The source commit `e3bb5a8` is pushed; exact CI `29518614467` and CodeQL
+`29518614365` both passed all required jobs. Keep the mutation boundary
+fail-closed and do not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
