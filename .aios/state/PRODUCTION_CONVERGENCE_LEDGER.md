@@ -256,3 +256,14 @@ remains `3,168` collected, `3,160 passed, 8 skipped`, with `88.86%` combined
 coverage. R11 remains partial; continue at the next ordered compatibility
 seam, starting with `aios/api/deps.py`, and keep packaged runtime authority
 proofs separate from source-level green evidence.
+
+**R11 Consolidator CI checkpoint — 2026-07-16:** Exact pushed repair tip
+`1a497a022c584cbb9a1b54f697aac02295b38d48` passed CI run `29508215933` and
+CodeQL run `29508216169`; all required platform, frontend, aggregate,
+release-authority, and analysis jobs completed successfully. The local gate
+is `3,170` collected, `3,162 passed, 8 skipped`, exit `0`, with `88.85%`
+combined coverage. The architecture manifest now records three remaining R11
+construction seams: `aios/api/deps.py`, `aios/api/routes/council.py`, and
+`aios/application/memory/adapters.py`. R11 remains partial; continue with a
+red-first audit and keep packaged runtime authority proof separate from
+source-level green evidence.

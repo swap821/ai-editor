@@ -272,19 +272,21 @@ test and the affected API/dependency regression set are green (`206 passed`).
 Provider repair commit `5f886084d04a0d708080218b7c17a6725d62747d` is pushed;
 exact-tip CI `29504715690` and CodeQL `29504715702` passed all required jobs.
 
-The next consolidation wave is locally implemented: `MemoryConsolidator`
-refuses implicit store construction, accepts complete explicit standalone
-stores, and requires all specialist stores when authority-backed. Its focused
-consolidation/authority/approval gate is green (`7 passed`); the broader gate
-is now green (`68 passed`), and the architecture quarantine manifest no longer
-lists `aios/memory/consolidation.py`.
-The clean package-wide gate also passed with exit `0`: `3,170` collected,
-`3,162 passed, 8 skipped`, and `88.85%` combined coverage. The consolidation
-wave is not yet committed or remotely verified.
+The consolidation repair commit
+`1a497a022c584cbb9a1b54f697aac02295b38d48` is pushed to `origin/master`.
+Exact-tip CI `29508215933` and CodeQL `29508216169` completed successfully
+across the required platform, frontend, aggregate, release-authority, and
+analysis jobs. The focused consolidation/authority/approval gate is green
+(`7 passed`); the broader gate is green (`68 passed`), and the architecture
+quarantine manifest no longer lists `aios/memory/consolidation.py`. The clean
+package-wide gate passed with exit `0`: `3,170` collected, `3,162 passed,
+8 skipped`, and `88.85%` combined coverage.
 
-**Single next action:** stage, commit, and push the consolidator wave, then
-verify its exact pushed SHA across CI and CodeQL before auditing the next
-remaining R11 construction seam.
+**Single next action:** audit the remaining R11 construction surface:
+`aios/api/deps.py` bootstrap/advisory pheromone stores,
+`aios/api/routes/council.py` scoped CouncilMemory instances, and
+`aios/application/memory/adapters.py` physical adapter stores. Add a
+red-first guard before changing any seam.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon
