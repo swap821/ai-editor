@@ -3,8 +3,11 @@
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
-**Last Completed + Verified Step:** R11's Council pheromone boundary now
-fails closed when advisory pheromones are enabled without an injected
+**Last Completed + Verified Step:** R11's Council prior-failure recall now
+fails closed when no MemoryAuthority or explicit mistake store is injected; the
+removed implicit MistakeMemory construction seam is no longer listed as a
+production compatibility bypass. The Council pheromone boundary also fails
+closed when advisory pheromones are enabled without an injected
 MemoryAuthority; the removed implicit PheromoneStore construction seam is no
 longer listed as a production compatibility bypass. R11's Planner,
 ReflectionAgent, and MemoryConsolidator production defaults now reuse registered MemoryAuthority
@@ -14,7 +17,7 @@ ownership before using authority paths; explicit injected fakes remain
 compatible. The focused authority/planner/reflection gate is `89` passed before
 the follow-on ownership regressions. The latest package-wide gate is green:
 `3,161` collected, `3,153 passed, 8 skipped`, exit `0`, with combined coverage
-of `88.84%`. The frontend gate is also green at `598 passed` across `104`
+of `88.85%`. The frontend gate is also green at `598 passed` across `104`
 files, and the production Vite build passed.
 Production fact proposals,
 developmental outcomes, skill attempts/reuse, reflection lessons,
@@ -139,9 +142,10 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Continue the next ordered R11 compatibility-seam repair
-from exact green tip `6dd7a8f9f47aa4d50a294a20235d8ad2ea2a9652`; keep the
-mutation boundary fail-closed. The latest local gate is green: `3,161` collected,
+**Single Next Action:** Commit and push the current Council recall repair,
+verify its exact-tip CI and CodeQL workflows, then continue the next ordered
+R11 compatibility-seam repair; keep the mutation boundary fail-closed. The
+latest local gate is green: `3,161` collected,
 `3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
 tests and build also pass. Keep the mutation boundary fail-closed and do not
 bypass the audit.

@@ -301,6 +301,11 @@ def test_mistake_retriever_uses_memory_authority() -> None:
     assert "run the focused suite" in result.cautions[0]
 
 
+def test_mistake_retriever_refuses_implicit_legacy_store() -> None:
+    with pytest.raises(RuntimeError, match="MemoryAuthority"):
+        MistakeBackedRetriever()
+
+
 def _ledger_with(commands: list[dict]) -> object:
     from aios.runtime.contracts import RunLedger
 

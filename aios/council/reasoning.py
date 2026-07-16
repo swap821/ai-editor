@@ -212,10 +212,12 @@ class MistakeBackedRetriever:
         block_relevance: float = 0.6,
         limit: int = 5,
     ) -> None:
+        if mistakes is None and authority is None:
+            raise RuntimeError(
+                "MemoryAuthority or an explicit mistake store is required"
+            )
         self._authority = authority
-        self._mistakes = mistakes or (
-            None if authority is not None else MistakeMemory()
-        )
+        self._mistakes = mistakes
         self._block_relevance = block_relevance
         self._limit = limit
 
@@ -224,6 +226,7 @@ class MistakeBackedRetriever:
             if self._authority is not None:
                 lessons = self._authority.recall_verified_lessons(goal, self._limit)
             else:
+                assert self._mistakes is not None
                 lessons = self._mistakes.relevant_verified(goal, limit=self._limit)
         except Exception as exc:  # noqa: BLE001 - retrieval must never break deliberation
             _LOGGER.warning("council_memory_retrieval_failed", exc_info=exc)
