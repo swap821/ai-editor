@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 from aios import config
-from aios.memory.pheromones import PheromoneStore
 from aios.council import queen_service as queen_service_registry
 from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
@@ -138,7 +137,7 @@ class CouncilOrchestrator:
         report_store: KingReportStore | None = None,
         council_state: CouncilState | None = None,
         council_memory: CouncilMemory | None = None,
-        pheromone_store: PheromoneStore | None = None,
+        pheromone_store: Any | None = None,
         bus: CortexBus | None = None,
         mission_service: MissionService | None = None,
         foundry: WorkerFoundry | None = None,
@@ -255,10 +254,8 @@ class CouncilOrchestrator:
             and self.memory_authority is None
             and config.PHEROMONE_ENABLED
         ):
-            self.pheromone_store = PheromoneStore(
-                db_path=config.PHEROMONE_DB,
-                lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
-                floor=config.PHEROMONE_FLOOR,
+            raise RuntimeError(
+                "MemoryAuthority is required when advisory pheromones are enabled"
             )
         # Authoritative mission state service (Slice 7). Defaults to an isolated
         # SQLite store under the runtime root so every orchestrator instance owns

@@ -3,8 +3,11 @@
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
-**Last Completed + Verified Step:** R11's Planner, ReflectionAgent, and
-MemoryConsolidator production defaults now reuse registered MemoryAuthority
+**Last Completed + Verified Step:** R11's Council pheromone boundary now
+fails closed when advisory pheromones are enabled without an injected
+MemoryAuthority; the removed implicit PheromoneStore construction seam is no
+longer listed as a production compatibility bypass. R11's Planner,
+ReflectionAgent, and MemoryConsolidator production defaults now reuse registered MemoryAuthority
 specialist stores instead of constructing parallel stores; generate-pipeline
 facts/skills/lessons/self-model and confidence-calibration reads now require
 ownership before using authority paths; explicit injected fakes remain
@@ -98,7 +101,9 @@ and operator-model read routes, plus system metrics, now dispatch through
 MemoryAuthority when their stores are authority-owned. Planner, ReflectionAgent,
 and the authority bootstrap's consolidator now reuse registered specialist
 stores; only explicit standalone or injected-fake compatibility paths construct
-legacy stores. The latest turn-path slice also makes semantic recall, episodic
+legacy stores. Council pheromone context now requires MemoryAuthority for
+implicit production wiring; explicit injected stores remain bounded test or
+compatibility inputs. The latest turn-path slice also makes semantic recall, episodic
 persistence, and `/api/v1/chat` coordinator wiring use the injected
 `MemoryAuthority`; process-global fallback remains only for standalone
 compatibility callers. The focused development/architecture/authority/metrics gate is
@@ -134,10 +139,10 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Continue the next ordered R11 compatibility-seam repair
-after verifying the green exact-tip workflow for
-`e4a918adc39909cc395ef35b66946b324592afd0`; keep the mutation boundary
-fail-closed. The latest local gate is green: `3,161` collected,
+**Single Next Action:** Commit and push the current pheromone-boundary repair,
+verify its exact-tip CI and CodeQL workflows, then continue the next ordered
+R11 compatibility-seam repair; keep the mutation boundary fail-closed. The
+latest local gate is green: `3,161` collected,
 `3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
 tests and build also pass. Keep the mutation boundary fail-closed and do not
 bypass the audit.

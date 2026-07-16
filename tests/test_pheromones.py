@@ -228,6 +228,18 @@ def test_council_prefers_authority_pheromone_adapter(tmp_path: Path, monkeypatch
     )
 
 
+def test_council_refuses_implicit_pheromone_store_without_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aios import config
+    from aios.council.council_orchestrator import CouncilOrchestrator
+
+    monkeypatch.setattr(config, "PHEROMONE_ENABLED", True)
+
+    with pytest.raises(RuntimeError, match="MemoryAuthority"):
+        CouncilOrchestrator(runtime_root=tmp_path / "runtime-unbound")
+
+
 def test_pheromone_context_cannot_override_red_security_decision(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
