@@ -13,6 +13,34 @@ def _store(tmp_path: Path, **kwargs) -> PheromoneStore:
     return PheromoneStore(db_path=tmp_path / "pheromones.sqlite3", **kwargs)
 
 
+def test_authority_rejects_a_non_advisory_pheromone_adapter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aios import config
+    from aios.api import deps
+    from aios.application.memory import MemoryAuthority
+
+    class Pretender:
+        def __init__(self) -> None:
+            self.store = type(
+                "MatchingStore",
+                (),
+                {
+                    "_db_path": str(tmp_path / "pheromones.db"),
+                    "_lambda": config.PHEROMONE_LAMBDA_DECAY,
+                    "_floor": config.PHEROMONE_FLOOR,
+                },
+            )()
+
+    monkeypatch.setattr(config, "PHEROMONE_ENABLED", True)
+    monkeypatch.setattr(config, "PHEROMONE_DB", tmp_path / "pheromones.db")
+    authority = MemoryAuthority(store=object(), pheromone_adapter=Pretender())
+
+    deps._sync_pheromone_adapter(authority)
+
+    assert isinstance(authority.pheromone_adapter, deps.AdvisoryPheromoneAdapter)
+
+
 def test_deposit_and_query(tmp_path: Path) -> None:
     store = _store(tmp_path)
     pid = store.deposit(

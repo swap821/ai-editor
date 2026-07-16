@@ -3,6 +3,15 @@
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
+**Latest Repair Wave (2026-07-17):** R11's canonical authority-bootstrap audit
+found and closed a fail-open pheromone seam. `_sync_pheromone_adapter()` now
+reuses a configured adapter only when it is the canonical
+`AdvisoryPheromoneAdapter`; a look-alike adapter cannot bypass the advisory
+boundary. The red-first regression failed before the guard and passed after it.
+The focused pheromone/memory-architecture gate passed, and the full backend
+gate passed with exit `0` at `88.85%` coverage. Source and hosted verification
+are still pending for this wave.
+
 **Current Checkpoint (2026-07-17):** R12's Cortex bus now accepts only a
 `CanonicalEvent`; every production producer passes the canonical envelope, the
 durable row preserves the full schema, and legacy producer triples fail closed.
@@ -208,10 +217,10 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Audit the remaining canonical `aios/api/deps.py`
-authority-bootstrap/advisory-pheromone seam with a new red-first guard, then
-run the same local and hosted gates before advancing R11. Keep the packaged runtime proof
-separate from source-level green evidence. R12's cursor/schema repair is fully
+**Single Next Action:** Commit and push the R11 advisory-pheromone guard, then
+verify the exact hosted CI and CodeQL runs. After that, audit the next ordered
+R11/R13 packaged-runtime proof seam. Keep the packaged runtime proof separate
+from source-level green evidence. R12's cursor/schema repair is fully
 green on the exact pushed tip: the mirror/Cortex gate passed (`13`), the
 complete frontend suite passed (`600`), frontend coverage passed at `76.07%`
 scoped-lib functions, the production build passed, CI `29533017263` passed all
@@ -285,6 +294,8 @@ schema repair in `frontend/src/superbrain/lib/aiosMirror.ts`,
 `frontend/src/superbrain/lib/aiosMirror.test.ts`, plus the canonical Cortex bus
 boundary in `aios/runtime/cortex_bus.py`, canonical producer call sites under
 `aios/api/`, `aios/application/`, `aios/core/`, and `aios/runtime/`, plus the
+R11 authority-composition guard in `aios/api/deps.py` and
+`tests/test_pheromones.py`, plus the
 focused test migrations and `tests/cortex_event_helpers.py`. The earlier
 explicit drive/UNC path compatibility fix in `aios/core/executor.py`; the
 semantic mount-source

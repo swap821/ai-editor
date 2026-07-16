@@ -243,7 +243,8 @@ def _sync_pheromone_adapter(authority: MemoryAuthority) -> None:
     current = getattr(authority.pheromone_adapter, "store", None)
     configured_path = str(config.PHEROMONE_DB)
     if (
-        current is not None
+        isinstance(authority.pheromone_adapter, AdvisoryPheromoneAdapter)
+        and current is not None
         and str(getattr(current, "_db_path", "")) == configured_path
         and getattr(current, "_lambda", None) == config.PHEROMONE_LAMBDA_DECAY
         and getattr(current, "_floor", None) == config.PHEROMONE_FLOOR

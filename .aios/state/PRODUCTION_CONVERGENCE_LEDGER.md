@@ -424,3 +424,12 @@ release-authority, and private Executor isolation. CodeQL `29537224826` passed
 Actions, Python, and JavaScript/TypeScript. The first Ubuntu attempt failed
 only at `test_approve_triggers_execution_and_worker_acts` with a credential-like
 capability-payload 403 after coverage had passed; no source change was made.
+
+**R11 advisory pheromone authority guard local checkpoint — 2026-07-17:** The
+red-first regression demonstrated that `_sync_pheromone_adapter()` accepted a
+look-alike adapter when its wrapped object matched the configured private
+fields. The sync guard now requires the canonical `AdvisoryPheromoneAdapter`
+before reusing an existing store, preserving the non-authoritative pheromone
+boundary. The focused pheromone/memory-architecture gate passed and the exact
+full backend gate exited `0` at `88.85%` coverage. Source commit and hosted
+CI/CodeQL verification remain pending.
