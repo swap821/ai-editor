@@ -183,9 +183,11 @@ use the injected MemoryAuthority rather than silently consulting the process
  are enabled without MemoryAuthority; explicit injected stores remain bounded
  compatibility inputs. The latest authoritative backend gate is `3,161` collected,
 `3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
-tests/build are green. Checkpoint `e4a918a` is exact-tip CI/CodeQL green; the
-current local pheromone-boundary repair is ready to push and verify as the next
-exact tip; the
+tests/build are green. Repair tip `6dd7a8f9f47aa4d50a294a20235d8ad2ea2a9652`
+is synchronized with `origin/master`; exact-tip CI run `29488676684` and
+CodeQL run `29488676662` are green across the platform matrix, frontend,
+aggregate, release-authority, and CodeQL jobs. The prior checkpoint `e4a918a`
+was also exact-tip green; the
 previous checkpoint passed CodeQL, the dependency audit,
 frontend, and Windows backend jobs, while Ubuntu/macOS exposed the existing
 explicit Windows daemon-path test after the POSIX host-platform gate was

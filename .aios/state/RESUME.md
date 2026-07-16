@@ -139,10 +139,9 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit and push the current pheromone-boundary repair,
-verify its exact-tip CI and CodeQL workflows, then continue the next ordered
-R11 compatibility-seam repair; keep the mutation boundary fail-closed. The
-latest local gate is green: `3,161` collected,
+**Single Next Action:** Continue the next ordered R11 compatibility-seam repair
+from exact green tip `6dd7a8f9f47aa4d50a294a20235d8ad2ea2a9652`; keep the
+mutation boundary fail-closed. The latest local gate is green: `3,161` collected,
 `3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
 tests and build also pass. Keep the mutation boundary fail-closed and do not
 bypass the audit.
