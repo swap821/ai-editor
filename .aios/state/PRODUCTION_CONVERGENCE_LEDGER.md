@@ -344,3 +344,10 @@ event/mirror gate and compatibility gates passed; the exact package gate passed
 with `3,174` collected, `3,166 passed, 8 skipped`, exit `0`, and `88.85%`
 combined coverage. R12 remains partial; hosted CI and CodeQL are pending for
 the source tip.
+
+**R12 hosted verification finding — 2026-07-17:** Exact source tip
+`ad8c89a17bb0207957e65701aa153e43cd675d29` passed CodeQL
+`29527777727`, all backend matrix jobs, frontend, aggregate, and platform
+checks in CI `29527777325`. The release-authority job failed only at its Ruff
+format gate because `tests/test_operations.py` would be reformatted. A
+format-only follow-up is required before this checkpoint is green.

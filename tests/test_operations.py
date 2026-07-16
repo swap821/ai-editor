@@ -124,8 +124,7 @@ def test_backup_manifest_excludes_environment_files_and_round_trips_state(
 def test_projection_rebuild_replays_only_durable_observations(tmp_path: Path) -> None:
     bus = CortexBus(db_path=tmp_path / "cortex.db", retention_max=100)
     append_event(
-        bus,
-        "worker.started", "worker-1", {"worker_id": "worker-1", "role": "tester"}
+        bus, "worker.started", "worker-1", {"worker_id": "worker-1", "role": "tester"}
     )
     append_event(bus, "model.selected", "model-1", {"model": "local"})
 
