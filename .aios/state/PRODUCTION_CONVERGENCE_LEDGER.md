@@ -460,3 +460,13 @@ passed on the new enforcement files, and the exact package gate passed with
 The source commit and hosted CI/CodeQL verification are pending. R13 remains
 partial because the exact emergency-clear capability and complete restart
 matrix are still unproven; overall V1 remains partial.
+
+**R13 production emergency-stop construction hosted verification complete —
+2026-07-17:** Exact pushed source tip
+`45765ebbe92f3b9a7e4cc7a8c2c9077c090e0d9f` passed CI
+`29542860644` across platform tests, frontend, backend aggregate, and
+`release-authority`; CodeQL `29542860619` also passed. The production stop
+latch construction is therefore green on the immutable hosted tip. R13 is
+still partial because the exact emergency-clear capability and complete
+packaged restart matrix remain unproven; the next cursor is the R13/R14
+packaged-runtime proof seam and overall V1 remains partial.

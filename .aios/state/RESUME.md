@@ -13,13 +13,16 @@ persisted latch is shared across fresh controller instances. The new R13 wiring
 regressions and adjacent governance/mission tests passed (`21`); Ruff passed on
 the new enforcement files; the exact backend gate passed with `3,179` collected,
 `3,171` passed, `8` skipped, exit `0`, and `88.76%` coverage. The source wave
-is locally verified and is awaiting its source commit and hosted CI/CodeQL
-verification. The full emergency-clear capability and packaged restart matrix
-remain open; do not promote R13 or V1 to verified from source tests alone.
+is pushed at `45765ebbe92f3b9a7e4cc7a8c2c9077c090e0d9f`. Exact-tip hosted CI
+`29542860644` passed all platform, frontend, backend aggregate, and
+`release-authority` jobs; CodeQL `29542860619` also passed. The full
+emergency-clear capability and packaged restart matrix remain open; do not
+promote R13 or V1 to verified from source tests alone.
 
-**Current Checkpoint (2026-07-17):** The next single action is to commit and
-push this R13 construction wave, wait for exact-tip CI and CodeQL, then record
-the hosted evidence before starting the R14 packaged-runtime proof audit.
+**Current Checkpoint (2026-07-17):** The next single action is to audit the
+R13/R14 packaged-runtime proof seam, starting with the strict `v1-check`
+probes, launcher/restart matrix, and private Executor isolation evidence; keep
+the exact emergency-clear capability as an explicit R13 gap.
 
 **Latest Repair Wave (2026-07-17):** R11's canonical authority-bootstrap audit
 found and closed a fail-open pheromone seam. `_sync_pheromone_adapter()` now
