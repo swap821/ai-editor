@@ -71,7 +71,7 @@ production path; `BLOCKED` means a required authority or invariant is absent.
 | R8 | Private Executor Service mandatory boundary | **VERIFIED** | `StructuredExecutorClient` authenticates `/v1/jobs`, validates job identity/isolation proof, and refuses timeout/unavailable/malformed responses; production/demo runner selection is private-service-only, worker defaults fail closed, and Compose/CI encode control-plane-without-Docker-socket topology. Focused gate is `119 passed, 3 skipped`; a live source-bearing no-socket control-plane probe reached the private service and disposable worker, proving UID 65534, no network, staged-workspace confinement, bounded/truncated output, timeout refusal, and missing-service refusal. The host-visible workspace mapping fixes Docker Desktop socket semantics. Overall v1 remains partial |
 | R9 | Staged workspaces mandatory boundary | **VERIFIED** | `StagedWorkspaceManager` now owns collision-safe mission leases, durable markers, symlink/path/enrollment checks, deterministic baselines/diffs, and bounded cleanup. Production/demo Council wiring stages the project before WorkerFoundry admits a mutable worker; the worker receives only the staged root, terminal success cleans it, and failed verification retains it for evidence. Focused R9 gate is `59 passed, 1 skipped`; the authoritative full backend gate exits `0` at `88.99%` coverage. Promotion, evidence, memory, mirror, and emergency waves remain open |
 | R10 | Evidence, verification, promotion and rollback | **VERIFIED** | `EvidenceBundle` binds mission/worker/contract/workspace/diff/executor/environment/commands/output digests/strength/targets/timestamps; VerificationAuthority rejects weak, stale, partial, or mismatched evidence; production/demo Council routes staged worker results through PromotionAuthority, checkpoint, exact apply, post-promotion exact-copy smoke, completion, or rollback. Focused R10 gate is `66 passed, 1 skipped`; authoritative full backend gate exits `0` with all tests passing at `88.94%` coverage |
-| R11 | One Memory Authority | **PARTIAL** | MemoryAuthority now maps recall status to truthful event trust, the memory route uses canonical Cortex phases and no longer emits unverified recall as verified, episodic turn writes/session restore cross authority adapters, semantic chat indexing crosses the authority seam, production fact/skill/lesson/development-history/self-model recall routes through specialized adapters, and production fact/development/skill/lesson/reflection/consolidation/planner/compaction paths now dispatch through authority adapters. Council lesson recall and mission-scoped append-only deliberation evidence also route through scoped adapters. The consolidator's contradiction reconciliation, supersession, and bulk status reads, plus default-chat confidence calibration and reflection lesson reads, now dispatch through MemoryAuthority. Advisory pheromone query/deposit/reinforcement/decay, Council context, hibernation preview, and system onboarding episodic counts now use authority-owned adapters; process-wide working/semantic compactor facades, Cortex self-model production wiring, consolidation and semantic-indexer dependencies, development metrics/skills/trails reads, system metrics reads, and mirror snapshot development/skill reads are authority-owned too. Specialist dependency providers now return canonical facts/development/skills/lessons stores while explicit injected fakes remain supported. Planner, ReflectionAgent, and the authority bootstrap's consolidator now reuse registered specialist stores; only explicit standalone/injected-fake paths construct legacy stores. A CI architecture guard freezes the remaining documented legacy-construction seams. The focused planner/reflection/authority regression is `89 passed` before the follow-on ownership regressions; the package-wide gate exits `0` with `3,159` collected, `3,151 passed, 8 skipped`, `91.04%` line coverage (`21,129/23,209`), and `80.57%` branch coverage (`5,016/6,226`), combined `88.82%`. Packaged runtime proof stays open |
+| R11 | One Memory Authority | **PARTIAL** | MemoryAuthority now maps recall status to truthful event trust, the memory route uses canonical Cortex phases and no longer emits unverified recall as verified, episodic turn writes/session restore cross authority adapters, semantic chat indexing crosses the authority seam, production fact/skill/lesson/development-history/self-model recall routes through specialized adapters, and production fact/development/skill/lesson/reflection/consolidation/planner/compaction paths now dispatch through authority adapters. The latest turn-path slice also makes semantic recall, episodic persistence, and `/api/v1/chat` coordinator wiring use the injected MemoryAuthority rather than silently consulting the process-global fallback. Council lesson recall and mission-scoped append-only deliberation evidence also route through scoped adapters. The consolidator's contradiction reconciliation, supersession, and bulk status reads, plus default-chat confidence calibration and reflection lesson reads, now dispatch through MemoryAuthority. Advisory pheromone query/deposit/reinforcement/decay, Council context, hibernation preview, and system onboarding episodic counts now use authority-owned adapters; process-wide working/semantic compactor facades, Cortex self-model production wiring, consolidation and semantic-indexer dependencies, development metrics/skills/trails reads, system metrics reads, and mirror snapshot development/skill reads are authority-owned too. Specialist dependency providers now return canonical facts/development/skills/lessons stores while explicit injected fakes remain supported. Planner, ReflectionAgent, and the authority bootstrap's consolidator now reuse registered specialist stores; only explicit standalone/injected-fake paths construct legacy stores. A CI architecture guard freezes the remaining documented legacy-construction seams. The focused planner/reflection/authority regression is `89 passed`; the package-wide gate exits `0` with `3,161` collected, `3,153 passed, 8 skipped`, combined coverage `88.84%`, and frontend tests/build green. Packaged runtime proof stays open |
 
 ## Current authority readiness at the audited baseline
 
@@ -89,20 +89,14 @@ two-layer distinction as `source_present` and `runtime_proven`.
 | EmergencyStopController | **PARTIAL** | Source exists; all real side-effect boundaries are not runtime-proven |
 | Other source-only gates | **PARTIAL** | Source evidence is retained as advisory until a real runtime proof is recorded |
 
-## Latest CI Repair Checkpoint — 2026-07-15
+## Latest CI Repair Checkpoint — 2026-07-16
 
-Commit `65d403b2707135f1f7d9dd30145591646ca7ca0c` is synchronized with
-`origin/master`. Its cross-platform path/timeout repair passed CodeQL,
-dependency audit, frontend, and all Ubuntu/macOS/Windows backend jobs in run
-`29435327884`; its follow-on permission repair passed all backend matrix,
-frontend, aggregate, and release-authority jobs in run `29436664457`, while
-CodeQL run `29436664480` also passed. The workflow keeps only the lightweight
-private executor resident, prepares the UID `65534` shared workspace, runs the
-control-plane integration test in a one-shot Compose container, waits for
-executor health, prints diagnostics, and supplies the required workspace-root
-variable to teardown. Focused local release/integration tests pass `14 passed,
-3 skipped`; the packaged isolation gate is now runtime-proven at its declared
-CI boundary, while overall R11 and v1 readiness remain **PARTIAL**.
+Commit `71bd9d6f98a27ca6ae972523e03ffce87c306fae` is synchronized with
+`origin/master`. Its local focused/full backend and frontend gates pass; exact-
+tip GitHub CI and CodeQL are pending. The previous checkpoint already proved
+the lightweight private executor release boundary with the UID `65534` shared
+workspace and one-shot control-plane integration container. Overall R11 and v1
+readiness remain **PARTIAL**.
 
 ## New Directive Roadmap (post-save)
 
@@ -181,10 +175,14 @@ metrics/skills/trails reads also use the authority. The current documented
 compatibility construction seams are frozen by an architecture guard. Planner,
 ReflectionAgent, and the authority bootstrap's consolidator reuse registered
 specialist stores; direct construction remains only in explicit standalone or
-injected-fake compatibility paths. The latest authoritative backend gate is
-`3,161` collected, `3,153 passed, 8 skipped`, exit `0`, at `91.04%` line
-coverage (`21,145/23,225`) and `80.58%` branch coverage (`5,022/6,232`),
-combined `88.83%`. Checkpoint `9cff773` passed CodeQL, the dependency audit,
+injected-fake compatibility paths. The latest turn-path slice also makes
+semantic recall, episodic persistence, and `/api/v1/chat` coordinator wiring
+use the injected MemoryAuthority rather than silently consulting the process
+global. The latest authoritative backend gate is `3,161` collected,
+`3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
+tests/build are green. Checkpoint `71bd9d6` is pushed and awaits exact-tip
+CI/CodeQL confirmation; the previous checkpoint passed CodeQL, the dependency
+audit,
 frontend, and Windows backend jobs, while Ubuntu/macOS exposed the existing
 explicit Windows daemon-path test after the POSIX host-platform gate was
 tightened. The runner resolves POSIX paths at the mount boundary, preserves

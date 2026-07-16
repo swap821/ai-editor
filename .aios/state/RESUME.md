@@ -9,10 +9,10 @@ specialist stores instead of constructing parallel stores; generate-pipeline
 facts/skills/lessons/self-model and confidence-calibration reads now require
 ownership before using authority paths; explicit injected fakes remain
 compatible. The focused authority/planner/reflection gate is `89` passed before
-the follow-on ownership regressions. The package-wide gate is
-green: `3,159` collected, `3,151 passed, 8 skipped`, exit `0`, with `91.04%`
-line coverage (`21,129/23,209`) and `80.57%` branch coverage (`5,016/6,226`);
-combined coverage is `88.82%`.
+the follow-on ownership regressions. The latest package-wide gate is green:
+`3,161` collected, `3,153 passed, 8 skipped`, exit `0`, with combined coverage
+of `88.84%`. The frontend gate is also green at `598 passed` across `104`
+files, and the production Vite build passed.
 Production fact proposals,
 developmental outcomes, skill attempts/reuse, reflection lessons,
 consolidation, planner/compaction, Council lesson recall, and append-only
@@ -98,11 +98,14 @@ and operator-model read routes, plus system metrics, now dispatch through
 MemoryAuthority when their stores are authority-owned. Planner, ReflectionAgent,
 and the authority bootstrap's consolidator now reuse registered specialist
 stores; only explicit standalone or injected-fake compatibility paths construct
-legacy stores. The focused development/architecture/authority/metrics gate is
+legacy stores. The latest turn-path slice also makes semantic recall, episodic
+persistence, and `/api/v1/chat` coordinator wiring use the injected
+`MemoryAuthority`; process-global fallback remains only for standalone
+compatibility callers. The focused development/architecture/authority/metrics gate is
 `40 passed`, and the focused planner/reflection/authority gate is `89 passed`.
-The package-wide gate is `3,159` collected, `3,151 passed, 8 skipped`, exit `0`,
-at `91.04%` line coverage (`21,129/23,209`) and `80.57%` branch coverage
-(`5,016/6,226`); combined coverage is `88.82%`. Packaged
+The package-wide gate is `3,161` collected, `3,153 passed, 8 skipped`, exit `0`,
+at combined coverage `88.84%`. Frontend tests are `598 passed` across `104`
+files and the production Vite build passed. Packaged
 runtime-proof seams remain open. R10 is
 verified at
 the bounded evidence/verification/promotion boundary; R9 remains verified at
@@ -131,13 +134,12 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit and push the explicit-Windows-path compatibility
-fix, then
-verify the GitHub CI matrix for that exact SHA. The latest local gate is green:
-`3,161` collected, `3,153 passed, 8 skipped`, exit `0`, with `91.04%` line
-coverage (`21,145/23,225`), `80.58%` branch coverage (`5,022/6,232`), and
-`88.83%` combined coverage; the focused portability tests pass. Keep the
-mutation boundary fail-closed and do not bypass the audit.
+**Single Next Action:** Verify the GitHub CI matrix and CodeQL for pushed tip
+`71bd9d6f98a27ca6ae972523e03ffce87c306fae`, then continue the next ordered R11
+compatibility-seam repair. The latest local gate is green: `3,161` collected,
+`3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
+tests and build also pass. Keep the mutation boundary fail-closed and do not
+bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -229,18 +231,15 @@ consolidation and semantic-indexer dependencies, and an AST guard for
 legacy-store construction seams.
 The frozen security spine is untouched.
 
-## Active CI Repair Checkpoint — 2026-07-15
+## Active CI Repair Checkpoint — 2026-07-16
 
-`65d403b2707135f1f7d9dd30145591646ca7ca0c` is pushed to `origin/master`.
-CI run `29436664457` is green across Ubuntu/macOS/Windows backend, frontend,
-both aggregate gates, and release-authority; CodeQL run `29436664480` is also
-green. The release-authority proof now waits for the lightweight private
-executor, prepares the UID `65534` shared workspace, runs the control-plane
-integration suite in a one-shot container, and completes teardown cleanly.
+`71bd9d6f98a27ca6ae972523e03ffce87c306fae` is pushed to `origin/master`.
+Its local focused and full backend/frontend gates are green; remote CI and
+CodeQL verification for this exact tip are pending.
 
 **Single next action:** continue the next ordered R11 repair wave from the
-current MemoryAuthority compatibility-seam inventory, keeping the verified CI
-baseline pinned to `65d403b2707135f1f7d9dd30145591646ca7ca0c`.
+current MemoryAuthority compatibility-seam inventory after exact-tip CI and
+CodeQL complete for `71bd9d6f98a27ca6ae972523e03ffce87c306fae`.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon
@@ -291,11 +290,10 @@ and API-gap gate is green; the post-write
 affected gate is `340 passed, 2 skipped` across `342` collected tests; the
 planner/native-planner/compaction gate is `73 passed` across `73` collected
 tests. The post-semantic-provider authoritative full backend gate exited `0`
-with `3,159` tests collected, `3,151 passed, 8 skipped`, `91.04%` line
-coverage (`21,129/23,209`), and `80.57%` branch coverage (`5,016/6,226`).
-Frontend typecheck passes, lint is `0 errors / 123 warnings`
-under the 124-warning budget, and frontend tests are `598 passed` across
-`104` files.
+with `3,161` tests collected, `3,153 passed, 8 skipped`, and `88.84%` combined
+coverage. Frontend typecheck passes, lint is `0 errors / 123 warnings` under
+the 124-warning budget, frontend tests are `598 passed` across `104` files,
+and the production build is green.
 `python -m aios.launcher
 v1-check --json` confirms
 the executable declaration has no persistent runtime-proof input and remains
