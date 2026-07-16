@@ -147,9 +147,11 @@ class CouncilOrchestrator:
         promotion_authority: PromotionAuthority | None = None,
         promotion_runtime: WorkspacePromotionRuntime | None = None,
         memory_authority: Any | None = None,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
         self.bus = bus
+        self.emergency_stop = emergency_stop
         self.spawner = spawner or WorkerSpawner(
             runtime_root=self.runtime_root, bus=self.bus
         )
@@ -192,6 +194,7 @@ class CouncilOrchestrator:
             promotion_authority = PromotionAuthority(
                 workspace_manager,
                 verification=self.verification_authority,
+                emergency_stop=self.emergency_stop,
             )
         self.promotion_authority = promotion_authority
         # Slice 9: all temporary worker styles enter through one bounded Foundry.
@@ -202,6 +205,7 @@ class CouncilOrchestrator:
             spawner=self.spawner,
             bus=self.bus,
             workspace_manager=self.workspace_manager,
+            emergency_stop=self.emergency_stop,
         )
         self.planner = planner or PlannerQueen()
         self.security = security or SecurityQueen()
@@ -273,6 +277,7 @@ class CouncilOrchestrator:
             SqliteMissionRepository(self.runtime_root / "missions.db"),
             export_dir=self.runtime_root / "mission_exports",
             workspace_manager=self.workspace_manager,
+            emergency_stop=self.emergency_stop,
         )
 
     def _to_domain_contract(self, contract: MissionContract) -> DomainMissionContract:
@@ -368,6 +373,7 @@ class CouncilOrchestrator:
         # the authoritative mission proposal before any terminal or approval
         # transition is recorded.  The JSON ledger remains a projection.
         domain_contract = self._to_domain_contract(contract)
+        self._assert_operational()
         self.mission_service.create(
             domain_contract,
             runtime_contract_digest=payload_digest(contract.model_dump(mode="json")),
@@ -440,6 +446,7 @@ class CouncilOrchestrator:
             raise MissionTransitionError(
                 "human approval is required before mission execution"
             )
+        self._assert_operational()
         if (
             mission_record.runtime_contract_digest
             and mission_record.runtime_contract_digest
@@ -600,6 +607,10 @@ class CouncilOrchestrator:
             report_path=report_path,
         )
 
+    def _assert_operational(self) -> None:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
+
     def _promote_worker(
         self,
         *,
@@ -709,6 +720,7 @@ class CouncilOrchestrator:
             required_strength=int(VerificationStrength.STRONG),
             freshness_seconds=300,
         )
+        self._assert_operational()
         result = self.promotion_authority.promote(
             request,
             create_checkpoint=self.promotion_runtime.create_checkpoint,

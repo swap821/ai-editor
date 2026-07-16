@@ -36,6 +36,10 @@ from aios.application.memory import MemoryAuthority
 from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.capabilities.verifier import CapabilityVerifier
 from aios.application.action_broker import ActionBroker
+from aios.application.governance import (
+    EmergencyStopController,
+    EmergencyStopHooks,
+)
 from aios.application.identity.service import IdentityService
 from aios.application.memory.adapters import (
     AdvisoryPheromoneAdapter,
@@ -72,7 +76,8 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
-from aios.security.gateway import RateLimiter
+from aios.security.audit_logger import log_action
+from aios.security.gateway import RateLimiter, Zone
 
 if TYPE_CHECKING:
     from aios.council.council_memory import CouncilMemory
@@ -92,6 +97,8 @@ _memory_authority: Optional[MemoryAuthority] = None
 _memory_authority_lock = threading.Lock()
 _identity_service: Optional[IdentityService] = None
 _identity_service_lock = threading.Lock()
+_emergency_stop: Optional[EmergencyStopController] = None
+_emergency_stop_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -357,9 +364,39 @@ def get_development_tracker(
     return _authority_store("development", DevelopmentTracker)
 
 
+def get_emergency_stop() -> EmergencyStopController:
+    """Provide the one durable stop latch shared by production boundaries."""
+    global _emergency_stop
+    if _emergency_stop is not None:
+        return _emergency_stop
+    with _emergency_stop_lock:
+        if _emergency_stop is None:
+            from aios.application.workers.scheduler import WorkerScheduler
+            from aios.application.missions.mission_service import MissionService
+
+            def cancel_queued_work(reason: str = "emergency stop") -> int:
+                return (
+                    MissionService.cancel_registered_queued(reason)
+                    + WorkerScheduler.cancel_queued_registered(reason)
+                )
+
+            _emergency_stop = EmergencyStopController(
+                hooks=EmergencyStopHooks(
+                    revoke_capabilities=_CAPABILITIES.revoke_all_active,
+                    cancel_queued_missions=cancel_queued_work,
+                    kill_active_workers=WorkerScheduler.cancel_active_registered,
+                    disable_autonomy=AutonomyLedger().revoke_all,
+                    preserve_evidence=lambda reason: log_action(
+                        "emergency-stop", f"engaged: {reason}", Zone.RED
+                    ),
+                )
+            )
+    return _emergency_stop
+
+
 def get_autonomy() -> AutonomyLedger:
     """Provide the earned-autonomy ledger (opt-in; off => never grants autonomy)."""
-    return AutonomyLedger()
+    return AutonomyLedger(emergency_stop=get_emergency_stop())
 
 
 def get_cerebellum() -> Cerebellum:
@@ -555,11 +592,14 @@ def get_executor() -> Executor:
         approved_runner=approved_runner,
         rate_limiter=_RATE_LIMITER,
         policy_kernel=kernel,
+        emergency_stop=get_emergency_stop(),
     )
 
 
 def get_capability_authority() -> CapabilityAuthority:
     """Provide the server-issued exact capability authority."""
+    if _CAPABILITIES.emergency_stop is None:
+        _CAPABILITIES.emergency_stop = get_emergency_stop()
     return _CAPABILITIES
 
 
@@ -581,7 +621,8 @@ def get_policy_kernel() -> "PolicyKernel":
     from aios.policy.kernel import get_policy_kernel as _kernel_singleton
 
     return _kernel_singleton(
-        rate_limiter=_RATE_LIMITER, autonomy_ledger=AutonomyLedger()
+        rate_limiter=_RATE_LIMITER,
+        autonomy_ledger=AutonomyLedger(emergency_stop=get_emergency_stop()),
     )
 
 

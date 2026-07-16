@@ -67,6 +67,7 @@ class WorkerFoundry:
         self.scheduler = scheduler or WorkerScheduler(
             max_active=max_active,
             max_per_mission=max_per_mission,
+            emergency_stop=emergency_stop,
         )
         deterministic = DeterministicWorkerStrategy(spawner)
         # Only deterministic execution has a default production handler.  The

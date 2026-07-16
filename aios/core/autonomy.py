@@ -53,9 +53,11 @@ class AutonomyLedger:
         db_path: Path = config.MEMORY_DB_PATH,
         *,
         min_successes: int = config.EARNED_AUTONOMY_MIN_SUCCESSES,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.db_path = db_path
         self.min_successes = max(int(min_successes), 1)
+        self.emergency_stop = emergency_stop
         self._ensure_table()
 
     def _ensure_table(self) -> None:
@@ -159,6 +161,11 @@ class AutonomyLedger:
         When *enabled* is supplied it overrides the global config, allowing the
         active runtime profile to drive the decision through ``PolicyKernel``.
         """
+        if self.emergency_stop is not None:
+            try:
+                self.emergency_stop.assert_operational()
+            except Exception:  # noqa: BLE001 - emergency latch denies grants
+                return False
         if enabled is None:
             enabled = config.EARNED_AUTONOMY_ENABLED
         if not enabled:
@@ -410,3 +417,14 @@ class AutonomyLedger:
                 "SELECT COUNT(*) AS n FROM earned_autonomy WHERE status = ?", ("earned",)
             ).fetchone()
         return int(row["n"])
+
+    def revoke_all(self) -> int:
+        """Revoke every earned/probation class during an emergency stop."""
+        now = _now_iso()
+        with get_connection(self.db_path) as conn:
+            cur = conn.execute(
+                "UPDATE earned_autonomy SET status = 'revoked', streak = 0, "
+                "revoked_at = ?, updated_at = ? WHERE status != 'revoked'",
+                (now, now),
+            )
+            return int(cur.rowcount)

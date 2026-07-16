@@ -83,6 +83,7 @@ class PromotionAuthority:
             return self._result(request, PromotionStatus.REJECTED, reasons)
 
         try:
+            self._assert_operational()
             checkpoint_id = create_checkpoint(request)
         except Exception as exc:  # noqa: BLE001 - checkpoint failure is a refusal
             return self._result(
@@ -113,6 +114,7 @@ class PromotionAuthority:
                 )
 
         try:
+            self._assert_operational()
             apply_staged_diff(request)
             if not smoke_test(request):
                 raise PromotionRefused("post-promotion smoke test failed")
@@ -153,6 +155,10 @@ class PromotionAuthority:
         )
         self._observe(emit_observation, request, result)
         return result
+
+    def _assert_operational(self) -> None:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
 
     def _preconditions(self, request: PromotionRequest) -> tuple[str, ...]:
         reasons: list[str] = []

@@ -445,3 +445,18 @@ complete — 2026-07-17:** Follow-up docs tip
 `29ce9bb9f2e9ab14e3d683852919422a33a46d87` passed CI `29540544540` and CodeQL
 `29540544508`. Local `HEAD` and `origin/master` match the exact hosted SHA;
 the source repair remains green and the overall V1 declaration remains partial.
+
+**R13 production emergency-stop construction local checkpoint — 2026-07-17:**
+The production dependency graph now composes one durable
+`EmergencyStopController` with real hooks for active capability revocation,
+queued mission and worker cancellation, autonomy-grant revocation, and
+tamper-evident evidence preservation. Capability issuance, earned-autonomy
+reuse, executor dispatch, mission origination/execution, worker admission, and
+promotion all receive the latch and check it before their side-effect boundary;
+the mission state machine records emergency kills for queued states. The new
+R13 wiring plus adjacent governance/mission regression set passed (`21`), Ruff
+passed on the new enforcement files, and the exact package gate passed with
+`3,179` collected, `3,171` passed, `8` skipped, exit `0`, and `88.76%` coverage.
+The source commit and hosted CI/CodeQL verification are pending. R13 remains
+partial because the exact emergency-clear capability and complete restart
+matrix are still unproven; overall V1 remains partial.

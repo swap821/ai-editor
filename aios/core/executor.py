@@ -35,7 +35,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
-from typing import TYPE_CHECKING, Callable, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol
 
 from aios import config
 from aios.security.audit_logger import log_action
@@ -549,6 +549,7 @@ class Executor:
         timeout_s: int = 30,
         actor: str = "executor",
         audit_log: Optional[Callable[..., object]] = None,
+        emergency_stop: Any | None = None,
     ) -> None:
         # Imported lazily to break the api-deps -> executor -> policy cycle.
         from aios.policy.kernel import PolicyKernel
@@ -572,6 +573,7 @@ class Executor:
         )
         self.timeout_s = timeout_s
         self.actor = actor
+        self.emergency_stop = emergency_stop
         #: Audit sink; defaults to the real tamper-evident ledger. Injectable so
         #: tests can record actions without touching the on-disk ledger.
         self._audit: Callable[..., object] = audit_log or log_action
@@ -632,6 +634,19 @@ class Executor:
                 reason=decision.reason,
             )
 
+        if self.emergency_stop is not None:
+            try:
+                self.emergency_stop.assert_operational()
+            except Exception:  # noqa: BLE001 - emergency latch blocks dispatch
+                reason = "emergency stop is engaged; execution is disabled"
+                self._audit(self.actor, f"BLOCKED: {reason}", Zone.RED)
+                return ExecutionResult(
+                    status="BLOCKED",
+                    zone=Zone.RED.value,
+                    command=command,
+                    reason=reason,
+                )
+
         # GREEN (or earned-autonomy YELLOW) -> ALLOW: run it inside the configured scope.
         self._audit(self.actor, f"EXECUTING: {command}", decision.zone)
         return self._run_in_sandbox(command, decision.zone)
@@ -667,6 +682,18 @@ class Executor:
         # that provides the boundary; injection tests may omit the runner.
         isolated = policy.isolated and (self.approved_runner is not None)
         runner = self.approved_runner if isolated else self.runner
+        if self.emergency_stop is not None:
+            try:
+                self.emergency_stop.assert_operational()
+            except Exception:  # noqa: BLE001 - emergency latch blocks dispatch
+                reason = "emergency stop is engaged; execution is disabled"
+                self._audit(self.actor, f"BLOCKED: {reason}", Zone.RED)
+                return ExecutionResult(
+                    status="BLOCKED",
+                    zone=Zone.RED.value,
+                    command=command,
+                    reason=reason,
+                )
         self._audit(self.actor, f"APPROVED+EXECUTING: {command}", decision.zone)
         return self._run_in_sandbox(
             command,

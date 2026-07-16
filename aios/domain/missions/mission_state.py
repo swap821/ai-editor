@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import ClassVar
 
 
 class MissionState(str, Enum):
@@ -37,6 +36,10 @@ class MissionTransition(Enum):
     ROLL_BACK = (MissionState.COMPLETED, MissionState.ROLLED_BACK)
     KILL = (MissionState.RUNNING, MissionState.KILLED)
     ABORT = (MissionState.DELIBERATING, MissionState.FAILED)
+    EMERGENCY_KILL_DRAFT = (MissionState.DRAFT, MissionState.KILLED)
+    EMERGENCY_KILL_DELIBERATION = (MissionState.DELIBERATING, MissionState.KILLED)
+    EMERGENCY_KILL_APPROVAL = (MissionState.AWAITING_APPROVAL, MissionState.KILLED)
+    EMERGENCY_KILL_APPROVED = (MissionState.APPROVED, MissionState.KILLED)
 
     def __init__(self, from_state: MissionState, to_state: MissionState) -> None:
         self.from_state = from_state

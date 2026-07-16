@@ -75,6 +75,7 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_conversation_state_store,
     get_curriculum_manager,
     get_development_tracker,
+    get_emergency_stop,
     get_gemini_client,
     get_llm_client,
     get_memory_consolidator,

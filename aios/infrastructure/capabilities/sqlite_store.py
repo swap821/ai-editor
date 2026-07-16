@@ -234,3 +234,14 @@ class CapabilityStore:
             )
             conn.commit()
         return cur.rowcount == 1
+
+    def revoke_all_active(self, now: float) -> int:
+        """Revoke all unconsumed, non-expired capabilities atomically."""
+        with closing(self._connect()) as conn:
+            cur = conn.execute(
+                "UPDATE capabilities SET revoked_at = ? "
+                "WHERE revoked_at IS NULL AND consumed_at IS NULL AND expires_at > ?",
+                (now, now),
+            )
+            conn.commit()
+        return int(cur.rowcount)

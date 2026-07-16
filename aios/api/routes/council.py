@@ -54,6 +54,7 @@ from aios.runtime.cortex_bus import CortexBus
 from aios.api.deps import (
     get_action_broker,
     get_council_memory_scope,
+    get_emergency_stop,
     require_privileged_operator,
 )
 from aios.domain.identity.models import Principal
@@ -456,6 +457,7 @@ def _run_council_deliberation(
             council_memory=council_memory,
             memory_authority=memory_authority,
             bus=bus,
+            emergency_stop=get_emergency_stop(),
         ).deliberate(request)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning(
@@ -484,6 +486,7 @@ def _run_council_execution(
             council_memory=council_memory,
             memory_authority=memory_authority,
             bus=bus,
+            emergency_stop=get_emergency_stop(),
         )
         asyncio.run(
             orchestrator.execute(ledger.contract, list(ledger.council_verdicts))
@@ -563,6 +566,7 @@ def council_originate(
     principal: Principal = Depends(require_privileged_operator),
     runtime_root: Path = Depends(get_council_runtime_root),
     bus: Optional[CortexBus] = Depends(get_cortex_bus),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Originate a Council mission from a goal: deliberate, then await King approval.
 
@@ -572,6 +576,7 @@ def council_originate(
     """
     if not config.COUNCIL_ORIGINATION:
         raise HTTPException(status_code=404, detail="council origination is disabled")
+    emergency_stop.assert_operational()
     _enforce_conversation_rate_limit(principal.session_id)
     if injection_reason := _check_prompt_injection(req.goal):
         raise HTTPException(
@@ -873,6 +878,7 @@ def council_approve(
     principal: Principal = Depends(require_privileged_operator),
     runtime_root: Path = Depends(get_council_runtime_root),
     bus: Optional[CortexBus] = Depends(get_cortex_bus),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Record King approval; if the mission is awaiting execution, run the worker.
 
@@ -880,6 +886,7 @@ def council_approve(
     ``awaiting_approval`` schedules execute() in the background — this is the gate
     where a human authorizes the worker to act.
     """
+    emergency_stop.assert_operational()
     # Mission-level Council origination is authorized by the SQLite mission
     # record.  The JSON King decision is only a projection written after the
     # authoritative transition succeeds.

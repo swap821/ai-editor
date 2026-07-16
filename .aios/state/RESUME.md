@@ -3,6 +3,24 @@
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
+**Latest Repair Wave (2026-07-17, R13 production construction):** The API
+composition root now creates one durable `EmergencyStopController` with real
+capability-revocation, queued-mission/worker cancellation, autonomy-revocation,
+and audit-preservation hooks. Capability issuance, earned-autonomy reuse,
+executor dispatch, mission origination/execution, worker admission, and
+promotion all receive the latch and fail closed before side effects; the
+persisted latch is shared across fresh controller instances. The new R13 wiring
+regressions and adjacent governance/mission tests passed (`21`); Ruff passed on
+the new enforcement files; the exact backend gate passed with `3,179` collected,
+`3,171` passed, `8` skipped, exit `0`, and `88.76%` coverage. The source wave
+is locally verified and is awaiting its source commit and hosted CI/CodeQL
+verification. The full emergency-clear capability and packaged restart matrix
+remain open; do not promote R13 or V1 to verified from source tests alone.
+
+**Current Checkpoint (2026-07-17):** The next single action is to commit and
+push this R13 construction wave, wait for exact-tip CI and CodeQL, then record
+the hosted evidence before starting the R14 packaged-runtime proof audit.
+
 **Latest Repair Wave (2026-07-17):** R11's canonical authority-bootstrap audit
 found and closed a fail-open pheromone seam. `_sync_pheromone_adapter()` now
 reuses a configured adapter only when it is the canonical

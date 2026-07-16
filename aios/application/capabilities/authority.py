@@ -90,10 +90,12 @@ class CapabilityAuthority:
         db_path: str | Path,
         ttl_seconds: float = 120.0,
         clock: Callable[[], float] = time.time,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.store = CapabilityStore(db_path)
         self.ttl_seconds = max(float(ttl_seconds), 0.001)
         self.clock = clock
+        self.emergency_stop = emergency_stop
 
     @staticmethod
     def _token_digest(token: str) -> str:
@@ -105,6 +107,8 @@ class CapabilityAuthority:
         *,
         action_payload: dict[str, Any] | None = None,
     ) -> str:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
         if "*" in binding.scope:
             raise CapabilityError("wildcard capability scope is forbidden")
         if action_payload is not None:
@@ -174,3 +178,7 @@ class CapabilityAuthority:
     def consumed_count(self) -> int:
         """Return the durable number of consumed exact capabilities."""
         return self.store.consumed_count()
+
+    def revoke_all_active(self) -> int:
+        """Revoke every still-live unconsumed capability."""
+        return self.store.revoke_all_active(self.clock())
