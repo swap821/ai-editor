@@ -20,6 +20,7 @@ from aios.operations.tracing import (
     new_trace_context,
 )
 from aios.runtime.cortex_bus import CortexBus
+from tests.cortex_event_helpers import append_event
 
 
 def test_trace_context_rejects_unbounded_or_invalid_header_values() -> None:
@@ -122,10 +123,11 @@ def test_backup_manifest_excludes_environment_files_and_round_trips_state(
 
 def test_projection_rebuild_replays_only_durable_observations(tmp_path: Path) -> None:
     bus = CortexBus(db_path=tmp_path / "cortex.db", retention_max=100)
-    bus.append(
+    append_event(
+        bus,
         "worker.started", "worker-1", {"worker_id": "worker-1", "role": "tester"}
     )
-    bus.append("model.selected", "model-1", {"model": "local"})
+    append_event(bus, "model.selected", "model-1", {"model": "local"})
 
     assert rebuild_projections(bus=bus) == 2
     projection = IncrementalSystemProjection(tmp_path / "system_portrait.db")

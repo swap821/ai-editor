@@ -14,6 +14,8 @@ import pytest
 
 from aios import config
 from aios.core.autonomy import AutonomyLedger
+from aios.runtime.cortex_bus import CortexBus
+from tests.cortex_event_helpers import append_event
 
 
 @pytest.fixture()
@@ -79,7 +81,6 @@ class TestCortexBusFailClosed:
         assert config.CORTEX_BUS is True
 
     def test_bus_refuses_authority_events(self, tmp_path: Path) -> None:
-        from aios.runtime.cortex_bus import CortexBus
         bus = CortexBus(db_path=tmp_path / "bus.db")
         with pytest.raises(ValueError, match="authority"):
-            bus.append("skill.promoted", "test-entity", {"skill": "test"})
+            append_event(bus, "skill.promoted", "test-entity", {"skill": "test"})

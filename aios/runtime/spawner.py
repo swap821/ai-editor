@@ -117,11 +117,7 @@ class WorkerSpawner:
                     worker_id=handle.worker_id,
                     payload={"role": sealed_contract.worker_type},
                 )
-                self.bus.append(
-                    canonical.event_type,
-                    "spawner",
-                    canonical.to_dict(),
-                )
+                self.bus.append(canonical)
 
             try:
                 result = await self.backend.reap(handle)
@@ -138,11 +134,7 @@ class WorkerSpawner:
                         worker_id=handle.worker_id,
                         payload={"role": sealed_contract.worker_type},
                     )
-                    self.bus.append(
-                        canonical.event_type,
-                        "spawner",
-                        canonical.to_dict(),
-                    )
+                    self.bus.append(canonical)
             finally:
                 if handle.status not in {"dead", "killed"}:
                     await self.backend.kill(handle, "spawner cleanup after reap")
@@ -159,11 +151,7 @@ class WorkerSpawner:
                         worker_id=handle.worker_id,
                         payload={"role": sealed_contract.worker_type},
                     )
-                    self.bus.append(
-                        canonical.event_type,
-                        "spawner",
-                        canonical.to_dict(),
-                    )
+                    self.bus.append(canonical)
 
             if sealed_contract.snapshot_id and result.rollback_id is None:
                 result = result.model_copy(

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from aios.application.memory.authority import MemoryAuthority, MemoryPromotionDenied
+from aios.core.events import CanonicalEvent
 from aios.domain.evidence import EvidenceRecord, EvidenceType, VerificationResult
 from aios.domain.memory import (
     MemoryHit,
@@ -296,8 +297,8 @@ def test_memory_search_event_uses_authority_trust(
         def __init__(self) -> None:
             self.events: list[dict] = []
 
-        def append(self, _event_type: str, _event_id: str, payload: dict) -> None:
-            self.events.append(payload)
+        def append(self, event: CanonicalEvent) -> None:
+            self.events.append(event.to_dict())
 
     bus = FakeBus()
     monkeypatch.setattr("aios.api.main.get_cortex_bus", lambda: bus)
@@ -414,8 +415,8 @@ def test_trusted_workflow_event_uses_canonical_phase(
         def __init__(self) -> None:
             self.events: list[dict] = []
 
-        def append(self, _event_type: str, _event_id: str, payload: dict) -> None:
-            self.events.append(payload)
+        def append(self, event: CanonicalEvent) -> None:
+            self.events.append(event.to_dict())
 
     bus = FakeBus()
     monkeypatch.setattr("aios.api.main.get_cortex_bus", lambda: bus)

@@ -5,13 +5,14 @@ from pathlib import Path
 import pytest
 
 from aios.runtime.cortex_bus import ConsumerReplayGap, CortexBus
+from tests.cortex_event_helpers import append_event
 
 
 def test_consumers_have_independent_durable_cursors(tmp_path: Path) -> None:
     path = tmp_path / "cortex.db"
     bus = CortexBus(path)
-    first = bus.append("mission.running", "mission-1", {"n": 1})
-    second = bus.append("worker.started", "worker-1", {"n": 2})
+    first = append_event(bus, "mission.running", "mission-1", {"n": 1})
+    second = append_event(bus, "worker.started", "worker-1", {"n": 2})
     assert first == 1
 
     assert [event.id for event in bus.consumer_batch("portrait")] == [1, 2]
@@ -26,7 +27,7 @@ def test_consumers_have_independent_durable_cursors(tmp_path: Path) -> None:
 
 def test_failed_consumer_retries_without_blocking_another(tmp_path: Path) -> None:
     bus = CortexBus(tmp_path / "cortex.db")
-    event_id = bus.append("mission.running", "mission-1", {})
+    event_id = append_event(bus, "mission.running", "mission-1", {})
     bus.register_consumer("slow")
     bus.register_consumer("healthy")
 
@@ -42,8 +43,8 @@ def test_repeated_failure_quarantines_only_that_event_for_that_consumer(
     tmp_path: Path,
 ) -> None:
     bus = CortexBus(tmp_path / "cortex.db")
-    first = bus.append("mission.running", "mission-1", {})
-    second = bus.append("worker.started", "worker-1", {})
+    first = append_event(bus, "mission.running", "mission-1", {})
+    second = append_event(bus, "worker.started", "worker-1", {})
     bus.register_consumer("portrait")
 
     bus.fail_consumer("portrait", first, "bad payload", max_attempts=2)
@@ -56,9 +57,9 @@ def test_repeated_failure_quarantines_only_that_event_for_that_consumer(
 def test_retention_boundary_requires_snapshot_rebuild(tmp_path: Path) -> None:
     bus = CortexBus(tmp_path / "cortex.db", retention_max=2)
     bus.register_consumer("portrait")
-    bus.append("mission.running", "mission-1", {})
-    bus.append("worker.started", "worker-1", {})
-    bus.append("worker.completed", "worker-1", {})
+    append_event(bus, "mission.running", "mission-1", {})
+    append_event(bus, "worker.started", "worker-1", {})
+    append_event(bus, "worker.completed", "worker-1", {})
 
     with pytest.raises(ConsumerReplayGap, match="snapshot required"):
         bus.consumer_batch("portrait")
@@ -66,8 +67,8 @@ def test_retention_boundary_requires_snapshot_rebuild(tmp_path: Path) -> None:
 
 def test_ack_is_idempotent_but_skipping_is_rejected(tmp_path: Path) -> None:
     bus = CortexBus(tmp_path / "cortex.db")
-    first = bus.append("mission.running", "mission-1", {})
-    second = bus.append("worker.started", "worker-1", {})
+    first = append_event(bus, "mission.running", "mission-1", {})
+    second = append_event(bus, "worker.started", "worker-1", {})
     bus.register_consumer("audit")
     bus.ack_consumer("audit", first)
     bus.ack_consumer("audit", first)

@@ -10,6 +10,7 @@ import pytest
 from aios.domain.workers.worker_contract import WorkerPrincipal
 from aios.runtime.cortex_bus import CortexBus
 from scripts.security_scan import scan
+from tests.cortex_event_helpers import append_event
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -95,7 +96,7 @@ def test_authority_event_families_are_blocked_from_cortex(
 ) -> None:
     bus = CortexBus(tmp_path / "cortex.db")
     with pytest.raises(ValueError, match="may never ride"):
-        bus.append(event_type, "entity-1", {})
+        append_event(bus, event_type, "entity-1", {})
 
 
 def test_control_plane_image_has_non_root_default_and_executor_owns_socket() -> None:

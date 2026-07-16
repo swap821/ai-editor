@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from aios import config
+from aios.core.events import CanonicalEvent
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +170,7 @@ class CortexBus:
 
     # ── Producer side ────────────────────────────────────────────────────────
 
-    def append(self, event_type: str, signature: str, payload: dict[str, Any]) -> int:
+    def append(self, event: CanonicalEvent) -> int:
         """Durably append one observation; returns its id. Touches the wake-hint.
 
         Enforces the retention cap fail-soft: never lets the outbox grow
@@ -177,8 +178,16 @@ class CortexBus:
         table is still over cap, the OLDEST pending row (logged) — never raises
         and never blocks a turn.
         """
-        event_type = (event_type or "").strip()
-        signature = (signature or "").strip()
+        if not isinstance(event, CanonicalEvent):
+            raise TypeError("CortexBus.append requires a CanonicalEvent")
+        event_type = event.event_type.strip()
+        signature = (
+            event.worker_id
+            or event.mission_id
+            or event.turn_id
+            or event.session_id
+            or event.source
+        ).strip()
         if not event_type or not signature:
             raise ValueError("cortex event requires a non-empty event_type and signature")
         if event_type.startswith(_AUTHORITY_EVENT_PREFIXES):
@@ -187,7 +196,7 @@ class CortexBus:
                 "cortex bus — decisions stay synchronous on the verifier's return "
                 "value (ADR §4.1)"
             )
-        body = json.dumps(dict(payload or {}), ensure_ascii=False)
+        body = json.dumps(event.to_dict(), ensure_ascii=False)
         with self._connect() as conn:
             cur = conn.execute(
                 "INSERT INTO cortex_events (event_type, signature, payload) "

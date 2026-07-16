@@ -919,11 +919,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                         turn_id=ctx.turn_id,
                         payload={"count": proposed_count},
                     )
-                    _cortex_bus.append(
-                        canonical.event_type,
-                        session_id,
-                        canonical.to_dict(),
-                    )
+                    _cortex_bus.append(canonical)
             except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
                 logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
         if outcome not in {"verified_success", "verified_failure"}:

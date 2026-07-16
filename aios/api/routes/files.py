@@ -96,7 +96,7 @@ def edit_file(req: EditFileRequest, bus: Optional[CortexBus] = Depends(get_corte
                 session_id="system",
                 payload={"path": req.path, "reason": "File out of bounds"}
             )
-            bus.append(canonical.event_type, req.path, canonical.to_dict())
+            bus.append(canonical)
         raise HTTPException(status_code=403, detail="File out of bounds")
 
     decision = _enforcer.check_file_edit(req.path, actor="operator")
@@ -112,7 +112,7 @@ def edit_file(req: EditFileRequest, bus: Optional[CortexBus] = Depends(get_corte
                 session_id="system",
                 payload={"path": req.path, "reason": decision.reason}
             )
-            bus.append(canonical.event_type, req.path, canonical.to_dict())
+            bus.append(canonical)
         raise HTTPException(status_code=403, detail=decision.reason)
 
     if bus:
@@ -130,7 +130,7 @@ def edit_file(req: EditFileRequest, bus: Optional[CortexBus] = Depends(get_corte
                 "constraints": list(decision.constraints)
             }
         )
-        bus.append(canonical.event_type, req.path, canonical.to_dict())
+        bus.append(canonical)
 
     # In Phase 1, we just return success to simulate proposing an edit; the
     # actual write still requires the human-approval gate constitution.

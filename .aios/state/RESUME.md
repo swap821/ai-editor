@@ -3,7 +3,15 @@
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
-**Last Completed + Verified Step:** R11's Planner now refuses to construct
+**Current Checkpoint (2026-07-17):** R12's Cortex bus now accepts only a
+`CanonicalEvent`; every production producer passes the canonical envelope, the
+durable row preserves the full schema, and legacy producer triples fail closed.
+The red-first schema test, focused compatibility migrations, R12 event/mirror
+gate, and exact package gate are green: `3,174` collected, `3,166 passed,
+8 skipped`, exit `0`, with `88.85%` combined coverage. R12 remains partial;
+source commit and hosted CI/CodeQL verification are the next checkpoint.
+
+**Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
 neither `MemoryAuthority` nor an explicit store is injected. `ToolAgent` and
 the application turn factory now carry explicit planner stores alongside the
@@ -81,7 +89,12 @@ coverage gate, and frontend gates passed. Kimi/Claude are unavailable; the
 operator authorized Codex to continue solo, so R0, R1, and R2 are self-verified
 for continuity but have no independent reviewer verdict.
 
-**Current Slice:** R11 is **PARTIAL**. `MemoryAuthority` now maps recall status
+**Current Slice:** R12 is **PARTIAL**. The mirror replay-recovery repair is
+already pushed and green; this source slice removes the second Cortex producer
+schema by requiring `CanonicalEvent` at the bus boundary and storing its full
+envelope. Test-only doubles now use the same canonical constructor. R11
+authority repairs and the packaged runtime-proof seams below remain historical
+context; the overall v1 declaration is still partial. `MemoryAuthority` now maps recall status
 to truthful event trust, the memory route uses a valid Cortex phase, episodic
 turn writes/session restore and semantic chat indexing cross authority adapters,
 production specialized recall uses authority adapters, and production
@@ -151,18 +164,17 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Stage, commit, and push the R12 mirror replay-recovery
-repair with its continuity evidence, then verify exact-tip CI and CodeQL. The
+**Single Next Action:** Stage, commit, and push the R12 canonical-event bus
+repair with this local continuity evidence, then verify the exact pushed tip's
+CI and CodeQL. The
 red-first replay-gap test failed before repair; the mirror/Cortex gate passed
 (`13`), the adjacent event/projection/API gate passed (`203`), the
 projection/Cortex bus gate passed (`38`), and the clean package gate passed
-with `3,173` collected, `3,165 passed, 8 skipped`, exit `0`, and `88.86%`
-coverage. `/api/v1/mirror/stream` now exposes replay gaps and failures as
-`snapshot_required` rather than silently swallowing them. Source tip `e49dbe4`
-is pushed; exact CI `29521716118` and CodeQL `29521716110` passed. The next
-ordered action is to add a red-first R12 guard for the remaining event schema
-or cursor truth seam. Keep the mutation boundary fail-closed and do not bypass
-the audit.
+with `3,174` collected, `3,166 passed, 8 skipped`, exit `0`, and `88.85%`
+coverage. `/api/v1/mirror/stream` exposes replay gaps and failures as
+`snapshot_required`; source tip `e49dbe4` and its exact CI `29521716118` plus
+CodeQL `29521716110` are already green. Keep the mutation boundary fail-closed
+and do not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -207,8 +219,12 @@ the audit.
    explicit drive/UNC compatibility fix is locally green; its remote rerun is
    pending.
 
-**Active Files:** The next checkpoint includes the explicit drive/UNC path
-compatibility fix in `aios/core/executor.py`; the semantic mount-source
+**Active Files:** The current checkpoint includes the canonical Cortex bus
+boundary in `aios/runtime/cortex_bus.py`, canonical producer call sites under
+`aios/api/`, `aios/application/`, `aios/core/`, and `aios/runtime/`, plus the
+focused test migrations and `tests/cortex_event_helpers.py`. The earlier
+explicit drive/UNC path compatibility fix in `aios/core/executor.py`; the
+semantic mount-source
 regression and prior transport fixes are landed in `9cff773`. R0/R1
 truth surfaces and the R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11 implementation/tests
 remain part of the landed convergence history. R2 added `aios/domain/identity/`,

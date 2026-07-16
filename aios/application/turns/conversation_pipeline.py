@@ -159,11 +159,7 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
                     turn_id=context.turn_id,
                     payload={"count": proposed_count},
                 )
-                cortex_bus.append(
-                    canonical.event_type,
-                    context.session_id,
-                    canonical.to_dict(),
-                )
+                cortex_bus.append(canonical)
         except Exception:
             extra["logger"].warning("Chat fact extraction failed", exc_info=True)
     record_telemetry(telemetry.OUTCOME_UNVERIFIED)

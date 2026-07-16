@@ -333,3 +333,14 @@ release-authority jobs. CodeQL run `29518614365` also passed all analysis jobs.
 The local package gate is `3,172` collected, `3,164 passed, 8 skipped`, with
 `88.86%` coverage. R11 remains partial; keep packaged runtime authority proof
 separate from source-level green evidence.
+
+**R12 Canonical Cortex event-schema local checkpoint — 2026-07-17:** The
+red-first append contract failed because `CortexBus.append` still accepted the
+legacy `(event_type, signature, payload)` triple. The bus now requires a
+`CanonicalEvent`, derives its per-entity signature from canonical identity
+fields, and persists the complete canonical envelope. All production producer
+call sites and affected test doubles use the single schema. The focused R12
+event/mirror gate and compatibility gates passed; the exact package gate passed
+with `3,174` collected, `3,166 passed, 8 skipped`, exit `0`, and `88.85%`
+combined coverage. R12 remains partial; hosted CI and CodeQL are pending for
+the source tip.

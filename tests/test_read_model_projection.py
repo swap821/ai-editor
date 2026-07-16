@@ -4,13 +4,15 @@ from pathlib import Path
 
 from aios.application.read_models.projection import IncrementalSystemProjection
 from aios.runtime.cortex_bus import CortexBus
+from tests.cortex_event_helpers import append_event
 
 
 def test_projection_applies_events_incrementally_and_is_idempotent(tmp_path: Path) -> None:
     projection = IncrementalSystemProjection(tmp_path / "portrait.db")
     bus = CortexBus(tmp_path / "cortex.db")
-    turn = bus.append("turn.started", "turn-1", {"turnId": "turn-1"})
-    worker = bus.append(
+    turn = append_event(bus, "turn.started", "turn-1", {"turnId": "turn-1"})
+    worker = append_event(
+        bus,
         "worker.started",
         "worker-1",
         {"workerId": "worker-1", "missionId": "mission-1", "role": "code"},

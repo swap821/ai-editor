@@ -20,6 +20,7 @@ from unittest.mock import patch
 
 from aios.runtime.cortex_bus import BusEvent, CortexBus
 from aios.runtime.cortex_bus_dispatcher import CortexBusDispatcher
+from tests.cortex_event_helpers import append_event
 
 
 # ── Slice A: CortexBusDispatcher lifecycle ────────────────────────────────────
@@ -35,7 +36,7 @@ class TestCortexBusDispatcher:
         dispatcher = CortexBusDispatcher(bus, poll_interval=0.05)
         dispatcher.start()
 
-        bus.append("turn.completed", "sess-1", {"source": "test"})
+        append_event(bus, "turn.completed", "sess-1", {"source": "test"})
         # Give the dispatcher time to wake on the hint and drain.
         deadline = time.monotonic() + 2.0
         while not seen and time.monotonic() < deadline:
@@ -45,7 +46,7 @@ class TestCortexBusDispatcher:
 
         assert seen, "dispatcher must deliver the event to the handler"
         assert seen[0].event_type == "turn.completed"
-        assert seen[0].payload["source"] == "test"
+        assert seen[0].payload["payload"]["source"] == "test"
 
     def test_dispatcher_thread_is_daemon(self, tmp_path: Path) -> None:
         bus = CortexBus(db_path=tmp_path / "bus.db")
@@ -76,7 +77,7 @@ class TestCortexBusDispatcher:
         dispatcher = CortexBusDispatcher(bus, poll_interval=10.0)
         dispatcher.start()
         t0 = time.monotonic()
-        bus.append("turn.completed", "sess-1", {})
+        append_event(bus, "turn.completed", "sess-1", {})
 
         deadline = time.monotonic() + 2.0
         while not seen and time.monotonic() < deadline:
@@ -158,7 +159,7 @@ class TestProducer:
         assert len(seen) == 1
         evt = seen[0]
         assert evt.event_type == "turn.completed"
-        assert evt.signature == "session-abc"
+        assert evt.signature == "turn-abc"
 
     def test_no_event_when_bus_is_none(self, tmp_path: Path) -> None:
         from aios.api.main import _append_turn_completed
@@ -182,7 +183,7 @@ class TestProducer:
 
         events = bus.peek_pending()
         assert events, "event must be pending"
-        payload = events[0].payload
+        payload = events[0].payload["payload"]
         # Authority-bearing keys that must NEVER appear on the bus.
         forbidden = {
             "skill_promotion", "autonomy_credit", "approval_decision",
@@ -355,7 +356,7 @@ class TestW3Guard:
         dispatcher.start()
 
         t0 = time.monotonic()
-        bus.append("turn.completed", "session-w3", {})
+        append_event(bus, "turn.completed", "session-w3", {})
 
         deadline = t0 + 2.0
         while handler.recall() is None and time.monotonic() < deadline:

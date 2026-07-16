@@ -274,11 +274,7 @@ class WorkerFoundry:
                     "reason": reason,
                 },
             )
-            self._bus.append(
-                canonical.event_type,
-                spec.worker_id,
-                canonical.to_dict(),
-            )
+            self._bus.append(canonical)
 
 
 def _contract_strategy(contract: Any) -> str:

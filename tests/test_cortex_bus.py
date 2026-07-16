@@ -12,11 +12,30 @@ from pathlib import Path
 import pytest
 
 from aios import config
+from aios.core.events import CanonicalEvent, EventPhase, TrustLevel
 from aios.runtime.cortex_bus import BusEvent, CortexBus
 
 
 def _bus(tmp_path: Path) -> CortexBus:
     return CortexBus(db_path=tmp_path / "bus.db")
+
+
+def _event(event_type: str, signature: str, payload: dict) -> CanonicalEvent:
+    return CanonicalEvent(
+        event_type=event_type,
+        phase=EventPhase.NARRATIVE.value,
+        status="observed",
+        trust=TrustLevel.ADVISORY.value,
+        source="tests.test_cortex_bus",
+        session_id=signature,
+        payload=payload,
+    )
+
+
+def _append(
+    bus: CortexBus, event_type: str, signature: str, payload: dict
+) -> int:
+    return bus.append(_event(event_type, signature, payload))
 
 
 def test_connect_closes_the_underlying_connection_after_the_with_block(
@@ -47,8 +66,8 @@ def test_cortex_bus_defaults_are_on_and_bounded() -> None:
 
 def test_append_is_durable_and_returns_monotonic_ids(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
-    first = bus.append("turn.completed", "session-1", {"n": 1})
-    second = bus.append("fact.proposed", "operator", {"n": 2})
+    first = _append(bus, "turn.completed", "session-1", {"n": 1})
+    second = _append(bus, "fact.proposed", "operator", {"n": 2})
     assert second > first
     assert bus.pending_count() == 2
 
@@ -57,9 +76,31 @@ def test_append_is_durable_and_returns_monotonic_ids(tmp_path: Path) -> None:
     assert reopened.pending_count() == 2
 
 
+def test_append_requires_the_canonical_event_schema(tmp_path: Path) -> None:
+    bus = _bus(tmp_path)
+    canonical = CanonicalEvent(
+        event_type="turn.completed",
+        phase=EventPhase.NARRATIVE.value,
+        status="completed",
+        trust=TrustLevel.VERIFIED.value,
+        source="test.cortex_bus",
+        session_id="session-1",
+        payload={"n": 1},
+    )
+
+    event_id = bus.append(canonical)
+
+    assert event_id > 0
+    assert bus.peek_pending()[0].payload["eventType"] == "turn.completed"
+    with pytest.raises(TypeError):
+        bus.append("turn.completed", "session-1", {"n": 2})
+
+
 def test_append_round_trips_the_event_payload(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
-    eid = bus.append("turn.completed", "session-1", {"latency_ms": 12.5, "ok": True})
+    eid = _append(
+        bus, "turn.completed", "session-1", {"latency_ms": 12.5, "ok": True}
+    )
     pending = bus.peek_pending()
     assert len(pending) == 1
     event = pending[0]
@@ -67,15 +108,15 @@ def test_append_round_trips_the_event_payload(tmp_path: Path) -> None:
     assert event.id == eid
     assert event.event_type == "turn.completed"
     assert event.signature == "session-1"
-    assert event.payload == {"latency_ms": 12.5, "ok": True}
+    assert event.payload["payload"] == {"latency_ms": 12.5, "ok": True}
 
 
 def test_empty_or_bad_append_is_rejected(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
     with pytest.raises(ValueError):
-        bus.append("", "session-1", {})
+        _append(bus, "", "session-1", {})
     with pytest.raises(ValueError):
-        bus.append("turn.completed", "", {})
+        _append(bus, "turn.completed", "", {})
     assert bus.pending_count() == 0
 
 
@@ -86,12 +127,12 @@ def test_dispatch_delivers_pending_and_marks_them(tmp_path: Path) -> None:
     seen: list[BusEvent] = []
     bus.subscribe(seen.append)
 
-    bus.append("turn.completed", "session-1", {"n": 1})
-    bus.append("turn.completed", "session-1", {"n": 2})
+    _append(bus, "turn.completed", "session-1", {"n": 1})
+    _append(bus, "turn.completed", "session-1", {"n": 2})
     dispatched = bus.dispatch_pending()
 
     assert dispatched == 2
-    assert [e.payload["n"] for e in seen] == [1, 2]
+    assert [e.payload["payload"]["n"] for e in seen] == [1, 2]
     assert bus.pending_count() == 0
     # A second drain delivers nothing (already dispatched).
     assert bus.dispatch_pending() == 0
@@ -100,13 +141,13 @@ def test_dispatch_delivers_pending_and_marks_them(tmp_path: Path) -> None:
 def test_per_entity_ordering_is_preserved(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
     order: list[tuple[str, int]] = []
-    bus.subscribe(lambda e: order.append((e.signature, e.payload["n"])))
+    bus.subscribe(lambda e: order.append((e.signature, e.payload["payload"]["n"])))
 
     # Interleaved appends across two signatures.
-    bus.append("turn.completed", "A", {"n": 1})
-    bus.append("fact.proposed", "B", {"n": 1})
-    bus.append("turn.completed", "A", {"n": 2})
-    bus.append("fact.proposed", "B", {"n": 2})
+    _append(bus, "turn.completed", "A", {"n": 1})
+    _append(bus, "fact.proposed", "B", {"n": 1})
+    _append(bus, "turn.completed", "A", {"n": 2})
+    _append(bus, "fact.proposed", "B", {"n": 2})
     bus.dispatch_pending()
 
     a_events = [n for sig, n in order if sig == "A"]
@@ -125,7 +166,7 @@ def test_a_failing_handler_leaves_its_event_pending_for_replay(tmp_path: Path) -
             raise RuntimeError("transient")
 
     bus.subscribe(flaky)
-    bus.append("turn.completed", "session-1", {"n": 1})
+    _append(bus, "turn.completed", "session-1", {"n": 1})
 
     # First drain: handler throws → event stays pending (not marked dispatched).
     bus.dispatch_pending()
@@ -142,7 +183,7 @@ def test_crash_between_append_and_dispatch_replays_on_restart(tmp_path: Path) ->
     db = tmp_path / "bus.db"
     # Process 1 appends, then "crashes" before any dispatch.
     producer = CortexBus(db_path=db)
-    producer.append("turn.completed", "session-1", {"n": 1})
+    _append(producer, "turn.completed", "session-1", {"n": 1})
     del producer
 
     # Process 2 starts fresh, subscribes, and drains — the observation survived.
@@ -150,7 +191,7 @@ def test_crash_between_append_and_dispatch_replays_on_restart(tmp_path: Path) ->
     seen: list[BusEvent] = []
     consumer.subscribe(seen.append)
     assert consumer.dispatch_pending() == 1
-    assert seen[0].payload["n"] == 1
+    assert seen[0].payload["payload"]["n"] == 1
 
 
 # --- Task 5: retention sweep + fail-soft --------------------------------------
@@ -163,9 +204,9 @@ def test_sweep_ages_out_old_dispatched_but_keeps_pending(tmp_path: Path) -> None
 
     bus = CortexBus(db_path=tmp_path / "bus.db", retention_days=7)
     bus.subscribe(lambda e: None)
-    old_id = bus.append("turn.completed", "s", {"n": 1})
+    old_id = _append(bus, "turn.completed", "s", {"n": 1})
     bus.dispatch_pending()  # dispatched (fresh timestamp)
-    bus.append("turn.completed", "s", {"n": 99})  # stays pending
+    _append(bus, "turn.completed", "s", {"n": 99})  # stays pending
 
     # Backdate the dispatched row well past the window.
     with sqlite3.connect(bus.db_path) as conn:
@@ -180,7 +221,7 @@ def test_sweep_ages_out_old_dispatched_but_keeps_pending(tmp_path: Path) -> None
     assert removed == 1  # the aged dispatched row is gone
     # The still-pending event is never swept, regardless of age.
     assert bus.pending_count() == 1
-    assert bus.peek_pending()[0].payload["n"] == 99
+    assert bus.peek_pending()[0].payload["payload"]["n"] == 99
 
 
 def test_sweep_reclaims_when_retention_max_is_lowered(tmp_path: Path) -> None:
@@ -189,7 +230,7 @@ def test_sweep_reclaims_when_retention_max_is_lowered(tmp_path: Path) -> None:
     bus = CortexBus(db_path=tmp_path / "bus.db", retention_max=100)
     bus.subscribe(lambda e: None)
     for i in range(5):
-        bus.append("turn.completed", "s", {"n": i})
+        _append(bus, "turn.completed", "s", {"n": i})
     bus.dispatch_pending()  # 5 dispatched, under the cap of 100
 
     bus.retention_max = 2  # operator lowered the cap
@@ -201,9 +242,9 @@ def test_full_bus_of_pending_fails_soft_dropping_oldest(tmp_path: Path) -> None:
     bus = CortexBus(db_path=tmp_path / "bus.db", retention_max=2)
     # Never dispatched, so nothing is eligible for normal retention — the cap
     # must still hold by dropping the OLDEST pending, never raising.
-    first = bus.append("turn.completed", "s", {"n": 1})
-    bus.append("turn.completed", "s", {"n": 2})
-    bus.append("turn.completed", "s", {"n": 3})  # exceeds cap of 2
+    first = _append(bus, "turn.completed", "s", {"n": 1})
+    _append(bus, "turn.completed", "s", {"n": 2})
+    _append(bus, "turn.completed", "s", {"n": 3})  # exceeds cap of 2
 
     ids = [e.id for e in bus.peek_pending()]
     assert first not in ids  # oldest dropped
@@ -218,13 +259,13 @@ def test_hint_is_raised_on_append_and_cleared_on_poll(tmp_path: Path) -> None:
     bus.subscribe(seen.append)
 
     assert bus.hint_pending() is False
-    bus.append("turn.completed", "s", {"n": 1})
+    _append(bus, "turn.completed", "s", {"n": 1})
     assert bus.hint_pending() is True  # producer raised the wake-hint
 
     drained = bus.poll_once()
     assert drained == 1
     assert bus.hint_pending() is False  # poll consumed the hint
-    assert seen[0].payload["n"] == 1
+    assert seen[0].payload["payload"]["n"] == 1
 
 
 def test_authority_event_types_are_refused_at_append(tmp_path: Path) -> None:
@@ -241,17 +282,17 @@ def test_authority_event_types_are_refused_at_append(tmp_path: Path) -> None:
         "grant.issued",
     ):
         with pytest.raises(ValueError):
-            bus.append(forbidden, "session-1", {})
+            _append(bus, forbidden, "session-1", {})
     assert bus.pending_count() == 0  # nothing slipped through
     # Observations still flow.
-    assert bus.append("turn.completed", "session-1", {}) > 0
+    assert _append(bus, "turn.completed", "session-1", {}) > 0
 
 
 def test_poll_once_drains_even_without_a_hint(tmp_path: Path) -> None:
     # The hint is an optimization; a poll with no hint still drains (safety net).
     db = tmp_path / "bus.db"
     producer = CortexBus(db_path=db)
-    producer.append("turn.completed", "s", {"n": 1})
+    _append(producer, "turn.completed", "s", {"n": 1})
     producer.hint_path.unlink(missing_ok=True)  # simulate a lost hint
 
     consumer = CortexBus(db_path=db)

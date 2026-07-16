@@ -115,7 +115,7 @@ def record_run(
                     "latency_ms": latency_ms
                 }
             )
-            bus.append(canonical.event_type, session_id or "system", canonical.to_dict())
+            bus.append(canonical)
     except Exception:  # noqa: BLE001 - observation must never break a request
         logger.warning("telemetry write failed; request continues", exc_info=True)
 

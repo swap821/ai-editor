@@ -334,11 +334,7 @@ def _append_turn_completed(
             turn_id=turn_id,
             payload={"ts": datetime.now(timezone.utc).isoformat()},
         )
-        bus.append(
-            canonical.event_type,
-            session_id,
-            canonical.to_dict(),
-        )
+        bus.append(canonical)
     except Exception:  # noqa: BLE001 — best-effort; never break a turn
         logger.warning("cortex_bus_append_failed", exc_info=True)
 
@@ -829,9 +825,7 @@ def _sse(
                 payload=data,
             )
             try:
-                bus.append(
-                    canonical.event_type, canonical.event_id, canonical.to_dict()
-                )
+                bus.append(canonical)
             except Exception:
                 pass
     payload = json.dumps(data, ensure_ascii=False)

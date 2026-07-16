@@ -167,7 +167,7 @@ def memory_search(
                 },
             )
             event_id = r.external_id or r.record_id or r.content_reference
-            bus.append(canonical.event_type, str(event_id), canonical.to_dict())
+            bus.append(canonical)
             if r.memory_type == "workflow" and authority.is_trusted(r):
                 canonical_workflow = CanonicalEvent(
                     event_type=CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED.value,
@@ -178,11 +178,7 @@ def memory_search(
                     session_id="system",
                     payload={"workflowId": str(event_id), "query": req.query},
                 )
-                bus.append(
-                    canonical_workflow.event_type,
-                    str(event_id),
-                    canonical_workflow.to_dict(),
-                )
+                bus.append(canonical_workflow)
 
     return {
         "query": req.query,
