@@ -295,3 +295,14 @@ and CodeQL run `29513969945` after the Windows job was rerun. The first
 Windows attempt timed out in the sabotage proof; the first retry failed a
 different stateful Council 403; the second retry passed. All required jobs are
 green and the source wave remains unchanged. R11 remains partial.
+
+**R11 Council authority-boundary local checkpoint — 2026-07-16:** The
+orchestrator now refuses an authority-backed `CouncilMemory` unless the
+authority's scoped `council` adapter owns that exact mission-local store. The
+red-first unbound-authority test failed before repair; explicit
+`CouncilMemory`-only compatibility callers remain supported. The focused
+Council suite passed (`18`), the broader Council/authority/API regression set
+passed (`231`), and the clean package gate passed with `3,172` collected,
+`3,164 passed, 8 skipped`, exit `0`, and `88.86%` coverage. The two documented
+composition-root seams in `aios/api/deps.py` and `aios/api/routes/council.py`
+remain for the next audit; R11 remains partial.

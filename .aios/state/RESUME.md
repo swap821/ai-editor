@@ -151,13 +151,15 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit and push the current Council recall repair,
-verify its exact-tip CI and CodeQL workflows, then continue the next ordered
-R11 compatibility-seam repair; keep the mutation boundary fail-closed. The
-latest local gate is green: `3,161` collected,
-`3,153 passed, 8 skipped`, exit `0`, with `88.84%` combined coverage; frontend
-tests and build also pass. Keep the mutation boundary fail-closed and do not
-bypass the audit.
+**Single Next Action:** Stage, commit, and push the current Council authority-
+boundary repair with its continuity evidence, then verify the exact-tip CI and
+CodeQL workflows. The red-first unbound-authority test failed before repair;
+the focused Council plus authority regression gate passed (`231 passed`), and
+the clean package-wide gate passed with `3,172` collected, `3,164 passed,
+8 skipped`, exit `0`, and `88.86%` coverage. The repair preserves explicit
+`CouncilMemory`-only compatibility callers but refuses an authority-backed
+orchestrator unless its `council` adapter owns the exact mission-local store.
+Keep the mutation boundary fail-closed and do not bypass the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an

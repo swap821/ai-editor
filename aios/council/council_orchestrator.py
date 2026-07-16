@@ -248,6 +248,15 @@ class CouncilOrchestrator:
         # Optional mission-scoped memory authority. The Council adapter is
         # bound to the same runtime-local CouncilMemory instance.
         self.memory_authority = memory_authority
+        if self.council_memory is not None and self.memory_authority is not None:
+            adapters = getattr(self.memory_authority, "adapters", {})
+            council_adapter = (
+                adapters.get("council") if isinstance(adapters, dict) else None
+            )
+            if getattr(council_adapter, "store", None) is not self.council_memory:
+                raise RuntimeError(
+                    "scoped CouncilMemory authority adapter is required"
+                )
         self.pheromone_store = pheromone_store
         if (
             self.pheromone_store is None

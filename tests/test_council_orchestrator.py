@@ -8,11 +8,29 @@ from pathlib import Path
 import pytest
 
 from aios import config
+from aios.application.memory.authority import MemoryAuthority
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
+from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
+
+
+def test_council_orchestrator_refuses_unbound_scoped_memory_authority(
+    tmp_path: Path,
+) -> None:
+    memory = CouncilMemory(db_path=tmp_path / "council_memory.db")
+    authority = MemoryAuthority(
+        store=MemoryAuthorityStore(tmp_path / "authority.db")
+    )
+
+    with pytest.raises(RuntimeError, match="scoped CouncilMemory authority"):
+        CouncilOrchestrator(
+            runtime_root=tmp_path / "runtime",
+            council_memory=memory,
+            memory_authority=authority,
+        )
 
 
 def test_production_orchestrator_wires_one_staged_workspace_authority(
