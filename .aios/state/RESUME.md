@@ -158,8 +158,11 @@ red-first replay-gap test failed before repair; the mirror/Cortex gate passed
 projection/Cortex bus gate passed (`38`), and the clean package gate passed
 with `3,173` collected, `3,165 passed, 8 skipped`, exit `0`, and `88.86%`
 coverage. `/api/v1/mirror/stream` now exposes replay gaps and failures as
-`snapshot_required` rather than silently swallowing them. Keep the mutation
-boundary fail-closed and do not bypass the audit.
+`snapshot_required` rather than silently swallowing them. Source tip `e49dbe4`
+is pushed; exact CI `29521716118` and CodeQL `29521716110` passed. The next
+ordered action is to add a red-first R12 guard for the remaining event schema
+or cursor truth seam. Keep the mutation boundary fail-closed and do not bypass
+the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an

@@ -259,6 +259,14 @@ with `3,173` collected, `3,165 passed, 8 skipped`, exit `0`, and `88.86%`
 coverage. R12 remains partial; canonical event unification and frontend mirror
 truth remain open.
 
+**R12 Mirror replay-recovery CI checkpoint — 2026-07-16:** Exact pushed repair
+tip `e49dbe4004ff3aa32966b1c2231e59170496daf0` passed CI run `29521716118`
+across Ubuntu, macOS, Windows, frontend, aggregate, and release-authority
+jobs. CodeQL run `29521716110` passed all analysis jobs. The local package gate
+is `3,173` collected, `3,165 passed, 8 skipped`, with `88.86%` coverage. R12
+remains partial; canonical event unification and frontend mirror truth remain
+open.
+
 **R11 Reflection CI checkpoint — 2026-07-16:** Exact pushed repair tip
 `12e691b8e0c4054d86233b403a584feacf3b245e` passed CI run `29500130518` and
 CodeQL run `29500130475`; all required platform, frontend, aggregate,
