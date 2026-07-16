@@ -10,7 +10,8 @@ reuses a configured adapter only when it is the canonical
 boundary. The red-first regression failed before the guard and passed after it.
 The focused pheromone/memory-architecture gate passed, and the full backend
 gate passed with exit `0` at `88.85%` coverage. Source and hosted verification
-are still pending for this wave.
+are complete for this wave: source `a986f314eac088e12a46e04a0ac644e11a36661a`
+is pushed, CI `29540174920` succeeded, and CodeQL `29540174909` succeeded.
 
 **Current Checkpoint (2026-07-17):** R12's Cortex bus now accepts only a
 `CanonicalEvent`; every production producer passes the canonical envelope, the
@@ -217,9 +218,8 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit and push the R11 advisory-pheromone guard, then
-verify the exact hosted CI and CodeQL runs. After that, audit the next ordered
-R11/R13 packaged-runtime proof seam. Keep the packaged runtime proof separate
+**Single Next Action:** Audit the next ordered R11/R13 packaged-runtime proof
+seam with a red-first guard, then run the same local and hosted gates. Keep the packaged runtime proof separate
 from source-level green evidence. R12's cursor/schema repair is fully
 green on the exact pushed tip: the mirror/Cortex gate passed (`13`), the
 complete frontend suite passed (`600`), frontend coverage passed at `76.07%`

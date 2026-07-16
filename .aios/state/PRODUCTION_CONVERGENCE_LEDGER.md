@@ -432,4 +432,10 @@ fields. The sync guard now requires the canonical `AdvisoryPheromoneAdapter`
 before reusing an existing store, preserving the non-authoritative pheromone
 boundary. The focused pheromone/memory-architecture gate passed and the exact
 full backend gate exited `0` at `88.85%` coverage. Source commit and hosted
-CI/CodeQL verification remain pending.
+CI/CodeQL verification were pending at this local checkpoint.
+
+**R11 advisory pheromone authority guard hosted verification complete —
+2026-07-17:** Exact pushed source tip `a986f314eac088e12a46e04a0ac644e11a36661a`
+passed CI `29540174920` and CodeQL `29540174909`. The canonical advisory-wrapper
+guard is now green locally and on the immutable hosted tip. The next cursor is
+the ordered R11/R13 packaged-runtime proof seam; overall V1 remains partial.
