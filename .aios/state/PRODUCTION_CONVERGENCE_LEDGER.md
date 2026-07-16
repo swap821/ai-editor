@@ -238,6 +238,16 @@ daily-use probe remains incompatible and receives the expected `403`. Leave Huma
 exact-capability, mirror, and emergency-stop runtime authority gates open. Do
 not infer overall production readiness from completed waves.
 
+**R11 Specialist provider CI checkpoint — 2026-07-16:** Exact pushed repair
+tip `5f886084d04a0d708080218b7c17a6725d62747d` passed CI run `29504715690`
+and CodeQL run `29504715702`; all required platform, frontend, aggregate,
+release-authority, and analysis jobs completed successfully. The local gate
+is `3,169` collected, `3,161 passed, 8 skipped`, exit `0`, with `88.86%`
+combined coverage; the affected API/dependency regression set is `206 passed`.
+R11 remains partial. Continue at the next ordered compatibility seam, starting
+with the Council route/adapter boundary, while keeping runtime authority proof
+separate from source-level green evidence.
+
 **R11 Reflection CI checkpoint — 2026-07-16:** Exact pushed repair tip
 `12e691b8e0c4054d86233b403a584feacf3b245e` passed CI run `29500130518` and
 CodeQL run `29500130475`; all required platform, frontend, aggregate,

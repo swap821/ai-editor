@@ -269,10 +269,12 @@ require a real `MemoryAuthority` and return only its canonical specialist
 stores. Explicit overridden fact stores remain compatible because they never
 authorize construction of a parallel specialist store. The red-first provider
 test and the affected API/dependency regression set are green (`206 passed`).
+Provider repair commit `5f886084d04a0d708080218b7c17a6725d62747d` is pushed;
+exact-tip CI `29504715690` and CodeQL `29504715702` passed all required jobs.
 
-**Single next action:** stage, commit, and push this provider-authority wave,
-then verify its exact pushed SHA across CI and CodeQL before auditing the next
-R11 compatibility seam.
+**Single next action:** audit the next ordered R11 compatibility seam, starting
+with the Council route/adapter boundary; add a red-first boundary test before
+changing construction or fallback behavior.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon
