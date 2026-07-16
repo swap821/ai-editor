@@ -349,5 +349,16 @@ the source tip.
 `ad8c89a17bb0207957e65701aa153e43cd675d29` passed CodeQL
 `29527777727`, all backend matrix jobs, frontend, aggregate, and platform
 checks in CI `29527777325`. The release-authority job failed only at its Ruff
-format gate because `tests/test_operations.py` would be reformatted. A
-format-only follow-up is required before this checkpoint is green.
+format gate because `tests/test_operations.py` would be reformatted. The
+format-only follow-up tip `06581df71f6682874ea803eeb5a29579d8756a8c` passed
+CodeQL `29528718788`, all ordinary CI jobs, and the Ruff gate, but its private
+Executor isolation proof failed when the Docker build exhausted runner disk
+space installing the heavyweight image. Rerun the failed job before changing
+source.
+
+**R12 hosted verification complete — 2026-07-17:** The exact current tip
+`06581df71f6682874ea803eeb5a29579d8756a8c` is green in CI
+`29528718805` after release-authority rerun job `87726348325`, including the
+private Executor isolation proof. CodeQL `29528718788` is also green. The
+first release-authority attempt failed only from runner disk exhaustion while
+building the heavyweight test image; no source change was required.

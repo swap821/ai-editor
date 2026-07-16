@@ -9,10 +9,13 @@ durable row preserves the full schema, and legacy producer triples fail closed.
 The red-first schema test, focused compatibility migrations, R12 event/mirror
 gate, and exact package gate are green: `3,174` collected, `3,166 passed,
 8 skipped`, exit `0`, with `88.85%` combined coverage. Source commit
-`ad8c89a17bb0207957e65701aa153e43cd675d29` is pushed. CodeQL
-`29527777727` is green; CI `29527777325` passed all matrix jobs but its
-release-authority Ruff format gate found `tests/test_operations.py` needing
-formatting, so the hosted checkpoint is not green yet.
+`ad8c89a17bb0207957e65701aa153e43cd675d29` is pushed, followed by
+format-only checkpoint `06581df71f6682874ea803eeb5a29579d8756a8c`. CodeQL
+`29528718788` is green; CI `29528718805` is green after rerunning its failed
+release-authority job (`87726348325`). All matrix, frontend, aggregate,
+release-authority, private Executor isolation, and CodeQL checks are green for
+the exact current tip. The one failed attempt was runner disk exhaustion while
+installing the heavyweight Docker test image; no source change was needed.
 
 **Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
@@ -167,9 +170,10 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Format `tests/test_operations.py`, rerun the exact
-release-authority Ruff check/format command locally, append the failure lesson,
-commit the small follow-up, push it, and verify its exact CI and CodeQL. The
+**Single Next Action:** Begin the next ordered R12 repair seam: audit the
+Cortex event cursor/schema consumers across the mirror read path and frontend
+truth surface, add a red-first continuity test, and keep the same canonical
+event envelope fail-closed. The
 red-first replay-gap test failed before repair; the mirror/Cortex gate passed
 (`13`), the adjacent event/projection/API gate passed (`203`), the
 projection/Cortex bus gate passed (`38`), and the clean package gate passed
@@ -187,7 +191,9 @@ and do not bypass the audit.
   production-profile issue/consume/replay probe are green; the legacy
   ApprovalStore compatibility adapter remains outside the production graph.
 - The exact R12 source tip passed CodeQL and all ordinary CI jobs; release-authority
-  is pending a format-only follow-up for `tests/test_operations.py`.
+  passed formatting and private Executor isolation after a bounded rerun;
+  exact CI `29528718805` and CodeQL `29528718788` are green for
+  `06581df71f6682874ea803eeb5a29579d8756a8c`.
 - R4 source and full gates are green, but the complete packaged production
   authority matrix remains open; source/test evidence is not runtime readiness.
 - R5 has application-owned conversation and generation handlers with explicit
