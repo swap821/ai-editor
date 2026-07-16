@@ -206,18 +206,16 @@ class Planner:
         self.threshold = threshold
         self.memory_authority = memory_authority
         # Production callers pass the authority without specialist stores. Reuse
-        # its registered stores so calibration cannot open parallel databases;
-        # direct construction remains an explicit compatibility path for tests
-        # and standalone callers without an authority.
+        # its registered stores so calibration cannot open parallel databases.
         self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
         self.development = development or _authority_store(
             memory_authority, "development"
         )
         self.skills = skills or _authority_store(memory_authority, "skills")
-        if memory_authority is None:
-            self.mistakes = self.mistakes or MistakeMemory()
-            self.development = self.development or DevelopmentTracker()
-            self.skills = self.skills or SkillMemory()
+        if memory_authority is None and not any(
+            store is not None for store in (self.mistakes, self.development, self.skills)
+        ):
+            raise RuntimeError("MemoryAuthority or explicit memory stores are required")
         self._native = native
         self._last_native_source: Optional[Any] = None
 

@@ -41,6 +41,15 @@ class FakeSwarmPatterns:
         return self._results[:limit]
 
 
+class EmptyMemory:
+    def relevant_verified(self, query: str, limit: int = 5) -> list[dict]:
+        return []
+
+
+def _planner(llm: FakeLLM, **kwargs) -> Planner:
+    return Planner(llm, mistakes=EmptyMemory(), **kwargs)
+
+
 SWARM_MATCH = {
     "pattern_id": 42,
     "goal_pattern": "build a REST API with tests",
@@ -68,7 +77,7 @@ def test_planner_offline_raises_planner_error(monkeypatch: pytest.MonkeyPatch) -
     """With OFFLINE_MODE=True and no native match, plan() raises PlannerError."""
     monkeypatch.setattr(config, "OFFLINE_MODE", True)
     llm = FakeLLM()
-    planner = Planner(llm, native=NativePlanner())
+    planner = _planner(llm, native=NativePlanner())
 
     with pytest.raises(PlannerError, match="Offline mode"):
         planner.plan("something completely novel")
@@ -80,7 +89,7 @@ def test_planner_offline_native_still_works(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(config, "OFFLINE_MODE", True)
     llm = FakeLLM()
     native = NativePlanner(patterns=FakeSwarmPatterns([SWARM_MATCH]))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     plan = planner.plan("build a REST API with tests")
     assert llm.called is False
@@ -129,7 +138,7 @@ def test_planner_online_calls_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     """With OFFLINE_MODE=False, the LLM planner runs when native misses."""
     monkeypatch.setattr(config, "OFFLINE_MODE", False)
     llm = FakeLLM()
-    planner = Planner(llm, native=NativePlanner())
+    planner = _planner(llm, native=NativePlanner())
 
     plan = planner.plan("something novel")
     assert llm.called is True

@@ -3,22 +3,17 @@
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
-**Last Completed + Verified Step:** R11's Council prior-failure recall now
-fails closed when no MemoryAuthority or explicit mistake store is injected; the
-removed implicit MistakeMemory construction seam is no longer listed as a
-production compatibility bypass. The Council pheromone boundary also fails
-closed when advisory pheromones are enabled without an injected
-MemoryAuthority; the removed implicit PheromoneStore construction seam is no
-longer listed as a production compatibility bypass. R11's Planner,
-ReflectionAgent, and MemoryConsolidator production defaults now reuse registered MemoryAuthority
-specialist stores instead of constructing parallel stores; generate-pipeline
-facts/skills/lessons/self-model and confidence-calibration reads now require
-ownership before using authority paths; explicit injected fakes remain
-compatible. The focused authority/planner/reflection gate is `89` passed before
-the follow-on ownership regressions. The latest package-wide gate is green:
-`3,161` collected, `3,153 passed, 8 skipped`, exit `0`, with combined coverage
-of `88.85%`. The frontend gate is also green at `598 passed` across `104`
-files, and the production Vite build passed.
+**Last Completed + Verified Step:** R11's Planner now refuses to construct
+implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
+neither `MemoryAuthority` nor an explicit store is injected. `ToolAgent` and
+the application turn factory now carry explicit planner stores alongside the
+authority, while offline sovereignty and standalone tests inject their stores.
+The architecture quarantine manifest no longer lists `aios/core/planner.py`.
+Focused Planner/native/offline/architecture tests passed (`40`), the affected
+ToolAgent/native-plan/proof checks passed (`6`), and the clean package-wide gate
+passed: `3,166` collected, `3,158 passed, 8 skipped`, exit `0`, with combined
+coverage of `88.85%`. Frontend tests passed (`598` across `104` files), and the
+production Vite build passed.
 Production fact proposals,
 developmental outcomes, skill attempts/reuse, reflection lessons,
 consolidation, planner/compaction, Council lesson recall, and append-only
@@ -109,11 +104,15 @@ implicit production wiring; explicit injected stores remain bounded test or
 compatibility inputs. The latest turn-path slice also makes semantic recall, episodic
 persistence, and `/api/v1/chat` coordinator wiring use the injected
 `MemoryAuthority`; process-global fallback remains only for standalone
-compatibility callers. The focused development/architecture/authority/metrics gate is
-`40 passed`, and the focused planner/reflection/authority gate is `89 passed`.
-The package-wide gate is `3,161` collected, `3,153 passed, 8 skipped`, exit `0`,
-at combined coverage `88.84%`. Frontend tests are `598 passed` across `104`
-files and the production Vite build passed. Packaged
+compatibility callers. Planner now refuses implicit legacy-store construction;
+ToolAgent and both turn-agent factories carry explicit planner stores, and the
+offline sovereignty proof injects its existing skill store. The focused
+development/architecture/authority/metrics gate is `40 passed`; the focused
+Planner/native/offline/architecture gate is `40 passed`, and the affected
+ToolAgent/native-plan/proof checks are `6 passed`. The package-wide gate is
+`3,166` collected, `3,158 passed, 8 skipped`, exit `0`, at combined coverage
+`88.85%`. Frontend tests are `598 passed` across `104` files and the production
+Vite build passed. Packaged
 runtime-proof seams remain open. R10 is
 verified at
 the bounded evidence/verification/promotion boundary; R9 remains verified at
@@ -242,13 +241,11 @@ The frozen security spine is untouched.
 
 ## Active CI Repair Checkpoint — 2026-07-16
 
-`e4a918adc39909cc395ef35b66946b324592afd0` is pushed to `origin/master`.
-Exact-tip CI run `29485413218` and CodeQL run `29485413276` are green across
-the backend matrix, frontend, aggregate, release-authority, and CodeQL jobs.
+The working tree contains the next R11 Planner authority repair and is locally
+verified; the commit/push SHA and exact remote runs are the next checkpoint.
 
-**Single next action:** continue the next ordered R11 repair wave from the
-current MemoryAuthority compatibility-seam inventory; keep the exact green
-baseline pinned to `e4a918adc39909cc395ef35b66946b324592afd0`.
+**Single next action:** stage, commit, push this Planner authority wave, then
+verify the exact pushed SHA across CI and CodeQL.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon

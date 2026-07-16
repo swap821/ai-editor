@@ -79,6 +79,14 @@ class PassRunner:
         return "3 passed in 0.2s", "", 0
 
 
+class EmptyPlannerMemory:
+    def relevant_verified(self, query: str, limit: int = 5) -> list[dict]:
+        return []
+
+    def relevant_success_rate(self, query: str):
+        return None
+
+
 class FakePlannerLLM:
     """Fake COMPLETION client (LLMClient.complete) returning a fixed string."""
 
@@ -683,6 +691,7 @@ class TestNativePlanEvent:
             _executor(),
             max_iters=2,
             planner_llm=planner_llm,
+            mistakes=EmptyPlannerMemory(),
             native_planner=FakeNative(),
         )
         # Drive the plan tool call directly through the loop.

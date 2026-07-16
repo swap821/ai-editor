@@ -653,6 +653,9 @@ class ToolAgent:
         resume_tail: Optional[list[dict[str, Any]]] = None,
         cerebellum: Optional[Cerebellum] = None,
         native_planner: Optional[Any] = None,
+        mistakes: Optional[Any] = None,
+        development: Optional[Any] = None,
+        skills: Optional[Any] = None,
         memory_authority: Optional[Any] = None,
         stream_fn: Optional[Callable[..., Iterator[Any]]] = None,
     ) -> None:
@@ -744,6 +747,9 @@ class ToolAgent:
             Planner(
                 planner_llm,
                 native=native_planner,
+                mistakes=mistakes,
+                development=development,
+                skills=skills,
                 memory_authority=memory_authority,
             )
             if planner_llm is not None

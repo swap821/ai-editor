@@ -33,9 +33,29 @@ def _steps_json(*confidences: float) -> str:
     return json.dumps({"steps": steps})
 
 
+class _EmptyMemory:
+    def relevant_verified(self, query: str, limit: int = 5) -> list[dict]:
+        return []
+
+    def relevant_success_rate(self, query: str):
+        return None
+
+
+def _planner(llm: StepLLM, **kwargs) -> Planner:
+    return Planner(llm, mistakes=_EmptyMemory(), **kwargs)
+
+
+def test_planner_refuses_implicit_legacy_memory_stores() -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="MemoryAuthority or explicit memory stores are required",
+    ):
+        Planner(StepLLM(_steps_json(0.9)))
+
+
 def test_plan_partitions_by_confidence() -> None:
     llm = StepLLM(_steps_json(0.95, 0.5, 0.72))
-    plan = Planner(llm).plan("build a todo app")
+    plan = _planner(llm).plan("build a todo app")
     assert len(plan.steps) == 3
     assert len(plan.approved) == 2          # 0.95 and 0.72 (>= threshold)
     assert len(plan.escalate) == 1          # 0.5 is below
@@ -44,36 +64,36 @@ def test_plan_partitions_by_confidence() -> None:
 
 
 def test_plan_all_confident_needs_no_human() -> None:
-    plan = Planner(StepLLM(_steps_json(0.9, 0.85))).plan("safe goal")
+    plan = _planner(StepLLM(_steps_json(0.9, 0.85))).plan("safe goal")
     assert plan.requires_human is False
     assert len(plan.approved) == 2
 
 
 def test_plan_handles_code_fences_and_noise() -> None:
     raw = "Sure! Here is the plan:\n```json\n" + _steps_json(0.8) + "\n```"
-    plan = Planner(StepLLM(raw)).plan("anything")
+    plan = _planner(StepLLM(raw)).plan("anything")
     assert len(plan.steps) == 1
 
 
 def test_plan_clamps_out_of_range_confidence() -> None:
-    plan = Planner(StepLLM(_steps_json(1.7, -0.4))).plan("clamp me")
+    plan = _planner(StepLLM(_steps_json(1.7, -0.4))).plan("clamp me")
     confidences = sorted(s.confidence for s in plan.steps)
     assert confidences == [0.0, 1.0]
 
 
 def test_empty_goal_raises() -> None:
     with pytest.raises(PlannerError):
-        Planner(StepLLM(_steps_json(0.9))).plan("   ")
+        _planner(StepLLM(_steps_json(0.9))).plan("   ")
 
 
 def test_malformed_llm_output_raises() -> None:
     with pytest.raises(PlannerError):
-        Planner(StepLLM("not json at all")).plan("goal")
+        _planner(StepLLM("not json at all")).plan("goal")
 
 
 def test_empty_steps_array_raises() -> None:
     with pytest.raises(PlannerError):
-        Planner(StepLLM(json.dumps({"steps": []}))).plan("goal")
+        _planner(StepLLM(json.dumps({"steps": []}))).plan("goal")
 
 
 # ── serialize_plan / plan_to_prompt_block — pure-unit coverage ──────────────
@@ -82,7 +102,7 @@ def test_empty_steps_array_raises() -> None:
 
 
 def test_serialize_plan_is_json_safe_and_complete() -> None:
-    plan = Planner(StepLLM(_steps_json(0.95, 0.4))).plan("ship a feature")
+    plan = _planner(StepLLM(_steps_json(0.95, 0.4))).plan("ship a feature")
     data = serialize_plan(plan)
     # Round-trips through JSON with no dataclass leaking through.
     assert json.loads(json.dumps(data)) == data
@@ -113,7 +133,7 @@ def test_serialize_plan_native_flag_reflects_native_source() -> None:
 
 
 def test_plan_to_prompt_block_renders_steps_and_escalations() -> None:
-    plan = Planner(StepLLM(_steps_json(0.95, 0.4))).plan("do the thing")
+    plan = _planner(StepLLM(_steps_json(0.95, 0.4))).plan("do the thing")
     block = plan_to_prompt_block(plan)
     assert block.startswith("TASK PLAN (advisory")
     # Every step's description and 2-dp confidence is present.
@@ -126,7 +146,7 @@ def test_plan_to_prompt_block_renders_steps_and_escalations() -> None:
 
 
 def test_plan_to_prompt_block_omits_escalation_line_when_all_confident() -> None:
-    plan = Planner(StepLLM(_steps_json(0.9, 0.88))).plan("all good")
+    plan = _planner(StepLLM(_steps_json(0.9, 0.88))).plan("all good")
     block = plan_to_prompt_block(plan)
     assert "human sign-off" not in block
     assert "step 1" in block and "step 2" in block

@@ -277,7 +277,7 @@ def main() -> None:
         _orig_offline = _config.OFFLINE_MODE
         try:
             _config.OFFLINE_MODE = True
-            planner = Planner(_OfflineLLM(), native=native)
+            planner = Planner(_OfflineLLM(), native=native, skills=skill_mem)
             plan = planner.plan("read and verify the router module")
             _evidence(
                 "planner returns native plan in offline mode",
@@ -301,7 +301,7 @@ def main() -> None:
             # 16. Planner raises PlannerError for novel task offline
             raised_planner = False
             try:
-                planner = Planner(_OfflineLLM(), native=native)
+                planner = Planner(_OfflineLLM(), native=native, skills=skill_mem)
                 planner.plan("completely unknown novel task xyz")
             except PlannerError:
                 raised_planner = True

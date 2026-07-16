@@ -95,6 +95,14 @@ class FakePlannerLLM:
         return self.response
 
 
+class EmptyPlannerMemory:
+    def relevant_verified(self, query: str, limit: int = 5) -> list[dict]:
+        return []
+
+    def relevant_success_rate(self, query: str):
+        return None
+
+
 #: A fixed 3-step plan with one step (step 2) below the 0.72 confidence gate.
 _PLAN_JSON = json.dumps(
     {
@@ -1475,7 +1483,10 @@ def test_agent_plan_lists_ordered_steps() -> None:
         {"role": "assistant", "content": "Here is my plan."},
     ])
     events = list(
-        ToolAgent(chat, _executor(), max_iters=3, planner_llm=planner_llm).run(
+        ToolAgent(
+            chat, _executor(), max_iters=3, planner_llm=planner_llm,
+            mistakes=EmptyPlannerMemory(),
+        ).run(
             [{"role": "user", "content": "refactor the parser safely"}]
         )
     )
@@ -1498,7 +1509,10 @@ def test_agent_plan_flags_low_confidence_step_for_human_review() -> None:
         {"role": "assistant", "content": "One step needs review."},
     ])
     events = list(
-        ToolAgent(chat, _executor(), max_iters=3, planner_llm=planner_llm).run(
+        ToolAgent(
+            chat, _executor(), max_iters=3, planner_llm=planner_llm,
+            mistakes=EmptyPlannerMemory(),
+        ).run(
             [{"role": "user", "content": "do the risky thing"}]
         )
     )
@@ -1524,6 +1538,7 @@ def test_agent_plan_surfaces_planner_error_cleanly() -> None:
     events = list(
         ToolAgent(
             chat, _executor(), max_iters=3, planner_llm=planner_llm,
+            mistakes=EmptyPlannerMemory(),
             on_failure=lambda c, o: reflected.append(c),
         ).run([{"role": "user", "content": "whatever"}])
     )
@@ -1571,6 +1586,7 @@ def test_agent_plan_survives_planner_llm_error() -> None:
     events = list(
         ToolAgent(
             chat, _executor(), max_iters=3, planner_llm=_BoomPlannerLLM(),
+            mistakes=EmptyPlannerMemory(),
             on_failure=lambda c, o: reflected.append(c),
         ).run([{"role": "user", "content": "do the thing"}])
     )

@@ -42,6 +42,10 @@ class FakeSkillMemory:
         return self._results[:limit]
 
 
+def _planner(llm: StepLLM, **kwargs) -> Planner:
+    return Planner(llm, skills=FakeSkillMemory(), **kwargs)
+
+
 def _steps_json(*confidences: float) -> str:
     steps = [
         {"step_id": str(i + 1), "description": f"step {i + 1}", "confidence": c}
@@ -84,7 +88,7 @@ def test_planner_uses_native_before_llm() -> None:
     """When the native planner matches, the LLM is never called."""
     llm = StepLLM(_steps_json(0.9, 0.8))
     native = NativePlanner(patterns=FakeSwarmPatterns([SWARM_MATCH]))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     plan = planner.plan("build a REST API with tests")
     assert llm.called is False
@@ -97,7 +101,7 @@ def test_planner_falls_through_on_no_match() -> None:
     """When the native planner has no match, the LLM is called normally."""
     llm = StepLLM(_steps_json(0.9, 0.85))
     native = NativePlanner()  # no stores -> no match
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     plan = planner.plan("something novel")
     assert llm.called is True
@@ -109,7 +113,7 @@ def test_native_plan_passes_confidence_gate() -> None:
     """A native plan with evidence confidence >= 0.72 has approved steps."""
     native = NativePlanner(patterns=FakeSwarmPatterns([SWARM_MATCH]))
     llm = StepLLM(_steps_json(0.9))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     plan = planner.plan("build a REST API")
     # evidence_confidence = 1.0 * 0.80 = 0.80 >= 0.72
@@ -127,7 +131,7 @@ def test_native_plan_escalates_low_confidence() -> None:
         min_confidence=0.0,  # let it through the native planner's own gate
     )
     llm = StepLLM(_steps_json(0.9))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     plan = planner.plan("build something")
     # All steps carry evidence_confidence = 0.72 exactly at threshold -> approved
@@ -144,7 +148,7 @@ def test_native_plan_below_gate_escalates() -> None:
         min_confidence=0.0,  # let it through the native planner
     )
     llm = StepLLM(_steps_json(0.9))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     plan = planner.plan("build something")
     assert plan.native_source is not None
@@ -155,7 +159,7 @@ def test_native_plan_below_gate_escalates() -> None:
 def test_existing_planner_tests_unchanged() -> None:
     """Planner with native=None behaves exactly as before (zero regression)."""
     llm = StepLLM(_steps_json(0.95, 0.5, 0.72))
-    planner = Planner(llm, native=None)
+    planner = _planner(llm, native=None)
     plan = planner.plan("build a todo app")
     assert len(plan.steps) == 3
     assert len(plan.approved) == 2
@@ -168,7 +172,7 @@ def test_planner_stores_last_native_source() -> None:
     """After a native plan, _last_native_source is set for SSE emission."""
     native = NativePlanner(patterns=FakeSwarmPatterns([SWARM_MATCH]))
     llm = StepLLM(_steps_json(0.9))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     planner.plan("build a REST API")
     assert planner._last_native_source is not None
@@ -179,7 +183,7 @@ def test_planner_clears_last_native_source_on_fallthrough() -> None:
     """After an LLM plan, _last_native_source is cleared."""
     native = NativePlanner()  # no stores -> no match
     llm = StepLLM(_steps_json(0.9))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     planner.plan("novel goal")
     assert planner._last_native_source is None
@@ -189,7 +193,7 @@ def test_native_plan_calibrations_empty() -> None:
     """Native plans have no LLM calibrations — confidence is from evidence."""
     native = NativePlanner(patterns=FakeSwarmPatterns([SWARM_MATCH]))
     llm = StepLLM(_steps_json(0.9))
-    planner = Planner(llm, native=native)
+    planner = _planner(llm, native=native)
 
     plan = planner.plan("build a REST API")
     assert plan.calibrations == []

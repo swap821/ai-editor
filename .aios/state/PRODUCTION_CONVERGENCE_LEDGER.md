@@ -80,6 +80,17 @@ longer constructs an implicit legacy store. The focused Council/R11 gate is
 8 skipped`, with `88.85%` combined coverage. Exact remote CI/CodeQL for this
 new wave remains to be verified after push.
 
+**R11 Planner authority checkpoint — 2026-07-16:** `Planner` now refuses all
+implicit specialist-store construction without `MemoryAuthority` or an
+explicit injected store. `ToolAgent` and both application turn-agent factories
+carry explicit planner stores, and the offline sovereignty proof injects its
+existing skill store. The focused Planner/native/offline/architecture gate is
+`40 passed`; the affected ToolAgent/native-plan/proof checks are `6 passed`.
+The clean local backend gate is `3,166` collected, `3,158 passed, 8 skipped`,
+`88.85%` combined coverage; frontend is `598 passed` across `104` files and
+the Vite build is green. Exact remote CI/CodeQL remains to be verified after
+push.
+
 ## Current authority readiness at the audited baseline
 
 The slice evidence above records what was tested or shipped; it does not by

@@ -767,6 +767,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             # Sovereignty S3: native symbolic planner. Plans known task
             # shapes from verified experience without an LLM call.
             native_planner=native_planner,
+            mistakes=runtime.mistakes,
+            development=runtime.development,
+            skills=runtime.skills,
             memory_authority=runtime.memory_authority,
             # C4: stream tokens in real-time when the cloud client supports it.
             stream_fn=_stream_fn if callable(_stream_fn) else None,
@@ -815,6 +818,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             snapshot=snapshot,
             planner_llm=planner_llm,
             self_analysis_llm=planner_llm,
+            mistakes=runtime.mistakes,
+            development=runtime.development,
+            skills=runtime.skills,
             memory_authority=runtime.memory_authority,
             autonomy=autonomy,
             resume_tail=resume_tail,
