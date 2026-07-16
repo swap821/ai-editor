@@ -70,6 +70,14 @@ def _authority(tmp_path: Path) -> MemoryAuthority:
     return MemoryAuthority(store=MemoryAuthorityStore(tmp_path / "memory.db"))
 
 
+def test_consolidator_refuses_implicit_legacy_stores() -> None:
+    """Consolidation must not open a parallel memory graph by default."""
+    with pytest.raises(
+        RuntimeError, match="MemoryAuthority or explicit memory stores"
+    ):
+        MemoryConsolidator()
+
+
 def test_weak_evidence_cannot_promote(tmp_path: Path) -> None:
     authority = _authority(tmp_path)
     proposal = _proposal()
@@ -625,6 +633,7 @@ def test_consolidator_routes_fact_reconciliation_and_supersession_through_author
     consolidator = MemoryConsolidator(
         tmp_path / "memory.db",
         semantic=Semantic(),
+        mistakes=object(),
         facts=Facts(),
         memory_authority=authority,
     )

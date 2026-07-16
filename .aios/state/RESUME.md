@@ -14,8 +14,8 @@ and the reflection dependency provider fails closed without authority. Focused
 Planner/native/offline/architecture tests passed (`40`), the affected
 ToolAgent/native-plan/proof checks passed (`6`), the Reflection/offline/API/
 architecture gate passed (`36`), and the clean package-wide gate passed:
-`3,169` collected, `3,161 passed, 8 skipped`, exit `0`, with combined coverage
-of `88.86%`. Frontend tests passed (`598` across `104` files), and the
+`3,170` collected, `3,162 passed, 8 skipped`, exit `0`, with combined coverage
+of `88.85%`. Frontend tests passed (`598` across `104` files), and the
 production Vite build passed.
 Specialist dependency providers now require a real `MemoryAuthority` and
 return only canonical development, skill, and lesson stores; the affected
@@ -119,8 +119,8 @@ lesson store. The focused
 development/architecture/authority/metrics gate is `40 passed`; the focused
 Planner/native/offline/architecture gate is `40 passed`, and the affected
 ToolAgent/native-plan/proof checks are `6 passed`; the Reflection/offline/API/
-architecture gate is `36 passed`. The package-wide gate is `3,169` collected,
-`3,161 passed, 8 skipped`, exit `0`, at combined coverage `88.86%`. Frontend
+architecture gate is `36 passed`. The package-wide gate is `3,170` collected,
+`3,162 passed, 8 skipped`, exit `0`, at combined coverage `88.85%`. Frontend
 tests are `598 passed` across `104` files and the production Vite build passed.
 Packaged
 runtime-proof seams remain open. R10 is
@@ -272,9 +272,19 @@ test and the affected API/dependency regression set are green (`206 passed`).
 Provider repair commit `5f886084d04a0d708080218b7c17a6725d62747d` is pushed;
 exact-tip CI `29504715690` and CodeQL `29504715702` passed all required jobs.
 
-**Single next action:** audit the next ordered R11 compatibility seam, starting
-with the Council route/adapter boundary; add a red-first boundary test before
-changing construction or fallback behavior.
+The next consolidation wave is locally implemented: `MemoryConsolidator`
+refuses implicit store construction, accepts complete explicit standalone
+stores, and requires all specialist stores when authority-backed. Its focused
+consolidation/authority/approval gate is green (`7 passed`); the broader gate
+is now green (`68 passed`), and the architecture quarantine manifest no longer
+lists `aios/memory/consolidation.py`.
+The clean package-wide gate also passed with exit `0`: `3,170` collected,
+`3,162 passed, 8 skipped`, and `88.85%` combined coverage. The consolidation
+wave is not yet committed or remotely verified.
+
+**Single next action:** stage, commit, and push the consolidator wave, then
+verify its exact pushed SHA across CI and CodeQL before auditing the next
+remaining R11 construction seam.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon

@@ -52,6 +52,8 @@ from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
 from aios.memory.facts import SemanticFacts
+from aios.memory.mistake import MistakeMemory
+from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.runtime import turn_state
 from aios.security import scope_lock
@@ -139,7 +141,10 @@ def client(monkeypatch) -> Iterator[TestClient]:
         db_path=db
     )
     app.dependency_overrides[get_memory_consolidator] = lambda: MemoryConsolidator(
-        db_path=db
+        db_path=db,
+        semantic=SemanticMemory(db),
+        mistakes=MistakeMemory(db),
+        facts=facts,
     )
     app.dependency_overrides[get_conversation_state_store] = (
         lambda: ConversationStateStore(db_path=db)

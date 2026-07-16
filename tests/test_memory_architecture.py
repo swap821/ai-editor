@@ -26,7 +26,6 @@ _KNOWN_COMPATIBILITY_SEAMS = {
     "aios/api/deps.py",
     "aios/api/routes/council.py",
     "aios/application/memory/adapters.py",
-    "aios/memory/consolidation.py",
 }
 
 

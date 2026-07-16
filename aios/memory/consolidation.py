@@ -38,18 +38,11 @@ class MemoryConsolidator:
         self.semantic = semantic or _authority_store(memory_authority, "semantic")
         self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
         self.facts = facts or _authority_store(memory_authority, "facts")
-        # A caller supplying explicit specialist fakes may intentionally omit
-        # the unrelated lesson store; retain that narrow compatibility seam.
-        if self.mistakes is None and (
-            memory_authority is None or semantic is not None or facts is not None
-        ):
-            self.mistakes = MistakeMemory(db_path)
         if memory_authority is None:
-            # Explicit standalone/compatibility path. The process authority
-            # bootstrap supplies all three stores before binding this service.
-            self.semantic = self.semantic or SemanticMemory(db_path)
-            self.mistakes = self.mistakes or MistakeMemory(db_path)
-            self.facts = self.facts or SemanticFacts(db_path)
+            if semantic is None or mistakes is None or facts is None:
+                raise RuntimeError(
+                    "MemoryAuthority or explicit memory stores are required"
+                )
         elif self.semantic is None or self.mistakes is None or self.facts is None:
             raise RuntimeError("memory authority specialist stores are unavailable")
 
