@@ -67,6 +67,7 @@ from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
+from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
@@ -267,7 +268,9 @@ def get_memory_authority() -> MemoryAuthority:
             adapters = {
                 "working": WorkingMemoryAdapter(WorkingMemory()),
                 "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
-                "semantic": LegacySemanticMemoryAdapter(config.MEMORY_DB_PATH),
+                "semantic": LegacySemanticMemoryAdapter(
+                    SemanticMemory(config.MEMORY_DB_PATH)
+                ),
                 "facts": SemanticFactsAdapter(SemanticFacts()),
                 "skills": SkillMemoryAdapter(SkillMemory()),
                 "lessons": MistakeMemoryAdapter(MistakeMemory()),

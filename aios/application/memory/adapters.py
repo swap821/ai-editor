@@ -32,9 +32,11 @@ class LegacySemanticMemoryAdapter:
 
     memory_types = ("semantic", "chat", "lesson", "fact", "preference", "procedure")
 
-    def __init__(self, db_path: str | Path) -> None:
-        self.db_path = Path(db_path)
-        self.store = SemanticMemory(self.db_path)
+    def __init__(self, store: SemanticMemory) -> None:
+        if not isinstance(store, SemanticMemory):
+            raise RuntimeError("an explicit SemanticMemory store is required")
+        self.store = store
+        self.db_path = Path(store.db_path)
 
     @property
     def index(self) -> Any:

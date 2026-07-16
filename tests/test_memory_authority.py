@@ -78,6 +78,14 @@ def test_consolidator_refuses_implicit_legacy_stores() -> None:
         MemoryConsolidator()
 
 
+def test_semantic_adapter_refuses_implicit_legacy_store() -> None:
+    """Adapters must wrap an explicit specialist store, never open one."""
+    from aios.application.memory.adapters import LegacySemanticMemoryAdapter
+
+    with pytest.raises(RuntimeError, match="explicit SemanticMemory store"):
+        LegacySemanticMemoryAdapter(":memory:")
+
+
 def test_weak_evidence_cannot_promote(tmp_path: Path) -> None:
     authority = _authority(tmp_path)
     proposal = _proposal()

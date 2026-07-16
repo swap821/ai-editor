@@ -14,7 +14,7 @@ and the reflection dependency provider fails closed without authority. Focused
 Planner/native/offline/architecture tests passed (`40`), the affected
 ToolAgent/native-plan/proof checks passed (`6`), the Reflection/offline/API/
 architecture gate passed (`36`), and the clean package-wide gate passed:
-`3,170` collected, `3,162 passed, 8 skipped`, exit `0`, with combined coverage
+`3,171` collected, `3,163 passed, 8 skipped`, exit `0`, with combined coverage
 of `88.85%`. Frontend tests passed (`598` across `104` files), and the
 production Vite build passed.
 Specialist dependency providers now require a real `MemoryAuthority` and
@@ -119,8 +119,8 @@ lesson store. The focused
 development/architecture/authority/metrics gate is `40 passed`; the focused
 Planner/native/offline/architecture gate is `40 passed`, and the affected
 ToolAgent/native-plan/proof checks are `6 passed`; the Reflection/offline/API/
-architecture gate is `36 passed`. The package-wide gate is `3,170` collected,
-`3,162 passed, 8 skipped`, exit `0`, at combined coverage `88.85%`. Frontend
+architecture gate is `36 passed`. The package-wide gate is `3,171` collected,
+`3,163 passed, 8 skipped`, exit `0`, at combined coverage `88.85%`. Frontend
 tests are `598 passed` across `104` files and the production Vite build passed.
 Packaged
 runtime-proof seams remain open. R10 is
@@ -282,11 +282,18 @@ quarantine manifest no longer lists `aios/memory/consolidation.py`. The clean
 package-wide gate passed with exit `0`: `3,170` collected, `3,162 passed,
 8 skipped`, and `88.85%` combined coverage.
 
-**Single next action:** audit the remaining R11 construction surface:
-`aios/api/deps.py` bootstrap/advisory pheromone stores,
-`aios/api/routes/council.py` scoped CouncilMemory instances, and
-`aios/application/memory/adapters.py` physical adapter stores. Add a
-red-first guard before changing any seam.
+The next R11 adapter wave is locally implemented: `LegacySemanticMemoryAdapter`
+now requires an explicit `SemanticMemory` instance, and the authority
+composition root creates that physical store before wrapping it. The red-first
+adapter refusal test, architecture gate, and affected authority/API/approval
+batch are green (`205 passed`). The clean package-wide gate completed with
+`3,171` collected, `3,163 passed, 8 skipped`, and `88.85%` coverage; one prior
+full-suite Windows run exposed a stateful rollback `403`, but the exact test
+passed in isolation and the final clean run had no failure marker.
+
+**Single next action:** stage, commit, and push the adapter wave, then verify
+its exact pushed SHA across CI and CodeQL before auditing the two remaining R11
+construction seams in `aios/api/deps.py` and `aios/api/routes/council.py`.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon

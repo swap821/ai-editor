@@ -267,3 +267,14 @@ construction seams: `aios/api/deps.py`, `aios/api/routes/council.py`, and
 `aios/application/memory/adapters.py`. R11 remains partial; continue with a
 red-first audit and keep packaged runtime authority proof separate from
 source-level green evidence.
+
+**R11 Semantic adapter local checkpoint — 2026-07-16:** The next repair wave
+requires `LegacySemanticMemoryAdapter` to wrap an explicit `SemanticMemory`
+store; only the MemoryAuthority composition root now creates that physical
+semantic store. The red-first refusal test, architecture gate, and affected
+authority/API/approval regression set passed (`205 passed`). The clean package
+gate completed with `3,171` collected, `3,163 passed, 8 skipped`, and `88.85%`
+coverage. A prior full-suite Windows run exposed one stateful rollback `403`
+instead of `200`; the exact test passed in isolation, and the final clean run
+completed without a failure marker. Remote verification is pending for the
+source wave; R11 remains partial.
