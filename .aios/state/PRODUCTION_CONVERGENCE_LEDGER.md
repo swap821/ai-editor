@@ -237,3 +237,12 @@ evidence separate from the still-open full production matrix. The old
 daily-use probe remains incompatible and receives the expected `403`. Leave Human Sovereign,
 exact-capability, mirror, and emergency-stop runtime authority gates open. Do
 not infer overall production readiness from completed waves.
+
+**R11 Reflection CI checkpoint — 2026-07-16:** Exact pushed repair tip
+`12e691b8e0c4054d86233b403a584feacf3b245e` passed CI run `29500130518` and
+CodeQL run `29500130475`; all required platform, frontend, aggregate,
+release-authority, and analysis jobs completed successfully. The local gate
+remains `3,168` collected, `3,160 passed, 8 skipped`, with `88.86%` combined
+coverage. R11 remains partial; continue at the next ordered compatibility
+seam, starting with `aios/api/deps.py`, and keep packaged runtime authority
+proofs separate from source-level green evidence.

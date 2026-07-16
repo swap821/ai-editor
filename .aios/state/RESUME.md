@@ -247,11 +247,15 @@ The frozen security spine is untouched.
 
 ## Active CI Repair Checkpoint — 2026-07-16
 
-The working tree contains the locally verified ReflectionAgent authority
-repair; its commit/push SHA and exact remote runs are the next checkpoint.
+ReflectionAgent authority repair commit
+`12e691b8e0c4054d86233b403a584feacf3b245e` is pushed to `origin/master`.
+Exact-tip CI run `29500130518` and CodeQL run `29500130475` completed
+successfully across the required platform, frontend, aggregate,
+release-authority, and analysis jobs.
 
-**Single next action:** stage, commit, push this ReflectionAgent authority wave,
-then verify the exact pushed SHA across CI and CodeQL.
+**Single next action:** audit and repair the next ordered R11 compatibility
+seam, beginning with `aios/api/deps.py`; add a red-first boundary test before
+changing construction or fallback behavior.
 
 **Open blockers:** R11 remains partial and the full packaged production
 authority matrix remains open; no CI blocker remains. The local Docker daemon
