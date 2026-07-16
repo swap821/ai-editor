@@ -24,11 +24,13 @@ ignores events missing either a durable SSE cursor or canonical `eventType`.
 Focused frontend tests pass (`13` across the mirror and registry files).
 The complete frontend suite passes (`104` files, `600` tests), typecheck and
 lint pass (`0` errors, `123` existing warnings), the production build passes,
-and the focused backend mirror/Cortex compatibility gate passes. The local
-coverage command still reports the scoped lib function floor at `70.75%` under
-the workstation's Node `24.16.0`; hosted CI uses Node `20` and measured the
-same baseline at `75.59%`, so the threshold remains unchanged and the exact
-source tip must be validated by hosted CI after push.
+and the focused backend mirror/Cortex compatibility gate passes. The first
+hosted run of source tip `e195f37` correctly failed the frontend coverage
+floor at `70.75%` because the existing broad mirror fixture lacked durable
+SSE ids and canonical `eventType`, so the new fail-closed client ignored its
+events. That fixture now sends canonical frames and asserts the reaction path;
+the local full coverage gate passes with `76.07%` scoped-lib functions and
+the threshold remains unchanged.
 
 **Prior Last Completed + Verified Step:** R11's Planner now refuses to construct
 implicit `MistakeMemory`, `DevelopmentTracker`, or `SkillMemory` stores when
@@ -183,14 +185,15 @@ fact-queue reads, and `/api/generate` entry: the endpoint returned
 was written. The legacy daily-use probe remains stale because it does not
 bootstrap this browser session contract.
 
-**Single Next Action:** Commit the cursor/schema repair plus continuity
+**Single Next Action:** Commit the canonicalized mirror fixture plus continuity
 checkpoint, push it to `origin/master`, and verify the exact hosted CI and
 CodeQL tip. The red-first replay-gap test failed before repair; the mirror/
 Cortex gate passed (`13`), the complete frontend suite passed (`600`), the
-backend compatibility gate passed, and the production build passed. The local
-coverage discrepancy is recorded above; do not lower the threshold or invent
-a cursor to make a gate pass. Keep the mutation boundary fail-closed and do
-not bypass the audit.
+frontend coverage gate now passes at `76.07%` scoped-lib functions, and the
+production build passed. The prior hosted coverage failure is recorded as a
+test-fixture contract miss; do not lower the threshold or invent a cursor to
+make a gate pass. Keep the mutation boundary fail-closed and do not bypass
+the audit.
 
 **Open Approvals / Blockers:**
 - Durable Human Sovereign identity is `PARTIAL`: source, route wiring, and an
@@ -204,10 +207,11 @@ not bypass the audit.
   exact CI `29528718805` and CodeQL `29528718788` are green for
   `06581df71f6682874ea803eeb5a29579d8756a8c`.
 - The current cursor/schema source repair is locally green for focused behavior,
-  full frontend tests, typecheck, lint, production build, and the backend
-  mirror/Cortex gate. Hosted validation is the remaining checkpoint because
-  this workstation's Node 24 V8 coverage reports `70.75%` scoped functions
-  while the CI Node 20 baseline reports `75.59%`.
+  full frontend tests, typecheck, lint, production build, backend mirror/Cortex
+  gate, and full frontend coverage (`76.07%` scoped-lib functions). The first
+  exact hosted CI attempt failed only at that coverage step (`70.75%`) because
+  the pre-repair broad fixture violated the new transport contract; the fixture
+  correction is ready for the next exact-tip run. CodeQL `29532113056` passed.
 - R4 source and full gates are green, but the complete packaged production
   authority matrix remains open; source/test evidence is not runtime readiness.
 - R5 has application-owned conversation and generation handlers with explicit

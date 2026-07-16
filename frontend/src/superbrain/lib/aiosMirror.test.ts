@@ -127,47 +127,49 @@ describe('aiosMirror', () => {
 
   it('handles swarm_plan and caste events', async () => {
     await startMirrorClient();
-    
-    mockEventSource.onmessage({
-      type: 'swarm_plan',
-      data: JSON.stringify({ payload: { plan: ['a', 'b'] } })
-    });
-    
-    mockEventSource.onmessage({
-      type: 'caste_start',
-      data: JSON.stringify({ payload: { caste: 'integration' } })
-    });
 
-    mockEventSource.onmessage({
-      type: 'verify_result',
-      data: JSON.stringify({ payload: { verdict: 'pass', target: 'tests' } })
-    });
+    const sendCanonical = (id: number, eventType: string, payload: Record<string, unknown>) => {
+      mockEventSource.onmessage({
+        type: eventType,
+        lastEventId: String(id),
+        data: JSON.stringify({
+          schemaVersion: '1.0',
+          eventId: `event-${id}`,
+          eventType,
+          payload,
+        }),
+      });
+    };
+
+    sendCanonical(10, 'swarm_plan', { plan: ['a', 'b'] });
+    sendCanonical(11, 'caste_start', { caste: 'integration' });
+    sendCanonical(12, 'verify_result', { verdict: 'pass', target: 'tests' });
     
     // Trigger more event types to bump branch coverage
-    mockEventSource.onmessage({ type: 'aios.message', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'aios.error', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'aios.intent', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'turn.started', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'turn.completed', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'plan.created', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'worker.started', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'worker.dissolved', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'memory.recalled', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'memory.trusted_workflow_applied', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'telemetry.agent_started', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'human_required', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'code', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'alignment', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'edit.proposed', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'edit.blocked', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'earned_autonomy', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'plan', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'caste_end', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'cloud_route', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'turn.failed', data: JSON.stringify({ payload: {} }) });
-    mockEventSource.onmessage({ type: 'route', data: JSON.stringify({ payload: {} }) });
+    sendCanonical(13, 'aios.message', {});
+    sendCanonical(14, 'aios.error', {});
+    sendCanonical(15, 'aios.intent', {});
+    sendCanonical(16, 'turn.started', {});
+    sendCanonical(17, 'turn.completed', {});
+    sendCanonical(18, 'plan.created', {});
+    sendCanonical(19, 'worker.started', { workerId: 'worker-1' });
+    sendCanonical(20, 'worker.dissolved', { workerId: 'worker-1' });
+    sendCanonical(21, 'memory.recalled', {});
+    sendCanonical(22, 'memory.trusted_workflow_applied', {});
+    sendCanonical(23, 'telemetry.agent_started', {});
+    sendCanonical(24, 'human_required', { text: 'approve' });
+    sendCanonical(25, 'code', {});
+    sendCanonical(26, 'alignment', {});
+    sendCanonical(27, 'edit.proposed', {});
+    sendCanonical(28, 'edit.blocked', {});
+    sendCanonical(29, 'earned_autonomy', {});
+    sendCanonical(30, 'plan', {});
+    sendCanonical(31, 'caste_end', { caste: 'integration' });
+    sendCanonical(32, 'cloud_route', { subtask_index: 0 });
+    sendCanonical(33, 'turn.failed', {});
+    sendCanonical(34, 'route', {});
 
-    // Minimal assertions to bump coverage
+    expect(publishCognition).toHaveBeenCalled();
   });
 
   it('seeds the durable cursor and refreshes measured state on snapshot_required', async () => {

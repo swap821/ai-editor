@@ -375,3 +375,14 @@ under Node `24.16.0` reports `70.75%` scoped lib functions against the `73%`
 floor, while the hosted Node `20` baseline on the prior exact tip reports
 `75.59%`; the threshold was not changed. Commit and hosted verification are
 the next checkpoint.
+
+**R12 cursor/schema coverage repair — 2026-07-17:** The first exact hosted
+run for `e195f3785eb48ea7f0170859edeeac62a317c039` passed typecheck, lint, and
+all `600` frontend tests but failed the scoped-lib function floor at `70.75%`.
+The root cause was the existing broad mirror fixture sending events without
+durable SSE ids or canonical `eventType`; the fail-closed client correctly
+ignored them, leaving registry reaction functions uncovered. The fixture now
+sends canonical frames with durable ids and verifies that the reaction path
+executes. The full local coverage gate passes at `76.07%` scoped-lib functions;
+CodeQL `29532113056` passed, and the corrected follow-up tip still needs exact
+hosted CI verification.
