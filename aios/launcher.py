@@ -308,10 +308,20 @@ def open_gateway(config: LauncherConfig) -> int:
 
 def v1_check(config: LauncherConfig, *, strict: bool, as_json: bool) -> int:
     from aios.application.governance import evaluate_release
+    from aios.application.governance.runtime_proof import run_runtime_proofs
 
-    declaration = evaluate_release(profile=config.profile)
+    proof_report = run_runtime_proofs(config.repo_root)
+    declaration = evaluate_release(
+        root=config.repo_root,
+        profile=config.profile,
+        executor_available=proof_report.proofs["executor_runtime_available"].passed,
+        runtime_proofs=proof_report.boolean_map(),
+        runtime_evidence=proof_report.evidence_map(),
+    )
     if as_json:
-        print(json.dumps(declaration.as_dict(), indent=2, sort_keys=True))
+        payload = declaration.as_dict()
+        payload["runtime_proof"] = proof_report.as_dict()
+        print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(
             f"GAGOS v1 declaration: "
@@ -319,6 +329,12 @@ def v1_check(config: LauncherConfig, *, strict: bool, as_json: bool) -> int:
         )
         for gate in declaration.gates:
             print(f"  [{gate.status}] {gate.name}: {gate.evidence}")
+        print(f"  runtime probes: {'PASS' if proof_report.all_passed else 'FAIL'}")
+        for proof in proof_report.proofs.values():
+            print(
+                f"    [{'PASS' if proof.passed else 'FAIL'}] "
+                f"{proof.name}: {proof.evidence}"
+            )
     return 0 if declaration.ready or not strict else 1
 
 

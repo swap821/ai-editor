@@ -117,6 +117,16 @@ def test_control_plane_image_has_non_root_default_and_executor_owns_socket() -> 
     assert "${AIOS_DOCKER_SOCKET_GID:-999}" in executor_service
 
 
+def test_release_authority_runs_strict_runtime_proof_matrix() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "Run strict GAGOS v1 runtime proof matrix" in workflow
+    assert "python -m aios.launcher v1-check --strict --json" in workflow
+    assert "AIOS_EXECUTOR_URL=http://executor:8081" in workflow
+    assert "AIOS_EXECUTOR_REMOTE_WORKSPACE_ROOT=/workspace/jobs" in workflow
+
+
 def test_release_source_scan_is_clean() -> None:
     assert scan() == ()
 

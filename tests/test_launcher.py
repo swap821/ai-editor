@@ -9,6 +9,11 @@ from types import SimpleNamespace
 import pytest
 
 from aios import launcher
+from aios.application.governance.runtime_proof import (
+    REQUIRED_PROOFS,
+    RuntimeProof,
+    RuntimeProofReport,
+)
 
 
 def _config(tmp_path: Path, profile: str = "production") -> launcher.LauncherConfig:
@@ -62,6 +67,36 @@ def test_production_refuses_host_execution_backend(
     monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     with pytest.raises(launcher.LauncherError, match="host execution backend"):
         launcher._production_preflight(config)
+
+
+def test_v1_check_strict_consumes_runtime_proof_report(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    config = launcher.LauncherConfig(
+        repo_root=Path(__file__).resolve().parents[1],
+        data_dir=tmp_path / "data",
+        profile="production",
+        api_port=8000,
+        gateway_port=3000,
+        compose_file=Path("docker-compose.yml").resolve(),
+        state_file=tmp_path / "data" / "launcher-state.json",
+        log_file=tmp_path / "data" / "launcher.log",
+    )
+    report = RuntimeProofReport(
+        {name: RuntimeProof(name, True, f"verified {name}") for name in REQUIRED_PROOFS}
+    )
+    monkeypatch.setattr(
+        "aios.application.governance.runtime_proof.run_runtime_proofs",
+        lambda _root: report,
+    )
+
+    assert launcher.v1_check(config, strict=True, as_json=True) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ready"] is True
+    assert payload["runtime_proof"]["all_passed"] is True
+    assert payload["gates"]
 
 
 def test_development_start_uses_argument_vector_and_records_pid(

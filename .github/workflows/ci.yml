@@ -221,6 +221,21 @@ jobs:
             -e AIOS_EXECUTOR_INTEGRATION=1 aios \
             python -m pytest -q -o addopts= tests/test_executor_integration.py
 
+      - name: Run strict GAGOS v1 runtime proof matrix
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+          AIOS_PROFILE: production
+        run: |
+          export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          docker compose run --rm --no-deps --use-aliases --build \
+            -e AIOS_EXECUTOR_URL=http://executor:8081 \
+            -e AIOS_EXECUTOR_WORKSPACE_ROOT=/app/data/executor-workspaces \
+            -e AIOS_EXECUTOR_REMOTE_WORKSPACE_ROOT=/workspace/jobs \
+            aios python -m aios.launcher v1-check --strict --json
+
       - name: Tear down private Executor Service topology
         if: ${{ always() }}
         env:
