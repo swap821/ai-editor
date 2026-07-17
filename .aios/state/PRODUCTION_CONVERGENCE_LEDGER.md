@@ -521,3 +521,11 @@ Local full gate remains `3,185` collected, `3,177` passed, `8` skipped, exit
 executor-unavailable limitation because this Windows workspace has no live
 private service. Runtime proof is complete at the hosted release boundary;
 the remaining work is continuity finalization and non-builder/operator review.
+
+**R14 continuity checkpoint hosted verification complete — 2026-07-17:**
+Documentation tip `6395771681544bfb98524cf72f6cb0462758e33a` passed CI
+`29550342352` and CodeQL `29550342339`. The exact hosted source proof remains
+`7e715b41e8dccc4ce710e5d76213c35fca12186c` with CI `29549644470`, CodeQL
+`29549644476`, and strict declaration `ready=true`. The next action is the
+hash-pinned non-builder/operator handoff; the overall source/runtime gate is
+green, with local strict still correctly refusing an unavailable executor.

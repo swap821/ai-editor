@@ -1,8 +1,8 @@
 # GAGOS Sovereign Intelligence AI-OS V1.0 Convergence
 
-**Latest R14 hosted proof checkpoint (2026-07-17):** Source tip
-`7e715b41e8dccc4ce710e5d76213c35fca12186c` is synchronized with
-`origin/master`. Hosted CI `29549644470` passed every backend platform,
+**Latest R14 hosted proof checkpoint (2026-07-17):** R14 source proof tip
+`7e715b41e8dccc4ce710e5d76213c35fca12186c` is verified by hosted CI
+`29549644470`, which passed every backend platform,
 frontend, aggregate backend, and release-authority job; CodeQL
 `29549644476` passed all analyses. The release-authority Compose run proved
 the complete R14 runtime matrix, including live private Executor isolation,
@@ -10,8 +10,10 @@ and emitted strict `"ready": true` with `"all_passed": true`. The first R14
 source tip failed only because the control image excludes the separately
 packaged frontend; the follow-up mount repair passed. Local full gate is
 green: `3,185` collected, `3,177` passed, `8` skipped, exit `0`, `88.52%`
-coverage. The only local limitation is that this Windows workspace has no
-configured live private Executor Service, so local strict mode truthfully
+coverage. Continuity tip `6395771681544bfb98524cf72f6cb0462758e33a` also
+passed CI `29550342352` and CodeQL `29550342339`. The only local limitation
+is that this Windows workspace has no configured live private Executor
+Service, so local strict mode truthfully
 fails its two executor proofs; hosted production proof is green. Approximately
 10–15% remains for continuity finalization and non-builder/operator review;
 do not claim an unqualified final release until that handoff is recorded.
@@ -45,11 +47,10 @@ CI/CodeQL verification are pending. R14 packaged runtime proof remains open;
 the current `v1-check --strict` command still reports source presence without
 executing the required probe matrix.
 
-**Current Checkpoint (2026-07-17):** The next single action is to commit and
-push this continuity checkpoint, then record the exact green docs-tip CI and
-CodeQL results. After that, prepare the hash-pinned non-builder/operator
-handoff; the hosted strict declaration is green, while local strict remains
-executor-unavailable by design.
+**Current Checkpoint (2026-07-17):** The next single action is to prepare the
+hash-pinned non-builder/operator handoff against the green hosted release
+authority. No source repair is pending; local strict remains
+executor-unavailable by design, while hosted strict is green.
 
 **Latest Repair Wave (2026-07-17):** R11's canonical authority-bootstrap audit
 found and closed a fail-open pheromone seam. `_sync_pheromone_adapter()` now
