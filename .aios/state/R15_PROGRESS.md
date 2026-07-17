@@ -14,3 +14,18 @@
 - **Known limitations:** Architecture test currently fails on `aios/application/turns/generate_pipeline.py`. This is expected and will be addressed in Phase 1 of the intelligence migration (which maps to the broader R15 plan).
 - **Security impact:** Defines a rigid canonical path for all intelligence requests, preparing the codebase to force all AI generation through the PrivacyBroker and policy engine.
 - **Exact next action:** Proceed to Slice 2 (Curated Local Workforce Domain).
+
+## Slice 2: Curated Local Workforce Domain
+
+- **Exact baseline SHA:** `f1c1864fb38e1fbf1965bbf00aea9d4f3bdcda99`
+- **Goal:** Create the minimal product model for one small local clerk, defining bounded domain types for local work.
+- **Files inspected:** `aios/domain/workers/worker_contract.py`
+- **Files changed:** `aios/domain/local_workforce/__init__.py`, `aios/domain/local_workforce/contracts.py`
+- **Tests written:** `tests/domain/test_local_workforce_contracts.py`
+- **Commands executed:** `pytest tests/domain/test_local_workforce_contracts.py`
+- **Pass/fail counts:** 2 passed
+- **Coverage changes:** Negligible (added purely Pydantic domain models).
+- **Runtime evidence:** N/A (domain models only, no runtime impact yet).
+- **Known limitations:** None. Domain types are bounded exactly as defined in the master plan.
+- **Security impact:** Defines a rigid interface for local clerk interactions ensuring no execution context, capabilities, or direct state mutation can occur via the return values.
+- **Exact next action:** Proceed to Slice 3 (Durable Local Workforce Registry).
