@@ -171,6 +171,20 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="local_workforce_profiles",
         action_type=ActionType.LOCAL_WORKFORCE_PROFILES,
     ),
+    "/api/v1/local-workforce/{model_id}/qualify": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="local_workforce_qualify",
+        action_type=ActionType.LOCAL_WORKFORCE_QUALIFY,
+    ),
+    "/api/v1/local-workforce/{model_id}/health-check": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="local_workforce_health_check",
+        action_type=ActionType.LOCAL_WORKFORCE_HEALTH_CHECK,
+    ),
     # ------------------------------------------------------------------ #
     # Execution debugger
     # ------------------------------------------------------------------ #

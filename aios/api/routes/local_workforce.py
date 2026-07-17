@@ -122,5 +122,108 @@ def set_model_profiles(
     except PolicyBrokerError as e:
         raise HTTPException(status_code=403, detail=str(e))
         
-    registry.set_profiles(model_id, req.profiles)
-    return {"status": "success", "model_id": model_id, "profiles": req.profiles}
+    registry.update_profiles(model_id, {LocalJobProfile(p) for p in req.profiles})
+    return {"status": "profiles_updated", "model_id": model_id, "profiles": req.profiles}
+
+
+@router.post("/api/v1/local-workforce/{model_id}/health-check")
+def health_check_model(
+    model_id: str,
+    registry: LocalWorkforceRegistry = Depends(get_local_workforce_registry),
+    broker: ActionBroker = Depends(get_action_broker),
+    principal: Principal = Depends(get_authenticated_principal),
+) -> dict[str, Any]:
+    """Check the health of a local model."""
+    envelope = ActionEnvelope(
+        action_type=ActionType.LOCAL_WORKFORCE_HEALTH_CHECK,
+        payload={"model_id": model_id},
+        principal=principal,
+    )
+    
+    try:
+        broker.dispatch(envelope)
+    except PolicyBrokerError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+        
+    model = registry.get_model(model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+        
+    from aios.core.llm import OllamaClient, LLMError
+    client = OllamaClient(model=model_id)
+    
+    try:
+        # A basic health check is a quick prompt
+        client.complete("Respond with exactly one word: healthy", temperature=0.0)
+        registry.record_health(model_id, "healthy", True)
+        return {"status": "healthy"}
+    except LLMError as e:
+        registry.record_health(model_id, "failing", False)
+        return {"status": "failing", "detail": str(e)}
+
+
+@router.post("/api/v1/local-workforce/{model_id}/qualify")
+def qualify_model(
+    model_id: str,
+    registry: LocalWorkforceRegistry = Depends(get_local_workforce_registry),
+    broker: ActionBroker = Depends(get_action_broker),
+    principal: Principal = Depends(get_authenticated_principal),
+) -> dict[str, Any]:
+    """Run the qualification suite and resource admission for a local model."""
+    envelope = ActionEnvelope(
+        action_type=ActionType.LOCAL_WORKFORCE_QUALIFY,
+        payload={"model_id": model_id},
+        principal=principal,
+    )
+    
+    try:
+        broker.dispatch(envelope)
+    except PolicyBrokerError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+        
+    model = registry.get_model(model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+        
+    if not model.operator_approved:
+        raise HTTPException(status_code=400, detail="Model must be operator_approved before qualification")
+
+    # 1. Health check
+    if model.health != "healthy":
+        # Force a health check
+        from aios.core.llm import OllamaClient, LLMError
+        client = OllamaClient(model=model_id)
+        try:
+            client.complete("ping", temperature=0.0)
+            registry.record_health(model_id, "healthy", True)
+        except LLMError:
+            registry.record_health(model_id, "failing", False)
+            registry.update_admission(model_id, "rejected", "Health check failed")
+            return {"status": "rejected", "reason": "Health check failed"}
+
+    # 2. Resource Admission
+    from aios.domain.local_workforce.admission import HardwareAdmission, AdmissionContext
+    hw_admission = HardwareAdmission()
+    ctx = AdmissionContext(
+        requested_context_size=model.max_context,
+        requested_output_size=model.max_output,
+    )
+    admission_result = hw_admission.evaluate(ctx)
+    if not admission_result.admitted:
+        registry.update_admission(model_id, "rejected", admission_result.reason)
+        return {"status": "rejected", "reason": admission_result.reason}
+
+    # 3. Qualification Suite
+    from aios.domain.local_workforce.qualifier import QualificationSuite
+    from aios.core.llm import OllamaClient
+    client = OllamaClient(model=model_id)
+    suite = QualificationSuite(client)
+    qual_result = suite.run()
+    
+    if qual_result.passed:
+        registry.update_admission(model_id, "approved", "Passed all qualification checks")
+        return {"status": "admitted", "qualification": qual_result.model_dump()}
+    else:
+        reason = "Failed qualification suite"
+        registry.update_admission(model_id, "rejected", reason)
+        return {"status": "rejected", "reason": reason, "qualification": qual_result.model_dump()}

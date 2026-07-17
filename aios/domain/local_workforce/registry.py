@@ -113,17 +113,29 @@ class LocalWorkforceRegistry:
                 models.append(self._row_to_model(row))
         return models
     
-    def update_approval(self, model_id: str, approved: bool, reason: str | None = None) -> None:
+    def update_approval(self, model_id: str, approved: bool) -> None:
         """Update operator approval status."""
-        admission_status = "approved" if approved else "rejected"
         with get_connection() as conn:
             conn.execute(
                 """
                 UPDATE local_worker_models 
-                SET operator_approved = ?, admission_status = ?, admission_reason = ?
+                SET operator_approved = ?
                 WHERE model_id = ?
                 """,
-                (1 if approved else 0, admission_status, reason, model_id)
+                (1 if approved else 0, model_id)
+            )
+            conn.commit()
+
+    def update_admission(self, model_id: str, status: str, reason: str | None = None) -> None:
+        """Update the formal admission status after qualification."""
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE local_worker_models 
+                SET admission_status = ?, admission_reason = ?
+                WHERE model_id = ?
+                """,
+                (status, reason, model_id)
             )
             conn.commit()
 

@@ -92,6 +92,8 @@ class ActionType(str, Enum):
     MEMORY_COMPACT = "memory_compact"
     LOCAL_WORKFORCE_REFRESH = "local_workforce_refresh"
     LOCAL_WORKFORCE_APPROVE = "local_workforce_approve"
+    LOCAL_WORKFORCE_QUALIFY = "local_workforce_qualify"
+    LOCAL_WORKFORCE_HEALTH_CHECK = "local_workforce_health_check"
     LOCAL_WORKFORCE_PROFILES = "local_workforce_profiles"
     UNKNOWN = "unknown"
 
