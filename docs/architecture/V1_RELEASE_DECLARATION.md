@@ -114,8 +114,10 @@ and recovery/emergency waves are incomplete.
 
 Emergency stop is a separate durable latch in
 `aios/application/governance/emergency_stop.py`. It persists before invoking
-its five hooks, leaves the latch engaged if a hook fails, and requires a new
-privileged authentication event to clear.
+its five hooks, leaves the latch engaged if a hook fails, and now requires a
+generation-bound, single-use exact emergency-clear capability bound to a new
+privileged authentication event, operator, and session. Clear-capability and
+clear evidence writes fail closed.
 
 R9 is verified at the staged-workspace boundary. Production/demo Council
 execution stages enrolled projects before WorkerFoundry mutation, with durable
@@ -172,3 +174,17 @@ after exact Origin, session-bound CSRF, and strong re-authentication. The old
 daily-use mutation probe remains stale and correctly returns `403` without
 that browser contract. The full production matrix remains open; this wave
 does not upgrade the strict declaration.
+
+R12/R13 closed two additional authority-construction seams. Canonical Cortex
+event envelopes are now required at the durable bus boundary, and the
+frontend mirror rejects schema-invalid cursor/recovery inputs. The production
+dependency graph now composes one durable EmergencyStopController through
+capability issuance, autonomy reuse, mission/worker admission, executor
+dispatch, and promotion. R13 also exposes governed emergency-stop state,
+engage, and exact clear routes; the clear capability is persisted, generation-
+bound, single-use, and requires a new privileged authentication event. A real
+loopback API probe proves the complete engage -> re-authenticate -> clear
+sequence. These are source/runtime construction proofs only: `gagos
+v1-check --strict` still needs to execute the complete R14 identity,
+capability, edge, mission, isolation, staging, Cortex, mirror, memory, and
+emergency restart matrix before the declaration can be upgraded.

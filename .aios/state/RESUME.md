@@ -3,26 +3,25 @@
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
-**Latest Repair Wave (2026-07-17, R13 production construction):** The API
-composition root now creates one durable `EmergencyStopController` with real
-capability-revocation, queued-mission/worker cancellation, autonomy-revocation,
-and audit-preservation hooks. Capability issuance, earned-autonomy reuse,
-executor dispatch, mission origination/execution, worker admission, and
-promotion all receive the latch and fail closed before side effects; the
-persisted latch is shared across fresh controller instances. The new R13 wiring
-regressions and adjacent governance/mission tests passed (`21`); Ruff passed on
-the new enforcement files; the exact backend gate passed with `3,179` collected,
-`3,171` passed, `8` skipped, exit `0`, and `88.76%` coverage. The source wave
-is pushed at `45765ebbe92f3b9a7e4cc7a8c2c9077c090e0d9f`. Exact-tip hosted CI
-`29542860644` passed all platform, frontend, backend aggregate, and
-`release-authority` jobs; CodeQL `29542860619` also passed. The full
-emergency-clear capability and packaged restart matrix remain open; do not
-promote R13 or V1 to verified from source tests alone.
+**Latest Repair Wave (2026-07-17, R13 exact emergency clear):** The durable
+stop latch now issues a generation-bound, single-use emergency-clear capability
+only after a new privileged authentication event, operator identity, and
+session are supplied. Clear capability issuance and consumption preserve
+tamper-evident evidence and fail closed when evidence writing fails. Governed
+HTTP routes now cover state, engage, and clear; engage uses the ordinary exact
+capability boundary, while clear uses the narrow stop-specific capability
+challenge that remains usable while ordinary issuance is blocked. Controller
+restart tests, route/conformance tests, and the real API sequence all passed;
+the exact package gate passed with `3,181` collected, `3,173` passed, `8`
+skipped, exit `0`, and `88.65%` coverage. The source commit and hosted
+CI/CodeQL verification are pending. R14 packaged runtime proof remains open;
+the current `v1-check --strict` command still reports source presence without
+executing the required probe matrix.
 
-**Current Checkpoint (2026-07-17):** The next single action is to audit the
-R13/R14 packaged-runtime proof seam, starting with the strict `v1-check`
-probes, launcher/restart matrix, and private Executor isolation evidence; keep
-the exact emergency-clear capability as an explicit R13 gap.
+**Current Checkpoint (2026-07-17):** The next single action is to checkpoint
+this R13 clear-capability wave in Git, wait for exact-tip CI and CodeQL, then
+start the R14 real-probe implementation; do not treat the current declaration
+as runtime-verified merely because its source gates are green.
 
 **Latest Repair Wave (2026-07-17):** R11's canonical authority-bootstrap audit
 found and closed a fail-open pheromone seam. `_sync_pheromone_adapter()` now

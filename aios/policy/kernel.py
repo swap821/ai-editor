@@ -112,6 +112,22 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         # make the privileged authentication bootstrap circular.
         "GREEN", 10, "session", audit_event="auth_operator_reauth", action_type=ActionType.AUTH_OPERATOR_REAUTH
     ),
+    "/api/v1/governance/emergency-stop/engage": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="emergency_stop_engage",
+        action_type=ActionType.EMERGENCY_STOP_ENGAGE,
+        capability_required="emergency_stop.engage",
+    ),
+    "/api/v1/governance/emergency-stop/clear": RouteAuthority(
+        "YELLOW",
+        5,
+        "server-session",
+        audit_event="emergency_stop_clear",
+        action_type=ActionType.EMERGENCY_STOP_CLEAR,
+        capability_required="emergency_stop.clear",
+    ),
     # ------------------------------------------------------------------ #
     # Council
     # ------------------------------------------------------------------ #

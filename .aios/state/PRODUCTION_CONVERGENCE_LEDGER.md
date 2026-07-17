@@ -470,3 +470,17 @@ latch construction is therefore green on the immutable hosted tip. R13 is
 still partial because the exact emergency-clear capability and complete
 packaged restart matrix remain unproven; the next cursor is the R13/R14
 packaged-runtime proof seam and overall V1 remains partial.
+
+**R13 exact emergency-clear capability local checkpoint — 2026-07-17:** The
+emergency latch now persists opaque clear-capability digests bound to its
+generation, operator, new privileged authentication event, and session. The
+capability is issued only while engaged, consumed atomically, rejected on
+altered session/replay/generation, and accompanied by tamper-evident evidence;
+the clear path remains fail-closed if evidence preservation fails. Governed
+HTTP state/engage/clear routes are registered under the policy authority, and a
+real isolated API probe passed bootstrap, login, strong re-authentication,
+engage challenge/consume, post-stop re-authentication, clear challenge/consume,
+and final unengaged state. The affected gate passed `197` tests; the exact
+package gate passed with `3,181` collected, `3,173` passed, `8` skipped, exit
+`0`, and `88.65%` coverage. Source commit and hosted verification are pending;
+R14 strict runtime proof remains open.

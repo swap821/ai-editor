@@ -66,12 +66,70 @@ def test_emergency_stop_is_idempotent_and_clear_requires_authentication(
     assert controller.engage(_request()).generation == 1
     assert len(calls) == call_count
     with pytest.raises(EmergencyStopError):
-        controller.clear(operator_id="", authentication_event_id="")
+        controller.clear(
+            operator_id="",
+            authentication_event_id="",
+            session_id="",
+            clear_capability="",
+        )
+    clear_capability = controller.issue_clear_capability(
+        operator_id="operator-1",
+        authentication_event_id="auth-event-2",
+        session_id="session-2",
+    )
     cleared = controller.clear(
-        operator_id="operator-1", authentication_event_id="auth-event-2"
+        operator_id="operator-1",
+        authentication_event_id="auth-event-2",
+        session_id="session-2",
+        clear_capability=clear_capability,
     )
     assert cleared.engaged is False
     controller.assert_operational()
+
+
+def test_emergency_clear_capability_is_bound_single_use_and_restart_durable(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, [])
+    controller.engage(_request())
+    clear_capability = controller.issue_clear_capability(
+        operator_id="operator-1",
+        authentication_event_id="auth-event-2",
+        session_id="session-2",
+    )
+
+    with pytest.raises(EmergencyStopError, match="exact emergency-clear capability"):
+        controller.clear(
+            operator_id="operator-1",
+            authentication_event_id="auth-event-2",
+            session_id="session-other",
+            clear_capability=clear_capability,
+        )
+
+    reopened = EmergencyStopController(
+        tmp_path / "emergency.db", hooks=controller.hooks
+    )
+    cleared = reopened.clear(
+        operator_id="operator-1",
+        authentication_event_id="auth-event-2",
+        session_id="session-2",
+        clear_capability=clear_capability,
+    )
+    assert cleared.engaged is False
+    reopened.engage(
+        EmergencyStopRequest(
+            operator_id="operator-1",
+            authentication_event_id="auth-event-3",
+            reason="verify old clear capability cannot cross generations",
+        )
+    )
+    with pytest.raises(EmergencyStopError, match="exact emergency-clear capability"):
+        reopened.clear(
+            operator_id="operator-1",
+            authentication_event_id="auth-event-2",
+            session_id="session-2",
+            clear_capability=clear_capability,
+        )
 
 
 def test_failed_stop_hook_keeps_latch_engaged_and_reports_failure(

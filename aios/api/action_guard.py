@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import Depends, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 
-from aios.api.deps import get_action_broker, get_identity_service
+from aios.api.deps import get_action_broker, get_emergency_stop, get_identity_service
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.identity.service import IdentityService
 from aios.domain.actions.envelope import (
@@ -51,6 +51,7 @@ _EXACT_BROKER_ROUTE_KEYS = frozenset(
 )
 
 _MUTATION_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+_EMERGENCY_CLEAR_ROUTE = "/api/v1/governance/emergency-stop/clear"
 
 
 @dataclass(frozen=True)
@@ -277,6 +278,36 @@ async def enforce_action_boundary(
 
     binding = _binding_for(envelope, principal) if principal else None
     token = request.headers.get(CAPABILITY_HEADER)
+    if path == _EMERGENCY_CLEAR_ROUTE and authority.action_type is ActionType.EMERGENCY_STOP_CLEAR:
+        if principal is None or binding is None:
+            raise HTTPException(
+                status_code=401, detail="authenticated operator session required"
+            )
+        stop = get_emergency_stop()
+        if token is None:
+            try:
+                token = stop.issue_clear_capability(
+                    operator_id=principal.principal_id,
+                    authentication_event_id=principal.authentication_event_id,
+                    session_id=principal.session_id,
+                )
+            except Exception as exc:  # noqa: BLE001 - governance refuses closed
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=428,
+                detail={
+                    "error": "exact_emergency_clear_capability_required",
+                    "route": path,
+                    "approvalToken": token,
+                    "reason": "new privileged authentication event required",
+                },
+            )
+        request.state.action_guard = ActionGuardResult(
+            envelope=envelope,
+            decision=None,
+            capability_digest=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        )
+        return request.state.action_guard
     try:
         decision = broker.submit(
             envelope,

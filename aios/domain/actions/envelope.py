@@ -79,6 +79,8 @@ class ActionType(str, Enum):
     AUTH_OPERATOR_ENROLL = "auth_operator_enroll"
     AUTH_OPERATOR_LOGIN = "auth_operator_login"
     AUTH_OPERATOR_REAUTH = "auth_operator_reauth"
+    EMERGENCY_STOP_ENGAGE = "emergency_stop_engage"
+    EMERGENCY_STOP_CLEAR = "emergency_stop_clear"
     INTENT_PREVIEW = "intent_preview"
     PROJECT_PASSPORT_SCAN = "project_passport_scan"
     PROJECT_SCOPE_HINTS = "project_scope_hints"

@@ -9,7 +9,10 @@ are reported, so a partial emergency action cannot silently resume work.
 from __future__ import annotations
 
 import json
+import hashlib
+import secrets
 import sqlite3
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -186,15 +189,146 @@ class EmergencyStopController:
             )
         return result
 
-    def clear(
-        self, *, operator_id: str, authentication_event_id: str
-    ) -> EmergencyStopState:
-        """Clear the latch only after another privileged operator action."""
-        if not operator_id or not authentication_event_id:
+    def issue_clear_capability(
+        self,
+        *,
+        operator_id: str,
+        authentication_event_id: str,
+        session_id: str,
+        ttl_seconds: float = 300.0,
+    ) -> str:
+        """Mint one opaque clear capability for a fresh privileged session.
+
+        Ordinary capability issuance is blocked while the latch is engaged.
+        This narrow issuance path is the sole exception: it can only mint a
+        generation-bound clear token after a new privileged authentication
+        event, and the token is consumed atomically by :meth:`clear`.
+        """
+        if not operator_id or not authentication_event_id or not session_id:
             raise EmergencyStopError(
-                "clearing emergency stop requires privileged authentication"
+                "emergency-clear capability requires privileged identity, event, and session"
             )
+        ttl = max(float(ttl_seconds), 0.001)
+        token = secrets.token_urlsafe(32)
+        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        now = time.time()
         with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT engaged, generation, authentication_event_id "
+                "FROM emergency_stop_state WHERE singleton = 1"
+            ).fetchone()
+            if row is None or not bool(row["engaged"]):
+                raise EmergencyStopError("emergency stop is not engaged")
+            if str(row["authentication_event_id"] or "") == authentication_event_id:
+                raise EmergencyStopError(
+                    "emergency-clear capability requires a new privileged authentication event"
+                )
+            generation = int(row["generation"])
+            conn.execute(
+                """
+                INSERT INTO emergency_clear_capabilities (
+                    capability_digest, generation, operator_id,
+                    authentication_event_id, session_id, issued_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    digest,
+                    generation,
+                    operator_id,
+                    authentication_event_id,
+                    session_id,
+                    now,
+                    now + ttl,
+                ),
+            )
+        try:
+            self.hooks.preserve_evidence(
+                "emergency-clear capability issued; "
+                f"generation={generation}, operator={operator_id}, "
+                f"authentication_event={authentication_event_id}"
+            )
+        except Exception as exc:  # noqa: BLE001 - issuance fails closed
+            with self._connect() as conn:
+                conn.execute(
+                    "DELETE FROM emergency_clear_capabilities "
+                    "WHERE capability_digest = ? AND consumed_at IS NULL",
+                    (digest,),
+                )
+            raise EmergencyStopError(
+                "emergency-clear capability evidence preservation failed"
+            ) from exc
+        return token
+
+    def clear(
+        self,
+        *,
+        operator_id: str,
+        authentication_event_id: str,
+        session_id: str,
+        clear_capability: str,
+    ) -> EmergencyStopState:
+        """Clear only with a fresh privileged identity and exact one-use token."""
+        if (
+            not operator_id
+            or not authentication_event_id
+            or not session_id
+            or not clear_capability
+        ):
+            raise EmergencyStopError(
+                "clearing emergency stop requires privileged identity, event, session, and exact capability"
+            )
+        digest = hashlib.sha256(clear_capability.encode("utf-8")).hexdigest()
+        now = time.time()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            state = conn.execute(
+                "SELECT engaged, generation, authentication_event_id "
+                "FROM emergency_stop_state WHERE singleton = 1"
+            ).fetchone()
+            if state is None or not bool(state["engaged"]):
+                raise EmergencyStopError("emergency stop is not engaged")
+            if str(state["authentication_event_id"] or "") == authentication_event_id:
+                raise EmergencyStopError(
+                    "clearing emergency stop requires a new privileged authentication event"
+                )
+            capability = conn.execute(
+                """
+                SELECT capability_digest FROM emergency_clear_capabilities
+                WHERE capability_digest = ?
+                  AND generation = ?
+                  AND operator_id = ?
+                  AND authentication_event_id = ?
+                  AND session_id = ?
+                  AND consumed_at IS NULL
+                  AND expires_at > ?
+                """,
+                (
+                    digest,
+                    int(state["generation"]),
+                    operator_id,
+                    authentication_event_id,
+                    session_id,
+                    now,
+                ),
+            ).fetchone()
+            if capability is None:
+                raise EmergencyStopError("exact emergency-clear capability required")
+            try:
+                self.hooks.preserve_evidence(
+                    "emergency stop cleared; "
+                    f"generation={int(state['generation'])}, operator={operator_id}, "
+                    f"authentication_event={authentication_event_id}"
+                )
+            except Exception as exc:  # noqa: BLE001 - clear fails closed
+                raise EmergencyStopError(
+                    "emergency-clear evidence preservation failed"
+                ) from exc
+            conn.execute(
+                "UPDATE emergency_clear_capabilities SET consumed_at = ? "
+                "WHERE capability_digest = ? AND consumed_at IS NULL",
+                (now, digest),
+            )
             conn.execute(
                 """
                 UPDATE emergency_stop_state

@@ -121,6 +121,15 @@ def test_release_source_scan_is_clean() -> None:
     assert scan() == ()
 
 
+def test_emergency_governance_routes_are_registered_and_separate_from_council() -> None:
+    from aios.api.main import app
+
+    paths = {route.path for route in app.routes if hasattr(route, "path")}
+    assert "/api/v1/governance/emergency-stop" in paths
+    assert "/api/v1/governance/emergency-stop/engage" in paths
+    assert "/api/v1/governance/emergency-stop/clear" in paths
+
+
 def test_r3_migrated_routes_do_not_issue_legacy_approval_tokens() -> None:
     for relative in (
         "aios/api/main.py",
