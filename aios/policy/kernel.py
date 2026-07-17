@@ -148,6 +148,30 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "YELLOW", 30, "session", audit_event="council_reject", action_type=ActionType.COUNCIL_REJECT
     ),
     # ------------------------------------------------------------------ #
+    # Local Workforce
+    # ------------------------------------------------------------------ #
+    "/api/v1/local-workforce/refresh": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="local_workforce_refresh",
+        action_type=ActionType.LOCAL_WORKFORCE_REFRESH,
+    ),
+    "/api/v1/local-workforce/{model_id}/approve": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="local_workforce_approve",
+        action_type=ActionType.LOCAL_WORKFORCE_APPROVE,
+    ),
+    "/api/v1/local-workforce/{model_id}/profiles": RouteAuthority(
+        "YELLOW",
+        30,
+        "session",
+        audit_event="local_workforce_profiles",
+        action_type=ActionType.LOCAL_WORKFORCE_PROFILES,
+    ),
+    # ------------------------------------------------------------------ #
     # Execution debugger
     # ------------------------------------------------------------------ #
     "/api/v1/execution/debugger/step": RouteAuthority(

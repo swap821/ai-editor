@@ -232,6 +232,16 @@ class OllamaClient:
         names = [str(m.get("name", "")) for m in body.get("models", []) if m.get("name")]
         return {"available": True, "models": names}
 
+    def list_detailed_models(self) -> list[dict[str, Any]]:
+        """Return installed local models with all available Ollama metadata."""
+        try:
+            request = urllib.request.Request(f"{self.host}/api/tags", method="GET")
+            with urllib.request.urlopen(request, timeout=4) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            return []
+        return [m for m in body.get("models", []) if isinstance(m, dict) and "name" in m]
+
     def is_available(self) -> bool:
         """Return True if the Ollama server answers a tags probe within 4s."""
         try:

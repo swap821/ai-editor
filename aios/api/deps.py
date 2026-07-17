@@ -752,4 +752,11 @@ __all__ = [
     "get_rollback_engine",
     "get_self_apply_engine",
     "get_edit_snapshot",
+    "get_local_workforce_registry",
 ]
+
+def get_local_workforce_registry() -> Any:
+    """Provide the durable Local Workforce Registry (R15)."""
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+    # Using the default OllamaClient; inject appropriately if needed.
+    return LocalWorkforceRegistry()

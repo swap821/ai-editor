@@ -90,6 +90,9 @@ class ActionType(str, Enum):
     EXECUTION_DEBUGGER_STEP = "execution_debugger_step"
     EXECUTION_DEBUGGER_RESUME = "execution_debugger_resume"
     MEMORY_COMPACT = "memory_compact"
+    LOCAL_WORKFORCE_REFRESH = "local_workforce_refresh"
+    LOCAL_WORKFORCE_APPROVE = "local_workforce_approve"
+    LOCAL_WORKFORCE_PROFILES = "local_workforce_profiles"
     UNKNOWN = "unknown"
 
 
