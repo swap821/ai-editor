@@ -124,7 +124,17 @@ def test_release_source_scan_is_clean() -> None:
 def test_emergency_governance_routes_are_registered_and_separate_from_council() -> None:
     from aios.api.main import app
 
-    paths = {route.path for route in app.routes if hasattr(route, "path")}
+    def application_paths(routes) -> set[str]:
+        paths: set[str] = set()
+        for route in routes:
+            original_router = getattr(route, "original_router", None)
+            if original_router is not None:
+                paths.update(application_paths(original_router.routes))
+            elif hasattr(route, "path"):
+                paths.add(route.path)
+        return paths
+
+    paths = application_paths(app.routes)
     assert "/api/v1/governance/emergency-stop" in paths
     assert "/api/v1/governance/emergency-stop/engage" in paths
     assert "/api/v1/governance/emergency-stop/clear" in paths

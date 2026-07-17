@@ -484,3 +484,15 @@ and final unengaged state. The affected gate passed `197` tests; the exact
 package gate passed with `3,181` collected, `3,173` passed, `8` skipped, exit
 `0`, and `88.65%` coverage. Source commit and hosted verification are pending;
 R14 strict runtime proof remains open.
+
+**Hosted CI portability repair checkpoint — 2026-07-17:** Exact source tip
+`206104dbd71fafdc914399df6606366ed6bc3c42` reached hosted CI run
+`29545481136`; frontend jobs, the backend test execution, and CodeQL
+`29545481141` were green, but all backend matrix jobs failed on the same
+release-conformance assertion. FastAPI `0.139` exposes included routers as
+lazy wrapper objects, so the test's shallow `app.routes` scan omitted the
+governance routes even though the routes were mounted and covered. The test
+now recursively flattens included routers. The local exact package gate is
+green again (`3,181` collected, `3,173` passed, `8` skipped, `88.65%`); the
+compatibility fix is pending its own pushed CI/CodeQL verdict. R14 strict
+runtime proof remains open and V1 remains partial.
