@@ -496,3 +496,11 @@ now recursively flattens included routers. The local exact package gate is
 green again (`3,181` collected, `3,173` passed, `8` skipped, `88.65%`); the
 compatibility fix is pending its own pushed CI/CodeQL verdict. R14 strict
 runtime proof remains open and V1 remains partial.
+
+**Hosted CI portability repair verified — 2026-07-17:** Exact source tip
+`addcde81931fba5acfbad4ec4e2e6081d88ffc24` passed CI `29546552374` across
+Windows, Ubuntu, macOS, frontend, backend aggregate, and release-authority;
+CodeQL `29546552431` passed all analysis jobs. The route-conformance test is
+now portable across FastAPI's eager and lazy included-router representations.
+R13 exact clear is hosted-green; R14 strict runtime proof remains open and
+V1 remains partial.

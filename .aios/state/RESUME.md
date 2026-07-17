@@ -1,15 +1,16 @@
 # GAGOS Sovereign Intelligence AI-OS V1.0 Convergence
 
-**Latest CI repair checkpoint (2026-07-17):** Hosted CI run `29545481136` for
-source `206104dbd71fafdc914399df6606366ed6bc3c42` failed only because
-`tests/test_release_conformance.py` shallow-scanned FastAPI `0.139` lazy
-included-router wrappers; frontend, backend test execution, and CodeQL were
-otherwise green. The test now recursively flattens included routers. Local
-full gate is green again: `3,181` collected, `3,173` passed, `8` skipped,
-exit `0`, `88.65%` coverage. The narrow compatibility fix is uncommitted;
-next action is commit/push it and require a new exact-tip CI + CodeQL verdict.
-R14 packaged runtime proof remains open; overall V1 remains partial at about
-55% complete / 45% remaining.
+**Latest CI repair checkpoint (2026-07-17):** Hosted CI run `29546552374` for
+source `addcde81931fba5acfbad4ec4e2e6081d88ffc24` passed every platform
+matrix, frontend, aggregate backend, and release-authority job. CodeQL
+`29546552431` also passed. The repair made
+`tests/test_release_conformance.py` recursively flatten FastAPI `0.139`
+lazy included-router wrappers after the prior exact source tip failed its
+shallow scan. Local full gate is green: `3,181` collected, `3,173` passed,
+`8` skipped, exit `0`, `88.65%` coverage. Next action is checkpoint these
+exact hosted results in a docs-only commit, then implement R14 packaged
+runtime proof; overall V1 remains partial at about 55% complete / 45%
+remaining.
 
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
@@ -29,10 +30,10 @@ CI/CodeQL verification are pending. R14 packaged runtime proof remains open;
 the current `v1-check --strict` command still reports source presence without
 executing the required probe matrix.
 
-**Current Checkpoint (2026-07-17):** The next single action is to commit/push
-the FastAPI route-flattening CI repair and wait for exact-tip CI and CodeQL,
-then start the R14 real-probe implementation; do not treat the current
-declaration as runtime-verified merely because its source gates are green.
+**Current Checkpoint (2026-07-17):** The next single action is to checkpoint
+the exact green source/CI/CodeQL evidence in a docs-only commit, then start
+the R14 real-probe implementation; do not treat the current declaration as
+runtime-verified merely because its source gates are green.
 
 **Latest Repair Wave (2026-07-17):** R11's canonical authority-bootstrap audit
 found and closed a fail-open pheromone seam. `_sync_pheromone_adapter()` now
