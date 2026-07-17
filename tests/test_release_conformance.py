@@ -125,6 +125,7 @@ def test_release_authority_runs_strict_runtime_proof_matrix() -> None:
     assert "python -m aios.launcher v1-check --strict --json" in workflow
     assert "AIOS_EXECUTOR_URL=http://executor:8081" in workflow
     assert "AIOS_EXECUTOR_REMOTE_WORKSPACE_ROOT=/workspace/jobs" in workflow
+    assert '"$(pwd)/frontend:/app/frontend:ro"' in workflow
 
 
 def test_release_source_scan_is_clean() -> None:
