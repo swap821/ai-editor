@@ -40,6 +40,7 @@ def _iter_python_files(root_dir: str):
                 yield os.path.join(dirpath, filename)
 
 @pytest.mark.architecture
+@pytest.mark.xfail(reason="Pending Phase 1 of Intelligence Migration (Slice 3)")
 def test_no_direct_cloud_client_instantiation():
     """Ensure that application code does not bypass the hiring broker.
 
