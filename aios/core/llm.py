@@ -24,7 +24,7 @@ class LLMError(RuntimeError):
 class LLMClient(Protocol):
     """Anything that can turn a prompt into a completion string."""
 
-    def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+    def complete(self, prompt: str, *, system: Optional[str] = None, json_mode: bool = False) -> str:
         """Return the model's text completion for *prompt* (optional *system*)."""
         ...
 
