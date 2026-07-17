@@ -1,21 +1,36 @@
 # GAGOS Sovereign Intelligence AI-OS V1.0 Convergence
 
-**Latest CI repair checkpoint (2026-07-17):** Hosted CI run `29546552374` for
-source `addcde81931fba5acfbad4ec4e2e6081d88ffc24` passed every platform
-matrix, frontend, aggregate backend, and release-authority job. CodeQL
-`29546552431` also passed. The repair made
-`tests/test_release_conformance.py` recursively flatten FastAPI `0.139`
-lazy included-router wrappers after the prior exact source tip failed its
-shallow scan. Local full gate is green: `3,181` collected, `3,173` passed,
-`8` skipped, exit `0`, `88.65%` coverage. Next action is checkpoint these
-exact hosted results in a docs-only commit, then implement R14 packaged
-runtime proof; overall V1 remains partial at about 55% complete / 45%
-remaining.
+**Latest R14 hosted proof checkpoint (2026-07-17):** Source tip
+`7e715b41e8dccc4ce710e5d76213c35fca12186c` is synchronized with
+`origin/master`. Hosted CI `29549644470` passed every backend platform,
+frontend, aggregate backend, and release-authority job; CodeQL
+`29549644476` passed all analyses. The release-authority Compose run proved
+the complete R14 runtime matrix, including live private Executor isolation,
+and emitted strict `"ready": true` with `"all_passed": true`. The first R14
+source tip failed only because the control image excludes the separately
+packaged frontend; the follow-up mount repair passed. Local full gate is
+green: `3,185` collected, `3,177` passed, `8` skipped, exit `0`, `88.52%`
+coverage. The only local limitation is that this Windows workspace has no
+configured live private Executor Service, so local strict mode truthfully
+fails its two executor proofs; hosted production proof is green. Approximately
+10–15% remains for continuity finalization and non-builder/operator review;
+do not claim an unqualified final release until that handoff is recorded.
 
 **Current Goal:** Execute the GAGOS V1.0 Final Convergence & Repair Directive
 solo, in order, from audited baseline `5e73a3712f965b902c57afc180c34e165699b591`.
 
-**Latest Repair Wave (2026-07-17, R13 exact emergency clear):** The durable
+**Latest Repair Wave (2026-07-17, R14 packaged runtime proof):** The new
+`aios/application/governance/runtime_proof.py` runs disposable, fail-closed
+probes for identity, exact capabilities, edge trust, mutation authority,
+mission lifecycle, executor isolation, staged promotion/recovery, TurnCoordinator,
+Cortex cursors, frontend mirror contracts, memory provenance, emergency stop,
+and production profile refusal. `gagos v1-check --strict` now consumes those
+proofs; source-only file presence no longer satisfies executor readiness. The
+strict matrix is wired into CI release-authority and the exact hosted run is
+green as recorded above. The remaining final step is continuity and review,
+not a hidden source-only readiness claim.
+
+**Previous Repair Wave (2026-07-17, R13 exact emergency clear):** The durable
 stop latch now issues a generation-bound, single-use emergency-clear capability
 only after a new privileged authentication event, operator identity, and
 session are supplied. Clear capability issuance and consumption preserve
@@ -30,10 +45,11 @@ CI/CodeQL verification are pending. R14 packaged runtime proof remains open;
 the current `v1-check --strict` command still reports source presence without
 executing the required probe matrix.
 
-**Current Checkpoint (2026-07-17):** The next single action is to checkpoint
-the exact green source/CI/CodeQL evidence in a docs-only commit, then start
-the R14 real-probe implementation; do not treat the current declaration as
-runtime-verified merely because its source gates are green.
+**Current Checkpoint (2026-07-17):** The next single action is to commit and
+push this continuity checkpoint, then record the exact green docs-tip CI and
+CodeQL results. After that, prepare the hash-pinned non-builder/operator
+handoff; the hosted strict declaration is green, while local strict remains
+executor-unavailable by design.
 
 **Latest Repair Wave (2026-07-17):** R11's canonical authority-bootstrap audit
 found and closed a fail-open pheromone seam. `_sync_pheromone_adapter()` now

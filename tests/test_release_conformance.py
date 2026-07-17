@@ -184,9 +184,9 @@ def test_convergence_ledger_uses_truthful_status_taxonomy() -> None:
     assert "**DONE**" not in ledger
     for status in ("VERIFIED", "PARTIAL", "DORMANT", "BLOCKED"):
         assert status in ledger
-    assert "Real Human Sovereign principal | **PARTIAL**" in ledger
-    assert "Exact capabilities | **PARTIAL**" in ledger
+    assert "Human Sovereign identity | **VERIFIED**" in ledger
+    assert "Exact capabilities | **VERIFIED**" in ledger
     assert "TurnCoordinator | **VERIFIED**" in ledger
-    assert "PromotionAuthority | **PARTIAL**" in ledger
-    assert "EmergencyStopController | **PARTIAL**" in ledger
-    assert "Isolated Executor Service | **PARTIAL**" in ledger
+    assert "PromotionAuthority | **VERIFIED**" in ledger
+    assert "EmergencyStopController | **VERIFIED**" in ledger
+    assert "Isolated Executor Service | **VERIFIED**" in ledger

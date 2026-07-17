@@ -41,7 +41,7 @@ production path; `BLOCKED` means a required authority or invariant is absent.
 | 8 | Converge the Queen Council | **VERIFIED** | `aios/council/participation.py` deterministic adaptive `CouncilParticipationPolicy` (required + optional Queens, full-Council only when justified), deterministic adapter Queens `RoutingQueen`/`ReflectionQueen`/`ProjectUnderstandingQueen`, `aios/runtime/contracts.py` extended `QueenVerdict`/`QueenEvidence`, `aios/council/queen_service.py` real service registry with `init_queen_services()` + all 8 Queen service classes, `aios/council/council_orchestrator.py` consumes participation policy, invokes optional Queens in deliberation, gates Critique by policy in execution, optionally routes reviews through `QUEEN_SERVICES` when `AIOS_QUEEN_SERVICES=true`, records Council cost/latency metrics; tests `tests/test_council_participation.py`, `tests/test_queen_services.py`, updated `tests/test_council_orchestrator.py`; full backend + frontend gates green. |
 | 9 | Worker Foundry unification | **VERIFIED** | `8a62b59`; focused worker tests `18 passed`, full backend `2951 passed/4 skipped`, frontend typecheck/lint/tests/build green; scripted prover regression `7 passed` |
 | 10 | Privacy Broker and model routing | **VERIFIED** | `64fd241`; focused privacy/router/provider tests `65 passed`, full backend `2956 passed/4 skipped`, frontend typecheck/lint/tests/build green; prover regression `8 passed` |
-| 11 | Isolated Executor Service | **PARTIAL** | `4d12ac1`; source and focused tests exist, but production control-plane invocation and live isolation proof remain open |
+| 11 | Isolated Executor Service | **VERIFIED** | `4d12ac1` plus R14; hosted release-authority proved the live private service, UID 65534, no network, and workspace confinement |
 | 12 | Staged workspaces / dormant worktree | **VERIFIED** | `2789ddd`; focused staged-workspace/worktree tests `8 passed/1 skipped`, full backend `2962 passed/5 skipped`, frontend typecheck/lint/tests/build green |
 | 13 | Evidence and Verification Authorities | **VERIFIED** | `f567446`; focused evidence/verification tests `24 passed`, full backend `2965 passed/5 skipped/2 warnings`, frontend typecheck/lint/tests/build green |
 | 14 | Atomic Promotion and Recovery | **VERIFIED** | R10 now wires production/demo Council promotion through PromotionAuthority; focused authority/evidence proof, production-profile staged-to-enrolled integration, rollback recovery checks, and the authoritative full backend gate are green |
@@ -54,16 +54,16 @@ production path; `BLOCKED` means a required authority or invariant is absent.
 | 21 | Operations, observability and recovery | **VERIFIED** | `1b2553a`; focused operations/read-model/Cortex tests `12 passed`, full backend `2996 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; Compose config passes with explicit secret and refuses missing secret; CI run `29264970507` green across Ubuntu/Windows/macOS/frontend |
 | 22 | CI as production release authority | **VERIFIED** | `dccf072`; focused release checks `11 passed`, security scan clean, SBOM `449 components`, full backend `3007 passed/5 skipped/1 warning`, frontend typecheck, lint `122 warnings/0 errors`, `597 tests`, and build green; warning budget `122/124`; CI run `29268027117` green across all platform, frontend, and release-authority jobs |
 | 23 | Package the single-developer product | **VERIFIED** | `9ca0534`; launcher/release checks `21 passed`, full backend `3019 passed/5 skipped/2 warnings`, frontend typecheck/lint/coverage/build green; CI run `29271483280` green across all platform, frontend, and release-authority jobs |
-| 24 | Controlled autonomy and v1.0 declaration | **PARTIAL** | `796bbeb`; source, CI and focused checks exist, but Human Sovereign identity, exact capabilities, EmergencyStopController production wiring, and strict runtime proof remain blocked |
+| 24 | Controlled autonomy and v1.0 declaration | **PARTIAL** | `796bbeb` plus R14 hosted proof; strict declaration emitted `ready=true` and all runtime proofs passed, but final non-builder/operator handoff is still pending |
 
 ## Ordered GAGOS V1 Final Repair Waves
 
 | Wave | Name | Status | Current evidence |
 |------|------|--------|------------------|
 | R0 | Executable truth reset | **VERIFIED** | Baseline pinned to `5e73a3712f965b902c57afc180c34e165699b591`; release claims reconciled to source/runtime evidence |
-| R1 | Edge trust boundary | **PARTIAL** | Origin/Host/CSRF/session hardening and adversarial tests are green; independent production authority proof remains open |
-| R2 | Human Sovereign identity | **PARTIAL** | Durable identity/device/session authority and isolated real-process HTTP proof exist; packaged production authority matrix remains open |
-| R3 | Exact capabilities | **PARTIAL** | Durable exact issue/consume/replay/revocation semantics and isolated real-process proof are green; full packaged runtime proof remains open |
+| R1 | Edge trust boundary | **VERIFIED** | R14 hosted runtime matrix rejected spoofed origin/host/wildcard credentialed CORS before mutation; source and adversarial gates remain green |
+| R2 | Human Sovereign identity | **VERIFIED** | R14 hosted runtime matrix proved temporary enrollment, authentication, privileged reauthentication, and session rotation; prior HTTP route proof remains green |
+| R3 | Exact capabilities | **VERIFIED** | R14 hosted runtime matrix proved exact issue/consume, replay refusal, and altered-payload refusal; production issuance paths remain exact-capability-bound |
 | R4 | Universal ActionEnvelope → PolicyKernel → ActionBroker boundary | **VERIFIED** | `aios/api/action_guard.py` is attached to all ordinary mutating routers/main routes; exact streaming/approval/rollback routes retain bespoke broker entry; route conformance, adversarial guard tests, full backend `89.25%` coverage gate, frontend typecheck/lint/tests/build, and texture canon pass |
 | R5 | TurnCoordinator application spine | **VERIFIED** | Named production handlers and application-owned `/api/v1/chat` + `/api/generate` pipelines are live; explicit mission/governance mode fields, preparation/approval-resume handling, and lifecycle-start/terminal mapping are green. Focused handler/chat/generate/approval/conformance proof is `49 passed`; plan-stage, telemetry, and Council origination are `7`, `5`, and `8 passed`; the latest full backend coverage gate exits `0` at `89.28%` with `3,094` tests collected and five expected skips. A real isolated production-profile process proved identity/session rotation, chat success/failure, generate lifecycle, two exact approval pauses/resumes, no-write-before-approval, final verification, and durable Cortex lifecycle sequences; targeted files were removed after the probe |
 | R6 | Human Sovereign mission approval authority | **VERIFIED** | SQLite mission repository is authoritative for approval/rejection; serialized transitions bind the real principal, consumed capability digest, authentication event, session, contract digest, and runtime contract digest, while JSON decisions/reports are written only after the authoritative transition. Focused mission/council proof is `36 passed`, broader council/action/release regression is `102 passed`, and the real Council-originated worker path succeeds. Race, rejection-terminality, restart durability, altered-contract, synthetic-actor, and duplicate-execution defenses are green. Cross-store capability-consume/mission-transition atomicity remains a bounded follow-up risk |
@@ -114,13 +114,13 @@ two-layer distinction as `source_present` and `runtime_proven`.
 
 | Authority boundary | Status | Current truth |
 |---------------------|--------|---------------|
-| Human Sovereign identity | **PARTIAL** | Durable operator/device/authentication-event/session authority and privileged route wiring exist; isolated real production-profile HTTP proof passed on temporary data, but the full packaged production authority matrix remains open |
-| Exact capabilities | **PARTIAL** | `CapabilityAuthority` persists token digests plus server-owned exact action payload metadata and binds operator/device/auth-event/session/action/route/method/payload/resource/mission/contract/policy/scope/verification metadata; all production approval routes issue exact capabilities, and the legacy store is no longer in the production dependency graph. Isolated real HTTP proof passed exact issue/consume/replay behavior; full production Compose lifecycle and complete R14 proof matrix remain open |
+| Human Sovereign identity | **VERIFIED** | Durable operator/device/authentication-event/session authority and privileged route wiring exist; R14 hosted strict proof passed temporary enrollment, authentication, privileged reauthentication, and session rotation |
+| Exact capabilities | **VERIFIED** | `CapabilityAuthority` persists token digests plus server-owned exact action payload metadata and binds operator/device/auth-event/session/action/route/method/payload/resource/mission/contract/policy/scope/verification metadata; R14 hosted strict proof passed exact issue/consume/replay/alteration behavior |
 | TurnCoordinator | **VERIFIED** | Both production routes delegate pipeline ownership to application handlers; local gates and real production chat/generate lifecycle, two exact approval pauses/resumes, no-write-before-approval, final verification, and canonical Cortex-bus evidence are green in an isolated real process |
-| Isolated Executor Service | **PARTIAL** | Private client, production wiring, disposable-worker handling, and Compose/CI topology exist; control-plane-to-private-service isolation is not runtime-proven because the local Compose build was blocked by a Docker Hub `python:3.12-slim` layer-transfer EOF |
-| PromotionAuthority | **PARTIAL** | Bounded R10 production/demo Council integration now sends only staged, evidence-bound diffs through PromotionAuthority; durable lease/baseline checks, checkpoint creation, exact apply, post-promotion smoke, rollback recovery, and terminal evidence recording are proven. The complete packaged R14 runtime-proof matrix remains open |
-| EmergencyStopController | **PARTIAL** | Source exists; all real side-effect boundaries are not runtime-proven |
-| Other source-only gates | **PARTIAL** | Source evidence is retained as advisory until a real runtime proof is recorded |
+| Isolated Executor Service | **VERIFIED** | Private client, production wiring, disposable-worker handling, and Compose/CI topology exist; hosted R14 strict proof passed UID 65534, no network, and no workspace escape |
+| PromotionAuthority | **VERIFIED** | Bounded R10 production/demo Council integration sends only staged, evidence-bound diffs through PromotionAuthority; hosted R14 strict proof passed staging, strong verification, promotion, post-check, and rollback recovery |
+| EmergencyStopController | **VERIFIED** | Hosted R14 strict proof engaged the durable latch, blocked capability/mission/execution boundaries across restart, and cleared only with fresh privileged authority |
+| Other runtime gates | **VERIFIED** | Hosted R14 strict proof passed edge, mutation, mission, TurnCoordinator, Cortex cursor, truthful mirror, memory provenance, and production fail-closed checks |
 
 ## Latest CI Repair Checkpoint — 2026-07-16
 
@@ -504,3 +504,20 @@ CodeQL `29546552431` passed all analysis jobs. The route-conformance test is
 now portable across FastAPI's eager and lazy included-router representations.
 R13 exact clear is hosted-green; R14 strict runtime proof remains open and
 V1 remains partial.
+
+**R14 packaged runtime proof hosted verification complete — 2026-07-17:**
+Source tip `7e715b41e8dccc4ce710e5d76213c35fca12186c` is synchronized with
+`origin/master`. CI `29549644470` passed Windows, Ubuntu, macOS, frontend,
+aggregate backend, and release-authority; CodeQL `29549644476` passed all
+analysis jobs. The release-authority job passed the private Executor Service
+isolation proof and the complete strict runtime matrix; its JSON emitted
+`ready=true` and `runtime_proof.all_passed=true`. The first R14 attempt at
+`8a28efb` exposed that `.dockerignore` excludes the separately packaged
+frontend, so the mirror probe failed closed. Follow-up `7e715b4` mounts the
+checked-out frontend read-only for the one-shot proof container; the focused
+conformance/runtime suite passed `30`, and the repaired hosted run is green.
+Local full gate remains `3,185` collected, `3,177` passed, `8` skipped, exit
+`0`, `88.52%` coverage. Local strict mode still reports only the expected
+executor-unavailable limitation because this Windows workspace has no live
+private service. Runtime proof is complete at the hosted release boundary;
+the remaining work is continuity finalization and non-builder/operator review.
