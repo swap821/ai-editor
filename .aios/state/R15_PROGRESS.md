@@ -155,3 +155,12 @@
 - **Security impact:** No model was admitted, no qualification threshold was changed, no benchmark completion was fabricated, and no credential material was persisted.
 - **Release posture:** R15 remains NOT ACCEPTED because local clerk admission and benchmark execution are blocked, the private Executor is unavailable locally, and no independent non-builder verdict exists. The authenticated cloud-burst evidence gap is closed for the bounded probe only.
 - **Exact next action:** Commit and push this evidence checkpoint, inspect hosted CI/CodeQL, then reissue the hash-pinned handoff for independent review; do not self-approve R15 or start public R16.
+
+## Slice 29: Source-Tip Hosted Convergence After Windows Retry
+
+- **Source tip:** `026be86b26576ab7d605cc170b3dd22a9485600b` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Hosted CI:** Run `29641724948` attempt 2 passed all backend OS matrices, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, license inventory, and evidence upload. Attempt 1 saw one Windows-only fail-closed secret-scanner fixture response; the exact failed job passed on retry, and no production security code changed.
+- **CodeQL:** Run `29642425584` passed Actions, Python, JavaScript/TypeScript, and executor model-pack validation on the exact evidence tip.
+- **Local follow-up:** The failed council origination test passed both standalone and as its complete module locally.
+- **Release posture:** Hosted gates are green, authenticated bounded cloud-burst evidence is present, but R15 remains NOT ACCEPTED because no local clerk is admitted, the benchmark is blocked before execution, the private Executor is unavailable locally, and no independent non-builder verdict exists.
+- **Exact next action:** Refresh continuity docs, commit/push the source-tip gate pointers, then release the builder lease through a hash-pinned independent handoff; do not self-approve R15 or start public R16.
