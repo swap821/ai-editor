@@ -269,8 +269,6 @@ def test_rescan_incomplete_does_not_resolve_and_reappearance_reopens(
         target_id="bug.txt",
         source_digest="source-before",
     ).findings[0]
-    finding = finding.model_copy(update={"mission_id": "mission-rescan"})
-    service.finding_repository.save(finding)
     incomplete = service.run_scan(
         _contract(root=project, max_files=0),
         lambda context: tuple(context.iter_files()),
@@ -283,19 +281,32 @@ def test_rescan_incomplete_does_not_resolve_and_reappearance_reopens(
     assert incomplete.scan.status == "incomplete"
     assert service.finding_repository.get(finding.fingerprint).status == "OPEN"
 
-    (project / "bug.txt").write_text("fixed\n", encoding="utf-8")
-    resolved = service.reconcile_rescan(
+    mission = service.create_repair_mission(
         finding.fingerprint,
-        service.run_scan(
-            _contract(root=project),
-            _scanner,
-            scanner_id="controlled-scanner",
-            scanner_version="1",
-            target_id="bug.txt",
-            source_digest="source-fixed",
-            rescan_of=finding.fingerprint,
-        ),
-        verification_ids=("verification-1",),
+        operator_id="operator-1",
+        workspace_root=str(project),
+    )
+    service.mission_service.start_deliberation(mission.mission_id)
+    service.mission_service.request_approval(mission.mission_id)
+    service.mission_service.approve(
+        mission.mission_id,
+        operator_id="operator-1",
+        capability_digest="operator-capability-1",
+        contract_digest=mission.contract_digest,
+        authentication_event_id="auth-1",
+        session_id="session-1",
+    )
+    resolved = asyncio.run(
+        service.run_approved_repair(
+            mission.mission_id,
+            scanner=_scanner,
+            rescan_contract=_contract(root=project),
+            capability_consumer=lambda _request: True,
+            create_checkpoint=lambda _request: "checkpoint-1",
+            restore_checkpoint=lambda _checkpoint, _request: True,
+            smoke_test=lambda _request: (project / "bug.txt").read_text()
+            == "fixed\n",
+        )
     )
     assert resolved.status == "VERIFIED_RESOLVED"
 

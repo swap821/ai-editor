@@ -3,6 +3,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from aios.domain.evidence import VerificationResult
+from aios.domain.promotion import PromotionResult
+
 
 FindingState = Literal[
     "OPEN",
@@ -50,3 +53,34 @@ class MaintenanceFinding(BaseModel):
     verification_ids: list[str] = []
     resolution_evidence: Optional[str] = None
     human_disposition: Optional[str] = None
+
+
+class MaintenanceResolutionEvidence(BaseModel):
+    """Complete authority-bound evidence required to resolve a finding.
+
+    The contract is deliberately richer than a list of verification IDs. The
+    application service resolves every referenced mission, verification, scan,
+    and promotion through authoritative stores before accepting it.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mission_id: str
+    mission_contract_digest: str
+    action_id: str
+    promotion: PromotionResult
+    verification_results: tuple[VerificationResult, ...]
+    workspace_digest: str
+    diff_digest: str
+    rescan_id: str
+    scanner_id: str
+    scanner_version: str
+    target_id: str
+    source_digest: str
+
+
+__all__ = [
+    "FindingState",
+    "MaintenanceFinding",
+    "MaintenanceResolutionEvidence",
+]

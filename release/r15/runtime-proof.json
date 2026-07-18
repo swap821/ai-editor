@@ -50,17 +50,17 @@
     "maintenance_finding_persistence": {
       "name": "maintenance_finding_persistence",
       "passed": true,
-      "evidence": "finding survived repository restart, resolved with evidence, and reopened on reappearance"
+      "evidence": "finding survived repository restart; free-form resolution remained refused"
     },
-    "maintenance_canonical_repair": {
-      "name": "maintenance_canonical_repair",
+    "maintenance_repair_mission_contract": {
+      "name": "maintenance_repair_mission_contract",
       "passed": true,
-      "evidence": "bounded scan produced an advisory proposal and canonical approval-bound repair mission"
+      "evidence": "bounded scan produced an advisory proposal and approval-bound repair mission contract; no execution claim"
     },
-    "maintenance_rescan_resolution": {
-      "name": "maintenance_rescan_resolution",
+    "maintenance_resolution_authority": {
+      "name": "maintenance_resolution_authority",
       "passed": true,
-      "evidence": "local actor could not resolve; system verifier required current deterministic rescan evidence"
+      "evidence": "local and system free-form actors could not resolve; structured governed evidence is required"
     }
   }
 }

@@ -21,7 +21,10 @@ from aios.domain.evidence import (
     VerificationObservation,
     VerificationPlanV1,
 )
-from aios.domain.maintenance.contracts import MaintenanceFinding
+from aios.domain.maintenance.contracts import (
+    MaintenanceFinding,
+    MaintenanceResolutionEvidence,
+)
 from aios.domain.maintenance.lifecycle import (
     MaintenanceLifecycleEngine,
     SecurityViolationError,
@@ -139,6 +142,9 @@ class MaintenanceConvergenceService:
                 "status": "completed",
                 "completed_at": _utc_now(),
                 "finding_count": len(raw_findings),
+                "finding_fingerprints": tuple(
+                    finding.fingerprint for finding in raw_findings
+                ),
             }
         )
         self.scan_repository.save(completed)
@@ -330,11 +336,38 @@ class MaintenanceConvergenceService:
                 else finding.source_digest,
                 rescan_of=finding.fingerprint,
             )
-            final_finding = self.reconcile_rescan(
-                finding.fingerprint,
-                rescan,
-                verification_ids=(verification.verification_id,),
+            resolution_evidence = MaintenanceResolutionEvidence(
+                mission_id=mission_id,
+                mission_contract_digest=record.contract_digest,
+                action_id=f"maintenance-action:{mission_id}",
+                promotion=promotion,
+                verification_results=(verification,),
+                workspace_digest=str(diff["workspace_digest"]),
+                diff_digest=str(diff["diff_digest"]),
+                rescan_id=rescan.scan.scan_id,
+                scanner_id=finding.scanner_id,
+                scanner_version=finding.scanner_version,
+                target_id=finding.target_id,
+                source_digest=rescan.scan.source_digest,
             )
+            try:
+                final_finding = self.reconcile_rescan(resolution_evidence)
+            except MaintenanceConvergenceError as exc:
+                if rescan.scan.status != "completed":
+                    return MaintenanceRepairResult(
+                        status="RESCAN_INCOMPLETE",
+                        mission_id=mission_id,
+                        finding=self.finding_repository.get(fingerprint) or finding,
+                        verification_ids=(verification.verification_id,),
+                        scan_id=rescan.scan.scan_id,
+                        promotion_status=promotion.status.value,
+                        reason=str(exc),
+                    )
+                return self._failed(
+                    mission_id,
+                    self.finding_repository.get(fingerprint) or finding,
+                    f"rescan authority refused: {exc}",
+                )
             if final_finding.status != "VERIFIED_RESOLVED":
                 return MaintenanceRepairResult(
                     status="RESCAN_INCOMPLETE",
@@ -358,30 +391,47 @@ class MaintenanceConvergenceService:
             return self._failed(mission_id, current, str(exc))
 
     def reconcile_rescan(
-        self,
-        fingerprint: str,
-        result: MaintenanceScanResult,
-        *,
-        verification_ids: tuple[str, ...],
+        self, evidence: MaintenanceResolutionEvidence
     ) -> MaintenanceFinding:
+        """Reconcile only a complete, authority-bound resolution contract."""
+        scan = self.scan_repository.get(evidence.rescan_id)
+        if scan is None:
+            raise MaintenanceConvergenceError("authoritative rescan does not exist")
+        fingerprint = scan.rescan_of
+        if not fingerprint:
+            raise MaintenanceConvergenceError("rescan is not bound to a finding")
         finding = self.finding_repository.get(fingerprint)
         if finding is None:
             raise MaintenanceConvergenceError("rescan finding does not exist")
-        if any(item.fingerprint == fingerprint for item in result.findings):
+        if fingerprint in scan.finding_fingerprints:
             return finding
-        if finding.status in {"VERIFIED_RESOLVED", "REOPENED"}:
-            return finding
+        try:
+            mission = self.mission_service.repository.get(evidence.mission_id)
+        except Exception as exc:  # noqa: BLE001 - authority lookup fails closed
+            raise MaintenanceConvergenceError(
+                "authoritative mission does not exist"
+            ) from exc
+        for result in evidence.verification_results:
+            authoritative = self.verification_authority.get(result.verification_id)
+            if authoritative is None or authoritative is not result:
+                raise MaintenanceConvergenceError(
+                    "verification result is not held by VerificationAuthority"
+                )
         try:
             resolved = self.lifecycle_engine.resolve_after_rescan(
                 finding,
-                mission_id=finding.mission_id or "",
-                scan_id=result.scan.scan_id,
-                scan_status=result.scan.status,
-                rescan_of=result.scan.rescan_of,
-                verification_ids=verification_ids,
+                mission=mission,
+                evidence=evidence,
+                scan=scan,
+                verification_is_current=lambda result: self.verification_authority.is_current(
+                    result,
+                    workspace_digest=evidence.workspace_digest,
+                    diff_digest=evidence.diff_digest,
+                    freshness_seconds=300,
+                ),
             )
-        except SecurityViolationError:
-            return finding
+        except SecurityViolationError as exc:
+            raise MaintenanceConvergenceError(str(exc)) from exc
         self.finding_repository.save(resolved)
         return resolved
 

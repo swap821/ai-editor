@@ -1,5 +1,16 @@
 """Lifecycle engine for Maintenance Findings."""
-from aios.domain.maintenance.contracts import MaintenanceFinding
+
+from collections.abc import Callable
+
+from aios.domain.evidence import VerificationResult
+from aios.domain.maintenance.contracts import (
+    MaintenanceFinding,
+    MaintenanceResolutionEvidence,
+)
+from aios.domain.maintenance.scan_repository import MaintenanceScan
+from aios.domain.missions.mission_repository import MissionRecord
+from aios.domain.missions.mission_state import MissionState
+from aios.domain.promotion import PromotionStatus
 
 class SecurityViolationError(RuntimeError):
     """Raised when an actor attempts an unauthorized state transition."""
@@ -73,31 +84,81 @@ class MaintenanceLifecycleEngine:
         self,
         finding: MaintenanceFinding,
         *,
-        mission_id: str,
-        scan_id: str,
-        scan_status: str,
-        rescan_of: str | None,
-        verification_ids: tuple[str, ...],
+        mission: MissionRecord,
+        evidence: MaintenanceResolutionEvidence,
+        scan: MaintenanceScan,
+        verification_is_current: Callable[[VerificationResult], bool],
     ) -> MaintenanceFinding:
-        """Allow resolution only after the exact completed rescan."""
-        self._require_mission(finding, mission_id)
-        if scan_status != "completed":
+        """Allow resolution only after every governed proof is authoritative."""
+        if finding.status != "VERIFYING":
+            raise SecurityViolationError(
+                "finding must be VERIFYING before governed resolution"
+            )
+        self._require_mission(finding, evidence.mission_id)
+        if mission.mission_id != evidence.mission_id:
+            raise SecurityViolationError("mission evidence is not authoritative")
+        if mission.state is not MissionState.COMPLETED:
+            raise SecurityViolationError("mission is not completed")
+        if mission.contract_digest != evidence.mission_contract_digest:
+            raise SecurityViolationError("mission contract digest does not match")
+        if mission.contract.metadata.get("finding_fingerprint") != finding.fingerprint:
+            raise SecurityViolationError("mission is not bound to this finding")
+        promotion = evidence.promotion
+        if promotion.status is not PromotionStatus.PROMOTED:
+            raise SecurityViolationError("promotion did not succeed")
+        if promotion.mission_id != evidence.mission_id:
+            raise SecurityViolationError("promotion mission does not match")
+        if promotion.action_id != evidence.action_id:
+            raise SecurityViolationError("promotion action does not match")
+        if promotion.diff_digest != evidence.diff_digest:
+            raise SecurityViolationError("promotion diff does not match")
+        if not evidence.verification_results:
+            raise SecurityViolationError("verification results are required")
+        for result in evidence.verification_results:
+            if result.mission_id != evidence.mission_id:
+                raise SecurityViolationError("verification mission does not match")
+            if result.action_id != evidence.action_id:
+                raise SecurityViolationError("verification action does not match")
+            if result.target != evidence.target_id:
+                raise SecurityViolationError("verification target does not match")
+            if result.workspace_digest != evidence.workspace_digest:
+                raise SecurityViolationError("verification workspace does not match")
+            if result.diff_digest != evidence.diff_digest:
+                raise SecurityViolationError("verification diff does not match")
+            if not result.meets_requirement or not verification_is_current(result):
+                raise SecurityViolationError("verification is stale or insufficient")
+        if evidence.rescan_id != scan.scan_id:
+            raise SecurityViolationError("rescan identity does not match")
+        if scan.status != "completed":
             raise SecurityViolationError(
                 "incomplete or failed scan cannot resolve a maintenance finding"
             )
-        if rescan_of != finding.fingerprint:
+        if scan.rescan_of != finding.fingerprint:
             raise SecurityViolationError("rescan is not bound to this finding")
-        if not scan_id or not verification_ids:
-            raise SecurityViolationError(
-                "current rescan and verification evidence are required"
-            )
-        return self.attempt_resolution(
-            finding,
-            actor="system_verifier",
-            deterministic_evidence=(
-                f"deterministic_rescan:{scan_id};"
-                f"verification_ids:{','.join(verification_ids)}"
-            ),
+        if scan.scanner_id != finding.scanner_id or scan.scanner_id != evidence.scanner_id:
+            raise SecurityViolationError("scanner identity does not match")
+        if (
+            scan.scanner_version != finding.scanner_version
+            or scan.scanner_version != evidence.scanner_version
+        ):
+            raise SecurityViolationError("scanner version does not match")
+        if scan.target_id != finding.target_id or scan.target_id != evidence.target_id:
+            raise SecurityViolationError("scan target does not match")
+        if scan.source_digest != evidence.source_digest:
+            raise SecurityViolationError("scan source provenance does not match")
+        if finding.fingerprint in scan.finding_fingerprints:
+            raise SecurityViolationError("finding reappeared in the rescan")
+        return finding.model_copy(
+            update={
+                "status": "VERIFIED_RESOLVED",
+                "verification_ids": [
+                    result.verification_id for result in evidence.verification_results
+                ],
+                "resolution_evidence": (
+                    f"rescan:{scan.scan_id};promotion:{promotion.status.value};"
+                    f"source:{scan.source_digest}"
+                ),
+            }
         )
 
     @staticmethod
@@ -105,24 +166,20 @@ class MaintenanceLifecycleEngine:
         if not mission_id or finding.mission_id != mission_id:
             raise SecurityViolationError("finding and mission are not bound")
 
-    def attempt_resolution(self, finding: MaintenanceFinding, actor: str, deterministic_evidence: str | None = None) -> MaintenanceFinding:
-        """Mark a finding as resolved.
-        
-        Security rules:
-        - Local models cannot alter severity or status.
-        - Cloud models cannot mark resolution.
-        - VERIFIED_RESOLVED requires deterministic evidence.
-        """
-        if actor in ["local_model", "cloud_model"]:
-            raise SecurityViolationError(f"Actor '{actor}' is not authorized to mark findings as resolved.")
-            
-        if not deterministic_evidence:
-            raise SecurityViolationError("VERIFIED_RESOLVED requires current deterministic rescan evidence.")
-            
-        return finding.model_copy(update={
-            "status": "VERIFIED_RESOLVED",
-            "resolution_evidence": deterministic_evidence
-        })
+    def attempt_resolution(
+        self,
+        finding: MaintenanceFinding,
+        actor: str,
+        deterministic_evidence: str | None = None,
+    ) -> MaintenanceFinding:
+        """Reject the legacy free-form resolution escape hatch."""
+        if actor in {"local_model", "cloud_model"}:
+            raise SecurityViolationError(
+                f"Actor '{actor}' is not authorized to mark findings as resolved."
+            )
+        raise SecurityViolationError(
+            "resolution requires complete governed maintenance evidence"
+        )
 
     def mark_missing_in_scan(self, finding: MaintenanceFinding) -> MaintenanceFinding:
         """A finding was not seen in the latest scan.

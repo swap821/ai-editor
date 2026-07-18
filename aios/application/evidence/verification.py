@@ -82,6 +82,14 @@ class VerificationAuthority:
         self._results[result.verification_id] = result
         return result
 
+    def get(self, verification_id: str) -> VerificationResult | None:
+        """Return the verification result held by this authority."""
+        return self._results.get(verification_id)
+
+    def is_authoritative(self, result: VerificationResult) -> bool:
+        """Reject caller-forged result objects, even when their IDs look valid."""
+        return self._results.get(result.verification_id) is result
+
     def is_current(
         self,
         result: VerificationResult,

@@ -27,8 +27,8 @@ R15_REQUIRED_PROOFS = (
     "skill_applicability",
     "skill_re_escalation",
     "maintenance_finding_persistence",
-    "maintenance_canonical_repair",
-    "maintenance_rescan_resolution",
+    "maintenance_repair_mission_contract",
+    "maintenance_resolution_authority",
 )
 
 
@@ -109,13 +109,13 @@ def run_r15_runtime_proofs(root: str | Path | None = None) -> R15RuntimeProofRep
             "maintenance_finding_persistence",
             lambda: _probe_maintenance_finding_persistence(scratch),
         )
-        results["maintenance_canonical_repair"] = _proof(
-            "maintenance_canonical_repair",
-            lambda: _probe_maintenance_canonical_repair(scratch),
+        results["maintenance_repair_mission_contract"] = _proof(
+            "maintenance_repair_mission_contract",
+            lambda: _probe_maintenance_repair_mission_contract(scratch),
         )
-        results["maintenance_rescan_resolution"] = _proof(
-            "maintenance_rescan_resolution",
-            lambda: _probe_maintenance_rescan_resolution(scratch),
+        results["maintenance_resolution_authority"] = _proof(
+            "maintenance_resolution_authority",
+            lambda: _probe_maintenance_resolution_authority(scratch),
         )
 
     return R15RuntimeProofReport(results)
@@ -424,7 +424,10 @@ def _probe_skill_re_escalation(scratch: Path) -> str:
 
 
 def _probe_maintenance_finding_persistence(scratch: Path) -> str:
-    from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
+    from aios.domain.maintenance.lifecycle import (
+        MaintenanceLifecycleEngine,
+        SecurityViolationError,
+    )
     from aios.domain.maintenance.repository import MaintenanceFindingRepository
 
     finding = _proof_finding()
@@ -435,22 +438,18 @@ def _probe_maintenance_finding_persistence(scratch: Path) -> str:
     )
     assert restored == finding
 
-    resolved = MaintenanceLifecycleEngine().attempt_resolution(
-        restored, actor="system_verifier", deterministic_evidence="rescan clean"
-    )
-    repository.save(resolved)
-    reappeared = MaintenanceLifecycleEngine().report_finding(
-        MaintenanceFindingRepository(scratch / "maintenance.db").get(
-            finding.fingerprint
-        ),
-        finding.model_copy(update={"last_seen": "2026-07-18T02:00:00Z"}),
-    )
-    assert reappeared.status == "REOPENED"
-    assert reappeared.occurrence_count == 2
-    return "finding survived repository restart, resolved with evidence, and reopened on reappearance"
+    try:
+        MaintenanceLifecycleEngine().attempt_resolution(
+            restored, actor="system_verifier", deterministic_evidence="rescan clean"
+        )
+    except SecurityViolationError:
+        return (
+            "finding survived repository restart; free-form resolution remained refused"
+        )
+    raise AssertionError("free-form resolution bypassed governed evidence")
 
 
-def _probe_maintenance_canonical_repair(scratch: Path) -> str:
+def _probe_maintenance_repair_mission_contract(scratch: Path) -> str:
     from aios.domain.maintenance.mission_bridge import MaintenanceMissionBridge
     from aios.domain.maintenance.scan_contracts import BoundedScanContract
     from aios.domain.maintenance.service import AutonomousMaintenanceForce
@@ -476,10 +475,10 @@ def _probe_maintenance_canonical_repair(scratch: Path) -> str:
     assert mission.metadata["finding_id"] == finding.finding_id
     assert mission.metadata["required_post_repair_rescan"] is True
     assert mission.requires_approval is True
-    return "bounded scan produced an advisory proposal and canonical approval-bound repair mission"
+    return "bounded scan produced an advisory proposal and approval-bound repair mission contract; no execution claim"
 
 
-def _probe_maintenance_rescan_resolution(scratch: Path) -> str:
+def _probe_maintenance_resolution_authority(scratch: Path) -> str:
     from aios.domain.maintenance.lifecycle import (
         MaintenanceLifecycleEngine,
         SecurityViolationError,
@@ -495,12 +494,15 @@ def _probe_maintenance_rescan_resolution(scratch: Path) -> str:
         pass
     else:
         raise AssertionError("local model was allowed to close a finding")
-    resolved = lifecycle.attempt_resolution(
-        finding, actor="system_verifier", deterministic_evidence="current rescan clean"
-    )
-    assert resolved.status == "VERIFIED_RESOLVED"
-    assert resolved.resolution_evidence == "current rescan clean"
-    return "local actor could not resolve; system verifier required current deterministic rescan evidence"
+    try:
+        lifecycle.attempt_resolution(
+            finding,
+            actor="system_verifier",
+            deterministic_evidence="current rescan clean",
+        )
+    except SecurityViolationError:
+        return "local and system free-form actors could not resolve; structured governed evidence is required"
+    raise AssertionError("free-form system resolution bypassed governed evidence")
 
 
 def _proof_skill():

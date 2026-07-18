@@ -28,6 +28,7 @@ class MaintenanceScan(BaseModel):
     started_at: str
     completed_at: str | None = None
     finding_count: int = 0
+    finding_fingerprints: tuple[str, ...] = ()
     failure_reason: str | None = None
     rescan_of: str | None = None
 

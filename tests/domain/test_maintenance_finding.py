@@ -1,6 +1,5 @@
 """Tests for the Durable Maintenance Finding Lifecycle."""
 import pytest
-from datetime import datetime, timezone
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine, SecurityViolationError
 
@@ -59,19 +58,17 @@ def test_engine_blocks_unauthorized_resolution(base_finding):
     with pytest.raises(SecurityViolationError, match="not authorized"):
         engine.attempt_resolution(base_finding, actor="cloud_model", deterministic_evidence="foo")
 
-def test_engine_blocks_resolution_without_evidence(base_finding):
+def test_engine_rejects_free_form_resolution_without_structured_evidence(base_finding):
     engine = MaintenanceLifecycleEngine()
     
-    with pytest.raises(SecurityViolationError, match="requires current deterministic rescan evidence"):
+    with pytest.raises(SecurityViolationError, match="requires complete governed maintenance evidence"):
         engine.attempt_resolution(base_finding, actor="system_verifier", deterministic_evidence=None)
 
-def test_engine_allows_authorized_resolution_with_evidence(base_finding):
+def test_engine_rejects_free_form_resolution_even_with_text(base_finding):
     engine = MaintenanceLifecycleEngine()
     
-    updated = engine.attempt_resolution(base_finding, actor="system_verifier", deterministic_evidence="Scan clean: 0 unused code found.")
-    
-    assert updated.status == "VERIFIED_RESOLVED"
-    assert updated.resolution_evidence == "Scan clean: 0 unused code found."
+    with pytest.raises(SecurityViolationError, match="requires complete governed maintenance evidence"):
+        engine.attempt_resolution(base_finding, actor="system_verifier", deterministic_evidence="Scan clean: 0 unused code found.")
 
 def test_missing_scan_does_not_resolve(base_finding):
     engine = MaintenanceLifecycleEngine()
