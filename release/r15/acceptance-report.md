@@ -2,7 +2,7 @@
 
 ## Current v2 evidence — 2026-07-19
 
-**Current source:** `8798b4991307279aef40d02934ff84af17d19639`
+**Current source:** `7f3af144c12e3e09fd1077ebd85677f886e345e5`
 
 R15 remains **NOT ACCEPTED**. The bounded local-clerk slice now has live evidence, but the required maintenance production repair, canonical cloud hiring call, operator proof, and independent non-builder verdict remain open.
 

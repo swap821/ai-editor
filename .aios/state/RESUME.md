@@ -1,6 +1,6 @@
 **Goal:** Complete the GAGOS R15 Sovereign Intelligence and Maintenance Flywheel with executable, fail-closed evidence; do not start R16.
 
-**Last completed+verified step:** Source `8798b4991307279aef40d02934ff84af17d19639` is pushed. The local qualification suite is now versioned `r15-v2` with 16 per-test gates, deterministic output/tool/secret bounds, repeated-run, resource, timeout, and concurrency evidence. Five installed Ollama candidates were run live: Granite and Qwen passed; Granite was operator-approved, admitted, profile-assigned, and persisted after registry restart. The 30-task run completed through the admitted Granite triage profile as advisory-only evidence: 30 bounded responses, zero verified project-state completions.
+**Last completed+verified step:** Source `7f3af144c12e3e09fd1077ebd85677f886e345e5` is pushed. The local qualification suite is now versioned `r15-v2` with 16 per-test gates, deterministic output/tool/secret bounds, repeated-run, resource, timeout, and concurrency evidence. Five installed Ollama candidates were run live: Granite and Qwen passed; Granite was operator-approved, admitted, profile-assigned, and persisted after registry restart. The 30-task run completed through the admitted Granite triage profile as advisory-only evidence: 30 bounded responses, zero verified project-state completions.
 
 **Next action:** Commit and push the live qualification/benchmark evidence and refreshed matrix, then inspect CI and dispatch CodeQL for the final exact source tip. Do not self-approve R15 or start R16.
 
