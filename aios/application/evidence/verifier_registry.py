@@ -160,7 +160,10 @@ class VerifierRegistry:
             raise VerifierRegistryError("verifier root does not match contract")
         if root.is_symlink():
             raise VerifierRegistryError("symlink root is forbidden")
-        target = (root / spec.target_id).resolve()
+        # Treat Windows separators as path separators on every host. A verifier
+        # contract may be authored on one OS and admitted on another; accepting
+        # ``..\\outside`` as a literal POSIX filename would bypass containment.
+        target = (root / spec.target_id.replace("\\\\", "/")).resolve()
         try:
             target.relative_to(root)
         except ValueError as exc:
