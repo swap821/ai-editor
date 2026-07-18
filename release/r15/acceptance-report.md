@@ -2,21 +2,22 @@
 
 ## Current v2 evidence — 2026-07-19
 
-**Current production source:** `92efde108a19ca5b8e4e399f5554f6d8364965f2`
+**Final repository tip:** `ceb6ad5283af72c5beeddf8537dff07b5cffbd1b`
+**Runtime implementation/evidence source:** `92efde108a19ca5b8e4e399f5554f6d8364965f2`
 
 R15 remains **NOT ACCEPTED**. The bounded local-clerk slice now has live evidence, but the required maintenance production repair, canonical cloud hiring call, operator proof, and independent non-builder verdict remain open.
 
 - **Local clerk qualification:** five installed 1.5B–3B candidates were run against the unchanged `r15-v2` suite. `granite3.2:2b` and `qwen2.5:3b` passed all 16 per-test gates. Granite was the only candidate admitted: operator approval, six bounded profiles, healthy status, and persistence after a fresh registry load were verified. The other three candidates remain rejected on their recorded per-test failures. Evidence: `model-qualification-r15-v2.json`; the earlier eleven-run v1 record remains in `model-qualification-redacted.json`.
 - **Benchmark:** all 30 versioned tasks were run through the admitted Granite `triage` profile. They produced bounded advisory JSON with preserved evidence references, but no task changed project state and no expected outcome was verified. Therefore `completed_advisory_tasks=30`, `verified_completion_tasks=0`, `pass_rate=null`; this is not a 30-task developer-completion claim. Evidence: `benchmark-results.json`.
 - **Proof hierarchy:** `runtime-proof.json` is explicitly contract-fixture proof. Live local qualification and advisory benchmark evidence are separate artifacts and are not substituted for maintenance production proof.
-- **Hosted gates:** CI `29660499352` is green on this production source across Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. CodeQL `29660933425` is green on the same source for Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
+- **Hosted gates:** Final-tip CI `29661073001` is green across Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. Final-tip CodeQL `29661465597` is green for Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 
 ## Status: NOT ACCEPTED — evidence checkpoint
 
 ### Requirements validation
 
 - **Runtime proof:** Twelve executable disposable probes pass locally; evidence is recorded in `runtime-proof.json`.
-- **Backend package gate:** 3,235 passed, 8 skipped, 88% coverage locally; hosted CI is the authoritative cross-platform gate.
+- **Backend package gate:** 3,320 passed, 8 skipped from 3,328 collected, 88.30% coverage locally; hosted CI is the authoritative cross-platform gate.
 - **Hosted CI:** Run `29641724948` attempt 2 is green on evidence tip `026be86b26576ab7d605cc170b3dd22a9485600b`, including backend Ubuntu/macOS/Windows, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licenses, and evidence upload. Attempt 1 exposed one Windows-only fail-closed fixture state; the exact failed job was rerun and passed without source or authorization changes.
 - **CodeQL:** Run `29642425584` is green on the same evidence tip for Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 - **Historical v1 local clerk qualification:** Eleven real Ollama candidate runs were executed against the earlier two-case R15 suite. Every candidate failed at least one schema, identifier, secret-refusal, or tool-request gate. That historical result is retained in `model-qualification-redacted.json`; it is superseded for current qualification by the bounded v2 evidence above.
