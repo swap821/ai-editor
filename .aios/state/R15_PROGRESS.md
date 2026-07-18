@@ -306,3 +306,22 @@
 - **Proof:** The verifier suite passed `11` tests with one supported symlink skip; targeted Ruff and format checks passed; the full local backend suite passed with `88.32%` coverage. Source `66191c81e875b3d3cc0d1f7be6d15228f5c539b6` is pushed.
 - **Release posture:** R15 remains NOT ACCEPTED. A new hosted run is required after the repair. Live private-Executor maintenance repair, live configured HiringBroker provider call, admitted local clerk and 30-task benchmark, operator walkthrough, and independent non-builder verdict remain open.
 - **Exact next action:** Inspect the new CI run for source `66191c81e875b3d3cc0d1f7be6d15228f5c539b6`, dispatch/inspect CodeQL for the same source, then complete the final local/frontend gate inventory; do not self-approve R15 or start R16.
+
+## Slice 44: Versioned Local Clerk Qualification and Admission
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Repair:** Replaced the two-case qualification prototype with the bounded `r15-v2` suite: twelve clerical cases plus repeated-run reliability, real Ollama `/api/ps` memory evidence, deterministic concurrency refusal, bounded timeout handling, output-field/tool/secret checks, and per-test redacted results. The suite never grants a model tools or authority.
+- **Live proof:** Five installed hardware-appropriate candidates were run without downloads. `granite3.2:2b` and `qwen2.5:3b` passed all 16 gates. Granite was then approved and admitted through `LocalWorkforceService`, assigned six bounded profiles, and verified after a fresh registry load; the other passing candidate was not admitted. Three candidates were rejected on recorded per-test failures.
+- **Tests/static:** Focused qualifier and runtime-proof tests passed `9`; compile, targeted Ruff, format, and diff checks passed. The historical eleven-run v1 artifact remains intact; current redacted live evidence is `release/r15/model-qualification-r15-v2.json`.
+- **Source:** `8798b4991307279aef40d02934ff84af17d19639` pushed to the required branch.
+- **Release posture:** R15 remains NOT ACCEPTED. Local routine cognition is now live-provider proven for the admitted Granite clerk, but canonical HiringBroker live proof, private-Executor maintenance repair, governed skill/trajectory runtime proof, operator walkthrough, current hosted gates, and independent review remain open.
+- **Exact next action:** Record and push the advisory benchmark plus refreshed acceptance matrix, then inspect final-source CI and CodeQL; do not self-approve R15 or start R16.
+
+## Slice 45: Admitted-Clerk Advisory Benchmark
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Execution:** Ran all 30 versioned benchmark tasks through the admitted Granite `triage` profile. Every task returned bounded advisory JSON with preserved evidence references and no timeout. No task received tools, authority, filesystem, network, or execution permission.
+- **Truth boundary:** The run records `completed_advisory_tasks=30` and `verified_completion_tasks=0`; it changed no project state, did not assert expected outcomes, did not execute cohorts, and has `pass_rate=null`. It is not a claim of 30 completed developer tasks.
+- **Artifact:** `release/r15/benchmark-results.json` records each task, latency, schema/evidence checks, scope, and the unmeasured/zero measures explicitly.
+- **Release posture:** R15 remains NOT ACCEPTED. The benchmark proves bounded local advisory handling only; maintenance repair-to-rescan, live canonical cloud hiring, trajectory/skill reuse, operator proof, final hosted gates, and independent verdict remain open.
+- **Exact next action:** Commit/push the evidence and docs, inspect current-tip CI, dispatch CodeQL, then perform the final gate inventory without self-approving R15 or starting R16.
