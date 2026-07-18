@@ -305,14 +305,16 @@ class ExecutorService:
             "mission_contract_digest": mission_contract_digest,
         }
         action_digest = hashlib.sha256(
-            json.dumps(material, sort_keys=True, separators=(",", ":")).encode(
-                "utf-8"
-            )
+            json.dumps(material, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
         expires_at = (
-            datetime.now(timezone.utc)
-            + timedelta(seconds=max(int(timeout_seconds), 1) + 5)
-        ).replace(microsecond=0).isoformat()
+            (
+                datetime.now(timezone.utc)
+                + timedelta(seconds=max(int(timeout_seconds), 1) + 5)
+            )
+            .replace(microsecond=0)
+            .isoformat()
+        )
         return ExecutorJob(
             job_id=actual_job_id,
             mission_contract_digest=mission_contract_digest,
