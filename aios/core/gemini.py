@@ -26,6 +26,7 @@ Design notes (mirrors ``bedrock.py`` so the three providers stay symmetric):
     before transmission so conversation history, tool results, and secrets never
     leave the local machine unredacted.
 """
+
 from __future__ import annotations
 
 import json
@@ -98,7 +99,12 @@ def _to_gemini(
                 {
                     "role": "user",
                     "parts": [
-                        {"function_response": {"name": name, "response": {"result": str(content)}}}
+                        {
+                            "function_response": {
+                                "name": name,
+                                "response": {"result": str(content)},
+                            }
+                        }
                     ],
                 }
             )
@@ -120,7 +126,8 @@ def _to_tools(tools: Optional[list[dict[str, Any]]]) -> Optional[list[dict[str, 
             {
                 "name": str(fn.get("name", "")),
                 "description": str(fn.get("description", "")),
-                "parameters": fn.get("parameters") or {"type": "object", "properties": {}},
+                "parameters": fn.get("parameters")
+                or {"type": "object", "properties": {}},
             }
         )
     return [{"function_declarations": decls}]
@@ -160,7 +167,10 @@ def _parse_output(response: Any) -> dict[str, Any]:
             tool_calls.append(
                 {
                     "id": None,
-                    "function": {"name": str(fc.name), "arguments": _coerce_args(getattr(fc, "args", None))},
+                    "function": {
+                        "name": str(fc.name),
+                        "arguments": _coerce_args(getattr(fc, "args", None)),
+                    },
                 }
             )
     result: dict[str, Any] = {"role": "assistant", "content": text}
@@ -292,9 +302,10 @@ class GeminiClient:
         }
         if system_text.strip():
             gen_config["system_instruction"] = system_text
-        # Bound 2.5-era "thinking" so it can't silently eat the output budget and
-        # return zero text (``0`` disables it; ``-1`` leaves the model default on).
-        if self.thinking_budget >= 0:
+        # A positive value bounds 2.5-era "thinking".  Vertex rejects an explicit
+        # zero for some discovered models, so zero and negative values leave the
+        # provider default untouched.
+        if self.thinking_budget > 0:
             gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
         tool_decls = _to_tools(tools)
         if tool_decls:
@@ -348,7 +359,7 @@ class GeminiClient:
         }
         if system_text.strip():
             gen_config["system_instruction"] = system_text
-        if self.thinking_budget >= 0:
+        if self.thinking_budget > 0:
             gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
         tool_decls = _to_tools(tools)
         if tool_decls:
@@ -397,7 +408,7 @@ class GeminiClient:
         }
         if system_text.strip():
             gen_config["system_instruction"] = system_text
-        if self.thinking_budget >= 0:
+        if self.thinking_budget > 0:
             gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
         tool_decls = _to_tools(tools)
         if tool_decls:
