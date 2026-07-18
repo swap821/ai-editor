@@ -144,3 +144,14 @@
 - **Local follow-up:** The rollback test passed 8/8 in isolation and the full `tests/test_api.py` module passed; the intermittent hosted 403 remains recorded as a test-fixture state risk, not an authorization defect.
 - **Release posture:** R15 remains NOT ACCEPTED. No local clerk is admitted, benchmark execution is blocked, authenticated cloud-burst proof is absent, and no independent non-builder verdict is recorded.
 - **Exact next action:** Await the independent reviewer for the latest hash-pinned final handoff; do not start R16.
+
+## Slice 28: Local Clerk Exhaustion and Authenticated Cloud-Burst Evidence
+
+- **Goal:** Close the remaining local-model and provider-routing evidence without weakening admission or privacy gates.
+- **Qualification:** Pulled and tested `gemma3:4b`, `granite3.2:2b`, and `qwen2.5:3b`; all failed the unchanged R15 suite. Together with the previously tested installed candidates, eleven real Ollama runs are recorded and `qualified_models` remains empty.
+- **Benchmark:** Verified the 30-task fixture set contains three tasks in each of ten categories. Execution remains blocked before task start because no admitted clerk exists; no pass rate or cohort comparison is claimed.
+- **Cloud-burst:** Ran a real Gemini Vertex/ADC one-worker public-safe probe with zero tools and zero filesystem writes. It returned successfully and emitted a `cloud_route` event for provider `gemini`; evidence is in `release/r15/cloud-burst-evidence.json`.
+- **Artifacts:** Refreshed `release/r15/model-qualification-redacted.json`, `benchmark-results.json`, `environment-manifest.json`, `cloud-burst-evidence.json`, and `acceptance-report.md`.
+- **Security impact:** No model was admitted, no qualification threshold was changed, no benchmark completion was fabricated, and no credential material was persisted.
+- **Release posture:** R15 remains NOT ACCEPTED because local clerk admission and benchmark execution are blocked, the private Executor is unavailable locally, and no independent non-builder verdict exists. The authenticated cloud-burst evidence gap is closed for the bounded probe only.
+- **Exact next action:** Commit and push this evidence checkpoint, inspect hosted CI/CodeQL, then reissue the hash-pinned handoff for independent review; do not self-approve R15 or start public R16.

@@ -1,22 +1,21 @@
 # R15 Acceptance Report
 
-## Status: NOT ACCEPTED — executable evidence repair checkpoint
+## Status: NOT ACCEPTED — evidence checkpoint
 
-### Requirements Validation
-- **Local R15 runtime matrix:** 12 executable disposable probes pass locally; evidence is recorded in `runtime-proof.json`.
-- **Backend package gate:** 3,235 passed, 8 skipped, 88% coverage locally; this is not hosted CI or CodeQL evidence.
-- **Provider boundary:** The direct swarm cloud-client construction violation is repaired and its architecture test passes.
-- **Durable maintenance findings:** Restart persistence, verifier-only resolution, and reappearance reopening pass in a disposable SQLite store.
-- **Benchmark:** Blocked before execution because all installed 2–3B local clerk candidates failed qualification/admission; `benchmark-results.json` records the 30-task fixture set and makes no completion claim.
-- **Real model qualification:** Executed against installed `qwen2.5-coder:3b`, `llama3.2:3b`, and `qwen2.5-coder:1.5b-base`; all candidates were rejected by one or more schema/refusal gates. No model is admitted; evidence is recorded in `model-qualification-redacted.json`.
-- **Private Executor:** Unavailable on the current laptop; hosted/package proof remains required.
-- **Hosted CI:** Green on source tip `e1d8de0` in run `29636436923`, including all backend OS matrices, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, license inventory, and evidence upload.
-- **CodeQL:** Green on source tip `e1d8de0` in run `29636442316` for Python, JavaScript/TypeScript, and Actions; the executor model-pack validation also passed.
-- **Final code source tip:** CI run `29638293676` is green on `f955a12b7077634b1e4f9f6ee864931f92a9f831`, including all backend OS matrices, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, license inventory, and evidence upload. CodeQL run `29638296746` is green on the same code tip for Python, JavaScript/TypeScript, Actions, and executor model-pack validation. The rollback fixture’s earlier intermittent 403 remains a test-state risk; local focused and API-module checks pass, and no production authorization code changed.
-- **Non-builder handoff:** Not yet available; the coordination lease is currently unowned and no independent verdict is recorded.
+### Requirements validation
+
+- **Runtime proof:** Twelve executable disposable probes pass locally; evidence is recorded in `runtime-proof.json`.
+- **Backend package gate:** 3,235 passed, 8 skipped, 88% coverage locally; hosted CI is the authoritative cross-platform gate.
+- **Hosted CI:** Run `29640537402` is green on source tip `0aadef86b8fb8161e3d746bf694e574bfbae37ea`, including backend Ubuntu/macOS/Windows, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licenses, and evidence upload.
+- **CodeQL:** Run `29640544285` is green on the same source tip for Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
+- **Local clerk qualification:** Eleven real Ollama candidate runs were executed against the unchanged R15 suite. Every candidate failed at least one schema, identifier, secret-refusal, or tool-request gate; `qualified_models` is empty and no local model is admitted. Evidence is recorded in `model-qualification-redacted.json`.
+- **Benchmark:** The versioned fixture set contains 30 tasks across ten categories. Execution is blocked before task start because the admission set is empty; `benchmark-results.json` records no completion or pass-rate claim.
+- **Authenticated cloud-burst:** A bounded real Gemini probe passed through one cloud worker and emitted a `cloud_route` event. The probe used public text only, no tools, and no filesystem writes. Evidence is recorded in `cloud-burst-evidence.json`. Bedrock was not probed because no Bedrock credentials are present.
+- **Private Executor:** Unavailable on the current laptop; hosted strict runtime proof remains authoritative.
+- **Non-builder handoff:** No independent verdict is recorded. The builder must not self-approve R15.
 
 ### Sign-off
-- **Architectural Scope**: R15 evidence repair in progress
-- **Security Envelope**: Local affected gates green; real model qualification correctly rejected; independent review pending
-- **Frontend Sync**: Existing Antigravity artifacts retained; clean-room UX proof pending
-- **Operator Review**: Pending; R15 acceptance and public R16 readiness remain locked.
+
+- **Architectural scope:** R15 evidence repair remains in progress.
+- **Security envelope:** Qualification remains fail-closed; cloud routing was proven only for a bounded public-data probe.
+- **Operator review:** Pending; R15 acceptance and public R16 readiness remain locked.

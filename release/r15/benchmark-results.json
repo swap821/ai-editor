@@ -1,9 +1,25 @@
 {
   "status": "blocked",
+  "fixture_version": "r15-benchmark-v1",
   "planned_tasks": 30,
+  "fixture_tasks_verified": 30,
+  "fixture_categories": {
+    "Bug diagnosis": 3,
+    "Small features": 3,
+    "Frontend/backend integration": 3,
+    "Test repair": 3,
+    "Dependency analysis": 3,
+    "Documentation": 3,
+    "Refactoring": 3,
+    "Maintenance": 3,
+    "Recovery": 3,
+    "Security inspection": 3
+  },
   "completed_tasks": 0,
   "pass_rate": null,
-  "blocked_reason": "No installed 2-3B local clerk passed the R15 qualification and admission gates, so controlled benchmark execution would not represent an admitted GAGOS configuration.",
+  "local_clerk_admitted": false,
+  "execution_status": "not_started",
+  "blocked_reason": "No installed 2-3B local clerk passed the unchanged R15 qualification and admission gates; eleven real Ollama candidate runs, including every installed 2-3B candidate, all failed at least one gate, so controlled benchmark execution would not represent an admitted GAGOS configuration.",
   "cohorts": [
     "Human + frontier assistant",
     "Ordinary coding agent",
@@ -11,5 +27,21 @@
     "GAGOS with learned skills",
     "GAGOS with cloud unavailable"
   ],
-  "evidence": "The 30-task fixture set is versioned at docs/r15/benchmark_tasks.jsonl. No task execution or completion claim is made while the local clerk admission set is empty."
+  "measures": [
+    "Verified completion",
+    "Human interruptions",
+    "Cloud calls",
+    "Cloud cost class",
+    "Local completion rate",
+    "Skill reuse rate",
+    "Incorrect reuse",
+    "Scope violations",
+    "Regression rate",
+    "Recovery success",
+    "Time to completion",
+    "Operator understanding"
+  ],
+  "qualification_reference": "release/r15/model-qualification-redacted.json",
+  "cloud_probe_reference": "release/r15/cloud-burst-evidence.json",
+  "evidence": "The 30-task fixture set is versioned at docs/r15/benchmark_tasks.jsonl and contains three tasks in each of ten categories. No task was executed and no completion, pass-rate, or cohort comparison claim is made while the local clerk admission set is empty."
 }
