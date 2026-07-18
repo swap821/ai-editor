@@ -59,3 +59,11 @@
 - **Repair:** Applied canonical Ruff formatting to that file.
 - **Local proof:** Ruff check and format check passed; affected runtime/architecture/maintenance tests passed 5/5.
 - **Exact next action:** Push the formatting follow-up and inspect the new hosted release-authority result.
+
+## Slice 18: Hosted CI Convergence
+
+- **Source tip:** `b784c80` on `antigravity/r15-sovereign-intelligence-flywheel`
+- **Hosted run:** CI `29632467704` passed all backend OS matrices, frontend tests, frontend build, aggregate backend, and release-authority.
+- **Local evidence:** Full backend 3,235 passed / 8 skipped / 88% coverage; frontend 600 tests, typecheck, lint, and production build passed; strict validator is partial only for the unavailable private Executor runtime.
+- **Release posture:** CI is green, but R15 is not accepted. Benchmark completion, real model qualification, private Executor runtime proof, CodeQL evidence, and non-builder handoff remain open.
+- **Exact next action:** Provision/connect the private Executor and rerun strict runtime proof before requesting the hash-pinned handoff.
