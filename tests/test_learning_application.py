@@ -15,6 +15,7 @@ from aios.api.main import app
 from aios.domain.evidence import VerificationPlanV1, VerificationResult
 from aios.domain.learning.contracts import ToolObservation
 from aios.domain.learning.repository import SkillRecord
+from aios.domain.verification import SkillVerifierSpec
 from aios.domain.learning.trajectory_repository import TrajectoryRepository
 from aios.domain.missions.mission_contract import MissionContract
 from aios.domain.missions.mission_state import MissionState
@@ -80,7 +81,11 @@ def _candidate() -> SkillCandidateSpec:
         allowed_tools=("read_file", "edit_file", "run_tests"),
         allowed_scope_pattern="src/*.py",
         expected_observations=("tests pass",),
-        verification_plan="pytest tests/test_parser.py",
+        verification_plan=SkillVerifierSpec(
+            target_pattern="src/*.py",
+            required_observations=("schema_valid",),
+            minimum_strength=3,
+        ),
         escalation_conditions=("schema mismatch",),
         validated_versions=("project-v2",),
     )
@@ -293,7 +298,11 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
         allowed_tools=("run_tests",),
         allowed_scope_pattern="src/*.py",
         expected_observations=("tests pass",),
-        verification_plan="pytest tests/test_parser.py",
+        verification_plan=SkillVerifierSpec(
+            target_pattern="src/*.py",
+            required_observations=("schema_valid",),
+            minimum_strength=3,
+        ),
         escalation_conditions=("mismatch",),
         source_trajectory_ids=("trajectory-1",),
         confidence=0.8,
@@ -366,7 +375,11 @@ def test_mounted_skill_reuse_creates_only_a_governed_mission(
             allowed_tools=("read_file", "edit_file", "run_tests"),
             allowed_scope_pattern="src/*.py",
             expected_observations=("tests pass",),
-            verification_plan="pytest tests/test_parser.py",
+            verification_plan=SkillVerifierSpec(
+                target_pattern="src/*.py",
+                required_observations=("schema_valid",),
+                minimum_strength=3,
+            ),
             escalation_conditions=("mismatch",),
             source_trajectory_ids=("trajectory-http",),
             confidence=0.9,

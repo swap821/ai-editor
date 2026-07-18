@@ -551,6 +551,7 @@ def _probe_maintenance_structured_verifier(scratch: Path) -> str:
 
 def _proof_skill():
     from aios.domain.learning.skill_contracts import SkillContract
+    from aios.domain.verification import SkillVerifierSpec
 
     return SkillContract(
         skill_id="skill-proof-1",
@@ -564,7 +565,11 @@ def _proof_skill():
         allowed_tools=["read_file", "parse_json"],
         allowed_scope_pattern="data/logs/*.json",
         expected_observations=["Parsed JSON tree"],
-        verification_plan="Assert JSON tree matches schema",
+        verification_plan=SkillVerifierSpec(
+            target_pattern="data/logs/*.json",
+            required_observations=("schema_valid",),
+            minimum_strength=3,
+        ),
         escalation_conditions=["SyntaxError"],
         source_trajectory_ids=["trajectory-proof-1"],
         confidence=0.9,

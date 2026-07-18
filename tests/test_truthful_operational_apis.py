@@ -19,6 +19,7 @@ from aios.api.deps import (
 from aios.api.main import app
 from aios.domain.intelligence.repository import HiringRecord, HiringRecordRepository
 from aios.domain.learning.repository import SkillRecord, SkillRepository
+from aios.domain.learning.skill_contracts import SkillVerifierSpec
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
@@ -91,7 +92,11 @@ def _skill_record(skill_id: str = "skill-1") -> SkillRecord:
         allowed_tools=["read_file"],
         allowed_scope_pattern="training_ground/**",
         expected_observations=["verification_passed"],
-        verification_plan="Run the bounded verifier.",
+        verification_plan=SkillVerifierSpec(
+            target_pattern="training_ground/**",
+            required_observations=("verification_passed",),
+            minimum_strength=3,
+        ),
         escalation_conditions=["state mismatch"],
         source_trajectory_ids=["trajectory-1"],
         confidence=0.9,

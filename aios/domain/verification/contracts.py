@@ -36,9 +36,33 @@ class VerifierSpec(BaseModel):
 
     @field_validator("allowed_root")
     @classmethod
-    def _reject_shell_values(cls, value: str) -> str:
+    def _reject_root_shell_values(cls, value: str) -> str:
         if any(char in value for char in ";&|<>`\r\n\x00"):
             raise ValueError("verifier root must be shell-free")
+        return value
+
+
+class SkillVerifierSpec(BaseModel):
+    """Allowlisted verifier identity stored by an institutional skill."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    verifier_id: Literal["skill.reuse"] = "skill.reuse"
+    version: Literal["1"] = "1"
+    target_pattern: str = Field(min_length=1, max_length=512)
+    required_observations: tuple[str, ...] = Field(min_length=1, max_length=16)
+    minimum_strength: int = Field(ge=1, le=4)
+
+    @field_validator("target_pattern", "required_observations")
+    @classmethod
+    def _reject_skill_shell_values(cls, value):  # noqa: ANN001
+        values = (value,) if isinstance(value, str) else value
+        if any(any(char in item for char in ";&|<>`\r\n\x00") for item in values):
+            raise ValueError("skill verifier values must be shell-free")
+        if isinstance(value, str) and (
+            value.startswith(("/", "\\")) or ":" in value[:3]
+        ):
+            raise ValueError("skill verifier target pattern must be relative")
         return value
 
 
@@ -61,4 +85,9 @@ def evidence_is_fresh(observed_at: str, *, now: str, freshness_seconds: int) -> 
     return 0 <= age <= max(0, freshness_seconds)
 
 
-__all__ = ["VerifierSpec", "aggregate_strength", "evidence_is_fresh"]
+__all__ = [
+    "SkillVerifierSpec",
+    "VerifierSpec",
+    "aggregate_strength",
+    "evidence_is_fresh",
+]

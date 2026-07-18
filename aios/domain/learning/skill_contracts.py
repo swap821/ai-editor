@@ -1,8 +1,10 @@
 """Domain models for the Institutional Skill Library."""
 
-from typing import Sequence, Literal, Mapping
+from typing import Literal, Mapping, Sequence
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
+
+from aios.domain.verification import SkillVerifierSpec
 
 
 SkillState = Literal[
@@ -20,7 +22,7 @@ SkillState = Literal[
 class SkillContract(BaseModel):
     """An evidence-backed, reusable procedure extracted from a verified trajectory."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     skill_id: str
     version: int
@@ -39,7 +41,7 @@ class SkillContract(BaseModel):
     expected_observations: Sequence[str]
 
     # Gating and verification
-    verification_plan: str
+    verification_plan: SkillVerifierSpec | None
     escalation_conditions: Sequence[str]
 
     # Provenance and reliability
@@ -49,3 +51,12 @@ class SkillContract(BaseModel):
     failure_count: int
     last_validated_versions: Sequence[str]
     state: SkillState
+
+    @model_validator(mode="before")
+    @classmethod
+    def _quarantine_legacy_verification_plan(cls, value):  # noqa: ANN001
+        if isinstance(value, dict) and isinstance(value.get("verification_plan"), str):
+            updated = dict(value)
+            updated["verification_plan"] = None
+            return updated
+        return value

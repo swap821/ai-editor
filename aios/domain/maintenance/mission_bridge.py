@@ -8,6 +8,7 @@ from aios.domain.missions.mission_contract import (
     MissionBudget,
     VerificationPlan,
 )
+from aios.domain.verification import VerifierSpec
 
 
 class MaintenanceMissionBridge:
@@ -46,6 +47,17 @@ class MaintenanceMissionBridge:
                 "allowed_root": workspace_root or "",
             },
         }
+        structured_verifiers = ()
+        if workspace_root:
+            structured_verifiers = (
+                VerifierSpec(
+                    scanner_id=finding.scanner_id,
+                    scanner_version=finding.scanner_version,
+                    target_id=finding.target_id,
+                    rescan_of=finding.fingerprint,
+                    allowed_root=workspace_root,
+                ),
+            )
 
         return MissionContract(
             mission_id=mission_id,
@@ -60,6 +72,7 @@ class MaintenanceMissionBridge:
             allowed_tools=["read_file", "edit_file", "run_verification"],
             verification_plan=VerificationPlan(
                 required_strength="moderate",
+                verifiers=structured_verifiers,
             ),
             metadata={
                 **metadata,

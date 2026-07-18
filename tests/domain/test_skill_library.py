@@ -6,7 +6,7 @@ from aios.domain.learning.applicability import (
     ApplicabilityError,
     SkillApplicabilityEngine,
 )
-from aios.domain.learning.skill_contracts import SkillContract
+from aios.domain.learning.skill_contracts import SkillContract, SkillVerifierSpec
 
 
 @pytest.fixture
@@ -23,7 +23,11 @@ def base_skill() -> SkillContract:
         allowed_tools=["read_file", "parse_json"],
         allowed_scope_pattern="data/logs/*.json",
         expected_observations=["Parsed JSON tree"],
-        verification_plan="Assert JSON tree matches schema",
+        verification_plan=SkillVerifierSpec(
+            target_pattern="data/logs/*.json",
+            required_observations=("schema_valid",),
+            minimum_strength=3,
+        ),
         escalation_conditions=["SyntaxError"],
         source_trajectory_ids=["traj-001"],
         confidence=0.9,

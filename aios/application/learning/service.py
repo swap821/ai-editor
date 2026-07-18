@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.missions.mission_service import MissionService
 from aios.domain.evidence import VerificationPlanV1, VerificationResult
+from aios.domain.verification import SkillVerifierSpec
 from aios.domain.learning.applicability import SkillApplicabilityEngine
 from aios.domain.learning.confidence import ConfidenceUpdater
 from aios.domain.learning.contracts import (
@@ -58,7 +59,7 @@ class SkillCandidateSpec(BaseModel):
     allowed_tools: tuple[str, ...]
     allowed_scope_pattern: str
     expected_observations: tuple[str, ...]
-    verification_plan: str
+    verification_plan: SkillVerifierSpec
     escalation_conditions: tuple[str, ...]
     validated_versions: tuple[str, ...]
 
@@ -299,7 +300,7 @@ class LearningService:
             allowed_tools=list(skill.allowed_tools),
             verification_plan=MissionVerificationPlan(
                 required_strength="strong",
-                commands=[skill.verification_plan],
+                verifiers=(skill.verification_plan,),
             ),
             metadata={
                 "source": "verified_skill",

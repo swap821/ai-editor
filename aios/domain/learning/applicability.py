@@ -43,6 +43,15 @@ class SkillApplicabilityEngine:
             raise ApplicabilityError(
                 f"Skill {skill.skill_id} lacks verified source trajectories"
             )
+        if skill.verification_plan is None:
+            raise ApplicabilityError(
+                "Skill verification plan is not an admitted structured verifier"
+            )
+        if (
+            skill.verification_plan.verifier_id != "skill.reuse"
+            or skill.verification_plan.version != "1"
+        ):
+            raise ApplicabilityError("Skill verifier specification is not allowlisted")
         missing_inputs = [
             required
             for required in skill.required_inputs
