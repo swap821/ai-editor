@@ -243,3 +243,11 @@
 - **Runtime limitation:** The application composition is integration-proven with deterministic injected WorkerFoundry and private-service Executor fakes. The local production private Executor and production code-worker handler are unavailable, so this is not live production repair proof; hosted strict Executor proof remains separate. No operator approval or independent non-builder verdict exists.
 - **Release posture:** R15 remains NOT ACCEPTED. The local clerk/30-task benchmark blocker, live cloud proof through the new HiringBroker path, operator proof, final source-tip hosted gates, and independent review remain open.
 - **Exact next action:** Refresh continuity evidence, then run/record hosted CI and CodeQL for the maintenance source tip before the next coherent R15 slice; release the builder lease through a hash-pinned independent handoff and do not self-approve R15 or start R16.
+
+## Slice 37: Cross-Platform Bounded-Scan Test Repair
+
+- **Hosted failure:** CI `29653203007` failed only on Windows at `tests/domain/test_maintenance_service.py::test_service_refuses_scanners_that_exceed_max_findings`; the test used the POSIX-only `/tmp` root, so the intended `max_findings` assertion was masked by the correct `allowed_root does not exist` refusal. Ubuntu, macOS, frontend, and CodeQL `29653218623` on the same prior source tip were green.
+- **Repair:** Changed the test to use pytest's portable `tmp_path` as the allowed root. No production scanner, policy, or security logic was changed.
+- **Proof:** The failing test now passes, the complete focused maintenance/runtime proof passes `24` tests, Ruff and diff checks pass. Fix committed/pushed as `7369566f01b82c6336479a148b92510d16f451b9`.
+- **Release posture:** R15 remains NOT ACCEPTED. New hosted CI `29653539054` and CodeQL `29653545760` are pending for the corrected source tip. Local private Executor/code-worker runtime, local clerk/benchmark, live new HiringBroker cloud proof, operator proof, and independent review remain open.
+- **Exact next action:** Verify CI and CodeQL on `7369566f01b82c6336479a148b92510d16f451b9`; then refresh the final source-tip evidence and release the builder lease for independent review before any further R15 edit.
