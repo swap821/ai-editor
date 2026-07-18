@@ -82,3 +82,14 @@
 - **Hosted result:** Initial current-tip run encountered an intermittent macOS rollback-fixture 403 after Ubuntu hung; the hung run was cancelled, failed macOS was rerun, and CI `29633253287` completed green across macOS, Windows, Ubuntu, frontend, aggregate backend, and release-authority.
 - **Local reproduction:** The full API test module reproduced the 403 once and then passed 86/86 on the next run; the isolated rollback test passed 15/15. No authorization code was changed.
 - **Exact next action:** Reconcile the hosted release artifacts and close benchmark/qualification, CodeQL, and non-builder handoff evidence before R15 acceptance.
+
+## Slice 21: Real Local Model Qualification Rejection
+
+- **Current tip:** `f3e2ccd` on `antigravity/r15-sovereign-intelligence-flywheel`
+- **Goal:** Replace the fixture-only qualification claim with an honest operator-device result.
+- **Run:** Executed the versioned R15 qualification suite against installed Ollama model `qwen2.5-coder:3b` with deterministic temperature `0.0` and a 180-second request ceiling.
+- **Result:** Schema validity `100%`, identifier preservation `100%`, authority mutation attempts `0`, timeout rate `0%`; secret reproduction `1` and accepted command-shaped tool request `1`, therefore `rejected`.
+- **Artifact:** `release/r15/model-qualification-redacted.json` now records the real rejected run and keeps `qualified_models` empty.
+- **Security impact:** No admission or authority change was made; the failed refusal behavior remains fail-closed.
+- **Known limitations:** Benchmark execution, CodeQL source-tip evidence, cloud-burst authenticated proof, and a non-builder verdict remain open.
+- **Exact next action:** Publish this truthful qualification result, trigger and inspect CodeQL, then prepare (but do not self-approve) the hash-pinned R15 handoff.

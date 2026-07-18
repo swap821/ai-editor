@@ -8,12 +8,14 @@
 - **Provider boundary:** The direct swarm cloud-client construction violation is repaired and its architecture test passes.
 - **Durable maintenance findings:** Restart persistence, verifier-only resolution, and reappearance reopening pass in a disposable SQLite store.
 - **Benchmark:** Not run; `benchmark-results.json` makes no completion claim.
-- **Real model qualification:** Not run; `model-qualification-redacted.json` is fixture-only.
+- **Real model qualification:** Executed against installed `qwen2.5-coder:3b`; rejected because the secret-refusal fixture reproduced the supplied secret and emitted a command-shaped field. No model is admitted; evidence is recorded in `model-qualification-redacted.json`.
 - **Private Executor:** Unavailable on the current laptop; hosted/package proof remains required.
-- **Hosted CI/CodeQL and non-builder handoff:** Not yet verified.
+- **Hosted CI:** Green on source tip `f3e2ccd` in run `29635428765`, including the hosted private-Executor topology, isolation proof, and strict runtime matrix.
+- **CodeQL:** Workflow exists but no source-tip run has been recorded yet; a new pushed documentation tip is required to trigger and inspect it.
+- **Non-builder handoff:** Not yet available; the coordination lease is currently unowned and no independent verdict is recorded.
 
 ### Sign-off
 - **Architectural Scope**: R15 evidence repair in progress
-- **Security Envelope**: Local affected gates green; independent review pending
+- **Security Envelope**: Local affected gates green; real model qualification correctly rejected; independent review pending
 - **Frontend Sync**: Existing Antigravity artifacts retained; clean-room UX proof pending
 - **Operator Review**: Pending; R15 acceptance and public R16 readiness remain locked.
