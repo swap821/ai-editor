@@ -117,3 +117,12 @@
 - **CodeQL:** Run `29636442316` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 - **Release posture:** Code and hosted gates are green, but R15 remains NOT ACCEPTED because no local clerk is admitted, benchmark execution is blocked, authenticated cloud-burst proof is absent, and no non-builder verdict exists.
 - **Exact next action:** Push this documentation checkpoint, reissue the hash-pinned handoff against the clean tip, and wait for the assigned independent reviewer.
+
+## Slice 25: Hash-Pinned Handoff Awaiting Verdict
+
+- **Final handoff task:** `gagos-r15-r16-final-handoff`
+- **Reviewer:** `kimi` (independent, assigned by the coordination control plane)
+- **Snapshot:** `b74caea1827b28f579d6c94b5e9ff5d56ef939a3aebd9c9a98bca99645c8ac48`
+- **Tree:** Clean after the final evidence checkpoint; writer lease released by the handoff.
+- **Verdict:** Not yet recorded. R15 remains NOT ACCEPTED.
+- **Exact next action:** Wait for the non-builder architecture, security, frontend, operator, and release-evidence review; do not start R16.
