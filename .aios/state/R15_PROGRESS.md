@@ -228,8 +228,8 @@
 
 ## Slice 35: Learning Source Hosted Gate Proof
 
-- **Hosted source:** Documentation and continuity evidence were refreshed at source `1167275ee68b4ae1b34669d484070eb489a4baf7`.
-- **CI:** Run `29650906348` passed frontend tests, backend Ubuntu/Windows/macOS, aggregate gates, release authority, hosted private Executor topology/state/isolation/strict runtime, SBOM, licence inventory, and evidence upload.
-- **CodeQL:** Run `29651342187` passed Actions, JavaScript/TypeScript, Python, and executor model-pack validation on the same source tip.
+- **Hosted source:** Production source `010b6b3b38f32820ae1d7efd5d758ea62551c58a` passed the final hosted gates for this slice.
+- **CI:** Run `29651559983` passed frontend tests, backend Ubuntu/Windows/macOS, aggregate gates, release authority, hosted private Executor topology/state/isolation/strict runtime, SBOM, licence inventory, and evidence upload.
+- **CodeQL:** Run `29651565669` passed Actions, JavaScript/TypeScript, Python, and executor model-pack validation on the same production source tip.
 - **Release posture:** R15 remains NOT ACCEPTED. Hosted gates are necessary but do not supply live frontier-assisted trajectory capture, private Executor maintenance repair, local clerk admission, the 30-task benchmark, operator proof, or the required independent non-builder verdict.
 - **Exact next action:** Complete the required hash-pinned handoff before editing again, then take one coherent maintenance scanner → durable finding → governed repair mission → private Executor → verification → deterministic rescan slice; do not self-approve R15 or start R16.
