@@ -395,3 +395,11 @@
 - **Live composition proof:** On source `3746e69dfcad6d3041cdfa2d1837b1c7e0a2fbb9`, a public Gemini-only request ran inside the FastAPI lifespan with Google ADC and operator profile. The configured adapter default was 128 while the request bound was 64; Gemini completed, the record reopened durably with `requested_max_tokens=64`, and Cortex emitted `intelligence.model_call.completed`. No raw output or credentials were persisted. Evidence: `release/r15/live-hiring-evidence.json`.
 - **Release posture:** R15 remains NOT ACCEPTED. Current-source hosted CI/CodeQL reruns are pending; live private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, frontend/operator walkthrough, and independent review remain open.
 - **Exact next action:** Commit/push the updated evidence and continuity docs, inspect current-source CI and CodeQL, then release the builder lease for independent review; do not self-approve R15 or start R16.
+
+## Slice 54: Current-Tip Hosted Proof After Output-Bound Repair
+
+- **Source:** Production repair `3746e69dfcad6d3041cdfa2d1837b1c7e0a2fbb9`; evidence/docs tip `b97ecea19463ce8b268136817562ac0f56da9d0d`.
+- **Hosted CI:** Run `29665165943` passed Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload.
+- **CodeQL:** Run `29665559362` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation on `b97ecea`.
+- **Release posture:** R15 remains NOT ACCEPTED. Hosted quality is current-tip proven; live private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, frontend/operator walkthrough, and independent non-builder verdict remain open.
+- **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
