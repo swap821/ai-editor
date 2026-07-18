@@ -29,6 +29,7 @@ class MaintenanceScan(BaseModel):
     completed_at: str | None = None
     finding_count: int = 0
     failure_reason: str | None = None
+    rescan_of: str | None = None
 
 
 class MaintenanceScanRepository:

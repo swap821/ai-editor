@@ -1,5 +1,4 @@
 """Lifecycle engine for Maintenance Findings."""
-from datetime import datetime
 from aios.domain.maintenance.contracts import MaintenanceFinding
 
 class SecurityViolationError(RuntimeError):
@@ -27,6 +26,84 @@ class MaintenanceLifecycleEngine:
             "target_digest": new_report.target_digest,
             "source_digest": new_report.source_digest
         })
+
+    def bind_mission(
+        self, finding: MaintenanceFinding, mission_id: str
+    ) -> MaintenanceFinding:
+        """Bind one governed MissionService record to a durable finding."""
+        if finding.status not in {"OPEN", "REOPENED", "VERIFICATION_FAILED"}:
+            raise SecurityViolationError(
+                f"finding cannot create a repair mission from state {finding.status}"
+            )
+        if not mission_id:
+            raise SecurityViolationError("maintenance mission id is required")
+        return finding.model_copy(
+            update={"mission_id": mission_id, "status": "MISSION_CREATED"}
+        )
+
+    def mark_repairing(
+        self, finding: MaintenanceFinding, mission_id: str
+    ) -> MaintenanceFinding:
+        self._require_mission(finding, mission_id)
+        if finding.status != "MISSION_CREATED":
+            raise SecurityViolationError(
+                f"finding cannot start repair from state {finding.status}"
+            )
+        return finding.model_copy(update={"status": "REPAIRING"})
+
+    def mark_verifying(
+        self, finding: MaintenanceFinding, mission_id: str
+    ) -> MaintenanceFinding:
+        self._require_mission(finding, mission_id)
+        if finding.status != "REPAIRING":
+            raise SecurityViolationError(
+                f"finding cannot verify from state {finding.status}"
+            )
+        return finding.model_copy(update={"status": "VERIFYING"})
+
+    def mark_verification_failed(
+        self, finding: MaintenanceFinding, mission_id: str, reason: str
+    ) -> MaintenanceFinding:
+        self._require_mission(finding, mission_id)
+        return finding.model_copy(
+            update={"status": "VERIFICATION_FAILED", "resolution_evidence": reason}
+        )
+
+    def resolve_after_rescan(
+        self,
+        finding: MaintenanceFinding,
+        *,
+        mission_id: str,
+        scan_id: str,
+        scan_status: str,
+        rescan_of: str | None,
+        verification_ids: tuple[str, ...],
+    ) -> MaintenanceFinding:
+        """Allow resolution only after the exact completed rescan."""
+        self._require_mission(finding, mission_id)
+        if scan_status != "completed":
+            raise SecurityViolationError(
+                "incomplete or failed scan cannot resolve a maintenance finding"
+            )
+        if rescan_of != finding.fingerprint:
+            raise SecurityViolationError("rescan is not bound to this finding")
+        if not scan_id or not verification_ids:
+            raise SecurityViolationError(
+                "current rescan and verification evidence are required"
+            )
+        return self.attempt_resolution(
+            finding,
+            actor="system_verifier",
+            deterministic_evidence=(
+                f"deterministic_rescan:{scan_id};"
+                f"verification_ids:{','.join(verification_ids)}"
+            ),
+        )
+
+    @staticmethod
+    def _require_mission(finding: MaintenanceFinding, mission_id: str) -> None:
+        if not mission_id or finding.mission_id != mission_id:
+            raise SecurityViolationError("finding and mission are not bound")
 
     def attempt_resolution(self, finding: MaintenanceFinding, actor: str, deterministic_evidence: str | None = None) -> MaintenanceFinding:
         """Mark a finding as resolved.

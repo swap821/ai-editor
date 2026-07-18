@@ -1,0 +1,503 @@
+"""Canonical maintenance scan-to-repair-to-rescan application flow."""
+
+from __future__ import annotations
+
+import hashlib
+import inspect
+import uuid
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Sequence
+
+from aios.application.evidence.verification import VerificationAuthority
+from aios.application.executor.service import ExecutorService, environment_digest
+from aios.application.missions.mission_service import MissionService
+from aios.application.promotion.authority import PromotionAuthority
+from aios.application.workspaces import StagedWorkspaceManager
+from aios.domain.evidence import (
+    EvidenceBundle,
+    EvidenceCommand,
+    VerificationObservation,
+    VerificationPlanV1,
+)
+from aios.domain.maintenance.contracts import MaintenanceFinding
+from aios.domain.maintenance.lifecycle import (
+    MaintenanceLifecycleEngine,
+    SecurityViolationError,
+)
+from aios.domain.maintenance.mission_bridge import MaintenanceMissionBridge
+from aios.domain.maintenance.repository import MaintenanceFindingRepository
+from aios.domain.maintenance.service import AutonomousMaintenanceForce
+from aios.domain.maintenance.scan_repository import (
+    MaintenanceScan,
+    MaintenanceScanRepository,
+)
+from aios.domain.maintenance.scan_contracts import BoundedScanContract
+from aios.domain.missions.mission_state import MissionState
+from aios.application.workspaces.staged import tree_digest
+
+
+class MaintenanceConvergenceError(RuntimeError):
+    """Raised when a maintenance lifecycle cannot proceed safely."""
+
+
+@dataclass(frozen=True)
+class MaintenanceScanResult:
+    scan: MaintenanceScan
+    findings: tuple[MaintenanceFinding, ...]
+
+
+@dataclass(frozen=True)
+class MaintenanceRepairResult:
+    status: str
+    mission_id: str
+    finding: MaintenanceFinding
+    verification_ids: tuple[str, ...] = ()
+    scan_id: str | None = None
+    promotion_status: str | None = None
+    reason: str | None = None
+
+
+class MaintenanceConvergenceService:
+    """Coordinate existing canonical organs without creating maintenance ones."""
+
+    def __init__(
+        self,
+        *,
+        finding_repository: MaintenanceFindingRepository,
+        scan_repository: MaintenanceScanRepository,
+        mission_service: MissionService,
+        worker_foundry: Any,
+        executor_service: ExecutorService,
+        verification_authority: VerificationAuthority,
+        promotion_authority: PromotionAuthority,
+        workspace_manager: StagedWorkspaceManager,
+        lifecycle_engine: MaintenanceLifecycleEngine,
+    ) -> None:
+        self.finding_repository = finding_repository
+        self.scan_repository = scan_repository
+        self.mission_service = mission_service
+        self.worker_foundry = worker_foundry
+        self.executor_service = executor_service
+        self.verification_authority = verification_authority
+        self.promotion_authority = promotion_authority
+        self.workspace_manager = workspace_manager
+        self.lifecycle_engine = lifecycle_engine
+        self._maintenance_force = AutonomousMaintenanceForce(lifecycle_engine)
+
+    def run_scan(
+        self,
+        contract: BoundedScanContract,
+        scanner: Callable[..., Sequence[MaintenanceFinding]],
+        *,
+        scanner_id: str,
+        scanner_version: str,
+        target_id: str,
+        source_digest: str,
+        rescan_of: str | None = None,
+    ) -> MaintenanceScanResult:
+        """Run one bounded scan and durably reconcile only its observations."""
+        scan_id = f"scan-{uuid.uuid4().hex}"
+        started_at = _utc_now()
+        scan = MaintenanceScan(
+            scan_id=scan_id,
+            scanner_id=scanner_id,
+            scanner_version=scanner_version,
+            target_id=target_id,
+            source_digest=source_digest,
+            contract=contract,
+            status="started",
+            started_at=started_at,
+            rescan_of=rescan_of,
+        )
+        self.scan_repository.save(scan)
+        try:
+            raw_findings = tuple(self._maintenance_force.run_bounded_scan(contract, scanner))
+            for finding in raw_findings:
+                if (
+                    finding.scanner_id != scanner_id
+                    or finding.scanner_version != scanner_version
+                ):
+                    raise ValueError(
+                        "scanner finding provenance does not match the scan contract"
+                    )
+        except Exception as exc:  # noqa: BLE001 - scan failures become durable truth
+            status = "incomplete" if _is_incomplete_scan(exc) else "failed"
+            failed = scan.model_copy(
+                update={
+                    "status": status,
+                    "completed_at": _utc_now(),
+                    "failure_reason": str(exc),
+                }
+            )
+            self.scan_repository.save(failed)
+            return MaintenanceScanResult(scan=failed, findings=())
+
+        completed = scan.model_copy(
+            update={
+                "status": "completed",
+                "completed_at": _utc_now(),
+                "finding_count": len(raw_findings),
+            }
+        )
+        self.scan_repository.save(completed)
+        reconciled: list[MaintenanceFinding] = []
+        for finding in raw_findings:
+            existing = self.finding_repository.get(finding.fingerprint)
+            updated = self.lifecycle_engine.report_finding(existing, finding)
+            self.finding_repository.save(updated)
+            reconciled.append(updated)
+        return MaintenanceScanResult(scan=completed, findings=tuple(reconciled))
+
+    def create_repair_mission(
+        self,
+        fingerprint: str,
+        *,
+        operator_id: str,
+        workspace_root: str,
+    ) -> Any:
+        finding = self.finding_repository.get(fingerprint)
+        if finding is None:
+            raise MaintenanceConvergenceError("maintenance finding does not exist")
+        contract = MaintenanceMissionBridge.create_repair_mission(
+            finding,
+            operator_id,
+            workspace_root=workspace_root,
+        )
+        record = self.mission_service.create(contract)
+        self.finding_repository.save(
+            self.lifecycle_engine.bind_mission(finding, record.mission_id)
+        )
+        return record
+
+    async def run_approved_repair(
+        self,
+        mission_id: str,
+        *,
+        scanner: Callable[..., Sequence[MaintenanceFinding]],
+        rescan_contract: BoundedScanContract,
+        capability_consumer: Callable[[Any], bool],
+        create_checkpoint: Callable[[Any], str],
+        restore_checkpoint: Callable[[str, Any], bool],
+        smoke_test: Callable[[Any], bool],
+    ) -> MaintenanceRepairResult:
+        """Execute one already-approved repair through the canonical organs."""
+        record = self.mission_service.repository.get(mission_id)
+        if record.state is not MissionState.APPROVED:
+            raise MaintenanceConvergenceError(
+                f"maintenance repair requires approved mission, got {record.state.value}"
+            )
+        fingerprint = str(record.contract.metadata.get("finding_fingerprint", ""))
+        finding = self.finding_repository.get(fingerprint)
+        if finding is None or finding.mission_id != mission_id:
+            raise MaintenanceConvergenceError("mission is not bound to a durable finding")
+        self.finding_repository.save(
+            self.lifecycle_engine.mark_repairing(finding, mission_id)
+        )
+
+        try:
+            self.mission_service.start_execution(mission_id)
+            worker_result = self.worker_foundry.run(
+                record.contract,
+                strategy=record.contract.metadata.get("worker_strategy", "code"),
+                context={"executor_policy": "private_service"},
+            )
+            if inspect.isawaitable(worker_result):
+                worker_result = await worker_result
+            worker_id = _worker_id(worker_result)
+            if str(getattr(worker_result, "status", "completed")) != "completed":
+                return self._failed(
+                    mission_id,
+                    finding,
+                    f"worker status: {getattr(worker_result, 'status', 'unknown')}",
+                )
+            self.mission_service.start_verification(mission_id)
+            finding = self.lifecycle_engine.mark_verifying(
+                self.finding_repository.get(fingerprint) or finding,
+                mission_id,
+            )
+            self.finding_repository.save(finding)
+            lease = self.workspace_manager.for_mission(mission_id)
+            if lease is None:
+                return self._failed(mission_id, finding, "staged workspace unavailable")
+            diff = self.workspace_manager.diff(lease)
+            command = _verification_command(record.contract, finding)
+            job = self.executor_service.build_command_job(
+                mission_contract_digest=record.contract_digest,
+                command=command,
+                workspace_snapshot=str(lease.workspace_path),
+                timeout_seconds=record.contract.budget.timeout_seconds,
+                job_id=f"maintenance-verification-{uuid.uuid4().hex}",
+            )
+            executor_result = self.executor_service.execute(job)
+            environment = executor_result.environment_digest or environment_digest({})
+            plan = VerificationPlanV1(
+                intended_behavior=f"repair finding {finding.finding_id}",
+                targets=(finding.target_id,),
+                required_tests=(command,),
+                # The deterministic rescan is an authoritative scanner result,
+                # not a test-runner claim.  Its explicit weak floor is still
+                # bound to the current workspace/diff and a completed scan.
+                minimum_strength=1,
+            )
+            observation = VerificationObservation(
+                command=command,
+                exit_code=executor_result.exit_code,
+                stdout=executor_result.stdout,
+                stderr=executor_result.stderr,
+                passed_count=1 if executor_result.exit_code == 0 else 0,
+                failed_count=0 if executor_result.exit_code == 0 else 1,
+                tool_version="private_executor",
+                observed_at=executor_result.ended_at,
+            )
+            verification = self.verification_authority.verify(
+                mission_id=mission_id,
+                action_id=f"maintenance-action:{mission_id}",
+                worker_id=worker_id,
+                target=finding.target_id,
+                plan=plan,
+                workspace_digest=str(diff["workspace_digest"]),
+                diff_digest=str(diff["diff_digest"]),
+                environment_digest=environment,
+                observation=observation,
+            )
+            if not verification.meets_requirement:
+                return self._failed(
+                    mission_id,
+                    finding,
+                    "authoritative verification failed",
+                )
+            bundle = EvidenceBundle(
+                mission_id=mission_id,
+                worker_id=worker_id,
+                contract_digest=record.contract_digest,
+                workspace_digest=str(diff["workspace_digest"]),
+                diff_digest=str(diff["diff_digest"]),
+                executor_job_id=executor_result.job_id,
+                environment_digest=environment,
+                commands=(
+                    EvidenceCommand(
+                        command=command,
+                        return_code=executor_result.exit_code,
+                        stdout_digest=_digest(executor_result.stdout),
+                        stderr_digest=_digest(executor_result.stderr),
+                        tool_version="private_executor",
+                        observed_at=executor_result.ended_at,
+                    ),
+                ),
+                verification_strength=verification.strength,
+                targets_exercised=(finding.target_id,),
+                started_at=executor_result.started_at,
+                ended_at=executor_result.ended_at,
+            )
+            promotion = self.promotion_authority.promote(
+                self._promotion_request(
+                    record=record,
+                    finding=finding,
+                    lease=lease,
+                    diff=diff,
+                    worker_id=worker_id,
+                    executor_job_id=executor_result.job_id,
+                    environment_digest_value=environment,
+                    verification=verification,
+                    bundle=bundle,
+                ),
+                create_checkpoint=create_checkpoint,
+                apply_staged_diff=lambda _request: self.workspace_manager.apply(lease),
+                smoke_test=smoke_test,
+                restore_checkpoint=restore_checkpoint,
+                consume_capability=capability_consumer,
+                mark_completed=lambda _request, evidence_ids: self.mission_service.complete(
+                    mission_id, evidence_digest=evidence_ids[0] if evidence_ids else None
+                ),
+            )
+            if promotion.status.value != "promoted":
+                return self._failed(
+                    mission_id,
+                    finding,
+                    ";".join(promotion.reason_codes) or "promotion failed",
+                    status="PROMOTION_FAILED",
+                )
+            rescan = self.run_scan(
+                rescan_contract,
+                scanner,
+                scanner_id=finding.scanner_id,
+                scanner_version=finding.scanner_version,
+                target_id=finding.target_id,
+                source_digest=_source_digest(record.contract.workspace_root)
+                if record.contract.workspace_root
+                else finding.source_digest,
+                rescan_of=finding.fingerprint,
+            )
+            final_finding = self.reconcile_rescan(
+                finding.fingerprint,
+                rescan,
+                verification_ids=(verification.verification_id,),
+            )
+            if final_finding.status != "VERIFIED_RESOLVED":
+                return MaintenanceRepairResult(
+                    status="RESCAN_INCOMPLETE",
+                    mission_id=mission_id,
+                    finding=final_finding,
+                    verification_ids=(verification.verification_id,),
+                    scan_id=rescan.scan.scan_id,
+                    promotion_status=promotion.status.value,
+                    reason="current deterministic rescan did not prove resolution",
+                )
+            return MaintenanceRepairResult(
+                status="VERIFIED_RESOLVED",
+                mission_id=mission_id,
+                finding=final_finding,
+                verification_ids=(verification.verification_id,),
+                scan_id=rescan.scan.scan_id,
+                promotion_status=promotion.status.value,
+            )
+        except Exception as exc:  # noqa: BLE001 - mission failures are durable
+            current = self.finding_repository.get(fingerprint) or finding
+            return self._failed(mission_id, current, str(exc))
+
+    def reconcile_rescan(
+        self,
+        fingerprint: str,
+        result: MaintenanceScanResult,
+        *,
+        verification_ids: tuple[str, ...],
+    ) -> MaintenanceFinding:
+        finding = self.finding_repository.get(fingerprint)
+        if finding is None:
+            raise MaintenanceConvergenceError("rescan finding does not exist")
+        if any(item.fingerprint == fingerprint for item in result.findings):
+            return finding
+        if finding.status in {"VERIFIED_RESOLVED", "REOPENED"}:
+            return finding
+        try:
+            resolved = self.lifecycle_engine.resolve_after_rescan(
+                finding,
+                mission_id=finding.mission_id or "",
+                scan_id=result.scan.scan_id,
+                scan_status=result.scan.status,
+                rescan_of=result.scan.rescan_of,
+                verification_ids=verification_ids,
+            )
+        except SecurityViolationError:
+            return finding
+        self.finding_repository.save(resolved)
+        return resolved
+
+    def _failed(
+        self,
+        mission_id: str,
+        finding: MaintenanceFinding,
+        reason: str,
+        *,
+        status: str = "VERIFICATION_FAILED",
+    ) -> MaintenanceRepairResult:
+        try:
+            if self.mission_service.repository.get(mission_id).state in {
+                MissionState.RUNNING,
+                MissionState.VERIFYING,
+            }:
+                self.mission_service.fail(mission_id, reason=reason)
+        except Exception:  # noqa: BLE001 - preserve the durable finding failure
+            pass
+        failed = self.lifecycle_engine.mark_verification_failed(
+            finding, mission_id, reason
+        )
+        self.finding_repository.save(failed)
+        return MaintenanceRepairResult(
+            status=status,
+            mission_id=mission_id,
+            finding=failed,
+            reason=reason,
+        )
+
+    @staticmethod
+    def _promotion_request(
+        *,
+        record: Any,
+        finding: MaintenanceFinding,
+        lease: Any,
+        diff: dict[str, object],
+        worker_id: str,
+        executor_job_id: str,
+        environment_digest_value: str,
+        verification: Any,
+        bundle: EvidenceBundle,
+    ) -> Any:
+        from aios.domain.promotion import PromotionRequest
+
+        return PromotionRequest(
+            mission_id=record.mission_id,
+            action_id=f"maintenance-action:{record.mission_id}",
+            worker_id=worker_id,
+            executor_job_id=executor_job_id,
+            environment_digest=environment_digest_value,
+            project_root=lease.project_root,
+            lease=lease,
+            current_state=MissionState.VERIFYING,
+            contract_digest=record.contract_digest,
+            authoritative_contract_digest=record.contract_digest,
+            policy_version=record.policy_version,
+            authoritative_policy_version=record.policy_version,
+            workspace_digest=str(diff["workspace_digest"]),
+            diff_digest=str(diff["diff_digest"]),
+            verification_results=(verification,),
+            evidence_bundle=bundle,
+            required_targets=(finding.target_id,),
+            required_strength=verification.required_strength,
+            freshness_seconds=300,
+            requires_capability=True,
+            capability_id=f"mission:{record.mission_id}",
+            capability_digest=record.capability_digest,
+            authoritative_capability_digest=record.capability_digest,
+        )
+
+
+def _worker_id(result: Any) -> str:
+    direct = getattr(result, "worker_id", None)
+    if direct:
+        return str(direct)
+    handle = getattr(result, "handle", None)
+    worker_id = getattr(handle, "worker_id", None)
+    if worker_id:
+        return str(worker_id)
+    raise MaintenanceConvergenceError("worker result has no identity")
+
+
+def _verification_command(contract: Any, finding: MaintenanceFinding) -> str:
+    commands = list(contract.verification_plan.commands)
+    if commands:
+        return commands[0]
+    return f"aios_rescan --scanner {finding.scanner_id} --target {finding.target_id}"
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _source_digest(root: str) -> str:
+    try:
+        return tree_digest(Path(root).resolve())
+    except (OSError, ValueError):
+        return _digest(root)
+
+
+def _is_incomplete_scan(error: Exception) -> bool:
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in ("max_", "deadline", "bounded", "symlink", "escape")
+    )
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+__all__ = [
+    "MaintenanceConvergenceError",
+    "MaintenanceConvergenceService",
+    "MaintenanceRepairResult",
+    "MaintenanceScanResult",
+]

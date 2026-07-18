@@ -9,7 +9,12 @@ class MaintenanceMissionBridge:
     """Creates normal governed missions from maintenance findings."""
     
     @staticmethod
-    def create_repair_mission(finding: MaintenanceFinding, operator_id: str) -> MissionContract:
+    def create_repair_mission(
+        finding: MaintenanceFinding,
+        operator_id: str,
+        *,
+        workspace_root: str | None = None,
+    ) -> MissionContract:
         """Translate a finding into a standard MissionContract.
         
         This avoids duplicating mission execution or approval infrastructure for maintenance.
@@ -32,7 +37,7 @@ class MaintenanceMissionBridge:
             mission_id=mission_id,
             operator_id=operator_id,
             goal=f"Repair maintenance finding {finding.finding_id}: {finding.deterministic_evidence}",
-            worker_type="maintenance_repair_worker",
+            worker_type="code",
             created_by="AutonomousMaintenanceForce",
             risk_level="YELLOW",  # Typically YELLOW because it writes to code
             requires_approval=True,
@@ -42,9 +47,15 @@ class MaintenanceMissionBridge:
                 timeout_seconds=600
             ),
             allowed_files=[finding.target_id],
+            allowed_tools=["read_file", "edit_file", "run_verification"],
             verification_plan=VerificationPlan(
                 required_strength="moderate",
                 commands=[f"aios_rescan --scanner {finding.scanner_id} --target {finding.target_id}"]
             ),
-            metadata=metadata
+            metadata={
+                **metadata,
+                "worker_strategy": "code",
+                "executor_policy": "private_service",
+            },
+            workspace_root=workspace_root,
         )

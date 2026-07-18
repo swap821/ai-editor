@@ -61,6 +61,7 @@ class R15RuntimeProofReport:
                     "name": proof.name,
                     "passed": proof.passed,
                     "evidence": proof.evidence,
+                    "proof_level": proof.proof_level,
                 }
                 for name, proof in self.proofs.items()
             },
@@ -467,7 +468,7 @@ def _probe_maintenance_canonical_repair(scratch: Path) -> str:
             max_findings=1,
             git_history_allowed=False,
         ),
-        lambda: [finding],
+        lambda _context: [finding],
     )
     proposal = service.prepare_repair_proposal(scan[0])
     mission = MaintenanceMissionBridge.create_repair_mission(scan[0], "operator-1")

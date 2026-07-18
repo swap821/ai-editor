@@ -1,5 +1,5 @@
 """Domain models for the Durable Maintenance Finding Lifecycle."""
-from typing import Literal, Optional, Any
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 

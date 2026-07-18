@@ -285,6 +285,59 @@ class ExecutorService:
         self.backend_name = backend_name
         self.require_isolation = require_isolation
 
+    def build_command_job(
+        self,
+        *,
+        mission_contract_digest: str,
+        command: str,
+        workspace_snapshot: str,
+        timeout_seconds: int,
+        job_id: str | None = None,
+    ) -> ExecutorJob:
+        """Build one shell-free, staged-workspace job for this executor boundary."""
+        argv = tuple(parse_argv(command))
+        if not argv:
+            raise ValueError("executor command cannot be empty")
+        actual_job_id = job_id or f"executor-job-{uuid.uuid4().hex}"
+        material = {
+            "argv": list(argv),
+            "workspace_snapshot": workspace_snapshot,
+            "mission_contract_digest": mission_contract_digest,
+        }
+        action_digest = hashlib.sha256(
+            json.dumps(material, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        expires_at = (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=max(int(timeout_seconds), 1) + 5)
+        ).replace(microsecond=0).isoformat()
+        return ExecutorJob(
+            job_id=actual_job_id,
+            mission_contract_digest=mission_contract_digest,
+            capability=ExecutorCapability(
+                capability_id=f"executor-capability:{actual_job_id}",
+                action_digest=action_digest,
+                mission_contract_digest=mission_contract_digest,
+                expires_at=expires_at,
+            ),
+            image=config.CONTAINER_IMAGE,
+            argv=argv,
+            workspace_snapshot=workspace_snapshot,
+            resource_limits=ResourceLimits(
+                timeout_seconds=max(int(timeout_seconds), 1),
+                max_output_bytes=config.MAX_COMMAND_OUTPUT_BYTES,
+                memory_budget_mb=config.CONTAINER_MEMORY_MB,
+                cpu_budget=config.CONTAINER_CPUS,
+                pids_limit=config.CONTAINER_PIDS_LIMIT,
+            ),
+            verification_expectation={
+                "executor_policy": "private_service",
+                "mission_contract_digest": mission_contract_digest,
+            },
+        )
+
     def execute(self, job: ExecutorJob) -> ExecutorResult:
         if self.profile == "production":
             if self.backend_name != "private_service" or self.client is None:

@@ -50,7 +50,7 @@ def test_bounded_scan_contract_forbids_network():
             git_history_allowed=False
         )
 
-def test_service_enforces_max_findings(service, base_finding):
+def test_service_refuses_scanners_that_exceed_max_findings(service, base_finding):
     contract = BoundedScanContract(
         allowed_root="/tmp",
         max_files=10,
@@ -62,11 +62,11 @@ def test_service_enforces_max_findings(service, base_finding):
     )
     
     # Scanner returns 3 findings
-    def mock_scanner():
+    def mock_scanner(_context):
         return [base_finding, base_finding, base_finding]
-        
-    results = service.run_bounded_scan(contract, mock_scanner)
-    assert len(results) == 1
+
+    with pytest.raises(ScanExecutionError, match="max_findings"):
+        service.run_bounded_scan(contract, mock_scanner)
 
 def test_reconcile_findings_updates_durable_state(service, base_finding):
     existing = {

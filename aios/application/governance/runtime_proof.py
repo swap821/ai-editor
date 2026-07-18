@@ -103,6 +103,7 @@ class RuntimeProof:
     name: str
     passed: bool
     evidence: str
+    proof_level: str = "fixture"
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,13 +133,14 @@ class RuntimeProofReport:
                     "name": proof.name,
                     "passed": proof.passed,
                     "evidence": proof.evidence,
+                    "proof_level": proof.proof_level,
                 }
                 for name, proof in self.proofs.items()
             },
         }
 
 
-def _proof(name: str, callback) -> RuntimeProof:
+def _proof(name: str, callback, *, proof_level: str = "fixture") -> RuntimeProof:
     try:
         evidence = str(callback()).strip() or "probe completed without evidence"
     except Exception as exc:  # noqa: BLE001 - each proof fails closed independently
@@ -146,8 +148,14 @@ def _proof(name: str, callback) -> RuntimeProof:
             name=name,
             passed=False,
             evidence=f"probe failed: {type(exc).__name__}: {str(exc)[:240]}",
+            proof_level=proof_level,
         )
-    return RuntimeProof(name=name, passed=True, evidence=evidence)
+    return RuntimeProof(
+        name=name,
+        passed=True,
+        evidence=evidence,
+        proof_level=proof_level,
+    )
 
 
 def run_runtime_proofs(root: str | Path | None = None) -> RuntimeProofReport:
