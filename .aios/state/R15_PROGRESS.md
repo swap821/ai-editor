@@ -126,3 +126,12 @@
 - **Tree:** Clean after the final evidence checkpoint; writer lease released by the handoff.
 - **Verdict:** Not yet recorded. R15 remains NOT ACCEPTED.
 - **Exact next action:** Wait for the non-builder architecture, security, frontend, operator, and release-evidence review; do not start R16.
+
+## Slice 26: Windows Retry Convergence
+
+- **Tip tested:** `6c99de7` on `antigravity/r15-sovereign-intelligence-flywheel`
+- **Initial result:** Windows backend matrix saw one intermittent `403` in `test_rollback_endpoint_uses_cookie_session_without_body_session`; all other jobs remained green and coverage reached `88.47%`.
+- **Reproduction:** The focused local test passed; no production authorization code changed.
+- **Retry result:** Targeted Windows rerun passed; aggregate backend and release-authority passed, including private-Executor isolation/strict runtime and evidence upload. CodeQL `29637227825` passed on the same tip.
+- **Known limitations:** The rollback fixture remains a nondeterministic cross-test state risk worth future isolation cleanup; R15 acceptance remains blocked by no admitted local clerk, benchmark, authenticated cloud-burst proof, and non-builder verdict.
+- **Exact next action:** Include this retry evidence in the final clean handoff and await the independent reviewer.
