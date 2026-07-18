@@ -366,6 +366,13 @@
 - **Source:** Runtime/evidence tip `54a4db49f21a6249723be83b2632f3059d37cb84` is pushed; the current working tip after this documentation checkpoint remains a docs-only continuation of that evidence.
 - **Hosted proof:** CI `29663069308` passed Ubuntu/Windows/macOS backend, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. CodeQL `29663074526` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 - **Release posture:** R15 remains NOT ACCEPTED. The seven-candidate local evidence admits only Granite; the two requested qwen3.5 candidates are rejected. Canonical HiringBroker live execution, private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, operator proof, and independent non-builder verdict remain open blockers.
+
+## Slice 54 — Fresh qwen3.5 qualification recheck (2026-07-19)
+
+- **Action:** Confirmed the operator-requested `qwen3.5:0.8b` and `qwen3.5:2b` tags were already installed locally, then reran the unchanged `r15-v2` qualification suite at temperature `0.0` with a 180-second request ceiling.
+- **Result:** Both candidates failed all 12 structured model cases and repeated-run reliability because their responses were invalid JSON. Both passed real Ollama memory telemetry, deterministic concurrency refusal, and bounded timeout handling; neither was admitted.
+- **Artifact:** `release/r15/model-qualification-r15-v2.json` now retains the fresh redacted per-test recheck under `latest_recheck`; no raw model output or secret was persisted.
+- **Release posture:** R15 remains NOT ACCEPTED. Granite remains the only admitted local clerk and the benchmark remains advisory-only; private-Executor maintenance, frontier trajectory/skill reuse, operator walkthrough, and independent review remain open.
 - **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
 
 ## Slice 51: Live Canonical HiringBroker Cloud Proof
