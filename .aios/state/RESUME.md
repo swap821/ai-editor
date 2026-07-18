@@ -1,6 +1,6 @@
 **Goal:** Complete the GAGOS R15 Sovereign Intelligence and Maintenance Flywheel with executable, fail-closed evidence; do not start R16.
 
-**Last completed+verified step:** Final evidence tip `ceb6ad5283af72c5beeddf8537dff07b5cffbd1b` is pushed. The local full gate collected 3,328 backend tests, passed 3,320, skipped 8, and reached 88.30% coverage. The versioned `r15-v2` qualification has 16 per-test gates; five installed Ollama candidates were run live, Granite was operator-approved/admitted/profile-assigned and persisted after registry restart, and the 30-task run produced advisory-only evidence with zero verified project-state completions. Final-tip hosted CI `29661073001` and CodeQL `29661465597` are green.
+**Last completed+verified step:** Final quality tip `4a9cc826d14e2ce0c39140dc7dc6df0617356c08` is pushed. The local full gate collected 3,328 backend tests, passed 3,320, skipped 8, and reached 88.30% coverage. The versioned `r15-v2` qualification has 16 per-test gates; seven Ollama candidates have now been run live, Granite remains the only admitted clerk, and the newly tested qwen3.5 0.8B/2B candidates both failed model-output JSON gates. Final-tip hosted CI `29662051781` and CodeQL `29662063650` are green.
 
 **Next action:** Keep the tree unchanged and release the builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
 

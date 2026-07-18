@@ -342,3 +342,12 @@
 - **Hosted proof:** Final-tip CI `29661073001` passed backend Ubuntu/Windows/macOS, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. Final-tip CodeQL `29661465597` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 - **Release posture:** R15 remains NOT ACCEPTED. The admitted Granite evidence is bounded local advisory cognition; the benchmark records zero verified developer-task completions. Canonical HiringBroker live provider execution, live private-Executor maintenance repair/rescan, frontier trajectory and governed skill reuse, operator walkthrough, and independent non-builder verdict remain open blockers.
 - **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
+
+## Slice 48: Additional Bounded Local Candidates
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Candidate set:** With explicit operator approval, installed `qwen3.5:0.8b` and `qwen3.5:2b` were added to the bounded set. No other model was downloaded.
+- **Live result:** Both candidates ran through the unchanged `r15-v2` suite. Each failed all 12 model-output cases plus repeated-run reliability due to invalid JSON; each passed real Ollama `/api/ps` resource evidence, deterministic concurrency refusal, and bounded timeout handling. Neither was admitted.
+- **Artifact:** `release/r15/model-qualification-r15-v2.json` now records seven candidate runs with redacted per-test results and no raw output or secrets.
+- **Release posture:** Granite remains the only admitted local clerk; the benchmark remains advisory-only with zero verified project-state completions. R15 remains NOT ACCEPTED because canonical HiringBroker live execution, private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, operator proof, and independent review remain open.
+- **Exact next action:** Run final hosted CI and CodeQL on the updated evidence tip, then release the clean builder lease for independent review; do not self-approve R15 or start R16.
