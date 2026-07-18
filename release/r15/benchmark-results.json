@@ -1,7 +1,15 @@
 {
-  "status": "not_run",
+  "status": "blocked",
   "planned_tasks": 30,
   "completed_tasks": 0,
   "pass_rate": null,
-  "evidence": "Benchmark execution remains an open R15 gate; no completion claim is made."
+  "blocked_reason": "No installed 2-3B local clerk passed the R15 qualification and admission gates, so controlled benchmark execution would not represent an admitted GAGOS configuration.",
+  "cohorts": [
+    "Human + frontier assistant",
+    "Ordinary coding agent",
+    "GAGOS without skills",
+    "GAGOS with learned skills",
+    "GAGOS with cloud unavailable"
+  ],
+  "evidence": "The 30-task fixture set is versioned at docs/r15/benchmark_tasks.jsonl. No task execution or completion claim is made while the local clerk admission set is empty."
 }

@@ -4,7 +4,7 @@
 
 **Next action:** Publish the multi-candidate qualification and CodeQL evidence, then prepare a hash-pinned R15 handoff for a non-builder verdict; local Executor parity remains optional because hosted strict proof is green.
 
-**Open blockers:** Local strict validation is partial only for `isolated_executor` and `executor_runtime_available` because the private Executor is unavailable on this laptop; hosted strict proof passed with the private Executor service. All installed 2–3B qualification candidates are rejected, so benchmark completion is blocked on an admissible clerk. Authenticated cloud-burst proof and a non-builder R15 verdict remain open. Do not mark R15 accepted or start public R16 readiness until these are resolved.
+**Open blockers:** Local strict validation is partial only for `isolated_executor` and `executor_runtime_available` because the private Executor is unavailable on this laptop; hosted strict proof passed with the private Executor service. All installed 2–3B qualification candidates are rejected, so benchmark execution is explicitly blocked on an admissible clerk. Authenticated cloud-burst proof and a non-builder R15 verdict remain open. Do not mark R15 accepted or start public R16 readiness until these are resolved.
 
 **Active files:** `aios/application/governance/r15_runtime_proof.py`, `aios/domain/maintenance/repository.py`, `aios/application/turns/generate_pipeline.py`, architecture/R15 tests, `release/r15/` generated evidence.
 
