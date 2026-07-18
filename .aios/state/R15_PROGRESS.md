@@ -385,3 +385,13 @@
 - **CodeQL:** Run `29664518633` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation on the exact pushed tip.
 - **Release posture:** R15 remains NOT ACCEPTED. Live canonical HiringBroker Gemini proof is now recorded, but live private-Executor maintenance repair/rescan, frontier trajectory and governed skill reuse, frontend/operator walkthrough, released lease, and independent non-builder verdict remain open.
 - **Exact next action:** Release the builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
+
+## Slice 53: Canonical Hiring Output-Budget Enforcement
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Defect:** `ModelCallRequest.max_tokens` stopped at the HiringBroker service and was not passed to the injected provider adapter; provider defaults could therefore exceed the caller's requested bound.
+- **Repair:** `IntelligenceHiringService` now passes the positive request bound through `ProviderClient` and `ChatProviderAdapter`; Ollama, Gemini, Bedrock, OpenAI-compatible, and Anthropic chat adapters honor the per-call bound. Non-positive request values fail validation, and durable `ModelCallRecord` provenance records `requested_max_tokens`.
+- **Red-first/focused proof:** The new service and adapter assertions failed before the repair, then the provider/hiring group passed 64 tests. Architecture, adversarial, release-conformance, route-conformance, and Executor service checks passed 480 tests with one existing deprecation warning. Ruff, format, compile, and diff checks passed.
+- **Live composition proof:** On source `3746e69dfcad6d3041cdfa2d1837b1c7e0a2fbb9`, a public Gemini-only request ran inside the FastAPI lifespan with Google ADC and operator profile. The configured adapter default was 128 while the request bound was 64; Gemini completed, the record reopened durably with `requested_max_tokens=64`, and Cortex emitted `intelligence.model_call.completed`. No raw output or credentials were persisted. Evidence: `release/r15/live-hiring-evidence.json`.
+- **Release posture:** R15 remains NOT ACCEPTED. Current-source hosted CI/CodeQL reruns are pending; live private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, frontend/operator walkthrough, and independent review remain open.
+- **Exact next action:** Commit/push the updated evidence and continuity docs, inspect current-source CI and CodeQL, then release the builder lease for independent review; do not self-approve R15 or start R16.

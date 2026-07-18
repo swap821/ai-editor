@@ -3,8 +3,9 @@
     "production_composition",
     "live_cloud_provider"
   ],
-  "source_sha": "75ca4705102f9bcd97daceeffcd7879e208aa90a",
-  "executed_at_utc": "2026-07-18T22:40:04Z",
+  "source_sha": "3746e69dfcad6d3041cdfa2d1837b1c7e0a2fbb9",
+  "executed_at_utc": "2026-07-18T23:20:50+00:00",
+  "finished_at_utc": "2026-07-18T23:21:00+00:00",
   "runtime_profile": "operator",
   "credential_source": "Google ADC",
   "provider_configuration": {
@@ -22,14 +23,14 @@
     ],
     "local_only": false,
     "max_tokens": 64,
-    "mission_id": "mission-r15-live-hiring",
-    "turn_id": "turn-r15-live-hiring"
+    "mission_id": "mission-r15-live-hiring-3746e69b",
+    "turn_id": "turn-r15-live-hiring-3746e69b"
   },
   "result": {
     "status": "completed",
-    "result_length": 35,
-    "output_digest": "0e16940bf176287320213588697ea9d976970d532c0193252035899291baa198",
-    "latency_ms": 3110,
+    "result_length": 2,
+    "output_digest": "565339bc4d33d72817b583024112eb7f5cdf3e5eef0252d6ec1b9c9a94e12bb3",
+    "latency_ms": 2935,
     "durable_record_status_after_reopen": "completed",
     "durable_provenance_fields": [
       "actual_tokens",
@@ -47,6 +48,7 @@
       "recorded_at",
       "redactions",
       "request_id",
+      "requested_max_tokens",
       "selected_model",
       "selected_provider",
       "status",
@@ -59,6 +61,7 @@
   "scope_notes": [
     "The request used public text only and no tools.",
     "The call ran inside the FastAPI application lifespan and used the existing dependency composition.",
+    "The request asked for 64 output tokens while the configured Gemini adapter default was 128; the durable record preserved the requested bound and the provider call completed through the live adapter.",
     "The provider output is advisory; no authority, execution, promotion, or verification decision was delegated to Gemini.",
     "No raw provider output, token, credential, or secret was persisted."
   ]

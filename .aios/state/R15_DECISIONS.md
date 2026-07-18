@@ -21,3 +21,10 @@
 - A live Vertex call showed that the discovered `gemini-2.5-pro` route rejects an explicit `thinking_budget=0`.
 - `GeminiClient` now sends `thinking_config` only for a positive budget; zero and negative values omit the override so model-specific provider validation remains authoritative.
 - The repair is limited to the existing adapter and is covered by non-streaming and streaming tests. It does not weaken privacy, routing, capability, verification, or execution authority.
+
+## Decision 2026-07-19 — Hiring output limits are per-call provider bounds
+
+- `ModelCallRequest.max_tokens` is a caller budget and must reach the injected provider adapter; provider defaults are not an acceptable substitute.
+- `IntelligenceHiringService` passes the positive bound through `ProviderClient` and `ChatProviderAdapter`. The existing Ollama, Gemini, Bedrock, OpenAI-compatible, and Anthropic adapters apply it to their native output-limit field.
+- The bound is recorded as `requested_max_tokens` in durable model-call provenance. Provider billing remains unknown unless the provider returns it; this decision does not claim cost enforcement.
+- Non-positive bounds fail closed at the request/adapter boundary. No authority, privacy, capability, verification, or execution rule changed.
