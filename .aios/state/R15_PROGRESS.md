@@ -359,3 +359,11 @@
 - **Hosted proof:** CI `29662557708` passed Ubuntu/Windows/macOS backend, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. CodeQL `29662560332` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 - **Release posture:** R15 remains NOT ACCEPTED. Granite is the only admitted local clerk; qwen3.5 0.8B/2B were rejected on strict JSON-output gates. Canonical HiringBroker live execution, private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, operator proof, and independent non-builder verdict remain open blockers.
 - **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
+
+## Slice 50: Final Exact-Tip Hosted Gate Proof
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Source:** Runtime/evidence tip `54a4db49f21a6249723be83b2632f3059d37cb84` is pushed; the current working tip after this documentation checkpoint remains a docs-only continuation of that evidence.
+- **Hosted proof:** CI `29663069308` passed Ubuntu/Windows/macOS backend, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. CodeQL `29663074526` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
+- **Release posture:** R15 remains NOT ACCEPTED. The seven-candidate local evidence admits only Granite; the two requested qwen3.5 candidates are rejected. Canonical HiringBroker live execution, private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, operator proof, and independent non-builder verdict remain open blockers.
+- **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
