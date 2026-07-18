@@ -251,3 +251,11 @@
 - **Proof:** The failing test now passes, the complete focused maintenance/runtime proof passes `24` tests, Ruff and diff checks pass. Fix committed/pushed as `7369566f01b82c6336479a148b92510d16f451b9`.
 - **Release posture:** R15 remains NOT ACCEPTED. New hosted CI `29653539054` and CodeQL `29653545760` are pending for the corrected source tip. Local private Executor/code-worker runtime, local clerk/benchmark, live new HiringBroker cloud proof, operator proof, and independent review remain open.
 - **Exact next action:** Verify CI and CodeQL on `7369566f01b82c6336479a148b92510d16f451b9`; then refresh the final source-tip evidence and release the builder lease for independent review before any further R15 edit.
+
+## Slice 38: Release-Authority Format Gate Repair
+
+- **Hosted failure:** CI `29653605561` passed frontend, Ubuntu, Windows, macOS, aggregate backend, and frontend checks on source `92d0ca7`, then failed only in release-authority because `ruff format --check` identified `aios/application/executor/service.py` as reformattable. CodeQL `29653611717` was green on `92d0ca7`.
+- **Repair:** Applied Ruff's canonical formatter to `aios/application/executor/service.py`; the change is formatting-only and does not alter executor behavior, policy, or security logic.
+- **Proof:** Executor, integration, and maintenance focused tests passed (`7` passed, `3` pre-existing skips, plus maintenance tests); Ruff check and format check passed; diff check passed. Fix committed/pushed as `2006ef34586ed1cfdee295982444c078f703091c`.
+- **Release posture:** R15 remains NOT ACCEPTED. New hosted CI `29653969289` and CodeQL `29653977740` are pending for the corrected source tip. Local private Executor/code-worker runtime, local clerk/benchmark, live cloud proof through the new HiringBroker path, operator proof, and independent review remain open.
+- **Exact next action:** Verify CI and CodeQL on `2006ef34586ed1cfdee295982444c078f703091c`; update final evidence pointers, then release the builder lease for independent review before any further R15 edit.
