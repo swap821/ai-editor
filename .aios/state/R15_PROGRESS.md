@@ -225,3 +225,11 @@
 - **Source:** Code and tests committed/pushed as `28bae181d011d188f24d8294da1f9ee70b21db70`.
 - **Release posture:** R15 remains NOT ACCEPTED. This slice is integration-proven, not operator/runtime-proven: no local clerk is admitted, the 30-task benchmark remains blocked, local private Executor is unavailable, the new HiringBroker path still lacks live cloud configuration, maintenance repair-to-rescan is open, and no independent non-builder verdict exists.
 - **Exact next action:** Inspect hosted CI and CodeQL for source `28bae181d011d188f24d8294da1f9ee70b21db70`, then wire the canonical maintenance scanner → mission → private Executor → verification → rescan lifecycle; do not self-approve R15 or start R16.
+
+## Slice 35: Learning Source Hosted Gate Proof
+
+- **Hosted source:** Documentation and continuity evidence were refreshed at source `1167275ee68b4ae1b34669d484070eb489a4baf7`.
+- **CI:** Run `29650906348` passed frontend tests, backend Ubuntu/Windows/macOS, aggregate gates, release authority, hosted private Executor topology/state/isolation/strict runtime, SBOM, licence inventory, and evidence upload.
+- **CodeQL:** Run `29651342187` passed Actions, JavaScript/TypeScript, Python, and executor model-pack validation on the same source tip.
+- **Release posture:** R15 remains NOT ACCEPTED. Hosted gates are necessary but do not supply live frontier-assisted trajectory capture, private Executor maintenance repair, local clerk admission, the 30-task benchmark, operator proof, or the required independent non-builder verdict.
+- **Exact next action:** Complete the required hash-pinned handoff before editing again, then take one coherent maintenance scanner → durable finding → governed repair mission → private Executor → verification → deterministic rescan slice; do not self-approve R15 or start R16.
