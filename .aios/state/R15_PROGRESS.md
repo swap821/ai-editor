@@ -51,3 +51,11 @@
 - **Hosted evidence:** The prior source tip failed all three backend matrices during collection and frontend lint on six impure key expressions; those failures are repaired locally and require a new pushed source tip for hosted confirmation.
 - **Known limitations:** Private Executor remains unavailable; benchmark and real model qualification remain fixture-only; no non-builder handoff verdict exists.
 - **Exact next action:** Commit/push this verified repair and inspect the new hosted CI/CodeQL result before any R15 acceptance or public R16 readiness claim.
+
+## Slice 17: Hosted Release-Authority Formatting Repair
+
+- **Working branch:** `antigravity/r15-sovereign-intelligence-flywheel`
+- **Hosted result:** CI run `29632134053` verified all backend OS matrices, frontend jobs, and aggregate backend green; release-authority stopped only because Ruff format required `aios/application/governance/r15_runtime_proof.py`.
+- **Repair:** Applied canonical Ruff formatting to that file.
+- **Local proof:** Ruff check and format check passed; affected runtime/architecture/maintenance tests passed 5/5.
+- **Exact next action:** Push the formatting follow-up and inspect the new hosted release-authority result.

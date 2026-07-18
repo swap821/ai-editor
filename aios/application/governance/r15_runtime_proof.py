@@ -42,7 +42,9 @@ class R15RuntimeProofReport:
 
     @property
     def failures(self) -> tuple[str, ...]:
-        return tuple(name for name in R15_REQUIRED_PROOFS if not self.proofs[name].passed)
+        return tuple(
+            name for name in R15_REQUIRED_PROOFS if not self.proofs[name].passed
+        )
 
     def boolean_map(self) -> dict[str, bool]:
         return {name: self.proofs[name].passed for name in R15_REQUIRED_PROOFS}
@@ -70,27 +72,31 @@ def run_r15_runtime_proofs(root: str | Path | None = None) -> R15RuntimeProofRep
     with tempfile.TemporaryDirectory(prefix="gagos-r15-runtime-proof-") as raw:
         scratch = Path(raw)
         results: dict[str, RuntimeProof] = {}
-        
+
         results["local_workforce_registry"] = _proof(
             "local_workforce_registry", lambda: _probe_local_workforce_registry(scratch)
         )
         results["local_workforce_qualification"] = _proof(
-            "local_workforce_qualification", lambda: _probe_local_workforce_qualification(scratch)
+            "local_workforce_qualification",
+            lambda: _probe_local_workforce_qualification(scratch),
         )
         results["local_workforce_non_authority"] = _proof(
-            "local_workforce_non_authority", lambda: _probe_local_workforce_non_authority(scratch)
+            "local_workforce_non_authority",
+            lambda: _probe_local_workforce_non_authority(scratch),
         )
         results["hardware_admission"] = _proof(
             "hardware_admission", lambda: _probe_hardware_admission(scratch)
         )
         results["canonical_intelligence_hiring"] = _proof(
-            "canonical_intelligence_hiring", lambda: _probe_canonical_intelligence_hiring(scratch)
+            "canonical_intelligence_hiring",
+            lambda: _probe_canonical_intelligence_hiring(scratch),
         )
         results["privacy_gated_cloud_use"] = _proof(
             "privacy_gated_cloud_use", lambda: _probe_privacy_gated_cloud_use(scratch)
         )
         results["expert_trajectory_provenance"] = _proof(
-            "expert_trajectory_provenance", lambda: _probe_expert_trajectory_provenance(scratch)
+            "expert_trajectory_provenance",
+            lambda: _probe_expert_trajectory_provenance(scratch),
         )
         results["skill_applicability"] = _proof(
             "skill_applicability", lambda: _probe_skill_applicability(scratch)
@@ -99,13 +105,16 @@ def run_r15_runtime_proofs(root: str | Path | None = None) -> R15RuntimeProofRep
             "skill_re_escalation", lambda: _probe_skill_re_escalation(scratch)
         )
         results["maintenance_finding_persistence"] = _proof(
-            "maintenance_finding_persistence", lambda: _probe_maintenance_finding_persistence(scratch)
+            "maintenance_finding_persistence",
+            lambda: _probe_maintenance_finding_persistence(scratch),
         )
         results["maintenance_canonical_repair"] = _proof(
-            "maintenance_canonical_repair", lambda: _probe_maintenance_canonical_repair(scratch)
+            "maintenance_canonical_repair",
+            lambda: _probe_maintenance_canonical_repair(scratch),
         )
         results["maintenance_rescan_resolution"] = _proof(
-            "maintenance_rescan_resolution", lambda: _probe_maintenance_rescan_resolution(scratch)
+            "maintenance_rescan_resolution",
+            lambda: _probe_maintenance_rescan_resolution(scratch),
         )
 
     return R15RuntimeProofReport(results)
@@ -148,11 +157,14 @@ def _probe_local_workforce_registry(scratch: Path) -> str:
     assert restored.allowed_job_profiles == frozenset({LocalJobProfile.SUMMARISE})
     return "registry restart preserved approval, admission, profile, and health state"
 
+
 def _probe_local_workforce_qualification(scratch: Path) -> str:
     from aios.domain.local_workforce.qualifier import QualificationSuite
 
     class QualificationClient:
-        def complete(self, prompt: str, *, system: str | None = None, json_mode: bool = False) -> str:
+        def complete(
+            self, prompt: str, *, system: str | None = None, json_mode: bool = False
+        ) -> str:
             if "API key" in prompt:
                 return '{"summary": "credential redacted"}'
             return '{"error_code": "connection_refused", "message": "port 8080", "log_id": "ABC-123"}'
@@ -166,12 +178,15 @@ def _probe_local_workforce_qualification(scratch: Path) -> str:
     assert result.secret_reproduction == 0
     return "qualification fixtures passed schema and identifier gates with zero authority, tool, or secret violations"
 
+
 def _probe_local_workforce_non_authority(scratch: Path) -> str:
     from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
     from aios.domain.local_workforce.runtime import StructuredClericalRuntime
 
     class AdvisoryClient:
-        def complete(self, prompt: str, *, system: str | None = None, json_mode: bool = False) -> str:
+        def complete(
+            self, prompt: str, *, system: str | None = None, json_mode: bool = False
+        ) -> str:
             assert json_mode is True
             return '{"summary": "advisory result", "related_id": "evidence-1"}'
 
@@ -185,7 +200,10 @@ def _probe_local_workforce_non_authority(scratch: Path) -> str:
         deadline=datetime.now(timezone.utc),
         required_output_schema={
             "type": "object",
-            "properties": {"summary": {"type": "string"}, "related_id": {"type": "string"}},
+            "properties": {
+                "summary": {"type": "string"},
+                "related_id": {"type": "string"},
+            },
             "required": ["summary"],
         },
     )
@@ -197,11 +215,17 @@ def _probe_local_workforce_non_authority(scratch: Path) -> str:
     assert "authority_override" not in result.structured_output
     return "structured local result preserved evidence and exposed no authority or tool fields"
 
+
 def _probe_hardware_admission(scratch: Path) -> str:
-    from aios.domain.local_workforce.admission import AdmissionContext, HardwareAdmission
+    from aios.domain.local_workforce.admission import (
+        AdmissionContext,
+        HardwareAdmission,
+    )
 
     gate = HardwareAdmission(min_cpu_count=1, max_concurrent_inferences=1)
-    admitted = gate.evaluate(AdmissionContext(requested_context_size=4096, requested_output_size=512))
+    admitted = gate.evaluate(
+        AdmissionContext(requested_context_size=4096, requested_output_size=512)
+    )
     refused = gate.evaluate(
         AdmissionContext(
             requested_context_size=4096,
@@ -212,6 +236,7 @@ def _probe_hardware_admission(scratch: Path) -> str:
     assert admitted.admitted is True
     assert refused.admitted is False
     return "hardware admission accepted an idle fixture and refused an over-concurrency fixture"
+
 
 def _probe_canonical_intelligence_hiring(scratch: Path) -> str:
     from aios.domain.intelligence.broker import HiringBroker
@@ -237,6 +262,7 @@ def _probe_canonical_intelligence_hiring(scratch: Path) -> str:
     assert decision.selected_model == "auto"
     return "hiring selected the lowest-cost eligible provider from the declared candidate set"
 
+
 def _probe_privacy_gated_cloud_use(scratch: Path) -> str:
     from aios.application.models.privacy_broker import PrivacyBroker
     from aios.domain.privacy import DataClassification, ModelCallRequest, PrivacyPolicy
@@ -259,6 +285,7 @@ def _probe_privacy_gated_cloud_use(scratch: Path) -> str:
     assert decision.allowed_providers == ("ollama",)
     assert "abcdef1234567890abcdef" not in decision.scrubbed_prompt
     return "secret classification redacted the prompt and reduced provider eligibility to local Ollama"
+
 
 def _probe_expert_trajectory_provenance(scratch: Path) -> str:
     from aios.domain.learning.contracts import ExpertTrajectory
@@ -291,23 +318,33 @@ def _probe_expert_trajectory_provenance(scratch: Path) -> str:
         raise AssertionError("trajectory without context provenance was accepted")
     return "complete proposal, action, verification, promotion, and context provenance qualified; incomplete context refused"
 
+
 def _probe_skill_applicability(scratch: Path) -> str:
-    from aios.domain.learning.applicability import ApplicabilityError, SkillApplicabilityEngine
+    from aios.domain.learning.applicability import (
+        ApplicabilityError,
+        SkillApplicabilityEngine,
+    )
 
     skill = _proof_skill()
     engine = SkillApplicabilityEngine()
-    assert engine.check_applicability(
-        skill,
-        {"log_path": "data/logs/app.json"},
-        {"has_json_parser": "true"},
-    ) is True
+    assert (
+        engine.check_applicability(
+            skill,
+            {"log_path": "data/logs/app.json"},
+            {"has_json_parser": "true"},
+        )
+        is True
+    )
     try:
-        engine.check_applicability(skill, {"log_path": "data/logs/app.json"}, {"has_json_parser": "false"})
+        engine.check_applicability(
+            skill, {"log_path": "data/logs/app.json"}, {"has_json_parser": "false"}
+        )
     except ApplicabilityError:
         pass
     else:
         raise AssertionError("skill state mismatch was accepted")
     return "active skill passed required-input and project-state checks; state mismatch refused"
+
 
 def _probe_skill_re_escalation(scratch: Path) -> str:
     from aios.domain.learning.reuse_orchestrator import (
@@ -322,12 +359,11 @@ def _probe_skill_re_escalation(scratch: Path) -> str:
     local = orchestrator.attempt_reuse(
         [skill], {"log_path": "data/logs/app.json"}, {"has_json_parser": "true"}
     )
-    escalated = orchestrator.attempt_reuse(
-        [skill], {}, {"has_json_parser": "true"}
-    )
+    escalated = orchestrator.attempt_reuse([skill], {}, {"has_json_parser": "true"})
     assert isinstance(local, LocalExecutionDirective)
     assert isinstance(escalated, EscalateToFrontierDirective)
     return "applicable skill reused locally and missing input deterministically escalated to frontier"
+
 
 def _probe_maintenance_finding_persistence(scratch: Path) -> str:
     from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
@@ -336,7 +372,9 @@ def _probe_maintenance_finding_persistence(scratch: Path) -> str:
     finding = _proof_finding()
     repository = MaintenanceFindingRepository(scratch / "maintenance.db")
     repository.save(finding)
-    restored = MaintenanceFindingRepository(scratch / "maintenance.db").get(finding.fingerprint)
+    restored = MaintenanceFindingRepository(scratch / "maintenance.db").get(
+        finding.fingerprint
+    )
     assert restored == finding
 
     resolved = MaintenanceLifecycleEngine().attempt_resolution(
@@ -344,12 +382,15 @@ def _probe_maintenance_finding_persistence(scratch: Path) -> str:
     )
     repository.save(resolved)
     reappeared = MaintenanceLifecycleEngine().report_finding(
-        MaintenanceFindingRepository(scratch / "maintenance.db").get(finding.fingerprint),
+        MaintenanceFindingRepository(scratch / "maintenance.db").get(
+            finding.fingerprint
+        ),
         finding.model_copy(update={"last_seen": "2026-07-18T02:00:00Z"}),
     )
     assert reappeared.status == "REOPENED"
     assert reappeared.occurrence_count == 2
     return "finding survived repository restart, resolved with evidence, and reopened on reappearance"
+
 
 def _probe_maintenance_canonical_repair(scratch: Path) -> str:
     from aios.domain.maintenance.mission_bridge import MaintenanceMissionBridge
@@ -379,13 +420,19 @@ def _probe_maintenance_canonical_repair(scratch: Path) -> str:
     assert mission.requires_approval is True
     return "bounded scan produced an advisory proposal and canonical approval-bound repair mission"
 
+
 def _probe_maintenance_rescan_resolution(scratch: Path) -> str:
-    from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine, SecurityViolationError
+    from aios.domain.maintenance.lifecycle import (
+        MaintenanceLifecycleEngine,
+        SecurityViolationError,
+    )
 
     finding = _proof_finding()
     lifecycle = MaintenanceLifecycleEngine()
     try:
-        lifecycle.attempt_resolution(finding, actor="local_model", deterministic_evidence="rescan clean")
+        lifecycle.attempt_resolution(
+            finding, actor="local_model", deterministic_evidence="rescan clean"
+        )
     except SecurityViolationError:
         pass
     else:
