@@ -67,3 +67,11 @@
 - **Local evidence:** Full backend 3,235 passed / 8 skipped / 88% coverage; frontend 600 tests, typecheck, lint, and production build passed; strict validator is partial only for the unavailable private Executor runtime.
 - **Release posture:** CI is green, but R15 is not accepted. Benchmark completion, real model qualification, private Executor runtime proof, CodeQL evidence, and non-builder handoff remain open.
 - **Exact next action:** Provision/connect the private Executor and rerun strict runtime proof before requesting the hash-pinned handoff.
+
+## Slice 19: Hosted Strict Runtime Proof
+
+- **Current tip:** `0c24054` on `antigravity/r15-sovereign-intelligence-flywheel`
+- **Hosted run:** CI `29632871018` passed every job, including release-authority's private Executor topology startup, isolation proof, and strict GAGOS v1 runtime matrix.
+- **Local/hosted distinction:** The laptop strict validator remains partial because no private Executor service is configured locally; hosted runtime evidence is green and must not be replaced by a false local green.
+- **Remaining acceptance evidence:** Benchmark completion, real model qualification, CodeQL, and non-builder handoff remain open; the release report stays NOT ACCEPTED.
+- **Exact next action:** Reconcile hosted release artifacts and close the remaining evidence/handoff requirements before any R15 acceptance or public R16 readiness claim.
