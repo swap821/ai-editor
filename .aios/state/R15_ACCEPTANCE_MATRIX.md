@@ -1,6 +1,6 @@
 # R15 Acceptance Matrix
 
-Source under current review: `66191c81e875b3d3cc0d1f7be6d15228f5c539b6`. Proof levels are ordered: `FIXTURE`, `UNIT`, `INTEGRATION`, `HOSTED_COMPOSITION`, `LIVE_PROVIDER`, `LIVE_PRIVATE_EXECUTOR`, `OPERATOR`, `INDEPENDENT_REVIEW`. A row is not accepted from a lower proof level than its requirement.
+Production source under current review: `66191c81e875b3d3cc0d1f7be6d15228f5c539b6`; continuity checkpoint: `0671202591f2df1239ae5b9e17c8b289bc02f247`. Proof levels are ordered: `FIXTURE`, `UNIT`, `INTEGRATION`, `HOSTED_COMPOSITION`, `LIVE_PROVIDER`, `LIVE_PRIVATE_EXECUTOR`, `OPERATOR`, `INDEPENDENT_REVIEW`. A row is not accepted from a lower proof level than its requirement.
 
 | requirement | required proof level | implementation | unit proof | integration proof | hosted proof | live runtime proof | frontend proof | operator proof | independent proof | status | blocking reason | evidence location | source SHA |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
