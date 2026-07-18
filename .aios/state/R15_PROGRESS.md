@@ -351,3 +351,11 @@
 - **Artifact:** `release/r15/model-qualification-r15-v2.json` now records seven candidate runs with redacted per-test results and no raw output or secrets.
 - **Release posture:** Granite remains the only admitted local clerk; the benchmark remains advisory-only with zero verified project-state completions. R15 remains NOT ACCEPTED because canonical HiringBroker live execution, private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, operator proof, and independent review remain open.
 - **Exact next action:** Run final hosted CI and CodeQL on the updated evidence tip, then release the clean builder lease for independent review; do not self-approve R15 or start R16.
+
+## Slice 49: Final Seven-Candidate Gate Proof
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Source:** Evidence tip `aab7ecd6815a4f487f90b6fdc126ddefea77c8ff` is pushed and the qualification artifact records seven candidates, including the two explicitly requested qwen3.5 models.
+- **Hosted proof:** CI `29662557708` passed Ubuntu/Windows/macOS backend, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. CodeQL `29662560332` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
+- **Release posture:** R15 remains NOT ACCEPTED. Granite is the only admitted local clerk; qwen3.5 0.8B/2B were rejected on strict JSON-output gates. Canonical HiringBroker live execution, private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, operator proof, and independent non-builder verdict remain open blockers.
+- **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.

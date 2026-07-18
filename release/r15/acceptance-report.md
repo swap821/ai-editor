@@ -2,7 +2,7 @@
 
 ## Current v2 evidence — 2026-07-19
 
-**Final repository tip:** `ceb6ad5283af72c5beeddf8537dff07b5cffbd1b`
+**Final repository tip:** `aab7ecd6815a4f487f90b6fdc126ddefea77c8ff`
 **Runtime implementation/evidence source:** `92efde108a19ca5b8e4e399f5554f6d8364965f2`
 
 R15 remains **NOT ACCEPTED**. The bounded local-clerk slice now has live evidence, but the required maintenance production repair, canonical cloud hiring call, operator proof, and independent non-builder verdict remain open.
@@ -10,7 +10,7 @@ R15 remains **NOT ACCEPTED**. The bounded local-clerk slice now has live evidenc
 - **Local clerk qualification:** seven 0.8B–3B candidates were run against the unchanged `r15-v2` suite. `granite3.2:2b` and `qwen2.5:3b` passed all 16 per-test gates. Granite was the only candidate admitted: operator approval, six bounded profiles, healthy status, and persistence after a fresh registry load were verified. `qwen3.5:0.8b` and `qwen3.5:2b` both failed all model-output JSON gates and were not admitted; the other three candidates remain rejected on their recorded per-test failures. Evidence: `model-qualification-r15-v2.json`; the earlier eleven-run v1 record remains in `model-qualification-redacted.json`.
 - **Benchmark:** all 30 versioned tasks were run through the admitted Granite `triage` profile. They produced bounded advisory JSON with preserved evidence references, but no task changed project state and no expected outcome was verified. Therefore `completed_advisory_tasks=30`, `verified_completion_tasks=0`, `pass_rate=null`; this is not a 30-task developer-completion claim. Evidence: `benchmark-results.json`.
 - **Proof hierarchy:** `runtime-proof.json` is explicitly contract-fixture proof. Live local qualification and advisory benchmark evidence are separate artifacts and are not substituted for maintenance production proof.
-- **Hosted gates:** Final-tip CI `29661073001` is green across Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. Final-tip CodeQL `29661465597` is green for Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
+- **Hosted gates:** Final-tip CI `29662557708` is green across Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. Final-tip CodeQL `29662560332` is green for Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 
 ## Status: NOT ACCEPTED — evidence checkpoint
 
