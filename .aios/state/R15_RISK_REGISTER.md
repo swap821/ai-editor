@@ -1,0 +1,7 @@
+| risk | impact | current evidence | mitigation / next action | status |
+|---|---|---|---|---|
+| No local clerk passes qualification | Routine local cognition and benchmark cannot be claimed | Eleven real Ollama candidates rejected; admission empty | Keep threshold unchanged; record external blocker; do not run or fabricate 30-task benchmark | OPEN / BLOCKING |
+| No local Gemini project or Bedrock region in current environment | New HiringBroker boundary cannot receive live cloud proof locally | Configuration check found both absent; prior cloud-burst evidence covers swarm path only | Keep new path integration-proven only; run bounded live proof only when operator config exists | OPEN / BLOCKING |
+| Private Executor unavailable locally | Maintenance repair-to-rescan cannot be operator-proven locally | Hosted topology/isolation/strict-runtime proof is green | Use hosted proof when canonical maintenance lifecycle is wired; do not claim local runtime proof | OPEN |
+| Windows fixture intermittency | Full local/hosted suites can produce nondeterministic fail-closed failures | Prior council/rollback fixture failures passed on focused rerun/retry | Reproduce, retry only after local reproduction, record every occurrence | OPEN / RISK |
+| No independent non-builder verdict | Builder cannot accept R15 | Coordination handoff not yet released for this tip | Release builder lease after hosted evidence and request hash-pinned review | OPEN / BLOCKING |
