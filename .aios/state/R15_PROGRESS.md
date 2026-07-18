@@ -267,3 +267,23 @@
 - **CodeQL:** Run `29654028709` passed Actions, Python, JavaScript/TypeScript, and executor model-pack validation on the same exact source tip.
 - **Release posture:** Hosted gates are green, but R15 remains NOT ACCEPTED. The maintenance lifecycle is integration-proven rather than live local-private-Executor proven; no local clerk is admitted, the benchmark is blocked, the new HiringBroker path lacks live cloud configuration, operator proof is absent, and the independent non-builder verdict is still required.
 - **Exact next action:** Release the builder lease through a hash-pinned handoff for independent review. Do not self-approve R15 or start R16.
+
+## Slice 40: Governed Maintenance Resolution Authority
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Repair:** Replaced loose rescan arguments and free-form resolution with `MaintenanceResolutionEvidence`, binding the durable finding to the completed MissionService record, contract digest, action, actual promotion result, authoritative current verification result, workspace/diff digests, scanner identity/version/target/source, and the exact completed rescan. A missing or incomplete scan, stale/forged/cross-mission evidence, failed promotion, reappearing fingerprint, or any mismatch refuses resolution. The legacy `attempt_resolution` escape hatch now always fails closed.
+- **Red-first proof:** Added 22 initial authority cases plus mission-contract/action binding cases; the focused maintenance/runtime group passed 48 tests before the next slice. The full architecture/adversarial/API/route group passed, executor regression passed with 3 existing skips, compile/Ruff/format/diff checks passed.
+- **Runtime proof:** `r15_runtime_proof.py` now labels the persistence, mission-contract, and resolution-authority probes as bounded fixture evidence; it does not claim repair execution.
+- **Source:** `78172f8` pushed to the required branch.
+- **Release posture:** R15 remains NOT ACCEPTED. Live private Executor/code-worker repair, admitted local clerk/benchmark, live new HiringBroker provider call, operator proof, hosted current-tip gates, and independent review remain open.
+- **Exact next action:** Replace the remaining command-shaped maintenance verifier with a fixed structured registry; do not self-approve R15 or start R16.
+
+## Slice 41: Structured Maintenance Verifier Registry
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Repair:** Added a versioned `maintenance.rescan` `VerifierSpec` and `VerifierRegistry` over the existing bounded scanner service. The registry accepts only injected admitted scanner identities, typed scanner/version/target/fingerprint/root arguments, and produces structured argv plus durable run provenance. It rejects unknown verifiers/scanners, version drift, adapter replay, shell metacharacters, root/target escape, symlink roots/targets, network or git-history access, non-positive bounds, and learned command/image fields. Maintenance mission metadata now carries the structured verifier spec and no longer contains `aios_rescan` or any shell command.
+- **Red-first/integration proof:** New verifier registry tests passed 11 cases with one host symlink skip; the maintenance bridge/convergence/authority/runtime group passed 63 tests with one Windows symlink skip. Architecture/adversarial/API/route checks passed 106 tests with one pre-existing HTTPX deprecation warning; executor regression passed 7 tests with 3 pre-existing skips. Compile, Ruff, format, and diff checks passed. No `aios_rescan` reference remains in the repository.
+- **Fixture evidence:** `maintenance_structured_verifier` was added to the R15 runtime proof matrix and passed as `fixture`; it proves the bounded registry contract, not live private Executor operation.
+- **Source:** `0ca73e853f4e5a5e1f0e3c3c75301309539f633a` pushed to the required branch.
+- **Release posture:** R15 remains NOT ACCEPTED. The structured verifier is integration/fixture-proven only; live maintenance repair through production code-worker/private Executor, live HiringBroker provider proof, local clerk admission and 30-task benchmark, frontend operator walkthrough, current hosted source-tip gates, and independent non-builder verdict remain open.
+- **Exact next action:** Run current source-tip hosted CI and CodeQL, then audit Phase 3 structured verification contracts for learning/skill reuse without adding a second authority; do not start R16.
