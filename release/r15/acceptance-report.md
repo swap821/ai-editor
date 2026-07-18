@@ -12,7 +12,7 @@
 - **Private Executor:** Unavailable on the current laptop; hosted/package proof remains required.
 - **Hosted CI:** Green on source tip `e1d8de0` in run `29636436923`, including all backend OS matrices, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, license inventory, and evidence upload.
 - **CodeQL:** Green on source tip `e1d8de0` in run `29636442316` for Python, JavaScript/TypeScript, and Actions; the executor model-pack validation also passed.
-- **Final handoff-tip retry:** CI run `29637224127` is green on `6c99de7` after a targeted Windows rerun; the first Windows attempt had one intermittent rollback-fixture 403, while the focused local reproduction and rerun passed without production authorization changes. CodeQL run `29637227825` is green on the same tip.
+- **Final code source tip:** CI run `29638293676` is green on `f955a12b7077634b1e4f9f6ee864931f92a9f831`, including all backend OS matrices, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, license inventory, and evidence upload. CodeQL run `29638296746` is green on the same code tip for Python, JavaScript/TypeScript, Actions, and executor model-pack validation. The rollback fixture’s earlier intermittent 403 remains a test-state risk; local focused and API-module checks pass, and no production authorization code changed.
 - **Non-builder handoff:** Not yet available; the coordination lease is currently unowned and no independent verdict is recorded.
 
 ### Sign-off

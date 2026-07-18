@@ -135,3 +135,12 @@
 - **Retry result:** Targeted Windows rerun passed; aggregate backend and release-authority passed, including private-Executor isolation/strict runtime and evidence upload. CodeQL `29637227825` passed on the same tip.
 - **Known limitations:** The rollback fixture remains a nondeterministic cross-test state risk worth future isolation cleanup; R15 acceptance remains blocked by no admitted local clerk, benchmark, authenticated cloud-burst proof, and non-builder verdict.
 - **Exact next action:** Include this retry evidence in the final clean handoff and await the independent reviewer.
+
+## Slice 27: Final Source-Tip Evidence Currency
+
+- **Code source tip:** `f955a12b7077634b1e4f9f6ee864931f92a9f831` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Hosted CI:** Run `29638293676` passed backend OS matrices, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, license inventory, and evidence upload.
+- **CodeQL:** Run `29638296746` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
+- **Local follow-up:** The rollback test passed 8/8 in isolation and the full `tests/test_api.py` module passed; the intermittent hosted 403 remains recorded as a test-fixture state risk, not an authorization defect.
+- **Release posture:** R15 remains NOT ACCEPTED. No local clerk is admitted, benchmark execution is blocked, authenticated cloud-burst proof is absent, and no independent non-builder verdict is recorded.
+- **Exact next action:** Reissue the hash-pinned final handoff after this documentation checkpoint and await the independent reviewer; do not start R16.
