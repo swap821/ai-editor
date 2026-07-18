@@ -753,6 +753,10 @@ __all__ = [
     "get_edit_snapshot",
     "get_local_workforce_registry",
     "get_local_workforce_service",
+    "get_hiring_repository",
+    "get_skill_repository",
+    "get_maintenance_finding_repository",
+    "get_maintenance_scan_repository",
 ]
 
 
@@ -773,3 +777,31 @@ def get_local_workforce_service(
     from aios.application.local_workforce.service import LocalWorkforceService
 
     return LocalWorkforceService(registry=registry, ollama=ollama)
+
+
+def get_hiring_repository() -> Any:
+    """Provide the durable operational hiring-record repository."""
+    from aios.domain.intelligence.repository import HiringRecordRepository
+
+    return HiringRecordRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_skill_repository() -> Any:
+    """Provide the durable institutional-skill repository."""
+    from aios.domain.learning.repository import SkillRepository
+
+    return SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_maintenance_finding_repository() -> Any:
+    """Provide the durable maintenance-finding repository."""
+    from aios.domain.maintenance.repository import MaintenanceFindingRepository
+
+    return MaintenanceFindingRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_maintenance_scan_repository() -> Any:
+    """Provide the durable bounded-scan metadata repository."""
+    from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
+
+    return MaintenanceScanRepository(config.OPERATIONAL_STATE_DB_PATH)

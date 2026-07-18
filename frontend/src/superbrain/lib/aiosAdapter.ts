@@ -955,7 +955,8 @@ export async function fetchHiringProposals(): Promise<any[]> {
       headers: authHeaders(),
     });
     if (!res.ok) return [];
-    return (await res.json()) as any[];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
   } catch {
     return [];
   }
@@ -968,7 +969,8 @@ export async function fetchSkills(): Promise<any[]> {
       headers: authHeaders(),
     });
     if (!res.ok) return [];
-    return (await res.json()) as any[];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
   } catch {
     return [];
   }
@@ -981,7 +983,8 @@ export async function fetchMaintenanceFindings(): Promise<any[]> {
       headers: authHeaders(),
     });
     if (!res.ok) return [];
-    return (await res.json()) as any[];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
   } catch {
     return [];
   }
@@ -994,7 +997,8 @@ export async function fetchMaintenanceScans(): Promise<any[]> {
       headers: authHeaders(),
     });
     if (!res.ok) return [];
-    return (await res.json()) as any[];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
   } catch {
     return [];
   }

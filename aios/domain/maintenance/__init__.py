@@ -5,6 +5,7 @@ from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.service import AutonomousMaintenanceForce, ScanExecutionError
 from aios.domain.maintenance.mission_bridge import MaintenanceMissionBridge
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
+from aios.domain.maintenance.scan_repository import MaintenanceScan, MaintenanceScanRepository
 
 __all__ = [
     "MaintenanceFinding",
@@ -16,4 +17,6 @@ __all__ = [
     "ScanExecutionError",
     "MaintenanceMissionBridge",
     "MaintenanceFindingRepository",
+    "MaintenanceScan",
+    "MaintenanceScanRepository",
 ]

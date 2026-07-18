@@ -7,51 +7,41 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from aios.api.action_guard import enforce_action_boundary
+from aios.api.deps import (
+    get_maintenance_finding_repository,
+    get_maintenance_scan_repository,
+)
+from aios.domain.maintenance.repository import MaintenanceFindingRepository
+from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
 
-router = APIRouter(tags=["maintenance-center"], dependencies=[Depends(enforce_action_boundary)])
+router = APIRouter(
+    tags=["maintenance-center"], dependencies=[Depends(enforce_action_boundary)]
+)
+
 
 @router.get("/api/v1/maintenance/findings")
-def list_maintenance_findings() -> dict[str, Any]:
-    """Retrieve the list of current durable maintenance findings."""
+def list_maintenance_findings(
+    repository: MaintenanceFindingRepository = Depends(
+        get_maintenance_finding_repository
+    ),
+) -> dict[str, Any]:
+    """List durable scanner findings without inventing operational state."""
+    items = [finding.model_dump(mode="json") for finding in repository.list_findings()]
     return {
-        "findings": [
-            {
-                "id": "find-1234",
-                "severity": "medium",
-                "description": "Orphaned temporary files in scratch directory.",
-                "status": "pending_repair",
-                "evidence": "Found 45 files older than 7 days in /tmp/aios_scratch."
-            },
-            {
-                "id": "find-5678",
-                "severity": "high",
-                "description": "Database connection pool exhaustion risk detected.",
-                "status": "resolved",
-                "evidence": "Peak connection count reached 95% of limit during last 24h."
-            }
-        ],
-        "total_count": 2
+        "items": items,
+        "status": "available" if items else "empty",
+        "source": "durable_repository",
     }
 
 
 @router.get("/api/v1/maintenance/scans")
-def list_maintenance_scans() -> dict[str, Any]:
-    """Retrieve recent maintenance scans and bounded scan contracts."""
+def list_maintenance_scans(
+    repository: MaintenanceScanRepository = Depends(get_maintenance_scan_repository),
+) -> dict[str, Any]:
+    """List persisted bounded-scan metadata only."""
+    items = [scan.model_dump(mode="json") for scan in repository.list_scans()]
     return {
-        "scans": [
-            {
-                "id": "scan-xyz",
-                "status": "completed",
-                "started_at": "2026-07-18T01:00:00Z",
-                "completed_at": "2026-07-18T01:05:00Z",
-                "findings_count": 1,
-                "contract": {
-                    "max_duration_seconds": 600,
-                    "max_cpu_percent": 25.0,
-                    "max_memory_mb": 512,
-                    "readonly_paths": ["/workspace", "/tmp"],
-                    "forbidden_paths": ["/secrets", "/etc"]
-                }
-            }
-        ]
+        "items": items,
+        "status": "available" if items else "empty",
+        "source": "durable_repository",
     }
