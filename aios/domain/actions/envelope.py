@@ -97,6 +97,7 @@ class ActionType(str, Enum):
     LOCAL_WORKFORCE_HEALTH_CHECK = "local_workforce_health_check"
     LOCAL_WORKFORCE_PROFILES = "local_workforce_profiles"
     INTELLIGENCE_HIRING = "intelligence_hiring"
+    SKILL_REUSE = "skill_reuse"
     UNKNOWN = "unknown"
 
 

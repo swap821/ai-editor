@@ -288,10 +288,18 @@ def _probe_privacy_gated_cloud_use(scratch: Path) -> str:
 
 
 def _probe_expert_trajectory_provenance(scratch: Path) -> str:
-    from aios.domain.learning.contracts import ExpertTrajectory
+    from aios.domain.evidence import VerificationPlanV1
+    from aios.domain.learning.contracts import (
+        ExpertTrajectory,
+        ToolObservation,
+        TrajectoryVerification,
+    )
     from aios.domain.learning.trajectory_gate import TrajectoryGate, TrajectoryGateError
 
     trajectory = ExpertTrajectory(
+        trajectory_id="trajectory-proof-1",
+        mission_id="mission-proof-1",
+        contract_digest="contract-proof-1",
         problem_signature="repair-json-parser",
         project_digest="project-1",
         expert_provider="bedrock",
@@ -301,12 +309,42 @@ def _probe_expert_trajectory_provenance(scratch: Path) -> str:
         actions_attempted=2,
         failed_attempts=0,
         successful_actions=2,
-        tool_observations=["tests passed"],
-        verification_plan="run focused tests",
-        verification_results="PASS: 2 tests",
-        promotion_result="human-approved",
+        tool_observations=(
+            ToolObservation(
+                observation_id="tool-proof-1",
+                tool="run_tests",
+                result_digest="tests-proof-1",
+                status="completed",
+            ),
+            ToolObservation(
+                observation_id="tool-proof-2",
+                tool="inspect_diff",
+                result_digest="diff-proof-1",
+                status="completed",
+            ),
+        ),
+        verification_plan=VerificationPlanV1(
+            intended_behavior="parser repair passes",
+            targets=("unit-tests",),
+            required_tests=("pytest",),
+        ),
+        verification_results=(
+            TrajectoryVerification(
+                verification_id="verification-proof-1",
+                mission_id="mission-proof-1",
+                action_id="action-proof-1",
+                passed=True,
+                strength=4,
+                required_strength=3,
+                evidence_ids=("evidence-proof-1",),
+            ),
+        ),
+        verification_strength=4,
+        promotion_status="promoted",
+        promotion_evidence_ids=("promotion-proof-1",),
         rollback_result=None,
-        human_interventions=1,
+        human_intervention_ids=("approval-proof-1",),
+        final_mission_status="completed",
         final_outcome="success",
     )
     assert TrajectoryGate().qualify(trajectory) is True
@@ -330,14 +368,26 @@ def _probe_skill_applicability(scratch: Path) -> str:
     assert (
         engine.check_applicability(
             skill,
-            {"log_path": "data/logs/app.json"},
+            {"log_path": "data/logs/app.json", "log_format": "json"},
             {"has_json_parser": "true"},
+            current_scope="data/logs/app.json",
+            mission_allowed_tools=skill.allowed_tools,
+            validated_version="1.0.0",
+            verification_plan_executable=True,
+            policy_allows=True,
         )
         is True
     )
     try:
         engine.check_applicability(
-            skill, {"log_path": "data/logs/app.json"}, {"has_json_parser": "false"}
+            skill,
+            {"log_path": "data/logs/app.json", "log_format": "json"},
+            {"has_json_parser": "false"},
+            current_scope="data/logs/app.json",
+            mission_allowed_tools=skill.allowed_tools,
+            validated_version="1.0.0",
+            verification_plan_executable=True,
+            policy_allows=True,
         )
     except ApplicabilityError:
         pass
@@ -357,7 +407,14 @@ def _probe_skill_re_escalation(scratch: Path) -> str:
     orchestrator = SkillReuseOrchestrator(SkillApplicabilityEngine())
     skill = _proof_skill()
     local = orchestrator.attempt_reuse(
-        [skill], {"log_path": "data/logs/app.json"}, {"has_json_parser": "true"}
+        [skill],
+        {"log_path": "data/logs/app.json", "log_format": "json"},
+        {"has_json_parser": "true"},
+        current_scope="data/logs/app.json",
+        mission_allowed_tools=skill.allowed_tools,
+        validated_version="1.0.0",
+        verification_plan_executable=True,
+        policy_allows=True,
     )
     escalated = orchestrator.attempt_reuse([skill], {}, {"has_json_parser": "true"})
     assert isinstance(local, LocalExecutionDirective)

@@ -759,6 +759,7 @@ __all__ = [
     "get_skill_repository",
     "get_maintenance_finding_repository",
     "get_maintenance_scan_repository",
+    "get_learning_service",
 ]
 
 
@@ -860,3 +861,38 @@ def get_maintenance_scan_repository() -> Any:
     from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
 
     return MaintenanceScanRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_learning_service() -> Any:
+    """Provide durable trajectory and skill reuse over canonical mission state."""
+    from aios.application.learning.service import LearningService
+    from aios.application.missions.mission_service import MissionService
+    from aios.domain.learning.repository import SkillRepository
+    from aios.domain.learning.trajectory_repository import TrajectoryRepository
+    from aios.infrastructure.missions.sqlite_mission_repository import (
+        SqliteMissionRepository,
+    )
+    from aios.policy.kernel import get_policy_kernel
+
+    policy = get_policy_kernel()
+
+    def reuse_policy(skill: Any, _context: dict[str, object]) -> bool:
+        # PolicyKernel decides whether the advisory reuse class is enabled;
+        # MissionService and the ordinary action boundary still govern work.
+        return skill.state == "active" and policy.earned_autonomy_enabled()
+
+    def verification_plan_validator(skill: Any) -> bool:
+        plan = skill.verification_plan.strip()
+        return bool(plan) and not any(
+            marker in plan for marker in ("\n", "\r", "&&", "||", ";", "|", ">", "<", "`", "$(")
+        )
+
+    return LearningService(
+        mission_service=MissionService(
+            SqliteMissionRepository(config.MISSION_STATE_DB)
+        ),
+        trajectory_repository=TrajectoryRepository(config.OPERATIONAL_STATE_DB_PATH),
+        skill_repository=SkillRepository(config.OPERATIONAL_STATE_DB_PATH),
+        verification_plan_validator=verification_plan_validator,
+        reuse_policy=reuse_policy,
+    )

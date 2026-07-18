@@ -1,12 +1,19 @@
-"""Tests for Skill Reuse Orchestrator and Confidence."""
+"""Tests for skill reuse directives and confidence."""
+
 import pytest
-from aios.domain.learning.skill_contracts import SkillContract
+
 from aios.domain.learning.applicability import SkillApplicabilityEngine
 from aios.domain.learning.confidence import ConfidenceUpdater
-from aios.domain.learning.reuse_orchestrator import SkillReuseOrchestrator, LocalExecutionDirective, EscalateToFrontierDirective
+from aios.domain.learning.reuse_orchestrator import (
+    EscalateToFrontierDirective,
+    LocalExecutionDirective,
+    SkillReuseOrchestrator,
+)
+from aios.domain.learning.skill_contracts import SkillContract
+
 
 @pytest.fixture
-def base_skill():
+def base_skill() -> SkillContract:
     return SkillContract(
         skill_id="skill-456",
         version=1,
@@ -26,48 +33,65 @@ def base_skill():
         success_count=5,
         failure_count=0,
         last_validated_versions=["1.0.0"],
-        state="active"
+        state="active",
     )
 
-def test_confidence_updater_punishes_heavily(base_skill):
+
+def _kwargs(skill: SkillContract) -> dict[str, object]:
+    return {
+        "current_scope": "data/logs/app.json",
+        "mission_allowed_tools": skill.allowed_tools,
+        "validated_version": "1.0.0",
+        "verification_plan_executable": True,
+        "policy_allows": True,
+    }
+
+
+def test_confidence_updater_punishes_heavily(base_skill: SkillContract) -> None:
     updater = ConfidenceUpdater()
-    # A success gives a small bump
     success_skill = updater.record_success(base_skill)
     assert success_skill.confidence == 0.95
     assert success_skill.success_count == 6
-    
-    # A failure gives a massive penalty
     fail_skill = updater.record_failure(base_skill, "verification")
-    assert fail_skill.confidence == 0.70  # 0.9 - 0.2
+    assert fail_skill.confidence == 0.70
     assert fail_skill.failure_count == 1
 
-def test_orchestrator_returns_local_directive_on_success(base_skill):
-    engine = SkillApplicabilityEngine(minimum_confidence=0.8)
-    orchestrator = SkillReuseOrchestrator(engine)
-    
-    current_inputs = {"log_path": "/var/log/app.json"}
-    current_state = {"has_json_parser": "true"}
-    
-    directive = orchestrator.attempt_reuse([base_skill], current_inputs, current_state)
+
+def test_orchestrator_returns_local_directive_on_success(
+    base_skill: SkillContract,
+) -> None:
+    orchestrator = SkillReuseOrchestrator(
+        SkillApplicabilityEngine(minimum_confidence=0.8)
+    )
+    directive = orchestrator.attempt_reuse(
+        [base_skill],
+        {"log_path": "data/logs/app.json", "log_format": "json"},
+        {"has_json_parser": "true"},
+        **_kwargs(base_skill),
+    )
     assert isinstance(directive, LocalExecutionDirective)
     assert directive.skill.skill_id == "skill-456"
 
-def test_orchestrator_escalates_on_applicability_failure(base_skill):
-    engine = SkillApplicabilityEngine(minimum_confidence=0.8)
-    orchestrator = SkillReuseOrchestrator(engine)
-    
-    # Missing 'log_path' should fail applicability
-    current_inputs = {"other_input": "val"}
-    current_state = {"has_json_parser": "true"}
-    
-    directive = orchestrator.attempt_reuse([base_skill], current_inputs, current_state)
+
+def test_orchestrator_escalates_on_applicability_failure(
+    base_skill: SkillContract,
+) -> None:
+    orchestrator = SkillReuseOrchestrator(
+        SkillApplicabilityEngine(minimum_confidence=0.8)
+    )
+    directive = orchestrator.attempt_reuse(
+        [base_skill],
+        {"log_format": "json"},
+        {"has_json_parser": "true"},
+        **_kwargs(base_skill),
+    )
     assert isinstance(directive, EscalateToFrontierDirective)
     assert "No candidate skill met applicability conditions" in directive.reason
 
-def test_orchestrator_escalates_when_no_candidates():
-    engine = SkillApplicabilityEngine()
-    orchestrator = SkillReuseOrchestrator(engine)
-    
-    directive = orchestrator.attempt_reuse([], {}, {})
+
+def test_orchestrator_escalates_when_no_candidates() -> None:
+    directive = SkillReuseOrchestrator(SkillApplicabilityEngine()).attempt_reuse(
+        [], {}, {}
+    )
     assert isinstance(directive, EscalateToFrontierDirective)
     assert "No candidate skills provided" in directive.reason

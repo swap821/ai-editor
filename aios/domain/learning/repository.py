@@ -5,10 +5,15 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from aios.domain.learning.skill_contracts import SkillContract
+from aios.domain.learning.skill_contracts import SkillContract, SkillState
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 class SkillRecord(SkillContract):
@@ -71,6 +76,31 @@ class SkillRepository:
                 """
             ).fetchall()
         return tuple(SkillRecord.model_validate(json.loads(row[0])) for row in rows)
+
+    def transition_state(
+        self,
+        skill_id: str,
+        version: int,
+        state: SkillState,
+    ) -> SkillRecord:
+        """Persist one authority-approved lifecycle transition."""
+        current = self.get(skill_id, version)
+        if current is None:
+            raise KeyError(f"skill {skill_id!r} version {version} not found")
+        allowed: dict[SkillState, set[SkillState]] = {
+            "candidate": {"human_reviewed", "blocked", "deprecated"},
+            "human_reviewed": {"active", "blocked", "deprecated"},
+            "active": {"degraded", "superseded", "deprecated"},
+            "degraded": {"human_reviewed", "blocked", "deprecated"},
+            "superseded": set(),
+            "deprecated": set(),
+            "blocked": {"human_reviewed", "deprecated"},
+        }
+        if state not in allowed[current.state]:
+            raise ValueError(f"invalid skill transition {current.state!r} -> {state!r}")
+        updated = current.model_copy(update={"state": state, "updated_at": _utc_now()})
+        self.save(updated)
+        return updated
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
