@@ -104,7 +104,8 @@ def test_registry_preserves_configuration_across_restarts(memory_db, fake_ollama
     registry1 = LocalWorkforceRegistry(fake_ollama)
     registry1.reconcile()
     
-    registry1.update_approval("llama3.2:3b", True, "Approved for general clerical work")
+    registry1.update_approval("llama3.2:3b", True)
+    registry1.update_admission("llama3.2:3b", "approved", "Approved for general clerical work")
     registry1.update_profiles("llama3.2:3b", {LocalJobProfile.CLASSIFY, LocalJobProfile.SUMMARISE})
     registry1.record_health("llama3.2:3b", "healthy", success=True)
     
