@@ -754,6 +754,8 @@ __all__ = [
     "get_local_workforce_registry",
     "get_local_workforce_service",
     "get_hiring_repository",
+    "get_hiring_service",
+    "get_cortex_observation_bus",
     "get_skill_repository",
     "get_maintenance_finding_repository",
     "get_maintenance_scan_repository",
@@ -784,6 +786,59 @@ def get_hiring_repository() -> Any:
     from aios.domain.intelligence.repository import HiringRecordRepository
 
     return HiringRecordRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_cortex_observation_bus() -> Any:
+    """Provide the optional Cortex observation outbox without owning it."""
+    from aios.api.main import get_cortex_bus
+
+    return get_cortex_bus()
+
+
+def get_hiring_service(
+    ollama: Any = Depends(get_ollama_client),
+    bedrock: Any = Depends(get_bedrock_client),
+    gemini: Any = Depends(get_gemini_client),
+    openai: Any = Depends(get_openai_client),
+    anthropic: Any = Depends(get_anthropic_client),
+    repository: Any = Depends(get_hiring_repository),
+    cortex: Any = Depends(get_cortex_observation_bus),
+    policy: Any = Depends(get_policy_kernel),
+) -> Any:
+    """Compose the canonical HiringBroker with injected runtime adapters."""
+    from aios.application.models.hiring_service import (
+        ChatProviderAdapter,
+        IntelligenceHiringService,
+    )
+    from aios.core.router_wiring import _build_providers
+    from aios.domain.intelligence.broker import HiringBroker
+
+    raw_clients = {
+        "ollama": ollama,
+        "bedrock": bedrock,
+        "gemini": gemini,
+        "openai": openai,
+        "anthropic": anthropic,
+    }
+    clients = {
+        name: ChatProviderAdapter(client)
+        for name, client in raw_clients.items()
+        if client is not None
+    }
+    return IntelligenceHiringService(
+        broker=HiringBroker(),
+        providers=_build_providers(
+            ollama,
+            bedrock,
+            gemini,
+            openai=openai,
+            anthropic=anthropic,
+        ),
+        clients=clients,
+        repository=repository,
+        cortex=cortex,
+        policy=policy.router_policy(),
+    )
 
 
 def get_skill_repository() -> Any:

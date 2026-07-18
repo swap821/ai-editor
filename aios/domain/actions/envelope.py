@@ -1,4 +1,5 @@
 """Immutable action request envelope -- the single input to the Policy Kernel."""
+
 from __future__ import annotations
 
 import uuid
@@ -95,6 +96,7 @@ class ActionType(str, Enum):
     LOCAL_WORKFORCE_QUALIFY = "local_workforce_qualify"
     LOCAL_WORKFORCE_HEALTH_CHECK = "local_workforce_health_check"
     LOCAL_WORKFORCE_PROFILES = "local_workforce_profiles"
+    INTELLIGENCE_HIRING = "intelligence_hiring"
     UNKNOWN = "unknown"
 
 
@@ -164,12 +166,18 @@ class ActionEnvelope:
 
         object.__setattr__(self, "http_method", self.http_method.upper())
         computed_payload_digest = _payload_digest(self.payload)
-        if self.payload_digest is not None and self.payload_digest != computed_payload_digest:
+        if (
+            self.payload_digest is not None
+            and self.payload_digest != computed_payload_digest
+        ):
             raise ValueError("payload_digest does not match payload")
         object.__setattr__(self, "payload_digest", computed_payload_digest)
 
         computed_resource_digest = _resource_digest(self.resource)
-        if self.resource_digest is not None and self.resource_digest != computed_resource_digest:
+        if (
+            self.resource_digest is not None
+            and self.resource_digest != computed_resource_digest
+        ):
             raise ValueError("resource_digest does not match resource")
         object.__setattr__(self, "resource_digest", computed_resource_digest)
 

@@ -1,4 +1,5 @@
 """Deterministic privacy and redaction boundary for model exposure."""
+
 from __future__ import annotations
 
 from aios.domain.privacy import (
@@ -44,7 +45,7 @@ class PrivacyBroker:
         if local_only:
             allowed = [name for name in allowed if name in _LOCAL_PROVIDERS]
             if not allowed:
-                allowed = ["ollama"]
+                reasons.append("NO_LOCAL_PROVIDER_ALLOWED")
         if provider is not None:
             if provider not in allowed:
                 reasons.append("PROVIDER_NOT_ALLOWLISTED")

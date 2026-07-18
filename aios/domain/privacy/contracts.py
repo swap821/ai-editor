@@ -1,4 +1,5 @@
 """Immutable contracts for governed local/cloud intelligence."""
+
 from __future__ import annotations
 
 import hashlib
@@ -42,6 +43,7 @@ class ModelCallRequest(BaseModel):
     request_id: str
     principal_id: str
     mission_id: str | None = None
+    turn_id: str | None = None
     purpose: str
     prompt: str
     data_classification: DataClassification
@@ -74,6 +76,7 @@ class ModelCallRecord(BaseModel):
     request_id: str
     principal_id: str
     mission_id: str | None = None
+    turn_id: str | None = None
     purpose: str
     data_classification: DataClassification
     redactions: tuple[str, ...] = ()

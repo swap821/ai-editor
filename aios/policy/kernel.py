@@ -171,6 +171,13 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="local_workforce_profiles",
         action_type=ActionType.LOCAL_WORKFORCE_PROFILES,
     ),
+    "/api/v1/hiring/call": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="intelligence_hiring",
+        action_type=ActionType.INTELLIGENCE_HIRING,
+    ),
     "/api/v1/local-workforce/{model_id}/qualify": RouteAuthority(
         "YELLOW",
         30,

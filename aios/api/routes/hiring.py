@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from aios.api.action_guard import enforce_action_boundary
@@ -13,8 +13,16 @@ from aios.api.deps import (
     get_bedrock_client,
     get_gemini_client,
     get_hiring_repository,
+    get_hiring_service,
     get_ollama_client,
     get_openai_client,
+)
+from aios.application.models.hiring_service import IntelligenceHiringService
+from aios.domain.privacy import (
+    DataClassification,
+    FallbackPolicy,
+    ModelCallRequest,
+    PrivacyPolicy,
 )
 from aios.domain.intelligence.repository import HiringRecordRepository
 
@@ -27,6 +35,20 @@ class HiringStatusResponse(BaseModel):
     status: str
     source: str
     providers: list[dict[str, Any]]
+
+
+class HiringCallRequest(BaseModel):
+    request_id: str
+    mission_id: str
+    turn_id: str | None = None
+    purpose: str
+    prompt: str
+    data_classification: DataClassification
+    task: str = "general"
+    allowed_providers: tuple[str, ...]
+    local_only: bool = True
+    fallback_policy: FallbackPolicy = FallbackPolicy.DENY
+    max_tokens: int = 1500
 
 
 def _adapter_status(name: str, adapter: Any) -> dict[str, Any]:
@@ -95,4 +117,44 @@ def list_hiring_proposals(
         "items": items,
         "status": "available" if items else "empty",
         "source": "durable_repository",
+    }
+
+
+@router.post("/api/v1/hiring/call")
+def execute_hiring_call(
+    body: HiringCallRequest,
+    request: Request,
+    service: IntelligenceHiringService = Depends(get_hiring_service),
+) -> dict[str, Any]:
+    """Execute one bounded advisory call after the ordinary action boundary."""
+    guard = getattr(request.state, "action_guard", None)
+    operator_id = getattr(getattr(guard, "envelope", None), "operator_id", None)
+    if not operator_id:
+        raise HTTPException(status_code=401, detail="authenticated operator required")
+    model_request = ModelCallRequest(
+        request_id=body.request_id,
+        principal_id=operator_id,
+        mission_id=body.mission_id,
+        turn_id=body.turn_id,
+        purpose=body.purpose,
+        prompt=body.prompt,
+        data_classification=body.data_classification,
+        task=body.task,
+        max_tokens=body.max_tokens,
+        policy=PrivacyPolicy(
+            data_classification=body.data_classification,
+            local_only=body.local_only,
+            allowed_providers=body.allowed_providers,
+            fallback_policy=body.fallback_policy,
+        ),
+    )
+    try:
+        result, record = service.complete(model_request)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "content": result,
+        "call": record.model_dump(mode="json"),
+        "advisory": True,
+        "source": "provider_adapter",
     }
