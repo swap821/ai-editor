@@ -143,4 +143,4 @@
 - **CodeQL:** Run `29638296746` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 - **Local follow-up:** The rollback test passed 8/8 in isolation and the full `tests/test_api.py` module passed; the intermittent hosted 403 remains recorded as a test-fixture state risk, not an authorization defect.
 - **Release posture:** R15 remains NOT ACCEPTED. No local clerk is admitted, benchmark execution is blocked, authenticated cloud-burst proof is absent, and no independent non-builder verdict is recorded.
-- **Exact next action:** Reissue the hash-pinned final handoff after this documentation checkpoint and await the independent reviewer; do not start R16.
+- **Exact next action:** Await the independent reviewer for the latest hash-pinned final handoff; do not start R16.
