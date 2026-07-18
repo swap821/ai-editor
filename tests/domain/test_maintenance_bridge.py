@@ -1,4 +1,5 @@
 """Tests for Maintenance-to-Mission Repair Bridge."""
+
 import pytest
 
 from aios.domain.maintenance.contracts import MaintenanceFinding
@@ -30,12 +31,12 @@ def base_finding():
 
 def test_bridge_creates_valid_mission(base_finding):
     mission = MaintenanceMissionBridge.create_repair_mission(base_finding, "operator-1")
-    
+
     assert isinstance(mission, MissionContract)
     assert mission.operator_id == "operator-1"
     assert "find-999" in mission.goal
     assert "Unused variable" in mission.goal
-    
+
     # Assert bindings
     assert mission.allowed_files == ["src/main.py"]
     assert mission.metadata["finding_id"] == "find-999"
@@ -43,6 +44,15 @@ def test_bridge_creates_valid_mission(base_finding):
     assert mission.metadata["scanner_id"] == "vulture"
     assert mission.metadata["scanner_version"] == "2.0.0"
     assert mission.metadata["required_post_repair_rescan"] is True
-    
-    # Assert verification plan explicitly requires rescan
-    assert any("vulture" in cmd and "src/main.py" in cmd for cmd in mission.verification_plan.commands)
+
+    # Assert the rescan is a typed registry invocation, never a shell command.
+    assert mission.verification_plan.commands == []
+    assert mission.metadata["verification_spec"] == {
+        "verifier_id": "maintenance.rescan",
+        "version": "1",
+        "scanner_id": "vulture",
+        "scanner_version": "2.0.0",
+        "target_id": "src/main.py",
+        "rescan_of": "hash_dead_code",
+        "allowed_root": "",
+    }

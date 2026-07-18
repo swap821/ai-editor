@@ -10,6 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+from aios.application.evidence.verifier_registry import (
+    VerifierRegistry,
+    VerifierRegistryError,
+    VerifierSpec,
+)
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.executor.service import ExecutorService, environment_digest
 from aios.application.missions.mission_service import MissionService
@@ -73,6 +78,7 @@ class MaintenanceConvergenceService:
         mission_service: MissionService,
         worker_foundry: Any,
         executor_service: ExecutorService,
+        verifier_registry: VerifierRegistry | None = None,
         verification_authority: VerificationAuthority,
         promotion_authority: PromotionAuthority,
         workspace_manager: StagedWorkspaceManager,
@@ -83,6 +89,9 @@ class MaintenanceConvergenceService:
         self.mission_service = mission_service
         self.worker_foundry = worker_foundry
         self.executor_service = executor_service
+        self.verifier_registry = verifier_registry or VerifierRegistry(
+            scanner_adapters={}
+        )
         self.verification_authority = verification_authority
         self.promotion_authority = promotion_authority
         self.workspace_manager = workspace_manager
@@ -116,7 +125,9 @@ class MaintenanceConvergenceService:
         )
         self.scan_repository.save(scan)
         try:
-            raw_findings = tuple(self._maintenance_force.run_bounded_scan(contract, scanner))
+            raw_findings = tuple(
+                self._maintenance_force.run_bounded_scan(contract, scanner)
+            )
             for finding in raw_findings:
                 if (
                     finding.scanner_id != scanner_id
@@ -197,7 +208,9 @@ class MaintenanceConvergenceService:
         fingerprint = str(record.contract.metadata.get("finding_fingerprint", ""))
         finding = self.finding_repository.get(fingerprint)
         if finding is None or finding.mission_id != mission_id:
-            raise MaintenanceConvergenceError("mission is not bound to a durable finding")
+            raise MaintenanceConvergenceError(
+                "mission is not bound to a durable finding"
+            )
         self.finding_repository.save(
             self.lifecycle_engine.mark_repairing(finding, mission_id)
         )
@@ -228,34 +241,42 @@ class MaintenanceConvergenceService:
             if lease is None:
                 return self._failed(mission_id, finding, "staged workspace unavailable")
             diff = self.workspace_manager.diff(lease)
-            command = _verification_command(record.contract, finding)
-            job = self.executor_service.build_command_job(
-                mission_contract_digest=record.contract_digest,
-                command=command,
-                workspace_snapshot=str(lease.workspace_path),
-                timeout_seconds=record.contract.budget.timeout_seconds,
-                job_id=f"maintenance-verification-{uuid.uuid4().hex}",
+            verifier_payload = record.contract.metadata.get("verification_spec", {})
+            verifier_spec = VerifierSpec.model_validate(verifier_payload).model_copy(
+                update={"allowed_root": str(lease.workspace_path)}
             )
-            executor_result = self.executor_service.execute(job)
-            environment = executor_result.environment_digest or environment_digest({})
+            verification_contract = rescan_contract.model_copy(
+                update={"allowed_root": str(lease.workspace_path)}
+            )
+            verifier_run = self.verifier_registry.run(
+                verifier_spec,
+                contract=verification_contract,
+                scanner=scanner,
+            )
+            environment = environment_digest(
+                {
+                    "verifier_id": verifier_run.verifier_id,
+                    "verifier_version": verifier_run.version,
+                }
+            )
             plan = VerificationPlanV1(
                 intended_behavior=f"repair finding {finding.finding_id}",
                 targets=(finding.target_id,),
-                required_tests=(command,),
+                required_tests=(verifier_run.verifier_id,),
                 # The deterministic rescan is an authoritative scanner result,
                 # not a test-runner claim.  Its explicit weak floor is still
                 # bound to the current workspace/diff and a completed scan.
                 minimum_strength=1,
             )
             observation = VerificationObservation(
-                command=command,
-                exit_code=executor_result.exit_code,
-                stdout=executor_result.stdout,
-                stderr=executor_result.stderr,
-                passed_count=1 if executor_result.exit_code == 0 else 0,
-                failed_count=0 if executor_result.exit_code == 0 else 1,
-                tool_version="private_executor",
-                observed_at=executor_result.ended_at,
+                command=verifier_run.verifier_id,
+                exit_code=0 if verifier_run.passed else 1,
+                stdout=verifier_run.stdout,
+                stderr=verifier_run.stderr,
+                passed_count=1 if verifier_run.passed else 0,
+                failed_count=0 if verifier_run.passed else 1,
+                tool_version=f"{verifier_run.verifier_id}@{verifier_run.version}",
+                observed_at=verifier_run.ended_at,
             )
             verification = self.verification_authority.verify(
                 mission_id=mission_id,
@@ -280,22 +301,26 @@ class MaintenanceConvergenceService:
                 contract_digest=record.contract_digest,
                 workspace_digest=str(diff["workspace_digest"]),
                 diff_digest=str(diff["diff_digest"]),
-                executor_job_id=executor_result.job_id,
+                # EvidenceBundle predates the structured verifier registry and
+                # calls this correlation field executor_job_id. Preserve the
+                # existing promotion contract while binding it to the real
+                # verifier run, never to a fabricated shell job.
+                executor_job_id=verifier_run.run_id,
                 environment_digest=environment,
                 commands=(
                     EvidenceCommand(
-                        command=command,
-                        return_code=executor_result.exit_code,
-                        stdout_digest=_digest(executor_result.stdout),
-                        stderr_digest=_digest(executor_result.stderr),
-                        tool_version="private_executor",
-                        observed_at=executor_result.ended_at,
+                        command=verifier_run.verifier_id,
+                        return_code=0 if verifier_run.passed else 1,
+                        stdout_digest=_digest(verifier_run.stdout),
+                        stderr_digest=_digest(verifier_run.stderr),
+                        tool_version=f"{verifier_run.verifier_id}@{verifier_run.version}",
+                        observed_at=verifier_run.ended_at,
                     ),
                 ),
                 verification_strength=verification.strength,
                 targets_exercised=(finding.target_id,),
-                started_at=executor_result.started_at,
-                ended_at=executor_result.ended_at,
+                started_at=verifier_run.started_at,
+                ended_at=verifier_run.ended_at,
             )
             promotion = self.promotion_authority.promote(
                 self._promotion_request(
@@ -304,7 +329,7 @@ class MaintenanceConvergenceService:
                     lease=lease,
                     diff=diff,
                     worker_id=worker_id,
-                    executor_job_id=executor_result.job_id,
+                    executor_job_id=verifier_run.run_id,
                     environment_digest_value=environment,
                     verification=verification,
                     bundle=bundle,
@@ -314,8 +339,10 @@ class MaintenanceConvergenceService:
                 smoke_test=smoke_test,
                 restore_checkpoint=restore_checkpoint,
                 consume_capability=capability_consumer,
-                mark_completed=lambda _request, evidence_ids: self.mission_service.complete(
-                    mission_id, evidence_digest=evidence_ids[0] if evidence_ids else None
+                mark_completed=lambda _request,
+                evidence_ids: self.mission_service.complete(
+                    mission_id,
+                    evidence_digest=evidence_ids[0] if evidence_ids else None,
                 ),
             )
             if promotion.status.value != "promoted":
@@ -386,6 +413,9 @@ class MaintenanceConvergenceService:
                 scan_id=rescan.scan.scan_id,
                 promotion_status=promotion.status.value,
             )
+        except (VerifierRegistryError, ValueError) as exc:
+            current = self.finding_repository.get(fingerprint) or finding
+            return self._failed(mission_id, current, str(exc))
         except Exception as exc:  # noqa: BLE001 - mission failures are durable
             current = self.finding_repository.get(fingerprint) or finding
             return self._failed(mission_id, current, str(exc))
@@ -513,13 +543,6 @@ def _worker_id(result: Any) -> str:
     if worker_id:
         return str(worker_id)
     raise MaintenanceConvergenceError("worker result has no identity")
-
-
-def _verification_command(contract: Any, finding: MaintenanceFinding) -> str:
-    commands = list(contract.verification_plan.commands)
-    if commands:
-        return commands[0]
-    return f"aios_rescan --scanner {finding.scanner_id} --target {finding.target_id}"
 
 
 def _digest(value: str) -> str:

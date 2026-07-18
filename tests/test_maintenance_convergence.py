@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from aios.application.evidence.verification import VerificationAuthority
+from aios.application.evidence.verifier_registry import VerifierRegistry
 from aios.application.executor.service import ExecutorService
 from aios.application.missions.mission_service import MissionService
 from aios.application.maintenance.service import MaintenanceConvergenceService
@@ -64,9 +65,10 @@ class _WorkerFoundry:
 
     async def run(self, contract, **_kwargs):  # noqa: ANN001
         self.calls += 1
-        if self.workspace_manager is not None and self.workspace_manager.for_mission(
-            contract.mission_id
-        ) is None:
+        if (
+            self.workspace_manager is not None
+            and self.workspace_manager.for_mission(contract.mission_id) is None
+        ):
             self.workspace_manager.stage(contract.mission_id, contract.workspace_root)
         lease = self.workspace_manager.for_mission(contract.mission_id)
         if self.repair:
@@ -87,19 +89,21 @@ class _Executor:
             job_id=job.job_id,
             status="completed" if self.exit_code == 0 else "failed",
             exit_code=self.exit_code,
-            stdout="rescan clean" if self.exit_code == 0 else "repair verification failed",
+            stdout="rescan clean"
+            if self.exit_code == 0
+            else "repair verification failed",
             isolation_verified=True,
             environment_digest="environment-maintenance-1",
         )
 
 
-def _service(tmp_path: Path, *, worker, executor) -> tuple[MaintenanceConvergenceService, Path]:
+def _service(
+    tmp_path: Path, *, worker, executor
+) -> tuple[MaintenanceConvergenceService, Path]:
     project = tmp_path / "project"
     project.mkdir()
     (project / "bug.txt").write_text("CONTROLLED_DEFECT\n", encoding="utf-8")
-    workspace = StagedWorkspaceManager(
-        tmp_path / "staged", enrolled_roots=(project,)
-    )
+    workspace = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
     missions = SqliteMissionRepository(tmp_path / "missions.db")
     mission_service = MissionService(missions, workspace_manager=workspace)
     finding_repository = MaintenanceFindingRepository(tmp_path / "operational.db")
@@ -113,6 +117,9 @@ def _service(tmp_path: Path, *, worker, executor) -> tuple[MaintenanceConvergenc
             profile="test",
             runner=executor.execute,
             backend_name="private_service",
+        ),
+        verifier_registry=VerifierRegistry(
+            scanner_adapters={"controlled-scanner": _scanner}
         ),
         verification_authority=VerificationAuthority(),
         promotion_authority=PromotionAuthority(workspace),
@@ -194,18 +201,22 @@ def test_maintenance_repair_uses_canonical_mission_executor_verifier_promotion_a
             capability_consumer=lambda _request: True,
             create_checkpoint=lambda _request: "checkpoint-1",
             restore_checkpoint=lambda _checkpoint, _request: True,
-            smoke_test=lambda _request: (project / "bug.txt").read_text()
-            == "fixed\n",
+            smoke_test=lambda _request: (project / "bug.txt").read_text() == "fixed\n",
         )
     )
 
     assert result.status == "VERIFIED_RESOLVED", result.reason
     assert worker.calls == 1
-    assert len(executor.jobs) == 1
-    assert executor.jobs[0].mount_policy.workspace_only is True
+    assert executor.jobs == []
     assert project.joinpath("bug.txt").read_text() == "fixed\n"
-    assert service.finding_repository.get("controlled-defect").status == "VERIFIED_RESOLVED"
-    assert service.mission_service.repository.get(mission.mission_id).state is MissionState.COMPLETED
+    assert (
+        service.finding_repository.get("controlled-defect").status
+        == "VERIFIED_RESOLVED"
+    )
+    assert (
+        service.mission_service.repository.get(mission.mission_id).state
+        is MissionState.COMPLETED
+    )
 
 
 def test_failed_repair_never_resolves_finding(tmp_path: Path) -> None:
@@ -249,8 +260,14 @@ def test_failed_repair_never_resolves_finding(tmp_path: Path) -> None:
     )
 
     assert result.status == "VERIFICATION_FAILED"
-    assert service.finding_repository.get("controlled-defect").status == "VERIFICATION_FAILED"
-    assert service.mission_service.repository.get(mission.mission_id).state is MissionState.FAILED
+    assert (
+        service.finding_repository.get("controlled-defect").status
+        == "VERIFICATION_FAILED"
+    )
+    assert (
+        service.mission_service.repository.get(mission.mission_id).state
+        is MissionState.FAILED
+    )
 
 
 def test_rescan_incomplete_does_not_resolve_and_reappearance_reopens(
@@ -304,8 +321,7 @@ def test_rescan_incomplete_does_not_resolve_and_reappearance_reopens(
             capability_consumer=lambda _request: True,
             create_checkpoint=lambda _request: "checkpoint-1",
             restore_checkpoint=lambda _checkpoint, _request: True,
-            smoke_test=lambda _request: (project / "bug.txt").read_text()
-            == "fixed\n",
+            smoke_test=lambda _request: (project / "bug.txt").read_text() == "fixed\n",
         )
     )
     assert resolved.status == "VERIFIED_RESOLVED"
