@@ -50,9 +50,9 @@ def test_bounded_scan_contract_forbids_network():
             git_history_allowed=False
         )
 
-def test_service_refuses_scanners_that_exceed_max_findings(service, base_finding):
+def test_service_refuses_scanners_that_exceed_max_findings(service, base_finding, tmp_path):
     contract = BoundedScanContract(
-        allowed_root="/tmp",
+        allowed_root=str(tmp_path),
         max_files=10,
         max_total_bytes=1000,
         max_file_bytes=100,
