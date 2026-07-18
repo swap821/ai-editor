@@ -75,3 +75,10 @@
 - **Local/hosted distinction:** The laptop strict validator remains partial because no private Executor service is configured locally; hosted runtime evidence is green and must not be replaced by a false local green.
 - **Remaining acceptance evidence:** Benchmark completion, real model qualification, CodeQL, and non-builder handoff remain open; the release report stays NOT ACCEPTED.
 - **Exact next action:** Reconcile hosted release artifacts and close the remaining evidence/handoff requirements before any R15 acceptance or public R16 readiness claim.
+
+## Slice 20: Hosted Matrix Retry Convergence
+
+- **Current tip:** `276fb4f` on `antigravity/r15-sovereign-intelligence-flywheel`
+- **Hosted result:** Initial current-tip run encountered an intermittent macOS rollback-fixture 403 after Ubuntu hung; the hung run was cancelled, failed macOS was rerun, and CI `29633253287` completed green across macOS, Windows, Ubuntu, frontend, aggregate backend, and release-authority.
+- **Local reproduction:** The full API test module reproduced the 403 once and then passed 86/86 on the next run; the isolated rollback test passed 15/15. No authorization code was changed.
+- **Exact next action:** Reconcile the hosted release artifacts and close benchmark/qualification, CodeQL, and non-builder handoff evidence before R15 acceptance.
