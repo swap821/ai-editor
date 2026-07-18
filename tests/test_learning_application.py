@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from aios.application.evidence.verification import VerificationAuthority
 from aios.application.learning.service import (
     LearningService,
     SkillActivationDenied,
@@ -12,7 +13,11 @@ from aios.application.learning.service import (
 )
 from aios.api.deps import get_learning_service
 from aios.api.main import app
-from aios.domain.evidence import VerificationPlanV1, VerificationResult
+from aios.domain.evidence import (
+    VerificationObservation,
+    VerificationPlanV1,
+    VerificationResult,
+)
 from aios.domain.learning.contracts import ToolObservation
 from aios.domain.learning.repository import SkillRecord
 from aios.domain.verification import SkillVerifierSpec
@@ -40,22 +45,64 @@ def _mission() -> MissionContract:
     )
 
 
-def _verification() -> VerificationResult:
-    return VerificationResult(
-        verification_id="verification-1",
-        mission_id="frontier-mission-1",
-        action_id="action-1",
+def _authoritative_verification(
+    authority: VerificationAuthority,
+    *,
+    mission_id: str = "frontier-mission-1",
+    action_id: str = "action-1",
+) -> VerificationResult:
+    return authority.verify(
+        mission_id=mission_id,
+        action_id=action_id,
+        worker_id="worker-1",
         target="unit-tests",
-        passed=True,
-        strength=4,
-        required_strength=3,
-        evidence_ids=("evidence-1",),
+        plan=VerificationPlanV1(
+            intended_behavior="parser repair passes",
+            targets=("unit-tests",),
+            minimum_strength=3,
+        ),
         workspace_digest="workspace-1",
         diff_digest="diff-1",
         environment_digest="environment-1",
-        command="pytest tests/test_parser.py",
-        output_digest="output-1",
-        tool_version="pytest-8",
+        observation=VerificationObservation(
+            command="pytest tests/test_parser.py",
+            exit_code=0,
+            stdout="1 passed",
+            passed_count=1,
+            tool_version="pytest-8",
+        ),
+    )
+
+
+def _capture(
+    service: LearningService,
+    mission: object,
+    verification_results: tuple[VerificationResult, ...],
+):
+    return service.capture_trajectory(
+        mission=mission,
+        project_digest="project-digest-1",
+        expert_provider="gemini",
+        expert_model="gemini-2.5-pro",
+        context_digest="context-1",
+        proposal_digest="proposal-1",
+        tool_observations=(
+            ToolObservation(
+                observation_id="tool-1",
+                tool="run_tests",
+                result_digest="tool-result-1",
+                status="completed",
+            ),
+        ),
+        verification_plan=VerificationPlanV1(
+            intended_behavior="parser repair passes",
+            targets=("unit-tests",),
+            required_tests=("pytest tests/test_parser.py",),
+            minimum_strength=3,
+        ),
+        verification_results=verification_results,
+        promotion=_promotion(),
+        human_intervention_ids=("approval-1",),
     )
 
 
@@ -97,45 +144,26 @@ def test_capture_is_structured_durable_and_derived_from_authoritative_mission(
     mission_repo = SqliteMissionRepository(tmp_path / "missions.db")
     mission = mission_repo.create(_mission(), state=MissionState.COMPLETED)
     trajectories = TrajectoryRepository(tmp_path / "learning.db")
+    authority = VerificationAuthority()
     service = LearningService(
         mission_service=MissionService(mission_repo),
         trajectory_repository=trajectories,
+        verification_authority=authority,
     )
 
-    record = service.capture_trajectory(
-        mission=mission,
-        project_digest="project-digest-1",
-        expert_provider="gemini",
-        expert_model="gemini-2.5-pro",
-        context_digest="context-1",
-        proposal_digest="proposal-1",
-        tool_observations=(
-            ToolObservation(
-                observation_id="tool-1",
-                tool="run_tests",
-                result_digest="tool-result-1",
-                status="completed",
-            ),
-        ),
-        verification_plan=VerificationPlanV1(
-            intended_behavior="parser repair passes",
-            targets=("unit-tests",),
-            required_tests=("pytest tests/test_parser.py",),
-            minimum_strength=3,
-        ),
-        verification_results=(_verification(),),
-        promotion=_promotion(),
-        human_intervention_ids=("approval-1",),
-    )
+    verification = _authoritative_verification(authority)
+    record = _capture(service, mission, (verification,))
 
     assert record.mission_id == mission.mission_id
     assert record.contract_digest == mission.contract_digest
-    assert record.verification_ids == ("verification-1",)
+    assert record.verification_ids == (verification.verification_id,)
     assert trajectories.get(record.trajectory_id) == record
     assert (
         TrajectoryRepository(tmp_path / "learning.db").get(record.trajectory_id)
         == record
     )
+    with pytest.raises(ValueError, match="authoritative"):
+        _capture(service, mission, (verification.model_copy(),))
 
 
 def test_free_text_or_forged_verification_cannot_qualify() -> None:
@@ -187,34 +215,13 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
     mission_repo = SqliteMissionRepository(tmp_path / "missions.db")
     source = mission_repo.create(_mission(), state=MissionState.COMPLETED)
     skill_repo = TrajectoryRepository(tmp_path / "learning.db")
+    authority = VerificationAuthority()
     service = LearningService(
         mission_service=MissionService(mission_repo),
         trajectory_repository=skill_repo,
+        verification_authority=authority,
     )
-    trajectory = service.capture_trajectory(
-        mission=source,
-        project_digest="project-digest-1",
-        expert_provider="gemini",
-        expert_model="gemini-2.5-pro",
-        context_digest="context-1",
-        proposal_digest="proposal-1",
-        tool_observations=(
-            ToolObservation(
-                observation_id="tool-1",
-                tool="run_tests",
-                result_digest="tool-result-1",
-                status="completed",
-            ),
-        ),
-        verification_plan=VerificationPlanV1(
-            intended_behavior="parser repair passes",
-            targets=("unit-tests",),
-            required_tests=("pytest tests/test_parser.py",),
-        ),
-        verification_results=(_verification(),),
-        promotion=_promotion(),
-        human_intervention_ids=(),
-    )
+    trajectory = _capture(service, source, (_authoritative_verification(authority),))
     candidate = service.create_skill_candidate(trajectory.trajectory_id, _candidate())
     with pytest.raises(SkillActivationDenied, match="external authority"):
         service.activate_skill(
@@ -285,6 +292,7 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
     service = LearningService(
         mission_service=MissionService(mission_repo),
         trajectory_repository=TrajectoryRepository(learning_db),
+        verification_authority=(authority := VerificationAuthority()),
     )
     skill = SkillRecord(
         skill_id="skill-outcome",
@@ -319,8 +327,10 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
         _mission().model_copy(update={"mission_id": "reuse-success"}),
         state=MissionState.COMPLETED,
     )
-    success_result = _verification().model_copy(
-        update={"mission_id": successful.mission_id, "action_id": "reuse-action"}
+    success_result = _authoritative_verification(
+        authority,
+        mission_id=successful.mission_id,
+        action_id="reuse-action",
     )
     updated = service.record_reuse_outcome(
         skill_id=skill.skill_id,
@@ -332,6 +342,24 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
     )
     assert updated.success_count == 1
     assert updated.confidence == 0.85
+
+    forged_mission = mission_repo.create(
+        _mission().model_copy(update={"mission_id": "reuse-forged"}),
+        state=MissionState.COMPLETED,
+    )
+    forged_result = success_result.model_copy(
+        update={"mission_id": forged_mission.mission_id, "action_id": "forged-action"}
+    )
+    after_forgery = service.record_reuse_outcome(
+        skill_id=skill.skill_id,
+        version=skill.version,
+        mission_id=forged_mission.mission_id,
+        verification_results=(forged_result,),
+        workspace_digest=forged_result.workspace_digest,
+        diff_digest=forged_result.diff_digest,
+    )
+    assert after_forgery.success_count == 1
+    assert after_forgery.failure_count == 1
 
     failed = mission_repo.create(
         _mission().model_copy(update={"mission_id": "reuse-failure"}),
@@ -348,7 +376,7 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
         workspace_digest=failed_result.workspace_digest,
         diff_digest=failed_result.diff_digest,
     )
-    assert degraded.failure_count == 1
+    assert degraded.failure_count == 2
     assert degraded.state == "degraded"
 
 

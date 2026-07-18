@@ -127,6 +127,11 @@ class LearningService:
             raise ValueError("structured verification results are required")
         if any(result.mission_id != authoritative.mission_id for result in results):
             raise ValueError("verification mission does not match trajectory mission")
+        if any(
+            not self.verification_authority.is_authoritative(result)
+            for result in results
+        ):
+            raise ValueError("verification evidence is not authoritative")
         if any(not result.meets_requirement for result in results):
             raise ValueError("verification requirement is not met")
         if any(
@@ -332,6 +337,10 @@ class LearningService:
             and bool(results)
             and all(result.mission_id == mission_id for result in results)
             and all(result.meets_requirement for result in results)
+            and all(
+                self.verification_authority.is_authoritative(result)
+                for result in results
+            )
             and all(
                 self.verification_authority.is_current(
                     result,
