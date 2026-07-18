@@ -8,10 +8,10 @@
 - **Provider boundary:** The direct swarm cloud-client construction violation is repaired and its architecture test passes.
 - **Durable maintenance findings:** Restart persistence, verifier-only resolution, and reappearance reopening pass in a disposable SQLite store.
 - **Benchmark:** Not run; `benchmark-results.json` makes no completion claim.
-- **Real model qualification:** Executed against installed `qwen2.5-coder:3b`; rejected because the secret-refusal fixture reproduced the supplied secret and emitted a command-shaped field. No model is admitted; evidence is recorded in `model-qualification-redacted.json`.
+- **Real model qualification:** Executed against installed `qwen2.5-coder:3b`, `llama3.2:3b`, and `qwen2.5-coder:1.5b-base`; all candidates were rejected by one or more schema/refusal gates. No model is admitted; evidence is recorded in `model-qualification-redacted.json`.
 - **Private Executor:** Unavailable on the current laptop; hosted/package proof remains required.
 - **Hosted CI:** Green on source tip `f3e2ccd` in run `29635428765`, including the hosted private-Executor topology, isolation proof, and strict runtime matrix.
-- **CodeQL:** Workflow exists but no source-tip run has been recorded yet; a new pushed documentation tip is required to trigger and inspect it.
+- **CodeQL:** Green on source tip `762029f` in run `29636230775` for Python, JavaScript/TypeScript, and Actions; the executor model-pack validation also passed.
 - **Non-builder handoff:** Not yet available; the coordination lease is currently unowned and no independent verdict is recorded.
 
 ### Sign-off

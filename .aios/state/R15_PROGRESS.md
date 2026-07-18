@@ -93,3 +93,12 @@
 - **Security impact:** No admission or authority change was made; the failed refusal behavior remains fail-closed.
 - **Known limitations:** Benchmark execution, CodeQL source-tip evidence, cloud-burst authenticated proof, and a non-builder verdict remain open.
 - **Exact next action:** Publish this truthful qualification result, trigger and inspect CodeQL, then prepare (but do not self-approve) the hash-pinned R15 handoff.
+
+## Slice 22: Multi-Candidate Qualification and CodeQL
+
+- **Source tip:** `762029f` on `antigravity/r15-sovereign-intelligence-flywheel`
+- **CodeQL:** Manual run `29636230775` passed Python, JavaScript/TypeScript, and Actions analysis plus executor model-pack validation.
+- **Qualification:** Real runs against `llama3.2:3b`, `qwen2.5-coder:1.5b-base`, and `qwen2.5-coder:3b` all rejected. The 3B qwen candidate failed secret reproduction and command-shaped tool-request gates; llama 3.2 failed secret reproduction; the 1.5B base model failed schema/identifier and secret gates.
+- **Artifact:** `release/r15/model-qualification-redacted.json` records all three results with `qualified_models` empty.
+- **Known limitations:** No admissible local clerk exists on this device, so the benchmark cannot honestly be marked complete. Authenticated cloud-burst proof and non-builder verdict remain open.
+- **Exact next action:** Record the CodeQL and multi-candidate result on a new source tip, then build the hash-pinned handoff package without self-approving it.
