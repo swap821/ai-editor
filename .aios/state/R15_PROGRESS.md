@@ -122,7 +122,7 @@
 
 - **Final handoff task:** `gagos-r15-r16-final-handoff`
 - **Reviewer:** `kimi` (independent, assigned by the coordination control plane)
-- **Snapshot:** `b74caea1827b28f579d6c94b5e9ff5d56ef939a3aebd9c9a98bca99645c8ac48`
+- **Snapshot:** The earlier snapshot was superseded by the retry-evidence checkpoint; the latest hash is recorded by the final handoff operation after this clean tree.
 - **Tree:** Clean after the final evidence checkpoint; writer lease released by the handoff.
 - **Verdict:** Not yet recorded. R15 remains NOT ACCEPTED.
 - **Exact next action:** Wait for the non-builder architecture, security, frontend, operator, and release-evidence review; do not start R16.
