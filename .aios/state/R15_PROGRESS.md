@@ -259,3 +259,11 @@
 - **Proof:** Executor, integration, and maintenance focused tests passed (`7` passed, `3` pre-existing skips, plus maintenance tests); Ruff check and format check passed; diff check passed. Fix committed/pushed as `2006ef34586ed1cfdee295982444c078f703091c`.
 - **Release posture:** R15 remains NOT ACCEPTED. New hosted CI `29653969289` and CodeQL `29653977740` are pending for the corrected source tip. Local private Executor/code-worker runtime, local clerk/benchmark, live cloud proof through the new HiringBroker path, operator proof, and independent review remain open.
 - **Exact next action:** Verify CI and CodeQL on `2006ef34586ed1cfdee295982444c078f703091c`; update final evidence pointers, then release the builder lease for independent review before any further R15 edit.
+
+## Slice 39: Final Hosted Gate Proof for Maintenance Source
+
+- **Source:** Production source `8e69375c47401d67d0f13b5b072b093047e39f43` is pushed and clean on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Hosted CI:** Run `29654020659` passed frontend tests/build, Ubuntu/Windows/macOS backend suites, aggregate backend, release authority, hosted private Executor topology/state/isolation/strict runtime, SBOM, licence inventory, and evidence upload.
+- **CodeQL:** Run `29654028709` passed Actions, Python, JavaScript/TypeScript, and executor model-pack validation on the same exact source tip.
+- **Release posture:** Hosted gates are green, but R15 remains NOT ACCEPTED. The maintenance lifecycle is integration-proven rather than live local-private-Executor proven; no local clerk is admitted, the benchmark is blocked, the new HiringBroker path lacks live cloud configuration, operator proof is absent, and the independent non-builder verdict is still required.
+- **Exact next action:** Release the builder lease through a hash-pinned handoff for independent review. Do not self-approve R15 or start R16.
