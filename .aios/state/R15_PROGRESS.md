@@ -164,3 +164,14 @@
 - **Local follow-up:** The failed council origination test passed both standalone and as its complete module locally.
 - **Release posture:** Hosted gates are green, authenticated bounded cloud-burst evidence is present, but R15 remains NOT ACCEPTED because no local clerk is admitted, the benchmark is blocked before execution, the private Executor is unavailable locally, and no independent non-builder verdict exists.
 - **Exact next action:** Refresh continuity docs, commit/push the source-tip gate pointers, then release the builder lease through a hash-pinned independent handoff; do not self-approve R15 or start public R16.
+
+## Slice 30: Durable Maintenance Finding Listing Repair
+
+- **Task:** `gagos-r15-maintenance-repository-repair` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Defect:** `MaintenanceFindingRepository.list_findings()` called nonexistent `_connect()` while the repository exposes `_connection()`.
+- **Red-first proof:** The six new listing/persistence tests failed with `AttributeError` before the repair; the pre-existing restart `get()` test continued to pass.
+- **Repair:** Changed only the repository context-manager call from `_connect()` to `_connection()`.
+- **Coverage:** Added tests for empty listing, one persisted finding, multiple findings with stable fingerprint ordering, restart persistence, same-fingerprint update, and reopened-finding persistence. Focused repository suite: 7 passed. Adjacent maintenance domain suite: 17 passed.
+- **Static checks:** Ruff check passed, Ruff format check passed, and `git diff --check` passed. No frozen security file or policy threshold changed.
+- **Release posture:** This closes the repository-listing defect only. R15 remains NOT ACCEPTED because the mounted Local Workforce routes still require repair, default APIs still expose fictional operational state, no local clerk is admitted, the benchmark is blocked, and independent review is absent.
+- **Exact next action:** Commit/push this coherent slice, verify hosted CI/CodeQL on its source tip, then hash-pin and hand off for non-builder review before the Local Workforce API slice; do not start R16.

@@ -56,7 +56,7 @@ class MaintenanceFindingRepository:
         return MaintenanceFinding.model_validate(json.loads(row[0]))
 
     def list_findings(self) -> tuple[MaintenanceFinding, ...]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 "SELECT payload_json FROM maintenance_findings ORDER BY fingerprint"
             ).fetchall()

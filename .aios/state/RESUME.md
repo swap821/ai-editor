@@ -1,11 +1,11 @@
-**Goal:** Complete the GAGOS R15 + R16 Master Convergence Plan with executable, fail-closed evidence.
+**Goal:** Complete the GAGOS R15 Sovereign Intelligence and Maintenance Flywheel with executable, fail-closed evidence; do not start R16.
 
-**Last completed+verified step:** Eleven real Ollama qualification runs were recorded on this Windows device; every candidate failed at least one unchanged admission gate, so no local clerk was admitted. The 30-task benchmark fixture was verified (30 tasks, ten categories) and correctly remains blocked before execution. A real Gemini Vertex/ADC one-worker public-safe cloud-burst probe passed with no tools, no filesystem writes, and one emitted `cloud_route` event. Hosted CI `29641724948` attempt 2 and CodeQL `29642425584` are green on evidence tip `026be86b26576ab7d605cc170b3dd22a9485600b` after a targeted Windows retry.
+**Last completed+verified step:** Repaired `MaintenanceFindingRepository.list_findings()` to use its defined `_connection()` context manager. Added coverage for empty, one, multiple/stable ordering, restart persistence, same-fingerprint update, and reopened-finding persistence; the focused repository suite passed 7/7 and the adjacent maintenance domain suite passed 17/17. Ruff, formatting, and diff checks are clean.
 
-**Next action:** Commit and push these current gate pointers, then release the builder lease through a fresh hash-pinned independent handoff.
+**Next action:** Commit and push this maintenance repository slice, inspect the source-tip hosted CI/CodeQL results, then hand off the hash-pinned tree for independent review before beginning the Local Workforce API slice.
 
-**Open approvals/blockers:** R15 remains NOT ACCEPTED. No admitted local clerk means the benchmark cannot honestly run. The private Executor is unavailable locally (hosted strict proof is green). The independent non-builder verdict is still absent. Do not self-approve R15 or start public R16.
+**Open approvals/blockers:** R15 remains NOT ACCEPTED. No admitted local clerk means the 30-task benchmark cannot honestly run. The private Executor is unavailable locally (hosted strict proof is green). The acceptance matrix still needs truthful population, and no independent non-builder verdict exists. Do not self-approve R15 or start R16.
 
-**Active files:** `release/r15/model-qualification-redacted.json`, `release/r15/benchmark-results.json`, `release/r15/cloud-burst-evidence.json`, `release/r15/environment-manifest.json`, `release/r15/acceptance-report.md`, `.aios/state/R15_PROGRESS.md`, `.aios/state/RESUME.md`.
+**Active files:** `aios/domain/maintenance/repository.py`, `tests/domain/test_maintenance_repository.py`, `.aios/state/R15_PROGRESS.md`, `.aios/state/RESUME.md`, `.aios/memory/experiences.jsonl`, `.aios/memory/mistakes.jsonl`.
 
-**Notes:** The cloud probe used Gemini with temporary ADC access and stored no credential material. Bedrock was not probed because its credentials are absent. The admission suite and security thresholds were not weakened. The hosted Windows retry changed no production authorization code.
+**Notes:** The initial red-first run failed six new list tests with the existing `_connect()` typo; the production fix made all pass. No security spine or admission threshold changed. The next API slice must use mounted HTTP tests and canonical dependencies, not direct route calls or manual authorization dispatch.
