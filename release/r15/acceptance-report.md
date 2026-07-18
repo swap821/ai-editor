@@ -2,8 +2,8 @@
 
 ## Current v2 evidence — 2026-07-19
 
-**Final repository tip:** `75ca4705102f9bcd97daceeffcd7879e208aa90a` (production fix tip; continuity docs are being refreshed)
-**Runtime implementation/evidence source:** `75ca4705102f9bcd97daceeffcd7879e208aa90a`
+**Final hosted production/evidence tip:** `64b10d49414a0c18aca28142f9c5f7bc88866ee5` (the current pointer refresh is documentation-only)
+**Production repair/evidence source:** `75ca4705102f9bcd97daceeffcd7879e208aa90a`
 
 R15 remains **NOT ACCEPTED**. The bounded local-clerk slice and canonical HiringBroker cloud call now have live evidence, but the required maintenance production repair, frontier-to-skill reuse loop, frontend/operator walkthrough, and independent non-builder verdict remain open.
 
@@ -11,7 +11,7 @@ R15 remains **NOT ACCEPTED**. The bounded local-clerk slice and canonical Hiring
 - **Benchmark:** all 30 versioned tasks were run through the admitted Granite `triage` profile. They produced bounded advisory JSON with preserved evidence references, but no task changed project state and no expected outcome was verified. Therefore `completed_advisory_tasks=30`, `verified_completion_tasks=0`, `pass_rate=null`; this is not a 30-task developer-completion claim. Evidence: `benchmark-results.json`.
 - **Canonical HiringBroker:** A bounded public request ran inside the FastAPI lifespan using the operator runtime profile and Google ADC. The live Gemini route was selected through `PrivacyBroker`/`HiringBroker`, completed through the injected adapter, persisted a redacted durable call record after reopen, and emitted `intelligence.model_call.completed` to Cortex. The provider returned a 35-character response with a recorded digest and 3,110 ms latency; no raw output or credential was persisted. Evidence: `live-hiring-evidence.json`. This proves the cloud-provider hiring path only; Gemini remains advisory and made no authority decision.
 - **Proof hierarchy:** `runtime-proof.json` is explicitly contract-fixture proof. Live local qualification and advisory benchmark evidence are separate artifacts and are not substituted for maintenance production proof.
-- **Hosted gates:** Final-tip CI `29663069308` is green across Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. Final-tip CodeQL `29663074526` is green for Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
+- **Hosted gates:** Final-tip CI `29664079200` is green across Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. Final-tip CodeQL `29664518633` is green for Python, JavaScript/TypeScript, Actions, and executor model-pack validation. These runs cover the final pushed docs/evidence tip; the production change itself is `75ca470`.
 
 ## Status: NOT ACCEPTED — evidence checkpoint
 

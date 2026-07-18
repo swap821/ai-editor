@@ -377,3 +377,11 @@
 - **Evidence:** `release/r15/live-hiring-evidence.json`; production repair source `75ca4705102f9bcd97daceeffcd7879e208aa90a`.
 - **Release posture:** R15 remains NOT ACCEPTED. This closes the live canonical HiringBroker provider blocker only. Live private-Executor maintenance repair/rescan, frontier trajectory and governed skill reuse, frontend/operator walkthrough, final current-tip hosted gates, clean release handoff, and independent non-builder verdict remain open.
 - **Exact next action:** Inspect CI `29663924732` and its CodeQL counterpart for `75ca4705102f9bcd97daceeffcd7879e208aa90a`, then refresh the final evidence pointers and release the builder lease; do not self-approve R15 or start R16.
+
+## Slice 52: Final Hosted Source-Quality Proof After Live Hiring Evidence
+
+- **Source:** Evidence/docs tip `64b10d49414a0c18aca28142f9c5f7bc88866ee5` is pushed; production repair/evidence source remains `75ca4705102f9bcd97daceeffcd7879e208aa90a`.
+- **Hosted CI:** Run `29664079200` passed Ubuntu, Windows, macOS, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload.
+- **CodeQL:** Run `29664518633` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation on the exact pushed tip.
+- **Release posture:** R15 remains NOT ACCEPTED. Live canonical HiringBroker Gemini proof is now recorded, but live private-Executor maintenance repair/rescan, frontier trajectory and governed skill reuse, frontend/operator walkthrough, released lease, and independent non-builder verdict remain open.
+- **Exact next action:** Release the builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
