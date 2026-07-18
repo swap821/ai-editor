@@ -3,6 +3,7 @@ from aios.domain.maintenance.contracts import MaintenanceFinding, FindingState
 from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine, SecurityViolationError
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.service import AutonomousMaintenanceForce, ScanExecutionError
+from aios.domain.maintenance.mission_bridge import MaintenanceMissionBridge
 
 __all__ = [
     "MaintenanceFinding",
@@ -12,4 +13,5 @@ __all__ = [
     "BoundedScanContract",
     "AutonomousMaintenanceForce",
     "ScanExecutionError",
+    "MaintenanceMissionBridge",
 ]
