@@ -287,3 +287,22 @@
 - **Source:** `0ca73e853f4e5a5e1f0e3c3c75301309539f633a` pushed to the required branch.
 - **Release posture:** R15 remains NOT ACCEPTED. The structured verifier is integration/fixture-proven only; live maintenance repair through production code-worker/private Executor, live HiringBroker provider proof, local clerk admission and 30-task benchmark, frontend operator walkthrough, current hosted source-tip gates, and independent non-builder verdict remain open.
 - **Exact next action:** Run current source-tip hosted CI and CodeQL, then audit Phase 3 structured verification contracts for learning/skill reuse without adding a second authority; do not start R16.
+
+## Slice 42: Structured Skill Verification Contracts
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Repair:** Replaced the remaining free-text learning/skill verification plan with a frozen, versioned `skill.reuse` `SkillVerifierSpec`. Skill applicability now refuses missing, unknown, version-drifted, shell-shaped, or otherwise non-allowlisted verifier plans before external-tool or policy checks. Local reuse missions carry the typed verifier in `MissionContract.verification_plan.verifiers` and contain no command text.
+- **Legacy handling:** Persisted legacy string plans are quarantined to an unusable `None` plan at the domain boundary; they are not silently migrated into executable authority. Applicability fails closed until a new structured contract is produced and approved.
+- **Red-first/integration proof:** Structured verifier, legacy quarantine, command/image rejection, typed reuse mission, learning, maintenance, architecture/adversarial/API/route, executor regression, compile, Ruff, format, and runtime-proof checks passed. No security threshold or frozen security module changed.
+- **Source:** `dec674ad44ead8fe257c70fd5e7673f678b7da29` pushed to the required branch.
+- **Release posture:** R15 remains NOT ACCEPTED. Live private-Executor maintenance repair, live configured HiringBroker provider call, admitted local clerk and 30-task benchmark, operator walkthrough, final current-tip hosted gates, and independent non-builder verdict remain open. The current CI run is still pending for this source tip; Docker/private Executor and Gemini/Bedrock configuration are unavailable in this environment.
+- **Exact next action:** Inspect CI `29658836626`, dispatch/inspect CodeQL for `dec674ad44ead8fe257c70fd5e7673f678b7da29`, then run the final local gate sweep before preparing a hash-pinned handoff; do not self-approve R15 or start R16.
+
+## Slice 43: Cross-Platform Verifier Containment Repair
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Hosted failure:** CI `29658836626` failed on both macOS and Ubuntu at `tests/test_verifier_registry.py::test_target_escape_is_rejected`; Windows passed. The test used a Windows-style `..\\outside.txt` target, which POSIX treated as a literal filename and therefore did not detect as an escape.
+- **Repair:** The fixed `VerifierRegistry` now normalizes both `/` and `\\` as path separators before resolving and checking containment. No shell execution, permission, authority, or security threshold was weakened.
+- **Proof:** The verifier suite passed `11` tests with one supported symlink skip; targeted Ruff and format checks passed; the full local backend suite passed with `88.32%` coverage. Source `66191c81e875b3d3cc0d1f7be6d15228f5c539b6` is pushed.
+- **Release posture:** R15 remains NOT ACCEPTED. A new hosted run is required after the repair. Live private-Executor maintenance repair, live configured HiringBroker provider call, admitted local clerk and 30-task benchmark, operator walkthrough, and independent non-builder verdict remain open.
+- **Exact next action:** Inspect the new CI run for source `66191c81e875b3d3cc0d1f7be6d15228f5c539b6`, dispatch/inspect CodeQL for the same source, then complete the final local/frontend gate inventory; do not self-approve R15 or start R16.

@@ -9,3 +9,9 @@
 - `maintenance.rescan` is represented by a typed `VerifierSpec` and dispatched by `VerifierRegistry` over an injected, identity-bound scanner adapter.
 - The registry is an application dispatcher and evidence producer, never a permission or promotion authority. It emits structured argv for provenance only; it does not parse or execute shell text, accept learned commands/images, or permit network/git-history access.
 - A registry fixture/integration pass is not live private-Executor proof. That distinction remains explicit in the runtime proof and acceptance matrix.
+
+## Decision 2026-07-19 — Skill verification is typed and fail-closed
+
+- `skill.reuse` is represented by a frozen, versioned `SkillVerifierSpec` and is carried into governed local-reuse mission contracts as a typed verifier, never as a command string.
+- Legacy persisted free-text verification plans are quarantined at load and cannot satisfy applicability. They require structured re-qualification before activation; no silent migration grants authority.
+- Skill applicability remains a domain gate and does not execute, authorize, or promote work. MissionService, WorkerFoundry, VerificationAuthority, PromotionAuthority, and MemoryAuthority retain their constitutional ownership.
