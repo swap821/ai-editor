@@ -1,0 +1,65 @@
+{
+  "proof_level": [
+    "production_composition",
+    "live_cloud_provider"
+  ],
+  "source_sha": "75ca4705102f9bcd97daceeffcd7879e208aa90a",
+  "executed_at_utc": "2026-07-18T22:40:04Z",
+  "runtime_profile": "operator",
+  "credential_source": "Google ADC",
+  "provider_configuration": {
+    "provider": "gemini",
+    "project": "ai-editor-498414",
+    "configured_model": "gemini-2.5-flash",
+    "selected_model": "gemini-2.5-pro",
+    "fallback": null
+  },
+  "request": {
+    "classification": "PUBLIC",
+    "task": "reasoning",
+    "allowed_providers": [
+      "gemini"
+    ],
+    "local_only": false,
+    "max_tokens": 64,
+    "mission_id": "mission-r15-live-hiring",
+    "turn_id": "turn-r15-live-hiring"
+  },
+  "result": {
+    "status": "completed",
+    "result_length": 35,
+    "output_digest": "0e16940bf176287320213588697ea9d976970d532c0193252035899291baa198",
+    "latency_ms": 3110,
+    "durable_record_status_after_reopen": "completed",
+    "durable_provenance_fields": [
+      "actual_tokens",
+      "allowed_providers",
+      "cost",
+      "data_classification",
+      "estimated_tokens",
+      "fallback",
+      "latency_ms",
+      "local_cloud_decision",
+      "mission_id",
+      "output_digest",
+      "principal_id",
+      "purpose",
+      "recorded_at",
+      "redactions",
+      "request_id",
+      "selected_model",
+      "selected_provider",
+      "status",
+      "turn_id"
+    ],
+    "cortex_event_types": [
+      "intelligence.model_call.completed"
+    ]
+  },
+  "scope_notes": [
+    "The request used public text only and no tools.",
+    "The call ran inside the FastAPI application lifespan and used the existing dependency composition.",
+    "The provider output is advisory; no authority, execution, promotion, or verification decision was delegated to Gemini.",
+    "No raw provider output, token, credential, or secret was persisted."
+  ]
+}

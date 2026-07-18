@@ -15,3 +15,9 @@
 - `skill.reuse` is represented by a frozen, versioned `SkillVerifierSpec` and is carried into governed local-reuse mission contracts as a typed verifier, never as a command string.
 - Legacy persisted free-text verification plans are quarantined at load and cannot satisfy applicability. They require structured re-qualification before activation; no silent migration grants authority.
 - Skill applicability remains a domain gate and does not execute, authorize, or promote work. MissionService, WorkerFoundry, VerificationAuthority, PromotionAuthority, and MemoryAuthority retain their constitutional ownership.
+
+## Decision 2026-07-19 — Gemini zero thinking budget is provider-default
+
+- A live Vertex call showed that the discovered `gemini-2.5-pro` route rejects an explicit `thinking_budget=0`.
+- `GeminiClient` now sends `thinking_config` only for a positive budget; zero and negative values omit the override so model-specific provider validation remains authoritative.
+- The repair is limited to the existing adapter and is covered by non-streaming and streaming tests. It does not weaken privacy, routing, capability, verification, or execution authority.

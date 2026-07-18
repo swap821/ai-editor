@@ -367,3 +367,13 @@
 - **Hosted proof:** CI `29663069308` passed Ubuntu/Windows/macOS backend, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, hosted Private Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. CodeQL `29663074526` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation.
 - **Release posture:** R15 remains NOT ACCEPTED. The seven-candidate local evidence admits only Granite; the two requested qwen3.5 candidates are rejected. Canonical HiringBroker live execution, private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, operator proof, and independent non-builder verdict remain open blockers.
 - **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
+
+## Slice 51: Live Canonical HiringBroker Cloud Proof
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Production repair:** A real Vertex request rejected the configured `thinking_budget=0` on a discovered Gemini model. `GeminiClient` now sends a thinking override only for a positive budget; zero and negative values leave the provider default untouched. Red-first tests cover non-streaming and streaming paths.
+- **Focused proof:** `tests/test_gemini.py` passed 21 tests after the repair; Ruff check, Ruff format, and diff checks passed.
+- **Live composition proof:** Inside the FastAPI application lifespan, operator runtime profile, and Google ADC, `IntelligenceHiringService` selected Gemini through the injected provider composition for a public, Gemini-only reasoning request. The call completed on `gemini-2.5-pro`, persisted a redacted durable record after repository reopen with digest, latency, model, provider, fallback, and mission/turn provenance, and emitted `intelligence.model_call.completed` to Cortex. No raw output or credential was persisted.
+- **Evidence:** `release/r15/live-hiring-evidence.json`; production repair source `75ca4705102f9bcd97daceeffcd7879e208aa90a`.
+- **Release posture:** R15 remains NOT ACCEPTED. This closes the live canonical HiringBroker provider blocker only. Live private-Executor maintenance repair/rescan, frontier trajectory and governed skill reuse, frontend/operator walkthrough, final current-tip hosted gates, clean release handoff, and independent non-builder verdict remain open.
+- **Exact next action:** Inspect CI `29663924732` and its CodeQL counterpart for `75ca4705102f9bcd97daceeffcd7879e208aa90a`, then refresh the final evidence pointers and release the builder lease; do not self-approve R15 or start R16.
