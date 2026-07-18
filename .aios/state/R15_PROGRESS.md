@@ -343,6 +343,14 @@
 - **Release posture:** R15 remains NOT ACCEPTED. The admitted Granite evidence is bounded local advisory cognition; the benchmark records zero verified developer-task completions. Canonical HiringBroker live provider execution, live private-Executor maintenance repair/rescan, frontier trajectory and governed skill reuse, operator walkthrough, and independent non-builder verdict remain open blockers.
 - **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
 
+## Slice 55: Learning Evidence Bound to VerificationAuthority (2026-07-19)
+
+- **Defect:** `LearningService.capture_trajectory()` and `record_reuse_outcome()` checked result freshness and digests but accepted caller-crafted `VerificationResult` copies whose IDs and fields looked current.
+- **Repair:** Both paths now require identity ownership by the injected `VerificationAuthority` before trajectory qualification or a successful reuse confidence update. A forged capture is refused; a forged reuse result is treated as a failed verification and cannot increase confidence.
+- **Red-first/focused proof:** The forged-copy regressions failed before the repair, then `tests/test_learning_application.py` passed 5/5. The learning, structured-skill, verifier-registry, and maintenance convergence groups passed 50 tests with one existing symlink-privilege skip. Architecture, adversarial, release-conformance, and route-conformance groups passed 473 tests with one existing `httpx2` deprecation warning. Ruff, format, compile, and diff checks passed.
+- **Release posture:** R15 remains NOT ACCEPTED. This is integration/security proof, not live frontier trajectory or private-Executor maintenance proof. Local Docker/private Executor, frontend/operator walkthrough, and independent non-builder review remain open.
+- **Exact next action:** Inspect hosted CI for source `5af20d1`, then refresh exact-tip evidence and release the builder lease for independent review; do not self-approve R15 or start R16.
+
 ## Slice 48: Additional Bounded Local Candidates
 
 - **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.

@@ -28,3 +28,9 @@
 - `IntelligenceHiringService` passes the positive bound through `ProviderClient` and `ChatProviderAdapter`. The existing Ollama, Gemini, Bedrock, OpenAI-compatible, and Anthropic adapters apply it to their native output-limit field.
 - The bound is recorded as `requested_max_tokens` in durable model-call provenance. Provider billing remains unknown unless the provider returns it; this decision does not claim cost enforcement.
 - Non-positive bounds fail closed at the request/adapter boundary. No authority, privacy, capability, verification, or execution rule changed.
+
+## Decision 2026-07-19 — Learning accepts only authority-owned verification objects
+
+- `LearningService.capture_trajectory()` and `record_reuse_outcome()` require each `VerificationResult` to be the exact immutable object held by their injected `VerificationAuthority`, in addition to mission, digest, freshness, and strength checks.
+- A caller-crafted copy with a matching verification ID is not authoritative: trajectory capture refuses it, while reuse records a failed verification and cannot increase skill confidence.
+- This strengthens the existing VerificationAuthority boundary without adding a new authority or making verification durable across process restarts. Restart-spanning proof remains deferred.

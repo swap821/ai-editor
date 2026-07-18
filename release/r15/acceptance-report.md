@@ -3,7 +3,7 @@
 ## Current v2 evidence — 2026-07-19
 
 **Final hosted production/evidence tip:** `b97ecea19463ce8b268136817562ac0f56da9d0d` (documentation/evidence tip; production repair source is pinned below)
-**Production repair/evidence source:** `3746e69dfcad6d3041cdfa2d1837b1c7e0a2fbb9`
+**Production repair/evidence source:** `5af20d1` (authority-bound learning repair; prior provider repair `3746e69dfcad6d3041cdfa2d1837b1c7e0a2fbb9`)
 
 R15 remains **NOT ACCEPTED**. The bounded local-clerk slice and canonical HiringBroker cloud call now have live evidence, but the required maintenance production repair, frontier-to-skill reuse loop, frontend/operator walkthrough, and independent non-builder verdict remain open.
 
@@ -11,6 +11,7 @@ R15 remains **NOT ACCEPTED**. The bounded local-clerk slice and canonical Hiring
 - **Benchmark:** all 30 versioned tasks were run through the admitted Granite `triage` profile. They produced bounded advisory JSON with preserved evidence references, but no task changed project state and no expected outcome was verified. Therefore `completed_advisory_tasks=30`, `verified_completion_tasks=0`, `pass_rate=null`; this is not a 30-task developer-completion claim. Evidence: `benchmark-results.json`.
 - **Canonical HiringBroker:** A bounded public request ran inside the FastAPI lifespan using the operator runtime profile and Google ADC. The live Gemini route was selected through `PrivacyBroker`/`HiringBroker`, completed through the injected adapter, persisted a redacted durable call record after reopen, and emitted `intelligence.model_call.completed` to Cortex. The request bound output to 64 tokens while the configured adapter default was 128; the durable provenance preserved that requested bound. The provider returned a two-character response with a recorded digest and 2,935 ms latency; no raw output or credential was persisted. Evidence: `live-hiring-evidence.json`. This proves the cloud-provider hiring path only; Gemini remains advisory and made no authority decision.
 - **Proof hierarchy:** `runtime-proof.json` is explicitly contract-fixture proof. Live local qualification and advisory benchmark evidence are separate artifacts and are not substituted for maintenance production proof.
+- **Learning authority:** Trajectory capture and reuse confidence updates now require object identity ownership by the injected `VerificationAuthority`; forged structured result copies are refused or counted as failed reuse. This is integration/security proof, not live frontier-assisted trajectory or private-Executor mission proof.
 - **Hosted gates:** Current-tip CI `29665165943` is green across Ubuntu, Windows, macOS, frontend, aggregate backend, release authority, hosted private-Executor topology/isolation/strict runtime, SBOM, licence inventory, and evidence upload. Current-tip CodeQL `29665559362` is green for Python, JavaScript/TypeScript, Actions, and executor model-pack validation. These runs cover the pushed evidence/docs tip `b97ecea`; the production change is `3746e69`.
 
 ## Status: NOT ACCEPTED — evidence checkpoint
