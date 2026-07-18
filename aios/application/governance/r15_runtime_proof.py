@@ -29,6 +29,7 @@ R15_REQUIRED_PROOFS = (
     "maintenance_finding_persistence",
     "maintenance_repair_mission_contract",
     "maintenance_resolution_authority",
+    "maintenance_structured_verifier",
 )
 
 
@@ -116,6 +117,10 @@ def run_r15_runtime_proofs(root: str | Path | None = None) -> R15RuntimeProofRep
         results["maintenance_resolution_authority"] = _proof(
             "maintenance_resolution_authority",
             lambda: _probe_maintenance_resolution_authority(scratch),
+        )
+        results["maintenance_structured_verifier"] = _proof(
+            "maintenance_structured_verifier",
+            lambda: _probe_maintenance_structured_verifier(scratch),
         )
 
     return R15RuntimeProofReport(results)
@@ -503,6 +508,45 @@ def _probe_maintenance_resolution_authority(scratch: Path) -> str:
     except SecurityViolationError:
         return "local and system free-form actors could not resolve; structured governed evidence is required"
     raise AssertionError("free-form system resolution bypassed governed evidence")
+
+
+def _probe_maintenance_structured_verifier(scratch: Path) -> str:
+    from aios.application.evidence.verifier_registry import VerifierRegistry
+    from aios.domain.maintenance.scan_contracts import BoundedScanContract
+    from aios.domain.verification import VerifierSpec
+
+    root = scratch / "structured-verifier"
+    root.mkdir()
+    (root / "example.py").write_text("fixed\n", encoding="utf-8")
+
+    def scanner(context):  # noqa: ANN001
+        assert context.read_text("example.py").replace("\r\n", "\n") == "fixed\n"
+        return ()
+
+    spec = VerifierSpec(
+        scanner_id="fixture-scanner",
+        scanner_version="1",
+        target_id="example.py",
+        rescan_of="fingerprint-proof-1",
+        allowed_root=str(root),
+    )
+    result = VerifierRegistry(scanner_adapters={"fixture-scanner": scanner}).run(
+        spec,
+        contract=BoundedScanContract(
+            allowed_root=str(root),
+            max_files=2,
+            max_total_bytes=2048,
+            max_file_bytes=1024,
+            deadline=60,
+            max_findings=1,
+            git_history_allowed=False,
+        ),
+        scanner=scanner,
+    )
+    assert result.passed is True
+    assert result.argv[0] == "maintenance.rescan"
+    assert "command" not in result.arguments
+    return "maintenance.rescan ran through a fixed typed registry with bounded structured arguments and shell-free argv"
 
 
 def _proof_skill():

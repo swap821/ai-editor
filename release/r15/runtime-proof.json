@@ -61,6 +61,12 @@
       "name": "maintenance_resolution_authority",
       "passed": true,
       "evidence": "local and system free-form actors could not resolve; structured governed evidence is required"
+    },
+    "maintenance_structured_verifier": {
+      "name": "maintenance_structured_verifier",
+      "passed": true,
+      "evidence": "maintenance.rescan ran through a fixed typed registry with bounded structured arguments and shell-free argv",
+      "proof_level": "fixture"
     }
   }
 }
