@@ -2,7 +2,7 @@
   "status": "bounded_live_evidence",
   "qualification_suite_version": "r15-v2",
   "captured_at": "2026-07-19T02:08:29+05:30",
-  "source_sha": "7f3af144c12e3e09fd1077ebd85677f886e345e5",
+  "source_sha": "92efde108a19ca5b8e4e399f5554f6d8364965f2",
   "candidate_set": {
     "bounded": true,
     "selection": "five installed hardware-appropriate 1.5B-3B Ollama candidates; no model downloads",

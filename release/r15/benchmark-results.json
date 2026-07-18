@@ -2,7 +2,7 @@
   "status": "executed_advisory_only",
   "fixture_version": "r15-benchmark-v1",
   "captured_at": "2026-07-19T02:08:29+05:30",
-  "source_sha": "7f3af144c12e3e09fd1077ebd85677f886e345e5",
+  "source_sha": "92efde108a19ca5b8e4e399f5554f6d8364965f2",
   "planned_tasks": 30,
   "fixture_tasks_verified": 30,
   "fixture_categories": {

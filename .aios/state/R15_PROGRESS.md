@@ -325,3 +325,12 @@
 - **Artifact:** `release/r15/benchmark-results.json` records each task, latency, schema/evidence checks, scope, and the unmeasured/zero measures explicitly.
 - **Release posture:** R15 remains NOT ACCEPTED. The benchmark proves bounded local advisory handling only; maintenance repair-to-rescan, live canonical cloud hiring, trajectory/skill reuse, operator proof, final hosted gates, and independent verdict remain open.
 - **Exact next action:** Commit/push the evidence and docs, inspect current-tip CI, dispatch CodeQL, then perform the final gate inventory without self-approving R15 or starting R16.
+
+## Slice 46: Current Source Hosted and CodeQL Gate Proof
+
+- **Task:** `gagos-r15-maintenance-convergence-lifecycle` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Hosted proof:** CI `29660499352` passed backend Ubuntu/Windows/macOS, frontend tests/typecheck/lint/warning budget/build, aggregate backend, release authority, private Executor topology, isolation, strict runtime, SBOM, licence inventory, and evidence upload on production source `92efde108a19ca5b8e4e399f5554f6d8364965f2`.
+- **CodeQL proof:** CodeQL `29660933425` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation on the same source.
+- **Repair validated:** The prior hosted verifier portability failure and retired qualification fake were reproduced locally and repaired; no security threshold, authority, or frozen security module was weakened.
+- **Release posture:** R15 remains NOT ACCEPTED. Hosted proof is green, but live canonical HiringBroker provider execution, maintenance repair through the production code-worker/private Executor path, frontier trajectory evidence, governed skill reuse/escalation, operator walkthrough, and independent non-builder review remain open.
+- **Exact next action:** Run the final local gate inventory and prepare a hash-pinned handoff; do not self-approve R15 or start R16.
