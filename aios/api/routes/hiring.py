@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import (
@@ -48,7 +48,7 @@ class HiringCallRequest(BaseModel):
     allowed_providers: tuple[str, ...]
     local_only: bool = True
     fallback_policy: FallbackPolicy = FallbackPolicy.DENY
-    max_tokens: int = 1500
+    max_tokens: int = Field(default=1500, gt=0)
 
 
 def _adapter_status(name: str, adapter: Any) -> dict[str, Any]:

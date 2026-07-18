@@ -245,6 +245,18 @@ def test_chat_calls_generate_content_and_returns_agent_shape() -> None:
     assert fake.models.last["config"]["max_output_tokens"] >= 1
 
 
+def test_chat_honors_per_call_output_token_bound() -> None:
+    fake = FakeGemini(_Response([_Candidate(_Content([_Part(text="ok")]))]))
+    client = GeminiClient(model="gemini-x", project="p", max_tokens=1024, client=fake)
+
+    client.chat(
+        [{"role": "user", "content": "answer briefly"}],
+        max_tokens=37,
+    )
+
+    assert fake.models.last["config"]["max_output_tokens"] == 37
+
+
 def test_stream_chat_calls_generate_content_stream_and_yields_text_chunks() -> None:
     fake = FakeGemini(
         None,

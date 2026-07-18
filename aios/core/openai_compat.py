@@ -21,6 +21,7 @@ Design notes (mirrors ``bedrock.py``/``gemini.py`` so the providers stay symmetr
     before transmission so conversation history, tool results, and secrets never
     leave the local machine unredacted.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,7 +73,10 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         {
                             "id": tid,
                             "type": "function",
-                            "function": {"name": str(fn.get("name", "")), "arguments": args},
+                            "function": {
+                                "name": str(fn.get("name", "")),
+                                "arguments": args,
+                            },
                         }
                     )
                 entry["tool_calls"] = tool_calls
@@ -104,7 +108,10 @@ def _parse_output(message: dict[str, Any]) -> dict[str, Any]:
             except json.JSONDecodeError:
                 args = {}
         tool_calls.append(
-            {"id": call.get("id"), "function": {"name": fn.get("name", ""), "arguments": args or {}}}
+            {
+                "id": call.get("id"),
+                "function": {"name": fn.get("name", ""), "arguments": args or {}},
+            }
         )
     result: dict[str, Any] = {"role": "assistant", "content": text}
     if tool_calls:
@@ -167,9 +174,13 @@ class OpenAICompatClient:
             ) from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             scrubbed = scrub_exception(exc)
-            raise LLMError(f"OpenAI-compatible request to {self.base_url} failed: {scrubbed}") from exc
+            raise LLMError(
+                f"OpenAI-compatible request to {self.base_url} failed: {scrubbed}"
+            ) from exc
         except json.JSONDecodeError as exc:
-            raise LLMError(f"OpenAI-compatible endpoint returned a non-JSON response: {exc}") from exc
+            raise LLMError(
+                f"OpenAI-compatible endpoint returned a non-JSON response: {exc}"
+            ) from exc
 
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
         """Generate a single non-streaming completion from *prompt*.
@@ -202,6 +213,7 @@ class OpenAICompatClient:
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """One non-streaming chat turn via ``/chat/completions``.
 
@@ -216,11 +228,14 @@ class OpenAICompatClient:
         if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
             logger.info("OpenAI-compatible privacy filter applied", extra=audit)
 
+        output_tokens = self.max_tokens if max_tokens is None else max_tokens
+        if output_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
         payload: dict[str, Any] = {
             "model": model or self.model,
             "messages": _to_openai_messages(safe_messages),
             "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
+            "max_tokens": output_tokens,
             "stream": False,
         }
         if tools:
@@ -278,7 +293,7 @@ class OpenAICompatClient:
                     line = raw_line.decode("utf-8", "replace").strip()
                     if not line or not line.startswith("data:"):
                         continue
-                    data = line[len("data:"):].strip()
+                    data = line[len("data:") :].strip()
                     if data == "[DONE]":
                         break
                     try:
@@ -305,4 +320,6 @@ class OpenAICompatClient:
             ) from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             scrubbed = scrub_exception(exc)
-            raise LLMError(f"OpenAI-compatible stream to {self.base_url} failed: {scrubbed}") from exc
+            raise LLMError(
+                f"OpenAI-compatible stream to {self.base_url} failed: {scrubbed}"
+            ) from exc

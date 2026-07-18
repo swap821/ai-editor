@@ -22,6 +22,7 @@ class ProviderClient(Protocol):
         *,
         system: str | None = None,
         model: str | None = None,
+        max_tokens: int,
     ) -> str:
         """Execute one bounded, already-authorized provider call."""
 
@@ -38,12 +39,17 @@ class ChatProviderAdapter:
         *,
         system: str | None = None,
         model: str | None = None,
+        max_tokens: int,
     ) -> str:
+        if max_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
         messages: list[dict[str, str]] = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        response = self.client.chat(messages, tools=None, model=model)
+        response = self.client.chat(
+            messages, tools=None, model=model, max_tokens=max_tokens
+        )
         if not isinstance(response, Mapping):
             raise RuntimeError("provider returned an invalid chat response")
         return str(response.get("content") or "")
@@ -143,7 +149,12 @@ class IntelligenceHiringService:
             raise RuntimeError(
                 f"selected provider adapter is not registered: {route.provider}"
             )
-        return client.complete(prompt, system=system, model=route.model)
+        return client.complete(
+            prompt,
+            system=system,
+            model=route.model,
+            max_tokens=request.max_tokens,
+        )
 
     @staticmethod
     def _can_use_local_fallback(
@@ -227,6 +238,7 @@ class IntelligenceHiringService:
             data_classification=request.data_classification,
             redactions=tuple(selection.privacy.redactions),
             allowed_providers=tuple(selection.privacy.allowed_providers),
+            requested_max_tokens=request.max_tokens,
             selected_provider=route.provider,
             selected_model=route.model,
             local_cloud_decision=(

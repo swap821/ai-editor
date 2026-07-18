@@ -23,6 +23,7 @@ class FakeClient:
     response: str = "frontier answer"
     error: Exception | None = None
     calls: list[tuple[str, str | None, str | None]] = field(default_factory=list)
+    max_tokens_seen: list[int | None] = field(default_factory=list)
 
     def complete(
         self,
@@ -30,8 +31,10 @@ class FakeClient:
         *,
         system: str | None = None,
         model: str | None = None,
+        max_tokens: int | None = None,
     ) -> str:
         self.calls.append((prompt, system, model))
+        self.max_tokens_seen.append(max_tokens)
         if self.error is not None:
             raise self.error
         return self.response
@@ -92,7 +95,7 @@ def test_hiring_call_executes_injected_provider_and_persists_provenance(
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
     )
 
-    result, call = service.complete(_request())
+    result, call = service.complete(_request().model_copy(update={"max_tokens": 37}))
 
     assert result == "frontier answer"
     assert cloud.calls == [
@@ -104,6 +107,7 @@ def test_hiring_call_executes_injected_provider_and_persists_provenance(
     ]
     assert call.selected_provider == "gemini"
     assert call.selected_model == "gemini-2.5-pro"
+    assert cloud.max_tokens_seen == [37]
     persisted = HiringRecordRepository(tmp_path / "state.db").get("request-1")
     assert persisted is not None
     assert persisted.status == "completed"
@@ -123,16 +127,20 @@ def test_chat_provider_adapter_preserves_model_and_bounded_messages() -> None:
     class ChatClient:
         def __init__(self) -> None:
             self.calls = []
+            self.max_tokens_seen = []
 
-        def chat(self, messages, *, tools=None, model=None):
+        def chat(self, messages, *, tools=None, model=None, max_tokens=None):
             self.calls.append((messages, tools, model))
+            self.max_tokens_seen.append(max_tokens)
             return {"role": "assistant", "content": "chat result"}
 
     client = ChatClient()
     adapter = ChatProviderAdapter(client)
 
     assert (
-        adapter.complete("question", system="context", model="gemini-2.5-pro")
+        adapter.complete(
+            "question", system="context", model="gemini-2.5-pro", max_tokens=37
+        )
         == "chat result"
     )
     assert client.calls == [
@@ -145,6 +153,7 @@ def test_chat_provider_adapter_preserves_model_and_bounded_messages() -> None:
             "gemini-2.5-pro",
         )
     ]
+    assert client.max_tokens_seen == [37]
 
 
 def test_privacy_is_applied_before_cloud_selection(tmp_path) -> None:

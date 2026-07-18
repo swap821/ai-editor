@@ -107,6 +107,7 @@ class OllamaClient:
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """Single non-streaming chat turn via Ollama ``/api/chat``.
 
@@ -125,11 +126,20 @@ class OllamaClient:
         Raises:
             LLMError: On any transport or decoding failure.
         """
+        output_tokens = max_tokens
+        if output_tokens is not None and output_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
+        options: dict[str, object] = {
+            "temperature": self.temperature,
+            "num_ctx": self.num_ctx,
+        }
+        if output_tokens is not None:
+            options["num_predict"] = output_tokens
         payload: dict[str, object] = {
             "model": model or self.model,
             "messages": messages,
             "stream": False,
-            "options": {"temperature": self.temperature, "num_ctx": self.num_ctx},
+            "options": options,
         }
         if tools:
             payload["tools"] = tools

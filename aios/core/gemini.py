@@ -277,6 +277,7 @@ class GeminiClient:
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """One non-streaming chat turn via Gemini ``generate_content``.
 
@@ -296,9 +297,12 @@ class GeminiClient:
             )
 
         system_text, contents = _to_gemini(safe_messages)
+        output_tokens = self.max_tokens if max_tokens is None else max_tokens
+        if output_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
         gen_config: dict[str, Any] = {
             "temperature": self.temperature,
-            "max_output_tokens": self.max_tokens,
+            "max_output_tokens": output_tokens,
         }
         if system_text.strip():
             gen_config["system_instruction"] = system_text
