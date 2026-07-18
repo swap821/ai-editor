@@ -10,9 +10,8 @@
 - **Benchmark:** Blocked before execution because all installed 2–3B local clerk candidates failed qualification/admission; `benchmark-results.json` records the 30-task fixture set and makes no completion claim.
 - **Real model qualification:** Executed against installed `qwen2.5-coder:3b`, `llama3.2:3b`, and `qwen2.5-coder:1.5b-base`; all candidates were rejected by one or more schema/refusal gates. No model is admitted; evidence is recorded in `model-qualification-redacted.json`.
 - **Private Executor:** Unavailable on the current laptop; hosted/package proof remains required.
-- **Hosted CI:** Green on source tip `f3e2ccd` in run `29635428765`, including the hosted private-Executor topology, isolation proof, and strict runtime matrix.
-- **CodeQL:** Green on source tip `762029f` in run `29636230775` for Python, JavaScript/TypeScript, and Actions; the executor model-pack validation also passed.
-- **Current-tip follow-up:** CodeQL run `29636342659` and CI run `29636338694` were started for the final evidence checkpoint; inspect their conclusions before the handoff is treated as current.
+- **Hosted CI:** Green on source tip `e1d8de0` in run `29636436923`, including all backend OS matrices, frontend tests/build, aggregate backend, release-authority, hosted private-Executor topology/isolation/strict runtime, SBOM, license inventory, and evidence upload.
+- **CodeQL:** Green on source tip `e1d8de0` in run `29636442316` for Python, JavaScript/TypeScript, and Actions; the executor model-pack validation also passed.
 - **Non-builder handoff:** Not yet available; the coordination lease is currently unowned and no independent verdict is recorded.
 
 ### Sign-off
