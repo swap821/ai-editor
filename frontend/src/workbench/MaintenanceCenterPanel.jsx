@@ -32,8 +32,8 @@ export default function MaintenanceCenterPanel() {
           <p>No recent scans.</p>
         ) : (
           <ul>
-            {scans.map((s) => (
-              <li key={s.id || Math.random()}>
+            {scans.map((s, index) => (
+              <li key={s.id || `scan-${index}`}>
                 <strong>{s.strategy || 'Unknown Strategy'}</strong>
                 <span> - {s.status}</span>
               </li>
@@ -50,8 +50,8 @@ export default function MaintenanceCenterPanel() {
           <p>No durable findings reported.</p>
         ) : (
           <ul>
-            {findings.map((f) => (
-              <li key={f.id || Math.random()}>
+            {findings.map((f, index) => (
+              <li key={f.id || `finding-${index}`}>
                 <strong>{f.severity}</strong>: {f.description}
                 <small> ({f.status})</small>
               </li>

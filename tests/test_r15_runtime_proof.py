@@ -25,3 +25,14 @@ def test_r15_runtime_proof_report_has_boolean_map_and_failures(tmp_path: Path) -
     assert all(isinstance(value, bool) for value in report.boolean_map().values())
     assert not report.failures
     assert report.as_dict()["failures"] == []
+
+
+def test_r15_runtime_proof_evidence_is_executable_not_placeholder(tmp_path: Path) -> None:
+    report = run_r15_runtime_proofs(tmp_path)
+
+    assert all(report.boolean_map().values())
+    assert all(
+        evidence
+        and evidence != f"{name} proven"
+        for name, evidence in report.evidence_map().items()
+    )

@@ -1,5 +1,5 @@
 """Canonical Frontier Intelligence Hiring Broker."""
-from typing import Mapping
+from typing import Mapping, Sequence
 
 from aios.domain.intelligence.contracts import HiringRequest, HiringDecision
 from aios.domain.intelligence.privacy import PrivacyBroker

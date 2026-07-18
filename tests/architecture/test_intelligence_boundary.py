@@ -8,8 +8,6 @@ import ast
 import os
 import pytest
 
-from aios import config
-
 # Only these core routing and dependency injection modules are allowed
 # to import and instantiate the raw provider adapters.
 ALLOWED_CLIENT_IMPORTERS = {
@@ -40,7 +38,6 @@ def _iter_python_files(root_dir: str):
                 yield os.path.join(dirpath, filename)
 
 @pytest.mark.architecture
-@pytest.mark.xfail(reason="Pending Phase 1 of Intelligence Migration (Slice 3)")
 def test_no_direct_cloud_client_instantiation():
     """Ensure that application code does not bypass the hiring broker.
 
@@ -73,8 +70,4 @@ def test_no_direct_cloud_client_instantiation():
                 if node.id in FORBIDDEN_CLASSES:
                     violations.append(f"{rel_path}:{node.lineno} references {node.id}")
                     
-    # Note: generate_pipeline.py currently violates this by instantiating BedrockClient
-    # and GeminiClient directly. This test will fail until Phase 1 of the migration
-    # is complete. We expect it to fail as proof of the boundary violation.
     assert not violations, "Direct cloud client usage detected outside allowed boundaries:\n" + "\n".join(violations)
-

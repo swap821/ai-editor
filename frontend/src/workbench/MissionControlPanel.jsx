@@ -11,8 +11,8 @@ export default function MissionControlPanel() {
         <p>No active missions.</p>
       ) : (
         <ul>
-          {missions.map((m) => (
-            <li key={m.id || Math.random()}>
+          {missions.map((m, index) => (
+            <li key={m.id || `mission-${index}`}>
               <strong>{m.id}</strong>
               <p>{m.summary || m.goal}</p>
               <small>Status: {m.status}</small>

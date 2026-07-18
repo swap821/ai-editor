@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Minus, X, Maximize2 } from 'lucide-react';
 
 export default function HUDPanel({
-  id,
+  _id,
   title = 'Panel',
   tint = 'base', // base, cyan, purple, amber, green
   defaultPosition = { x: 50, y: 50 },

@@ -784,12 +784,16 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     cloud_provider: Optional[str] = None
     cloud_model: Optional[str] = None
     if req.swarm and config.SWARM_CLOUD_BURST_ENABLED:
-        if config.BEDROCK_ENABLED:
-            cloud_client = BedrockClient()
+        # Provider construction belongs to the API dependency composition.
+        # Reusing the injected clients keeps swarm burst on the same governed
+        # provider boundary as the primary turn and keeps tests able to replace
+        # the provider without reaching into this application pipeline.
+        if runtime.bedrock is not None and config.BEDROCK_ENABLED:
+            cloud_client = runtime.bedrock
             cloud_provider = "bedrock"
             cloud_model = config.BEDROCK_MODEL
-        elif config.GEMINI_ENABLED:
-            cloud_client = GeminiClient()
+        elif runtime.gemini is not None and config.GEMINI_ENABLED:
+            cloud_client = runtime.gemini
             cloud_provider = "gemini"
             cloud_model = config.GEMINI_MODEL
 

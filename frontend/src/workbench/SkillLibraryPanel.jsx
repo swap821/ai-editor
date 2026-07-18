@@ -25,8 +25,8 @@ export default function SkillLibraryPanel() {
         <p>No known skills available.</p>
       ) : (
         <ul>
-          {skills.map((s) => (
-            <li key={s.id || s.name || Math.random()}>
+          {skills.map((s, index) => (
+            <li key={s.id || s.name || `skill-${index}`}>
               <strong>{s.name}</strong>
               <small> - {s.status}</small>
               <p>{s.description}</p>

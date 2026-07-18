@@ -1,0 +1,66 @@
+{
+  "all_passed": true,
+  "failures": [],
+  "proofs": {
+    "local_workforce_registry": {
+      "name": "local_workforce_registry",
+      "passed": true,
+      "evidence": "registry restart preserved approval, admission, profile, and health state"
+    },
+    "local_workforce_qualification": {
+      "name": "local_workforce_qualification",
+      "passed": true,
+      "evidence": "qualification fixtures passed schema and identifier gates with zero authority, tool, or secret violations"
+    },
+    "local_workforce_non_authority": {
+      "name": "local_workforce_non_authority",
+      "passed": true,
+      "evidence": "structured local result preserved evidence and exposed no authority or tool fields"
+    },
+    "hardware_admission": {
+      "name": "hardware_admission",
+      "passed": true,
+      "evidence": "hardware admission accepted an idle fixture and refused an over-concurrency fixture"
+    },
+    "canonical_intelligence_hiring": {
+      "name": "canonical_intelligence_hiring",
+      "passed": true,
+      "evidence": "hiring selected the lowest-cost eligible provider from the declared candidate set"
+    },
+    "privacy_gated_cloud_use": {
+      "name": "privacy_gated_cloud_use",
+      "passed": true,
+      "evidence": "secret classification redacted the prompt and reduced provider eligibility to local Ollama"
+    },
+    "expert_trajectory_provenance": {
+      "name": "expert_trajectory_provenance",
+      "passed": true,
+      "evidence": "complete proposal, action, verification, promotion, and context provenance qualified; incomplete context refused"
+    },
+    "skill_applicability": {
+      "name": "skill_applicability",
+      "passed": true,
+      "evidence": "active skill passed required-input and project-state checks; state mismatch refused"
+    },
+    "skill_re_escalation": {
+      "name": "skill_re_escalation",
+      "passed": true,
+      "evidence": "applicable skill reused locally and missing input deterministically escalated to frontier"
+    },
+    "maintenance_finding_persistence": {
+      "name": "maintenance_finding_persistence",
+      "passed": true,
+      "evidence": "finding survived repository restart, resolved with evidence, and reopened on reappearance"
+    },
+    "maintenance_canonical_repair": {
+      "name": "maintenance_canonical_repair",
+      "passed": true,
+      "evidence": "bounded scan produced an advisory proposal and canonical approval-bound repair mission"
+    },
+    "maintenance_rescan_resolution": {
+      "name": "maintenance_rescan_resolution",
+      "passed": true,
+      "evidence": "local actor could not resolve; system verifier required current deterministic rescan evidence"
+    }
+  }
+}

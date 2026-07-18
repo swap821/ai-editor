@@ -1,0 +1,6 @@
+{
+  "status": "fixture_lifecycle_verified",
+  "successful_repairs": 0,
+  "rescan_resolutions": 1,
+  "evidence": "Durable finding persistence, governed repair proposal, verifier-only resolution, and reappearance reopening passed in a disposable store."
+}

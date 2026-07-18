@@ -1,0 +1,6 @@
+{
+  "status": "fixture_only",
+  "device_models_present": ["qwen2.5-coder:7b"],
+  "qualified_models": [],
+  "evidence": "The executable qualification proof used an injected deterministic fixture; no real model qualification claim is made."
+}

@@ -1,7 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import HUDPanel from './HUDPanel';
-import React from 'react';
 
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {

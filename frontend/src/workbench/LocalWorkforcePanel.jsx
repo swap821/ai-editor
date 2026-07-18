@@ -11,8 +11,8 @@ export default function LocalWorkforcePanel() {
         <p>No active local workers.</p>
       ) : (
         <ul>
-          {workers.map((w) => (
-            <li key={w.id || Math.random()}>
+          {workers.map((w, index) => (
+            <li key={w.id || `worker-${index}`}>
               <strong>Worker {w.id}</strong>
               <small> - {w.status || 'Active'}</small>
             </li>

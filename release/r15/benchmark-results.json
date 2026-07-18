@@ -1,0 +1,7 @@
+{
+  "status": "not_run",
+  "planned_tasks": 30,
+  "completed_tasks": 0,
+  "pass_rate": null,
+  "evidence": "Benchmark execution remains an open R15 gate; no completion claim is made."
+}

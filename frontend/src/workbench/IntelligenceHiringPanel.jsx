@@ -25,8 +25,8 @@ export default function IntelligenceHiringPanel() {
         <p>No active hiring proposals.</p>
       ) : (
         <ul>
-          {proposals.map((p) => (
-            <li key={p.id || p.provider_id || Math.random()}>
+          {proposals.map((p, index) => (
+            <li key={p.id || p.provider_id || `proposal-${index}`}>
               <strong>{p.model_name || p.provider_id}</strong>
               <span> - {p.status}</span>
             </li>

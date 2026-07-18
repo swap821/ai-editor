@@ -1,0 +1,18 @@
+{
+  "os": "Windows",
+  "python": "3.14.5",
+  "ollama": "available",
+  "installed_models": [
+    "mistral:7b",
+    "deepseek-r1:8b",
+    "qwen2.5:7b",
+    "qwen2.5-coder:7b",
+    "qwen2.5-coder:3b",
+    "nomic-embed-text:latest",
+    "llama3.2:3b",
+    "qwen2.5-coder:1.5b-base",
+    "llama3.1:8b"
+  ],
+  "private_executor": "unavailable",
+  "backend_gate": "3235 passed, 8 skipped, 88% coverage"
+}
