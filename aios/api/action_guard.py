@@ -21,6 +21,7 @@ from fastapi.exceptions import RequestValidationError
 
 from aios.api.deps import get_action_broker, get_emergency_stop, get_identity_service
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
+from aios.application.governance import EmergencyStopError
 from aios.application.identity.service import IdentityService
 from aios.domain.actions.envelope import (
     ActionEnvelope,
@@ -278,7 +279,10 @@ async def enforce_action_boundary(
 
     binding = _binding_for(envelope, principal) if principal else None
     token = request.headers.get(CAPABILITY_HEADER)
-    if path == _EMERGENCY_CLEAR_ROUTE and authority.action_type is ActionType.EMERGENCY_STOP_CLEAR:
+    if (
+        path == _EMERGENCY_CLEAR_ROUTE
+        and authority.action_type is ActionType.EMERGENCY_STOP_CLEAR
+    ):
         if principal is None or binding is None:
             raise HTTPException(
                 status_code=401, detail="authenticated operator session required"
@@ -315,7 +319,7 @@ async def enforce_action_boundary(
             capability_binding=binding,
             issue_capability=authority.authority_class == "YELLOW",
         )
-    except (PolicyBrokerError, ValueError) as exc:
+    except (EmergencyStopError, PolicyBrokerError, ValueError) as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     if decision.blocked:

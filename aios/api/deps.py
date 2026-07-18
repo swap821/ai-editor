@@ -375,10 +375,9 @@ def get_emergency_stop() -> EmergencyStopController:
             from aios.application.missions.mission_service import MissionService
 
             def cancel_queued_work(reason: str = "emergency stop") -> int:
-                return (
-                    MissionService.cancel_registered_queued(reason)
-                    + WorkerScheduler.cancel_queued_registered(reason)
-                )
+                return MissionService.cancel_registered_queued(
+                    reason
+                ) + WorkerScheduler.cancel_queued_registered(reason)
 
             _emergency_stop = EmergencyStopController(
                 hooks=EmergencyStopHooks(
@@ -753,10 +752,24 @@ __all__ = [
     "get_self_apply_engine",
     "get_edit_snapshot",
     "get_local_workforce_registry",
+    "get_local_workforce_service",
 ]
 
-def get_local_workforce_registry() -> Any:
+
+def get_local_workforce_registry(
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> Any:
     """Provide the durable Local Workforce Registry (R15)."""
     from aios.domain.local_workforce.registry import LocalWorkforceRegistry
-    # Using the default OllamaClient; inject appropriately if needed.
-    return LocalWorkforceRegistry()
+
+    return LocalWorkforceRegistry(ollama)
+
+
+def get_local_workforce_service(
+    registry: Any = Depends(get_local_workforce_registry),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> Any:
+    """Provide the application-layer local-workforce orchestration service."""
+    from aios.application.local_workforce.service import LocalWorkforceService
+
+    return LocalWorkforceService(registry=registry, ollama=ollama)
