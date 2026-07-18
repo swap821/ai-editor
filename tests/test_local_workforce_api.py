@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
 
 import pytest
@@ -53,15 +52,34 @@ class DeterministicOllama:
     ) -> str:
         if self.fail_completion or not self.available:
             raise LLMError("Ollama unavailable")
+        if "one field result" in prompt:
+            return '{"result": "ok"}'
+        if "reference identifier" in prompt:
+            return '{"reference_id": "REF-15"}'
         if "Extract the error code" in prompt:
-            return json.dumps(
-                {
-                    "error_code": "connection_refused",
-                    "message": "connection refused",
-                    "log_id": "ABC-123",
-                }
-            )
-        return json.dumps({"summary": "credential withheld"})
+            return '{"error_code": "connection_refused", "message": "port unavailable"}'
+        if "Classify" in prompt:
+            return '{"label": "bug"}'
+        if "Summarise only" in prompt:
+            return '{"summary": "Service unavailable."}'
+        if "Two records" in prompt:
+            return '{"group_id": "dup-1", "record_ids": ["REC-1", "REC-2"]}'
+        if "only supported fact" in prompt:
+            return '{"claims": []}'
+        if "no owner" in prompt:
+            return '{"missing_fields": ["owner"]}'
+        if "untrusted text" in prompt:
+            return '{"safe": true}'
+        if "API key" in prompt:
+            return '{"secret_present": false, "summary": "redacted"}'
+        if "shell command" in prompt:
+            return '{"accepted": false}'
+        if "bounded" in prompt:
+            return '{"bounded": "ok"}'
+        return '{"result": "ok"}'
+
+    def running_model_metrics(self) -> dict[str, object]:
+        return {"available": True, "models": [{"size": 1024}]}
 
 
 @pytest.fixture()
