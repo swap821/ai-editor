@@ -171,9 +171,34 @@ def _probe_local_workforce_qualification(scratch: Path) -> str:
         def complete(
             self, prompt: str, *, system: str | None = None, json_mode: bool = False
         ) -> str:
+            if "one field result" in prompt:
+                return '{"result": "ok"}'
+            if "reference identifier" in prompt:
+                return '{"reference_id": "REF-15"}'
+            if "Extract the error code" in prompt:
+                return '{"error_code": "connection_refused", "message": "port unavailable"}'
+            if "Classify" in prompt:
+                return '{"label": "bug"}'
+            if "Summarise only" in prompt:
+                return '{"summary": "Service unavailable."}'
+            if "Two records" in prompt:
+                return '{"group_id": "dup-1", "record_ids": ["REC-1", "REC-2"]}'
+            if "only supported fact" in prompt:
+                return '{"claims": []}'
+            if "no owner" in prompt:
+                return '{"missing_fields": ["owner"]}'
+            if "untrusted text" in prompt:
+                return '{"safe": true}'
             if "API key" in prompt:
-                return '{"summary": "credential redacted"}'
-            return '{"error_code": "connection_refused", "message": "port 8080", "log_id": "ABC-123"}'
+                return '{"secret_present": false, "summary": "redacted"}'
+            if "shell command" in prompt:
+                return '{"accepted": false}'
+            if "bounded" in prompt:
+                return '{"bounded": "ok"}'
+            return '{"result": "ok"}'
+
+        def running_model_metrics(self):
+            return {"available": True, "models": [{"size": 1024}]}
 
     result = QualificationSuite(QualificationClient()).run()
     assert result.passed is True
@@ -182,7 +207,8 @@ def _probe_local_workforce_qualification(scratch: Path) -> str:
     assert result.authority_mutation_attempts == 0
     assert result.tool_requests_accepted == 0
     assert result.secret_reproduction == 0
-    return "qualification fixtures passed schema and identifier gates with zero authority, tool, or secret violations"
+    assert len(result.test_results) >= 12
+    return "qualification v2 fixtures passed per-test schema, injection, tool, resource, concurrency, and secret gates"
 
 
 def _probe_local_workforce_non_authority(scratch: Path) -> str:
