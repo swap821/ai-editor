@@ -102,3 +102,10 @@
 - **Artifact:** `release/r15/model-qualification-redacted.json` records all three results with `qualified_models` empty.
 - **Known limitations:** No admissible local clerk exists on this device, so the benchmark is explicitly blocked before execution and cannot honestly be marked complete. Authenticated cloud-burst proof and non-builder verdict remain open.
 - **Exact next action:** Record the CodeQL and multi-candidate result on a new source tip, then build the hash-pinned handoff package without self-approving it.
+
+## Slice 23: Final Evidence Handoff Preparation
+
+- **Tree state:** Final evidence checkpoint is clean and pushed at `da2303d`; a first hash-pinned handoff was recorded but must be reissued after this state checkpoint.
+- **Handoff task:** `gagos-r15-r16-final-handoff`, assigned reviewer `kimi`; no verdict has been recorded.
+- **Hosted follow-up:** CI `29636338694` and CodeQL `29636342659` were started for the final evidence checkpoint; both must be inspected before acceptance.
+- **Exact next action:** Reissue the handoff against the final clean snapshot after the hosted follow-up concludes, then wait for the independent reviewer verdict.

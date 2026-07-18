@@ -12,6 +12,7 @@
 - **Private Executor:** Unavailable on the current laptop; hosted/package proof remains required.
 - **Hosted CI:** Green on source tip `f3e2ccd` in run `29635428765`, including the hosted private-Executor topology, isolation proof, and strict runtime matrix.
 - **CodeQL:** Green on source tip `762029f` in run `29636230775` for Python, JavaScript/TypeScript, and Actions; the executor model-pack validation also passed.
+- **Current-tip follow-up:** CodeQL run `29636342659` and CI run `29636338694` were started for the final evidence checkpoint; inspect their conclusions before the handoff is treated as current.
 - **Non-builder handoff:** Not yet available; the coordination lease is currently unowned and no independent verdict is recorded.
 
 ### Sign-off
