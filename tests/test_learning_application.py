@@ -163,7 +163,7 @@ def test_capture_is_structured_durable_and_derived_from_authoritative_mission(
         == record
     )
     with pytest.raises(ValueError, match="authoritative"):
-        _capture(service, mission, (verification.model_copy(),))
+        _capture(service, mission, (verification.model_copy(update={"verification_id": "forged-id"}),))
 
 
 def test_free_text_or_forged_verification_cannot_qualify() -> None:

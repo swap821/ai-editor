@@ -11,19 +11,20 @@
 - **Phase 4 (Real WorkerFoundry and private Executor maintenance proof)** — COMPLETE & VERIFIED (3/3 tests green in `tests/test_real_worker_foundry_maintenance.py`, committed & pushed `4437315`).
   - Added `code` strategy alias in `WorkerFoundry.select()` (`aios/application/workers/foundry.py`).
   - Updated `run_approved_repair()` in `aios/application/maintenance/service.py` to return `status="WORKER_FAILED"` when worker execution fails.
-- **Phase 5 (Durable VerificationAuthority)** — COMPLETE & VERIFIED (4/4 tests green in `tests/test_durable_verification_authority.py`, plus 14/14 integration tests passing).
+- **Phase 5 (Durable VerificationAuthority)** — COMPLETE & VERIFIED (4/4 tests green in `tests/test_durable_verification_authority.py`, committed & pushed `cf3ce19`).
   - Added optional SQLite database persistence (`database_path`) to `VerificationAuthority` (`aios/application/evidence/verification.py`).
   - Injected `config.OPERATIONAL_STATE_DB_PATH` into `VerificationAuthority` in `get_maintenance_convergence_service()` (`aios/api/deps.py`).
-  - Proved cross-instance / process-restart retrieval of `VerificationResult` records, `is_authoritative()` model dict equality validation across reloaded instances, workspace and diff freshness (`is_current()`) checking, and `list_results_for_mission()` querying.
+- **Phase 6 (Full frontier-to-local learning heartbeat)** — COMPLETE & VERIFIED (2/2 tests green in `tests/test_frontier_learning_heartbeat.py`, plus 26/26 learning & verification tests passing).
+  - Proved end-to-end sovereign learning heartbeat: Frontier expert trajectory capture → Candidate distillation → Operator activation → Local execution directive → Authoritative post-execution verification & confidence boost.
+  - Proved skill degradation and fail-closed escalation: Post-execution verification failure → Confidence drop below threshold (0.8) → State transition to `degraded` → Immediate `EscalateToFrontierDirective` for future attempts.
 
-**Next action:** Phase 6 (Full frontier-to-local learning heartbeat).
+**Next action:** Phase 7 (Full pytest test suite pass).
 
 **Open approvals/blockers:**
-- Phases 6-11 of R15 production blockers remain open.
+- Phases 7-11 of R15 production blockers remain open.
 - R15 remains NOT ACCEPTED. Do not self-approve R15 or start R16.
 
 **Active files:**
-- `aios/application/evidence/verification.py`
-- `aios/api/deps.py`
-- `tests/test_durable_verification_authority.py`
+- `tests/test_frontier_learning_heartbeat.py`
+- `tests/test_learning_application.py`
 - `.aios/state/RESUME.md`
