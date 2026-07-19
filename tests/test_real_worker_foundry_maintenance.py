@@ -81,7 +81,7 @@ def foundry_env(tmp_path: Path) -> Iterator[
     mission_service = MissionService(missions, workspace_manager=workspace)
     finding_repository = MaintenanceFindingRepository(tmp_path / "operational.db")
     scan_repository = MaintenanceScanRepository(tmp_path / "operational.db")
-    bus = CortexBus()
+    bus = CortexBus(db_path=tmp_path / "cortex_bus.db")
     emergency_stop = EmergencyStopController(
         hooks=EmergencyStopHooks(
             revoke_capabilities=lambda: None,

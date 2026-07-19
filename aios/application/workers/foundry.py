@@ -112,8 +112,10 @@ class WorkerFoundry:
             "role_pass_worker": "role_pass",
             "swarm_worker": "swarm",
         }
-        key = aliases.get(key, key)
         selected = self._strategies.get(key)
+        if selected is None:
+            aliased_key = aliases.get(key, key)
+            selected = self._strategies.get(aliased_key)
         if selected is None:
             raise UnknownWorkerStrategy(key)
         return selected
