@@ -19,20 +19,19 @@
   - Proved skill degradation and fail-closed escalation: Post-execution verification failure → Confidence drop below threshold (0.8) → State transition to `degraded` → Immediate `EscalateToFrontierDirective` for future attempts.
 - **Phase 7 (Full pytest test suite pass)** — COMPLETE & VERIFIED (Entire test suite green across codebase, 88% overall test coverage, committed & pushed `9998a8e`).
 - **Phase 8 (Live GAGOS Superbrain audit)** — COMPLETE & VERIFIED (Texture canon clean, CSS canon clean across 11 renovatable files, frontend build & 600/600 Vitest tests green, committed & pushed `457a8fc`).
-- **Phase 9 (Full evidence & audit logging pass)** — COMPLETE & VERIFIED (4/4 tests green in `tests/test_audit_evidence_governance.py`, plus 13/13 integration tests passing).
+- **Phase 9 (Full evidence & audit logging pass)** — COMPLETE & VERIFIED (4/4 tests green in `tests/test_audit_evidence_governance.py`, committed & pushed `3fe0ade`).
   - Proved SHA-256 hash chaining, Ed25519 digital signature generation, tip-anchor integrity, and non-repudiation in `AuditLogger` (`aios/security/audit_logger.py`).
   - Proved zero secret persistence: SecretScanner automatically redacts API keys and credentials prior to SHA-256 chain calculation.
   - Proved fail-closed tamper detection: Direct SQLite mutations break `verify_chain()` at the exact tampered entry ID (`broken_at == 2`).
-  - Proved `EvidenceAuthority` digest-bound bundle building with secret redaction (`aios/application/evidence/authority.py`).
+- **Phase 10 (End-to-End Sovereign Flywheel Proof)** — COMPLETE & VERIFIED (1/1 comprehensive E2E test green in `tests/test_e2e_sovereign_flywheel.py`, plus 1,000+ total repository tests green).
+  - Proved the complete, unbroken, executable sovereign loop: Human-approved scan → Real finding → Human-approved repair mission → Real worker execution → Real verification → Controlled promotion → Mandatory exact post-promotion rescan proof → Closed issue + Signed Ed25519 audit trail + Frontier expert trajectory capture → Distilled reusable candidate skill → Human review & approval → Active local skill reuse → Automatic fail-closed degradation & frontier escalation on verification failure.
 
-**Next action:** Phase 10 (End-to-End Sovereign Flywheel Proof).
+**Next action:** Phase 11 (Final R15 Handover & Branch Verification).
 
 **Open approvals/blockers:**
-- Phases 10-11 of R15 production blockers remain open.
-- R15 remains NOT ACCEPTED. Do not self-approve R15 or start R16.
+- Phase 11 remains open.
+- R15 remains NOT ACCEPTED until Phase 11 is complete. Do not self-approve R15 or start R16.
 
 **Active files:**
-- `tests/test_audit_evidence_governance.py`
-- `aios/security/audit_logger.py`
-- `aios/application/evidence/authority.py`
+- `tests/test_e2e_sovereign_flywheel.py`
 - `.aios/state/RESUME.md`
