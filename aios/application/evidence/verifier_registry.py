@@ -63,6 +63,10 @@ class VerifierRegistry:
         self._scanner_adapters = dict(scanner_adapters)
         self._bounded = AutonomousMaintenanceForce(MaintenanceLifecycleEngine())
 
+    @property
+    def scanner_adapters(self) -> dict[str, ScannerAdapter]:
+        return dict(self._scanner_adapters)
+
     def run(
         self,
         spec: VerifierSpec,

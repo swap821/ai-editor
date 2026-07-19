@@ -759,6 +759,7 @@ __all__ = [
     "get_skill_repository",
     "get_maintenance_finding_repository",
     "get_maintenance_scan_repository",
+    "get_maintenance_convergence_service",
     "get_learning_service",
 ]
 
@@ -957,4 +958,57 @@ def get_learning_service() -> Any:
         skill_repository=SkillRepository(config.OPERATIONAL_STATE_DB_PATH),
         verification_plan_validator=verification_plan_validator,
         reuse_policy=reuse_policy,
+    )
+
+
+def get_maintenance_convergence_service() -> Any:
+    """Provide canonical maintenance scan, repair, verification and rescan service."""
+    from aios.application.evidence.verification import VerificationAuthority
+    from aios.application.evidence.verifier_registry import VerifierRegistry
+    from aios.application.executor.service import ExecutorService
+    from aios.application.maintenance.service import MaintenanceConvergenceService
+    from aios.application.missions.mission_service import MissionService
+    from aios.application.promotion.authority import PromotionAuthority
+    from aios.application.workers.foundry import WorkerFoundry
+    from aios.application.workspaces import StagedWorkspaceManager
+    from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
+    from aios.domain.maintenance.repository import MaintenanceFindingRepository
+    from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
+    from aios.infrastructure.missions.sqlite_mission_repository import (
+        SqliteMissionRepository,
+    )
+
+    workspace_manager = StagedWorkspaceManager(
+        config.DATA_DIR / "staged_maintenance",
+        enrolled_roots=(config.PROJECT_ROOT,),
+    )
+    mission_service = MissionService(
+        SqliteMissionRepository(config.MISSION_STATE_DB),
+        workspace_manager=workspace_manager,
+    )
+    worker_foundry = WorkerFoundry(workspace_manager=workspace_manager)
+    executor_service = ExecutorService(
+        profile="production",
+        runner=get_executor().execute,
+        backend_name="private_service",
+    )
+    verification_authority = VerificationAuthority()
+    promotion_authority = PromotionAuthority(
+        workspace_manager,
+        verification=verification_authority,
+        emergency_stop=get_emergency_stop(),
+    )
+    lifecycle_engine = MaintenanceLifecycleEngine()
+
+    return MaintenanceConvergenceService(
+        finding_repository=MaintenanceFindingRepository(config.OPERATIONAL_STATE_DB_PATH),
+        scan_repository=MaintenanceScanRepository(config.OPERATIONAL_STATE_DB_PATH),
+        mission_service=mission_service,
+        worker_foundry=worker_foundry,
+        executor_service=executor_service,
+        verifier_registry=VerifierRegistry(scanner_adapters={}),
+        verification_authority=verification_authority,
+        promotion_authority=promotion_authority,
+        workspace_manager=workspace_manager,
+        lifecycle_engine=lifecycle_engine,
     )

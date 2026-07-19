@@ -185,6 +185,34 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="skill_reuse",
         action_type=ActionType.SKILL_REUSE,
     ),
+    "/api/v1/maintenance/scans": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="maintenance_scan",
+        action_type=ActionType.MAINTENANCE_SCAN,
+    ),
+    "/api/v1/maintenance/repairs/missions": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="maintenance_repair_create",
+        action_type=ActionType.MAINTENANCE_REPAIR_CREATE,
+    ),
+    "/api/v1/maintenance/repairs/run": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="maintenance_repair_run",
+        action_type=ActionType.MAINTENANCE_REPAIR_RUN,
+    ),
+    "/api/v1/maintenance/repairs/{mission_id}/status": RouteAuthority(
+        "GREEN",
+        60,
+        "session",
+        audit_event="maintenance_repair_status",
+        action_type=ActionType.PLAN,
+    ),
     "/api/v1/local-workforce/{model_id}/qualify": RouteAuthority(
         "YELLOW",
         30,
@@ -568,6 +596,26 @@ _METHOD_ROUTE_AUTHORITY: dict[tuple[str, str], RouteAuthority] = {
         "public",
         audit_event="auth_session_destroy",
         action_type=ActionType.AUTH_SESSION_DESTROY,
+    ),
+    (
+        "GET",
+        "/api/v1/maintenance/scans",
+    ): RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="maintenance_scan_list",
+        action_type=ActionType.PLAN,
+    ),
+    (
+        "GET",
+        "/api/v1/maintenance/findings",
+    ): RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="maintenance_finding_list",
+        action_type=ActionType.PLAN,
     ),
 }
 
