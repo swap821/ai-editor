@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Callable, Sequence
 
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
@@ -91,7 +91,7 @@ def deterministic_config_scanner(context: Any) -> Sequence[MaintenanceFinding]:
     return tuple(findings)
 
 
-def get_admitted_scanners() -> dict[str, ScannerAdapter]:
+def get_admitted_scanners() -> dict[str, Callable[[Any], Sequence[MaintenanceFinding]]]:
     """Return dictionary of admitted scanner adapters."""
     return {
         ADMITTED_SCANNER_ID: deterministic_config_scanner,

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterator
+from typing import Any
 from pathlib import Path
 from types import SimpleNamespace
 

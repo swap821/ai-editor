@@ -5,6 +5,7 @@ import json
 import sqlite3
 import uuid
 from pathlib import Path
+from typing import Any
 import pytest
 
 from aios import config
@@ -13,18 +14,15 @@ from aios.application.evidence.verification import VerificationAuthority
 from aios.application.learning.service import LearningService, SkillCandidateSpec, SkillActivationDenied
 from aios.application.maintenance.service import MaintenanceConvergenceService
 from aios.application.missions.mission_service import MissionService
-from aios.application.promotion.authority import PromotionAuthority, PromotionRequest
-from aios.domain.promotion import PromotionResult, PromotionStatus
+from aios.application.promotion.authority import PromotionAuthority
+from aios.domain.promotion import PromotionStatus
 from aios.application.workspaces import StagedWorkspaceManager
 from aios.application.workspaces.staged import tree_digest
-from aios.domain.evidence import VerificationObservation, VerificationPlanV1, VerificationResult
-from aios.domain.learning.contracts import ToolObservation
+from aios.domain.evidence import VerificationObservation, VerificationPlanV1
 from aios.domain.learning.repository import SkillRecord, SkillRepository
-from aios.domain.learning.trajectory_repository import TrajectoryRecord, TrajectoryRepository
-from aios.domain.maintenance.contracts import MaintenanceFinding
+from aios.domain.learning.trajectory_repository import TrajectoryRepository
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.scanners import deterministic_config_scanner
-from aios.domain.missions.mission_contract import MissionContract, VerificationPlan
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.verification import SkillVerifierSpec
 from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
@@ -115,7 +113,7 @@ def test_promotion_authority_durability_and_authoritative_check(tmp_path: Path, 
         command="test", exit_code=0, stdout="", stderr="", passed_count=1, failed_count=0, tool_version="1", observed_at="now"
     )
     plan = VerificationPlanV1(intended_behavior="b", targets=("t",), required_tests=("test",), minimum_strength=1)
-    ver = va.verify(
+    va.verify(
         mission_id="m1",
         action_id="a1",
         worker_id="w1",
