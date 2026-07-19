@@ -992,7 +992,9 @@ def get_maintenance_convergence_service() -> Any:
         runner=get_executor().execute,
         backend_name="private_service",
     )
-    verification_authority = VerificationAuthority()
+    verification_authority = VerificationAuthority(
+        database_path=config.OPERATIONAL_STATE_DB_PATH
+    )
     promotion_authority = PromotionAuthority(
         workspace_manager,
         verification=verification_authority,

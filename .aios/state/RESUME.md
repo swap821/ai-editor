@@ -8,19 +8,22 @@
 - **Phase 3 (Canonical maintenance production composition)** — COMPLETE & VERIFIED (7/7 tests green in `tests/test_maintenance_api.py`, committed & pushed `bec07dc`).
   - Added `MAINTENANCE_SCAN`, `MAINTENANCE_REPAIR_CREATE`, `MAINTENANCE_REPAIR_RUN` to `ActionType` (`aios/domain/actions/envelope.py`).
   - Implemented production maintenance API routes in `aios/api/routes/maintenance.py`.
-- **Phase 4 (Real WorkerFoundry and private Executor maintenance proof)** — COMPLETE & VERIFIED (3/3 tests green in `tests/test_real_worker_foundry_maintenance.py`, plus 40/40 all maintenance group tests passing).
+- **Phase 4 (Real WorkerFoundry and private Executor maintenance proof)** — COMPLETE & VERIFIED (3/3 tests green in `tests/test_real_worker_foundry_maintenance.py`, committed & pushed `4437315`).
   - Added `code` strategy alias in `WorkerFoundry.select()` (`aios/application/workers/foundry.py`).
   - Updated `run_approved_repair()` in `aios/application/maintenance/service.py` to return `status="WORKER_FAILED"` when worker execution fails.
-  - Proved real `WorkerFoundry` contract staging (`_stage_contract`), `CortexBus` lifecycle event emissions (`REQUESTED` → `ADMITTED` → `BORN` → `RUNNING` → `COMPLETED` → `DISSOLVED`), `WorkerPrincipal` tracking, `ExecutorService` job construction (`ExecutorJob`, `ExecutorCapability`, `ResourceLimits`), and fail-closed maintenance convergence.
+- **Phase 5 (Durable VerificationAuthority)** — COMPLETE & VERIFIED (4/4 tests green in `tests/test_durable_verification_authority.py`, plus 14/14 integration tests passing).
+  - Added optional SQLite database persistence (`database_path`) to `VerificationAuthority` (`aios/application/evidence/verification.py`).
+  - Injected `config.OPERATIONAL_STATE_DB_PATH` into `VerificationAuthority` in `get_maintenance_convergence_service()` (`aios/api/deps.py`).
+  - Proved cross-instance / process-restart retrieval of `VerificationResult` records, `is_authoritative()` model dict equality validation across reloaded instances, workspace and diff freshness (`is_current()`) checking, and `list_results_for_mission()` querying.
 
-**Next action:** Phase 5 (Durable VerificationAuthority).
+**Next action:** Phase 6 (Full frontier-to-local learning heartbeat).
 
 **Open approvals/blockers:**
-- Phases 5-11 of R15 production blockers remain open.
+- Phases 6-11 of R15 production blockers remain open.
 - R15 remains NOT ACCEPTED. Do not self-approve R15 or start R16.
 
 **Active files:**
-- `aios/application/workers/foundry.py`
-- `aios/application/maintenance/service.py`
-- `tests/test_real_worker_foundry_maintenance.py`
+- `aios/application/evidence/verification.py`
+- `aios/api/deps.py`
+- `tests/test_durable_verification_authority.py`
 - `.aios/state/RESUME.md`
