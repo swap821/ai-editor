@@ -18,20 +18,21 @@
   - Proved end-to-end sovereign learning heartbeat: Frontier expert trajectory capture → Candidate distillation → Operator activation → Local execution directive → Authoritative post-execution verification & confidence boost.
   - Proved skill degradation and fail-closed escalation: Post-execution verification failure → Confidence drop below threshold (0.8) → State transition to `degraded` → Immediate `EscalateToFrontierDirective` for future attempts.
 - **Phase 7 (Full pytest test suite pass)** — COMPLETE & VERIFIED (Entire test suite green across codebase, 88% overall test coverage, committed & pushed `9998a8e`).
-- **Phase 8 (Live GAGOS Superbrain audit)** — COMPLETE & VERIFIED.
-  - Executed `tools/check_canon_frozen.py` (0 changed paths, texture canon OK).
-  - Executed `tools/check_css_canon.py` (11 renovatable CSS files clean against 9 canon tokens after eliminating 5 paint-trap and off-canon color violations in `GagosChrome.css`, `ProductSpaces.css`, and `TrustHalo.css`).
-  - Verified frontend production bundle build (`npm run build`: 0 errors).
-  - Executed frontend Vitest test suite (`npm test`: 104/104 test files passed, 600/600 tests passed).
+- **Phase 8 (Live GAGOS Superbrain audit)** — COMPLETE & VERIFIED (Texture canon clean, CSS canon clean across 11 renovatable files, frontend build & 600/600 Vitest tests green, committed & pushed `457a8fc`).
+- **Phase 9 (Full evidence & audit logging pass)** — COMPLETE & VERIFIED (4/4 tests green in `tests/test_audit_evidence_governance.py`, plus 13/13 integration tests passing).
+  - Proved SHA-256 hash chaining, Ed25519 digital signature generation, tip-anchor integrity, and non-repudiation in `AuditLogger` (`aios/security/audit_logger.py`).
+  - Proved zero secret persistence: SecretScanner automatically redacts API keys and credentials prior to SHA-256 chain calculation.
+  - Proved fail-closed tamper detection: Direct SQLite mutations break `verify_chain()` at the exact tampered entry ID (`broken_at == 2`).
+  - Proved `EvidenceAuthority` digest-bound bundle building with secret redaction (`aios/application/evidence/authority.py`).
 
-**Next action:** Phase 9 (Full evidence & audit logging pass).
+**Next action:** Phase 10 (End-to-End Sovereign Flywheel Proof).
 
 **Open approvals/blockers:**
-- Phases 9-11 of R15 production blockers remain open.
+- Phases 10-11 of R15 production blockers remain open.
 - R15 remains NOT ACCEPTED. Do not self-approve R15 or start R16.
 
 **Active files:**
-- `frontend/src/workbench/GagosChrome.css`
-- `frontend/src/workbench/ProductSpaces.css`
-- `frontend/src/workbench/TrustHalo.css`
+- `tests/test_audit_evidence_governance.py`
+- `aios/security/audit_logger.py`
+- `aios/application/evidence/authority.py`
 - `.aios/state/RESUME.md`
