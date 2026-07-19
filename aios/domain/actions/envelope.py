@@ -98,6 +98,7 @@ class ActionType(str, Enum):
     LOCAL_WORKFORCE_PROFILES = "local_workforce_profiles"
     INTELLIGENCE_HIRING = "intelligence_hiring"
     SKILL_REUSE = "skill_reuse"
+    SKILL_ACTIVATION = "skill_activation"
     MAINTENANCE_SCAN = "maintenance_scan"
     MAINTENANCE_REPAIR_CREATE = "maintenance_repair_create"
     MAINTENANCE_REPAIR_RUN = "maintenance_repair_run"

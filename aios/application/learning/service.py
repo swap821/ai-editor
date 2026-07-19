@@ -85,6 +85,7 @@ class LearningService:
         reuse_policy: Callable[[SkillRecord, Mapping[str, object]], bool] | None = None,
         verification_authority: VerificationAuthority | None = None,
         promotion_authority: PromotionAuthority | None = None,
+        local_workforce_service: Any | None = None,
         minimum_confidence: float = 0.8,
     ) -> None:
         self.mission_service = mission_service
@@ -97,6 +98,7 @@ class LearningService:
         self.reuse_policy = reuse_policy
         self.verification_authority = verification_authority or VerificationAuthority()
         self.promotion_authority = promotion_authority
+        self.local_workforce_service = local_workforce_service
         self.applicability = SkillApplicabilityEngine(minimum_confidence)
         self.reuse = SkillReuseOrchestrator(self.applicability)
         self.trajectory_gate = TrajectoryGate()
@@ -240,17 +242,10 @@ class LearningService:
         skill = self.skill_repository.get(skill_id, version)
         if skill is None:
             raise KeyError(f"skill {skill_id!r} version {version} not found")
-        if self.activation_authorizer is not None:
-            if not self.activation_authorizer(skill, operator_id, approval_digest):
-                raise SkillActivationDenied("external authority refused skill activation")
-        else:
-            import hashlib, json
-            cdig = hashlib.sha256(json.dumps(skill.model_dump(mode="json"), sort_keys=True).encode("utf-8")).hexdigest()
-            expected_digest = hashlib.sha256(
-                f"{skill.skill_id}:{skill.version}:{cdig}:{operator_id}".encode("utf-8")
-            ).hexdigest()
-            if approval_digest != expected_digest:
-                raise SkillActivationDenied("external authority refused skill activation: approval digest mismatch")
+        if self.activation_authorizer is None:
+            raise SkillActivationDenied("external authority refused skill activation: CapabilityAuthority authorizer required")
+        if not self.activation_authorizer(skill, operator_id, approval_digest):
+            raise SkillActivationDenied("external authority refused skill activation")
         reviewed = self.skill_repository.transition_state(
             skill_id, version, "human_reviewed"
         )
@@ -304,6 +299,48 @@ class LearningService:
         if isinstance(directive, EscalateToFrontierDirective):
             self._record_failure(skill, "applicability")
             return directive
+
+        if self.local_workforce_service is not None:
+            models = self.local_workforce_service.registry.list_models()
+            admitted = [
+                m
+                for m in models
+                if getattr(m, "admission_status", None) == "approved"
+                and getattr(m, "health_status", None) == "healthy"
+                and getattr(m, "operator_approved", False)
+            ]
+            if not admitted:
+                self._record_failure(skill, "no_admitted_local_clerk")
+                return EscalateToFrontierDirective(
+                    reason="No admitted healthy local clerk model available in Local Workforce"
+                )
+            clerk_model = admitted[0]
+            try:
+                client = self.local_workforce_service.model_client_factory(clerk_model.model_id)
+                prompt = (
+                    f"Evaluate local skill applicability for skill_id={skill.skill_id} version={skill.version}.\n"
+                    f"Inputs: {current_inputs}\nState: {current_state}\n"
+                    'Respond with strictly formatted JSON: {"applicable": true, "confidence": 0.9, "reason": "ok", "bounded_procedure_id": "proc-1", "required_inputs_present": true, "abstain": false, "escalation_reason": null}'
+                )
+                raw_resp = client.complete(prompt, system="Advisory clerk evaluation. Output JSON only.")
+                import json
+                parsed = json.loads(raw_resp)
+                if (
+                    not isinstance(parsed, dict)
+                    or not parsed.get("applicable")
+                    or parsed.get("abstain")
+                    or float(parsed.get("confidence", 0.0)) < 0.8
+                ):
+                    reason = str(
+                        parsed.get("escalation_reason")
+                        or parsed.get("reason")
+                        or "advisory evaluation declined local execution"
+                    )
+                    self._record_failure(skill, "clerk_advisory_refused")
+                    return EscalateToFrontierDirective(reason=reason)
+            except Exception as exc:  # noqa: BLE001 - clerk failure escalates to frontier
+                self._record_failure(skill, f"clerk_advisory_error: {exc}")
+                return EscalateToFrontierDirective(reason=f"Local clerk advisory failed: {exc}")
         contract = MissionContract(
             mission_id=mission_id,
             project_id=project_id,
@@ -338,24 +375,53 @@ class LearningService:
         verification_results: Sequence[VerificationResult],
         workspace_digest: str,
         diff_digest: str,
+        worker_id: str | None = None,
+        executor_job_id: str | None = None,
+        promotion_id: str | None = None,
+        source_trajectory_id: str | None = None,
+        local_model_call_id: str | None = None,
     ) -> SkillRecord:
         skill = self.skill_repository.get(skill_id, version)
         if skill is None:
             raise KeyError(f"skill {skill_id!r} version {version} not found")
         mission = self.mission_service.repository.get(mission_id)
         results = tuple(verification_results)
+
+        # Check lineage equality across skill, trajectory, mission, worker, executor, promotion, verification
+        lineage_valid = True
+        if source_trajectory_id and source_trajectory_id not in skill.source_trajectory_ids:
+            lineage_valid = False
+
+        if mission.contract.metadata.get("skill_id") and mission.contract.metadata.get("skill_id") != skill_id:
+            lineage_valid = False
+
+        held_promotion = (
+            self.promotion_authority.get_promotion(mission_id)
+            if self.promotion_authority is not None
+            else None
+        )
+
+        if self.promotion_authority is not None:
+            if held_promotion is None or held_promotion.status is not PromotionStatus.PROMOTED:
+                lineage_valid = False
+            elif promotion_id and getattr(held_promotion, "promotion_id", None) and getattr(held_promotion, "promotion_id") != promotion_id:
+                lineage_valid = False
+
+        if worker_id and held_promotion and getattr(held_promotion, "worker_id", None) and getattr(held_promotion, "worker_id") != worker_id:
+            lineage_valid = False
+
+        if executor_job_id and held_promotion and getattr(held_promotion, "executor_job_id", None) and getattr(held_promotion, "executor_job_id") != executor_job_id:
+            lineage_valid = False
+
         passed = (
-            mission.state is MissionState.COMPLETED
+            lineage_valid
+            and mission.state is MissionState.COMPLETED
             and bool(results)
             and all(result.mission_id == mission_id for result in results)
             and all(result.meets_requirement for result in results)
             and all(
                 self.verification_authority.is_authoritative(result)
                 for result in results
-            )
-            and (
-                self.promotion_authority is None
-                or self.promotion_authority.get_promotion(mission_id) is not None
             )
             and all(
                 self.verification_authority.is_current(

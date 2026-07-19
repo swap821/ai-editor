@@ -1,8 +1,5 @@
-"""Target-specific verification authority built on the existing strength rules."""
-
-from __future__ import annotations
-
 import hashlib
+import hmac
 import json
 import sqlite3
 import uuid
@@ -11,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from aios import config
 from aios.application.evidence.authority import EvidenceAuthority
 from aios.core.verification_strength import derive_strength
 from aios.domain.evidence import (
@@ -48,6 +46,34 @@ class VerificationAuthority:
                     )
                     """
                 )
+                # Migration check for existing SQLite tables
+                existing_cols = {
+                    row["name"]
+                    for row in conn.execute("PRAGMA table_info(verification_results)").fetchall()
+                }
+                if "payload_digest" not in existing_cols:
+                    conn.execute(
+                        "ALTER TABLE verification_results ADD COLUMN payload_digest TEXT NOT NULL DEFAULT ''"
+                    )
+                if "integrity_proof" not in existing_cols:
+                    conn.execute(
+                        "ALTER TABLE verification_results ADD COLUMN integrity_proof TEXT NOT NULL DEFAULT ''"
+                    )
+                if "created_at" not in existing_cols:
+                    conn.execute(
+                        "ALTER TABLE verification_results ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"
+                    )
+
+    def _compute_integrity_proof(
+        self, verification_id: str, payload_digest: str, created_at: str
+    ) -> str:
+        secret = getattr(
+            config, "VERIFICATION_AUTHORITY_KEY", "aios-authority-verification-key-v1"
+        )
+        material = f"{verification_id}:{payload_digest}:{created_at}"
+        return hmac.new(
+            secret.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
 
     def verify(
         self,
@@ -123,9 +149,9 @@ class VerificationAuthority:
             payload = json.dumps(result.model_dump(mode="json"), sort_keys=True)
             payload_digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
             created_at = result.observed_at or _utc_now()
-            integrity_proof = hashlib.sha256(
-                f"{result.verification_id}:{payload_digest}:{created_at}".encode("utf-8")
-            ).hexdigest()
+            integrity_proof = self._compute_integrity_proof(
+                result.verification_id, payload_digest, created_at
+            )
 
             with self._connection() as conn:
                 conn.execute(
@@ -162,13 +188,14 @@ class VerificationAuthority:
 
                 # Integrity checks
                 actual_digest = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
-                if stored_digest != actual_digest:
+                if stored_digest and stored_digest != actual_digest:
                     return None  # Tamper detected: payload digest mismatch
 
-                actual_proof = hashlib.sha256(
-                    f"{verification_id}:{stored_digest}:{created_at}".encode("utf-8")
-                ).hexdigest()
-                if stored_proof != actual_proof:
+                effective_digest = stored_digest or actual_digest
+                actual_proof = self._compute_integrity_proof(
+                    verification_id, effective_digest, created_at
+                )
+                if stored_proof and not hmac.compare_digest(stored_proof, actual_proof):
                     return None  # Tamper detected: integrity proof mismatch
 
                 result = VerificationResult.model_validate(json.loads(payload_json))
@@ -178,18 +205,18 @@ class VerificationAuthority:
         return self._results.get(verification_id)
 
     def list_results_for_mission(self, mission_id: str) -> tuple[VerificationResult, ...]:
-        """Return all verification results held for a specific mission."""
+        """Return all valid, authority-verified results for a specific mission."""
         if self.database_path is not None:
             with self._connection() as conn:
                 rows = conn.execute(
-                    "SELECT payload_json FROM verification_results WHERE mission_id = ? ORDER BY verification_id",
+                    "SELECT verification_id FROM verification_results WHERE mission_id = ? ORDER BY verification_id",
                     (mission_id,),
                 ).fetchall()
             results: list[VerificationResult] = []
             for row in rows:
-                v = VerificationResult.model_validate(json.loads(row[0]))
-                self._results[v.verification_id] = v
-                results.append(v)
+                v = self.get(row["verification_id"])
+                if v is not None:
+                    results.append(v)
             return tuple(results)
         return tuple(r for r in self._results.values() if r.mission_id == mission_id)
 

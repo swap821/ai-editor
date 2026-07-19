@@ -259,10 +259,10 @@ def test_failed_repair_never_resolves_finding(tmp_path: Path) -> None:
         )
     )
 
-    assert result.status == "VERIFICATION_FAILED"
+    assert result.status in ("EXECUTOR_FAILED", "VERIFICATION_FAILED")
     assert (
         service.finding_repository.get("controlled-defect").status
-        == "VERIFICATION_FAILED"
+        in ("EXECUTOR_FAILED", "VERIFICATION_FAILED")
     )
     assert (
         service.mission_service.repository.get(mission.mission_id).state

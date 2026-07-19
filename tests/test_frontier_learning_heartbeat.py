@@ -1,7 +1,7 @@
-"""Phase 6 — Test suite for Full Frontier-to-Local Sovereign Learning Heartbeat.
+"""Phase 6 — Sovereign Learning Heartbeat Integration Suite (Proof level: INTEGRATION).
 
 Tests:
-1. End-to-end learning heartbeat: Frontier trajectory capture -> Candidate distillation -> Operator activation -> Local reuse directive -> Verification & confidence boost.
+1. Learning heartbeat: Frontier trajectory capture -> Candidate distillation -> Operator activation -> Local reuse directive -> Verification & confidence boost.
 2. Skill degradation & fail-closed escalation: Verification failure -> Confidence drop below threshold -> Automatic state degradation -> EscalateToFrontierDirective returned for future tasks.
 3. Durable persistence of trajectories and skills across service instances.
 """

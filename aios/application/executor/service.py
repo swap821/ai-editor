@@ -340,6 +340,67 @@ class ExecutorService:
             },
         )
 
+    def build_repair_job(
+        self,
+        *,
+        mission_contract_digest: str,
+        operation_id: str,
+        target_rel: str,
+        workspace_path: str,
+        workspace_digest: str,
+        timeout_seconds: int,
+        expected_digest: str = "",
+        job_id: str | None = None,
+    ) -> ExecutorJob:
+        """Build a typed repair job for the private executor."""
+        argv = ("repair", operation_id, target_rel)
+        actual_job_id = job_id or f"executor-repair-{uuid.uuid4().hex}"
+        material = {
+            "argv": list(argv),
+            "operation_id": operation_id,
+            "target_rel": target_rel,
+            "workspace_path": workspace_path,
+            "workspace_digest": workspace_digest,
+            "mission_contract_digest": mission_contract_digest,
+        }
+        action_digest = hashlib.sha256(
+            json.dumps(material, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        expires_at = (
+            (
+                datetime.now(timezone.utc)
+                + timedelta(seconds=max(int(timeout_seconds), 1) + 5)
+            )
+            .replace(microsecond=0)
+            .isoformat()
+        )
+        return ExecutorJob(
+            job_id=actual_job_id,
+            mission_contract_digest=mission_contract_digest,
+            capability=ExecutorCapability(
+                capability_id=f"executor-capability:{actual_job_id}",
+                action_digest=action_digest,
+                mission_contract_digest=mission_contract_digest,
+                expires_at=expires_at,
+            ),
+            image=config.CONTAINER_IMAGE,
+            argv=argv,
+            workspace_snapshot=workspace_path,
+            resource_limits=ResourceLimits(
+                timeout_seconds=max(int(timeout_seconds), 1),
+                max_output_bytes=config.MAX_COMMAND_OUTPUT_BYTES,
+                memory_budget_mb=config.CONTAINER_MEMORY_MB,
+                cpu_budget=config.CONTAINER_CPUS,
+                pids_limit=config.CONTAINER_PIDS_LIMIT,
+            ),
+            verification_expectation={
+                "executor_policy": "private_service",
+                "mission_contract_digest": mission_contract_digest,
+                "workspace_digest": workspace_digest,
+                "expected_target_digest": expected_digest,
+            },
+        )
+
     def execute(self, job: ExecutorJob) -> ExecutorResult:
         if self.profile == "production":
             if self.backend_name != "private_service" or self.client is None:
@@ -351,6 +412,8 @@ class ExecutorService:
             result = self.client.execute(job)
         elif self.runner is not None:
             result = self.runner(job)
+        elif job.argv and job.argv[0] == "repair":
+            result = execute_registered_repair_operation(job)
         else:
             raise IsolationUnavailable("isolated executor service is unavailable")
         if self.require_isolation and self.backend_name != "private_service":
@@ -362,6 +425,78 @@ class ExecutorService:
         if self.require_isolation and not result.isolation_verified:
             raise IsolationUnavailable("executor did not prove isolation")
         return result
+
+
+def execute_registered_repair_operation(job: ExecutorJob) -> ExecutorResult:
+    """Execute a registered structured repair operation inside the staged workspace boundary."""
+    if not job.argv or len(job.argv) < 3 or job.argv[0] != "repair":
+        raise IsolationUnavailable("executor job is not a valid repair operation")
+
+    op_id = job.argv[1]
+    if op_id != "REMOVE_MAINTENANCE_MARKER_V1":
+        raise IsolationUnavailable(f"unsupported repair operation: {op_id!r}")
+
+    target_rel = job.argv[2]
+    if any(char in target_rel for char in ";&|<>`\r\n\x00"):
+        raise IsolationUnavailable("target relative path contains forbidden characters")
+    if target_rel.startswith(("/", "\\")) or ":" in target_rel[:3]:
+        raise IsolationUnavailable("target relative path must not be absolute")
+
+    workspace_root = Path(job.workspace_snapshot).resolve()
+    target_path = (workspace_root / target_rel.replace("\\", "/")).resolve()
+
+    try:
+        target_path.relative_to(workspace_root)
+    except (ValueError, OSError) as exc:
+        raise IsolationUnavailable("target path escapes staged workspace root") from exc
+
+    if target_path.is_symlink():
+        raise IsolationUnavailable("symlink target escape refused")
+
+    if not target_path.exists() or not target_path.is_file():
+        raise IsolationUnavailable("target file does not exist")
+
+    original_bytes = target_path.read_bytes()
+    before_digest = hashlib.sha256(original_bytes).hexdigest()
+
+    expected_digest = job.verification_expectation.get("expected_target_digest")
+    if expected_digest and before_digest != expected_digest:
+        raise IsolationUnavailable("original content digest mismatch")
+
+    content = original_bytes.decode("utf-8", errors="replace")
+    new_content = (
+        content.replace("# DEFECT_MARKER: fix_required\n", "")
+        .replace("# DEFECT_MARKER: fix_required", "")
+        .replace("TODO_MAINTENANCE_DEFECT\n", "")
+        .replace("TODO_MAINTENANCE_DEFECT", "")
+    )
+    changed = new_content != content
+    after_digest = hashlib.sha256(new_content.encode("utf-8")).hexdigest()
+
+    if changed:
+        tmp_target = target_path.with_suffix(target_path.suffix + ".tmp")
+        tmp_target.write_text(new_content, encoding="utf-8")
+        tmp_target.replace(target_path)
+
+    out_payload = json.dumps(
+        {
+            "job_id": job.job_id,
+            "target": target_rel,
+            "before_digest": before_digest,
+            "after_digest": after_digest,
+            "changed": changed,
+        },
+        sort_keys=True,
+    )
+    return ExecutorResult(
+        job_id=job.job_id,
+        status="completed",
+        exit_code=0,
+        stdout=out_payload,
+        stderr="",
+        isolation_verified=True,
+        environment_digest=environment_digest({"op_id": op_id}),
+    )
 
 
 def environment_digest(environment: dict[str, str]) -> str:

@@ -20,10 +20,11 @@ class WorkerExecutionResult(BaseModel):
     workspace_root: str
     output_digest: str
     summary: str
+    proposal: dict[str, Any] | None = None
 
 
 class ProductionCodeWorkerStrategy:
-    """Production repair strategy executing bounded repairs inside staged workspaces."""
+    """Production repair strategy creating bounded repair proposals for private Executor execution."""
 
     name = WorkerStrategyName.CODE
 
@@ -65,44 +66,41 @@ class ProductionCodeWorkerStrategy:
         if workspace_root == project_root:
             raise ValueError("Worker strategy cannot operate directly on enrolled project root")
 
-        # Perform repair on staged workspace: resolve findings by removing defect markers
         metadata = getattr(contract, "metadata", {}) or {}
         target_rel = metadata.get("target_id") or metadata.get("target_file")
         
-        modified_files = []
+        expected_digest = ""
         if target_rel:
             target_path = (workspace_root / target_rel.replace("\\", "/")).resolve()
             if target_path.exists() and target_path.is_file():
-                content = target_path.read_text(encoding="utf-8", errors="replace")
-                new_content = content.replace("# DEFECT_MARKER: fix_required\n", "").replace("# DEFECT_MARKER: fix_required", "")
-                new_content = new_content.replace("TODO_MAINTENANCE_DEFECT\n", "").replace("TODO_MAINTENANCE_DEFECT", "")
-                if new_content != content:
-                    target_path.write_text(new_content, encoding="utf-8")
-                    modified_files.append(target_rel)
-        else:
-            # Fallback scan for markers in staged workspace
-            for file_path in workspace_root.rglob("*"):
-                rel_parts = file_path.relative_to(workspace_root).parts
-                if file_path.is_file() and not any(p.startswith(".") for p in rel_parts):
-                    try:
-                        content = file_path.read_text(encoding="utf-8", errors="replace")
-                        if "# DEFECT_MARKER: fix_required" in content or "TODO_MAINTENANCE_DEFECT" in content:
-                            new_content = content.replace("# DEFECT_MARKER: fix_required\n", "").replace("# DEFECT_MARKER: fix_required", "")
-                            new_content = new_content.replace("TODO_MAINTENANCE_DEFECT\n", "").replace("TODO_MAINTENANCE_DEFECT", "")
-                            file_path.write_text(new_content, encoding="utf-8")
-                            modified_files.append(str(file_path.relative_to(workspace_root)))
-                    except OSError:
-                        continue
+                content = target_path.read_bytes()
+                expected_digest = hashlib.sha256(content).hexdigest()
 
-        summary = f"Repaired {len(modified_files)} file(s) in staged workspace: {', '.join(modified_files)}"
+        proposal = {
+            "operation_id": "REMOVE_MAINTENANCE_MARKER_V1",
+            "target_rel": target_rel,
+            "expected_digest": expected_digest,
+            "allowed_markers": [
+                "# DEFECT_MARKER: fix_required\n",
+                "# DEFECT_MARKER: fix_required",
+                "TODO_MAINTENANCE_DEFECT\n",
+                "TODO_MAINTENANCE_DEFECT",
+            ],
+            "workspace_root": str(workspace_root),
+        }
+
+        summary = f"Proposed repair operation REMOVE_MAINTENANCE_MARKER_V1 for {target_rel}"
         output_digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
+
+        worker_id_val = spec.worker_id if hasattr(spec, "worker_id") else principal.worker_id
 
         return WorkerExecutionResult(
             status="completed",
-            worker_id=spec.worker_id if hasattr(spec, "worker_id") else principal.worker_id,
+            worker_id=str(worker_id_val),
             workspace_root=str(workspace_root),
             output_digest=output_digest,
             summary=summary,
+            proposal=proposal,
         )
 
 

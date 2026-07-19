@@ -16,7 +16,11 @@ from aios.application.evidence.verifier_registry import (
     VerifierSpec,
 )
 from aios.application.evidence.verification import VerificationAuthority
-from aios.application.executor.service import ExecutorService, environment_digest
+from aios.application.executor.service import (
+    ExecutorService,
+    IsolationUnavailable,
+    environment_digest,
+)
 from aios.application.missions.mission_service import MissionService
 from aios.application.promotion.authority import PromotionAuthority
 from aios.application.workspaces import StagedWorkspaceManager
@@ -243,6 +247,82 @@ class MaintenanceConvergenceService:
             lease = self.workspace_manager.for_mission(mission_id)
             if lease is None:
                 return self._failed(mission_id, finding, "staged workspace unavailable")
+            diff_before = self.workspace_manager.diff(lease)
+
+            proposal = getattr(worker_result, "proposal", {}) or {}
+            op_id = proposal.get("operation_id", "REMOVE_MAINTENANCE_MARKER_V1")
+            target_rel = proposal.get("target_rel") or finding.target_id
+            expected_digest = proposal.get("expected_digest", "")
+
+            # Build and submit structured Executor repair job through executor_service boundary
+            executor_job = self.executor_service.build_repair_job(
+                mission_contract_digest=record.contract_digest,
+                operation_id=op_id,
+                target_rel=target_rel,
+                workspace_path=str(lease.workspace_path),
+                workspace_digest=str(diff_before["workspace_digest"]),
+                timeout_seconds=rescan_contract.deadline,
+                expected_digest=expected_digest,
+            )
+
+            try:
+                executor_result = self.executor_service.execute(executor_job)
+                if not getattr(executor_result, "isolation_verified", True):
+                    return self._failed(
+                        mission_id,
+                        finding,
+                        "private executor did not prove isolation",
+                        status="EXECUTOR_PROVENANCE_INVALID",
+                    )
+                if getattr(executor_result, "job_id", None) != executor_job.job_id:
+                    return self._failed(
+                        mission_id,
+                        finding,
+                        "private executor returned a mismatched job id",
+                        status="EXECUTOR_PROVENANCE_INVALID",
+                    )
+                if getattr(executor_result, "status", "completed") in {"failed", "timeout", "unavailable"}:
+                    status_val = getattr(executor_result, "status", "failed")
+                    fail_status = (
+                        "EXECUTOR_TIMEOUT"
+                        if status_val == "timeout"
+                        else (
+                            "EXECUTOR_UNAVAILABLE"
+                            if status_val == "unavailable"
+                            else "EXECUTOR_FAILED"
+                        )
+                    )
+                    return self._failed(
+                        mission_id,
+                        finding,
+                        f"executor execution failed with status {status_val}",
+                        status=fail_status,
+                    )
+                executor_job_id = executor_result.job_id
+            except IsolationUnavailable as exc:
+                msg = str(exc).lower()
+                if "timed out" in msg:
+                    fail_status = "EXECUTOR_TIMEOUT"
+                elif "mismatched" in msg or "malformed" in msg or "isolation" in msg:
+                    fail_status = "EXECUTOR_PROVENANCE_INVALID"
+                elif "unavailable" in msg or "not configured" in msg or "http" in msg:
+                    fail_status = "EXECUTOR_UNAVAILABLE"
+                else:
+                    fail_status = "EXECUTOR_FAILED"
+                return self._failed(
+                    mission_id,
+                    finding,
+                    f"private executor failure: {exc}",
+                    status=fail_status,
+                )
+            except Exception as exc:  # noqa: BLE001 - Executor failures fail closed
+                return self._failed(
+                    mission_id,
+                    finding,
+                    f"private executor error: {exc}",
+                    status="EXECUTOR_FAILED",
+                )
+
             diff = self.workspace_manager.diff(lease)
             verifier_payload = record.contract.metadata.get("verification_spec", {})
             verifier_spec = VerifierSpec.model_validate(verifier_payload).model_copy(
@@ -256,19 +336,6 @@ class MaintenanceConvergenceService:
                 contract=verification_contract,
                 scanner=scanner,
             )
-
-            # Build and submit structured ExecutorJob through executor_service boundary
-            executor_job = self.executor_service.build_command_job(
-                mission_contract_digest=record.contract_digest,
-                command=f"verify {finding.target_id}",
-                workspace_snapshot=str(diff["workspace_digest"]),
-                timeout_seconds=rescan_contract.deadline,
-            )
-            try:
-                executor_result = self.executor_service.execute(executor_job)
-                executor_job_id = executor_result.job_id
-            except Exception:  # noqa: BLE001 - fallback to constructed executor job id when isolated backend is mock/unreachable
-                executor_job_id = executor_job.job_id
 
             environment = environment_digest(
                 {

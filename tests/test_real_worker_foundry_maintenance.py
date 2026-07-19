@@ -1,9 +1,9 @@
-"""Phase 4 — Production proof for Real WorkerFoundry and Private Executor integration.
+"""Phase 4 — Integration proof for WorkerFoundry and ExecutorService (Proof level: INTEGRATION).
 
 Tests:
 1. WorkerFoundry contract staging & lifecycle tracking with CortexBus event emissions.
 2. ExecutorService job construction with ExecutorCapability and ResourceLimits.
-3. MaintenanceConvergenceService governed repair execution using real WorkerFoundry and ExecutorService.
+3. MaintenanceConvergenceService governed repair execution using WorkerFoundry and ExecutorService.
 4. Fail-closed lifecycle state handling when worker execution fails.
 """
 

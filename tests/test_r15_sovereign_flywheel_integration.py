@@ -1,4 +1,4 @@
-"""Full end-to-end integration test suite for GAGOS R15 Sovereign Intelligence and Maintenance Flywheel."""
+"""In-process integration test suite for GAGOS R15 Sovereign Intelligence and Maintenance Flywheel (Proof level: INTEGRATION)."""
 
 import hashlib
 import json
@@ -323,8 +323,18 @@ def test_human_skill_activation_lifecycle(tmp_path: Path) -> None:
         f"{skill.skill_id}:{skill.version}:{cdig}:{operator_id}".encode("utf-8")
     ).hexdigest()
 
-    # Invalid digest must be denied
-    with pytest.raises(SkillActivationDenied, match="approval digest mismatch"):
+    # Without an activation_authorizer, activation must be denied (no public digest fallback)
+    with pytest.raises(SkillActivationDenied, match="external authority refused"):
+        ls.activate_skill(skill.skill_id, skill.version, operator_id=operator_id, approval_digest="wrong-digest")
+
+    # Wire up a capability-backed authorizer that validates the expected digest
+    def capability_authorizer(skill_record, op_id, digest):
+        return digest == expected_digest
+
+    ls.activation_authorizer = capability_authorizer
+
+    # Invalid digest must be denied by the authorizer
+    with pytest.raises(SkillActivationDenied, match="external authority refused"):
         ls.activate_skill(skill.skill_id, skill.version, operator_id=operator_id, approval_digest="wrong-digest")
 
     # Valid digest succeeds and activates skill candidate -> human_reviewed -> active

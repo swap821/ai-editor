@@ -300,23 +300,6 @@ class PromotionAuthority:
             and held.diff_digest == result.diff_digest
         )
 
-    def get_promotion(self, mission_id: str) -> PromotionResult | None:
-        """Retrieve authoritative promotion result for a mission."""
-        if mission_id in self._promotions:
-            return self._promotions[mission_id]
-        if self.database_path is not None:
-            import json, sqlite3
-            with self._connection() as conn:
-                row = conn.execute(
-                    "SELECT payload_json FROM promotion_records WHERE mission_id = ?",
-                    (mission_id,),
-                ).fetchone()
-            if row is not None:
-                res = PromotionResult.model_validate(json.loads(row["payload_json"]))
-                self._promotions[mission_id] = res
-                return res
-        return None
-
     @staticmethod
     def _resolve(value: str) -> Path:
         return Path(value).resolve()
@@ -332,6 +315,56 @@ class PromotionAuthority:
         except Exception:  # noqa: BLE001 - restore failure is recorded, never hidden
             return False
 
+    def _compute_integrity_proof(
+        self, promotion_id: str, mission_id: str, status_val: str, created_at: str
+    ) -> str:
+        from aios import config
+        secret = getattr(
+            config, "PROMOTION_AUTHORITY_KEY", "aios-authority-promotion-key-v1"
+        )
+        material = f"{promotion_id}:{mission_id}:{status_val}:{created_at}"
+        import hmac, hashlib
+        return hmac.new(
+            secret.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+
+    def get_promotion(self, mission_id: str) -> PromotionResult | None:
+        """Retrieve authoritative latest promotion result for a mission."""
+        return self.get_authoritative_terminal_promotion(mission_id)
+
+    def get_authoritative_terminal_promotion(self, mission_id: str) -> PromotionResult | None:
+        """Retrieve the authoritative latest terminal promotion result for a mission."""
+        if self.database_path is not None:
+            import json, sqlite3, hmac
+            with self._connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT promotion_id, payload_json, status, integrity_proof, created_at
+                    FROM promotion_records
+                    WHERE mission_id = ?
+                    ORDER BY rowid DESC
+                    """,
+                    (mission_id,),
+                ).fetchall()
+            for row in rows:
+                p_id = row["promotion_id"]
+                payload_json = row["payload_json"]
+                status_val = row["status"]
+                stored_proof = row["integrity_proof"]
+                created_at = row["created_at"]
+
+                actual_proof = self._compute_integrity_proof(
+                    p_id, mission_id, status_val, created_at
+                )
+                if stored_proof and not hmac.compare_digest(stored_proof, actual_proof):
+                    continue  # Skip tampered record
+
+                res = PromotionResult.model_validate(json.loads(payload_json))
+                self._promotions[mission_id] = res
+                return res
+            return None
+        return self._promotions.get(mission_id)
+
     def _result(
         self,
         request: PromotionRequest,
@@ -342,8 +375,9 @@ class PromotionAuthority:
         restored: bool = False,
         evidence_ids: tuple[str, ...] = (),
     ) -> PromotionResult:
-        import hashlib, json
+        import hashlib, json, uuid
         from datetime import datetime, timezone
+
         res = PromotionResult(
             mission_id=request.mission_id,
             action_id=request.action_id,
@@ -358,10 +392,10 @@ class PromotionAuthority:
         if self.database_path is not None:
             payload = json.dumps(res.model_dump(mode="json"), sort_keys=True)
             created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-            integrity_proof = hashlib.sha256(
-                f"{res.mission_id}:{res.action_id}:{res.status.value}:{created_at}".encode("utf-8")
-            ).hexdigest()
-            promotion_id = f"promotion-{hashlib.sha256(f'{request.mission_id}:{status.value}'.encode('utf-8')).hexdigest()[:16]}"
+            promotion_id = f"promotion-{uuid.uuid4().hex}"
+            integrity_proof = self._compute_integrity_proof(
+                promotion_id, request.mission_id, res.status.value, created_at
+            )
             with self._connection() as conn:
                 conn.execute(
                     """
@@ -371,9 +405,6 @@ class PromotionAuthority:
                         integrity_proof, created_at
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(promotion_id) DO UPDATE SET
-                        payload_json = excluded.payload_json,
-                        status = excluded.status
                     """,
                     (
                         promotion_id,

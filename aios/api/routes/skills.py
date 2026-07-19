@@ -9,12 +9,18 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import get_learning_service, get_skill_repository
-from aios.application.learning.service import LearningService
-from aios.domain.learning.repository import SkillRepository
+from aios.application.learning.service import LearningService, SkillActivationDenied
 
 router = APIRouter(
     tags=["skill-library"], dependencies=[Depends(enforce_action_boundary)]
 )
+
+
+class ActivateSkillRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    capability_id: str
+    capability_digest: str
 
 
 class SkillReuseRequest(BaseModel):
@@ -42,6 +48,42 @@ def list_skills(
         "items": items,
         "status": "available" if items else "empty",
         "source": "durable_repository",
+    }
+
+
+@router.post("/api/v1/skills/{skill_id}/versions/{version}/activate")
+def activate_skill_route(
+    skill_id: str,
+    version: int,
+    body: ActivateSkillRequest,
+    request: Request,
+    service: LearningService = Depends(get_learning_service),
+) -> dict[str, Any]:
+    """Operator capability-backed skill activation route."""
+    guard = getattr(request.state, "action_guard", None)
+    operator_id = getattr(getattr(guard, "envelope", None), "operator_id", None)
+    if not operator_id:
+        raise HTTPException(status_code=401, detail="authenticated operator required")
+    try:
+        skill = service.activate_skill(
+            skill_id,
+            version,
+            operator_id=operator_id,
+            approval_digest=body.capability_digest,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SkillActivationDenied as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "skill_id": skill.skill_id,
+        "version": skill.version,
+        "state": skill.state,
+        "status": "activated",
+        "source": "capability_backed_human_activation",
     }
 
 

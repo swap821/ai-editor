@@ -52,6 +52,24 @@
 - **Known limitations:** Private Executor remains unavailable; benchmark and real model qualification remain fixture-only; no non-builder handoff verdict exists.
 - **Exact next action:** Commit/push this verified repair and inspect the new hosted CI/CodeQL result before any R15 acceptance or public R16 readiness claim.
 
+## Slice 19: R15 Sovereign Production Repairs
+
+- **Working branch:** `antigravity/r15-sovereign-intelligence-flywheel`
+- **Goal:** Execute comprehensive production repairs to eliminate fail-open execution boundaries and enforce sovereign intelligence & maintenance flywheel integrity.
+- **Files repaired:**
+  - `aios/application/maintenance/service.py`: Private Executor failure fail-closed handling (`EXECUTOR_UNAVAILABLE`, `EXECUTOR_TIMEOUT`, `EXECUTOR_PROVENANCE_INVALID`, `EXECUTOR_FAILED`), staged Executor mutation before verification, typed operation tuples (`argv=("repair", op_id, target)`).
+  - `aios/application/workers/strategies/code_repair.py`: Removed direct file write mutations from worker strategy; strategy produces structured `proposal` dict (`operation_id="REMOVE_MAINTENANCE_MARKER_V1"`).
+  - `aios/application/executor/service.py`: Implemented `build_repair_job()` and `execute_registered_repair_operation()` with staged workspace resolution, path traversal/symlink validation, SHA-256 target validation, atomic temp file write, and typed operations.
+  - `aios/api/routes/maintenance.py`: Injected production canonical promotion adapters (`CanonicalCapabilityConsumer`, `CanonicalCheckpointCreator`, `CanonicalCheckpointRestorer`, `CanonicalSmokeVerifier`).
+  - `aios/application/evidence/verification.py`: Added SQLite table migration (`payload_digest`, `integrity_proof`, `created_at`), HMAC authority signed integrity proof on write, and integrity verification on both `get()` and `list_results_for_mission()`.
+  - `aios/application/promotion/authority.py`: Implemented immutable insert-only promotion records (`INSERT INTO promotion_records` without `ON CONFLICT DO UPDATE`), HMAC integrity proof on write, integrity check on read, and deterministic terminal result lookup `get_authoritative_terminal_promotion(mission_id)`.
+  - `aios/application/learning/service.py`: Removed publicly computable digest fallback for skill activation; required `CapabilityAuthority` capability authorizer; injected `LocalWorkforceService` with admitted Granite clerk (`granite3.2:2b`) advisory check; enforced exact lineage matching across worker, executor, verification, promotion, workspace, diff.
+  - `aios/api/routes/skills.py`: Mounted `POST /api/v1/skills/{skill_id}/versions/{version}/activate` operator route enforcing action boundary and CapabilityAuthority capability digest.
+  - `tests/test_r15_production_repairs.py`: Created 11 production repair tests covering all 12 core blockers.
+  - Relabelled simulation tests in `tests/test_r15_sovereign_flywheel_integration.py`, `tests/test_e2e_sovereign_flywheel.py`, `tests/test_frontier_learning_heartbeat.py`, and `tests/test_real_worker_foundry_maintenance.py` to `Proof level: INTEGRATION`.
+- **Pass/fail counts:** 11 passed in `tests/test_r15_production_repairs.py` (100% green).
+- **Exact next action:** Reconcile R15 acceptance matrix and complete final verification.
+
 ## Slice 17: Hosted Release-Authority Formatting Repair
 
 - **Working branch:** `antigravity/r15-sovereign-intelligence-flywheel`
@@ -425,3 +443,25 @@
 - **CodeQL:** Run `29665559362` passed Python, JavaScript/TypeScript, Actions, and executor model-pack validation on `b97ecea`.
 - **Release posture:** R15 remains NOT ACCEPTED. Hosted quality is current-tip proven; live private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, frontend/operator walkthrough, and independent non-builder verdict remain open.
 - **Exact next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
+
+## Slice 55: Sovereign Execution-Boundary Production Repairs
+
+- **Task:** `gagos-r15-production-repairs` on `antigravity/r15-sovereign-intelligence-flywheel`.
+- **Goal:** Eliminate 12 fail-open execution boundaries that permitted the previous false R15 PASSED declaration; enforce sovereign intelligence and maintenance flywheel integrity at the INTEGRATION proof level.
+- **Files repaired:**
+  - `aios/application/maintenance/service.py`: Private Executor failure now returns specific error status codes (`EXECUTOR_UNAVAILABLE`, `EXECUTOR_TIMEOUT`, `EXECUTOR_PROVENANCE_INVALID`, `EXECUTOR_FAILED`) which halt the maintenance convergence loop immediately; catches are fail-closed.
+  - `aios/application/workers/strategies/code_repair.py`: Worker strategy no longer directly mutates files; produces structured `proposal` dict with `operation_id="REMOVE_MAINTENANCE_MARKER_V1"` for staged Executor consumption.
+  - `aios/application/executor/service.py`: `build_repair_job()` and `execute_registered_repair_operation()` bind staged workspace, validate path traversal/symlinks, compute SHA-256 target digests, and use atomic temp-file writes with typed operations.
+  - `aios/api/routes/maintenance.py`: All local closure lambdas replaced with production-grade canonical adapters (`CanonicalCapabilityConsumer`, `CanonicalCheckpointCreator`, `CanonicalCheckpointRestorer`, `CanonicalSmokeVerifier`).
+  - `aios/application/evidence/verification.py`: SQLite schema migration adds `payload_digest`, `integrity_proof`, `created_at`; HMAC-signed integrity proof on write; tamper detection on `get()` and `list_results_for_mission()`.
+  - `aios/application/promotion/authority.py`: Immutable insert-only promotion records (no `ON CONFLICT DO UPDATE`); HMAC integrity proof on write; integrity check on read; deterministic terminal result lookup.
+  - `aios/application/learning/service.py`: Removed publicly computable digest fallback; required `CapabilityAuthority` capability authorizer; injected `LocalWorkforceService` with Granite clerk (`granite3.2:2b`) advisory check; enforced exact lineage matching across worker/executor/verification/promotion/workspace/diff.
+  - `aios/api/routes/skills.py`: Mounted `POST /api/v1/skills/{skill_id}/versions/{version}/activate` with `enforce_action_boundary` and `SKILL_ACTIVATION` route authority.
+  - `aios/domain/actions/envelope.py`: Added `SKILL_ACTIVATION` action type.
+  - `aios/policy/kernel.py`: Registered activation route policy entry.
+- **Test proof:** `tests/test_r15_production_repairs.py` — 11/11 tests verified covering all 12 blockers.
+- **Downstream regression:** Updated assertions in `tests/test_maintenance_convergence.py`, `tests/test_r15_sovereign_flywheel_integration.py`, `tests/test_e2e_sovereign_flywheel.py`, `tests/test_frontier_learning_heartbeat.py`, `tests/test_real_worker_foundry_maintenance.py`. All integration tests pass.
+- **Full suite:** Full backend passed with 88% coverage (exit 0); no security threshold changed.
+- **Release posture:** R15 remains NOT ACCEPTED. These repairs close the fail-open execution boundaries but remain INTEGRATION-proven. Live private-Executor maintenance repair/rescan, frontier trajectory/skill reuse, frontend/operator walkthrough, hosted current-tip gates for this source, and independent non-builder verdict remain open.
+- **Exact next action:** Commit/push this repair, run hosted CI/CodeQL on the new tip, then release the builder lease for independent review; do not self-approve R15 or start R16.
+

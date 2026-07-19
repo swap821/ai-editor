@@ -1,12 +1,12 @@
-"""Phase 10 — End-to-End Sovereign Intelligence & Maintenance Flywheel Proof.
+"""Phase 10 — Sovereign Intelligence & Maintenance Flywheel Integration Proof (Proof level: INTEGRATION).
 
-Executes the single truthful, executable sovereign loop:
+Executes the in-process integration test loop:
 1. Human-approved scan -> Real finding
-2. Human-approved repair mission -> Real worker execution
-3. Real verification -> Controlled promotion -> Post-promotion rescan proof -> Issue closed
-4. Signed & Hash-Chained Audit Trail Verification (Ed25519)
+2. Human-approved repair mission -> Worker execution proposal
+3. Verification -> Controlled promotion -> Post-promotion rescan proof
+4. Signed Audit Trail Verification
 5. Frontier expert trajectory capture -> Candidate skill distillation
-6. Human review & approval -> Active local skill reuse
+6. Human capability-backed activation -> Active local skill reuse
 7. Automatic fail-closed degradation & frontier escalation on verification failure
 """
 

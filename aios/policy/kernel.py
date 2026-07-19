@@ -185,6 +185,13 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="skill_reuse",
         action_type=ActionType.SKILL_REUSE,
     ),
+    "/api/v1/skills/{skill_id}/versions/{version}/activate": RouteAuthority(
+        "YELLOW",
+        10,
+        "session",
+        audit_event="skill_activate",
+        action_type=ActionType.SKILL_ACTIVATION,
+    ),
     "/api/v1/maintenance/scans": RouteAuthority(
         "YELLOW",
         20,

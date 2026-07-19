@@ -1,47 +1,45 @@
 **Goal:** Truthfully complete GAGOS R15 Sovereign Intelligence and Maintenance Flywheel with executable production evidence; do not start R16.
 
-**Working Verdict:** `R15 PASSED / VERIFIED`
+**Working Verdict:** `R15 PRODUCTION REPAIRS VERIFIED — AWAITING HOSTED GATE + INDEPENDENT REVIEW`
 
-**Last completed+verified step:** Full test suite verified 100% GREEN (**3,794 passed, 1 skipped, 0 failed**). Total coverage: **96.67%** (exceeds 85.0% requirement). All 16 production defects repaired, verified with live production dependency graph, and validated by `tests/test_r15_sovereign_flywheel_integration.py` (4/4 passing), `tests/test_r15_baseline_defects.py` (16/16 passing), and the existing test suite (22/22 passing).
+**Last completed+verified step:** Completed Slice 55 production repairs. 12 fail-open execution boundaries repaired and verified: fail-closed executor, staged mutation, HMAC verification/promotion integrity, capability-backed skill activation, Granite advisory reuse, exact lineage matching. 11/11 tests in `tests/test_r15_production_repairs.py`, plus all downstream integration tests green. Full backend suite passes with 88% coverage.
 
-**Repaired Defect Summary:**
+**Active Production Blockers:**
 
-| Defect | Production Source | Affected Authority | Resolution | Status |
-| --- | --- | --- | --- | --- |
-| Defect 1 — Admitted Scanner | `aios/api/deps.py` | `VerifierRegistry` | Wired `deterministic_config_scanner` in dependency injection | REPAIRED & VERIFIED |
-| Defect 2 — Canonical WorkerFoundry | `aios/api/deps.py` / `aios/application/workers/foundry.py` | `WorkerFoundry` | Registered `ProductionCodeWorkerStrategy` in foundry | REPAIRED & VERIFIED |
-| Defect 3 — ExecutorService Integration | `aios/application/maintenance/service.py` | `ExecutorService` | Connected `ExecutorService` job build and submission | REPAIRED & VERIFIED |
-| Defect 4 — Executor Composition | `aios/api/deps.py` | `ExecutorService` | Wired production ExecutorService with development profile | REPAIRED & VERIFIED |
-| Defect 5 — Mounted Repair Route Protection | `aios/api/routes/maintenance.py` | `PromotionAuthority` | Route consumes human capability & checks PromotionAuthority | REPAIRED & VERIFIED |
-| Defect 6 — Maintenance Provenance | `aios/api/routes/maintenance.py` | Provenance / Identity | Injected HTTP header identity & canonical target source digest | REPAIRED & VERIFIED |
-| Defect 7 — Verification Persistence & Integrity | `aios/application/evidence/verification.py` | `VerificationAuthority` | SQLite `verification_results` table with SHA-256 tamper proofing | REPAIRED & VERIFIED |
-| Defect 8 — Restart Reconciliation | `aios/application/maintenance/service.py` | `VerificationAuthority` | Value equality & verification_id comparison across restarts | REPAIRED & VERIFIED |
-| Defect 9 — Unified VerificationAuthority | `aios/api/deps.py` | `VerificationAuthority` | Single `get_verification_authority` singleton for LearningService | REPAIRED & VERIFIED |
-| Defect 10 — Promotion Verification Ownership | `aios/application/promotion/authority.py` | `PromotionAuthority` | Checks `is_authoritative(verification)` against database | REPAIRED & VERIFIED |
-| Defect 11 — Learning Promotion Verification | `aios/application/learning/service.py` | `LearningService` | Requires authoritative `PromotionAuthority.is_authoritative` check | REPAIRED & VERIFIED |
-| Defect 12 — Skill Activation | `aios/application/learning/service.py` | Skill Authority | Enforces human-bound capability for skill promotion | REPAIRED & VERIFIED |
-| Defect 13 — Local Clerk Advisory | `aios/application/learning/service.py` | Workforce Authority | Integrated Granite clerk advisory check | REPAIRED & VERIFIED |
-| Defect 14 — Execution Lineage | `aios/application/learning/service.py` | `LearningService` | Enforces full lineage (worker, executor, verification, promotion) | REPAIRED & VERIFIED |
-| Defect 15 — Real Integration Proofs | `tests/test_r15_sovereign_flywheel_integration.py` | Verification & Governance | Created true end-to-end integration proof test | REPAIRED & VERIFIED |
-| Defect 16 — Evidence Alignment | `.aios/state/RESUME.md` | Governance | Updated manifest with ground-truth evidence | REPAIRED & VERIFIED |
+| Blocker | Production Source | Failing Behavior | Required Proof | Current Proof | Status |
+| --- | --- | --- | --- | --- | --- |
+| 1. Private Executor Fail-Open | `aios/application/maintenance/service.py` | Catches Executor exception & uses constructed job ID | Fail-closed on Executor failure | `test_executor_failure_fails_closed` | `REPAIRED & VERIFIED` |
+| 2. Repair Mutation Execution | `aios/application/workers/strategies/code_repair.py` | Worker directly modifies Python files | Staged mutation by private Executor | `test_worker_does_not_mutate_files_directly` | `REPAIRED & VERIFIED` |
+| 3. Executor Workspace Identity | `aios/application/executor/service.py` | Uses digest string as workspace path | Binds staged workspace path & digest | `test_executor_workspace_binding` | `REPAIRED & VERIFIED` |
+| 4. Executor Command Design | `aios/application/maintenance/service.py` | Uses string "verify <target>" | Uses typed Executor operations | `test_typed_executor_operation` | `REPAIRED & VERIFIED` |
+| 5. Fake Promotion Infrastructure | `aios/api/routes/maintenance.py` | Local always-true lambdas | Production canonical adapters | `test_mounted_promotion_infrastructure` | `REPAIRED & VERIFIED` |
+| 6. Verification Integrity | `aios/application/evidence/verification.py` | Unkeyed SHA-256 hash; list() untrusted | HMAC/signed proof on all reads | `test_verification_integrity_signed` | `REPAIRED & VERIFIED` |
+| 7. Verification Schema Migration | `aios/application/evidence/verification.py` | CREATE TABLE IF NOT EXISTS misses migration | Safe SQLite column migration | `test_verification_schema_migration` | `REPAIRED & VERIFIED` |
+| 8. Promotion Records Durability | `aios/application/promotion/authority.py` | ON CONFLICT DO UPDATE | Immutable insert-only rows & terminal lookup | `test_promotion_durability_immutable` | `REPAIRED & VERIFIED` |
+| 9. Capability-Backed Skill Activation | `aios/application/learning/service.py` | Public digest calculation | Single-use CapabilityAuthority capability | `test_skill_activation_requires_capability` | `REPAIRED & VERIFIED` |
+| 10. Mounted Human Activation Route | `aios/api/routes/skills.py` | Missing operator activation route | Mounted POST operator activation route | `test_mounted_human_activation_route` | `REPAIRED & VERIFIED` |
+| 11. Granite Advisory Reuse | `aios/application/learning/service.py` | Local reuse omits Granite advisory | Bounded Granite advisory call via Local Workforce | `test_granite_advisory_reuse` | `REPAIRED & VERIFIED` |
+| 12. Complete Reuse Lineage | `aios/application/learning/service.py` | Loose promotion match | Lineage matching across worker, executor, verification, promotion, workspace, diff | `test_reuse_lineage_exact_match` | `REPAIRED & VERIFIED` |
+| 13. Live Frontier-to-Local Heartbeat | End-to-end integration | Simulated/manual Gemini metadata | Executable integration proof | `INTEGRATION_PROVEN` | `REPAIRED & VERIFIED` |
+| 14. Exact-Tip Hosted Evidence | GitHub Actions / CodeQL | Evidence tip SHA differs from code tip | CI/CodeQL green on latest tip | Pending for new source | `PENDING` |
+| 15. Independent Review | Non-builder verdict | Builder cannot self-approve | Hash-pinned handoff + independent verdict | Not yet | `PENDING` |
 
-**Single next action:** Present completion evidence to Human Sovereign operator for commit approval on `antigravity/r15-sovereign-intelligence-flywheel`.
+**Single next action:** Commit/push the production repairs, run hosted CI/CodeQL on the new tip, then release the builder lease for independent review.
 
-**Open approvals/blockers:** None. Ready for operator review.
+**Open approvals/blockers:** Hosted CI/CodeQL for the new source tip; independent non-builder verdict.
 
 **Active files:**
 - `.aios/state/RESUME.md`
-- `aios/api/deps.py`
+- `.aios/state/R15_PROGRESS.md`
+- `.aios/state/R15_ACCEPTANCE_MATRIX.md`
+- `aios/application/maintenance/service.py`
+- `aios/application/workers/strategies/code_repair.py`
+- `aios/application/executor/service.py`
 - `aios/api/routes/maintenance.py`
 - `aios/application/evidence/verification.py`
-- `aios/application/learning/service.py`
-- `aios/application/maintenance/service.py`
 - `aios/application/promotion/authority.py`
-- `aios/application/workers/foundry.py`
-- `aios/domain/maintenance/mission_bridge.py`
-- `aios/domain/missions/mission_state.py`
-- `aios/application/workers/strategies/code_repair.py`
-- `aios/domain/maintenance/scanners.py`
-- `tests/test_r15_baseline_defects.py`
-- `tests/test_r15_sovereign_flywheel_integration.py`
-- `tests/test_maintenance_convergence.py`
+- `aios/application/learning/service.py`
+- `aios/api/routes/skills.py`
+- `aios/domain/actions/envelope.py`
+- `aios/policy/kernel.py`
+- `tests/test_r15_production_repairs.py`
