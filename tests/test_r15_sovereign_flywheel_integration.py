@@ -15,7 +15,7 @@ from aios.application.learning.service import LearningService, SkillCandidateSpe
 from aios.application.maintenance.service import MaintenanceConvergenceService
 from aios.application.missions.mission_service import MissionService
 from aios.application.promotion.authority import PromotionAuthority
-from aios.domain.promotion import PromotionStatus
+from aios.domain.promotion import PromotionResult, PromotionStatus
 from aios.application.workspaces import StagedWorkspaceManager
 from aios.application.workspaces.staged import tree_digest
 from aios.domain.evidence import VerificationObservation, VerificationPlanV1
