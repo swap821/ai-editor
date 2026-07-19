@@ -230,6 +230,7 @@ class MaintenanceConvergenceService:
                     mission_id,
                     finding,
                     f"worker status: {getattr(worker_result, 'status', 'unknown')}",
+                    status="WORKER_FAILED",
                 )
             self.mission_service.start_verification(mission_id)
             finding = self.lifecycle_engine.mark_verifying(

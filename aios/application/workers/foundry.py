@@ -104,6 +104,7 @@ class WorkerFoundry:
         aliases = {
             # Existing Council Runtime names are explicit strategy aliases,
             # not a permissive unknown-strategy fallback.
+            "code": "deterministic",
             "hybrid_plan_worker": "deterministic",
             "deterministic_worker": "deterministic",
             "tool_agent": "tool_loop",
