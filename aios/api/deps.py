@@ -881,11 +881,73 @@ def get_learning_service() -> Any:
         # MissionService and the ordinary action boundary still govern work.
         return skill.state == "active" and policy.earned_autonomy_enabled()
 
-    def verification_plan_validator(skill: Any) -> bool:
-        plan = skill.verification_plan.strip()
-        return bool(plan) and not any(
-            marker in plan for marker in ("\n", "\r", "&&", "||", ";", "|", ">", "<", "`", "$(")
+    def verification_plan_validator(skill: Any) -> bool:  # noqa: C901
+        """Strict typed SkillVerifierSpec validator — fails closed on any deviation.
+
+        Rules (all must pass):
+        1. Plan exists and is a SkillVerifierSpec — not None, not a str.
+        2. verifier_id equals the canonical live value (``skill.reuse``).
+        3. version equals the single supported value (``1``).
+        4. target_pattern is non-empty and shell-free (enforced by the type).
+        5. required_observations is non-empty (min_length=1 enforced by type).
+        6. minimum_strength meets the policy floor (>= 1).
+        7. No forbidden executable/command fields are present on the object.
+        8. No unknown extra fields (extra="forbid" guards construction, but a
+           subclass injection attempt is also rejected here by checking
+           model_fields equality).
+        """
+        from aios.domain.verification import SkillVerifierSpec as _SVS
+
+        _KNOWN_VERIFIER_ID = "skill.reuse"
+        _KNOWN_VERSION = "1"
+        _POLICY_MIN_STRENGTH = 1
+        _FORBIDDEN = frozenset(
+            {"command", "shell", "image", "program", "executable", "argv", "script", "cmd"}
         )
+
+        plan = getattr(skill, "verification_plan", None)
+
+        # Rule 1 — plan must be a typed SkillVerifierSpec.
+        if plan is None:
+            return False
+        if isinstance(plan, str):
+            return False  # legacy free-text — quarantined, not executable
+        if not isinstance(plan, _SVS):
+            return False
+
+        # Rule 2 — known verifier_id.
+        if getattr(plan, "verifier_id", None) != _KNOWN_VERIFIER_ID:
+            return False
+
+        # Rule 3 — supported version.
+        if getattr(plan, "version", None) != _KNOWN_VERSION:
+            return False
+
+        # Rule 4 — non-empty target_pattern.
+        target_pattern = getattr(plan, "target_pattern", None)
+        if not target_pattern or not isinstance(target_pattern, str):
+            return False
+
+        # Rule 5 — non-empty required_observations.
+        required_obs = getattr(plan, "required_observations", None)
+        if not required_obs:
+            return False
+
+        # Rule 6 — minimum_strength meets the policy floor.
+        min_strength = getattr(plan, "minimum_strength", 0)
+        if not isinstance(min_strength, int) or min_strength < _POLICY_MIN_STRENGTH:
+            return False
+
+        # Rule 7 — no executable/command fields present.
+        for forbidden in _FORBIDDEN:
+            if getattr(plan, forbidden, None) is not None:
+                return False
+
+        # Rule 8 — no unknown extra fields.
+        if frozenset(type(plan).model_fields) != frozenset(_SVS.model_fields):
+            return False
+
+        return True
 
     return LearningService(
         mission_service=MissionService(

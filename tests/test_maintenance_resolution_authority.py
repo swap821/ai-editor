@@ -62,7 +62,8 @@ def _prepared(
         session_id="session-1",
     )
     service.mission_service.start_execution(mission.mission_id)
-    service.mission_service.start_verification(mission.mission_id)
+    if mission_state in (MissionState.VERIFYING, MissionState.COMPLETED):
+        service.mission_service.start_verification(mission.mission_id)
     if mission_state is MissionState.COMPLETED:
         service.mission_service.complete(mission.mission_id, evidence_digest="bundle-1")
 
@@ -154,7 +155,7 @@ def test_missing_mission_cannot_resolve(tmp_path: Path) -> None:
 
 
 def test_incomplete_mission_cannot_resolve(tmp_path: Path) -> None:
-    service, _, evidence = _prepared(tmp_path, mission_state=MissionState.VERIFYING)
+    service, _, evidence = _prepared(tmp_path, mission_state=MissionState.RUNNING)
     _reject(service, evidence)
 
 

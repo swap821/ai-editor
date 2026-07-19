@@ -339,11 +339,7 @@ class MaintenanceConvergenceService:
                 smoke_test=smoke_test,
                 restore_checkpoint=restore_checkpoint,
                 consume_capability=capability_consumer,
-                mark_completed=lambda _request,
-                evidence_ids: self.mission_service.complete(
-                    mission_id,
-                    evidence_digest=evidence_ids[0] if evidence_ids else None,
-                ),
+                mark_completed=None,
             )
             if promotion.status.value != "promoted":
                 return self._failed(
@@ -405,6 +401,13 @@ class MaintenanceConvergenceService:
                     promotion_status=promotion.status.value,
                     reason="current deterministic rescan did not prove resolution",
                 )
+
+            # Authoritative post-promotion rescan proved resolution: NOW complete mission
+            self.mission_service.complete(
+                mission_id,
+                evidence_digest=promotion.evidence_ids[0] if promotion.evidence_ids else None,
+            )
+
             return MaintenanceRepairResult(
                 status="VERIFIED_RESOLVED",
                 mission_id=mission_id,

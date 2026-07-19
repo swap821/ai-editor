@@ -97,8 +97,8 @@ class MaintenanceLifecycleEngine:
         self._require_mission(finding, evidence.mission_id)
         if mission.mission_id != evidence.mission_id:
             raise SecurityViolationError("mission evidence is not authoritative")
-        if mission.state is not MissionState.COMPLETED:
-            raise SecurityViolationError("mission is not completed")
+        if mission.state not in (MissionState.VERIFYING, MissionState.COMPLETED):
+            raise SecurityViolationError("mission must be verifying or completed for rescan proof")
         if mission.contract_digest != evidence.mission_contract_digest:
             raise SecurityViolationError("mission contract digest does not match")
         if mission.contract.metadata.get("finding_fingerprint") != finding.fingerprint:

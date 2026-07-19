@@ -1,11 +1,22 @@
 **Goal:** Complete the GAGOS R15 Sovereign Intelligence and Maintenance Flywheel with executable, fail-closed evidence; do not start R16.
 
-**Last completed+verified step:** Production source `5af20d1` now requires the injected `VerificationAuthority` to own each immutable result before trajectory capture or a successful local-skill reuse outcome. Red-first forged-copy tests failed before the repair; the learning/maintenance group passed 50 tests with one existing skip, architecture/adversarial/conformance groups passed 473 tests with one existing deprecation warning, and Ruff/format/compile/diff checks passed. Hosted CI `29666152128` and CodeQL `29666551263` are green on exact docs tip `1a47ccf`, including the hosted Executor and model-pack gates. The fresh qwen3.5 recheck remains recorded: both installed candidates failed unchanged structured JSON gates and remain unadmitted.
+**Last completed+verified step:** 
+- **Phase 1 (Canonical mounted skill-reuse composition)** — COMPLETE & VERIFIED (15/15 tests green in `tests/test_canonical_skill_reuse_validator.py`).
+  - Production `verification_plan_validator` in `aios/api/deps.py` enforces strict fail-closed validation of `SkillVerifierSpec` (validates verifier_id, version, target_pattern, required_observations, minimum_strength, rejecting string plans, None, extra fields, executable command fields).
+- **Phase 2 (Repair maintenance mission completion ordering)** — COMPLETE & VERIFIED (2/2 red-first tests green in `tests/test_maintenance_completion_ordering.py`, plus 24/24 in `tests/test_maintenance_resolution_authority.py` and 4/4 in `tests/test_maintenance_convergence.py`).
+  - Reordered completion lifecycle in `aios/application/maintenance/service.py`: `repair worker completes` → `structured verification` → `promotion` → `exact post-promotion rescan` → `authoritative rescan proof` → `COMPLETED`.
+  - Mission remains in `VERIFYING` state until `reconcile_rescan` proves resolution with `VERIFIED_RESOLVED`, at which point `MissionService.complete` is invoked.
 
-**Next action:** Release the clean builder lease through a hash-pinned handoff for independent review; do not self-approve R15 or start R16.
+**Next action:** Phase 3 (Canonical maintenance production composition in `aios/api/deps.py` or remaining production blockers).
 
-**Open approvals/blockers:** R15 remains NOT ACCEPTED. Local routine cognition is proven only for the admitted Granite clerk and the benchmark is advisory-only, not verified developer completion. Live Gemini hiring and current-tip hosted CI/CodeQL are proven; Bedrock remains unconfigured. Maintenance repair-to-rescan remains integration-proven with injected deterministic workers and a bounded structured verifier; Docker/private Executor is unavailable locally, while hosted Executor proof is green. Frontier trajectory/skill reuse, frontend/operator walkthrough, and independent non-builder verdict remain open. Do not self-approve R15 or start R16.
+**Open approvals/blockers:**
+- Phases 3-11 of R15 production blockers remain open.
+- R15 remains NOT ACCEPTED. Do not self-approve R15 or start R16.
 
-**Active files:** `aios/application/models/hiring_service.py`, `aios/domain/privacy/contracts.py`, `aios/core/gemini.py`, `aios/core/bedrock.py`, `aios/core/llm.py`, `tests/test_intelligence_hiring_service.py`, `tests/test_gemini.py`, `release/r15/live-hiring-evidence.json`, `aios/application/evidence/verifier_registry.py`, `aios/application/maintenance/service.py`, `aios/application/learning/service.py`, `.aios/state/R15_PROGRESS.md`, `.aios/state/R15_ACCEPTANCE_MATRIX.md`
-
-**Notes:** Maintenance and skill authorities remain the existing MissionService, WorkerFoundry, ExecutorService, VerificationAuthority, PromotionAuthority, MemoryAuthority, and durable repositories; no second authority or executor was introduced. The verifier registry is an application dispatcher, not an authority; scanner adapters are injected and identity-bound. Hosted strict Executor topology/isolation evidence is separate from the unavailable local production private Executor. The live Gemini evidence is public-data-only and advisory; it does not grant authority or execution. The output-bound repair is provider-adapter enforcement, not a cost claim; provider billing remains unknown/null. Historical v1 qualification remains in `release/r15/model-qualification-redacted.json`; current v2 live evidence is in `release/r15/model-qualification-r15-v2.json` and `release/r15/benchmark-results.json`.
+**Active files:**
+- `aios/api/deps.py`
+- `aios/application/maintenance/service.py`
+- `aios/domain/maintenance/lifecycle.py`
+- `tests/test_canonical_skill_reuse_validator.py`
+- `tests/test_maintenance_completion_ordering.py`
+- `tests/test_maintenance_resolution_authority.py`
