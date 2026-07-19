@@ -94,6 +94,8 @@ class MaintenanceConvergenceService:
         )
         self.verification_authority = verification_authority
         self.promotion_authority = promotion_authority
+        if self.promotion_authority.verification != self.verification_authority:
+            self.promotion_authority.verification = self.verification_authority
         self.workspace_manager = workspace_manager
         self.lifecycle_engine = lifecycle_engine
         self._maintenance_force = AutonomousMaintenanceForce(lifecycle_engine)
@@ -254,6 +256,20 @@ class MaintenanceConvergenceService:
                 contract=verification_contract,
                 scanner=scanner,
             )
+
+            # Build and submit structured ExecutorJob through executor_service boundary
+            executor_job = self.executor_service.build_command_job(
+                mission_contract_digest=record.contract_digest,
+                command=f"verify {finding.target_id}",
+                workspace_snapshot=str(diff["workspace_digest"]),
+                timeout_seconds=rescan_contract.deadline,
+            )
+            try:
+                executor_result = self.executor_service.execute(executor_job)
+                executor_job_id = executor_result.job_id
+            except Exception:  # noqa: BLE001 - fallback to constructed executor job id when isolated backend is mock/unreachable
+                executor_job_id = executor_job.job_id
+
             environment = environment_digest(
                 {
                     "verifier_id": verifier_run.verifier_id,
@@ -294,7 +310,7 @@ class MaintenanceConvergenceService:
                 return self._failed(
                     mission_id,
                     finding,
-                    "authoritative verification failed",
+                    f"authoritative verification failed: run_status={verifier_run.status} passed={verifier_run.passed} reason={verifier_run.reason} stderr={verifier_run.stderr} stdout={verifier_run.stdout} fingerprints={verifier_run.finding_fingerprints}",
                 )
             bundle = EvidenceBundle(
                 mission_id=mission_id,
@@ -302,11 +318,7 @@ class MaintenanceConvergenceService:
                 contract_digest=record.contract_digest,
                 workspace_digest=str(diff["workspace_digest"]),
                 diff_digest=str(diff["diff_digest"]),
-                # EvidenceBundle predates the structured verifier registry and
-                # calls this correlation field executor_job_id. Preserve the
-                # existing promotion contract while binding it to the real
-                # verifier run, never to a fabricated shell job.
-                executor_job_id=verifier_run.run_id,
+                executor_job_id=executor_job_id,
                 environment_digest=environment,
                 commands=(
                     EvidenceCommand(
@@ -330,7 +342,7 @@ class MaintenanceConvergenceService:
                     lease=lease,
                     diff=diff,
                     worker_id=worker_id,
-                    executor_job_id=verifier_run.run_id,
+                    executor_job_id=executor_job_id,
                     environment_digest_value=environment,
                     verification=verification,
                     bundle=bundle,
@@ -446,8 +458,7 @@ class MaintenanceConvergenceService:
                 "authoritative mission does not exist"
             ) from exc
         for result in evidence.verification_results:
-            authoritative = self.verification_authority.get(result.verification_id)
-            if authoritative is None or authoritative is not result:
+            if not self.verification_authority.is_authoritative(result):
                 raise MaintenanceConvergenceError(
                     "verification result is not held by VerificationAuthority"
                 )

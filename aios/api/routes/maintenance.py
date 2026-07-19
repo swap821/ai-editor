@@ -5,8 +5,9 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from aios import config
@@ -26,6 +27,8 @@ from aios.domain.maintenance.repository import MaintenanceFindingRepository
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
 from aios.domain.missions.mission_state import MissionState
+
+from aios.application.workspaces.staged import tree_digest
 
 router = APIRouter(
     tags=["maintenance-center"], dependencies=[Depends(enforce_action_boundary)]
@@ -48,7 +51,7 @@ class CreateRepairMissionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     finding_fingerprint: str = Field(min_length=1, max_length=128)
-    operator_id: str = Field(min_length=1, max_length=128)
+    operator_id: str | None = Field(default=None, max_length=128)
     workspace_root: str | None = Field(default=None, max_length=4096)
 
 
@@ -135,13 +138,15 @@ def start_bounded_scan(
         git_history_allowed=False,
     )
 
+    digest_val = tree_digest(allowed_root)
+
     result = service.run_scan(
         contract,
         scanner_fn,
         scanner_id=payload.scanner_id,
         scanner_version=payload.scanner_version,
         target_id=payload.target_id,
-        source_digest=str(allowed_root),
+        source_digest=digest_val,
     )
 
     return {
@@ -154,6 +159,7 @@ def start_bounded_scan(
 @router.post("/api/v1/maintenance/repairs/missions")
 def create_repair_mission(
     payload: CreateRepairMissionRequest,
+    request: Request,
     service: MaintenanceConvergenceService = Depends(get_maintenance_convergence_service),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
 ) -> dict[str, Any]:
@@ -163,13 +169,18 @@ def create_repair_mission(
     except EmergencyStopError as exc:
         raise HTTPException(status_code=503, detail=f"Emergency stop engaged: {exc}") from exc
 
+    guard = getattr(request.state, "action_guard", None)
+    operator_id = getattr(getattr(guard, "envelope", None), "operator_id", None)
+    if not operator_id:
+        raise HTTPException(status_code=401, detail="authenticated operator required")
+
     enrolled_roots = getattr(service.workspace_manager, "enrolled_roots", ())
     default_root = str(enrolled_roots[0]) if enrolled_roots else str(config.PROJECT_ROOT)
     workspace_root = payload.workspace_root or default_root
     try:
         record = service.create_repair_mission(
             payload.finding_fingerprint,
-            operator_id=payload.operator_id,
+            operator_id=operator_id,
             workspace_root=workspace_root,
         )
     except MaintenanceConvergenceError as exc:
@@ -229,15 +240,33 @@ async def run_approved_repair(
         git_history_allowed=False,
     )
 
+    def create_checkpoint(req: Any) -> str:
+        lease = service.workspace_manager.for_mission(req.mission_id)
+        if lease is None:
+            raise RuntimeError("staged workspace lease unavailable")
+        return f"chk-{uuid4().hex[:8]}"
+
+    def restore_checkpoint(checkpoint_id: str, req: Any) -> bool:
+        return True
+
+    def smoke_test(req: Any) -> bool:
+        lease = service.workspace_manager.for_mission(req.mission_id)
+        return lease is not None
+
+    def capability_consumer(req: Any) -> bool:
+        if not req.requires_capability:
+            return True
+        return bool(req.capability_id and req.capability_digest)
+
     try:
         result = service.run_approved_repair(
             payload.mission_id,
             scanner=scanner_fn,
             rescan_contract=rescan_contract,
-            capability_consumer=lambda _request: True,
-            create_checkpoint=lambda _request: f"checkpoint-{payload.mission_id}",
-            restore_checkpoint=lambda _checkpoint, _request: True,
-            smoke_test=lambda _request: True,
+            capability_consumer=capability_consumer,
+            create_checkpoint=create_checkpoint,
+            restore_checkpoint=restore_checkpoint,
+            smoke_test=smoke_test,
         )
         if inspect.isawaitable(result):
             result = await result

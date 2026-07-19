@@ -24,6 +24,7 @@ class MissionTransition(Enum):
     """Allowed, auditable transitions between mission states."""
 
     START_DELIBERATION = (MissionState.DRAFT, MissionState.DELIBERATING)
+    DIRECT_REQUEST_APPROVAL = (MissionState.DRAFT, MissionState.AWAITING_APPROVAL)
     DELIBERATION_BLOCKED = (MissionState.DELIBERATING, MissionState.BLOCKED)
     REQUEST_APPROVAL = (MissionState.DELIBERATING, MissionState.AWAITING_APPROVAL)
     APPROVE = (MissionState.AWAITING_APPROVAL, MissionState.APPROVED)

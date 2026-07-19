@@ -64,6 +64,7 @@ class WorkerFoundry:
         max_per_mission: int = 1,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve() if runtime_root else None
+        self.spawner = spawner
         self.scheduler = scheduler or WorkerScheduler(
             max_active=max_active,
             max_per_mission=max_per_mission,

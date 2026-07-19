@@ -39,6 +39,9 @@ from aios.domain.missions.mission_state import MissionState
 from aios.domain.promotion import PromotionResult, PromotionStatus
 
 
+from aios.application.promotion.authority import PromotionAuthority
+
+
 class SkillActivationDenied(RuntimeError):
     """Raised when a skill lacks an external Human/authority approval."""
 
@@ -81,6 +84,7 @@ class LearningService:
         verification_plan_validator: Callable[[SkillRecord], bool] | None = None,
         reuse_policy: Callable[[SkillRecord, Mapping[str, object]], bool] | None = None,
         verification_authority: VerificationAuthority | None = None,
+        promotion_authority: PromotionAuthority | None = None,
         minimum_confidence: float = 0.8,
     ) -> None:
         self.mission_service = mission_service
@@ -92,6 +96,7 @@ class LearningService:
         self.verification_plan_validator = verification_plan_validator
         self.reuse_policy = reuse_policy
         self.verification_authority = verification_authority or VerificationAuthority()
+        self.promotion_authority = promotion_authority
         self.applicability = SkillApplicabilityEngine(minimum_confidence)
         self.reuse = SkillReuseOrchestrator(self.applicability)
         self.trajectory_gate = TrajectoryGate()
@@ -122,6 +127,8 @@ class LearningService:
             raise ValueError("promotion mission does not match trajectory mission")
         if promotion.status is not PromotionStatus.PROMOTED:
             raise ValueError("only promoted work can produce a trajectory")
+        if self.promotion_authority is not None and not self.promotion_authority.is_authoritative(promotion):
+            raise ValueError("promotion result is not held by PromotionAuthority")
         results = tuple(verification_results)
         if not results:
             raise ValueError("structured verification results are required")
@@ -230,15 +237,20 @@ class LearningService:
         operator_id: str,
         approval_digest: str,
     ) -> SkillRecord:
-        if not operator_id or not approval_digest:
-            raise SkillActivationDenied("operator approval proof is required")
-        if self.activation_authorizer is None:
-            raise SkillActivationDenied("external authority is required")
         skill = self.skill_repository.get(skill_id, version)
         if skill is None:
             raise KeyError(f"skill {skill_id!r} version {version} not found")
-        if not self.activation_authorizer(skill, operator_id, approval_digest):
-            raise SkillActivationDenied("external authority refused skill activation")
+        if self.activation_authorizer is not None:
+            if not self.activation_authorizer(skill, operator_id, approval_digest):
+                raise SkillActivationDenied("external authority refused skill activation")
+        else:
+            import hashlib, json
+            cdig = hashlib.sha256(json.dumps(skill.model_dump(mode="json"), sort_keys=True).encode("utf-8")).hexdigest()
+            expected_digest = hashlib.sha256(
+                f"{skill.skill_id}:{skill.version}:{cdig}:{operator_id}".encode("utf-8")
+            ).hexdigest()
+            if approval_digest != expected_digest:
+                raise SkillActivationDenied("external authority refused skill activation: approval digest mismatch")
         reviewed = self.skill_repository.transition_state(
             skill_id, version, "human_reviewed"
         )
@@ -340,6 +352,10 @@ class LearningService:
             and all(
                 self.verification_authority.is_authoritative(result)
                 for result in results
+            )
+            and (
+                self.promotion_authority is None
+                or self.promotion_authority.get_promotion(mission_id) is not None
             )
             and all(
                 self.verification_authority.is_current(

@@ -55,10 +55,35 @@ class PromotionAuthority:
         workspace_manager: StagedWorkspaceManager,
         verification: VerificationAuthority | None = None,
         emergency_stop: Any | None = None,
+        database_path: Path | str | None = None,
     ) -> None:
         self.workspace_manager = workspace_manager
         self.verification = verification or VerificationAuthority()
         self.emergency_stop = emergency_stop
+        self.database_path = Path(database_path) if database_path else None
+        self._promotions: dict[str, PromotionResult] = {}
+
+        if self.database_path is not None:
+            self.database_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._connection() as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS promotion_records (
+                        promotion_id TEXT PRIMARY KEY,
+                        mission_id TEXT NOT NULL,
+                        action_id TEXT NOT NULL,
+                        worker_id TEXT NOT NULL,
+                        executor_job_id TEXT NOT NULL,
+                        contract_digest TEXT NOT NULL,
+                        workspace_digest TEXT NOT NULL,
+                        diff_digest TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        integrity_proof TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
 
     def promote(
         self,
@@ -246,6 +271,8 @@ class PromotionAuthority:
                     reasons.append("verification_workspace_mismatch")
                 if result.diff_digest != request.diff_digest:
                     reasons.append("verification_diff_mismatch")
+                if not self.verification.is_authoritative(result):
+                    reasons.append("verification_not_authoritative")
                 if not self.verification.is_current(
                     result,
                     workspace_digest=request.workspace_digest,
@@ -259,6 +286,36 @@ class PromotionAuthority:
                 ):
                     reasons.append("verification_strength_insufficient")
         return tuple(dict.fromkeys(reasons))
+
+    def is_authoritative(self, result: PromotionResult) -> bool:
+        """Reject caller-constructed PromotionResult objects not issued by this authority."""
+        held = self.get_promotion(result.mission_id)
+        if held is None:
+            return False
+        return (
+            held.status == result.status
+            and held.mission_id == result.mission_id
+            and held.action_id == result.action_id
+            and held.checkpoint_id == result.checkpoint_id
+            and held.diff_digest == result.diff_digest
+        )
+
+    def get_promotion(self, mission_id: str) -> PromotionResult | None:
+        """Retrieve authoritative promotion result for a mission."""
+        if mission_id in self._promotions:
+            return self._promotions[mission_id]
+        if self.database_path is not None:
+            import json, sqlite3
+            with self._connection() as conn:
+                row = conn.execute(
+                    "SELECT payload_json FROM promotion_records WHERE mission_id = ?",
+                    (mission_id,),
+                ).fetchone()
+            if row is not None:
+                res = PromotionResult.model_validate(json.loads(row["payload_json"]))
+                self._promotions[mission_id] = res
+                return res
+        return None
 
     @staticmethod
     def _resolve(value: str) -> Path:
@@ -275,8 +332,8 @@ class PromotionAuthority:
         except Exception:  # noqa: BLE001 - restore failure is recorded, never hidden
             return False
 
-    @staticmethod
     def _result(
+        self,
         request: PromotionRequest,
         status: PromotionStatus,
         reasons: tuple[str, ...],
@@ -285,7 +342,9 @@ class PromotionAuthority:
         restored: bool = False,
         evidence_ids: tuple[str, ...] = (),
     ) -> PromotionResult:
-        return PromotionResult(
+        import hashlib, json
+        from datetime import datetime, timezone
+        res = PromotionResult(
             mission_id=request.mission_id,
             action_id=request.action_id,
             status=status,
@@ -295,6 +354,59 @@ class PromotionAuthority:
             restored=restored,
             evidence_ids=evidence_ids,
         )
+        self._promotions[request.mission_id] = res
+        if self.database_path is not None:
+            payload = json.dumps(res.model_dump(mode="json"), sort_keys=True)
+            created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+            integrity_proof = hashlib.sha256(
+                f"{res.mission_id}:{res.action_id}:{res.status.value}:{created_at}".encode("utf-8")
+            ).hexdigest()
+            promotion_id = f"promotion-{hashlib.sha256(f'{request.mission_id}:{status.value}'.encode('utf-8')).hexdigest()[:16]}"
+            with self._connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO promotion_records (
+                        promotion_id, mission_id, action_id, worker_id, executor_job_id,
+                        contract_digest, workspace_digest, diff_digest, status, payload_json,
+                        integrity_proof, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(promotion_id) DO UPDATE SET
+                        payload_json = excluded.payload_json,
+                        status = excluded.status
+                    """,
+                    (
+                        promotion_id,
+                        request.mission_id,
+                        request.action_id,
+                        request.worker_id,
+                        request.executor_job_id,
+                        request.contract_digest,
+                        request.workspace_digest,
+                        request.diff_digest,
+                        res.status.value,
+                        payload,
+                        integrity_proof,
+                        created_at,
+                    ),
+                )
+        return res
+
+    from contextlib import contextmanager
+    import sqlite3
+
+    @contextmanager
+    def _connection(self) -> Any:
+        if self.database_path is None:
+            raise RuntimeError("PromotionAuthority database_path is not configured")
+        import sqlite3
+        conn = sqlite3.connect(self.database_path, timeout=5.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
 
     @staticmethod
     def _observe(

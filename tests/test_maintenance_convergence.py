@@ -207,7 +207,7 @@ def test_maintenance_repair_uses_canonical_mission_executor_verifier_promotion_a
 
     assert result.status == "VERIFIED_RESOLVED", result.reason
     assert worker.calls == 1
-    assert executor.jobs == []
+    assert len(executor.jobs) == 1
     assert project.joinpath("bug.txt").read_text() == "fixed\n"
     assert (
         service.finding_repository.get("controlled-defect").status

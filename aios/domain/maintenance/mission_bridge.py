@@ -33,6 +33,7 @@ class MaintenanceMissionBridge:
             "finding_fingerprint": finding.fingerprint,
             "scanner_id": finding.scanner_id,
             "scanner_version": finding.scanner_version,
+            "target_id": finding.target_id,
             "target_digest": finding.target_digest,
             "required_post_repair_rescan": True,
             "max_repair_attempts": 3,

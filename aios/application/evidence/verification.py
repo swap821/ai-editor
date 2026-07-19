@@ -41,7 +41,10 @@ class VerificationAuthority:
                         verification_id TEXT PRIMARY KEY,
                         mission_id TEXT NOT NULL,
                         action_id TEXT NOT NULL,
-                        payload_json TEXT NOT NULL
+                        payload_json TEXT NOT NULL,
+                        payload_digest TEXT NOT NULL,
+                        integrity_proof TEXT NOT NULL,
+                        created_at TEXT NOT NULL
                     )
                     """
                 )
@@ -106,36 +109,73 @@ class VerificationAuthority:
         return result
 
     def save(self, result: VerificationResult) -> None:
-        """Persist one verification result into memory and durable storage."""
+        """Persist one immutable, tamper-evident verification result."""
+        existing = self.get(result.verification_id)
+        if existing is not None:
+            if existing.model_dump(mode="json") == result.model_dump(mode="json"):
+                return
+            raise ValueError(
+                f"Verification record {result.verification_id} is immutable and cannot be overwritten"
+            )
+
         self._results[result.verification_id] = result
         if self.database_path is not None:
             payload = json.dumps(result.model_dump(mode="json"), sort_keys=True)
+            payload_digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            created_at = result.observed_at or _utc_now()
+            integrity_proof = hashlib.sha256(
+                f"{result.verification_id}:{payload_digest}:{created_at}".encode("utf-8")
+            ).hexdigest()
+
             with self._connection() as conn:
                 conn.execute(
                     """
-                    INSERT INTO verification_results (verification_id, mission_id, action_id, payload_json)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(verification_id) DO UPDATE SET
-                        payload_json = excluded.payload_json
+                    INSERT INTO verification_results (
+                        verification_id, mission_id, action_id, payload_json, payload_digest, integrity_proof, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (result.verification_id, result.mission_id, result.action_id, payload),
+                    (
+                        result.verification_id,
+                        result.mission_id,
+                        result.action_id,
+                        payload,
+                        payload_digest,
+                        integrity_proof,
+                        created_at,
+                    ),
                 )
 
     def get(self, verification_id: str) -> VerificationResult | None:
-        """Return the verification result held by this authority."""
-        if verification_id in self._results:
-            return self._results[verification_id]
+        """Return the verified, tamper-checked verification result."""
         if self.database_path is not None:
             with self._connection() as conn:
                 row = conn.execute(
-                    "SELECT payload_json FROM verification_results WHERE verification_id = ?",
+                    "SELECT payload_json, payload_digest, integrity_proof, created_at FROM verification_results WHERE verification_id = ?",
                     (verification_id,),
                 ).fetchone()
             if row is not None:
-                result = VerificationResult.model_validate(json.loads(row[0]))
+                payload_json = row["payload_json"]
+                stored_digest = row["payload_digest"]
+                stored_proof = row["integrity_proof"]
+                created_at = row["created_at"]
+
+                # Integrity checks
+                actual_digest = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+                if stored_digest != actual_digest:
+                    return None  # Tamper detected: payload digest mismatch
+
+                actual_proof = hashlib.sha256(
+                    f"{verification_id}:{stored_digest}:{created_at}".encode("utf-8")
+                ).hexdigest()
+                if stored_proof != actual_proof:
+                    return None  # Tamper detected: integrity proof mismatch
+
+                result = VerificationResult.model_validate(json.loads(payload_json))
                 self._results[verification_id] = result
                 return result
-        return None
+            return None
+        return self._results.get(verification_id)
 
     def list_results_for_mission(self, mission_id: str) -> tuple[VerificationResult, ...]:
         """Return all verification results held for a specific mission."""
