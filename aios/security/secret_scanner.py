@@ -14,7 +14,6 @@ sliding-window entropy for Base64 evasion, and contextual filtering.
 from __future__ import annotations
 
 import hashlib
-import hmac
 import math
 import os
 import re
@@ -175,9 +174,9 @@ class ScanResult:
 
 def _fingerprint(value: str) -> str:
     """Return a short, keyed, non-reversible fingerprint of *value*."""
-    return hmac.new(
-        _FINGERPRINT_KEY, value.encode("utf-8"), hashlib.sha256
-    ).hexdigest()[:8]
+    return hashlib.pbkdf2_hmac(
+        "sha256", value.encode("utf-8"), _FINGERPRINT_KEY, 10_000
+    ).hex()[:8]
 
 
 def shannon_entropy(token: str) -> float:

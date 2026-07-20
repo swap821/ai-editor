@@ -13,6 +13,7 @@ import hmac
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -121,8 +122,13 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         workspace_root = workspace_policy.resolve_staged_workspace(
             job.workspace_snapshot, staged_root
         )
-        target_path = (workspace_root / target_rel.replace("\\", "/")).resolve()
-        target_path.relative_to(workspace_root)
+        root_text = str(workspace_root)
+        candidate = os.path.normpath(
+            os.path.join(root_text, target_rel.replace("\\", "/"))
+        )
+        if not candidate.startswith(root_text + os.sep):
+            raise ValueError("target path escapes staged workspace")
+        target_path = Path(candidate)
     except (ValueError, OSError) as exc:
         return ExecutorResult(
             job_id=job.job_id,

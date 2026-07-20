@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -18,6 +19,8 @@ from aios.domain.local_workforce.contracts import (
 )
 from aios.domain.local_workforce.qualifier import QualificationSuite
 from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class LocalModelNotFound(LookupError):
@@ -96,12 +99,15 @@ class LocalWorkforceService:
                 system="Health probe. Return only the requested word.",
             )
         except LLMError as exc:
+            logger.warning(
+                "Local model %s health probe failed: %s", model.model_id, exc
+            )
             self.registry.record_health(model.model_id, "failing", success=False)
             return {
                 "status": "failing",
                 "health": "failing",
                 "model_id": model.model_id,
-                "detail": str(exc),
+                "detail": "Model health probe failed; see server logs for details.",
             }
 
         self.registry.record_health(model.model_id, "healthy", success=True)

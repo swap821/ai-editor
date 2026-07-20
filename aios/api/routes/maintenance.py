@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -75,15 +76,11 @@ def _validate_target_bounded(target_id: str, allowed_root: Path) -> Path:
         )
     if target_id.startswith(("/", "\\")) or ":" in target_id[:3]:
         raise HTTPException(status_code=400, detail="target path must be relative")
-    try:
-        resolved_root = allowed_root.resolve()
-        resolved_target = (resolved_root / target_id).resolve()
-        resolved_target.relative_to(resolved_root)
-    except (ValueError, OSError) as exc:
-        raise HTTPException(
-            status_code=400, detail="target path escapes enrolled root"
-        ) from exc
-    return resolved_target
+    root_text = str(allowed_root.resolve())
+    candidate = os.path.normpath(os.path.join(root_text, target_id))
+    if candidate != root_text and not candidate.startswith(root_text + os.sep):
+        raise HTTPException(status_code=400, detail="target path escapes enrolled root")
+    return Path(candidate)
 
 
 @router.get("/api/v1/maintenance/findings")
