@@ -8,8 +8,11 @@ workspace or token configuration returns an explicit refusal.
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import json
 import os
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -57,10 +60,6 @@ def health() -> dict[str, object]:
     }
 
 
-import hashlib
-import json
-from datetime import datetime, timezone
-
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -99,7 +98,12 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
             reason="target relative path contains forbidden characters",
         )
 
-    if target_rel.startswith(("/", "\\")) or ":" in target_rel[:3] or ".." in target_rel.split("/") or ".." in target_rel.split("\\"):
+    if (
+        target_rel.startswith(("/", "\\"))
+        or ":" in target_rel[:3]
+        or ".." in target_rel.split("/")
+        or ".." in target_rel.split("\\")
+    ):
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
@@ -111,7 +115,9 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
 
     staged_root = os.getenv("AIOS_EXECUTOR_WORKSPACE_ROOT", "/workspace/jobs")
     try:
-        workspace_root = workspace_policy.resolve_staged_workspace(job.workspace_snapshot, staged_root)
+        workspace_root = workspace_policy.resolve_staged_workspace(
+            job.workspace_snapshot, staged_root
+        )
         target_path = (workspace_root / target_rel.replace("\\", "/")).resolve()
         target_path.relative_to(workspace_root)
     except (ValueError, OSError) as exc:
@@ -160,6 +166,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
 
     expected_ws_digest = job.verification_expectation.get("workspace_digest")
     from aios.application.workspaces.staged import tree_digest
+
     ws_digest_before = tree_digest(workspace_root)
     if expected_ws_digest and ws_digest_before != expected_ws_digest:
         return ExecutorResult(
@@ -224,7 +231,9 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         sort_keys=True,
     )
 
-    env_dig = hashlib.sha256(json.dumps({"op_id": op_id}, sort_keys=True).encode()).hexdigest()
+    env_dig = hashlib.sha256(
+        json.dumps({"op_id": op_id}, sort_keys=True).encode()
+    ).hexdigest()
 
     return ExecutorResult(
         job_id=job.job_id,
