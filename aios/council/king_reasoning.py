@@ -8,6 +8,7 @@ observe), never soften a reject, and any LLM/parse error fails closed to the
 deterministic recommendation. The rationale is advisory (always surfaced); the
 DECISION is clamped. Mirrors reasoning.py's narrow-only plan clamp.
 """
+
 from __future__ import annotations
 
 import re

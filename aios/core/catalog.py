@@ -13,6 +13,7 @@ failover cascade rides past any that still error. Capability here is a coarse
 heuristic (refined by calibration); a small bonus keeps the operator's configured
 default a strong, known-good cold-start option.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -20,7 +21,17 @@ from typing import Any
 #: Capability-tier keywords (matched as substrings of the lowercased model id).
 # NB: substring match — avoid keywords that appear inside other names (e.g. "mini"
 # is INSIDE "gemini", so it is excluded; "-mini"/"haiku"/"lite" stand in for light tiers).
-_FRONTIER = ("opus", "-pro", "gpt-4", "ultra", "sonnet", "command-r-plus", "405b", "70b", "72b")
+_FRONTIER = (
+    "opus",
+    "-pro",
+    "gpt-4",
+    "ultra",
+    "sonnet",
+    "command-r-plus",
+    "405b",
+    "70b",
+    "72b",
+)
 _STRONG = ("flash", "large", "mixtral", "command-r")
 _LIGHT = ("haiku", "lite", "-mini", "nano", "small", "8b", "1b", "3b")
 

@@ -1,4 +1,5 @@
 """Rollback Registry — centralized catalog of all rollback-capable snapshot points."""
+
 from __future__ import annotations
 
 import fnmatch
@@ -180,8 +181,10 @@ class RollbackRegistry:
 
     def prune(self) -> int:
         cutoff = (
-            datetime.now(timezone.utc) - timedelta(days=self._retention_days)
-        ).replace(microsecond=0).isoformat()
+            (datetime.now(timezone.utc) - timedelta(days=self._retention_days))
+            .replace(microsecond=0)
+            .isoformat()
+        )
         conn = self._conn()
         try:
             cur = conn.execute(

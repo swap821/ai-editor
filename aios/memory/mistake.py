@@ -7,6 +7,7 @@ recalibrate the Planner on similar future tasks. Lessons start ``pending`` and
 are promoted to ``verified`` only after a fix proves itself, or marked
 ``superseded`` when a better lesson replaces them.
 """
+
 from __future__ import annotations
 
 import logging
@@ -249,8 +250,15 @@ class MistakeMemory:
                 "(task_id, error_type, root_cause, fix_applied, lesson_text, "
                 " confidence_delta, failed_command) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (task_id, error_type, root_cause, fix_applied, lesson_text,
-                 clamped_delta, failed_command),
+                (
+                    task_id,
+                    error_type,
+                    root_cause,
+                    fix_applied,
+                    lesson_text,
+                    clamped_delta,
+                    failed_command,
+                ),
             )
             return int(cur.lastrowid), False
 
@@ -322,7 +330,9 @@ class MistakeMemory:
                 ):
                     self._facts.add_fact(s, p, o, confidence=conf)
             except Exception:
-                logger.warning("graph ingestion from mistake failed (swallowed)", exc_info=True)
+                logger.warning(
+                    "graph ingestion from mistake failed (swallowed)", exc_info=True
+                )
 
     def supersede(self, old_id: int, new_id: int) -> None:
         """Mark *old_id* as superseded by *new_id*."""
@@ -337,7 +347,5 @@ class MistakeMemory:
     def count(self) -> int:
         """Return the total number of recorded mistakes."""
         with get_connection(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS n FROM mistake_pool"
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) AS n FROM mistake_pool").fetchone()
         return int(row["n"])

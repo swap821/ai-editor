@@ -1,4 +1,5 @@
 """SQLite persistence for exact capabilities."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -73,7 +74,9 @@ class CapabilityStore:
                 conn.execute(
                     "ALTER TABLE capabilities ADD COLUMN action_payload_json TEXT"
                 )
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_capability_expiry ON capabilities(expires_at)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_capability_expiry ON capabilities(expires_at)"
+            )
             conn.commit()
 
     @staticmethod
@@ -142,8 +145,12 @@ class CapabilityStore:
             http_method=str(row["http_method"]),
             payload_digest=str(row["payload_digest"]),
             resource_digest=str(row["resource_digest"]),
-            mission_id=str(row["mission_id"]) if row["mission_id"] is not None else None,
-            contract_digest=str(row["contract_digest"]) if row["contract_digest"] is not None else None,
+            mission_id=str(row["mission_id"])
+            if row["mission_id"] is not None
+            else None,
+            contract_digest=str(row["contract_digest"])
+            if row["contract_digest"] is not None
+            else None,
             policy_version=str(row["policy_version"]),
             scope=str(row["scope"]),
             verification_requirement=str(row["verification_requirement"]),
@@ -159,8 +166,12 @@ class CapabilityStore:
                 if row["action_payload_json"] is not None
                 else None
             ),
-            consumed_at=float(row["consumed_at"]) if row["consumed_at"] is not None else None,
-            revoked_at=float(row["revoked_at"]) if row["revoked_at"] is not None else None,
+            consumed_at=float(row["consumed_at"])
+            if row["consumed_at"] is not None
+            else None,
+            revoked_at=float(row["revoked_at"])
+            if row["revoked_at"] is not None
+            else None,
         )
 
     def by_token_digest(self, token_digest: str) -> Capability | None:

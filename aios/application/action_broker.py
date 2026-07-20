@@ -5,6 +5,7 @@ The optional approval-store mode remains only as a compatibility adapter for
 historical unit tests and is never constructed by the production dependency
 graph.
 """
+
 from __future__ import annotations
 
 from dataclasses import replace
@@ -64,7 +65,9 @@ class ActionBroker:
         """
         if self.capabilities is not None:
             if approval_token is not None:
-                raise PolicyBrokerError("legacy approval tokens are not valid in production")
+                raise PolicyBrokerError(
+                    "legacy approval tokens are not valid in production"
+                )
             return self._submit_exact(
                 envelope,
                 capability_token,
@@ -114,7 +117,7 @@ class ActionBroker:
             return decision
         if token:
             try:
-                self.capabilities.consume(token, binding)
+                proof = self.capabilities.consume(token, binding)
             except CapabilityError as exc:
                 raise PolicyBrokerError(str(exc)) from exc
             return replace(
@@ -122,13 +125,16 @@ class ActionBroker:
                 allowed=True,
                 requires_approval=False,
                 reason="exact capability consumed",
+                consumed_capability_proof=proof,
             )
 
         if not decision.requires_approval and not issue_capability:
             return decision
         if issue_capability or decision.requires_approval:
             try:
-                issued = self.capabilities.issue(binding, action_payload=envelope.payload)
+                issued = self.capabilities.issue(
+                    binding, action_payload=envelope.payload
+                )
             except CapabilityError as exc:
                 raise PolicyBrokerError(str(exc)) from exc
             return replace(
@@ -233,7 +239,9 @@ class ActionBroker:
         """Consume a compatibility token for the envelope's session."""
         session_id = envelope.session_id
         if not session_id:
-            raise PolicyBrokerError("session_id is required to consume an approval token")
+            raise PolicyBrokerError(
+                "session_id is required to consume an approval token"
+            )
         try:
             return self.approvals.consume(token, session_id)
         except Exception as exc:  # legacy adapter boundary
@@ -242,7 +250,9 @@ class ActionBroker:
     def _peek_approval_token(self, envelope: ActionEnvelope, token: str) -> Any:
         session_id = envelope.session_id
         if not session_id:
-            raise PolicyBrokerError("session_id is required to inspect an approval token")
+            raise PolicyBrokerError(
+                "session_id is required to inspect an approval token"
+            )
         try:
             return self.approvals.peek(token, session_id)
         except Exception as exc:  # legacy adapter boundary

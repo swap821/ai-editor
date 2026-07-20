@@ -22,6 +22,7 @@ already takes for pending approvals, and this store's fail-soft law is: absent
 or expired state simply means the resumed turn starts with no tail, i.e.
 exactly today's behaviour before this feature existed.
 """
+
 from __future__ import annotations
 
 import threading

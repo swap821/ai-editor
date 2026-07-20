@@ -81,3 +81,4 @@ uvicorn==0.51.0
 watchfiles==1.2.0
 
 # Optional cloud providers: see requirements-optional.txt
+psutil>=6.0

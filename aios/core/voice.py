@@ -4,6 +4,7 @@ Lazily imports heavy audio dependencies only when a voice endpoint is first
 hit. Models auto-download to VOICE_MODELS_DIR on first use. Audio never
 leaves the machine.
 """
+
 from __future__ import annotations
 
 import io
@@ -69,12 +70,15 @@ class STTService:
             if device == "auto":
                 try:
                     import torch
+
                     device = "cuda" if torch.cuda.is_available() else "cpu"
                 except ImportError:
                     device = "cpu"
             logger.info(
                 "Loading whisper model %s (device=%s, compute=%s)",
-                self._model_size, device, self._compute_type,
+                self._model_size,
+                device,
+                self._compute_type,
             )
             self._model = WhisperModel(
                 self._model_size,
@@ -122,8 +126,7 @@ class TTSService:
                 from piper import PiperVoice
             except ImportError as e:
                 raise VoiceError(
-                    "piper-tts not installed; "
-                    "pip install -r requirements-optional.txt"
+                    "piper-tts not installed; pip install -r requirements-optional.txt"
                 ) from e
             self._models_dir.mkdir(parents=True, exist_ok=True)
             model_path = self._models_dir / f"{self._model_name}.onnx"
@@ -190,8 +193,11 @@ class _wav_writer:
         self._buf.write(b"RIFF")
         self._buf.write(struct.pack("<I", 36 + data_size))
         self._buf.write(b"WAVEfmt ")
-        self._buf.write(struct.pack("<IHHIIHH", 16, 1, 1, self._sample_rate,
-                                    self._sample_rate * 2, 2, 16))
+        self._buf.write(
+            struct.pack(
+                "<IHHIIHH", 16, 1, 1, self._sample_rate, self._sample_rate * 2, 2, 16
+            )
+        )
         self._buf.write(b"data")
         self._buf.write(struct.pack("<I", data_size))
 

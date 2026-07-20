@@ -946,6 +946,64 @@ export async function rejectFactProposal(id: number): Promise<boolean> {
   }
 }
 
+/* ------------------------------------------------- living mirror extensions */
+
+export async function fetchHiringProposals(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/hiring/proposals`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchSkills(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/skills`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchMaintenanceFindings(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/maintenance/findings`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchMaintenanceScans(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/maintenance/scans`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Start the trails/metrics poll. Returns a stop function. */
 export function startAiosPolling(intervalMs = 20_000): () => void {
   if (typeof window === 'undefined') return () => undefined;

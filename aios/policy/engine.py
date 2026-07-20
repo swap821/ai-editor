@@ -1,4 +1,5 @@
 """Policy engine — additive-only constraints with queen voting."""
+
 from __future__ import annotations
 
 import hashlib
@@ -35,8 +36,23 @@ class Policy:
     votes: list[PolicyVote]
 
 
-_ADDITIVE_KEYWORDS = ("must", "require", "shall", "forbid", "prevent", "always", "never")
-_REMOVAL_KEYWORDS = ("allow", "permit", "remove restriction", "relax", "disable", "exempt")
+_ADDITIVE_KEYWORDS = (
+    "must",
+    "require",
+    "shall",
+    "forbid",
+    "prevent",
+    "always",
+    "never",
+)
+_REMOVAL_KEYWORDS = (
+    "allow",
+    "permit",
+    "remove restriction",
+    "relax",
+    "disable",
+    "exempt",
+)
 
 
 def _utcnow() -> str:
@@ -84,9 +100,11 @@ class PolicyEngine:
         return int(value) + 1 if value is not None else 1
 
     def _fetch_row(self, policy_id: str) -> sqlite3.Row | None:
-        return self._conn().execute(
-            "SELECT * FROM policies WHERE policy_id = ?", (policy_id,)
-        ).fetchone()
+        return (
+            self._conn()
+            .execute("SELECT * FROM policies WHERE policy_id = ?", (policy_id,))
+            .fetchone()
+        )
 
     def _row_to_policy(self, row: sqlite3.Row) -> Policy:
         votes = [PolicyVote(**vote) for vote in json.loads(row["votes_json"])]
@@ -193,14 +211,20 @@ class PolicyEngine:
         return self.get(policy_id)
 
     def current_policies(self) -> list[Policy]:
-        rows = self._conn().execute(
-            "SELECT * FROM policies WHERE status = ? ORDER BY version",
-            (PolicyStatus.ENACTED.value,),
-        ).fetchall()
+        rows = (
+            self._conn()
+            .execute(
+                "SELECT * FROM policies WHERE status = ? ORDER BY version",
+                (PolicyStatus.ENACTED.value,),
+            )
+            .fetchall()
+        )
         return [self._row_to_policy(row) for row in rows]
 
     def policy_chain(self) -> list[Policy]:
-        rows = self._conn().execute("SELECT * FROM policies ORDER BY version").fetchall()
+        rows = (
+            self._conn().execute("SELECT * FROM policies ORDER BY version").fetchall()
+        )
         return [self._row_to_policy(row) for row in rows]
 
     def get(self, policy_id: str) -> Policy | None:

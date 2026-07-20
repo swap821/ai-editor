@@ -375,10 +375,9 @@ def get_emergency_stop() -> EmergencyStopController:
             from aios.application.missions.mission_service import MissionService
 
             def cancel_queued_work(reason: str = "emergency stop") -> int:
-                return (
-                    MissionService.cancel_registered_queued(reason)
-                    + WorkerScheduler.cancel_queued_registered(reason)
-                )
+                return MissionService.cancel_registered_queued(
+                    reason
+                ) + WorkerScheduler.cancel_queued_registered(reason)
 
             _emergency_stop = EmergencyStopController(
                 hooks=EmergencyStopHooks(
@@ -752,4 +751,558 @@ __all__ = [
     "get_rollback_engine",
     "get_self_apply_engine",
     "get_edit_snapshot",
+    "get_local_workforce_registry",
+    "get_local_workforce_service",
+    "get_hiring_repository",
+    "get_hiring_service",
+    "get_cortex_observation_bus",
+    "get_skill_repository",
+    "get_maintenance_finding_repository",
+    "get_maintenance_scan_repository",
+    "get_maintenance_convergence_service",
+    "get_learning_service",
 ]
+
+
+def get_local_workforce_registry(
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> Any:
+    """Provide the durable Local Workforce Registry (R15)."""
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    return LocalWorkforceRegistry(ollama)
+
+
+def get_local_workforce_service(
+    registry: Any = Depends(get_local_workforce_registry),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> Any:
+    """Provide the application-layer local-workforce orchestration service."""
+    from aios.application.local_workforce.service import LocalWorkforceService
+
+    return LocalWorkforceService(registry=registry, ollama=ollama)
+
+
+def get_hiring_repository() -> Any:
+    """Provide the durable operational hiring-record repository."""
+    from aios.domain.intelligence.repository import HiringRecordRepository
+
+    return HiringRecordRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_cortex_observation_bus() -> Any:
+    """Provide the optional Cortex observation outbox without owning it."""
+    from aios.api.main import get_cortex_bus
+
+    return get_cortex_bus()
+
+
+def get_hiring_service(
+    ollama: Any = Depends(get_ollama_client),
+    bedrock: Any = Depends(get_bedrock_client),
+    gemini: Any = Depends(get_gemini_client),
+    openai: Any = Depends(get_openai_client),
+    anthropic: Any = Depends(get_anthropic_client),
+    repository: Any = Depends(get_hiring_repository),
+    cortex: Any = Depends(get_cortex_observation_bus),
+    policy: Any = Depends(get_policy_kernel),
+) -> Any:
+    """Compose the canonical HiringBroker with injected runtime adapters."""
+    from aios.application.models.hiring_service import (
+        ChatProviderAdapter,
+        IntelligenceHiringService,
+    )
+    from aios.core.router_wiring import _build_providers
+    from aios.domain.intelligence.broker import HiringBroker
+
+    raw_clients = {
+        "ollama": ollama,
+        "bedrock": bedrock,
+        "gemini": gemini,
+        "openai": openai,
+        "anthropic": anthropic,
+    }
+    clients = {
+        name: ChatProviderAdapter(client)
+        for name, client in raw_clients.items()
+        if client is not None
+    }
+    return IntelligenceHiringService(
+        broker=HiringBroker(),
+        providers=_build_providers(
+            ollama,
+            bedrock,
+            gemini,
+            openai=openai,
+            anthropic=anthropic,
+        ),
+        clients=clients,
+        repository=repository,
+        cortex=cortex,
+        policy=policy.router_policy(),
+    )
+
+
+def get_skill_repository() -> Any:
+    """Provide the durable institutional-skill repository."""
+    from aios.domain.learning.repository import SkillRepository
+
+    return SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_maintenance_finding_repository() -> Any:
+    """Provide the durable maintenance-finding repository."""
+    from aios.domain.maintenance.repository import MaintenanceFindingRepository
+
+    return MaintenanceFindingRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+def get_maintenance_scan_repository() -> Any:
+    """Provide the durable bounded-scan metadata repository."""
+    from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
+
+    return MaintenanceScanRepository(config.OPERATIONAL_STATE_DB_PATH)
+
+
+_verification_authority: Optional[Any] = None
+_verification_authority_lock = threading.Lock()
+_promotion_authority: Optional[Any] = None
+_promotion_authority_lock = threading.Lock()
+_maintenance_scanner_registry: Optional[Any] = None
+_maintenance_scanner_registry_lock = threading.Lock()
+_private_executor_service: Optional[Any] = None
+_private_executor_service_lock = threading.Lock()
+_worker_foundry: Optional[Any] = None
+_worker_foundry_lock = threading.Lock()
+
+
+def get_verification_authority() -> Any:
+    """Provide the canonical durable VerificationAuthority instance."""
+    global _verification_authority
+    if _verification_authority is not None:
+        return _verification_authority
+    with _verification_authority_lock:
+        if _verification_authority is None:
+            from aios.application.evidence.verification import VerificationAuthority
+
+            _verification_authority = VerificationAuthority(
+                database_path=config.OPERATIONAL_STATE_DB_PATH
+            )
+    return _verification_authority
+
+
+def get_promotion_authority(
+    verification: Any = Depends(get_verification_authority),
+    emergency_stop: Any = Depends(get_emergency_stop),
+) -> Any:
+    """Provide the canonical durable PromotionAuthority instance."""
+    global _promotion_authority
+    if _promotion_authority is not None:
+        return _promotion_authority
+    with _promotion_authority_lock:
+        if _promotion_authority is None:
+            if verification is None or hasattr(verification, "dependency"):
+                verification = get_verification_authority()
+            if emergency_stop is None or hasattr(emergency_stop, "dependency"):
+                emergency_stop = get_emergency_stop()
+
+            from aios.application.promotion.authority import PromotionAuthority
+            from aios.application.workspaces import StagedWorkspaceManager
+
+            workspace_manager = StagedWorkspaceManager(
+                config.DATA_DIR / "staged_maintenance",
+                enrolled_roots=(config.PROJECT_ROOT,),
+            )
+            _promotion_authority = PromotionAuthority(
+                workspace_manager=workspace_manager,
+                verification=verification,
+                emergency_stop=emergency_stop,
+                database_path=config.OPERATIONAL_STATE_DB_PATH,
+            )
+    return _promotion_authority
+
+
+def get_maintenance_scanner_registry() -> Any:
+    """Provide the canonical VerifierRegistry populated with admitted scanners."""
+    global _maintenance_scanner_registry
+    if _maintenance_scanner_registry is not None:
+        return _maintenance_scanner_registry
+    with _maintenance_scanner_registry_lock:
+        if _maintenance_scanner_registry is None:
+            from aios.application.evidence.verifier_registry import VerifierRegistry
+            from aios.domain.maintenance.scanners import get_admitted_scanners
+
+            _maintenance_scanner_registry = VerifierRegistry(
+                scanner_adapters=get_admitted_scanners()
+            )
+    return _maintenance_scanner_registry
+
+
+def get_promotion_capability_consumer(
+    capability_authority: Any = Depends(get_capability_authority),
+) -> Callable[[Any], bool]:
+    """Provide canonical promotion capability consumer validating PromotionAuthorization proof."""
+
+    def consume(request: Any) -> bool:
+        if not getattr(request, "requires_capability", False):
+            return True
+        authorization = getattr(request, "authorization", None)
+        if authorization is None:
+            return False
+        proof = getattr(authorization, "proof", None)
+        if proof is None:
+            return False
+        if (
+            getattr(proof, "consumed_at", None) is None
+            or getattr(proof, "revoked_at", None) is not None
+        ):
+            return False
+        if getattr(proof, "expires_at", 0) <= getattr(proof, "consumed_at", 0):
+            return False
+        return True
+
+    return consume
+
+
+def _resolve_external_rollback_dir(project_root: Path) -> Path:
+    import os, tempfile
+
+    env_dir = os.environ.get("AIOS_ROLLBACK_DIR")
+    proj_resolved = project_root.resolve()
+    if env_dir:
+        rollback_root = Path(env_dir).expanduser().resolve()
+    else:
+        rollback_root = (config.DATA_DIR / "checkpoints").resolve()
+
+    if rollback_root == proj_resolved:
+        raise ValueError("rollback root cannot equal project root")
+    if rollback_root.is_relative_to(proj_resolved):
+        rollback_root = (
+            Path(tempfile.gettempdir()) / "aios_rollback_checkpoints"
+        ).resolve()
+    if proj_resolved.is_relative_to(rollback_root):
+        raise ValueError("project root cannot be a descendant of rollback root")
+    rollback_root.mkdir(parents=True, exist_ok=True)
+    return rollback_root
+
+
+def get_checkpoint_creator(
+    promotion_authority: Any = Depends(get_promotion_authority),
+) -> Callable[[Any], str]:
+    """Provide canonical restorable checkpoint creator using CheckpointAuthority."""
+
+    def create(request: Any) -> str:
+        from aios.application.promotion.checkpoint import CheckpointAuthority
+
+        def _str(val: Any, default: str) -> str:
+            if isinstance(val, str) and val:
+                return val
+            return default
+
+        project_root = Path(getattr(request, "project_root", "") or "").resolve()
+        authority = CheckpointAuthority(project_root=project_root)
+        manifest = authority.create_checkpoint(
+            mission_id=_str(getattr(request, "mission_id", None), "m-1"),
+            action_id=_str(getattr(request, "action_id", None), "action-1"),
+            worker_id=_str(getattr(request, "worker_id", None), "worker-1"),
+            executor_job_id=_str(getattr(request, "executor_job_id", None), "job-1"),
+            contract_digest=_str(getattr(request, "contract_digest", None), "0" * 64),
+            workspace_digest=_str(getattr(request, "workspace_digest", None), "1" * 64),
+            diff_digest=_str(getattr(request, "diff_digest", None), "2" * 64),
+            affected_paths=tuple(getattr(request, "required_targets", ()) or ()),
+        )
+        return manifest.checkpoint_id
+
+    return create
+
+
+def get_checkpoint_restorer(
+    promotion_authority: Any = Depends(get_promotion_authority),
+) -> Callable[[str, Any], bool]:
+    """Provide canonical restorable checkpoint restorer using CheckpointAuthority."""
+
+    def restore(checkpoint_id: str, request: Any) -> bool:
+        from aios.application.promotion.checkpoint import CheckpointAuthority
+
+        project_root = Path(getattr(request, "project_root", "")).resolve()
+        authority = CheckpointAuthority(project_root=project_root)
+        try:
+            receipt = authority.restore_checkpoint(checkpoint_id)
+            return receipt.status == "RESTORED"
+        except Exception:
+            return False
+
+    return restore
+
+
+def get_promotion_smoke_verifier(
+    promotion_authority: Any = Depends(get_promotion_authority),
+) -> Callable[[Any], bool]:
+    """Provide canonical promotion smoke verifier."""
+
+    def verify_smoke(request: Any) -> bool:
+        project_root = Path(request.project_root).resolve()
+        for target in getattr(request, "required_targets", ()):
+            target_path = project_root / target
+            if not target_path.exists() or not target_path.is_file():
+                return False
+            content = target_path.read_text(encoding="utf-8", errors="replace")
+            if (
+                "DEFECT_MARKER: fix_required" in content
+                or "TODO_MAINTENANCE_DEFECT" in content
+            ):
+                return False
+        return True
+
+    return verify_smoke
+
+
+def get_private_executor_service() -> Any:
+    """Provide the production private ExecutorService backed by StructuredExecutorClient."""
+    global _private_executor_service
+    if _private_executor_service is not None:
+        return _private_executor_service
+    with _private_executor_service_lock:
+        if _private_executor_service is None:
+            from aios.application.executor.service import (
+                ExecutorService,
+                StructuredExecutorClient,
+            )
+
+            profile = os.environ.get("AIOS_PROFILE", "production").strip().lower()
+            client = StructuredExecutorClient(
+                base_url=config.EXECUTOR_URL,
+                token=config.EXECUTOR_TOKEN,
+                timeout_s=config.EXECUTOR_HTTP_TIMEOUT_S,
+            )
+            _private_executor_service = ExecutorService(
+                profile=profile,
+                client=client,
+                backend_name="private_service",
+            )
+    return _private_executor_service
+
+
+def get_worker_foundry(
+    emergency_stop: Any = Depends(get_emergency_stop),
+) -> Any:
+    """Provide the canonical WorkerFoundry with production repair strategy and lifecycle wiring."""
+    global _worker_foundry
+    if _worker_foundry is not None:
+        return _worker_foundry
+    with _worker_foundry_lock:
+        if _worker_foundry is None:
+            if emergency_stop is None or hasattr(emergency_stop, "dependency"):
+                emergency_stop = get_emergency_stop()
+            from aios.application.workers.foundry import WorkerFoundry
+            from aios.application.workers.strategies.code_repair import (
+                ProductionCodeWorkerStrategy,
+            )
+            from aios.application.workspaces import StagedWorkspaceManager
+
+            workspace_manager = StagedWorkspaceManager(
+                config.DATA_DIR / "staged_maintenance",
+                enrolled_roots=(config.PROJECT_ROOT,),
+            )
+            code_strategy = ProductionCodeWorkerStrategy(
+                workspace_manager=workspace_manager
+            )
+            from aios.runtime.spawner import WorkerSpawner
+
+            spawner = WorkerSpawner(runtime_root=config.COUNCIL_RUNTIME_DIR)
+            _worker_foundry = WorkerFoundry(
+                runtime_root=config.PROJECT_ROOT,
+                spawner=spawner,
+                workspace_manager=workspace_manager,
+                emergency_stop=emergency_stop,
+                strategies={"code": code_strategy, "deterministic": code_strategy},
+            )
+    return _worker_foundry
+
+
+def get_learning_service(
+    verification_authority: Any = Depends(get_verification_authority),
+    promotion_authority: Any = Depends(get_promotion_authority),
+    local_workforce_service: Any = Depends(get_local_workforce_service),
+    capability_authority: Any = Depends(get_capability_authority),
+) -> Any:
+    """Provide durable trajectory and skill reuse over canonical mission state."""
+    if verification_authority is None or hasattr(verification_authority, "dependency"):
+        verification_authority = get_verification_authority()
+    if promotion_authority is None or hasattr(promotion_authority, "dependency"):
+        promotion_authority = get_promotion_authority()
+    if local_workforce_service is None or hasattr(
+        local_workforce_service, "dependency"
+    ):
+        local_workforce_service = get_local_workforce_service()
+    if capability_authority is None or hasattr(capability_authority, "dependency"):
+        capability_authority = get_capability_authority()
+
+    from aios.application.learning.service import LearningService
+    from aios.application.missions.mission_service import MissionService
+    from aios.domain.learning.repository import SkillRepository
+    from aios.domain.learning.trajectory_repository import TrajectoryRepository
+    from aios.infrastructure.missions.sqlite_mission_repository import (
+        SqliteMissionRepository,
+    )
+    from aios.policy.kernel import get_policy_kernel
+
+    policy = get_policy_kernel()
+
+    def reuse_policy(skill: Any, _context: dict[str, object]) -> bool:
+        return skill.state == "active" and policy.earned_autonomy_enabled()
+
+    def activation_authorizer(
+        skill: Any,
+        operator_id: str,
+        approval_digest: str,
+        capability_id: str | None = None,
+    ) -> bool:
+        """Fail-closed: any authority failure is a hard refusal — no fallback."""
+        token = capability_id or approval_digest
+        if not token or not operator_id or not capability_id:
+            return False
+        if capability_authority is None or not hasattr(capability_authority, "inspect"):
+            return False
+        try:
+            cap = capability_authority.inspect(token)
+            if cap is None:
+                return False
+            if cap.consumed_at is not None or cap.revoked_at is not None:
+                return False
+            if (
+                cap.binding.payload_digest != approval_digest
+                and cap.binding.action_digest != approval_digest
+            ):
+                return False
+            capability_authority.consume(token, cap.binding)
+            return True
+        except Exception:
+            # Authority failure is a refusal. Never fall through to a length/bool check.
+            return False
+
+    def verification_plan_validator(skill: Any) -> bool:  # noqa: C901
+        from aios.domain.verification import SkillVerifierSpec as _SVS
+
+        _KNOWN_VERIFIER_ID = "skill.reuse"
+        _KNOWN_VERSION = "1"
+        _POLICY_MIN_STRENGTH = 1
+        _FORBIDDEN = frozenset(
+            {
+                "command",
+                "shell",
+                "image",
+                "program",
+                "executable",
+                "argv",
+                "script",
+                "cmd",
+            }
+        )
+
+        plan = getattr(skill, "verification_plan", None)
+
+        if plan is None:
+            return False
+        if isinstance(plan, str):
+            return False
+        if not isinstance(plan, _SVS):
+            return False
+
+        if getattr(plan, "verifier_id", None) != _KNOWN_VERIFIER_ID:
+            return False
+        if getattr(plan, "version", None) != _KNOWN_VERSION:
+            return False
+
+        target_pattern = getattr(plan, "target_pattern", None)
+        if not target_pattern or not isinstance(target_pattern, str):
+            return False
+
+        required_obs = getattr(plan, "required_observations", None)
+        if not required_obs:
+            return False
+
+        min_strength = getattr(plan, "minimum_strength", 0)
+        if not isinstance(min_strength, int) or min_strength < _POLICY_MIN_STRENGTH:
+            return False
+
+        for forbidden in _FORBIDDEN:
+            if getattr(plan, forbidden, None) is not None:
+                return False
+
+        if frozenset(type(plan).model_fields) != frozenset(_SVS.model_fields):
+            return False
+
+        return True
+
+    return LearningService(
+        mission_service=MissionService(
+            SqliteMissionRepository(config.MISSION_STATE_DB)
+        ),
+        trajectory_repository=TrajectoryRepository(config.OPERATIONAL_STATE_DB_PATH),
+        skill_repository=SkillRepository(config.OPERATIONAL_STATE_DB_PATH),
+        activation_authorizer=activation_authorizer,
+        verification_plan_validator=verification_plan_validator,
+        reuse_policy=reuse_policy,
+        verification_authority=verification_authority,
+        promotion_authority=promotion_authority,
+        local_workforce_service=local_workforce_service,
+    )
+
+
+def get_maintenance_convergence_service(
+    verification_authority: Any = Depends(get_verification_authority),
+    promotion_authority: Any = Depends(get_promotion_authority),
+    verifier_registry: Any = Depends(get_maintenance_scanner_registry),
+    executor_service: Any = Depends(get_private_executor_service),
+    worker_foundry: Any = Depends(get_worker_foundry),
+) -> Any:
+    """Provide canonical maintenance scan, repair, verification and rescan service."""
+    if verification_authority is None or hasattr(verification_authority, "dependency"):
+        verification_authority = get_verification_authority()
+    if promotion_authority is None or hasattr(promotion_authority, "dependency"):
+        promotion_authority = get_promotion_authority()
+    if verifier_registry is None or hasattr(verifier_registry, "dependency"):
+        verifier_registry = get_maintenance_scanner_registry()
+    if executor_service is None or hasattr(executor_service, "dependency"):
+        executor_service = get_private_executor_service()
+    if worker_foundry is None or hasattr(worker_foundry, "dependency"):
+        worker_foundry = get_worker_foundry()
+
+    from aios.application.maintenance.service import MaintenanceConvergenceService
+    from aios.application.missions.mission_service import MissionService
+    from aios.application.workspaces import StagedWorkspaceManager
+    from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
+    from aios.domain.maintenance.repository import MaintenanceFindingRepository
+    from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
+    from aios.infrastructure.missions.sqlite_mission_repository import (
+        SqliteMissionRepository,
+    )
+
+    workspace_manager = getattr(promotion_authority, "workspace_manager", None)
+    if workspace_manager is None:
+        workspace_manager = StagedWorkspaceManager(
+            config.DATA_DIR / "staged_maintenance",
+            enrolled_roots=(config.PROJECT_ROOT,),
+        )
+
+    mission_service = MissionService(
+        SqliteMissionRepository(config.MISSION_STATE_DB),
+        workspace_manager=workspace_manager,
+    )
+    lifecycle_engine = MaintenanceLifecycleEngine()
+
+    return MaintenanceConvergenceService(
+        finding_repository=MaintenanceFindingRepository(
+            config.OPERATIONAL_STATE_DB_PATH
+        ),
+        scan_repository=MaintenanceScanRepository(config.OPERATIONAL_STATE_DB_PATH),
+        mission_service=mission_service,
+        worker_foundry=worker_foundry,
+        executor_service=executor_service,
+        verifier_registry=verifier_registry,
+        verification_authority=verification_authority,
+        promotion_authority=promotion_authority,
+        workspace_manager=workspace_manager,
+        lifecycle_engine=lifecycle_engine,
+    )

@@ -64,6 +64,7 @@ class WorkerFoundry:
         max_per_mission: int = 1,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve() if runtime_root else None
+        self.spawner = spawner
         self.scheduler = scheduler or WorkerScheduler(
             max_active=max_active,
             max_per_mission=max_per_mission,
@@ -104,6 +105,7 @@ class WorkerFoundry:
         aliases = {
             # Existing Council Runtime names are explicit strategy aliases,
             # not a permissive unknown-strategy fallback.
+            "code": "deterministic",
             "hybrid_plan_worker": "deterministic",
             "deterministic_worker": "deterministic",
             "tool_agent": "tool_loop",
@@ -111,8 +113,10 @@ class WorkerFoundry:
             "role_pass_worker": "role_pass",
             "swarm_worker": "swarm",
         }
-        key = aliases.get(key, key)
         selected = self._strategies.get(key)
+        if selected is None:
+            aliased_key = aliases.get(key, key)
+            selected = self._strategies.get(aliased_key)
         if selected is None:
             raise UnknownWorkerStrategy(key)
         return selected

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import HUDPanel from '../components/HUDPanel';
 
 export default function MemoryBrowser({ onClose }) {
@@ -26,7 +26,7 @@ export default function MemoryBrowser({ onClose }) {
         const parsed = content.trim().split('\n').filter(Boolean).map(line => {
           try {
             return JSON.parse(line);
-          } catch (e) {
+          } catch {
             return null;
           }
         }).filter(Boolean);

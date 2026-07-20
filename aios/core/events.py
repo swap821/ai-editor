@@ -259,7 +259,9 @@ class CanonicalEvent:
             event_id=data.get("eventId", str(uuid.uuid4())),
             sequence=int(data.get("sequence", 0)),
             event_type=str(data["eventType"]),
-            occurred_at=str(data.get("occurredAt", datetime.now(timezone.utc).isoformat())),
+            occurred_at=str(
+                data.get("occurredAt", datetime.now(timezone.utc).isoformat())
+            ),
             source=str(data["source"]),
             session_id=str(data["sessionId"]),
             turn_id=data.get("turnId"),
@@ -280,7 +282,7 @@ class CanonicalEvent:
             "schemaVersion": self.schema_version,
             "eventId": self.event_id,
             "seq": self.sequence,
-            "type": self.event_type, # Using 'type' for older SSE listeners if they look here
+            "type": self.event_type,  # Using 'type' for older SSE listeners if they look here
             "eventType": self.event_type,
             "timestamp": self.occurred_at,
             "source": self.source,
@@ -294,4 +296,3 @@ class CanonicalEvent:
             "payload": self.payload,
             "evidenceRefs": self.evidence_refs,
         }
-

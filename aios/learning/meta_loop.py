@@ -3,6 +3,7 @@
 This module summarizes existing evidence into review proposals. It does not
 call models, mutate stores, apply code, change policy, or authorize actions.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -113,7 +114,9 @@ def collect_meta_loop_evidence(
     policies: Sequence[Any] = ()
     if policy_engine is not None:
         policies = tuple(policy_engine.policy_chain())
-    hibernation = _to_mapping(hibernation_report) if hibernation_report is not None else None
+    hibernation = (
+        _to_mapping(hibernation_report) if hibernation_report is not None else None
+    )
     return MetaLoopSnapshot(
         reflections=tuple(_mapping_items(reflections)),
         mistakes=tuple(_mapping_items(mistakes)),
@@ -176,8 +179,12 @@ def _mistake_source(items: Sequence[Mapping[str, Any]]) -> MetaLoopSource:
     return MetaLoopSource(
         name="mistake",
         count=len(items),
-        status="recurring_lessons" if recurring else ("available" if items else "empty"),
-        highlights=_highlights(recurring or items, ("lesson_text", "error_type", "root_cause")),
+        status="recurring_lessons"
+        if recurring
+        else ("available" if items else "empty"),
+        highlights=_highlights(
+            recurring or items, ("lesson_text", "error_type", "root_cause")
+        ),
     )
 
 
@@ -188,13 +195,17 @@ def _skill_source(items: Sequence[Mapping[str, Any]]) -> MetaLoopSource:
     return MetaLoopSource(
         name="skill",
         count=len(items),
-        status="candidates_need_review" if candidates else ("available" if items else "empty"),
+        status="candidates_need_review"
+        if candidates
+        else ("available" if items else "empty"),
         highlights=_highlights(candidates or items, ("goal_pattern", "status")),
     )
 
 
 def _audit_source(items: Sequence[Mapping[str, Any]]) -> MetaLoopSource:
-    risky = [item for item in items if str(item.get("risk", "")).upper() in {"YELLOW", "RED"}]
+    risky = [
+        item for item in items if str(item.get("risk", "")).upper() in {"YELLOW", "RED"}
+    ]
     return MetaLoopSource(
         name="audit",
         count=len(items),
@@ -219,12 +230,18 @@ def _hibernation_source(item: Mapping[str, Any] | None) -> MetaLoopSource:
     proposals = item.get("proposals", [])
     count = len(proposals) if isinstance(proposals, list) else 1
     status = "unsafe_evidence" if _hibernation_unsafe(item) else "local_preview"
-    highlights = [_clean(value) for value in proposals[:3]] if isinstance(proposals, list) else []
+    highlights = (
+        [_clean(value) for value in proposals[:3]]
+        if isinstance(proposals, list)
+        else []
+    )
     return MetaLoopSource("hibernation", count, status, highlights)
 
 
 def _council_source(items: Sequence[Mapping[str, Any]]) -> MetaLoopSource:
-    risky = [item for item in items if str(item.get("risk", "")).upper() in {"YELLOW", "RED"}]
+    risky = [
+        item for item in items if str(item.get("risk", "")).upper() in {"YELLOW", "RED"}
+    ]
     return MetaLoopSource(
         name="council",
         count=len(items),
@@ -254,7 +271,9 @@ def _proposals(snapshot: MetaLoopSnapshot) -> list[MetaLoopProposal]:
                 evidence_sources=["mistake"],
             )
         )
-    if any(str(item.get("status", "")).lower() != "verified" for item in snapshot.skills):
+    if any(
+        str(item.get("status", "")).lower() != "verified" for item in snapshot.skills
+    ):
         proposals.append(
             MetaLoopProposal(
                 kind="skill_review",
@@ -263,7 +282,10 @@ def _proposals(snapshot: MetaLoopSnapshot) -> list[MetaLoopProposal]:
                 evidence_sources=["skill"],
             )
         )
-    if any(str(item.get("risk", "")).upper() in {"YELLOW", "RED"} for item in snapshot.audit_events):
+    if any(
+        str(item.get("risk", "")).upper() in {"YELLOW", "RED"}
+        for item in snapshot.audit_events
+    ):
         proposals.append(
             MetaLoopProposal(
                 kind="audit_review",
@@ -321,7 +343,9 @@ def _hibernation_unsafe(item: Mapping[str, Any]) -> bool:
 
 
 def _policy_status(item: Any) -> str:
-    status = item.get("status") if isinstance(item, Mapping) else getattr(item, "status", "")
+    status = (
+        item.get("status") if isinstance(item, Mapping) else getattr(item, "status", "")
+    )
     if isinstance(status, Enum):
         return str(status.value).lower()
     return str(status).lower()

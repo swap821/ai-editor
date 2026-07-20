@@ -6,6 +6,7 @@ and the :class:`sqlite3.Row` factory are applied uniformly. The schema is
 defined declaratively in ``schema.sql`` and applied idempotently by
 :func:`init_memory_db`.
 """
+
 from __future__ import annotations
 
 import functools
@@ -185,7 +186,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
     # Semantic memories originally stored only text/vector ids. Add lifecycle
     # metadata, backfill stable hashes, and merge exact normalized duplicates.
-    semantic_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_memory)")}
+    semantic_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(semantic_memory)")
+    }
     semantic_additions = {
         "content_hash": "TEXT",
         "memory_type": "TEXT NOT NULL DEFAULT 'chat'",
@@ -237,7 +240,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
     # Procedural skills: trail mechanics (arc-level signature_v2 + reuse
     # pheromone columns), backfill, and consolidation of fragmented trails.
-    skill_cols = {row[1] for row in conn.execute("PRAGMA table_info(procedural_skills)")}
+    skill_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(procedural_skills)")
+    }
     skill_additions = {
         "signature_v2": "TEXT",
         "reuse_success_count": "INTEGER NOT NULL DEFAULT 0",

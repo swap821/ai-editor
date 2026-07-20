@@ -5,6 +5,7 @@ Queens") optionally consults an injected LLM to propose a real plan — but that
 plan is reconciled narrow-only (see aios.council.reasoning), so reasoning can
 make a mission more cautious/detailed and never escalate privilege.
 """
+
 from __future__ import annotations
 
 import logging
@@ -33,7 +34,12 @@ class CouncilMissionRequest:
         default_factory=lambda: ["backend/", ".env", "aios/security/"]
     )
     allowed_tools: list[str] = field(
-        default_factory=lambda: ["request_plan", "read_file", "write_file", "run_command"]
+        default_factory=lambda: [
+            "request_plan",
+            "read_file",
+            "write_file",
+            "run_command",
+        ]
     )
     forbidden_tools: list[str] = field(default_factory=list)
     verification_commands: list[str] = field(default_factory=list)
@@ -123,8 +129,13 @@ class PlannerQueen:
         elif not contract.verification_commands:
             verdict = "defer"
             risk = "YELLOW"
-            reason = "Planner cannot spawn a worker without explicit verification commands."
-            constraints = [*constraints, "Add at least one verification command before worker birth."]
+            reason = (
+                "Planner cannot spawn a worker without explicit verification commands."
+            )
+            constraints = [
+                *constraints,
+                "Add at least one verification command before worker birth.",
+            ]
 
         return PlannerDraft(
             contract=contract,

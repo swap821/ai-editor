@@ -7,6 +7,7 @@ JSON artifacts. Schema follows the sovereign roadmap (Phase 3A).
 This store is additive: callers treat persistence as best-effort. It never holds
 authority and never blocks a mission.
 """
+
 from __future__ import annotations
 
 import json

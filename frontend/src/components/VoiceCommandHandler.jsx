@@ -36,14 +36,14 @@ export default function VoiceCommandHandler({ onCommand, isListening, language =
 
     try {
       recognition.start();
-    } catch (e) {
-      console.error('[VoiceCommandHandler] Failed to start recognition', e);
+    } catch (error) {
+      console.error('[VoiceCommandHandler] Failed to start recognition', error);
     }
 
     return () => {
       try {
         recognition.stop();
-      } catch (e) {
+      } catch {
         // ignore
       }
     };

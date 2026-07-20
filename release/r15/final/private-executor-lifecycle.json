@@ -1,0 +1,117 @@
+{
+  "checkpoint_manifest": {
+    "action_id": "a-r15-proof-1",
+    "affected_paths": [
+      {
+        "before_sha256": "3a6449e50411feba22daf4b70d9c3333f9596f5dcdc698160cb2be1a6b01a1a0",
+        "classification": "modified",
+        "existed_before": true,
+        "mode": 33206,
+        "object_type": "file",
+        "rel_path": "target.py"
+      }
+    ],
+    "authority_key_id": "checkpoint-key-v1",
+    "checkpoint_id": "chk-m-r15-proof-1-00000000-1784554386987535700",
+    "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "created_at": 1784554386.9917338,
+    "diff_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "executor_job_id": "j-r15-proof-1",
+    "manifest_digest": "cd52f4181784ae74a659dd14aede77fc8661cb7b3812f096e85968f06c6dbb33",
+    "mission_id": "m-r15-proof-1",
+    "project_root_identity": "12cc525375a5cbe5407ed75048f2f91b0bb19d9a1a3ccbf2243e01d0182a67a6",
+    "signature": "496abe6b56a55ca4e926ebf231413471720e00761fafc723e27905cfcc9273f1",
+    "state": "created",
+    "worker_id": "w-r15-proof-1",
+    "workspace_digest": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "consumed_capability_proof": {
+    "action_type": "MAINTENANCE_REPAIR_RUN",
+    "authentication_event_id": "auth-r15-1",
+    "capability_id": "capability:e81b31376d744b749c2647f0e3441f16",
+    "consumed_at": 1784554386.9696972,
+    "contract_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "device_id": "dev-r15-1",
+    "expires_at": 1784554506.9471843,
+    "http_method": "POST",
+    "mission_id": "m-r15-proof-1",
+    "operator_id": "op-r15-1",
+    "payload_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "policy_version": "1.0",
+    "resource_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+    "revoked_at": null,
+    "route": "/api/v1/maintenance/repairs/run",
+    "scope": "MAINTENANCE",
+    "session_id": "sess-r15-1",
+    "token_digest": "2b7feb26e2d49fedc37bbfaa3b998d5b49a728e10ba62b59bb646e6615fd0a9a",
+    "verification_requirement": "STRONG"
+  },
+  "evidence_type": "private_executor_lifecycle",
+  "executor_repair_receipt": {
+    "after_target_digest": "09cb83f3226cc5ad22a7e364b41384600e764eae863a3887dcd980bf1b2ad835",
+    "before_target_digest": "ff37263858bc999077cef1fab1a07227bc94ee29269ac665e8a2cb175fce54af",
+    "changed": true,
+    "ended_timestamp": "2026-07-20T12:00:01Z",
+    "environment_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "executor_service_identity_version": "1.0.0",
+    "exit_code": 0,
+    "isolation_backend": "private_executor_v1",
+    "job_id": "j-r15-proof-1",
+    "mission_contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "operation_id": "MAINTENANCE_REPAIR_V1",
+    "receipt_version": "1.0",
+    "started_timestamp": "2026-07-20T12:00:00Z",
+    "target": "target.py",
+    "workspace_digest_after": "2222222222222222222222222222222222222222222222222222222222222222",
+    "workspace_digest_before": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "post_promotion_verification_receipt": {
+    "action_id": "a-r15-proof-1",
+    "diff_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "environment_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "evidence_ids": [
+      "ev-proof-1"
+    ],
+    "executor_job_id": "j-r15-proof-1",
+    "mission_id": "m-r15-proof-1",
+    "observation_time": 1784554386.9936414,
+    "passed": true,
+    "project_digest": "12cc525375a5cbe5407ed75048f2f91b0bb19d9a1a3ccbf2243e01d0182a67a6",
+    "promotion_id": "promo-r15-proof-1",
+    "verifier_id": "verifier_v1",
+    "verifier_version": "1.0",
+    "worker_id": "w-r15-proof-1"
+  },
+  "provenance": {
+    "action_id": "a-r15-proof-1",
+    "contract_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "diff_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "environment_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "executor_job_id": "j-r15-proof-1",
+    "isolation_backend": "private_executor_v1",
+    "job_id": "j-r15-proof-1",
+    "mission_id": "m-r15-proof-1",
+    "timestamp": "2026-07-20T12:00:01Z",
+    "verifier_id": "verifier_v1",
+    "verifier_version": "1.0",
+    "worker_id": "w-r15-proof-1",
+    "workspace_digest": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "rollback_receipt": {
+    "affected_paths": [
+      "target.py"
+    ],
+    "after_digests": {
+      "target.py": "3a6449e50411feba22daf4b70d9c3333f9596f5dcdc698160cb2be1a6b01a1a0"
+    },
+    "before_digests": {
+      "target.py": "0abd5f767958622111305e762cd7493e10951a8aaa9378f57d99bac9545caf2d"
+    },
+    "checkpoint_id": "chk-m-r15-proof-1-00000000-1784554386987535700",
+    "created_at": 1784554387.0224216,
+    "evidence_id": "rollback-receipt-1843663097b73159",
+    "project_root_identity": "12cc525375a5cbe5407ed75048f2f91b0bb19d9a1a3ccbf2243e01d0182a67a6",
+    "status": "RESTORED"
+  },
+  "verdict": "PASS"
+}

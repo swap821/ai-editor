@@ -1,4 +1,5 @@
 """Restore-capable Council Runtime snapshots."""
+
 from __future__ import annotations
 
 import hashlib
@@ -25,6 +26,7 @@ class SnapshotManager:
 
     def __init__(self, runtime_root: str | Path) -> None:
         from aios.runtime import _safe_resolve
+
         self.runtime_root = _safe_resolve(runtime_root)
         self.snapshot_dir = self.runtime_root / "snapshots"
 
@@ -68,6 +70,7 @@ class SnapshotManager:
         """
         key = hashlib.sha256(str(workspace_root).encode("utf-8")).hexdigest()[:16]
         from aios.security.path_sanitizer import sanitize_path
+
         base = self.runtime_root / "rollback_git"
         git_dir = sanitize_path(base, key)
         pointer = workspace_root / ".git"
@@ -83,7 +86,7 @@ class SnapshotManager:
                 raise RollbackError(
                     "Council rollback refused: workspace .git pointer is malformed"
                 )
-            target = Path(text[len(prefix):].strip())
+            target = Path(text[len(prefix) :].strip())
             if not target.is_absolute():
                 target = (workspace_root / target).resolve()
             if target.resolve() != git_dir:

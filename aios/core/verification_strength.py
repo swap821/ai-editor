@@ -7,6 +7,7 @@ strength levels, a deterministic + COMMAND-AWARE derivation (so a command merely
 printing "5 passed" cannot forge STRONG — STRONG requires a recognized test
 runner), and the promotion gate other learning sites consult.
 """
+
 from __future__ import annotations
 
 import re
@@ -18,8 +19,8 @@ from aios import config
 class VerificationStrength(IntEnum):
     """Ordered evidence strength. Higher binds the future; lower may not."""
 
-    NONE = 0    # failed / blocked / un-runnable — proves nothing
-    WEAK = 1    # exit 0 only — ran and returned zero, asserted no behavior
+    NONE = 0  # failed / blocked / un-runnable — proves nothing
+    WEAK = 1  # exit 0 only — ran and returned zero, asserted no behavior
     MEDIUM = 2  # a recognized checker passed (typecheck/lint) — not a behavior suite
     STRONG = 3  # a recognized test runner asserted passing behavior
 
@@ -190,7 +191,9 @@ def promotion_floor() -> VerificationStrength:
     A floor below WEAK (e.g. ``NONE`` — which would admit failed verifications)
     is clamped to STRONG: misconfiguration can only ever make the gate STRICTER.
     """
-    floor = strength_from_name(config.VERIFICATION_PROMOTION_FLOOR, VerificationStrength.STRONG)
+    floor = strength_from_name(
+        config.VERIFICATION_PROMOTION_FLOOR, VerificationStrength.STRONG
+    )
     return floor if floor >= VerificationStrength.WEAK else VerificationStrength.STRONG
 
 

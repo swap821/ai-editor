@@ -3,6 +3,7 @@
 This Queen does not call external models. It inspects mission metadata for prior
 failures and current risk, then adds strengthen-only constraints.
 """
+
 from __future__ import annotations
 
 from aios.runtime.contracts import MissionContract, QueenEvidence, QueenVerdict
@@ -56,8 +57,13 @@ class ReflectionQueen:
             recommended_worker_strategy=None,
             unresolved_questions=[
                 "Have prior failures for this mission pattern been reviewed by the operator?"
-            ] if prior_failures > 0 else [],
-            metadata={"prior_failures": prior_failures, "patterns": list(prior_patterns)},
+            ]
+            if prior_failures > 0
+            else [],
+            metadata={
+                "prior_failures": prior_failures,
+                "patterns": list(prior_patterns),
+            },
         )
 
 

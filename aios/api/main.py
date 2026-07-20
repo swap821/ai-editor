@@ -389,6 +389,10 @@ from aios.api.routes.execution_debugger import router as _execution_debugger_rou
 from aios.api.routes.v10 import router as _v10_router
 from aios.api.routes.mirror import router as _mirror_router
 from aios.api.routes.governance import router as _governance_router
+from aios.api.routes.local_workforce import router as _local_workforce_router
+from aios.api.routes.hiring import router as _hiring_router
+from aios.api.routes.skills import router as _skills_router
+from aios.api.routes.maintenance import router as _maintenance_router
 
 app.include_router(_system_router)
 app.include_router(_auth_router)
@@ -406,6 +410,10 @@ app.include_router(_execution_debugger_router)
 app.include_router(_v10_router)
 app.include_router(_mirror_router)
 app.include_router(_governance_router)
+app.include_router(_local_workforce_router)
+app.include_router(_hiring_router)
+app.include_router(_skills_router)
+app.include_router(_maintenance_router)
 
 
 @app.middleware("http")

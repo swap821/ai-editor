@@ -201,9 +201,7 @@ class SessionManager:
         """Remove expired sessions. Best-effort; never raises."""
         if time.time() - self._last_cleanup < self._cleanup_interval:
             return
-        expired = [
-            h for h, s in self._sessions.items() if s.is_expired(self._max_age)
-        ]
+        expired = [h for h, s in self._sessions.items() if s.is_expired(self._max_age)]
         for h in expired:
             del self._sessions[h]
             self._delete_session(h)

@@ -14,6 +14,7 @@ config and each safe to run as a dry-run preview first:
 Every real (non-dry-run) compaction writes one audit entry under actor
 ``sleep-consolidation`` summarising the batch.
 """
+
 from __future__ import annotations
 
 import json
@@ -129,9 +130,7 @@ class MemoryCompactor:
         count = self._preview_episodic(conn)
         if count and not dry_run:
             cutoff = self._old_episodic_cutoff()
-            conn.execute(
-                "DELETE FROM episodic_memory WHERE timestamp < ?", (cutoff,)
-            )
+            conn.execute("DELETE FROM episodic_memory WHERE timestamp < ?", (cutoff,))
         return count
 
     # --------------------------------------------------------------------- #
@@ -168,9 +167,7 @@ class MemoryCompactor:
             ids.extend(int(r["id"]) for r in rows)
         return ids
 
-    def _preview_semantic(
-        self, conn: Any
-    ) -> tuple[list[int], dict[str, int]]:
+    def _preview_semantic(self, conn: Any) -> tuple[list[int], dict[str, int]]:
         old_chat = self._old_unverified_chat_ids(conn)
         cap_ids = self._per_type_cap_ids(conn)
         # Avoid double-counting ids that appear in both sets.

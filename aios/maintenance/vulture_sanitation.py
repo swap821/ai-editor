@@ -5,6 +5,7 @@ dangerous lessons, prompt-injection phrases, unsafe autonomy claims, and secret
 material, but every result is proposal/evidence only. It performs no writes,
 cloud calls, memory compaction, pheromone decay, policy mutation, or deletion.
 """
+
 from __future__ import annotations
 
 import ast

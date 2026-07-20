@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aios.domain.verification import SkillVerifierSpec, VerifierSpec
 from aios.domain.missions.mission_state import MissionState
 
 RiskLevel = str  # "GREEN" | "YELLOW" | "RED"
@@ -31,6 +32,7 @@ class VerificationPlan(BaseModel):
 
     required_strength: str = "none"  # none | weak | moderate | strong
     commands: list[str] = Field(default_factory=list)
+    verifiers: tuple[VerifierSpec | SkillVerifierSpec, ...] = ()
     expected_output_fragments: list[str] = Field(default_factory=list)
     forbidden_output_fragments: list[str] = Field(default_factory=list)
 

@@ -258,9 +258,7 @@ class CouncilOrchestrator:
                 adapters.get("council") if isinstance(adapters, dict) else None
             )
             if getattr(council_adapter, "store", None) is not self.council_memory:
-                raise RuntimeError(
-                    "scoped CouncilMemory authority adapter is required"
-                )
+                raise RuntimeError("scoped CouncilMemory authority adapter is required")
         self.pheromone_store = pheromone_store
         if (
             self.pheromone_store is None

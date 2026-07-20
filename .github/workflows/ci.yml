@@ -47,6 +47,10 @@ jobs:
         run: python -m pip_audit -r requirements.txt
 
       - name: Run test suite with coverage gate
+        env:
+          AIOS_VERIFICATION_AUTHORITY_KEY: "ci-verification-authority-key-32-bytes-long!"
+          AIOS_PROMOTION_AUTHORITY_KEY: "ci-promotion-authority-key-32-bytes-long!!"
+          CHECKPOINT_AUTHORITY_KEY: "ci-checkpoint-authority-key-32-bytes-long!"
         run: python -m pytest -q --cov=aios --cov-report=term-missing --cov-report=xml --cov-fail-under=85
 
   backend:
@@ -225,6 +229,9 @@ jobs:
         env:
           AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
           AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_VERIFICATION_AUTHORITY_KEY: "ci-verification-authority-key-32-bytes-long!"
+          AIOS_PROMOTION_AUTHORITY_KEY: "ci-promotion-authority-key-32-bytes-long!!"
+          CHECKPOINT_AUTHORITY_KEY: "ci-checkpoint-authority-key-32-bytes-long!"
           AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
           AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
           AIOS_PROFILE: production

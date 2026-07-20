@@ -4,6 +4,7 @@ This store is intentionally a registry.  It records the authority metadata
 and content references while the existing specialized memory stores keep their
 own physical representations and derived indexes.
 """
+
 from __future__ import annotations
 
 import json
@@ -117,7 +118,9 @@ class MemoryAuthorityStore:
             if existing is not None:
                 current = self._proposal_from_row(existing)
                 if current != proposal:
-                    raise ValueError("proposal id already exists with different content")
+                    raise ValueError(
+                        "proposal id already exists with different content"
+                    )
                 return current
             conn.execute(
                 """
@@ -240,7 +243,9 @@ class MemoryAuthorityStore:
         """Read only current indexed records; no history scan is required."""
         clauses = ["status = ?"]
         params: list[object] = [
-            MemoryStatus.SUPERSEDED.value if include_superseded else MemoryStatus.VERIFIED.value
+            MemoryStatus.SUPERSEDED.value
+            if include_superseded
+            else MemoryStatus.VERIFIED.value
         ]
         if project_id is None:
             clauses.append("project_id IS NULL")
@@ -275,7 +280,9 @@ class MemoryAuthorityStore:
             if current is None or replacement is None:
                 raise ValueError("both memory records are required for supersession")
             if current["project_id"] != replacement["project_id"]:
-                raise ValueError("memory records from different projects cannot supersede")
+                raise ValueError(
+                    "memory records from different projects cannot supersede"
+                )
             conn.execute(
                 "UPDATE memory_authority_records SET status = ? WHERE record_id = ?",
                 (MemoryStatus.SUPERSEDED.value, record_id),

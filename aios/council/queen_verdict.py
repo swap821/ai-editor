@@ -1,4 +1,5 @@
 """Helpers for working with Council Runtime queen verdicts."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable

@@ -6,6 +6,7 @@ both recency (``recent``) and time-window filtering (``since``), backed by the
 ``idx_episodic_session`` and ``idx_episodic_time`` indexes. Legacy raw session
 ids remain readable during the transition.
 """
+
 from __future__ import annotations
 
 import hashlib

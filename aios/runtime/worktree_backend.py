@@ -1,4 +1,5 @@
 """Git worktree backend for true parallel worker filesystem lanes."""
+
 from __future__ import annotations
 
 import re

@@ -1,4 +1,5 @@
 """Secret isolation policy for Council Runtime workers and reasoning calls."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

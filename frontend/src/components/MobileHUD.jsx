@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * MobileHUD wraps the main Superbrain chrome on smaller screens
  * to provide a simplified, touch-friendly UI.

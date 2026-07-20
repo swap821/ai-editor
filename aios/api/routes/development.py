@@ -5,6 +5,7 @@ APIRouter module. Dependency providers come from ``aios.api.deps`` — the SAME
 function objects ``main`` re-exports, so ``app.dependency_overrides`` keyed on
 either import path keep working.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -138,14 +139,18 @@ def development_harness() -> dict[str, Any]:
                 "runs": len(summaries),
                 "latest_success_rate": latest.get("success_rate", 0),
                 "total_sessions": sum(s.get("total", 0) for s in summaries),
-                "status": "green" if latest.get("success_rate", 0) >= 0.7 else "needs_attention",
+                "status": "green"
+                if latest.get("success_rate", 0) >= 0.7
+                else "needs_attention",
             }
         elif name == "golden":
             result[name] = {
                 "runs": len(summaries),
                 "latest_pass_rate": latest.get("rate", 0),
                 "total_missions": latest.get("total", 0),
-                "status": "green" if latest.get("rate", 0) >= 0.8 else "needs_attention",
+                "status": "green"
+                if latest.get("rate", 0) >= 0.8
+                else "needs_attention",
             }
         elif name == "endurance":
             result[name] = {
@@ -172,11 +177,24 @@ def development_workspace() -> dict[str, Any]:
 
     root = Path(config.PROJECT_ROOT) / "training_ground"
     text_exts = {
-        ".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".json",
-        ".md", ".txt", ".sh", ".yml", ".yaml", ".toml",
+        ".py",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".html",
+        ".css",
+        ".json",
+        ".md",
+        ".txt",
+        ".sh",
+        ".yml",
+        ".yaml",
+        ".toml",
     }
     files: list[dict[str, str]] = []
     if root.is_dir():
+
         def _mtime(path: Path) -> float:
             try:
                 return path.stat().st_mtime
@@ -184,7 +202,8 @@ def development_workspace() -> dict[str, Any]:
                 return 0.0
 
         candidates = [
-            p for p in root.rglob("*")
+            p
+            for p in root.rglob("*")
             if p.is_file()
             and "__pycache__" not in p.parts
             and p.suffix.lower() in text_exts
@@ -256,6 +275,7 @@ def curriculum_proposals(
 ) -> dict[str, Any]:
     """List auto-generated curriculum proposals from audit evidence."""
     from aios.memory.curriculum_miner import CurriculumMiner
+
     miner = CurriculumMiner()
     proposals = miner.list_proposals(max_proposals=max_proposals)
     return {
@@ -285,6 +305,7 @@ def accept_curriculum_proposal(
     if not fingerprint:
         raise HTTPException(status_code=422, detail="fingerprint required")
     from aios.memory.curriculum_miner import CurriculumMiner
+
     miner = CurriculumMiner()
     proposals = miner.list_proposals(max_proposals=50)
     match = next((p for p in proposals if p.fingerprint == fingerprint), None)

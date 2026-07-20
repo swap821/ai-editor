@@ -1,4 +1,5 @@
 """Immutable contracts for governed local/cloud intelligence."""
+
 from __future__ import annotations
 
 import hashlib
@@ -42,12 +43,13 @@ class ModelCallRequest(BaseModel):
     request_id: str
     principal_id: str
     mission_id: str | None = None
+    turn_id: str | None = None
     purpose: str
     prompt: str
     data_classification: DataClassification
     policy: PrivacyPolicy = Field(default_factory=PrivacyPolicy)
     task: str = "general"
-    max_tokens: int = 1500
+    max_tokens: int = Field(default=1500, gt=0)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -74,6 +76,7 @@ class ModelCallRecord(BaseModel):
     request_id: str
     principal_id: str
     mission_id: str | None = None
+    turn_id: str | None = None
     purpose: str
     data_classification: DataClassification
     redactions: tuple[str, ...] = ()
@@ -83,6 +86,7 @@ class ModelCallRecord(BaseModel):
     local_cloud_decision: str
     fallback: str | None = None
     estimated_tokens: int = 0
+    requested_max_tokens: int = 1500
     actual_tokens: int = 0
     cost: float | None = None
     latency_ms: int | None = None

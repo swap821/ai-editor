@@ -4,6 +4,7 @@ The scheduler is an application primitive, not a second authority system.  It
 only decides when an already-admitted strategy may run.  Policy, capability,
 scope, isolation and verification remain owned by their existing authorities.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -109,7 +110,9 @@ class WorkerScheduler:
             if not ticket.future.done():
                 ticket.future.set_exception(WorkerCancelledError(reason))
             self._tickets.pop(worker_id, None)
-            self._queue = [item for item in self._queue if item.spec.worker_id != worker_id]
+            self._queue = [
+                item for item in self._queue if item.spec.worker_id != worker_id
+            ]
             heapq.heapify(self._queue)
             self._pump()
             return True
@@ -127,26 +130,26 @@ class WorkerScheduler:
     def cancel_queued(self, reason: str = "emergency stop") -> int:
         """Cancel only workers that have not started."""
         return sum(
-            1
-            for worker_id in tuple(self._tickets)
-            if self.cancel(worker_id, reason)
+            1 for worker_id in tuple(self._tickets) if self.cancel(worker_id, reason)
         )
 
     def cancel_active(self, reason: str = "emergency stop") -> int:
         """Cancel only workers already running."""
         return sum(
-            1
-            for worker_id in tuple(self._active)
-            if self.cancel(worker_id, reason)
+            1 for worker_id in tuple(self._active) if self.cancel(worker_id, reason)
         )
 
     @classmethod
     def cancel_queued_registered(cls, reason: str = "emergency stop") -> int:
-        return sum(scheduler.cancel_queued(reason) for scheduler in tuple(cls._instances))
+        return sum(
+            scheduler.cancel_queued(reason) for scheduler in tuple(cls._instances)
+        )
 
     @classmethod
     def cancel_active_registered(cls, reason: str = "emergency stop") -> int:
-        return sum(scheduler.cancel_active(reason) for scheduler in tuple(cls._instances))
+        return sum(
+            scheduler.cancel_active(reason) for scheduler in tuple(cls._instances)
+        )
 
     def snapshot(self) -> SchedulerSnapshot:
         return SchedulerSnapshot(
@@ -175,10 +178,7 @@ class WorkerScheduler:
 
     def _next_admissible_index(self) -> int | None:
         for ticket in sorted(self._queue):
-            if (
-                self._active_by_mission[ticket.spec.mission_id]
-                < self.max_per_mission
-            ):
+            if self._active_by_mission[ticket.spec.mission_id] < self.max_per_mission:
                 return self._queue.index(ticket)
         return None
 
@@ -189,7 +189,9 @@ class WorkerScheduler:
             result = await ticket.runner()
         except asyncio.CancelledError as exc:
             if not ticket.future.done():
-                ticket.future.set_exception(WorkerCancelledError(str(exc) or "cancelled"))
+                ticket.future.set_exception(
+                    WorkerCancelledError(str(exc) or "cancelled")
+                )
         except Exception as exc:  # noqa: BLE001 - propagate exact strategy failure
             if not ticket.future.done():
                 ticket.future.set_exception(exc)

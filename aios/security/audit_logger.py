@@ -36,6 +36,7 @@ Three trust principles are enforced here:
 The ledger lives in its own database (:data:`aios.config.AUDIT_DB_PATH`),
 isolated from mutable memory so ordinary writes can never perturb the chain.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -171,6 +172,7 @@ class ChainStatus:
 # Internal: signing state
 # --------------------------------------------------------------------------- #
 
+
 @dataclass
 class _SigningState:
     """Runtime state for Ed25519 signing."""
@@ -184,6 +186,7 @@ class _SigningState:
 # --------------------------------------------------------------------------- #
 # Key management
 # --------------------------------------------------------------------------- #
+
 
 def _load_or_create_private_key() -> tuple[Ed25519PrivateKey, bool]:
     """Load Ed25519 private key from env var or generate a new one.
@@ -346,6 +349,7 @@ def rotate_audit_key(db_path: Path = config.AUDIT_DB_PATH) -> int:
 # Canonical JSON for signature payload
 # --------------------------------------------------------------------------- #
 
+
 def _canonical_json(
     previous_hash: str,
     timestamp: str,
@@ -448,6 +452,7 @@ def _verify_tip_anchor_signature(
 # Database helpers
 # --------------------------------------------------------------------------- #
 
+
 def _connect(db_path: Path) -> sqlite3.Connection:
     """Open a tuned connection to the audit database."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -548,6 +553,7 @@ def _zone_str(zone: Union[Zone, str]) -> str:
 # --------------------------------------------------------------------------- #
 # Core API: append
 # --------------------------------------------------------------------------- #
+
 
 def log_action(
     actor: str,
@@ -681,6 +687,7 @@ def log_action(
 # --------------------------------------------------------------------------- #
 # Core API: verify
 # --------------------------------------------------------------------------- #
+
 
 def verify_chain(
     *,
@@ -894,9 +901,12 @@ def _check_tip_anchor(
             "ORDER BY entry_id DESC LIMIT 1"
         ).fetchone()
         # A v2 entry implies the anchor feature was active when the chain was written.
-        hardened = conn.execute(
-            "SELECT 1 FROM tamper_audit_trail WHERE hash_version >= 2 LIMIT 1"
-        ).fetchone() is not None
+        hardened = (
+            conn.execute(
+                "SELECT 1 FROM tamper_audit_trail WHERE hash_version >= 2 LIMIT 1"
+            ).fetchone()
+            is not None
+        )
     finally:
         conn.close()
 
@@ -928,7 +938,10 @@ def _check_tip_anchor(
 # External trust anchor
 # --------------------------------------------------------------------------- #
 
-def get_anchor(db_path: Path = config.AUDIT_DB_PATH) -> dict[str, Optional[Union[str, int]]]:
+
+def get_anchor(
+    db_path: Path = config.AUDIT_DB_PATH,
+) -> dict[str, Optional[Union[str, int]]]:
     """Return the latest signed hash for external trust-anchor publication.
 
     The returned dictionary contains the latest entry's hash and signature,
@@ -1092,6 +1105,7 @@ def retroactively_sign_unsinged_entries(
 # --------------------------------------------------------------------------- #
 # Public-key export
 # --------------------------------------------------------------------------- #
+
 
 def get_active_public_key(
     db_path: Path = config.AUDIT_DB_PATH,

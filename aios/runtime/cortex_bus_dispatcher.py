@@ -16,6 +16,7 @@ Design constraints (Fable's supervisory decisions):
 - No thread starts on construction; call ``start()`` explicitly.
 - ONLY wired when ``config.CORTEX_BUS`` is True (enforced in the lifespan, not here).
 """
+
 from __future__ import annotations
 
 import logging
@@ -56,7 +57,10 @@ class CortexBusDispatcher:
             daemon=True,
         )
         self._thread.start()
-        logger.info("cortex_bus_dispatcher_started", extra={"poll_interval": self._poll_interval})
+        logger.info(
+            "cortex_bus_dispatcher_started",
+            extra={"poll_interval": self._poll_interval},
+        )
 
     def stop(self, timeout: float = 2.0) -> None:
         """Signal the thread to stop and wait for it to exit (idempotent)."""

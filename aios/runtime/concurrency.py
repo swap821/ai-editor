@@ -10,6 +10,7 @@ The pool is thread-safe (threading, not asyncio) on purpose: council executions
 run in background-task threads, each with its own event loop, so the bound must
 hold across threads.
 """
+
 from __future__ import annotations
 
 import threading

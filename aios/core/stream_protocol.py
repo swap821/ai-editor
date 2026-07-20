@@ -1,4 +1,5 @@
 """Streaming protocol types for tool-aware cloud token streaming (C4)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

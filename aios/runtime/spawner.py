@@ -1,4 +1,5 @@
 """Council Runtime worker spawner for deterministic Phase 1A missions."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,7 +8,11 @@ from pathlib import Path
 
 from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
-from aios.runtime.backends import ControlledSubprocessBackend, WorkerBackend, WorkerHandle
+from aios.runtime.backends import (
+    ControlledSubprocessBackend,
+    WorkerBackend,
+    WorkerHandle,
+)
 from aios.runtime.concurrency import WORKER_POOL
 from aios.runtime.contracts import KingReport, MissionContract, RunLedger, WorkerResult
 from aios.runtime.cortex_bus import CortexBus
@@ -75,6 +80,7 @@ class WorkerSpawner:
         bus: CortexBus | None = None,
     ) -> None:
         from aios.runtime import _safe_resolve
+
         self.runtime_root = _safe_resolve(runtime_root)
         self.backend = backend or ControlledSubprocessBackend(self.runtime_root)
         self.snapshot_manager = snapshot_manager or SnapshotManager(self.runtime_root)
@@ -183,4 +189,10 @@ class WorkerSpawner:
         return contract.model_copy(update={"snapshot_id": snapshot_id})
 
 
-__all__ = ["CasteSpawnRefused", "MissionCollisionError", "WorkerRun", "WorkerSpawner", "claim_mission"]
+__all__ = [
+    "CasteSpawnRefused",
+    "MissionCollisionError",
+    "WorkerRun",
+    "WorkerSpawner",
+    "claim_mission",
+]

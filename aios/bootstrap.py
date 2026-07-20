@@ -132,7 +132,12 @@ def _check_token_length() -> BootstrapCheck:
 
 
 def _check_ollama() -> BootstrapCheck:
-    if os.getenv("AIOS_BOOTSTRAP_SKIP_OLLAMA", "").strip().lower() in {"1", "true", "yes", "on"}:
+    if os.getenv("AIOS_BOOTSTRAP_SKIP_OLLAMA", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
         return BootstrapCheck(
             name="ollama_reachable",
             passed=True,
@@ -202,7 +207,9 @@ _REQUIRED_PACKAGES: tuple[str, ...] = (
 )
 
 
-def _check_package_imports(packages: Iterable[str] = _REQUIRED_PACKAGES) -> BootstrapCheck:
+def _check_package_imports(
+    packages: Iterable[str] = _REQUIRED_PACKAGES,
+) -> BootstrapCheck:
     missing: list[str] = []
     for name in packages:
         spec = importlib.util.find_spec(name)

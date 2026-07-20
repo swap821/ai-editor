@@ -1,4 +1,5 @@
 """Immutable policy decision -- the deterministic output of the Policy Kernel."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -30,6 +31,7 @@ class PolicyDecision:
     reason: str = ""
     audit_event: str = ""
     approval_token: Optional[str] = None
+    consumed_capability_proof: Optional[Any] = None
     decision_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:

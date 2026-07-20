@@ -94,9 +94,7 @@ def _env_scope_roots(name: str, default: tuple[Path, ...]) -> tuple[Path, ...]:
     if raw in (None, ""):
         return default
     return tuple(
-        Path(part).expanduser().resolve()
-        for part in raw.split(os.pathsep)
-        if part
+        Path(part).expanduser().resolve() for part in raw.split(os.pathsep) if part
     )
 
 
@@ -104,6 +102,7 @@ DATA_DIR: Final[Path] = _env_path("AIOS_DATA_DIR", PROJECT_ROOT / "data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 MEMORY_DB_PATH: Final[Path] = DATA_DIR / "aios_memory.db"
+OPERATIONAL_STATE_DB_PATH: Final[Path] = DATA_DIR / "aios_operational_state.db"
 APPROVAL_DB_PATH: Final[Path] = DATA_DIR / "aios_approvals.db"
 SESSION_DB_PATH: Final[Path] = DATA_DIR / "aios_sessions.db"
 IDENTITY_DB_PATH: Final[Path] = DATA_DIR / "aios_identity.db"
@@ -138,7 +137,9 @@ COUNCIL_CRITIQUE: Final[bool] = _env_bool("AIOS_COUNCIL_CRITIQUE", False)
 COUNCIL_KING_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_KING_REASONING", False)
 # Minimum verification strength eligible to calibrate the future (skills/patterns/
 # confidence). STRONG = only behavior-asserting test suites; a weak green can't imprint.
-VERIFICATION_PROMOTION_FLOOR: Final[str] = _env_str("AIOS_VERIFICATION_PROMOTION_FLOOR", "STRONG")
+VERIFICATION_PROMOTION_FLOOR: Final[str] = _env_str(
+    "AIOS_VERIFICATION_PROMOTION_FLOOR", "STRONG"
+)
 # Phase 3 "real worker": opt-in LLM-driven worker that generates+applies the edit
 # and self-corrects. Off by default → the deterministic heartbeat worker (CI-safe).
 WORKER_REASONING: Final[bool] = _env_bool("AIOS_WORKER_REASONING", False)
@@ -155,7 +156,9 @@ COUNCIL_WORKSPACE_ROOT: Final[Path] = _env_path(
 )
 COUNCIL_WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
 # Global cap on concurrent worker subprocesses (fail-closed DoS guard, in-process).
-COUNCIL_MAX_CONCURRENT_WORKERS: Final[int] = _env_int("AIOS_COUNCIL_MAX_CONCURRENT_WORKERS", 4)
+COUNCIL_MAX_CONCURRENT_WORKERS: Final[int] = _env_int(
+    "AIOS_COUNCIL_MAX_CONCURRENT_WORKERS", 4
+)
 
 EMBEDDING_MODEL: Final[str] = _env_str("AIOS_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 EMBEDDING_DIM: Final[int] = _env_int("AIOS_EMBEDDING_DIM", 384)
@@ -187,8 +190,19 @@ SKILL_REUSE_FAILURE_K: Final[float] = _env_float("AIOS_SKILL_REUSE_FAILURE_K", 1
 SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.25)
 SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
 
+VERIFICATION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_VERIFICATION_AUTHORITY_KEY",
+    "insecure-dev-verification-key-do-not-use-in-production",
+)
+PROMOTION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_PROMOTION_AUTHORITY_KEY",
+    "insecure-dev-promotion-key-do-not-use-in-production",
+)
+
 EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", True)
-EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int("AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5)
+EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int(
+    "AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5
+)
 
 # Mandatory plan stage (Product-Phase-1 close-out): run the deterministic
 # Planner unconditionally on every non-reflex /api/generate turn and surface
@@ -222,7 +236,9 @@ SWARM_SCOUT_EXPLORATION_BONUS: Final[float] = _env_float(
 )
 SWARM_ADAPTIVE_SIZING: Final[bool] = _env_bool("AIOS_SWARM_ADAPTIVE_SIZING", True)
 SWARM_MIN_WORKERS: Final[int] = _env_int("AIOS_SWARM_MIN_WORKERS", 1)
-SWARM_MEMORY_PER_WORKER_MB: Final[int] = _env_int("AIOS_SWARM_MEMORY_PER_WORKER_MB", 256)
+SWARM_MEMORY_PER_WORKER_MB: Final[int] = _env_int(
+    "AIOS_SWARM_MEMORY_PER_WORKER_MB", 256
+)
 RESOURCE_MODE: Final[str] = _env_str("AIOS_RESOURCE_MODE", "normal").strip().lower()
 
 CONFIDENCE_THRESHOLD: Final[float] = _env_float("AIOS_CONFIDENCE_THRESHOLD", 0.72)
@@ -233,7 +249,9 @@ RED_APPROVAL_TIMEOUT_MS: Final[int] = _env_int("AIOS_RED_TIMEOUT_MS", 30_000)
 AUDIT_GENESIS_HASH: Final[str] = "0" * 64
 
 INJECTION_VECTOR_SHIELD: Final[bool] = _env_bool("AIOS_INJECTION_VECTOR_SHIELD", False)
-INJECTION_VECTOR_THRESHOLD: Final[float] = _env_float("AIOS_INJECTION_VECTOR_THRESHOLD", 0.6)
+INJECTION_VECTOR_THRESHOLD: Final[float] = _env_float(
+    "AIOS_INJECTION_VECTOR_THRESHOLD", 0.6
+)
 
 SCOPE_ROOTS: Final[tuple[Path, ...]] = _env_scope_roots(
     "AIOS_SCOPE_ROOTS", (PROJECT_ROOT / "training_ground", PROJECT_ROOT / "lab")
@@ -244,16 +262,18 @@ VERIFY_RUNNER: Final[str] = _env_str("AIOS_VERIFY_RUNNER", "python -m pytest")
 # arbitrary approved code. Host mode is a loud, explicit opt-out ("development
 # only") — it runs approved commands as the backend OS user, NOT an isolation
 # boundary. See aios/core/executor.py and the Phase 2 spec.
-APPROVED_EXECUTION_BACKEND: Final[str] = _env_str(
-    "AIOS_APPROVED_EXECUTION_BACKEND", "container"
-).strip().lower()
+APPROVED_EXECUTION_BACKEND: Final[str] = (
+    _env_str("AIOS_APPROVED_EXECUTION_BACKEND", "container").strip().lower()
+)
 CONTAINER_RUNTIME: Final[str] = _env_str("AIOS_CONTAINER_RUNTIME", "docker")
 CONTAINER_IMAGE: Final[str] = _env_str("AIOS_CONTAINER_IMAGE", "aios-executor:local")
 CONTAINER_MEMORY_MB: Final[int] = _env_int("AIOS_CONTAINER_MEMORY_MB", 1024)
 CONTAINER_CPUS: Final[float] = _env_float("AIOS_CONTAINER_CPUS", 1.0)
 CONTAINER_PIDS_LIMIT: Final[int] = _env_int("AIOS_CONTAINER_PIDS_LIMIT", 128)
 MAX_COMMAND_CHARS: Final[int] = _env_int("AIOS_MAX_COMMAND_CHARS", 8192)
-MAX_COMMAND_OUTPUT_BYTES: Final[int] = _env_int("AIOS_MAX_COMMAND_OUTPUT_BYTES", 1_048_576)
+MAX_COMMAND_OUTPUT_BYTES: Final[int] = _env_int(
+    "AIOS_MAX_COMMAND_OUTPUT_BYTES", 1_048_576
+)
 EXECUTOR_URL: Final[str] = _env_str(
     "AIOS_EXECUTOR_URL", "http://127.0.0.1:8081"
 ).rstrip("/")
@@ -291,19 +311,25 @@ GEMINI_ENABLED: Final[bool] = bool(GEMINI_PROJECT and GEMINI_MODEL)
 
 # OpenAI-compatible providers (OpenAI, Groq, Together, vLLM, LM Studio)
 OPENAI_API_KEY: Final[str] = _env_str("AIOS_OPENAI_API_KEY", "")
-OPENAI_BASE_URL: Final[str] = _env_str("AIOS_OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_BASE_URL: Final[str] = _env_str(
+    "AIOS_OPENAI_BASE_URL", "https://api.openai.com/v1"
+)
 OPENAI_MODEL: Final[str] = _env_str("AIOS_OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_MAX_TOKENS: Final[int] = _env_int("AIOS_OPENAI_MAX_TOKENS", 1024)
 OPENAI_ENABLED: Final[bool] = bool(OPENAI_API_KEY)
 
 # Anthropic direct API
 ANTHROPIC_API_KEY: Final[str] = _env_str("AIOS_ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL: Final[str] = _env_str("AIOS_ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+ANTHROPIC_MODEL: Final[str] = _env_str(
+    "AIOS_ANTHROPIC_MODEL", "claude-sonnet-4-20250514"
+)
 ANTHROPIC_MAX_TOKENS: Final[int] = _env_int("AIOS_ANTHROPIC_MAX_TOKENS", 1024)
 ANTHROPIC_ENABLED: Final[bool] = bool(ANTHROPIC_API_KEY)
 
 CLOUD_HISTORY_WINDOW: Final[int] = _env_int("AIOS_CLOUD_HISTORY_WINDOW", 2)
-CLOUD_CODING_HISTORY_WINDOW: Final[int] = _env_int("AIOS_CLOUD_CODING_HISTORY_WINDOW", 4)
+CLOUD_CODING_HISTORY_WINDOW: Final[int] = _env_int(
+    "AIOS_CLOUD_CODING_HISTORY_WINDOW", 4
+)
 
 _VALID_ROUTER_TASKS: Final[tuple[str, ...]] = ("coding", "reasoning", "general", "fast")
 
@@ -368,9 +394,15 @@ CRAG_SEARCH_API_KEY: Final[str] = _env_str("AIOS_CRAG_SEARCH_API_KEY", "")
 CRAG_DOCUMENTS: Final[bool] = _env_bool("AIOS_CRAG_DOCUMENTS", True)
 
 # ── Knowledge ingestion ─────────────────────────────────────────────────────
-KNOWLEDGE_MAX_UPLOAD_BYTES: Final[int] = _env_int("AIOS_KNOWLEDGE_MAX_UPLOAD_BYTES", 10_000_000)
-KNOWLEDGE_CHUNK_MAX_TOKENS: Final[int] = _env_int("AIOS_KNOWLEDGE_CHUNK_MAX_TOKENS", 300)
-KNOWLEDGE_CHUNK_OVERLAP_TOKENS: Final[int] = _env_int("AIOS_KNOWLEDGE_CHUNK_OVERLAP_TOKENS", 40)
+KNOWLEDGE_MAX_UPLOAD_BYTES: Final[int] = _env_int(
+    "AIOS_KNOWLEDGE_MAX_UPLOAD_BYTES", 10_000_000
+)
+KNOWLEDGE_CHUNK_MAX_TOKENS: Final[int] = _env_int(
+    "AIOS_KNOWLEDGE_CHUNK_MAX_TOKENS", 300
+)
+KNOWLEDGE_CHUNK_OVERLAP_TOKENS: Final[int] = _env_int(
+    "AIOS_KNOWLEDGE_CHUNK_OVERLAP_TOKENS", 40
+)
 
 ROUTER_CALIBRATION_WEIGHT: Final[float] = max(
     0.0, min(1.0, _env_float("AIOS_ROUTER_CALIBRATION_WEIGHT", 0.4))
@@ -423,7 +455,9 @@ VOICE_STT_MODEL: Final[str] = _env_str("AIOS_VOICE_STT_MODEL", "base")
 VOICE_STT_DEVICE: Final[str] = _env_str("AIOS_VOICE_STT_DEVICE", "auto")
 VOICE_STT_COMPUTE_TYPE: Final[str] = _env_str("AIOS_VOICE_STT_COMPUTE_TYPE", "int8")
 VOICE_TTS_MODEL: Final[str] = _env_str("AIOS_VOICE_TTS_MODEL", "en_US-lessac-medium")
-VOICE_MODELS_DIR: Final[Path] = _env_path("AIOS_VOICE_MODELS_DIR", DATA_DIR / "voice_models")
+VOICE_MODELS_DIR: Final[Path] = _env_path(
+    "AIOS_VOICE_MODELS_DIR", DATA_DIR / "voice_models"
+)
 VOICE_MAX_AUDIO_BYTES: Final[int] = _env_int("AIOS_VOICE_MAX_AUDIO_BYTES", 10_485_760)
 
 # ── Sovereign Roadmap: Phases 3B–7 ──────────────────────────────────────────
@@ -488,65 +522,209 @@ def startup_banner() -> dict[str, object]:
     }
 
 
+_INSECURE_SIGNING_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "aios-authority-verification-key-v1",
+        "aios-authority-promotion-key-v1",
+        "insecure-dev-verification-key-do-not-use-in-production",
+        "insecure-dev-promotion-key-do-not-use-in-production",
+        "aios-authority-key",
+        "changeme",
+        "secret",
+        "default",
+    }
+)
+
+
+def validate_authority_signing_keys(
+    *,
+    verification_key: str,
+    promotion_key: str,
+    checkpoint_key: str,
+    is_production: bool = True,
+) -> None:
+    keys = {
+        "VERIFICATION_AUTHORITY_KEY": verification_key,
+        "PROMOTION_AUTHORITY_KEY": promotion_key,
+        "CHECKPOINT_AUTHORITY_KEY": checkpoint_key,
+    }
+    for name, val in keys.items():
+        if not val or not val.strip():
+            raise ValueError(f"Signing key {name} is missing or empty")
+        if len(val.strip()) < 32:
+            raise ValueError(f"Signing key {name} must be at least 32 characters long")
+        if val.strip() in _INSECURE_SIGNING_KEYS:
+            raise ValueError(f"Signing key {name} uses insecure default value: {val!r}")
+
+    vals = [v.strip() for v in keys.values()]
+    if len(set(vals)) < len(vals):
+        raise ValueError("Authority signing keys must not be equal to one another")
+
+
+VERIFICATION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_VERIFICATION_AUTHORITY_KEY",
+    _env_str("VERIFICATION_AUTHORITY_KEY", ""),
+)
+PROMOTION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_PROMOTION_AUTHORITY_KEY",
+    _env_str("PROMOTION_AUTHORITY_KEY", ""),
+)
+CHECKPOINT_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_CHECKPOINT_AUTHORITY_KEY",
+    _env_str("CHECKPOINT_AUTHORITY_KEY", ""),
+)
+
+
 __all__ = [
-    "PROJECT_ROOT", "DATA_DIR", "MEMORY_DB_PATH", "APPROVAL_DB_PATH",
-    "SESSION_DB_PATH", "IDENTITY_DB_PATH", "CAPABILITY_DB_PATH",
-    "AUDIT_DB_PATH", "FAISS_INDEX_PATH", "ROLLBACK_DIR", "COUNCIL_RUNTIME_DIR",
-    "COUNCIL_STATE_DB", "MISSION_STATE_DB", "MISSION_EXPORT_DIR",
-    "COUNCIL_REASONING", "COUNCIL_CRITIQUE",
-    "COUNCIL_KING_REASONING", "VERIFICATION_PROMOTION_FLOOR",
-    "WORKER_REASONING", "WORKER_MAX_REPAIRS",
-    "WORKER_MAX_FILE_BYTES", "COUNCIL_ORIGINATION", "COUNCIL_WORKSPACE_ROOT",
+    "PROJECT_ROOT",
+    "DATA_DIR",
+    "MEMORY_DB_PATH",
+    "OPERATIONAL_STATE_DB_PATH",
+    "APPROVAL_DB_PATH",
+    "SESSION_DB_PATH",
+    "IDENTITY_DB_PATH",
+    "CAPABILITY_DB_PATH",
+    "AUDIT_DB_PATH",
+    "FAISS_INDEX_PATH",
+    "ROLLBACK_DIR",
+    "COUNCIL_RUNTIME_DIR",
+    "COUNCIL_STATE_DB",
+    "MISSION_STATE_DB",
+    "MISSION_EXPORT_DIR",
+    "COUNCIL_REASONING",
+    "COUNCIL_CRITIQUE",
+    "COUNCIL_KING_REASONING",
+    "VERIFICATION_PROMOTION_FLOOR",
+    "WORKER_REASONING",
+    "WORKER_MAX_REPAIRS",
+    "WORKER_MAX_FILE_BYTES",
+    "COUNCIL_ORIGINATION",
+    "COUNCIL_WORKSPACE_ROOT",
     "COUNCIL_MAX_CONCURRENT_WORKERS",
-    "EMBEDDING_MODEL", "EMBEDDING_DIM",
-    "RETRIEVAL_ALPHA_BM25", "RETRIEVAL_BETA_FAISS", "RETRIEVAL_GAMMA_RECENCY",
+    "EMBEDDING_MODEL",
+    "EMBEDDING_DIM",
+    "RETRIEVAL_ALPHA_BM25",
+    "RETRIEVAL_BETA_FAISS",
+    "RETRIEVAL_GAMMA_RECENCY",
     "RETRIEVAL_LAMBDA_DECAY_PER_HOUR",
-    "MEMORY_COMPACT_UNVERIFIED_CHAT_DAYS", "MEMORY_COMPACT_EPISODIC_DAYS",
-    "MEMORY_COMPACT_SEMANTIC_MAX_PER_TYPE", "MEMORY_COMPACT_WORKING_IDLE_MINUTES",
-    "SKILL_LAMBDA_DECAY_PER_HOUR", "SKILL_CONFIDENCE_BONUS_MAX",
-    "SKILL_REUSE_BOOST_MAX", "SKILL_REUSE_PENALTY_MAX",
-    "SKILL_REUSE_SUCCESS_K", "SKILL_REUSE_FAILURE_K",
-    "SKILL_REUSE_FACTOR_FLOOR", "SKILL_REUSE_DEMOTE_NET_FAILURES",
-    "EARNED_AUTONOMY_ENABLED", "EARNED_AUTONOMY_MIN_SUCCESSES",
+    "MEMORY_COMPACT_UNVERIFIED_CHAT_DAYS",
+    "MEMORY_COMPACT_EPISODIC_DAYS",
+    "MEMORY_COMPACT_SEMANTIC_MAX_PER_TYPE",
+    "MEMORY_COMPACT_WORKING_IDLE_MINUTES",
+    "SKILL_LAMBDA_DECAY_PER_HOUR",
+    "SKILL_CONFIDENCE_BONUS_MAX",
+    "SKILL_REUSE_BOOST_MAX",
+    "SKILL_REUSE_PENALTY_MAX",
+    "SKILL_REUSE_SUCCESS_K",
+    "SKILL_REUSE_FAILURE_K",
+    "SKILL_REUSE_FACTOR_FLOOR",
+    "SKILL_REUSE_DEMOTE_NET_FAILURES",
+    "EARNED_AUTONOMY_ENABLED",
+    "EARNED_AUTONOMY_MIN_SUCCESSES",
     "NARRATIVE_SELF_ENABLED",
-    "SWARM_MAX_WORKERS", "SWARM_WORKER_CONCURRENCY", "SWARM_REDUNDANCY",
+    "SWARM_MAX_WORKERS",
+    "SWARM_WORKER_CONCURRENCY",
+    "SWARM_REDUNDANCY",
     "SWARM_CLOUD_BURST_ENABLED",
-    "SWARM_WORKER_BACKEND", "SWARM_PHEROMONE_FIDELITY",
-    "SWARM_CONFLICT_STRATEGY", "SWARM_CONFLICT_TIMEOUT_S",
-    "SWARM_SCOUT_TEMPERATURE", "SWARM_SCOUT_EXPLORATION_BONUS",
-    "SWARM_ADAPTIVE_SIZING", "SWARM_MIN_WORKERS", "SWARM_MEMORY_PER_WORKER_MB",
+    "SWARM_WORKER_BACKEND",
+    "SWARM_PHEROMONE_FIDELITY",
+    "SWARM_CONFLICT_STRATEGY",
+    "SWARM_CONFLICT_TIMEOUT_S",
+    "SWARM_SCOUT_TEMPERATURE",
+    "SWARM_SCOUT_EXPLORATION_BONUS",
+    "SWARM_ADAPTIVE_SIZING",
+    "SWARM_MIN_WORKERS",
+    "SWARM_MEMORY_PER_WORKER_MB",
     "RESOURCE_MODE",
-    "CONFIDENCE_THRESHOLD", "MAX_RED_ACTIONS_PER_SESSION",
-    "YELLOW_APPROVAL_TIMEOUT_MS", "RED_APPROVAL_TIMEOUT_MS",
-    "AUDIT_GENESIS_HASH", "INJECTION_VECTOR_SHIELD", "INJECTION_VECTOR_THRESHOLD",
-    "SCOPE_ROOTS", "VERIFY_RUNNER", "APPROVED_EXECUTION_BACKEND",
-    "CONTAINER_RUNTIME", "CONTAINER_IMAGE", "CONTAINER_MEMORY_MB",
-    "CONTAINER_CPUS", "CONTAINER_PIDS_LIMIT", "MAX_COMMAND_CHARS",
-    "MAX_COMMAND_OUTPUT_BYTES", "EXECUTOR_URL", "EXECUTOR_TOKEN",
-    "EXECUTOR_HTTP_TIMEOUT_S", "EXECUTOR_WORKSPACE_ROOT",
-    "EXECUTOR_REMOTE_WORKSPACE_ROOT", "OLLAMA_HOST", "LLM_MODEL",
-    "LLM_REQUEST_TIMEOUT_S", "LLM_TEMPERATURE", "LLM_NUM_CTX",
-    "INDEX_CHAT", "REFLECT_ON_FAILURE", "INTERPRET_ALIGNMENT", "OFFLINE_MODE",
-    "BEDROCK_REGION", "BEDROCK_MODEL", "BEDROCK_MAX_TOKENS", "BEDROCK_ENABLED",
-    "GEMINI_PROJECT", "GEMINI_LOCATION", "GEMINI_MODEL", "GEMINI_MAX_TOKENS",
-    "GEMINI_THINKING_BUDGET", "GEMINI_ENABLED",
-    "ROUTER_CLOUD_TASKS", "ROUTER_PREFER_LOCAL", "ROUTER_MAX_COST",
-    "ROUTER_LLM_PICK", "ROUTER_CALIBRATION_WEIGHT",
-    "CRAG", "CRAG_UPPER", "CRAG_LOWER", "CRAG_EXTERNAL", "CRAG_CLOUD",
-    "CRAG_WEBSEARCH", "CRAG_SEARCH_ENDPOINT", "CRAG_SEARCH_API_KEY", "CRAG_LLM_JUDGE",
-    "CURRICULUM_FUZZY", "CURRICULUM_FUZZY_THRESHOLD",
-    "FACTS_AUTO_EXTRACT", "FACTS_AUTO_EXTRACT_MAX_PER_TURN",
-    "CORTEX_BUS", "CORTEX_BUS_DB", "CORTEX_BUS_RETENTION_MAX",
+    "CONFIDENCE_THRESHOLD",
+    "MAX_RED_ACTIONS_PER_SESSION",
+    "YELLOW_APPROVAL_TIMEOUT_MS",
+    "RED_APPROVAL_TIMEOUT_MS",
+    "AUDIT_GENESIS_HASH",
+    "INJECTION_VECTOR_SHIELD",
+    "INJECTION_VECTOR_THRESHOLD",
+    "SCOPE_ROOTS",
+    "VERIFY_RUNNER",
+    "APPROVED_EXECUTION_BACKEND",
+    "CONTAINER_RUNTIME",
+    "CONTAINER_IMAGE",
+    "CONTAINER_MEMORY_MB",
+    "CONTAINER_CPUS",
+    "CONTAINER_PIDS_LIMIT",
+    "MAX_COMMAND_CHARS",
+    "MAX_COMMAND_OUTPUT_BYTES",
+    "EXECUTOR_URL",
+    "EXECUTOR_TOKEN",
+    "EXECUTOR_HTTP_TIMEOUT_S",
+    "EXECUTOR_WORKSPACE_ROOT",
+    "EXECUTOR_REMOTE_WORKSPACE_ROOT",
+    "OLLAMA_HOST",
+    "LLM_MODEL",
+    "LLM_REQUEST_TIMEOUT_S",
+    "LLM_TEMPERATURE",
+    "LLM_NUM_CTX",
+    "INDEX_CHAT",
+    "REFLECT_ON_FAILURE",
+    "INTERPRET_ALIGNMENT",
+    "OFFLINE_MODE",
+    "BEDROCK_REGION",
+    "BEDROCK_MODEL",
+    "BEDROCK_MAX_TOKENS",
+    "BEDROCK_ENABLED",
+    "GEMINI_PROJECT",
+    "GEMINI_LOCATION",
+    "GEMINI_MODEL",
+    "GEMINI_MAX_TOKENS",
+    "GEMINI_THINKING_BUDGET",
+    "GEMINI_ENABLED",
+    "ROUTER_CLOUD_TASKS",
+    "ROUTER_PREFER_LOCAL",
+    "ROUTER_MAX_COST",
+    "ROUTER_LLM_PICK",
+    "ROUTER_CALIBRATION_WEIGHT",
+    "CRAG",
+    "CRAG_UPPER",
+    "CRAG_LOWER",
+    "CRAG_EXTERNAL",
+    "CRAG_CLOUD",
+    "CRAG_WEBSEARCH",
+    "CRAG_SEARCH_ENDPOINT",
+    "CRAG_SEARCH_API_KEY",
+    "CRAG_LLM_JUDGE",
+    "CURRICULUM_FUZZY",
+    "CURRICULUM_FUZZY_THRESHOLD",
+    "FACTS_AUTO_EXTRACT",
+    "FACTS_AUTO_EXTRACT_MAX_PER_TURN",
+    "CORTEX_BUS",
+    "CORTEX_BUS_DB",
+    "CORTEX_BUS_RETENTION_MAX",
     "CORTEX_BUS_RETENTION_DAYS",
-    "QUEEN_SERVICES", "QUEEN_SERVICE_QUEUE_DEPTH",
-    "PHEROMONE_ENABLED", "PHEROMONE_DB", "PHEROMONE_LAMBDA_DECAY", "PHEROMONE_FLOOR",
-    "LIVE_SURFACE", "LIVE_SURFACE_DB",
-    "WORKTREE_BACKEND", "WORKTREE_ROOT",
-    "ROLLBACK_REGISTRY", "ROLLBACK_REGISTRY_DB", "ROLLBACK_RETENTION_DAYS",
+    "QUEEN_SERVICES",
+    "QUEEN_SERVICE_QUEUE_DEPTH",
+    "PHEROMONE_ENABLED",
+    "PHEROMONE_DB",
+    "PHEROMONE_LAMBDA_DECAY",
+    "PHEROMONE_FLOOR",
+    "LIVE_SURFACE",
+    "LIVE_SURFACE_DB",
+    "WORKTREE_BACKEND",
+    "WORKTREE_ROOT",
+    "ROLLBACK_REGISTRY",
+    "ROLLBACK_REGISTRY_DB",
+    "ROLLBACK_RETENTION_DAYS",
     "AUDIT_ANCHOR_API",
-    "SELF_CONSISTENCY", "SELF_CONSISTENCY_N",
-    "POLICY_ENGINE", "POLICY_DB",
-    "API_HOST", "API_PORT", "API_TOKEN", "PACKAGED_GATEWAY_HOST", "TRUST_PROXY_HEADERS",
-    "TRUSTED_PROXIES", "ENABLE_DOCS", "API_CORS_ORIGINS", "PROBE_BASE",
+    "SELF_CONSISTENCY",
+    "SELF_CONSISTENCY_N",
+    "POLICY_ENGINE",
+    "POLICY_DB",
+    "API_HOST",
+    "API_PORT",
+    "API_TOKEN",
+    "PACKAGED_GATEWAY_HOST",
+    "TRUST_PROXY_HEADERS",
+    "TRUSTED_PROXIES",
+    "ENABLE_DOCS",
+    "API_CORS_ORIGINS",
+    "PROBE_BASE",
     "startup_banner",
 ]

@@ -1,4 +1,5 @@
 """Plan-only local/cloud reasoning gateway for Council Runtime workers."""
+
 from __future__ import annotations
 
 from typing import Any, Literal, Protocol
@@ -17,8 +18,7 @@ class IntelligenceGatewayError(RuntimeError):
 
 
 class ReasoningClient(Protocol):
-    def complete(self, prompt: str, *, system: str | None = None) -> str:
-        ...
+    def complete(self, prompt: str, *, system: str | None = None) -> str: ...
 
 
 class RuntimeIntelligenceModel(BaseModel):
@@ -49,7 +49,9 @@ class IntelligenceResponse(RuntimeIntelligenceModel):
 class LocalOllamaReasoner:
     """Small adapter around the existing Ollama completion client."""
 
-    def __init__(self, client: LLMClient | None = None, *, model: str | None = None) -> None:
+    def __init__(
+        self, client: LLMClient | None = None, *, model: str | None = None
+    ) -> None:
         self.model = model or config.LLM_MODEL
         self.client = client or OllamaClient(model=self.model)
 
@@ -137,7 +139,9 @@ class IntelligenceGateway:
                     policy["cloud_error"] = str(exc)
 
         try:
-            raw = self.local_client.complete(safe_prompt, system=self.PLAN_SYSTEM_PROMPT)
+            raw = self.local_client.complete(
+                safe_prompt, system=self.PLAN_SYSTEM_PROMPT
+            )
         except Exception as exc:  # noqa: BLE001 - normalize provider failures
             raise IntelligenceGatewayError(
                 "local reasoning provider failed after cloud was denied or unavailable"

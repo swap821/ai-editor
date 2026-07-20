@@ -4,6 +4,7 @@ The first backend is intentionally modest: a controlled Python subprocess
 running the deterministic worker entrypoint. It is a policy-isolation boundary,
 not an OS sandbox.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,16 +49,13 @@ class WorkerBackend(ABC):
     """Abstract interface for pluggable worker execution backends."""
 
     @abstractmethod
-    async def spawn(self, contract: MissionContract) -> WorkerHandle:
-        ...
+    async def spawn(self, contract: MissionContract) -> WorkerHandle: ...
 
     @abstractmethod
-    async def reap(self, handle: WorkerHandle) -> WorkerResult:
-        ...
+    async def reap(self, handle: WorkerHandle) -> WorkerResult: ...
 
     @abstractmethod
-    async def kill(self, handle: WorkerHandle, reason: str) -> None:
-        ...
+    async def kill(self, handle: WorkerHandle, reason: str) -> None: ...
 
 
 class ControlledSubprocessBackend(WorkerBackend):
@@ -73,6 +71,7 @@ class ControlledSubprocessBackend(WorkerBackend):
         worker_module: str = "aios.runtime.worker_entry",
     ) -> None:
         from aios.runtime import _safe_resolve
+
         self.runtime_root = _safe_resolve(runtime_root)
         self.python_executable = python_executable or sys.executable
         self.worker_module = worker_module
@@ -83,11 +82,7 @@ class ControlledSubprocessBackend(WorkerBackend):
     async def spawn(self, contract: MissionContract) -> WorkerHandle:
         worker_id = f"worker-{uuid.uuid4().hex[:12]}"
         worker_dir = (
-            self.runtime_root
-            / "missions"
-            / contract.mission_id
-            / "workers"
-            / worker_id
+            self.runtime_root / "missions" / contract.mission_id / "workers" / worker_id
         )
         worker_dir.mkdir(parents=True, exist_ok=False)
         contract_path = worker_dir / "contract.json"

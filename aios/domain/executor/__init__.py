@@ -8,10 +8,12 @@ from .protocol import (
     NetworkPolicy,
     ResourceLimits,
 )
+from .receipt import ExecutorRepairReceipt
 
 __all__ = [
     "ExecutorCapability",
     "ExecutorJob",
+    "ExecutorRepairReceipt",
     "ExecutorResult",
     "MountPolicy",
     "NetworkPolicy",

@@ -6,6 +6,7 @@ relevant prior verified failures and can DEFER (or DENY on a strong match) a
 mission that repeats a known failure. It can never grant anything it could not
 already — reasoning here only adds caution.
 """
+
 from __future__ import annotations
 
 import logging

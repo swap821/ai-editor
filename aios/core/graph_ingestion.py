@@ -5,16 +5,23 @@ out. Each tuple is a candidate edge for SemanticFacts.add_fact(). The caller
 decides when to ingest (typically on promotion/verification). The functions
 never access the DB directly — they transform data structures, nothing more.
 """
+
 from __future__ import annotations
 
 import re
 
 from aios.memory.relevance import tokens
 
-_TOOL_VERBS = frozenset({
-    "read_file", "read_directory", "execute_terminal",
-    "create_file", "edit_file", "verify",
-})
+_TOOL_VERBS = frozenset(
+    {
+        "read_file",
+        "read_directory",
+        "execute_terminal",
+        "create_file",
+        "edit_file",
+        "verify",
+    }
+)
 
 _PATH_LIKE = re.compile(
     r"[a-zA-Z_][\w./\\-]*\.(?:py|ts|tsx|js|jsx|json|md|sql|yml|yaml|toml|cfg)"
@@ -130,7 +137,8 @@ def edges_from_outcome(
 
     conf = 1.0 if outcome == "verified_success" else 0.7
     predicate = (
-        "has_verified_success" if outcome == "verified_success"
+        "has_verified_success"
+        if outcome == "verified_success"
         else "has_verified_failure"
     )
 

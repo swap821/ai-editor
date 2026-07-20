@@ -264,9 +264,8 @@ class DockerRunner:
         # backslashes before entering the Docker mount spec. Explicit Windows
         # daemon paths remain supported for cross-platform Docker clients.
         explicit_windows_path = (
-            (len(cwd) >= 3 and cwd[1] == ":" and cwd[0].isalpha())
-            or cwd.startswith("\\\\")
-        )
+            len(cwd) >= 3 and cwd[1] == ":" and cwd[0].isalpha()
+        ) or cwd.startswith("\\\\")
         windows_daemon_path = ntpath.isabs(cwd) and (
             os.name == "nt" or explicit_windows_path
         )

@@ -309,3 +309,26 @@ CREATE INDEX IF NOT EXISTS idx_curriculum_skill ON curriculum_tasks(skill_name, 
 -- Self-analysis hot paths: triaging by status, and looking up a file's history.
 CREATE INDEX IF NOT EXISTS idx_sar_status       ON self_analysis_report(status);
 CREATE INDEX IF NOT EXISTS idx_sar_path         ON self_analysis_report(target_path);
+
+-- == Local Workforce Registry (R15) ==========================================
+-- Persists the operator's approved local models for clerical work.
+CREATE TABLE IF NOT EXISTS local_worker_models (
+    model_id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    family TEXT NOT NULL,
+    parameter_size TEXT NOT NULL,
+    quantization TEXT NOT NULL,
+    installed INTEGER NOT NULL CHECK (installed IN (0,1)),
+    operator_approved INTEGER NOT NULL CHECK (operator_approved IN (0,1)),
+    health TEXT NOT NULL CHECK (health IN ('healthy','degraded','failing','unknown')),
+    admission_status TEXT NOT NULL CHECK (admission_status IN ('pending','approved','rejected')),
+    admission_reason TEXT,
+    max_context INTEGER NOT NULL,
+    max_output INTEGER NOT NULL,
+    max_parallelism INTEGER NOT NULL,
+    allowed_job_profiles_json TEXT NOT NULL,
+    last_success DATETIME,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    metadata_confidence TEXT NOT NULL CHECK (metadata_confidence IN ('verified','inferred','unknown'))
+);
+

@@ -9,6 +9,7 @@ preserving per-entity ordering, and marks each dispatched only after its
 handlers succeed (at-least-once — handlers must be idempotent). W1 wires no
 producers or consumers; it is the floor future observers stand on.
 """
+
 from __future__ import annotations
 
 import json
@@ -132,10 +133,20 @@ class CortexBus:
         # (the repo's known monkeypatch-staleness trap).
         self.db_path = db_path if db_path is not None else config.CORTEX_BUS_DB
         self.retention_max = max(
-            1, int(retention_max if retention_max is not None else config.CORTEX_BUS_RETENTION_MAX)
+            1,
+            int(
+                retention_max
+                if retention_max is not None
+                else config.CORTEX_BUS_RETENTION_MAX
+            ),
         )
         self.retention_days = max(
-            1, int(retention_days if retention_days is not None else config.CORTEX_BUS_RETENTION_DAYS)
+            1,
+            int(
+                retention_days
+                if retention_days is not None
+                else config.CORTEX_BUS_RETENTION_DAYS
+            ),
         )
         self.hint_path = hint_path or self.db_path.with_suffix(".hint")
         self._handlers: list[Callable[[BusEvent], None]] = []
@@ -189,7 +200,9 @@ class CortexBus:
             or event.source
         ).strip()
         if not event_type or not signature:
-            raise ValueError("cortex event requires a non-empty event_type and signature")
+            raise ValueError(
+                "cortex event requires a non-empty event_type and signature"
+            )
         if event_type.startswith(_AUTHORITY_EVENT_PREFIXES):
             raise ValueError(
                 f"authority-bearing event type {event_type!r} may never ride the "
@@ -245,13 +258,16 @@ class CortexBus:
         if not normalized:
             raise ValueError("cortex consumer name is required")
         if len(normalized) > 128 or any(
-            char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+            char
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
             for char in normalized
         ):
             raise ValueError("cortex consumer name contains unsafe characters")
         return normalized
 
-    def register_consumer(self, consumer_name: str, *, start_event_id: int = 0) -> ConsumerCursor:
+    def register_consumer(
+        self, consumer_name: str, *, start_event_id: int = 0
+    ) -> ConsumerCursor:
         """Create a cursor once; later registrations never reset progress."""
         name = self._validate_consumer_name(consumer_name)
         if int(start_event_id) < 0:
@@ -273,7 +289,9 @@ class CortexBus:
     def consumer_cursor(self, consumer_name: str) -> ConsumerCursor:
         return self.register_consumer(consumer_name)
 
-    def reset_consumer(self, consumer_name: str, *, start_event_id: int = 0) -> ConsumerCursor:
+    def reset_consumer(
+        self, consumer_name: str, *, start_event_id: int = 0
+    ) -> ConsumerCursor:
         """Reset one derived observer cursor for an explicit recovery replay.
 
         This operation touches only observation-consumer progress. It cannot
@@ -436,13 +454,13 @@ class CortexBus:
         """Register an in-process handler. Handlers MUST be idempotent (an event
         may be delivered more than once on replay) and MUST NOT carry authority."""
         self._handlers.append(handler)
-        
+
         def unsubscribe() -> None:
             try:
                 self._handlers.remove(handler)
             except ValueError:
                 pass
-                
+
         return unsubscribe
 
     def peek_pending(self, limit: int = 1000) -> list[BusEvent]:

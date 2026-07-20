@@ -6,6 +6,7 @@ SECURITY: Session IDs are managed server-side and travel in httpOnly cookies
 that are completely inaccessible to JavaScript. This prevents XSS-based
 session theft (OWASP A07:2021). The raw session ID is never logged or exposed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,7 +17,11 @@ from pydantic import BaseModel, Field
 
 from aios import config
 from aios.api.deps import get_identity_service, get_session_manager
-from aios.application.identity.service import AlreadyEnrolled, IdentityService, InvalidCredential
+from aios.application.identity.service import (
+    AlreadyEnrolled,
+    IdentityService,
+    InvalidCredential,
+)
 from aios.core.session_manager import SessionManager
 from aios.api.action_guard import enforce_action_boundary
 
@@ -30,7 +35,8 @@ class SessionCreateResponse(BaseModel):
         ..., description="True when the session is authenticated."
     )
     cookie_based: bool = Field(
-        True, alias="cookieBased",
+        True,
+        alias="cookieBased",
         description="True when session travels via httpOnly cookie.",
     )
     csrf_token: str = Field(
@@ -43,16 +49,17 @@ class SessionCreateResponse(BaseModel):
 class SessionStatusResponse(BaseModel):
     """Response from GET /api/v1/auth/session — current session status."""
 
-    authenticated: bool = Field(
-        ..., description="True when a valid session exists."
-    )
+    authenticated: bool = Field(..., description="True when a valid session exists.")
     cookie_based: bool = Field(
-        True, alias="cookieBased",
+        True,
+        alias="cookieBased",
         description="True when session travels via httpOnly cookie.",
     )
     operator_id: Optional[str] = Field(None, alias="operatorId")
     csrf_token: Optional[str] = Field(
-        None, alias="csrfToken", description="Session-bound proof for browser mutations."
+        None,
+        alias="csrfToken",
+        description="Session-bound proof for browser mutations.",
     )
 
     model_config = {"populate_by_name": True}
@@ -96,11 +103,11 @@ def _set_session_hash_cookie(response: Response, cookie_value: str) -> None:
     response.set_cookie(
         key="session_id",
         value=cookie_value,
-        httponly=True,          # NOT accessible to JavaScript — prevents XSS theft
-        secure=secure,          # HTTPS only in production; loopback allows HTTP
-        samesite="strict",      # NOT sent cross-origin — prevents CSRF
-        max_age=3600,           # 1 hour
-        path="/",             # Sent for all API paths
+        httponly=True,  # NOT accessible to JavaScript — prevents XSS theft
+        secure=secure,  # HTTPS only in production; loopback allows HTTP
+        samesite="strict",  # NOT sent cross-origin — prevents CSRF
+        max_age=3600,  # 1 hour
+        path="/",  # Sent for all API paths
     )
 
 
@@ -172,11 +179,15 @@ def login_operator(
     try:
         result = identity.authenticate_credential(req.credential)
     except InvalidCredential as exc:
-        raise HTTPException(status_code=401, detail="invalid operator credential") from exc
+        raise HTTPException(
+            status_code=401, detail="invalid operator credential"
+        ) from exc
     _set_session_hash_cookie(response, result.session_cookie)
     csrf_token = identity.sessions.ensure_csrf_token(result.session_cookie)
     if csrf_token is None:  # pragma: no cover - authentication just created it
-        raise HTTPException(status_code=401, detail="authentication session unavailable")
+        raise HTTPException(
+            status_code=401, detail="authentication session unavailable"
+        )
     _set_csrf_cookie(response, csrf_token)
     return OperatorAuthResponse(
         authenticated=True,
@@ -196,11 +207,15 @@ def reauthenticate_operator(
     try:
         result = identity.reauthenticate(old_cookie or "", req.credential)
     except InvalidCredential as exc:
-        raise HTTPException(status_code=401, detail="privileged re-authentication failed") from exc
+        raise HTTPException(
+            status_code=401, detail="privileged re-authentication failed"
+        ) from exc
     _set_session_hash_cookie(response, result.session_cookie)
     csrf_token = identity.sessions.ensure_csrf_token(result.session_cookie)
     if csrf_token is None:  # pragma: no cover - rotation just created it
-        raise HTTPException(status_code=401, detail="rotated authentication session unavailable")
+        raise HTTPException(
+            status_code=401, detail="rotated authentication session unavailable"
+        )
     _set_csrf_cookie(response, csrf_token)
     return OperatorAuthResponse(
         authenticated=True,

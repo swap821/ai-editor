@@ -4,6 +4,7 @@ Hibernation is a proposal/evidence mode. It previews maintenance and rebuilds
 local knowledge, but it does not perform autonomous writes, cloud calls,
 self-modification, git pushes, or credential access.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -22,20 +23,17 @@ class HibernationPolicyError(RuntimeError):
 
 
 class CompactorLike(Protocol):
-    def compact(self, dry_run: bool = True) -> dict[str, Any]:
-        ...
+    def compact(self, dry_run: bool = True) -> dict[str, Any]: ...
 
 
 class PheromoneStoreLike(Protocol):
-    def query(self, *args: Any, **kwargs: Any) -> list[Any]:
-        ...
+    def query(self, *args: Any, **kwargs: Any) -> list[Any]: ...
 
 
 class MemoryAuthorityLike(Protocol):
     """Minimal authority surface required for advisory hibernation reads."""
 
-    def pheromone_query(self, *args: Any, **kwargs: Any) -> list[Any]:
-        ...
+    def pheromone_query(self, *args: Any, **kwargs: Any) -> list[Any]: ...
 
 
 @dataclass(frozen=True)
@@ -101,10 +99,14 @@ class HibernationManager:
 
         compaction = self._compaction_preview()
         pheromones = self._pheromone_preview()
-        project_passport = self._project_passport() if rebuild_repo_map else {
-            "skipped": True,
-            "reason": "repo map rebuild disabled",
-        }
+        project_passport = (
+            self._project_passport()
+            if rebuild_repo_map
+            else {
+                "skipped": True,
+                "reason": "repo map rebuild disabled",
+            }
+        )
         audit_summary = self._audit_summary()
         proposals = list(project_passport.get("suggested_improvements", []))[:10]
         return HibernationReport(
@@ -118,7 +120,9 @@ class HibernationManager:
             audit_summary=audit_summary,
             proposals=proposals,
             resource_status=self.budget_guard.snapshot().to_dict(),
-            meta_loop_assessment=self._meta_loop_assessment(compaction, pheromones, audit_summary),
+            meta_loop_assessment=self._meta_loop_assessment(
+                compaction, pheromones, audit_summary
+            ),
         )
 
     def _compaction_preview(self) -> dict[str, Any]:

@@ -173,6 +173,7 @@ _TEST_DATA_DIR_PATH = _TEST_TMP_ROOT / f"aios-test-data-{uuid4().hex[:8]}"
 _TEST_DATA_DIR_PATH.mkdir(parents=True, exist_ok=False)
 os.environ["AIOS_DATA_DIR"] = str(_TEST_DATA_DIR_PATH)
 
+
 # Point COUNCIL_RUNTIME_DIR at the session root so _safe_resolve's containment
 # check (startswith) passes for every test's tmp_path — which is always a child
 # of _PYTEST_SESSION_ROOT.  Set as env var (not monkeypatch) so subprocess workers
@@ -183,3 +184,8 @@ os.environ["AIOS_COUNCIL_RUNTIME_DIR"] = str(_PYTEST_SESSION_ROOT)
 # anyway, but tidy up so repeated local runs don't accumulate scratch dirs).
 atexit.register(shutil.rmtree, _TEST_DATA_DIR_PATH, ignore_errors=True)
 atexit.register(shutil.rmtree, _PYTEST_SESSION_ROOT, ignore_errors=True)
+
+# Allow tests to instantiate PromotionAuthority and VerificationAuthority without
+# a 32-char production signing key.  In production, this env var is NOT set, so
+# the authority classes will refuse an unset or short key (Blocker 13 fix).
+os.environ.setdefault("AIOS_TEST_SIGNING_KEYS_ALLOWED", "1")

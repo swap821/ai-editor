@@ -4,6 +4,7 @@ Provides a consolidated snapshot of the organism's current truthful state and a 
 journal replay stream. Fresh boot produces truthful state; reconnect restores state
 without duplicate reactions.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,7 +19,11 @@ from aios.api.main import get_cortex_bus
 from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap, CortexBus
 from aios.application.read_models.projection import get_system_projection
 from aios.application.memory.authority import MemoryAuthority
-from aios.api.deps import get_development_tracker, get_memory_authority, get_skill_memory
+from aios.api.deps import (
+    get_development_tracker,
+    get_memory_authority,
+    get_skill_memory,
+)
 from aios.domain.read_models import MetricEnvelope, MetricStatus
 from aios.memory.development import DevelopmentTracker
 from aios.memory.skills import SkillMemory
@@ -46,6 +51,7 @@ def _read_skill_trails(
         return authority.skills_trail_map()
     return skills.trail_map()
 
+
 @router.get("/snapshot")
 def get_snapshot(
     bus: Optional[CortexBus] = Depends(get_cortex_bus),
@@ -55,12 +61,15 @@ def get_snapshot(
 ) -> JSONResponse:
     """Return the organism's current truthful state (fresh boot state)."""
     if bus is None:
-        return JSONResponse(content={"status": "offline", "reason": "CORTEX_BUS_DISABLED"})
+        return JSONResponse(
+            content={"status": "offline", "reason": "CORTEX_BUS_DISABLED"}
+        )
 
     pending = bus.pending_count()
-    
+
     try:
         from aios import __version__
+
         version = __version__
     except ImportError:
         version = "unknown"
@@ -117,7 +126,9 @@ def get_snapshot(
                 "knowledge": [],
                 "boot_facts": {
                     "version": version,
-                    "verified_success_rate": tracker_metrics.get("verified_success_rate"),
+                    "verified_success_rate": tracker_metrics.get(
+                        "verified_success_rate"
+                    ),
                     "average_tool_calls": tracker_metrics.get("average_tool_calls"),
                     "trails_total": len(trails),
                     "trails_verified": sum(
@@ -165,7 +176,7 @@ def get_snapshot(
             "phase": phase,
             "active_castes": list(active_castes),
             "last_event_id": last_event_id,
-            "knowledge": [], # Can be populated from recent semantic recall
+            "knowledge": [],  # Can be populated from recent semantic recall
             "boot_facts": {
                 "version": version,
                 "verified_success_rate": metrics.get("verified_success_rate", 0),
@@ -176,22 +187,27 @@ def get_snapshot(
                 "models_engaged": None,
                 "models_total": None,
                 "memory_gb": None,
-            }
+            },
         }
     )
+
 
 @router.get("/stream")
 async def stream_journal(
     request: Request,
     last_event_id_header: Optional[int] = Header(None, alias="Last-Event-ID"),
     last_event_id_query: Optional[int] = Query(None, alias="last_event_id"),
-    bus: Optional[CortexBus] = Depends(get_cortex_bus)
+    bus: Optional[CortexBus] = Depends(get_cortex_bus),
 ) -> StreamingResponse:
     """Stream the durable cortex journal (Last-Event-ID recovery + heartbeat)."""
     if bus is None:
         raise ValueError("CORTEX_BUS must be enabled to stream the journal")
-        
-    last_event_id = last_event_id_header if last_event_id_header is not None else last_event_id_query
+
+    last_event_id = (
+        last_event_id_header
+        if last_event_id_header is not None
+        else last_event_id_query
+    )
 
     async def _event_generator() -> AsyncGenerator[str, None]:
         queue: asyncio.Queue[BusEvent] = asyncio.Queue(maxsize=256)
@@ -207,6 +223,7 @@ async def stream_journal(
                     queue_overflowed.set()
                     return
                 queue.put_nowait(event)
+
             loop.call_soon_threadsafe(_enqueue)
 
         # 1. Recovery: Replay missed events from Last-Event-ID
@@ -249,21 +266,21 @@ async def stream_journal(
             # 3. Stream loop with heartbeat
             while not await request.is_disconnected():
                 if queue_overflowed.is_set():
-                    yield "event: snapshot_required\ndata: {\"reason\":\"slow_client\"}\n\n"
+                    yield 'event: snapshot_required\ndata: {"reason":"slow_client"}\n\n'
                     break
                 try:
                     # Wait for next event or heartbeat timeout
                     event = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    
+
                     # Format payload for SSE
                     payload_str = json.dumps(event.payload, ensure_ascii=False)
                     payload_str = payload_str.replace("\r", "\\r").replace("\n", "\\n")
-                    
+
                     yield f"id: {event.id}\n"
                     yield f"data: {payload_str}\n\n"
-                    
+
                     queue.task_done()
-                    
+
                 except asyncio.TimeoutError:
                     # Heartbeat pulse to keep connection alive
                     yield ": heartbeat\n\n"

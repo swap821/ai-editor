@@ -10,6 +10,7 @@ post-hoc completion record with no in-progress step index). Rather than
 fabricate a step/resume action that would silently no-op, those two routes
 say so explicitly (501) instead of pretending to control execution.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

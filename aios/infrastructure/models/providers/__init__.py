@@ -9,8 +9,7 @@ from typing import Protocol
 
 
 class CompletionProvider(Protocol):
-    def complete(self, prompt: str, *, system: str | None = None) -> str:
-        ...
+    def complete(self, prompt: str, *, system: str | None = None) -> str: ...
 
 
 __all__ = ["CompletionProvider"]

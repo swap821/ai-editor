@@ -6,6 +6,7 @@ HTTP API using only ``urllib`` — no extra dependencies. Because the agents
 depend on the *protocol*, tests inject a fake client and need neither a network
 connection nor a model.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,7 +25,9 @@ class LLMError(RuntimeError):
 class LLMClient(Protocol):
     """Anything that can turn a prompt into a completion string."""
 
-    def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+    def complete(
+        self, prompt: str, *, system: Optional[str] = None, json_mode: bool = False
+    ) -> str:
         """Return the model's text completion for *prompt* (optional *system*)."""
         ...
 
@@ -104,6 +107,7 @@ class OllamaClient:
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """Single non-streaming chat turn via Ollama ``/api/chat``.
 
@@ -122,11 +126,20 @@ class OllamaClient:
         Raises:
             LLMError: On any transport or decoding failure.
         """
+        output_tokens = max_tokens
+        if output_tokens is not None and output_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
+        options: dict[str, object] = {
+            "temperature": self.temperature,
+            "num_ctx": self.num_ctx,
+        }
+        if output_tokens is not None:
+            options["num_predict"] = output_tokens
         payload: dict[str, object] = {
             "model": model or self.model,
             "messages": messages,
             "stream": False,
-            "options": {"temperature": self.temperature, "num_ctx": self.num_ctx},
+            "options": options,
         }
         if tools:
             payload["tools"] = tools
@@ -229,8 +242,36 @@ class OllamaClient:
                 body = json.loads(response.read().decode("utf-8"))
         except Exception:  # noqa: BLE001 - discovery must never raise
             return {"available": False, "models": []}
-        names = [str(m.get("name", "")) for m in body.get("models", []) if m.get("name")]
+        names = [
+            str(m.get("name", "")) for m in body.get("models", []) if m.get("name")
+        ]
         return {"available": True, "models": names}
+
+    def list_detailed_models(self) -> list[dict[str, Any]]:
+        """Return installed local models with all available Ollama metadata."""
+        try:
+            request = urllib.request.Request(f"{self.host}/api/tags", method="GET")
+            with urllib.request.urlopen(request, timeout=4) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            return []
+        return [
+            m for m in body.get("models", []) if isinstance(m, dict) and "name" in m
+        ]
+
+    def running_model_metrics(self) -> dict[str, Any]:
+        """Return real resident-model memory metrics from Ollama's /api/ps."""
+        try:
+            request = urllib.request.Request(f"{self.host}/api/ps", method="GET")
+            with urllib.request.urlopen(request, timeout=4) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001 - qualification records unknown state
+            return {"available": False, "models": [], "error_type": type(exc).__name__}
+        models = body.get("models", [])
+        return {
+            "available": isinstance(models, list),
+            "models": [model for model in models if isinstance(model, dict)],
+        }
 
     def is_available(self) -> bool:
         """Return True if the Ollama server answers a tags probe within 4s."""

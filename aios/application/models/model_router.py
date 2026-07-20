@@ -1,4 +1,5 @@
 """Provider selection and model calls behind the Privacy Broker."""
+
 from __future__ import annotations
 
 import time
@@ -16,8 +17,7 @@ from aios.domain.privacy import (
 
 
 class ModelClient(Protocol):
-    def complete(self, prompt: str, *, system: str | None = None) -> str:
-        ...
+    def complete(self, prompt: str, *, system: str | None = None) -> str: ...
 
 
 class ModelRoutingError(RuntimeError):
@@ -113,9 +113,13 @@ class ModelRouter:
                 raise
             if request.policy.fallback_policy.value != "local_only":
                 self._record_failure(request, estimated, started, selected, None)
-                raise ModelRoutingError("cloud provider failed and fallback is denied") from exc
+                raise ModelRoutingError(
+                    "cloud provider failed and fallback is denied"
+                ) from exc
             local_request = request.model_copy(
-                update={"policy": request.policy.model_copy(update={"local_only": True})}
+                update={
+                    "policy": request.policy.model_copy(update={"local_only": True})
+                }
             )
             local = self.select(
                 local_request,
@@ -127,7 +131,9 @@ class ModelRouter:
             local_client = clients.get(local.route.provider)
             if local_client is None:
                 self._record_failure(request, estimated, started, selected, None)
-                raise ModelRoutingError("cloud failed and no permitted local fallback exists") from exc
+                raise ModelRoutingError(
+                    "cloud failed and no permitted local fallback exists"
+                ) from exc
             fallback = f"{selected.route.provider}->{local.route.provider}"
             selected = local
             result = local_client.complete(local.privacy.scrubbed_prompt, system=system)
@@ -142,7 +148,9 @@ class ModelRouter:
             allowed_providers=selected.privacy.allowed_providers if selected else (),
             selected_provider=selected.route.provider if selected else None,
             selected_model=selected.route.model if selected else None,
-            local_cloud_decision="local" if selected.route.privacy == router.PRIVACY_LOCAL else "cloud",
+            local_cloud_decision="local"
+            if selected.route.privacy == router.PRIVACY_LOCAL
+            else "cloud",
             fallback=fallback,
             estimated_tokens=estimated,
             actual_tokens=actual,
@@ -172,7 +180,9 @@ class ModelRouter:
             selected_provider=selected.route.provider if selected else None,
             selected_model=selected.route.model if selected else None,
             local_cloud_decision=(
-                "local" if selected and selected.route.privacy == router.PRIVACY_LOCAL else "cloud"
+                "local"
+                if selected and selected.route.privacy == router.PRIVACY_LOCAL
+                else "cloud"
             ),
             fallback=fallback,
             estimated_tokens=estimated,

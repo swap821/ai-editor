@@ -19,6 +19,7 @@ Classification order is strict: injection -> secret -> destructive -> network
 -> env mutation -> scope -> caution -> safe. The most dangerous category that
 matches wins.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -71,20 +72,22 @@ def _compile(patterns: list[str]) -> list[Pattern[str]]:
 
 # C3-hardened: Map common Unicode homoglyphs to ASCII equivalents.
 # Cyrillic lookalikes are a primary bypass vector for prompt-injection.
-_HOMOGLYPH_MAP = str.maketrans({
-    "\u0430": "a",   # CYRILLIC SMALL LETTER A
-    "\u0435": "e",   # CYRILLIC SMALL LETTER IE
-    "\u043e": "o",   # CYRILLIC SMALL LETTER O
-    "\u0440": "p",   # CYRILLIC SMALL LETTER ER
-    "\u0441": "c",   # CYRILLIC SMALL LETTER ES
-    "\u0445": "x",   # CYRILLIC SMALL LETTER HA
-    "\u0410": "A",   # CYRILLIC CAPITAL LETTER A
-    "\u0415": "E",   # CYRILLIC CAPITAL LETTER IE
-    "\u041e": "O",   # CYRILLIC CAPITAL LETTER O
-    "\u0420": "P",   # CYRILLIC CAPITAL LETTER ER
-    "\u0421": "C",   # CYRILLIC CAPITAL LETTER ES
-    "\u0425": "X",   # CYRILLIC CAPITAL LETTER HA
-})
+_HOMOGLYPH_MAP = str.maketrans(
+    {
+        "\u0430": "a",  # CYRILLIC SMALL LETTER A
+        "\u0435": "e",  # CYRILLIC SMALL LETTER IE
+        "\u043e": "o",  # CYRILLIC SMALL LETTER O
+        "\u0440": "p",  # CYRILLIC SMALL LETTER ER
+        "\u0441": "c",  # CYRILLIC SMALL LETTER ES
+        "\u0445": "x",  # CYRILLIC SMALL LETTER HA
+        "\u0410": "A",  # CYRILLIC CAPITAL LETTER A
+        "\u0415": "E",  # CYRILLIC CAPITAL LETTER IE
+        "\u041e": "O",  # CYRILLIC CAPITAL LETTER O
+        "\u0420": "P",  # CYRILLIC CAPITAL LETTER ER
+        "\u0421": "C",  # CYRILLIC CAPITAL LETTER ES
+        "\u0425": "X",  # CYRILLIC CAPITAL LETTER HA
+    }
+)
 
 
 def _normalize_homoglyphs(text: str) -> str:
@@ -93,85 +96,139 @@ def _normalize_homoglyphs(text: str) -> str:
 
 
 # 1. Prompt-injection attempts to override system policy via the payload -> RED.
-_INJECTION_PATTERNS = _compile([
-    r"ignore\s+(all\s+)?(the\s+)?previous\s+instructions",
-    r"disregard\s+(the\s+)?(system|above|prior|earlier)",
-    r"you\s+are\s+now\s+(dan|in\s+developer\s+mode)",
-    r"\bdo\s+anything\s+now\b",
-    r"override\s+(the\s+)?security",
-    r"reveal\s+(your\s+)?(system\s+)?prompt",
-    r"bypass\s+(the\s+)?(security|guardrail|gateway)",
-])
+_INJECTION_PATTERNS = _compile(
+    [
+        r"ignore\s+(all\s+)?(the\s+)?previous\s+instructions",
+        r"disregard\s+(the\s+)?(system|above|prior|earlier)",
+        r"you\s+are\s+now\s+(dan|in\s+developer\s+mode)",
+        r"\bdo\s+anything\s+now\b",
+        r"override\s+(the\s+)?security",
+        r"reveal\s+(your\s+)?(system\s+)?prompt",
+        r"bypass\s+(the\s+)?(security|guardrail|gateway)",
+    ]
+)
 
 # 2. Destructive / high-risk operations -> RED.
-_DESTRUCTIVE_PATTERNS = _compile([
-    # C2-hardened: catch bare "rm -rf" AND absolute-path "/bin/rm -rf /"
-    r"(?:^|[;|&\s])\S*\brm\b\s+-[rf]", r"\brm\s+--recursive", r"\brm\s+/",
-    r"\bdel\s+/[sq]\b", r"\bdel\s+\*", r"\berase\s+/",
-    r"\bformat\s+[a-z]:", r"\bmkfs\b", r"\bmkfs\.", r"\bdd\s+if=",
-    r">\s*/dev/sd[a-z]", r"\bchmod\s+777\b", r"\bchown\b",
-    r"\bremove-item\b[^\n]*-recurse", r"\bremove-item\b[^\n]*-force",
-    r"\brmdir\s+/s\b", r"\brd\s+/s\b",
-    r":\(\)\s*\{.*\}\s*;",  # fork bomb
-    r"\bshutdown\b", r"\breboot\b", r"\bhalt\b", r"\bstop-computer\b",
-    r"\bshutil\.rmtree\b", r"\bos\.remove\b", r"\bos\.unlink\b", r"\bos\.rmdir\b",
-])
+_DESTRUCTIVE_PATTERNS = _compile(
+    [
+        # C2-hardened: catch bare "rm -rf" AND absolute-path "/bin/rm -rf /"
+        r"(?:^|[;|&\s])\S*\brm\b\s+-[rf]",
+        r"\brm\s+--recursive",
+        r"\brm\s+/",
+        r"\bdel\s+/[sq]\b",
+        r"\bdel\s+\*",
+        r"\berase\s+/",
+        r"\bformat\s+[a-z]:",
+        r"\bmkfs\b",
+        r"\bmkfs\.",
+        r"\bdd\s+if=",
+        r">\s*/dev/sd[a-z]",
+        r"\bchmod\s+777\b",
+        r"\bchown\b",
+        r"\bremove-item\b[^\n]*-recurse",
+        r"\bremove-item\b[^\n]*-force",
+        r"\brmdir\s+/s\b",
+        r"\brd\s+/s\b",
+        r":\(\)\s*\{.*\}\s*;",  # fork bomb
+        r"\bshutdown\b",
+        r"\breboot\b",
+        r"\bhalt\b",
+        r"\bstop-computer\b",
+        r"\bshutil\.rmtree\b",
+        r"\bos\.remove\b",
+        r"\bos\.unlink\b",
+        r"\bos\.rmdir\b",
+    ]
+)
 
 # 3. Network egress (data exfiltration / supply-chain risk) -> RED.
-_NETWORK_PATTERNS = _compile([
-    r"\bcurl\s+", r"\bwget\s+", r"\binvoke-webrequest\b", r"\binvoke-restmethod\b",
-    r"\bnc\s+-", r"\bnetcat\b", r"\bscp\s+", r"\bsftp\s+", r"\bftp\s+", r"\bssh\s+",
-])
+_NETWORK_PATTERNS = _compile(
+    [
+        r"\bcurl\s+",
+        r"\bwget\s+",
+        r"\binvoke-webrequest\b",
+        r"\binvoke-restmethod\b",
+        r"\bnc\s+-",
+        r"\bnetcat\b",
+        r"\bscp\s+",
+        r"\bsftp\s+",
+        r"\bftp\s+",
+        r"\bssh\s+",
+    ]
+)
 
 # 4. Environment / secret mutation -> RED.
-_ENV_MUTATION_PATTERNS = _compile([
-    r"\bexport\s+\w+\s*=" , r"\bsetx\b", r"\bset\s+\w+=",
-    r"\$env:\w+\s*=", r"\bset-item\s+env:",
-])
+_ENV_MUTATION_PATTERNS = _compile(
+    [
+        r"\bexport\s+\w+\s*=",
+        r"\bsetx\b",
+        r"\bset\s+\w+=",
+        r"\$env:\w+\s*=",
+        r"\bset-item\s+env:",
+    ]
+)
 
 # 5. Shell/interpreter escape hatches -> RED. These can hide arbitrary writes,
 # network access, or process launches behind an otherwise innocent executable.
-_SHELL_ESCAPE_PATTERNS = _compile([
-    r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?(?:\.exe)?\s+-c\b",
-    # G3: python -m http.server etc. stays RED, but the dedicated verify path
-    # intentionally uses "python -m pytest ..." and is classified below as YELLOW.
-    r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?(?:\.exe)?\s+-m\s+(?!pytest\b)",
-    r"(?:^|[;&|]\s*)node\s+-e\b",
-    r"(?:^|[;&|]\s*)(?:powershell|pwsh)\b[^\n]*\s-(?:command|encodedcommand)\b",
-    r"(?:^|[;&|]\s*)cmd(?:\.exe)?\s+/c\b",
-    r"(?:^|[;&|]\s*)(?:bash|sh)\s+-c\b",
-    # G3: perl/ruby/php/lua -e / -r code execution
-    r"(?:^|[;|&\s])(?:perl|ruby|php|lua)\s+-[er]\b",
-])
+_SHELL_ESCAPE_PATTERNS = _compile(
+    [
+        r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?(?:\.exe)?\s+-c\b",
+        # G3: python -m http.server etc. stays RED, but the dedicated verify path
+        # intentionally uses "python -m pytest ..." and is classified below as YELLOW.
+        r"(?:^|[;&|]\s*)python(?:3(?:\.\d+)?)?(?:\.exe)?\s+-m\s+(?!pytest\b)",
+        r"(?:^|[;&|]\s*)node\s+-e\b",
+        r"(?:^|[;&|]\s*)(?:powershell|pwsh)\b[^\n]*\s-(?:command|encodedcommand)\b",
+        r"(?:^|[;&|]\s*)cmd(?:\.exe)?\s+/c\b",
+        r"(?:^|[;&|]\s*)(?:bash|sh)\s+-c\b",
+        # G3: perl/ruby/php/lua -e / -r code execution
+        r"(?:^|[;|&\s])(?:perl|ruby|php|lua)\s+-[er]\b",
+    ]
+)
 
 # No shell composition is accepted, even after human approval. Executor launches
 # structured argv with shell=False; rejecting metacharacters here keeps the
 # classification contract aligned with that execution boundary.
-_SHELL_COMPOSITION_PATTERNS = _compile([
-    r"[;&|<>`]",           # shell metacharacters
-    r"[\r\n]",              # line breaks
-    r"\$\(",               # C1: $(…) command substitution
-    r"\$\{",               # G4: ${…} parameter expansion
-])
+_SHELL_COMPOSITION_PATTERNS = _compile(
+    [
+        r"[;&|<>`]",  # shell metacharacters
+        r"[\r\n]",  # line breaks
+        r"\$\(",  # C1: $(…) command substitution
+        r"\$\{",  # G4: ${…} parameter expansion
+    ]
+)
 
 # 5. Caution operations requiring human approval -> YELLOW.
-_CAUTION_PATTERNS = _compile([
-    r"\bpip\s+install\b", r"\bnpm\s+install\b", r"\byarn\s+add\b",
-    r"\bgit\s+(commit|push|reset|clone|checkout|merge|rebase)\b",
-    r"\bset-content\b", r"\bout-file\b", r"\badd-content\b",
-    r"\bnew-item\b[^\n]*-itemtype\s+file", r"\bnew-item\b[^\n]*-itemtype\s+directory",
-    r"\bmkdir\b", r"\bmd\b\s", r"\bmv\s+", r"\bmove-item\b",
-    r"\bcp\s+", r"\bcopy-item\b", r"\btouch\s+",
-    r"open\([^)]*['\"][rwa]?\+?b?['\"]",  # python file write mode
-    r"^\s*(?:(?:\.venv[\\/]+scripts[\\/]+)?python(?:\.exe)?\s+-m\s+)?pytest\b",
-])
+_CAUTION_PATTERNS = _compile(
+    [
+        r"\bpip\s+install\b",
+        r"\bnpm\s+install\b",
+        r"\byarn\s+add\b",
+        r"\bgit\s+(commit|push|reset|clone|checkout|merge|rebase)\b",
+        r"\bset-content\b",
+        r"\bout-file\b",
+        r"\badd-content\b",
+        r"\bnew-item\b[^\n]*-itemtype\s+file",
+        r"\bnew-item\b[^\n]*-itemtype\s+directory",
+        r"\bmkdir\b",
+        r"\bmd\b\s",
+        r"\bmv\s+",
+        r"\bmove-item\b",
+        r"\bcp\s+",
+        r"\bcopy-item\b",
+        r"\btouch\s+",
+        r"open\([^)]*['\"][rwa]?\+?b?['\"]",  # python file write mode
+        r"^\s*(?:(?:\.venv[\\/]+scripts[\\/]+)?python(?:\.exe)?\s+-m\s+)?pytest\b",
+    ]
+)
 
 # Explicit auto-execute allowlist. Everything else that survives the RED and
 # YELLOW checks is refused rather than handed to a shell by default.
-_SAFE_PATTERNS = _compile([
-    r"^\s*echo(?:\s+[^;&|<>`\r\n]*)?\s*$",
-    r"^\s*pwd\s*$",
-])
+_SAFE_PATTERNS = _compile(
+    [
+        r"^\s*echo(?:\s+[^;&|<>`\r\n]*)?\s*$",
+        r"^\s*pwd\s*$",
+    ]
+)
 
 
 class RateLimiter:
@@ -343,7 +400,9 @@ def classify(command: str, *, injection_shield: object = None) -> Classification
     """
     try:
         if not command or not isinstance(command, str) or not command.strip():
-            return ClassificationResult(Zone.RED, 1.0, "Empty/invalid command (fail-closed).")
+            return ClassificationResult(
+                Zone.RED, 1.0, "Empty/invalid command (fail-closed)."
+            )
 
         # C3: Normalize Unicode homoglyphs (e.g., Cyrillic о vs Latin o) before matching
         command = unicodedata.normalize("NFKC", command)
@@ -353,56 +412,84 @@ def classify(command: str, *, injection_shield: object = None) -> Classification
 
         for pat in _INJECTION_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.RED, 1.0, f"Prompt-injection pattern: {pat.pattern}")
+                return ClassificationResult(
+                    Zone.RED, 1.0, f"Prompt-injection pattern: {pat.pattern}"
+                )
 
         # Second injection layer (Blueprint 5.2): an embedding-similarity blocklist
         # catches paraphrased injections the regex misses. Fail-safe inside the
         # shield (model error -> False), so the regex layer is never weakened.
         shield = injection_shield if injection_shield is not None else _injection_shield
         if shield is not None and shield.is_injection(command):  # type: ignore[attr-defined]
-            return ClassificationResult(Zone.RED, 1.0, "Semantic prompt-injection (vector blocklist).")
+            return ClassificationResult(
+                Zone.RED, 1.0, "Semantic prompt-injection (vector blocklist)."
+            )
 
         scan = scan_and_redact(command)
         if scan.detected:
             return ClassificationResult(
-                Zone.RED, 1.0, f"Embedded credential(s) detected: {', '.join(scan.findings)}"
+                Zone.RED,
+                1.0,
+                f"Embedded credential(s) detected: {', '.join(scan.findings)}",
             )
 
         for pat in _DESTRUCTIVE_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.RED, 1.0, f"Destructive operation: {pat.pattern}")
+                return ClassificationResult(
+                    Zone.RED, 1.0, f"Destructive operation: {pat.pattern}"
+                )
 
         for pat in _NETWORK_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.RED, 1.0, f"Network egress blocked: {pat.pattern}")
+                return ClassificationResult(
+                    Zone.RED, 1.0, f"Network egress blocked: {pat.pattern}"
+                )
 
         for pat in _ENV_MUTATION_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.RED, 1.0, f"Environment/secret mutation: {pat.pattern}")
+                return ClassificationResult(
+                    Zone.RED, 1.0, f"Environment/secret mutation: {pat.pattern}"
+                )
 
         for pat in _SHELL_ESCAPE_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.RED, 1.0, f"Shell/interpreter escape blocked: {pat.pattern}")
+                return ClassificationResult(
+                    Zone.RED, 1.0, f"Shell/interpreter escape blocked: {pat.pattern}"
+                )
 
         for pat in _SHELL_COMPOSITION_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.RED, 1.0, f"Shell composition blocked: {pat.pattern}")
+                return ClassificationResult(
+                    Zone.RED, 1.0, f"Shell composition blocked: {pat.pattern}"
+                )
 
         scope = command_stays_in_scope(command)
         if not scope.in_scope:
-            return ClassificationResult(Zone.RED, 1.0, f"Scope violation: {scope.reason}")
+            return ClassificationResult(
+                Zone.RED, 1.0, f"Scope violation: {scope.reason}"
+            )
 
         for pat in _CAUTION_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.YELLOW, 0.9, f"Caution operation requires approval: {pat.pattern}")
+                return ClassificationResult(
+                    Zone.YELLOW,
+                    0.9,
+                    f"Caution operation requires approval: {pat.pattern}",
+                )
 
         for pat in _SAFE_PATTERNS:
             if pat.search(command):
-                return ClassificationResult(Zone.GREEN, 1.0, "Known read-only/test command; within scope.")
+                return ClassificationResult(
+                    Zone.GREEN, 1.0, "Known read-only/test command; within scope."
+                )
 
-        return ClassificationResult(Zone.RED, 1.0, "Unknown command is not on the auto-execute allowlist.")
+        return ClassificationResult(
+            Zone.RED, 1.0, "Unknown command is not on the auto-execute allowlist."
+        )
     except Exception as exc:  # noqa: BLE001 - fail-closed on any classifier error
-        return ClassificationResult(Zone.RED, 1.0, f"Fail-closed on classifier exception: {exc}")
+        return ClassificationResult(
+            Zone.RED, 1.0, f"Fail-closed on classifier exception: {exc}"
+        )
 
 
 def validate_command(
@@ -432,7 +519,9 @@ def validate_command(
                 f"[RATE LIMIT] {limiter.max_per_session} sensitive actions already used "
                 f"this session; human re-authorisation required.",
             )
-        return GatewayDecision("REQUIRE_HUMAN", Zone.YELLOW, f"[APPROVAL REQUIRED] {result.reason}")
+        return GatewayDecision(
+            "REQUIRE_HUMAN", Zone.YELLOW, f"[APPROVAL REQUIRED] {result.reason}"
+        )
 
     return GatewayDecision("ALLOW", Zone.GREEN, "Command passed the security gateway.")
 

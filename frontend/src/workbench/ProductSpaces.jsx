@@ -1,15 +1,21 @@
 import { useState } from 'react';
-import { Activity, BriefcaseBusiness, Clock3, FolderTree, ShieldCheck } from 'lucide-react';
+import { Activity, BriefcaseBusiness, Clock3, FolderTree, ShieldCheck, Cpu } from 'lucide-react';
 import { useMirrorStore } from '../superbrain/lib/mirrorStore';
 import CouncilDashboard from './CouncilDashboard';
 import CodeEditor from './CodeEditor';
 import FileTree from './FileTree';
+import IntelligenceHiringPanel from './IntelligenceHiringPanel';
+import SkillLibraryPanel from './SkillLibraryPanel';
+import MaintenanceCenterPanel from './MaintenanceCenterPanel';
+import LocalWorkforcePanel from './LocalWorkforcePanel';
+import MissionControlPanel from './MissionControlPanel';
 import './ProductSpaces.css';
 
 const SPACES = [
   { id: 'home', label: 'Living Mind', icon: Activity },
   { id: 'workbench', label: 'Workbench', icon: BriefcaseBusiness },
   { id: 'governance', label: 'Governance', icon: ShieldCheck },
+  { id: 'operations', label: 'Operations', icon: Cpu },
   { id: 'history', label: 'History', icon: Clock3 },
 ];
 
@@ -82,6 +88,26 @@ function Workbench({ activeFile, setActiveFile }) {
   );
 }
 
+function OperationsSpace() {
+  return (
+    <section className="gagos-space__operations" aria-label="Operations">
+      <div className="gagos-space__eyebrow">Operations · lifecycle engines</div>
+      <h2>Intelligence & Operations</h2>
+      <p className="gagos-space__lede">
+        Supervisory view of skill management, hiring operations, maintenance lifecycle, and local workforce.
+      </p>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' }}>
+        <IntelligenceHiringPanel />
+        <SkillLibraryPanel />
+        <MaintenanceCenterPanel />
+        <LocalWorkforcePanel />
+        <MissionControlPanel />
+      </div>
+    </section>
+  );
+}
+
 function History({ mirror }) {
   const events = [...mirror.recentEvents].reverse();
   return (
@@ -133,6 +159,7 @@ export default function ProductSpaces() {
             <CouncilDashboard />
           </section>
         ) : null}
+        {current.id === 'operations' ? <OperationsSpace /> : null}
         {current.id === 'history' ? <History mirror={mirror} /> : null}
       </div>
     </section>

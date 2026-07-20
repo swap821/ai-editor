@@ -12,6 +12,7 @@ execute → verify → reflect loop.
 Fail-closed: a blocked, timed-out, or un-launchable verification counts as a
 FAIL, never a silent pass.
 """
+
 from __future__ import annotations
 
 import re
@@ -56,7 +57,10 @@ def _parse_counts(output: str) -> tuple[int, int]:
     """Extract ``(passed, failed)`` test counts from runner output (0 if absent)."""
     passed = _PASSED.search(output)
     failed = _FAILED.search(output)
-    return (int(passed.group(1)) if passed else 0, int(failed.group(1)) if failed else 0)
+    return (
+        int(passed.group(1)) if passed else 0,
+        int(failed.group(1)) if failed else 0,
+    )
 
 
 #: Executor statuses that are GATE DECISIONS, not run failures — a RED security
@@ -69,7 +73,9 @@ _GATE_STATUSES = frozenset({"BLOCKED", "REQUIRE_APPROVAL"})
 class Verifier:
     """Runs a verification command and judges pass/fail (Blueprint stage 8)."""
 
-    def __init__(self, executor: Executor, *, on_failure: Optional[FailureHook] = None) -> None:
+    def __init__(
+        self, executor: Executor, *, on_failure: Optional[FailureHook] = None
+    ) -> None:
         self.executor = executor
         #: Optional reflection hook fired on a genuine verification failure.
         self.on_failure = on_failure
@@ -154,7 +160,9 @@ class Verifier:
             lesson_summary=_lesson_summary(lesson),
         )
 
-    def _maybe_reflect(self, command: str, error_output: str) -> Optional[dict[str, Any]]:
+    def _maybe_reflect(
+        self, command: str, error_output: str
+    ) -> Optional[dict[str, Any]]:
         """Fire the reflection hook on failure; never let it break verification.
 
         Returns the lesson dict the hook recorded (``{"mistake_id", "error_type",
@@ -181,7 +189,9 @@ def _lesson_mistake_id(lesson: Optional[dict[str, Any]]) -> Optional[int]:
 def _lesson_summary(lesson: Optional[dict[str, Any]]) -> str:
     if not lesson:
         return ""
-    summary = f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+    summary = (
+        f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+    )
     if lesson.get("recurrence"):
         summary = f"(recurring) {summary}"
     return summary

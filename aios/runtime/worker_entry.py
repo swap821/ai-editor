@@ -6,6 +6,7 @@ LLM-driven worker that generates the edit, applies it via the scoped write_file,
 verifies via allowlisted run_command, and self-corrects up to a bounded cap. The
 isolation model is unchanged; only what the worker does inside the box changes.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -153,7 +154,9 @@ def _run_llm_worker(
             or contract.allowed_files[0]
         )
         allow_cloud = bool(contract.metadata.get("allow_cloud_reasoning", False))
-        max_repairs = int(contract.metadata.get("max_repairs", config.WORKER_MAX_REPAIRS))
+        max_repairs = int(
+            contract.metadata.get("max_repairs", config.WORKER_MAX_REPAIRS)
+        )
 
         attempts: list[dict] = []
         passed = False
@@ -200,7 +203,13 @@ def _run_llm_worker(
             last_failure = _summarize_failures(failed)
 
         runtime.emit_evidence(
-            {"llm_worker": {"target_file": target_file, "attempts": attempts, "passed": passed}}
+            {
+                "llm_worker": {
+                    "target_file": target_file,
+                    "attempts": attempts,
+                    "passed": passed,
+                }
+            }
         )
 
         if gateway_error is not None and not attempts:

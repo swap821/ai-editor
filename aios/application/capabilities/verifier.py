@@ -1,4 +1,5 @@
 """Fail-closed verification for exact, server-issued capabilities."""
+
 from __future__ import annotations
 
 from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError

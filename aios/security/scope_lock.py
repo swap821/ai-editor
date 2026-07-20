@@ -11,6 +11,7 @@ treated as out-of-scope.
 Scope roots default to :data:`aios.config.SCOPE_ROOTS` (the ``training_ground``
 "playground") and can be re-declared per session via :func:`set_scope_roots`.
 """
+
 from __future__ import annotations
 
 import re
@@ -70,6 +71,7 @@ def get_scope_roots() -> tuple[Path, ...]:
 def _is_within(resolved: Path, root: Path) -> bool:
     """Return True if *resolved* is *root* itself or nested beneath it."""
     import os
+
     res_str = os.path.realpath(str(resolved))
     root_str = os.path.realpath(str(root))
     if res_str == root_str or res_str.startswith(root_str + os.sep):
@@ -137,10 +139,24 @@ def _looks_like_path(token: str) -> bool:
 #: (``New-Item``, ``Copy-Item``, ...) commonly pass paths via ``-Path``/
 #: ``-Destination`` flag/value pairs and are intentionally out of scope here
 #: to avoid false-blocking legitimate flag values.
-_WRITE_VERBS = frozenset({
-    "mkdir", "md", "rmdir", "rd", "touch",
-    "rm", "del", "erase", "cp", "copy", "mv", "move", "ren", "rename",
-})
+_WRITE_VERBS = frozenset(
+    {
+        "mkdir",
+        "md",
+        "rmdir",
+        "rd",
+        "touch",
+        "rm",
+        "del",
+        "erase",
+        "cp",
+        "copy",
+        "mv",
+        "move",
+        "ren",
+        "rename",
+    }
+)
 
 
 def _bare_write_target_is_out_of_scope(words: list[str]) -> Optional[str]:

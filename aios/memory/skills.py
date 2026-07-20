@@ -4,6 +4,7 @@ A workflow is never trusted because the model described it or because it ran
 once. It becomes ``verified`` only after repeated verification-backed success,
 and can be demoted again when later verified failures reduce its success rate.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -99,7 +100,9 @@ class SkillMemory:
         green is remembered, but it cannot calibrate the future. Defaults to STRONG
         so callers that do not yet pass strength keep their existing behavior.
         """
-        clean_steps = [scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()]
+        clean_steps = [
+            scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()
+        ]
         goal = scan_and_redact(goal.strip()).scrubbed
         if not goal or not clean_steps:
             raise ValueError("skill attempt requires a goal and workflow steps")
@@ -196,10 +199,14 @@ class SkillMemory:
                 from aios.core.graph_ingestion import edges_from_skill
 
                 rate = successes / max(successes + failures, 1)
-                for s, p, o, conf in edges_from_skill(goal, clean_steps, success_rate=rate):
+                for s, p, o, conf in edges_from_skill(
+                    goal, clean_steps, success_rate=rate
+                ):
                     self._facts.add_fact(s, p, o, confidence=conf)
             except Exception:
-                logger.warning("graph ingestion from skill failed (swallowed)", exc_info=True)
+                logger.warning(
+                    "graph ingestion from skill failed (swallowed)", exc_info=True
+                )
 
         return skill_id
 
@@ -408,7 +415,8 @@ class SkillMemory:
                     "goal_pattern": str(row["goal_pattern"]),
                     "steps": row["steps"],
                     "status": str(row["status"]),
-                    "quarantined": str(row["status"]) == "candidate" and meets_promotion,
+                    "quarantined": str(row["status"]) == "candidate"
+                    and meets_promotion,
                     "success_count": successes,
                     "failure_count": failures,
                     "success_rate": round(rate, 6),

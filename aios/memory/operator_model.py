@@ -5,6 +5,7 @@ module synthesises approved facts about the OPERATOR: preferences, attributes,
 and project context. The output is consumed by system-prompt builders and
 (future) frontend profile cards.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -33,10 +34,12 @@ def render_operator_model(facts: SemanticFacts) -> dict[str, Any]:
     project_context: list[dict[str, str]] = []
 
     for row in operator_facts:
-        preferences.append({
-            "predicate": str(row["predicate"]),
-            "object": str(row["object"]),
-        })
+        preferences.append(
+            {
+                "predicate": str(row["predicate"]),
+                "object": str(row["object"]),
+            }
+        )
 
     for row in attr_rows:
         subject = str(row["subject"])
@@ -44,10 +47,12 @@ def render_operator_model(facts: SemanticFacts) -> dict[str, Any]:
         attributes[attr_name] = str(row["object"])
 
     for row in project_facts:
-        project_context.append({
-            "predicate": str(row["predicate"]),
-            "object": str(row["object"]),
-        })
+        project_context.append(
+            {
+                "predicate": str(row["predicate"]),
+                "object": str(row["object"]),
+            }
+        )
 
     return {
         "preferences": preferences,

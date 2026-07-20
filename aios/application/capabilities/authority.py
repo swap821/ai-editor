@@ -1,4 +1,5 @@
 """Server-issued exact capability authority."""
+
 from __future__ import annotations
 
 import hashlib
@@ -10,7 +11,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
-from aios.domain.capabilities.contracts import Capability, CapabilityBinding
+from aios.domain.capabilities.contracts import (
+    Capability,
+    CapabilityBinding,
+    ConsumedCapabilityProof,
+)
 from aios.domain.capabilities.digest import payload_digest
 from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
 from aios.security.secret_scanner import scan_and_redact
@@ -113,7 +118,9 @@ class CapabilityAuthority:
             raise CapabilityError("wildcard capability scope is forbidden")
         if action_payload is not None:
             if payload_digest(action_payload) != binding.payload_digest:
-                raise CapabilityError("capability action payload does not match its digest")
+                raise CapabilityError(
+                    "capability action payload does not match its digest"
+                )
             if _action_payload_contains_secret(action_payload):
                 raise CapabilityError(
                     "capability action payload contains credential-like data"
@@ -140,7 +147,9 @@ class CapabilityAuthority:
             raise CapabilityError("capability is unknown")
         return capability
 
-    def consume(self, token: str, binding: CapabilityBinding) -> Capability:
+    def consume(
+        self, token: str, binding: CapabilityBinding
+    ) -> ConsumedCapabilityProof:
         capability = self.inspect(token)
         now = self.clock()
         if capability.binding != binding:
@@ -153,7 +162,28 @@ class CapabilityAuthority:
             raise CapabilityError("capability expired")
         if not self.store.consume_if_available(capability.capability_id, now):
             raise CapabilityError("capability already consumed, revoked, or expired")
-        return replace(capability, consumed_at=now)
+        token_dig = self._token_digest(token)
+        return ConsumedCapabilityProof(
+            capability_id=capability.capability_id,
+            token_digest=token_dig,
+            operator_id=capability.binding.operator_id,
+            device_id=capability.binding.device_id,
+            authentication_event_id=capability.binding.authentication_event_id,
+            session_id=capability.binding.session_id,
+            action_type=capability.binding.action_type,
+            route=capability.binding.route,
+            http_method=capability.binding.http_method,
+            payload_digest=capability.binding.payload_digest,
+            resource_digest=capability.binding.resource_digest,
+            mission_id=capability.binding.mission_id,
+            contract_digest=capability.binding.contract_digest,
+            policy_version=capability.binding.policy_version,
+            scope=capability.binding.scope,
+            verification_requirement=capability.binding.verification_requirement,
+            consumed_at=now,
+            expires_at=capability.expires_at,
+            revoked_at=capability.revoked_at,
+        )
 
     def revoke(self, capability_id: str) -> None:
         if not self.store.revoke(capability_id, self.clock()):

@@ -4,6 +4,7 @@ This Queen does not call external models. It inspects the MissionContract and
 recommends the safest matching worker strategy, adding constraints that narrow
 scope rather than widening it.
 """
+
 from __future__ import annotations
 
 from aios.runtime.contracts import MissionContract, QueenEvidence, QueenVerdict
@@ -19,7 +20,9 @@ class RoutingQueen:
         provider_constraints = self._provider_constraints(contract)
         constraints = [f"routing: worker strategy locked to {strategy}"]
         if provider_constraints:
-            constraints.append(f"routing: provider constraints = {provider_constraints}")
+            constraints.append(
+                f"routing: provider constraints = {provider_constraints}"
+            )
 
         return QueenVerdict(
             queen=self.name,

@@ -8,6 +8,7 @@ quarantined proposals (``SemanticFacts.propose``) that a human later approves
 or rejects. False negatives are fine; a false positive costs one review click
 and never reaches a prompt.
 """
+
 from __future__ import annotations
 
 import re
@@ -48,9 +49,7 @@ def _clean_object(raw: str) -> str:
     return value
 
 
-def extract_candidates(
-    text: str, *, max_candidates: int
-) -> list[tuple[str, str, str]]:
+def extract_candidates(text: str, *, max_candidates: int) -> list[tuple[str, str, str]]:
     """Return up to *max_candidates* (subject, predicate, object) candidates.
 
     Questions are never facts; duplicates within one text are collapsed.

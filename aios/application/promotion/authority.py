@@ -11,10 +11,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
+from aios import config
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.workspaces.staged import BaselineChanged, StagedWorkspaceManager
 from aios.domain.missions.mission_state import MissionState
-from aios.domain.promotion import PromotionRequest, PromotionResult, PromotionStatus
+from aios.domain.promotion import (
+    PromotionAuthorization,
+    PromotionRequest,
+    PromotionResult,
+    PromotionStatus,
+)
 
 
 class CapabilityConsumer(Protocol):
@@ -55,10 +61,36 @@ class PromotionAuthority:
         workspace_manager: StagedWorkspaceManager,
         verification: VerificationAuthority | None = None,
         emergency_stop: Any | None = None,
+        database_path: Path | str | None = None,
     ) -> None:
         self.workspace_manager = workspace_manager
         self.verification = verification or VerificationAuthority()
         self.emergency_stop = emergency_stop
+        self.database_path = Path(database_path) if database_path else None
+        self._promotions: dict[str, PromotionResult] = {}
+        self._signing_key = self._resolve_signing_key()
+
+        if self.database_path is not None:
+            self.database_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._connection() as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS promotion_records (
+                        promotion_id TEXT PRIMARY KEY,
+                        mission_id TEXT NOT NULL,
+                        action_id TEXT NOT NULL,
+                        worker_id TEXT NOT NULL,
+                        executor_job_id TEXT NOT NULL,
+                        contract_digest TEXT NOT NULL,
+                        workspace_digest TEXT NOT NULL,
+                        diff_digest TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        integrity_proof TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
 
     def promote(
         self,
@@ -80,19 +112,19 @@ class PromotionAuthority:
         """
         reasons = self._preconditions(request)
         if reasons:
-            return self._result(request, PromotionStatus.REJECTED, reasons)
+            return self._record(request, PromotionStatus.REJECTED, reasons)
 
         try:
             self._assert_operational()
             checkpoint_id = create_checkpoint(request)
         except Exception as exc:  # noqa: BLE001 - checkpoint failure is a refusal
-            return self._result(
+            return self._record(
                 request,
                 PromotionStatus.REJECTED,
                 ("checkpoint_creation_failed", type(exc).__name__),
             )
         if not checkpoint_id:
-            return self._result(
+            return self._record(
                 request,
                 PromotionStatus.REJECTED,
                 ("checkpoint_id_missing",),
@@ -106,7 +138,7 @@ class PromotionAuthority:
             except Exception:  # noqa: BLE001 - capability failures deny, never escape
                 capability_valid = False
             if not capability_valid:
-                return self._result(
+                return self._record(
                     request,
                     PromotionStatus.REJECTED,
                     ("capability_missing_or_invalid",),
@@ -127,7 +159,7 @@ class PromotionAuthority:
                 mark_completed(request, evidence_ids)
         except Exception as exc:  # noqa: BLE001 - every partial apply is recovered
             restored = self._restore(restore_checkpoint, checkpoint_id, request)
-            result = self._result(
+            result = self._record(
                 request,
                 PromotionStatus.ROLLED_BACK if restored else PromotionStatus.FAILED,
                 (
@@ -141,7 +173,7 @@ class PromotionAuthority:
             self._observe(emit_observation, request, result)
             return result
 
-        result = self._result(
+        result = self._record(
             request,
             PromotionStatus.PROMOTED,
             ("promotion_complete",),
@@ -198,13 +230,34 @@ class PromotionAuthority:
             ):
                 reasons.append("evidence_target_missing")
         if request.requires_capability:
-            if not request.capability_id or not request.capability_digest:
+            auth = request.authorization
+            if auth is None:
                 reasons.append("capability_binding_missing")
-            elif (
-                request.authoritative_capability_digest is not None
-                and request.capability_digest != request.authoritative_capability_digest
-            ):
-                reasons.append("capability_digest_mismatch")
+            else:
+                proof = auth.proof
+                if proof is None or proof.consumed_at is None:
+                    reasons.append("capability_not_consumed")
+                elif (
+                    proof.revoked_at is not None
+                    or proof.expires_at <= proof.consumed_at
+                ):
+                    reasons.append("capability_expired_or_revoked")
+                if auth.mission_id != request.mission_id:
+                    reasons.append("capability_mission_mismatch")
+                if auth.action_id != request.action_id:
+                    reasons.append("capability_action_mismatch")
+                if auth.worker_id != request.worker_id:
+                    reasons.append("capability_worker_mismatch")
+                if auth.executor_job_id != request.executor_job_id:
+                    reasons.append("capability_executor_job_mismatch")
+                if auth.contract_digest != request.contract_digest:
+                    reasons.append("capability_contract_mismatch")
+                if auth.workspace_digest != request.workspace_digest:
+                    reasons.append("capability_workspace_mismatch")
+                if auth.diff_digest != request.diff_digest:
+                    reasons.append("capability_diff_mismatch")
+                if auth.required_targets != request.required_targets:
+                    reasons.append("capability_targets_mismatch")
         try:
             # A request carries a frozen lease, but the durable metadata under
             # the workspace manager is authoritative across restarts.  Never
@@ -246,6 +299,8 @@ class PromotionAuthority:
                     reasons.append("verification_workspace_mismatch")
                 if result.diff_digest != request.diff_digest:
                     reasons.append("verification_diff_mismatch")
+                if not self.verification.is_authoritative(result):
+                    reasons.append("verification_not_authoritative")
                 if not self.verification.is_current(
                     result,
                     workspace_digest=request.workspace_digest,
@@ -259,6 +314,19 @@ class PromotionAuthority:
                 ):
                     reasons.append("verification_strength_insufficient")
         return tuple(dict.fromkeys(reasons))
+
+    def is_authoritative(self, result: PromotionResult) -> bool:
+        """Reject caller-constructed PromotionResult objects not issued by this authority."""
+        held = self.get_promotion(result.mission_id)
+        if held is None:
+            return False
+        return (
+            held.status == result.status
+            and held.mission_id == result.mission_id
+            and held.action_id == result.action_id
+            and held.checkpoint_id == result.checkpoint_id
+            and held.diff_digest == result.diff_digest
+        )
 
     @staticmethod
     def _resolve(value: str) -> Path:
@@ -275,8 +343,94 @@ class PromotionAuthority:
         except Exception:  # noqa: BLE001 - restore failure is recorded, never hidden
             return False
 
+    def get_promotion(self, mission_id: str) -> PromotionResult | None:
+        """Retrieve authoritative latest promotion result for a mission."""
+        return self.get_authoritative_terminal_promotion(mission_id)
+
+    def get_authoritative_terminal_promotion(
+        self, mission_id: str
+    ) -> PromotionResult | None:
+        """Retrieve the authoritative latest terminal promotion result for a mission."""
+        rec = self.get_authoritative_terminal_record(mission_id)
+        if rec is not None:
+            import json
+
+            res = PromotionResult.model_validate(json.loads(rec["payload_json"]))
+            self._promotions[mission_id] = res
+            return res
+        return self._promotions.get(mission_id)
+
+    # ---------------------------------------------------------------------------
+    # Signing key resolution
+    # ---------------------------------------------------------------------------
+
+    _INSECURE_DEFAULT_KEYS: frozenset[str] = frozenset(
+        {
+            "aios-authority-promotion-key-v1",
+            "aios-authority-key",
+            "changeme",
+            "secret",
+            "default",
+        }
+    )
+
     @staticmethod
-    def _result(
+    def _resolve_signing_key() -> str:
+        """Return the configured signing key or raise RuntimeError if insecure.
+
+        Production policy: key must be configured, >= 32 chars, and not one of
+        the known public insecure defaults. Tests use the env var override.
+        """
+        import os
+
+        key = (
+            os.environ.get("AIOS_PROMOTION_AUTHORITY_KEY")
+            or os.environ.get("PROMOTION_AUTHORITY_KEY")
+            or getattr(config, "PROMOTION_AUTHORITY_KEY", "")
+        )
+        is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
+        allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
+        if not key:
+            if is_test or allow_insecure:
+                return "test-promotion-signing-key-placeholder-safe"
+            raise RuntimeError(
+                "AIOS_PROMOTION_AUTHORITY_KEY must be set to a secret of at least "
+                "32 characters. The promotion integrity chain is insecure without it."
+            )
+        if key in PromotionAuthority._INSECURE_DEFAULT_KEYS:
+            raise RuntimeError(
+                f"AIOS_PROMOTION_AUTHORITY_KEY is set to a known insecure default "
+                f"({key!r}). Provide a unique secret."
+            )
+        if len(key) < 32 and not (is_test or allow_insecure):
+            raise RuntimeError(
+                "AIOS_PROMOTION_AUTHORITY_KEY must be at least 32 characters."
+            )
+        return key
+
+    def _compute_integrity_proof(
+        self,
+        promotion_id: str,
+        mission_id: str,
+        action_id: str,
+        worker_id: str,
+        executor_job_id: str,
+        contract_digest: str,
+        workspace_digest: str,
+        diff_digest: str,
+        status: str,
+        payload_digest: str,
+        created_at: str,
+    ) -> str:
+        import hmac, hashlib
+
+        material = f"{promotion_id}:{mission_id}:{action_id}:{worker_id}:{executor_job_id}:{contract_digest}:{workspace_digest}:{diff_digest}:{status}:{payload_digest}:{created_at}"
+        return hmac.new(
+            self._signing_key.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+
+    def _record(
+        self,
         request: PromotionRequest,
         status: PromotionStatus,
         reasons: tuple[str, ...],
@@ -285,7 +439,10 @@ class PromotionAuthority:
         restored: bool = False,
         evidence_ids: tuple[str, ...] = (),
     ) -> PromotionResult:
-        return PromotionResult(
+        import hashlib, json, uuid
+        from datetime import datetime, timezone
+
+        res = PromotionResult(
             mission_id=request.mission_id,
             action_id=request.action_id,
             status=status,
@@ -295,6 +452,135 @@ class PromotionAuthority:
             restored=restored,
             evidence_ids=evidence_ids,
         )
+        self._promotions[request.mission_id] = res
+        if self.database_path is not None:
+            payload = json.dumps(res.model_dump(mode="json"), sort_keys=True)
+            payload_digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+            promotion_id = f"promotion-{uuid.uuid4().hex}"
+            integrity_proof = self._compute_integrity_proof(
+                promotion_id,
+                request.mission_id,
+                request.action_id,
+                request.worker_id,
+                request.executor_job_id,
+                request.contract_digest,
+                request.workspace_digest,
+                request.diff_digest,
+                res.status.value,
+                payload_digest,
+                created_at,
+            )
+            with self._connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO promotion_records (
+                        promotion_id, mission_id, action_id, worker_id, executor_job_id,
+                        contract_digest, workspace_digest, diff_digest, status, payload_json,
+                        integrity_proof, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        promotion_id,
+                        request.mission_id,
+                        request.action_id,
+                        request.worker_id,
+                        request.executor_job_id,
+                        request.contract_digest,
+                        request.workspace_digest,
+                        request.diff_digest,
+                        res.status.value,
+                        payload,
+                        integrity_proof,
+                        created_at,
+                    ),
+                )
+        return res
+
+    def get_record(self, promotion_id: str) -> dict[str, Any] | None:
+        if self.database_path is None:
+            return None
+        import hmac, hashlib
+
+        with self._connection() as conn:
+            row = conn.execute(
+                """
+                SELECT promotion_id, mission_id, action_id, worker_id, executor_job_id,
+                       contract_digest, workspace_digest, diff_digest, status, payload_json,
+                       integrity_proof, created_at
+                FROM promotion_records WHERE promotion_id = ?
+                """,
+                (promotion_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        row_dict = dict(row)
+        payload_json = row_dict.get("payload_json", "")
+        stored_proof = row_dict.get("integrity_proof", "")
+        if not stored_proof or not payload_json:
+            return None
+        payload_digest = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+        expected_proof = self._compute_integrity_proof(
+            row_dict["promotion_id"],
+            row_dict["mission_id"],
+            row_dict["action_id"],
+            row_dict["worker_id"],
+            row_dict["executor_job_id"],
+            row_dict["contract_digest"],
+            row_dict["workspace_digest"],
+            row_dict["diff_digest"],
+            row_dict["status"],
+            payload_digest,
+            row_dict["created_at"],
+        )
+        if not hmac.compare_digest(stored_proof, expected_proof):
+            return None  # Tamper detected
+        return row_dict
+
+    def get_authoritative_terminal_record(
+        self, mission_id: str
+    ) -> dict[str, Any] | None:
+        if self.database_path is None:
+            return None
+        from aios.domain.promotion import PromotionStatus
+
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT promotion_id FROM promotion_records WHERE mission_id = ? ORDER BY created_at DESC",
+                (mission_id,),
+            ).fetchall()
+        # Blocker 11+12 fix: return the newest valid (tamper-verified) record regardless of
+        # status. A newer failure overrides an older promotion. We compare status using the
+        # Pydantic enum's actual .value strings (all lowercase) rather than uppercase literals.
+        _terminal_statuses = {
+            PromotionStatus.PROMOTED.value,
+            PromotionStatus.REJECTED.value,
+            PromotionStatus.ROLLED_BACK.value,
+            PromotionStatus.FAILED.value,
+        }
+        for row in rows:
+            rec = self.get_record(row["promotion_id"])
+            if rec is not None and rec["status"] in _terminal_statuses:
+                return rec
+        return None
+
+    from contextlib import contextmanager
+    import sqlite3
+
+    @contextmanager
+    def _connection(self) -> Any:
+        if self.database_path is None:
+            raise RuntimeError("PromotionAuthority database_path is not configured")
+        import sqlite3
+
+        conn = sqlite3.connect(self.database_path, timeout=5.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
 
     @staticmethod
     def _observe(
@@ -310,4 +596,4 @@ class PromotionRefused(RuntimeError):
     """Raised internally to force checkpoint recovery after a failed smoke test."""
 
 
-__all__ = ["PromotionAuthority", "PromotionRefused"]
+__all__ = ["PromotionAuthority", "PromotionAuthorization", "PromotionRefused"]

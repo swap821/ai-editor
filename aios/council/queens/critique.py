@@ -6,6 +6,7 @@ trivial command), or it never exercised the file that changed. This Queen is
 DETERMINISTIC (no LLM) and STRENGTHEN-ONLY: it can only ADD caution (defer); it
 never relaxes another Queen's block. Opt-in via AIOS_COUNCIL_CRITIQUE.
 """
+
 from __future__ import annotations
 
 from aios.core.verification_strength import (
@@ -71,7 +72,8 @@ class CritiqueQueen:
                 queen=self.name,
                 verdict="defer",
                 risk="YELLOW",
-                reason="Verification passed but looks insufficient: " + "; ".join(cautions),
+                reason="Verification passed but looks insufficient: "
+                + "; ".join(cautions),
                 constraints=[
                     "Add a test that exercises the change and reaches the STRONG floor.",
                 ],

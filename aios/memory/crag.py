@@ -13,6 +13,7 @@ strip filter drop in behind the same interface later.
 
 Design: docs/superpowers/specs/2026-06-29-crag-for-gagos-design.md
 """
+
 from __future__ import annotations
 
 import enum
@@ -37,7 +38,7 @@ __all__ = [
 class CragAction(enum.Enum):
     """The tripartite corrective routing decision for one retrieval event."""
 
-    CORRECT = "correct"      # local retrieval is good → refine & use it
+    CORRECT = "correct"  # local retrieval is good → refine & use it
     AMBIGUOUS = "ambiguous"  # partial → refine local AND (Slice 3) seek external
     INCORRECT = "incorrect"  # local is junk → drop it (Slice 3) and go external
 
@@ -54,8 +55,8 @@ class RetrievalVerdict:
     """The evaluator's decision plus explainable per-hit confidence scores."""
 
     action: CragAction
-    score: float            # the max per-hit confidence in [0, 1]
-    per_hit: list[float]    # one confidence per hit, in retrieval order
+    score: float  # the max per-hit confidence in [0, 1]
+    per_hit: list[float]  # one confidence per hit, in retrieval order
 
 
 def _clamp01(value: float) -> float:
@@ -144,8 +145,10 @@ class CalibrationResult:
 
     lower: float
     upper: float
-    false_drop_rate: float    # relevant recalls wrongly routed INCORRECT (score < lower)
-    false_accept_rate: float  # irrelevant recalls wrongly routed CORRECT (score >= upper)
+    false_drop_rate: float  # relevant recalls wrongly routed INCORRECT (score < lower)
+    false_accept_rate: (
+        float  # irrelevant recalls wrongly routed CORRECT (score >= upper)
+    )
 
 
 _DEFAULT_GRID: tuple[float, ...] = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
@@ -194,7 +197,8 @@ def calibrate_thresholds(
             # Utility REWARDS correct decisions so pure hedging (all-AMBIGUOUS,
             # which trivially has zero hard errors) never wins.
             utility = (
-                true_accepts + true_drops
+                true_accepts
+                + true_drops
                 - drop_weight * false_drops
                 - accept_weight * false_accepts
             )
@@ -207,6 +211,7 @@ def calibrate_thresholds(
                 best = CalibrationResult(lower, upper, fdr, far)
     assert best is not None  # grid is non-empty, so at least lower==upper qualifies
     return best
+
 
 #: Excerption-mode split: break on whitespace that FOLLOWS terminal punctuation, so
 #: each strip keeps its punctuation and a document with no terminal stays whole.

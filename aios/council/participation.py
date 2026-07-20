@@ -4,6 +4,7 @@ Determines which Queens must participate in a deliberation based on mission
 attributes. The policy is fail-closed: any ambiguity increases scrutiny rather
 than reducing it.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,11 +35,15 @@ class CouncilParticipationPolicy:
     ) -> CouncilParticipation:
         prior_verdicts = prior_verdicts or []
         optional: list[str] = []
-        reasons: list[str] = ["default required Queens: planner, security, memory, testing"]
+        reasons: list[str] = [
+            "default required Queens: planner, security, memory, testing"
+        ]
 
         if self._needs_routing(contract):
             optional.append("routing")
-            reasons.append("mission requires routing (multi-strategy or model selection)")
+            reasons.append(
+                "mission requires routing (multi-strategy or model selection)"
+            )
 
         if self._needs_reflection(contract, prior_verdicts):
             optional.append("reflection")
@@ -99,7 +104,9 @@ class CouncilParticipationPolicy:
         return (
             contract.risk_level in {"YELLOW", "RED"}
             or contract.metadata.get("verification_strength") in {"moderate", "strong"}
-            or any("strong" in str(cmd).lower() for cmd in contract.verification_commands)
+            or any(
+                "strong" in str(cmd).lower() for cmd in contract.verification_commands
+            )
         )
 
     def explain(

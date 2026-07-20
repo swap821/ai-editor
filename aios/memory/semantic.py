@@ -6,6 +6,7 @@ keeping the relational and vector stores in lock-step. The embedding model and
 vector index are injected for testability and lazily constructed otherwise, so
 no heavy model loads until the first semantic write or search.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -82,14 +83,19 @@ class SemanticMemory:
         if memory_type not in {"chat", "lesson", "fact", "preference", "procedure"}:
             raise ValueError(f"unsupported semantic memory type: {memory_type}")
         if verification_status not in {"unverified", "verified", "superseded"}:
-            raise ValueError(f"unsupported semantic verification status: {verification_status}")
+            raise ValueError(
+                f"unsupported semantic verification status: {verification_status}"
+            )
         text = scan_and_redact(text).scrubbed
         if not text.strip():
             raise ValueError("semantic memory text must be non-empty")
         digest = content_hash(text)
         init_memory_db(self.db_path)
         self.write_lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with _SEMANTIC_WRITE_LOCK, FileLock(str(self.write_lock_path), timeout=_LOCK_TIMEOUT_S):
+        with (
+            _SEMANTIC_WRITE_LOCK,
+            FileLock(str(self.write_lock_path), timeout=_LOCK_TIMEOUT_S),
+        ):
             with get_connection(self.db_path) as conn:
                 conn.execute("BEGIN IMMEDIATE")
                 existing = conn.execute(
@@ -196,7 +202,5 @@ class SemanticMemory:
     def count(self) -> int:
         """Return the number of stored semantic chunks."""
         with get_connection(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS n FROM semantic_memory"
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) AS n FROM semantic_memory").fetchone()
         return int(row["n"])

@@ -23,6 +23,7 @@ system's load-bearing invariant — **trust the evidence, not the model**:
   as actor ``earned-autonomy`` with the evidence (streak) that earned it, and
   the operator can revoke any signature at any time.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -140,7 +141,9 @@ class AutonomyLedger:
             "project_id": scan_and_redact(project_id).scrubbed,
             "tool": scan_and_redact(tool).scrubbed,
             "path_class": scan_and_redact(path_class).scrubbed,
-            "verification_plan_digest": scan_and_redact(verification_plan_digest).scrubbed,
+            "verification_plan_digest": scan_and_redact(
+                verification_plan_digest
+            ).scrubbed,
             "policy_version": scan_and_redact(policy_version).scrubbed,
             "model_id": scan_and_redact(model_id).scrubbed,
             "data_classification": scan_and_redact(data_classification).scrubbed,
@@ -257,8 +260,19 @@ class AutonomyLedger:
                     "failure_count, streak, status, earned_at, revoked_at, "
                     "last_outcome_at, updated_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (sig, action_type, norm, succ, fail, streak, status,
-                     earned_at, revoked_at, now, now),
+                    (
+                        sig,
+                        action_type,
+                        norm,
+                        succ,
+                        fail,
+                        streak,
+                        status,
+                        earned_at,
+                        revoked_at,
+                        now,
+                        now,
+                    ),
                 )
             elif eligible_success:
                 succ = int(row["success_count"]) + 1
@@ -334,8 +348,19 @@ class AutonomyLedger:
                     "(signature, action_type, target_shape, success_count, "
                     "failure_count, streak, status, earned_at, revoked_at, "
                     "last_outcome_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (signature, action_type, target_shape, succ, fail, streak, status,
-                     earned_at, revoked_at, now, now),
+                    (
+                        signature,
+                        action_type,
+                        target_shape,
+                        succ,
+                        fail,
+                        streak,
+                        status,
+                        earned_at,
+                        revoked_at,
+                        now,
+                        now,
+                    ),
                 )
             elif eligible_success:
                 succ = int(row["success_count"]) + 1
@@ -414,7 +439,8 @@ class AutonomyLedger:
         """Number of signatures currently in the earned state."""
         with get_connection(self.db_path) as conn:
             row = conn.execute(
-                "SELECT COUNT(*) AS n FROM earned_autonomy WHERE status = ?", ("earned",)
+                "SELECT COUNT(*) AS n FROM earned_autonomy WHERE status = ?",
+                ("earned",),
             ).fetchone()
         return int(row["n"])
 

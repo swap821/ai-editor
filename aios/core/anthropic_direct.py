@@ -24,6 +24,7 @@ Bedrock Converse both speak the same "Claude" content-block shape):
     before transmission so conversation history, tool results, and secrets never
     leave the local machine unredacted.
 """
+
 from __future__ import annotations
 
 import json
@@ -65,7 +66,9 @@ def _to_anthropic_messages(
             if str(content).strip():
                 system_parts.append(str(content))
         elif role == "user":
-            out.append({"role": "user", "content": [{"type": "text", "text": str(content)}]})
+            out.append(
+                {"role": "user", "content": [{"type": "text", "text": str(content)}]}
+            )
         elif role == "assistant":
             blocks: list[dict[str, Any]] = []
             text = str(content).strip()
@@ -99,7 +102,11 @@ def _to_anthropic_messages(
                 {
                     "role": "user",
                     "content": [
-                        {"type": "tool_result", "tool_use_id": tid, "content": str(content)}
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tid,
+                            "content": str(content),
+                        }
                     ],
                 }
             )
@@ -117,7 +124,8 @@ def _to_tools(tools: Optional[list[dict[str, Any]]]) -> Optional[list[dict[str, 
             {
                 "name": str(fn.get("name", "")),
                 "description": str(fn.get("description", "")),
-                "input_schema": fn.get("parameters") or {"type": "object", "properties": {}},
+                "input_schema": fn.get("parameters")
+                or {"type": "object", "properties": {}},
             }
         )
     return specs
@@ -137,7 +145,10 @@ def _parse_output(body: dict[str, Any]) -> dict[str, Any]:
             tool_calls.append(
                 {
                     "id": block.get("id"),
-                    "function": {"name": str(block.get("name", "")), "arguments": block.get("input") or {}},
+                    "function": {
+                        "name": str(block.get("name", "")),
+                        "arguments": block.get("input") or {},
+                    },
                 }
             )
     result: dict[str, Any] = {"role": "assistant", "content": text}
@@ -196,9 +207,13 @@ class AnthropicDirectClient:
             ) from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             scrubbed = scrub_exception(exc)
-            raise LLMError(f"Anthropic Messages API request failed: {scrubbed}") from exc
+            raise LLMError(
+                f"Anthropic Messages API request failed: {scrubbed}"
+            ) from exc
         except json.JSONDecodeError as exc:
-            raise LLMError(f"Anthropic Messages API returned a non-JSON response: {exc}") from exc
+            raise LLMError(
+                f"Anthropic Messages API returned a non-JSON response: {exc}"
+            ) from exc
 
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
         """Generate a single non-streaming completion from *prompt*.
@@ -210,7 +225,9 @@ class AnthropicDirectClient:
             "model": self.model,
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
-            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": prompt}]}
+            ],
         }
         if system:
             payload["system"] = system
@@ -228,6 +245,7 @@ class AnthropicDirectClient:
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """One non-streaming chat turn via the Messages API.
 
@@ -243,9 +261,12 @@ class AnthropicDirectClient:
             logger.info("Anthropic privacy filter applied", extra=audit)
 
         system_text, anthropic_messages = _to_anthropic_messages(safe_messages)
+        output_tokens = self.max_tokens if max_tokens is None else max_tokens
+        if output_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
         payload: dict[str, Any] = {
             "model": model or self.model,
-            "max_tokens": self.max_tokens,
+            "max_tokens": output_tokens,
             "temperature": self.temperature,
             "messages": anthropic_messages,
         }
@@ -304,7 +325,7 @@ class AnthropicDirectClient:
                     line = raw_line.decode("utf-8", "replace").strip()
                     if not line or not line.startswith("data:"):
                         continue
-                    data = line[len("data:"):].strip()
+                    data = line[len("data:") :].strip()
                     if not data or data == "[DONE]":
                         continue
                     try:

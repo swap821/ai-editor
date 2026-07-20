@@ -175,7 +175,7 @@ class IdentityStore:
         created_at = time.time()
         with closing(self._connect()) as conn:
             conn.execute(
-                "INSERT INTO authentication_events(" 
+                "INSERT INTO authentication_events("
                 "event_id, operator_id, event_type, session_hash, occurred_at, device_id, "
                 "strength, purpose, created_at, expires_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

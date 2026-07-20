@@ -1,4 +1,5 @@
 """Policy-enforced API exposed to temporary Council Runtime workers."""
+
 from __future__ import annotations
 
 import fnmatch
@@ -73,6 +74,7 @@ class WorkerRuntime:
         self._command_runner = command_runner
         self.worker_id = worker_id
         from aios.runtime import _safe_resolve
+
         self.runtime_root = _safe_resolve(runtime_root)
         self.result_path = _safe_resolve(result_path)
         self.workspace_root = Path(contract.workspace_root).resolve()
@@ -210,7 +212,11 @@ class WorkerRuntime:
             except subprocess.TimeoutExpired:
                 raise
             except Exception as exc:  # noqa: BLE001 - fail closed
-                stdout, stderr, returncode = "", f"[private executor unavailable] {exc}", 1
+                stdout, stderr, returncode = (
+                    "",
+                    f"[private executor unavailable] {exc}",
+                    1,
+                )
         elif runner is None and backend == "host":
             try:
                 proc = subprocess.run(
@@ -222,11 +228,19 @@ class WorkerRuntime:
                     timeout=self.contract.timeout_seconds,
                     check=False,
                 )
-                stdout, stderr, returncode = proc.stdout or "", proc.stderr or "", proc.returncode
+                stdout, stderr, returncode = (
+                    proc.stdout or "",
+                    proc.stderr or "",
+                    proc.returncode,
+                )
             except subprocess.TimeoutExpired:
                 raise
             except Exception as exc:  # noqa: BLE001 - report a launch failure cleanly
-                stdout, stderr, returncode = "", f"[host verification failed to launch] {exc}", 1
+                stdout, stderr, returncode = (
+                    "",
+                    f"[host verification failed to launch] {exc}",
+                    1,
+                )
         else:
             active = runner if runner is not None else _runner_for_backend(backend)
             if active is None:
@@ -246,12 +260,20 @@ class WorkerRuntime:
                 except subprocess.TimeoutExpired:
                     raise
                 except Exception as exc:  # noqa: BLE001 - fail closed, never a host fallback
-                    stdout, stderr, returncode = "", f"[verification backend unavailable] {exc}", 1
+                    stdout, stderr, returncode = (
+                        "",
+                        f"[verification backend unavailable] {exc}",
+                        1,
+                    )
         payload = {
             "command": command,
             "returncode": returncode,
-            "stdout": self._secret_policy.redact_text((stdout or "")[:_MAX_COMMAND_OUTPUT]),
-            "stderr": self._secret_policy.redact_text((stderr or "")[:_MAX_COMMAND_OUTPUT]),
+            "stdout": self._secret_policy.redact_text(
+                (stdout or "")[:_MAX_COMMAND_OUTPUT]
+            ),
+            "stderr": self._secret_policy.redact_text(
+                (stderr or "")[:_MAX_COMMAND_OUTPUT]
+            ),
         }
         self.evidence.setdefault("verification", []).append(payload)
         self._record_tool("run_command", {"command": command}, "completed")
@@ -308,9 +330,7 @@ class WorkerRuntime:
                 prompt=prompt,
                 risk=self.contract.risk_level,
                 allow_cloud=allow_cloud,
-                max_tokens=int(
-                    self.contract.metadata.get("plan_max_tokens", 1500)
-                ),
+                max_tokens=int(self.contract.metadata.get("plan_max_tokens", 1500)),
                 timeout_seconds=int(
                     self.contract.metadata.get("plan_timeout_seconds", 20)
                 ),
@@ -344,7 +364,11 @@ class WorkerRuntime:
         gateway; the worker still applies it only via the scoped write_file."""
         self._begin_tool(
             "request_change",
-            {"prompt_length": len(prompt), "allow_cloud": allow_cloud, "purpose": purpose},
+            {
+                "prompt_length": len(prompt),
+                "allow_cloud": allow_cloud,
+                "purpose": purpose,
+            },
         )
         response = self.intelligence_gateway.request(
             IntelligenceRequest(
@@ -355,7 +379,9 @@ class WorkerRuntime:
                 risk=self.contract.risk_level,
                 allow_cloud=allow_cloud,
                 max_tokens=int(self.contract.metadata.get("change_max_tokens", 2000)),
-                timeout_seconds=int(self.contract.metadata.get("change_timeout_seconds", 30)),
+                timeout_seconds=int(
+                    self.contract.metadata.get("change_timeout_seconds", 30)
+                ),
             ),
             contract=self.contract,
         )

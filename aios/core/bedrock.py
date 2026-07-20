@@ -20,6 +20,7 @@ Design notes:
     before transmission so conversation history, tool results, and secrets never
     leave the local machine unredacted.
 """
+
 from __future__ import annotations
 
 import json
@@ -39,8 +40,14 @@ logger = logging.getLogger(__name__)
 #: of cloud models, not just the one configured default. Live discovery, when
 #: permitted, supersedes this entirely. Mirrors the Gemini client's curated list.
 CURATED_MODELS: list[dict[str, str]] = [
-    {"id": "anthropic.claude-3-5-sonnet-20241022-v2:0", "name": "Anthropic Claude 3.5 Sonnet"},
-    {"id": "anthropic.claude-3-5-haiku-20241022-v1:0", "name": "Anthropic Claude 3.5 Haiku"},
+    {
+        "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "name": "Anthropic Claude 3.5 Sonnet",
+    },
+    {
+        "id": "anthropic.claude-3-5-haiku-20241022-v1:0",
+        "name": "Anthropic Claude 3.5 Haiku",
+    },
     {"id": "amazon.nova-pro-v1:0", "name": "Amazon Nova Pro"},
     {"id": "amazon.nova-lite-v1:0", "name": "Amazon Nova Lite"},
     {"id": "meta.llama3-1-70b-instruct-v1:0", "name": "Meta Llama 3.1 70B Instruct"},
@@ -84,10 +91,14 @@ def _to_converse(
     def flush_tool_results() -> None:
         for orphan_id in pending_ids:
             pending_results.append(
-                {"toolResult": {
-                    "toolUseId": orphan_id,
-                    "content": [{"text": "[no result recorded for this tool call]"}],
-                }}
+                {
+                    "toolResult": {
+                        "toolUseId": orphan_id,
+                        "content": [
+                            {"text": "[no result recorded for this tool call]"}
+                        ],
+                    }
+                }
             )
         pending_ids.clear()
         if pending_results:
@@ -121,7 +132,13 @@ def _to_converse(
                     except json.JSONDecodeError:
                         args = {}
                 blocks.append(
-                    {"toolUse": {"toolUseId": tid, "name": str(fn.get("name", "")), "input": args or {}}}
+                    {
+                        "toolUse": {
+                            "toolUseId": tid,
+                            "name": str(fn.get("name", "")),
+                            "input": args or {},
+                        }
+                    }
                 )
             if not blocks:
                 blocks.append({"text": ""})  # Converse rejects empty content
@@ -130,7 +147,12 @@ def _to_converse(
             if pending_ids:
                 tid = pending_ids.pop(0)
                 pending_results.append(
-                    {"toolResult": {"toolUseId": tid, "content": [{"text": str(content)}]}}
+                    {
+                        "toolResult": {
+                            "toolUseId": tid,
+                            "content": [{"text": str(content)}],
+                        }
+                    }
                 )
             else:
                 # An orphaned tool-role message (no pending toolUse to pair with --
@@ -168,7 +190,8 @@ def _to_tool_config(tools: Optional[list[dict[str, Any]]]) -> Optional[dict[str,
                     "name": str(fn.get("name", "")),
                     "description": str(fn.get("description", "")),
                     "inputSchema": {
-                        "json": fn.get("parameters") or {"type": "object", "properties": {}}
+                        "json": fn.get("parameters")
+                        or {"type": "object", "properties": {}}
                     },
                 }
             }
@@ -190,7 +213,10 @@ def _parse_output(message: dict[str, Any]) -> dict[str, Any]:
             tool_calls.append(
                 {
                     "id": tu.get("toolUseId"),
-                    "function": {"name": tu.get("name", ""), "arguments": tu.get("input") or {}},
+                    "function": {
+                        "name": tu.get("name", ""),
+                        "arguments": tu.get("input") or {},
+                    },
                 }
             )
     result: dict[str, Any] = {"role": "assistant", "content": text}
@@ -307,7 +333,9 @@ class BedrockClient:
             try:
                 import boto3  # lazy: only required when Bedrock is actually used
             except ImportError as exc:  # pragma: no cover - environment-dependent
-                raise LLMError("boto3 is required for AWS Bedrock; pip install boto3") from exc
+                raise LLMError(
+                    "boto3 is required for AWS Bedrock; pip install boto3"
+                ) from exc
             self._client = boto3.client("bedrock-runtime", region_name=region or None)
 
     def chat(
@@ -316,6 +344,7 @@ class BedrockClient:
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """One non-streaming chat turn via Bedrock Converse.
 
@@ -335,10 +364,16 @@ class BedrockClient:
             )
 
         system, converse_messages = _to_converse(safe_messages)
+        output_tokens = self.max_tokens if max_tokens is None else max_tokens
+        if output_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
         kwargs: dict[str, Any] = {
             "modelId": model or self.model,
             "messages": converse_messages,
-            "inferenceConfig": {"maxTokens": self.max_tokens, "temperature": self.temperature},
+            "inferenceConfig": {
+                "maxTokens": output_tokens,
+                "temperature": self.temperature,
+            },
         }
         if system:
             kwargs["system"] = system
@@ -391,7 +426,10 @@ class BedrockClient:
         kwargs: dict[str, Any] = {
             "modelId": model or self.model,
             "messages": converse_messages,
-            "inferenceConfig": {"maxTokens": self.max_tokens, "temperature": self.temperature},
+            "inferenceConfig": {
+                "maxTokens": self.max_tokens,
+                "temperature": self.temperature,
+            },
         }
         if system:
             kwargs["system"] = system
@@ -436,7 +474,10 @@ class BedrockClient:
         kwargs: dict[str, Any] = {
             "modelId": model or self.model,
             "messages": converse_messages,
-            "inferenceConfig": {"maxTokens": self.max_tokens, "temperature": self.temperature},
+            "inferenceConfig": {
+                "maxTokens": self.max_tokens,
+                "temperature": self.temperature,
+            },
         }
         if system:
             kwargs["system"] = system
@@ -476,14 +517,22 @@ class BedrockClient:
         if ctrl is None:
             try:
                 import boto3  # lazy
+
                 ctrl = boto3.client("bedrock", region_name=self.region or None)
             except Exception as exc:  # noqa: BLE001 - discovery is best-effort
-                logger.debug("Bedrock control-plane client creation failed: %s", scrub_exception(exc))
+                logger.debug(
+                    "Bedrock control-plane client creation failed: %s",
+                    scrub_exception(exc),
+                )
                 return []
         try:
-            resp = ctrl.list_foundation_models(byOutputModality="TEXT", byInferenceType="ON_DEMAND")
+            resp = ctrl.list_foundation_models(
+                byOutputModality="TEXT", byInferenceType="ON_DEMAND"
+            )
         except Exception as exc:  # noqa: BLE001 - no control-plane access -> fall back
-            logger.debug("Bedrock list_foundation_models failed: %s", scrub_exception(exc))
+            logger.debug(
+                "Bedrock list_foundation_models failed: %s", scrub_exception(exc)
+            )
             return []
 
         seen: set[str] = set()

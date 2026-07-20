@@ -4,6 +4,7 @@ The scanner reads a repository tree and returns structured proposal/evidence.
 It deliberately does not write semantic facts, episodic memory, or any trusted
 store. Human review or an existing approval path must promote anything useful.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -150,7 +151,9 @@ def harvest_project_passport(
     resolved_str = os.path.realpath(str(Path(root)))
     resolved = Path(resolved_str)
     if not resolved.exists() or not resolved.is_dir():
-        raise FileNotFoundError(f"project root does not exist or is not a directory: {resolved}")
+        raise FileNotFoundError(
+            f"project root does not exist or is not a directory: {resolved}"
+        )
     scan_limits = limits or RepoScanLimits()
     files = list(_iter_scan_files(resolved, scan_limits))
     texts = _read_evidence_texts(resolved, files, scan_limits)
@@ -192,7 +195,8 @@ def _iter_scan_files(root: Path, limits: RepoScanLimits) -> list[Path]:
             dirs[:] = [
                 name
                 for name in sorted(dirs)
-                if name not in _IGNORED_DIRS and not _is_aios_private_dir(rel_dir / name)
+                if name not in _IGNORED_DIRS
+                and not _is_aios_private_dir(rel_dir / name)
             ]
         for name in sorted(files):
             path = current_path / name
@@ -218,7 +222,9 @@ def _is_secret_path(rel: Path) -> bool:
     return lower in _SECRET_FILENAMES or rel.suffix.lower() in _SECRET_SUFFIXES
 
 
-def _read_evidence_texts(root: Path, files: list[Path], limits: RepoScanLimits) -> dict[str, str]:
+def _read_evidence_texts(
+    root: Path, files: list[Path], limits: RepoScanLimits
+) -> dict[str, str]:
     texts: dict[str, str] = {}
     for path in files:
         rel = path.relative_to(root).as_posix()
@@ -367,7 +373,9 @@ def _script_commands(package_json: dict[str, Any], script_names: set[str]) -> li
     return commands
 
 
-def _test_commands(files: list[Path], package_json: dict[str, Any], pyproject: str) -> list[str]:
+def _test_commands(
+    files: list[Path], package_json: dict[str, Any], pyproject: str
+) -> list[str]:
     names = {path.name for path in files}
     scripts = _dict(package_json.get("scripts"))
     commands: list[str] = []
@@ -386,7 +394,10 @@ def _test_commands(files: list[Path], package_json: dict[str, Any], pyproject: s
 def _env_vars(texts: dict[str, str]) -> list[str]:
     envs: set[str] = set()
     for path, text in texts.items():
-        if Path(path).name.startswith(".env") and Path(path).name not in _SAFE_ENV_EXAMPLES:
+        if (
+            Path(path).name.startswith(".env")
+            and Path(path).name not in _SAFE_ENV_EXAMPLES
+        ):
             continue
         for pattern in _ENV_PATTERNS:
             envs.update(match.group(1) for match in pattern.finditer(text))
@@ -402,10 +413,16 @@ def _safe_actions(files: list[Path]) -> list[str]:
 
 def _risky_actions(root: Path, files: list[Path], texts: dict[str, str]) -> list[str]:
     risks = ["running install/build scripts may execute package hooks"]
-    if any(path.relative_to(root).as_posix().startswith("aios/security/") for path in files):
-        risks.append("editing frozen security core requires explicit Section VIII approval")
+    if any(
+        path.relative_to(root).as_posix().startswith("aios/security/") for path in files
+    ):
+        risks.append(
+            "editing frozen security core requires explicit Section VIII approval"
+        )
     if _env_vars(texts):
-        risks.append("environment variable names are evidence only; never expose secret values")
+        risks.append(
+            "environment variable names are evidence only; never expose secret values"
+        )
     return risks
 
 
@@ -416,7 +433,9 @@ def _known_issues(texts: dict[str, str], limits: RepoScanLimits) -> list[str]:
             match = _ISSUE_RE.search(line)
             if not match:
                 continue
-            issues.append(f"{path}:{idx}: {match.group(1).upper()} {match.group(2)[:160].strip()}")
+            issues.append(
+                f"{path}:{idx}: {match.group(1).upper()} {match.group(2)[:160].strip()}"
+            )
             if len(issues) >= limits.max_findings:
                 return issues
     return issues
@@ -430,7 +449,9 @@ def _current_goals(texts: dict[str, str]) -> list[str]:
     capture = False
     for line in resume.splitlines():
         stripped = line.strip()
-        if stripped.startswith("## Current Goal") or stripped.startswith("## SINGLE NEXT ACTION"):
+        if stripped.startswith("## Current Goal") or stripped.startswith(
+            "## SINGLE NEXT ACTION"
+        ):
             capture = True
             continue
         if stripped.startswith("## ") and capture:

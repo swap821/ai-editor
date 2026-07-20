@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "observed_on": "2026-07-18",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "authentication": "gcloud ADC",
+  "project": "ai-editor-498414",
+  "task_class": "public_safe_summary",
+  "worker_count": 1,
+  "tools_available": false,
+  "filesystem_write": false,
+  "cloud_route_events": [
+    {
+      "type": "cloud_route",
+      "provider": "gemini",
+      "subtask_index": 0
+    }
+  ],
+  "error_events": 0,
+  "probe_result": "Real Gemini response returned through the swarm cloud-worker path and emitted provider metadata.",
+  "bedrock": {
+    "credential_present": false,
+    "probe": "not_run"
+  },
+  "security_notes": [
+    "The prompt contained only a public, non-sensitive statement.",
+    "The bounded worker had no shell, filesystem, Git, network-tool, or write capability.",
+    "ADC was used transiently and no credential material was written to the repository."
+  ],
+  "limitations": [
+    "This proves authenticated provider routing for one safe one-worker probe; it is not the blocked 30-task developer benchmark.",
+    "The private Executor remains unavailable on the local laptop; hosted strict runtime evidence remains the authoritative proof."
+  ]
+}

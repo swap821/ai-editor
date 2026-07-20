@@ -3,6 +3,7 @@
 This module isolates the FastAPI edge-security policy so it can be reviewed,
 tested, and hardened independently of route wiring.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -241,7 +242,9 @@ def check_api_token_or_loopback(request: Request) -> Optional[JSONResponse]:
     if check_bearer_token(request):
         return None
     if config.API_TOKEN:
-        return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
+        return JSONResponse(
+            status_code=401, content={"detail": "invalid or missing API token"}
+        )
     client_ip = real_client_ip(request)
     if config.TRUST_PROXY_HEADERS or client_ip not in LOOPBACK_HOSTS:
         return JSONResponse(
@@ -284,10 +287,12 @@ def check_mutation_origin_or_token(request: Request) -> Optional[JSONResponse]:
     )
 
 
-_BODY_SESSION_ALLOWED_PATHS = frozenset({
-    "/api/generate",
-    "/api/v1/chat",
-})
+_BODY_SESSION_ALLOWED_PATHS = frozenset(
+    {
+        "/api/generate",
+        "/api/v1/chat",
+    }
+)
 
 
 def is_body_session_allowed(path: str) -> bool:
