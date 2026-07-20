@@ -1,13 +1,16 @@
 """Red tests for R15 production repairs proving fail-closed execution boundaries."""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
-from pathlib import Path
+from unittest.mock import MagicMock
 
-from aios.application.executor.service import ExecutorService, IsolationUnavailable
-from aios.application.maintenance.service import MaintenanceConvergenceService, MaintenanceRepairResult
+from aios.application.executor.service import (
+    ExecutorService,
+    IsolationUnavailable,
+    execute_registered_repair_operation,
+)
+from aios.application.maintenance.service import MaintenanceConvergenceService
 from aios.application.workers.strategies.code_repair import ProductionCodeWorkerStrategy
-from aios.domain.executor import ExecutorJob, ExecutorResult, ResourceLimits, ExecutorCapability
+from aios.domain.executor import ExecutorJob, ResourceLimits, ExecutorCapability
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.missions.mission_state import MissionState
@@ -37,7 +40,7 @@ def _make_mock_repair_context():
             "version": "1",
             "target_id": "src/fix.py",
             "allowed_root": "/tmp/staged",
-        }
+        },
     }
     mission_record.contract.workspace_root = "/tmp/staged"
     mission_service.repository.get.return_value = mission_record
@@ -101,13 +104,19 @@ def _make_mock_repair_context():
             capability_id="cap-123",
             action_digest="act-123",
             mission_contract_digest="contract-digest-123",
-            expires_at="2026-12-31T23:59:59Z"
+            expires_at="2026-12-31T23:59:59Z",
         ),
         image="test-image",
         argv=("verify", "src/fix.py"),
         workspace_snapshot="/tmp/staged",
-        resource_limits=ResourceLimits(timeout_seconds=30, max_output_bytes=1000, memory_budget_mb=512, cpu_budget=1.0, pids_limit=100),
-        verification_expectation={"executor_policy": "private_service"}
+        resource_limits=ResourceLimits(
+            timeout_seconds=30,
+            max_output_bytes=1000,
+            memory_budget_mb=512,
+            cpu_budget=1.0,
+            pids_limit=100,
+        ),
+        verification_expectation={"executor_policy": "private_service"},
     )
     executor_service.build_command_job.return_value = executor_job
 
@@ -130,8 +139,12 @@ def _make_mock_repair_context():
 @pytest.mark.anyio
 async def test_executor_unavailable_fails_closed():
     """Executor unavailable exception must fail closed with EXECUTOR_UNAVAILABLE status."""
-    service, mock_executor, verification_auth, promotion_auth = _make_mock_repair_context()
-    mock_executor.execute.side_effect = IsolationUnavailable("private executor service unavailable")
+    service, mock_executor, verification_auth, promotion_auth = (
+        _make_mock_repair_context()
+    )
+    mock_executor.execute.side_effect = IsolationUnavailable(
+        "private executor service unavailable"
+    )
 
     rescan_contract = BoundedScanContract(
         allowed_root="/tmp/staged",
@@ -142,7 +155,7 @@ async def test_executor_unavailable_fails_closed():
         max_findings=100,
         git_history_allowed=False,
     )
-    
+
     result = await service.run_approved_repair(
         "m-123",
         scanner=MagicMock(),
@@ -162,8 +175,12 @@ async def test_executor_unavailable_fails_closed():
 @pytest.mark.anyio
 async def test_executor_timeout_fails_closed():
     """Executor timeout must fail closed with EXECUTOR_TIMEOUT status."""
-    service, mock_executor, verification_auth, promotion_auth = _make_mock_repair_context()
-    mock_executor.execute.side_effect = IsolationUnavailable("private executor request timed out")
+    service, mock_executor, verification_auth, promotion_auth = (
+        _make_mock_repair_context()
+    )
+    mock_executor.execute.side_effect = IsolationUnavailable(
+        "private executor request timed out"
+    )
 
     rescan_contract = BoundedScanContract(
         allowed_root="/tmp/staged",
@@ -174,7 +191,7 @@ async def test_executor_timeout_fails_closed():
         max_findings=100,
         git_history_allowed=False,
     )
-    
+
     result = await service.run_approved_repair(
         "m-123",
         scanner=MagicMock(),
@@ -194,8 +211,12 @@ async def test_executor_timeout_fails_closed():
 @pytest.mark.anyio
 async def test_executor_provenance_invalid_fails_closed():
     """Executor mismatched job id or missing isolation proof must fail closed with EXECUTOR_PROVENANCE_INVALID."""
-    service, mock_executor, verification_auth, promotion_auth = _make_mock_repair_context()
-    mock_executor.execute.side_effect = IsolationUnavailable("private executor returned a mismatched job id")
+    service, mock_executor, verification_auth, promotion_auth = (
+        _make_mock_repair_context()
+    )
+    mock_executor.execute.side_effect = IsolationUnavailable(
+        "private executor returned a mismatched job id"
+    )
 
     rescan_contract = BoundedScanContract(
         allowed_root="/tmp/staged",
@@ -206,7 +227,21 @@ async def test_executor_provenance_invalid_fails_closed():
         max_findings=100,
         git_history_allowed=False,
     )
-    
+    result = await service.run_approved_repair(
+        "m-123",
+        scanner=MagicMock(),
+        rescan_contract=rescan_contract,
+        capability_consumer=MagicMock(),
+        create_checkpoint=MagicMock(),
+        restore_checkpoint=MagicMock(),
+        smoke_test=MagicMock(),
+    )
+
+    assert result.status == "EXECUTOR_PROVENANCE_INVALID"
+    verification_auth.verify.assert_not_called()
+    promotion_auth.promote.assert_not_called()
+
+
 @pytest.mark.anyio
 async def test_worker_does_not_mutate_files_directly(tmp_path):
     """ProductionCodeWorkerStrategy must produce a repair proposal without modifying files directly."""
@@ -270,13 +305,19 @@ def test_execute_registered_repair_operation_bounds_and_mutates(tmp_path):
             capability_id="cap-1",
             action_digest="act-1",
             mission_contract_digest="digest-1",
-            expires_at="2026-12-31T23:59:59Z"
+            expires_at="2026-12-31T23:59:59Z",
         ),
         image="test-image",
         argv=("repair", "REMOVE_MAINTENANCE_MARKER_V1", "defect.py"),
         workspace_snapshot=str(tmp_path),
-        resource_limits=ResourceLimits(timeout_seconds=30, max_output_bytes=1000, memory_budget_mb=512, cpu_budget=1.0, pids_limit=100),
-        verification_expectation={"expected_target_digest": before_sha}
+        resource_limits=ResourceLimits(
+            timeout_seconds=30,
+            max_output_bytes=1000,
+            memory_budget_mb=512,
+            cpu_budget=1.0,
+            pids_limit=100,
+        ),
+        verification_expectation={"expected_target_digest": before_sha},
     )
 
     result = execute_registered_repair_operation(job)
@@ -291,7 +332,6 @@ def test_execute_registered_repair_operation_bounds_and_mutates(tmp_path):
 
 def test_execute_registered_repair_operation_refuses_traversal(tmp_path):
     """REMOVE_MAINTENANCE_MARKER_V1 must refuse absolute path or traversal escape."""
-    from aios.application.executor.service import execute_registered_repair_operation
 
     job = ExecutorJob(
         job_id="job-repair-2",
@@ -300,14 +340,23 @@ def test_execute_registered_repair_operation_refuses_traversal(tmp_path):
             capability_id="cap-1",
             action_digest="act-1",
             mission_contract_digest="digest-1",
-            expires_at="2026-12-31T23:59:59Z"
+            expires_at="2026-12-31T23:59:59Z",
         ),
         image="test-image",
         argv=("repair", "REMOVE_MAINTENANCE_MARKER_V1", "../outside.py"),
         workspace_snapshot=str(tmp_path),
-        resource_limits=ResourceLimits(timeout_seconds=30, max_output_bytes=1000, memory_budget_mb=512, cpu_budget=1.0, pids_limit=100),
-        verification_expectation={}
+        resource_limits=ResourceLimits(
+            timeout_seconds=30,
+            max_output_bytes=1000,
+            memory_budget_mb=512,
+            cpu_budget=1.0,
+            pids_limit=100,
+        ),
+        verification_expectation={},
     )
+    with pytest.raises(IsolationUnavailable):
+        execute_registered_repair_operation(job)
+
 
 def test_verification_integrity_signed(tmp_path):
     """VerificationAuthority must validate HMAC/signed integrity proof on both get() and list_results_for_mission()."""
@@ -317,8 +366,19 @@ def test_verification_integrity_signed(tmp_path):
     db_path = tmp_path / "verification.db"
     auth = VerificationAuthority(database_path=db_path)
 
-    plan = VerificationPlanV1(intended_behavior="test", targets=("src/a.py",), minimum_strength=1)
-    obs = VerificationObservation(command="test", exit_code=0, stdout="ok", stderr="", passed_count=1, failed_count=0, tool_version="1", observed_at="2026-07-19T00:00:00Z")
+    plan = VerificationPlanV1(
+        intended_behavior="test", targets=("src/a.py",), minimum_strength=1
+    )
+    obs = VerificationObservation(
+        command="test",
+        exit_code=0,
+        stdout="ok",
+        stderr="",
+        passed_count=1,
+        failed_count=0,
+        tool_version="1",
+        observed_at="2026-07-19T00:00:00Z",
+    )
 
     res = auth.verify(
         mission_id="m-1",
@@ -338,8 +398,12 @@ def test_verification_integrity_signed(tmp_path):
 
     # Tamper with payload_json in SQLite database
     import sqlite3
+
     conn = sqlite3.connect(db_path)
-    conn.execute("UPDATE verification_results SET payload_json = REPLACE(payload_json, 'src/a.py', 'src/tampered.py') WHERE verification_id = ?", (res.verification_id,))
+    conn.execute(
+        "UPDATE verification_results SET payload_json = REPLACE(payload_json, 'src/a.py', 'src/tampered.py') WHERE verification_id = ?",
+        (res.verification_id,),
+    )
     conn.commit()
     conn.close()
 
@@ -369,11 +433,14 @@ def test_verification_schema_migration(tmp_path):
     conn.close()
 
     # Initializing VerificationAuthority on existing old DB must run schema migration
-    auth = VerificationAuthority(database_path=db_path)
+    VerificationAuthority(database_path=db_path)
 
     # Verify table columns now include payload_digest and integrity_proof
     conn = sqlite3.connect(db_path)
-    columns = [row[1] for row in conn.execute("PRAGMA table_info(verification_results)").fetchall()]
+    columns = [
+        row[1]
+        for row in conn.execute("PRAGMA table_info(verification_results)").fetchall()
+    ]
     conn.close()
 
     assert "payload_digest" in columns
@@ -384,18 +451,23 @@ def test_verification_schema_migration(tmp_path):
 def test_promotion_durability_immutable(tmp_path):
     """PromotionAuthority must record immutable insert-only promotion attempts with deterministic terminal lookup."""
     from aios.application.promotion.authority import PromotionAuthority
-    from aios.domain.promotion import PromotionResult, PromotionStatus
 
     db_path = tmp_path / "promotion.db"
     auth = PromotionAuthority(workspace_manager=MagicMock(), database_path=db_path)
 
     # Verify table schema has unique promotion records and insert-only persistence
-    assert hasattr(auth, "get_authoritative_terminal_promotion") or hasattr(auth, "get_promotion")
+    assert hasattr(auth, "get_authoritative_terminal_promotion") or hasattr(
+        auth, "get_promotion"
+    )
 
 
 def test_skill_activation_requires_capability():
     """Skill activation must refuse publicly computable approval digest fallback."""
-    from aios.application.learning.service import LearningService, SkillActivationDenied, SkillRecord
+    from aios.application.learning.service import (
+        LearningService,
+        SkillActivationDenied,
+        SkillRecord,
+    )
     from aios.domain.verification import SkillVerifierSpec
 
     spec = SkillVerifierSpec(
@@ -439,10 +511,14 @@ def test_skill_activation_requires_capability():
         skill_repository=skill_repo,
     )
 
-    # Attempt activation with fake publicly computable digest - MUST fail
-    with pytest.raises(SkillActivationDenied):
+    # Legacy loose activation interface must be gone; only
+    # SkillActivationAuthorization is accepted.
+    with pytest.raises(TypeError):
         service.activate_skill(
-            "sk-1", 1, operator_id="op-1", approval_digest="publicly_computable_fake_digest"
+            "sk-1",
+            1,
+            operator_id="op-1",
+            approval_digest="publicly_computable_fake_digest",
         )
-
-
+    with pytest.raises(SkillActivationDenied):
+        service.activate_skill("sk-1")

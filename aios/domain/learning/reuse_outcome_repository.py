@@ -22,7 +22,12 @@ class ReuseOutcomeRepository:
 
     def __init__(self, db_path: Path | str) -> None:
         self.database = Path(db_path)
-        if str(self.database) != ":memory:":
+        self._memory_connection: sqlite3.Connection | None = None
+        if str(db_path) == ":memory:":
+            self.database = Path(":memory:")
+            self._memory_connection = sqlite3.connect(":memory:", timeout=5.0)
+            self._memory_connection.row_factory = sqlite3.Row
+        else:
             self.database.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as connection:
             connection.execute(
@@ -74,11 +79,22 @@ class ReuseOutcomeRepository:
 
     @staticmethod
     def lineage_key(reference: ReuseOutcomeReference) -> str:
-        payload = json.dumps(reference.model_dump(mode="json"), sort_keys=True)
+        payload = json.dumps(
+            reference.model_dump(mode="json", exclude={"reuse_outcome_id"}),
+            sort_keys=True,
+        )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
+        if self._memory_connection is not None:
+            try:
+                yield self._memory_connection
+                self._memory_connection.commit()
+            except Exception:
+                self._memory_connection.rollback()
+                raise
+            return
         connection = sqlite3.connect(self.database, timeout=5.0)
         connection.row_factory = sqlite3.Row
         try:

@@ -1,4 +1,5 @@
 """Red acceptance tests for the R3 exact-capability authority."""
+
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
@@ -156,7 +157,10 @@ def test_resource_metadata_entropy_does_not_block_exact_capability(tmp_path):
     )
 
     token = authority.issue(binding, action_payload=payload)
-    assert authority.consume(token, binding).action_payload == payload
+    assert authority.inspect(token).action_payload == payload
+    proof = authority.consume(token, binding)
+    assert proof.consumed_at is not None
+    assert proof.payload_digest == payload_digest(payload)
 
 
 def test_resource_metadata_named_secret_is_still_rejected(tmp_path):

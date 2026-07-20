@@ -1,17 +1,18 @@
 """In-process integration test suite for GAGOS R15 Sovereign Intelligence and Maintenance Flywheel (Proof level: INTEGRATION)."""
 
-import hashlib
-import json
 import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
 import pytest
 
-from aios import config
-from aios.api import deps
 from aios.application.evidence.verification import VerificationAuthority
-from aios.application.learning.service import LearningService, SkillCandidateSpec, SkillActivationDenied
+from aios.application.learning.service import (
+    LearningService,
+    SkillActivationAuthorization,
+    SkillActivationDenied,
+    SkillCandidateSpec,
+)
 from aios.application.maintenance.service import MaintenanceConvergenceService
 from aios.application.missions.mission_service import MissionService
 from aios.application.promotion.authority import PromotionAuthority
@@ -19,13 +20,47 @@ from aios.domain.promotion import PromotionResult, PromotionStatus
 from aios.application.workspaces import StagedWorkspaceManager
 from aios.application.workspaces.staged import tree_digest
 from aios.domain.evidence import VerificationObservation, VerificationPlanV1
+from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.learning.repository import SkillRecord, SkillRepository
 from aios.domain.learning.trajectory_repository import TrajectoryRepository
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.scanners import deterministic_config_scanner
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.verification import SkillVerifierSpec
-from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
+from aios.infrastructure.missions.sqlite_mission_repository import (
+    SqliteMissionRepository,
+)
+from tests.helpers import consume_real_capability_proof, executor_repair_result
+
+
+def _activation_auth(
+    skill_id: str, version: int, operator_id: str
+) -> SkillActivationAuthorization:
+    return SkillActivationAuthorization(
+        skill_id=skill_id,
+        version=version,
+        proof=ConsumedCapabilityProof(
+            capability_id="cap-1",
+            token_digest="token",
+            operator_id=operator_id,
+            device_id="device-1",
+            authentication_event_id="auth-1",
+            session_id="session-1",
+            action_type="skill_activation",
+            route=f"/api/v1/skills/{skill_id}/versions/{version}/activate",
+            http_method="POST",
+            payload_digest="payload",
+            resource_digest="resource",
+            mission_id=None,
+            contract_digest=None,
+            policy_version="1.0",
+            scope="skill-activation",
+            verification_requirement="route_policy_v1",
+            consumed_at=1.0,
+            expires_at=9_999_999_999.0,
+            revoked_at=None,
+        ),
+    )
 
 
 @pytest.fixture
@@ -48,7 +83,9 @@ def test_workspace_dir(tmp_path: Path) -> Path:
     return target_dir
 
 
-def test_verification_authority_tamper_detection_and_immutability(test_db_path: Path) -> None:
+def test_verification_authority_tamper_detection_and_immutability(
+    test_db_path: Path,
+) -> None:
     """Prove Phase 2: VerificationAuthority enforces insert-only immutability and SHA-256 tamper checks."""
     va = VerificationAuthority(database_path=test_db_path)
     obs = VerificationObservation(
@@ -102,17 +139,33 @@ def test_verification_authority_tamper_detection_and_immutability(test_db_path: 
     assert va.get(res.verification_id) is None
 
 
-def test_promotion_authority_durability_and_authoritative_check(tmp_path: Path, test_db_path: Path) -> None:
+def test_promotion_authority_durability_and_authoritative_check(
+    tmp_path: Path, test_db_path: Path
+) -> None:
     """Prove Phase 3: PromotionAuthority persists records in SQLite and verifies is_authoritative."""
     wm = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(tmp_path,))
     va = VerificationAuthority(database_path=test_db_path)
-    pa = PromotionAuthority(workspace_manager=wm, verification=va, database_path=test_db_path)
+    pa = PromotionAuthority(
+        workspace_manager=wm, verification=va, database_path=test_db_path
+    )
 
     # Fake verification
     obs = VerificationObservation(
-        command="test", exit_code=0, stdout="", stderr="", passed_count=1, failed_count=0, tool_version="1", observed_at="now"
+        command="test",
+        exit_code=0,
+        stdout="",
+        stderr="",
+        passed_count=1,
+        failed_count=0,
+        tool_version="1",
+        observed_at="now",
     )
-    plan = VerificationPlanV1(intended_behavior="b", targets=("t",), required_tests=("test",), minimum_strength=1)
+    plan = VerificationPlanV1(
+        intended_behavior="b",
+        targets=("t",),
+        required_tests=("test",),
+        minimum_strength=1,
+    )
     va.verify(
         mission_id="m1",
         action_id="a1",
@@ -139,7 +192,9 @@ def test_promotion_authority_durability_and_authoritative_check(tmp_path: Path, 
     )
 
 
-def test_end_to_end_sovereign_maintenance_flywheel(tmp_path: Path, test_workspace_dir: Path) -> None:
+def test_end_to_end_sovereign_maintenance_flywheel(
+    tmp_path: Path, test_workspace_dir: Path
+) -> None:
     """Prove complete R15 flywheel: Bounded scan -> Finding -> Repair Mission -> Staged Repair -> Verification -> Promotion -> Rescan -> Resolved."""
     db_path = tmp_path / "op_state.db"
     mission_db = tmp_path / "missions.db"
@@ -147,24 +202,38 @@ def test_end_to_end_sovereign_maintenance_flywheel(tmp_path: Path, test_workspac
 
     wm = StagedWorkspaceManager(staged_dir, enrolled_roots=(test_workspace_dir,))
     va = VerificationAuthority(database_path=db_path)
-    pa = PromotionAuthority(workspace_manager=wm, verification=va, database_path=db_path)
+    pa = PromotionAuthority(
+        workspace_manager=wm, verification=va, database_path=db_path
+    )
     mr = SqliteMissionRepository(mission_db)
     ms = MissionService(mr, workspace_manager=wm)
 
     from aios.application.executor.service import ExecutorService
     from aios.application.evidence.verifier_registry import VerifierRegistry
     from aios.application.workers.foundry import WorkerFoundry
-    from aios.application.workers.strategies.code_repair import ProductionCodeWorkerStrategy
+    from aios.application.workers.strategies.code_repair import (
+        ProductionCodeWorkerStrategy,
+    )
     from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
     from aios.domain.maintenance.repository import MaintenanceFindingRepository
     from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
 
     finding_repo = MaintenanceFindingRepository(db_path)
     scan_repo = MaintenanceScanRepository(db_path)
-    verifier_registry = VerifierRegistry(scanner_adapters={"deterministic_config_scanner": deterministic_config_scanner})
-    executor_service = ExecutorService(profile="development")
+    verifier_registry = VerifierRegistry(
+        scanner_adapters={"deterministic_config_scanner": deterministic_config_scanner}
+    )
+    executor_service = ExecutorService(
+        profile="test",
+        runner=executor_repair_result,
+        backend_name="private_service",
+    )
     code_strat = ProductionCodeWorkerStrategy(workspace_manager=wm)
-    worker_foundry = WorkerFoundry(runtime_root=test_workspace_dir, workspace_manager=wm, strategies={"code": code_strat})
+    worker_foundry = WorkerFoundry(
+        runtime_root=test_workspace_dir,
+        workspace_manager=wm,
+        strategies={"code": code_strat},
+    )
 
     service = MaintenanceConvergenceService(
         finding_repository=finding_repo,
@@ -199,13 +268,17 @@ def test_end_to_end_sovereign_maintenance_flywheel(tmp_path: Path, test_workspac
         source_digest=src_digest,
     )
 
-    assert scan_res.scan.status == "completed", f"Scan failed with reason: {scan_res.scan.failure_reason}"
+    assert scan_res.scan.status == "completed", (
+        f"Scan failed with reason: {scan_res.scan.failure_reason}"
+    )
     assert len(scan_res.findings) == 1
     finding = scan_res.findings[0]
     assert finding.target_id == "config.txt"
 
     # 2. Create Repair Mission
-    rec = service.create_repair_mission(finding.fingerprint, operator_id="op-1", workspace_root=str(test_workspace_dir))
+    rec = service.create_repair_mission(
+        finding.fingerprint, operator_id="op-1", workspace_root=str(test_workspace_dir)
+    )
     assert rec.state is MissionState.DRAFT
 
     # 3. Approve Mission
@@ -239,13 +312,20 @@ def test_end_to_end_sovereign_maintenance_flywheel(tmp_path: Path, test_workspac
             scanner=deterministic_config_scanner,
             rescan_contract=rescan_contract,
             capability_consumer=lambda _r: True,
+            consumed_capability_proof=consume_real_capability_proof(
+                tmp_path / "proof-caps.db",
+                mission_id=rec.mission_id,
+                contract_digest=rec.contract_digest,
+            ),
             create_checkpoint=create_checkpoint,
             restore_checkpoint=restore_checkpoint,
             smoke_test=smoke_test,
         )
     )
 
-    assert repair_res.status == "VERIFIED_RESOLVED", f"Repair failed: status={repair_res.status} reason={repair_res.reason}"
+    assert repair_res.status == "VERIFIED_RESOLVED", (
+        f"Repair failed: status={repair_res.status} reason={repair_res.reason}"
+    )
     assert repair_res.finding.status == "VERIFIED_RESOLVED"
 
     # Verify mission is now COMPLETED
@@ -267,7 +347,9 @@ def test_human_skill_activation_lifecycle(tmp_path: Path) -> None:
     traj_repo = TrajectoryRepository(db_path)
     skill_repo = SkillRepository(db_path)
     va = VerificationAuthority(database_path=db_path)
-    pa = PromotionAuthority(workspace_manager=wm, verification=va, database_path=db_path)
+    pa = PromotionAuthority(
+        workspace_manager=wm, verification=va, database_path=db_path
+    )
 
     ls = LearningService(
         mission_service=ms,
@@ -316,33 +398,21 @@ def test_human_skill_activation_lifecycle(tmp_path: Path) -> None:
     )
     skill_repo.save(skill)
 
-    # Generate valid operator approval digest
-    cdig = hashlib.sha256(json.dumps(skill.model_dump(mode="json"), sort_keys=True).encode("utf-8")).hexdigest()
     operator_id = "human-operator-42"
-    expected_digest = hashlib.sha256(
-        f"{skill.skill_id}:{skill.version}:{cdig}:{operator_id}".encode("utf-8")
-    ).hexdigest()
 
-    # Without an activation_authorizer, activation must be denied (no public digest fallback)
-    with pytest.raises(SkillActivationDenied, match="external authority refused"):
-        ls.activate_skill(skill.skill_id, skill.version, operator_id=operator_id, approval_digest="wrong-digest")
-
-    # Wire up a capability-backed authorizer that validates the expected digest
-    def capability_authorizer(skill_record, op_id, digest):
-        return digest == expected_digest
-
-    ls.activation_authorizer = capability_authorizer
-
-    # Invalid digest must be denied by the authorizer
-    with pytest.raises(SkillActivationDenied, match="external authority refused"):
-        ls.activate_skill(skill.skill_id, skill.version, operator_id=operator_id, approval_digest="wrong-digest")
+    # Legacy digest-based activation must be gone; public digest fallback is impossible.
+    with pytest.raises(TypeError):
+        ls.activate_skill(
+            skill.skill_id,
+            skill.version,
+            operator_id=operator_id,
+            approval_digest="wrong-digest",
+        )
+    with pytest.raises(SkillActivationDenied):
+        ls.activate_skill("not-an-authorization")
 
     # Valid digest succeeds and activates skill candidate -> human_reviewed -> active
     activated = ls.activate_skill(
-        skill.skill_id,
-        skill.version,
-        operator_id=operator_id,
-        approval_digest=expected_digest,
-        capability_id="cap-1",
+        _activation_auth(skill.skill_id, skill.version, operator_id)
     )
     assert activated.state == "active"

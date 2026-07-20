@@ -6,29 +6,25 @@ These tests demonstrate the current flaws or test the required production behavi
 
 import hashlib
 import json
-import os
-import tempfile
 import time
-from pathlib import Path
+import asyncio
 
 import pytest
 from pydantic import ValidationError
 
-from aios import config
-from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
+from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.evidence.verification import VerificationAuthority
-from aios.application.executor.service import ExecutorService
 from aios.application.learning.service import (
     LearningService,
     SkillActivationAuthorization,
     SkillActivationDenied,
-    SkillCandidateSpec,
 )
-from aios.application.promotion.authority import PromotionAuthority
+from aios.application.missions.mission_service import MissionService
 from aios.domain.capabilities.contracts import (
     CapabilityBinding,
     ConsumedCapabilityProof,
 )
+from aios.domain.evidence import VerificationObservation, VerificationPlanV1
 from aios.domain.executor.receipt import ExecutorRepairReceipt
 from aios.domain.learning.contracts import (
     ReuseOutcomeReference,
@@ -36,19 +32,27 @@ from aios.domain.learning.contracts import (
 )
 from aios.domain.learning.repository import SkillRecord, SkillRepository
 from aios.domain.learning.trajectory_repository import (
-    TrajectoryRecord,
     TrajectoryRepository,
 )
 from aios.domain.missions.mission_contract import (
     MissionContract,
-    VerificationPlan as MissionVerificationPlan,
 )
-from aios.domain.missions.mission_repository import MissionRecord
 from aios.domain.missions.mission_state import MissionState
-from aios.domain.promotion import PromotionRequest, PromotionResult, PromotionStatus
 from aios.domain.verification import SkillVerifierSpec
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
+)
+from aios.domain.learning.reuse_outcome_repository import ReuseOutcomeRepository
+from tests.helpers import (
+    executor_repair_result,
+    reuse_outcome_reference,
+    save_minimal_trajectory,
+)
+from tests.test_maintenance_convergence import (
+    _WorkerFoundry as _MaintenanceWorker,
+    _contract as _maintenance_contract,
+    _scanner as _maintenance_scanner,
+    _service as _maintenance_service,
 )
 
 
@@ -131,7 +135,10 @@ def test_red_1_activate_skill_loads_skill_id_none(tmp_path):
         created_at=now,
         updated_at=now,
     )
-    skill_repo.save(skill)
+    if skill_repo.get(skill.skill_id, skill.version) is None:
+        if skill_repo.get(skill.skill_id, skill.version) is None:
+            if skill_repo.get(skill.skill_id, skill.version) is None:
+                skill_repo.save(skill)
 
     mission_repo = SqliteMissionRepository(db_path)
     from aios.application.missions.mission_service import MissionService
@@ -418,7 +425,6 @@ def test_red_9_local_job_provenance_records():
     """Proves local workforce job requests, model calls, and result records are structured."""
     from aios.domain.local_workforce.contracts import (
         LocalJobRequestRecord,
-        LocalJobResultRecord,
         LocalModelCallRecord,
     )
 
@@ -503,3 +509,296 @@ def test_red_11_production_signing_key_security():
             checkpoint_key="aios-authority-key",
             is_production=True,
         )
+
+
+def _approved_maintenance_service(tmp_path, executor):
+    worker = _MaintenanceWorker()
+    service, project = _maintenance_service(tmp_path, worker=worker, executor=executor)
+    initial = service.run_scan(
+        _maintenance_contract(root=project),
+        _maintenance_scanner,
+        scanner_id="controlled-scanner",
+        scanner_version="1",
+        target_id="bug.txt",
+        source_digest="source-before",
+    )
+    mission = service.create_repair_mission(
+        initial.findings[0].fingerprint,
+        operator_id="operator-1",
+        workspace_root=str(project),
+    )
+    service.mission_service.start_deliberation(mission.mission_id)
+    service.mission_service.request_approval(mission.mission_id)
+    service.mission_service.approve(
+        mission.mission_id,
+        operator_id="operator-1",
+        capability_digest="operator-capability-1",
+        contract_digest=mission.contract_digest,
+        authentication_event_id="auth-1",
+        session_id="session-1",
+    )
+    return service, project, mission
+
+
+class _ReceiptMutatingExecutor:
+    def __init__(self, mutate):
+        self.mutate = mutate
+
+    def execute(self, job):  # noqa: ANN001
+        result = executor_repair_result(job)
+        return self.mutate(job, result)
+
+
+def _run_receipt_refusal(tmp_path, mutate):
+    service, project, mission = _approved_maintenance_service(
+        tmp_path, _ReceiptMutatingExecutor(mutate)
+    )
+    result = asyncio.run(
+        service.run_approved_repair(
+            mission.mission_id,
+            scanner=_maintenance_scanner,
+            rescan_contract=_maintenance_contract(root=project),
+            capability_consumer=lambda _request: True,
+            create_checkpoint=lambda _request: "checkpoint-1",
+            restore_checkpoint=lambda _checkpoint, _request: True,
+            smoke_test=lambda _request: True,
+        )
+    )
+    assert result.status == "EXECUTOR_PROVENANCE_INVALID"
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda _job, result: result.model_copy(update={"stdout": "   "}),
+        lambda _job, result: result.model_copy(update={"stdout": "{not-json"}),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": json.dumps(
+                    {
+                        key: value
+                        for key, value in json.loads(result.stdout).items()
+                        if key != "mission_contract_digest"
+                    }
+                )
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": json.dumps(
+                    {**json.loads(result.stdout), "extra_field": "forged"}
+                )
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "job_id": "wrong-job"}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {
+                        **json.loads(result.stdout),
+                        "mission_contract_digest": "wrong-contract",
+                    }
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "operation_id": "wrong-op"}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "target": "other.txt"}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "changed": False}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "workspace_digest_before": "wrong"}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "isolation_backend": "host"}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "environment_digest": ""}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "exit_code": 1}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "receipt_version": "2.0"}
+                ).model_dump_json()
+            }
+        ),
+        lambda _job, result: result.model_copy(
+            update={
+                "stdout": ExecutorRepairReceipt.model_validate(
+                    {**json.loads(result.stdout), "after_target_digest": "bad-digest"}
+                ).model_dump_json()
+            }
+        ),
+    ],
+)
+def test_maintenance_refuses_invalid_executor_receipts(tmp_path, mutate):
+    _run_receipt_refusal(tmp_path, mutate)
+
+
+def _learning_reuse_fixture(tmp_path, *, reuse_db=None):
+    db_path = tmp_path / "learning-final.db"
+    mission_repo = SqliteMissionRepository(db_path)
+    mission_service = MissionService(mission_repo)
+    trajectory_repo = TrajectoryRepository(db_path)
+    skill_repo = SkillRepository(db_path)
+    authority = VerificationAuthority(database_path=db_path)
+    service = LearningService(
+        mission_service=mission_service,
+        trajectory_repository=trajectory_repo,
+        skill_repository=skill_repo,
+        verification_authority=authority,
+        reuse_outcome_repository=reuse_db,
+    )
+    skill = SkillRecord(
+        skill_id="skill-final",
+        version=1,
+        problem_signature="repair-json-parser",
+        applicability_conditions={"format": "json"},
+        known_exclusions=(),
+        required_inputs=("path",),
+        required_project_state={"env": "test"},
+        procedure="repair",
+        allowed_tools=("run_tests",),
+        allowed_scope_pattern="src/*",
+        expected_observations=("tests pass",),
+        verification_plan=SkillVerifierSpec(
+            verifier_id="skill.reuse",
+            version="1",
+            target_pattern="src/*",
+            required_observations=("passed",),
+            minimum_strength=1,
+        ),
+        escalation_conditions=(),
+        source_trajectory_ids=("trajectory-final",),
+        confidence=0.8,
+        success_count=0,
+        failure_count=0,
+        last_validated_versions=("1",),
+        state="active",
+        created_at="2026-07-20T00:00:00Z",
+        updated_at="2026-07-20T00:00:00Z",
+    )
+    if skill_repo.get(skill.skill_id, skill.version) is None:
+        skill_repo.save(skill)
+    save_minimal_trajectory(trajectory_repo, "trajectory-final")
+    try:
+        mission = mission_repo.get("reuse-final")
+    except Exception:
+        mission = mission_repo.create(
+            MissionContract(
+                mission_id="reuse-final",
+                project_id="project-final",
+                operator_id="operator-1",
+                goal="reuse",
+                worker_type="local-clerk",
+                created_by="test",
+                metadata={"skill_id": skill.skill_id},
+            ),
+            state=MissionState.COMPLETED,
+        )
+    verification = authority.verify(
+        mission_id=mission.mission_id,
+        action_id="reuse-action",
+        worker_id="worker-final",
+        target="unit-tests",
+        plan=VerificationPlanV1(
+            intended_behavior="reuse passes",
+            targets=("unit-tests",),
+            minimum_strength=1,
+        ),
+        workspace_digest="workspace-final",
+        diff_digest="diff-final",
+        environment_digest="env-final",
+        observation=VerificationObservation(
+            command="pytest",
+            exit_code=0,
+            stdout="1 passed",
+            passed_count=1,
+            tool_version="pytest",
+        ),
+    )
+    reference = reuse_outcome_reference(
+        reuse_outcome_id="reuse-outcome-final",
+        skill=skill,
+        trajectory_id="trajectory-final",
+        mission=mission,
+        verification=verification,
+        worker_id="worker-final",
+        workspace_digest="workspace-final",
+        diff_digest="diff-final",
+    )
+    return service, reference
+
+
+def test_record_reuse_outcome_rejects_legacy_kwargs(tmp_path):
+    service, _reference = _learning_reuse_fixture(tmp_path)
+    with pytest.raises(TypeError):
+        service.record_reuse_outcome(
+            skill_id="skill-final",
+            version=1,
+            mission_id="reuse-final",
+            verification_results=(),
+            workspace_digest="workspace-final",
+            diff_digest="diff-final",
+        )
+
+
+def test_duplicate_reuse_reference_does_not_double_increment(tmp_path):
+    service, reference = _learning_reuse_fixture(tmp_path)
+    first = service.record_reuse_outcome(reference)
+    second = service.record_reuse_outcome(reference)
+    assert first.success_count == 1
+    assert second.success_count == 1
+    assert second.confidence == first.confidence
+
+
+def test_reuse_idempotency_survives_learning_service_restart(tmp_path):
+    repo = ReuseOutcomeRepository(tmp_path / "reuse-outcomes.db")
+    first_service, reference = _learning_reuse_fixture(tmp_path, reuse_db=repo)
+    first = first_service.record_reuse_outcome(reference)
+    second_service, _ = _learning_reuse_fixture(tmp_path, reuse_db=repo)
+    second = second_service.record_reuse_outcome(reference)
+    assert first.success_count == 1
+    assert second.success_count == 1
+    assert second.confidence == first.confidence

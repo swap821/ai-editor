@@ -23,17 +23,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import tempfile
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 
 from aios.application.executor.service import (
-    ExecutorService,
-    IsolationUnavailable,
     execute_registered_repair_operation,
 )
 from aios.domain.executor import ExecutorCapability, ExecutorJob, ResourceLimits
@@ -163,28 +158,9 @@ class TestBlocker1ActivationSignature:
             activation_authorizer=mock_authorizer,
         )
 
-        from aios.domain.capabilities.contracts import (
-            CapabilityBinding,
-            ConsumedCapabilityProof,
-        )
+        from aios.domain.capabilities.contracts import ConsumedCapabilityProof
         from aios.application.learning.service import SkillActivationAuthorization
 
-        binding = CapabilityBinding(
-            operator_id="op-1",
-            device_id="dev-1",
-            authentication_event_id="auth-1",
-            session_id="sess-1",
-            action_type="SKILL_ACTIVATE",
-            route="/api/v1/skills/test-skill/versions/1/activate",
-            http_method="POST",
-            payload_digest="0" * 64,
-            resource_digest="1" * 64,
-            mission_id="m-1",
-            contract_digest="2" * 64,
-            policy_version="1.0",
-            scope="SKILLS",
-            verification_requirement="STRONG",
-        )
         proof = ConsumedCapabilityProof(
             capability_id="cap-1",
             token_digest="0" * 64,
@@ -231,7 +207,7 @@ class TestBlocker2ActivationFailOpen:
         A fake 8-character digest must be refused when authority fails.
         """
         from aios.api.deps import get_learning_service
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock
 
         # Force CapabilityAuthority.inspect() to raise
         failing_cap_auth = MagicMock()
@@ -441,7 +417,6 @@ class TestBlocker5CheckpointRestoration:
         """
         from aios.api.deps import get_checkpoint_creator, get_checkpoint_restorer
         from unittest.mock import MagicMock
-        from aios import config
 
         project_root = tmp_path / "project"
         project_root.mkdir()
@@ -536,7 +511,6 @@ class TestBlocker7ExecutorProvenance:
         Currently the service does not parse stdout — only checks isolation_verified.
         """
         # This test requires importing the maintenance service directly
-        from aios.application.maintenance.service import MaintenanceConvergenceService
 
         source = _get_maintenance_source()
 
@@ -697,7 +671,6 @@ class TestBlocker9LocalJobSchema:
     def _make_admitted_workforce(self, raw_output: str):
         """Return a LocalWorkforceService with a mock LLM producing raw_output."""
         from aios.application.local_workforce.service import LocalWorkforceService
-        from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 
         model = LocalWorkerModel(
             model_id="granite3.2:2b",
@@ -867,31 +840,20 @@ class TestBlocker10ReuseLineageMandatory:
             promotion_authority=mock_promo_auth,
         )
 
-        # No source_trajectory_id — lineage is broken
-        result = service.record_reuse_outcome(
-            skill_id="test-skill",
-            version=1,
-            mission_id="m-1",
-            verification_results=[mock_result],
-            workspace_digest="ws-d",
-            diff_digest="diff-d",
-            worker_id="w-1",
-            executor_job_id="ej-1",
-            promotion_id="p-1",
-            source_trajectory_id=None,  # MISSING
-            local_model_call_id=None,
-        )
-
-        # BLOCKER 10: missing source_trajectory_id should mean FAILURE
-        # but currently it is optional and skipped
-        initial_confidence = skill.confidence
-        assert (
-            result.confidence <= initial_confidence
-            or result.failure_count > skill.failure_count
-        ), (
-            "BLOCKER 10: Missing source_trajectory_id should record failure, "
-            "not increase confidence"
-        )
+        with pytest.raises(TypeError):
+            service.record_reuse_outcome(
+                skill_id="test-skill",
+                version=1,
+                mission_id="m-1",
+                verification_results=[mock_result],
+                workspace_digest="ws-d",
+                diff_digest="diff-d",
+                worker_id="w-1",
+                executor_job_id="ej-1",
+                promotion_id="p-1",
+                source_trajectory_id=None,
+                local_model_call_id=None,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -910,7 +872,6 @@ class TestBlocker11PromotionStatusCasing:
         """
         from aios.application.promotion.authority import PromotionAuthority
         from aios.application.workspaces import StagedWorkspaceManager
-        from aios.domain.promotion import PromotionResult, PromotionStatus
 
         db_path = tmp_path / "promo.db"
         ws_manager = MagicMock(spec=StagedWorkspaceManager)

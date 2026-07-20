@@ -21,19 +21,16 @@ import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.evidence.verifier_registry import VerifierRegistry
 from aios.application.executor.service import ExecutorService
 from aios.application.maintenance.service import (
     MaintenanceConvergenceService,
-    MaintenanceRepairResult,
 )
 from aios.application.missions.mission_service import MissionService
 from aios.application.promotion.authority import PromotionAuthority
 from aios.application.workspaces import StagedWorkspaceManager
-from aios.domain.executor import ExecutorResult
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
@@ -43,6 +40,7 @@ from aios.domain.missions.mission_state import MissionState
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from tests.helpers import consume_real_capability_proof, executor_repair_result
 
 
 def _contract(*, root: Path, max_files: int = 4) -> BoundedScanContract:
@@ -91,7 +89,9 @@ class _WorkerFoundry:
             self.workspace_manager.stage(contract.mission_id, contract.workspace_root)
         lease = self.workspace_manager.for_mission(contract.mission_id)
         if self.repair:
-            Path(lease.workspace_path, "bug.txt").write_text("fixed\n", encoding="utf-8")
+            Path(lease.workspace_path, "bug.txt").write_text(
+                "fixed\n", encoding="utf-8"
+            )
         return SimpleNamespace(worker_id="worker-ordering-1", status="completed")
 
 
@@ -100,13 +100,10 @@ class _Executor:
         self.exit_code = exit_code
 
     def execute(self, job):  # noqa: ANN001
-        return ExecutorResult(
-            job_id=job.job_id,
+        return executor_repair_result(
+            job,
             status="completed" if self.exit_code == 0 else "failed",
             exit_code=self.exit_code,
-            stdout="rescan clean" if self.exit_code == 0 else "failed",
-            isolation_verified=True,
-            environment_digest="env-ordering-1",
         )
 
 
@@ -118,7 +115,9 @@ def _scanner(context):  # noqa: ANN001
     return (_finding(target_digest=digest, source_digest=digest),)
 
 
-def _build_service(tmp_path: Path) -> tuple[MaintenanceConvergenceService, Path, _WorkerFoundry]:
+def _build_service(
+    tmp_path: Path,
+) -> tuple[MaintenanceConvergenceService, Path, _WorkerFoundry]:
     project = tmp_path / "project"
     project.mkdir()
     (project / "bug.txt").write_text("ORDERING_DEFECT\n", encoding="utf-8")
@@ -139,7 +138,9 @@ def _build_service(tmp_path: Path) -> tuple[MaintenanceConvergenceService, Path,
             runner=executor.execute,
             backend_name="private_service",
         ),
-        verifier_registry=VerifierRegistry(scanner_adapters={"ordering-scanner": _scanner}),
+        verifier_registry=VerifierRegistry(
+            scanner_adapters={"ordering-scanner": _scanner}
+        ),
         verification_authority=VerificationAuthority(),
         promotion_authority=PromotionAuthority(workspace),
         workspace_manager=workspace,
@@ -149,7 +150,9 @@ def _build_service(tmp_path: Path) -> tuple[MaintenanceConvergenceService, Path,
     return service, project, worker
 
 
-def _approve_mission(service: MaintenanceConvergenceService, mission_id: str, mission) -> None:
+def _approve_mission(
+    service: MaintenanceConvergenceService, mission_id: str, mission
+) -> None:
     service.mission_service.start_deliberation(mission_id)
     service.mission_service.request_approval(mission_id)
     service.mission_service.approve(
@@ -201,6 +204,11 @@ def test_mission_is_not_completed_before_rescan_proof(tmp_path: Path) -> None:
             scanner=_scanner,
             rescan_contract=_contract(root=project),
             capability_consumer=lambda _request: True,
+            consumed_capability_proof=consume_real_capability_proof(
+                tmp_path / "proof-caps.db",
+                mission_id=mission.mission_id,
+                contract_digest=mission.contract_digest,
+            ),
             create_checkpoint=lambda _request: "checkpoint-ordering",
             restore_checkpoint=lambda _checkpoint, _request: True,
             smoke_test=lambda _request: (project / "bug.txt").read_text() == "fixed\n",
@@ -242,7 +250,9 @@ def test_rescan_incomplete_does_not_complete_mission(tmp_path: Path) -> None:
     def _incomplete_rescan(contract, scan_fn, **kwargs):
         if kwargs.get("rescan_of"):
             incomplete_contract = _contract(root=project, max_files=0)
-            return original_run_scan(incomplete_contract, lambda ctx: tuple(ctx.iter_files()), **kwargs)
+            return original_run_scan(
+                incomplete_contract, lambda ctx: tuple(ctx.iter_files()), **kwargs
+            )
         return original_run_scan(contract, scan_fn, **kwargs)
 
     service.run_scan = _incomplete_rescan  # type: ignore[method-assign]
@@ -253,13 +263,20 @@ def test_rescan_incomplete_does_not_complete_mission(tmp_path: Path) -> None:
             scanner=_scanner,
             rescan_contract=_contract(root=project),
             capability_consumer=lambda _request: True,
+            consumed_capability_proof=consume_real_capability_proof(
+                tmp_path / "proof-caps.db",
+                mission_id=mission.mission_id,
+                contract_digest=mission.contract_digest,
+            ),
             create_checkpoint=lambda _request: "checkpoint-ordering-incomplete",
             restore_checkpoint=lambda _checkpoint, _request: True,
             smoke_test=lambda _request: (project / "bug.txt").read_text() == "fixed\n",
         )
     )
 
-    assert result.status == "RESCAN_INCOMPLETE", f"Expected RESCAN_INCOMPLETE, got {result.status}"
+    assert result.status == "RESCAN_INCOMPLETE", (
+        f"Expected RESCAN_INCOMPLETE, got {result.status}"
+    )
 
     mission_state = service.mission_service.repository.get(mission.mission_id).state
     assert mission_state is not MissionState.COMPLETED, (

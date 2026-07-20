@@ -216,6 +216,7 @@ def create_repair_mission(
 @router.post("/api/v1/maintenance/repairs/run")
 async def run_approved_repair(
     payload: RunApprovedRepairRequest,
+    http_request: Request,
     service: MaintenanceConvergenceService = Depends(
         get_maintenance_convergence_service
     ),
@@ -279,6 +280,9 @@ async def run_approved_repair(
             create_checkpoint=create_checkpoint,
             restore_checkpoint=restore_checkpoint,
             smoke_test=smoke_test,
+            consumed_capability_proof=getattr(
+                http_request.state, "consumed_capability_proof", None
+            ),
         )
         if inspect.isawaitable(result):
             result = await result

@@ -16,9 +16,11 @@ from aios.application.evidence.authority import EvidenceAuthority
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.learning.service import (
     LearningService,
+    SkillActivationAuthorization,
     SkillCandidateSpec,
 )
 from aios.application.missions.mission_service import MissionService
+from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.evidence import VerificationObservation, VerificationPlanV1
 from aios.domain.learning.contracts import ToolObservation
 from aios.domain.learning.repository import SkillRepository
@@ -36,6 +38,7 @@ from aios.domain.verification import SkillVerifierSpec
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from tests.helpers import reuse_outcome_reference
 
 
 @pytest.fixture()
@@ -46,13 +49,17 @@ def learning_env(tmp_path: Path):
     trajectories = TrajectoryRepository(db_path)
     skills = SkillRepository(db_path)
     evidence_auth = EvidenceAuthority()
-    verification_auth = VerificationAuthority(evidence=evidence_auth, database_path=db_path)
+    verification_auth = VerificationAuthority(
+        evidence=evidence_auth, database_path=db_path
+    )
 
     service = LearningService(
         mission_service=mission_service,
         trajectory_repository=trajectories,
         skill_repository=skills,
-        activation_authorizer=lambda _skill, op_id, app_digest: op_id == "op-admin" and app_digest == "digest-approved",
+        activation_authorizer=lambda _skill, op_id, app_digest: (
+            op_id == "op-admin" and app_digest == "digest-approved"
+        ),
         verification_plan_validator=lambda _skill: True,
         reuse_policy=lambda _skill, _ctx: True,
         verification_authority=verification_auth,
@@ -107,6 +114,34 @@ def _candidate_spec(skill_id: str = "skill-frontier-1") -> SkillCandidateSpec:
         ),
         escalation_conditions=("network_error",),
         validated_versions=("1.0.0",),
+    )
+
+
+def _activation_auth(skill_id: str, version: int) -> SkillActivationAuthorization:
+    return SkillActivationAuthorization(
+        skill_id=skill_id,
+        version=version,
+        proof=ConsumedCapabilityProof(
+            capability_id="cap-1",
+            token_digest="token",
+            operator_id="op-admin",
+            device_id="device-1",
+            authentication_event_id="auth-1",
+            session_id="session-1",
+            action_type="skill_activation",
+            route=f"/api/v1/skills/{skill_id}/versions/{version}/activate",
+            http_method="POST",
+            payload_digest="payload",
+            resource_digest="resource",
+            mission_id=None,
+            contract_digest=None,
+            policy_version="1.0",
+            scope="skill-activation",
+            verification_requirement="route_policy_v1",
+            consumed_at=1.0,
+            expires_at=9_999_999_999.0,
+            revoked_at=None,
+        ),
     )
 
 
@@ -198,11 +233,7 @@ def test_full_frontier_to_local_learning_heartbeat(learning_env) -> None:
 
     # 5. Operator Activation
     active_skill = service.activate_skill(
-        skill_cand.skill_id,
-        skill_cand.version,
-        operator_id="op-admin",
-        approval_digest="digest-approved",
-        capability_id="cap-1",
+        _activation_auth(skill_cand.skill_id, skill_cand.version)
     )
     assert active_skill.state == "active"
 
@@ -252,12 +283,16 @@ def test_full_frontier_to_local_learning_heartbeat(learning_env) -> None:
     mission_service.complete("mission-local-1")
 
     updated_skill = service.record_reuse_outcome(
-        skill_id=active_skill.skill_id,
-        version=active_skill.version,
-        mission_id="mission-local-1",
-        verification_results=(local_v_result,),
-        workspace_digest="ws-loc-1",
-        diff_digest="diff-loc-1",
+        reuse_outcome_reference(
+            reuse_outcome_id="reuse-local-1",
+            skill=active_skill,
+            trajectory_id=traj_record.trajectory_id,
+            mission=mission_service.repository.get("mission-local-1"),
+            verification=local_v_result,
+            worker_id="w-local-1",
+            workspace_digest="ws-loc-1",
+            diff_digest="diff-loc-1",
+        )
     )
     assert updated_skill.success_count == 1
     assert updated_skill.confidence > 0.8
@@ -344,11 +379,7 @@ def test_skill_degradation_and_fail_closed_escalation(learning_env) -> None:
     cand_spec = cand_spec.model_copy(update={"problem_signature": "sig-frontier-fix-2"})
     skill_cand = service.create_skill_candidate(traj.trajectory_id, cand_spec)
     active_skill = service.activate_skill(
-        skill_cand.skill_id,
-        skill_cand.version,
-        operator_id="op-admin",
-        approval_digest="digest-approved",
-        capability_id="cap-1",
+        _activation_auth(skill_cand.skill_id, skill_cand.version)
     )
 
     # Local reuse attempt
@@ -394,12 +425,16 @@ def test_skill_degradation_and_fail_closed_escalation(learning_env) -> None:
     mission_service.fail("mission-local-fail", reason="verification failed")
 
     degraded_skill = service.record_reuse_outcome(
-        skill_id=active_skill.skill_id,
-        version=active_skill.version,
-        mission_id="mission-local-fail",
-        verification_results=(failed_v_result,),
-        workspace_digest="ws-fail-1",
-        diff_digest="diff-fail-1",
+        reuse_outcome_reference(
+            reuse_outcome_id="reuse-local-fail",
+            skill=active_skill,
+            trajectory_id=traj.trajectory_id,
+            mission=mission_service.repository.get("mission-local-fail"),
+            verification=failed_v_result,
+            worker_id="w-local-fail",
+            workspace_digest="ws-fail-1",
+            diff_digest="diff-fail-1",
+        )
     )
 
     assert degraded_skill.failure_count == 1

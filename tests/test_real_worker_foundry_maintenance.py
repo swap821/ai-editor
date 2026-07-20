@@ -27,7 +27,7 @@ from aios.application.promotion.authority import PromotionAuthority
 from aios.application.workers.foundry import WorkerFoundry
 from aios.application.workspaces import StagedWorkspaceManager
 from aios.core.events import CanonicalEventType
-from aios.domain.executor import ExecutorJob, ExecutorResult
+from aios.domain.executor import ExecutorJob
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
@@ -38,9 +38,12 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
 from aios.runtime.cortex_bus import CortexBus
+from tests.helpers import consume_real_capability_proof, executor_repair_result
 
 
-def _finding(*, target_id: str = "bug.txt", target_digest: str, source_digest: str) -> MaintenanceFinding:
+def _finding(
+    *, target_id: str = "bug.txt", target_digest: str, source_digest: str
+) -> MaintenanceFinding:
     return MaintenanceFinding(
         finding_id="finding-real-foundry-test",
         fingerprint="real-foundry-fingerprint",
@@ -70,8 +73,17 @@ def _scanner(context):  # noqa: ANN001
 
 
 @pytest.fixture()
-def foundry_env(tmp_path: Path) -> Iterator[
-    tuple[MaintenanceConvergenceService, WorkerFoundry, ExecutorService, StagedWorkspaceManager, CortexBus, Path]
+def foundry_env(
+    tmp_path: Path,
+) -> Iterator[
+    tuple[
+        MaintenanceConvergenceService,
+        WorkerFoundry,
+        ExecutorService,
+        StagedWorkspaceManager,
+        CortexBus,
+        Path,
+    ]
 ]:
     project = tmp_path / "project"
     project.mkdir()
@@ -98,9 +110,15 @@ def foundry_env(tmp_path: Path) -> Iterator[
 
         async def run(self, request) -> Any:  # noqa: ANN001
             staged = request.context.get("staged_workspace", {})
-            workspace_path = Path(staged.get("workspace_path", request.spec.scope.get("workspace_root", "")))
+            workspace_path = Path(
+                staged.get(
+                    "workspace_path", request.spec.scope.get("workspace_root", "")
+                )
+            )
             if workspace_path.exists():
-                (workspace_path / "bug.txt").write_text("REPAIRED_CLEAN\n", encoding="utf-8")
+                (workspace_path / "bug.txt").write_text(
+                    "REPAIRED_CLEAN\n", encoding="utf-8"
+                )
             return SimpleNamespace(worker_id=request.spec.worker_id, status="completed")
 
     foundry = WorkerFoundry(
@@ -110,14 +128,20 @@ def foundry_env(tmp_path: Path) -> Iterator[
         emergency_stop=emergency_stop,
     )
 
-    executor_runner = lambda job: ExecutorResult(  # noqa: E731
-        job_id=job.job_id,
-        status="completed",
-        exit_code=0,
-        stdout="clean execution",
-        isolation_verified=True,
-        environment_digest="env-real-1",
-    )
+    def executor_runner(job):  # noqa: ANN001
+        if job.argv and job.argv[0] == "repair":
+            return executor_repair_result(job)
+        from aios.domain.executor import ExecutorResult
+
+        return ExecutorResult(
+            job_id=job.job_id,
+            status="completed",
+            exit_code=0,
+            stdout="ok",
+            isolation_verified=True,
+            environment_digest="env-command-1",
+        )
+
     executor_service = ExecutorService(
         profile="test",
         runner=executor_runner,
@@ -130,9 +154,13 @@ def foundry_env(tmp_path: Path) -> Iterator[
         mission_service=mission_service,
         worker_foundry=foundry,
         executor_service=executor_service,
-        verifier_registry=VerifierRegistry(scanner_adapters={"admitted-scanner": _scanner}),
+        verifier_registry=VerifierRegistry(
+            scanner_adapters={"admitted-scanner": _scanner}
+        ),
         verification_authority=VerificationAuthority(),
-        promotion_authority=PromotionAuthority(workspace, emergency_stop=emergency_stop),
+        promotion_authority=PromotionAuthority(
+            workspace, emergency_stop=emergency_stop
+        ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
     )
@@ -204,6 +232,10 @@ async def test_worker_foundry_contract_staging_and_events(foundry_env) -> None:
         scanner=_scanner,
         rescan_contract=rescan_contract,
         capability_consumer=lambda _r: True,
+        consumed_capability_proof=consume_real_capability_proof(
+            project.parent / "proof-caps.db",
+            mission_id=mission_id,
+        ),
         create_checkpoint=lambda _r: "cp-1",
         restore_checkpoint=lambda _c, _r: True,
         smoke_test=lambda _r: True,
@@ -348,6 +380,10 @@ async def test_worker_foundry_failed_worker_fails_closed(foundry_env) -> None:
         scanner=_scanner,
         rescan_contract=rescan_contract,
         capability_consumer=lambda _r: True,
+        consumed_capability_proof=consume_real_capability_proof(
+            project.parent / "proof-caps.db",
+            mission_id=mission_id,
+        ),
         create_checkpoint=lambda _r: "cp-1",
         restore_checkpoint=lambda _c, _r: True,
         smoke_test=lambda _r: True,

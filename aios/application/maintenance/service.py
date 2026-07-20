@@ -210,6 +210,7 @@ class MaintenanceConvergenceService:
         create_checkpoint: Callable[[Any], str],
         restore_checkpoint: Callable[[str, Any], bool],
         smoke_test: Callable[[Any], bool],
+        consumed_capability_proof: Any | None = None,
     ) -> MaintenanceRepairResult:
         """Execute one already-approved repair through the canonical organs."""
         record = self.mission_service.repository.get(mission_id)
@@ -449,6 +450,7 @@ class MaintenanceConvergenceService:
                     environment_digest_value=environment,
                     verification=verification,
                     bundle=bundle,
+                    consumed_capability_proof=consumed_capability_proof,
                 ),
                 create_checkpoint=create_checkpoint,
                 apply_staged_diff=lambda _request: self.workspace_manager.apply(lease),
@@ -558,7 +560,9 @@ class MaintenanceConvergenceService:
         try:
             raw = json.loads(stdout)
         except json.JSONDecodeError as exc:
-            raise ExecutorReceiptInvalid("executor repair receipt is malformed JSON") from exc
+            raise ExecutorReceiptInvalid(
+                "executor repair receipt is malformed JSON"
+            ) from exc
         try:
             receipt = ExecutorRepairReceipt.model_validate(raw)
         except ValueError as exc:
@@ -569,8 +573,7 @@ class MaintenanceConvergenceService:
         checks = (
             (receipt.job_id == executor_job.job_id, "executor receipt job_id mismatch"),
             (
-                receipt.mission_contract_digest
-                == executor_job.mission_contract_digest,
+                receipt.mission_contract_digest == executor_job.mission_contract_digest,
                 "executor receipt mission contract digest mismatch",
             ),
             (
@@ -601,7 +604,9 @@ class MaintenanceConvergenceService:
             if not ok:
                 raise ExecutorReceiptInvalid(reason)
         if expected_digest and receipt.before_target_digest != expected_digest:
-            raise ExecutorReceiptInvalid("executor receipt before-target digest mismatch")
+            raise ExecutorReceiptInvalid(
+                "executor receipt before-target digest mismatch"
+            )
         try:
             started = _parse_iso8601(receipt.started_timestamp)
             ended = _parse_iso8601(receipt.ended_timestamp)
@@ -616,15 +621,21 @@ class MaintenanceConvergenceService:
         try:
             target_path.relative_to(lease_workspace_path.resolve())
         except ValueError as exc:
-            raise ExecutorReceiptInvalid("executor receipt target escapes workspace") from exc
+            raise ExecutorReceiptInvalid(
+                "executor receipt target escapes workspace"
+            ) from exc
         if not target_path.is_file():
             raise ExecutorReceiptInvalid("executor receipt target is not present")
         actual_target_digest = hashlib.sha256(target_path.read_bytes()).hexdigest()
         if receipt.after_target_digest != actual_target_digest:
-            raise ExecutorReceiptInvalid("executor receipt after-target digest mismatch")
+            raise ExecutorReceiptInvalid(
+                "executor receipt after-target digest mismatch"
+            )
         actual_workspace_digest = tree_digest(lease_workspace_path)
         if receipt.workspace_digest_after != actual_workspace_digest:
-            raise ExecutorReceiptInvalid("executor receipt after-workspace digest mismatch")
+            raise ExecutorReceiptInvalid(
+                "executor receipt after-workspace digest mismatch"
+            )
         return receipt
 
     def reconcile_rescan(
@@ -659,11 +670,13 @@ class MaintenanceConvergenceService:
                 mission=mission,
                 evidence=evidence,
                 scan=scan,
-                verification_is_current=lambda result: self.verification_authority.is_current(
-                    result,
-                    workspace_digest=evidence.workspace_digest,
-                    diff_digest=evidence.diff_digest,
-                    freshness_seconds=300,
+                verification_is_current=lambda result: (
+                    self.verification_authority.is_current(
+                        result,
+                        workspace_digest=evidence.workspace_digest,
+                        diff_digest=evidence.diff_digest,
+                        freshness_seconds=300,
+                    )
                 ),
             )
         except SecurityViolationError as exc:
@@ -710,8 +723,30 @@ class MaintenanceConvergenceService:
         environment_digest_value: str,
         verification: Any,
         bundle: EvidenceBundle,
+        consumed_capability_proof: Any | None = None,
     ) -> Any:
         from aios.domain.promotion import PromotionRequest
+        from aios.domain.promotion.contracts import PromotionAuthorization
+
+        # The consumed proof must be authority-produced (CapabilityAuthority via
+        # the action guard).  Maintenance never synthesizes capability truth:
+        # when no proof was supplied, authorization stays None and the
+        # PromotionAuthority refuses fail-closed with capability_binding_missing.
+        authorization = None
+        if consumed_capability_proof is not None:
+            authorization = PromotionAuthorization(
+                proof=consumed_capability_proof,
+                promotion_attempt_id=f"promotion-attempt:{record.mission_id}",
+                mission_id=record.mission_id,
+                action_id=f"maintenance-action:{record.mission_id}",
+                worker_id=worker_id,
+                executor_job_id=executor_job_id,
+                contract_digest=record.contract_digest,
+                workspace_digest=str(diff["workspace_digest"]),
+                diff_digest=str(diff["diff_digest"]),
+                project_root_identity=str(Path(lease.project_root).resolve()),
+                required_targets=(finding.target_id,),
+            )
 
         return PromotionRequest(
             mission_id=record.mission_id,
@@ -734,9 +769,7 @@ class MaintenanceConvergenceService:
             required_strength=verification.required_strength,
             freshness_seconds=300,
             requires_capability=True,
-            capability_id=f"mission:{record.mission_id}",
-            capability_digest=record.capability_digest,
-            authoritative_capability_digest=record.capability_digest,
+            authorization=authorization,
         )
 
 

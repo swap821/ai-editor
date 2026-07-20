@@ -34,7 +34,7 @@ from aios.application.maintenance.service import MaintenanceConvergenceService
 from aios.application.missions.mission_service import MissionService
 from aios.application.promotion.authority import PromotionAuthority
 from aios.application.workspaces import StagedWorkspaceManager
-from aios.domain.executor import ExecutorResult
+from aios.domain.governance import EmergencyStopRequest
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
@@ -42,6 +42,7 @@ from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from tests.helpers import executor_repair_result
 
 _NO_AUTO = {"X-AIOS-No-Auto-Capability": "1"}
 
@@ -84,14 +85,7 @@ class _WorkerFoundry:
 
 class _Executor:
     def execute(self, job):  # noqa: ANN001
-        return ExecutorResult(
-            job_id=job.job_id,
-            status="completed",
-            exit_code=0,
-            stdout="clean",
-            isolation_verified=True,
-            environment_digest="env-api-1",
-        )
+        return executor_repair_result(job)
 
 
 def _scanner(context):  # noqa: ANN001
@@ -103,7 +97,9 @@ def _scanner(context):  # noqa: ANN001
 
 
 @pytest.fixture()
-def maintenance_env(tmp_path: Path) -> Iterator[
+def maintenance_env(
+    tmp_path: Path,
+) -> Iterator[
     tuple[TestClient, MaintenanceConvergenceService, EmergencyStopController, Path]
 ]:
     project = tmp_path / "project"
@@ -130,9 +126,13 @@ def maintenance_env(tmp_path: Path) -> Iterator[
             runner=executor.execute,
             backend_name="private_service",
         ),
-        verifier_registry=VerifierRegistry(scanner_adapters={"admitted-scanner": _scanner}),
+        verifier_registry=VerifierRegistry(
+            scanner_adapters={"admitted-scanner": _scanner}
+        ),
         verification_authority=VerificationAuthority(),
-        promotion_authority=PromotionAuthority(workspace, emergency_stop=emergency_stop),
+        promotion_authority=PromotionAuthority(
+            workspace, emergency_stop=emergency_stop
+        ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
     )
@@ -160,9 +160,13 @@ def maintenance_env(tmp_path: Path) -> Iterator[
         app.dependency_overrides.clear()
 
 
-def _challenge(client: TestClient, method: str, path: str, payload: dict | None = None) -> str:
+def _challenge(
+    client: TestClient, method: str, path: str, payload: dict | None = None
+) -> str:
     response = client.request(method, path, json=payload, headers=_NO_AUTO)
-    assert response.status_code == 428, f"Expected 428 challenge, got {response.status_code}: {response.text}"
+    assert response.status_code == 428, (
+        f"Expected 428 challenge, got {response.status_code}: {response.text}"
+    )
     detail = response.json()["detail"]
     assert detail["error"] == "exact_capability_required"
     return detail["approvalToken"]
@@ -208,7 +212,9 @@ def test_maintenance_scan_capability_challenge_and_retry(maintenance_env) -> Non
         json=payload,
         headers={"X-AIOS-Capability": cap_token},
     )
-    assert replay_response.status_code in (400, 403, 409), f"Replay should be refused, got {replay_response.status_code}"
+    assert replay_response.status_code in (400, 403, 409), (
+        f"Replay should be refused, got {replay_response.status_code}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -230,15 +236,14 @@ def test_capability_payload_mismatch_refused(maintenance_env) -> None:
         json=payload2,
         headers={"X-AIOS-Capability": cap_token},
     )
-    assert resp2.status_code in (400, 403, 409), f"Payload mismatch should be refused, got {resp2.status_code}"
+    assert resp2.status_code in (400, 403, 409), (
+        f"Payload mismatch should be refused, got {resp2.status_code}"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Test 3: Emergency stop engaged → 503
 # ---------------------------------------------------------------------------
-
-
-from aios.domain.governance import EmergencyStopRequest
 
 
 def test_emergency_stop_blocks_scans_and_repairs(maintenance_env) -> None:
@@ -255,8 +260,14 @@ def test_emergency_stop_blocks_scans_and_repairs(maintenance_env) -> None:
         )
     )
 
-    response = client.post("/api/v1/maintenance/scans", json=payload, headers={"X-AIOS-Capability": cap_token})
-    assert response.status_code in (403, 503), f"Expected 403/503 on emergency stop, got {response.status_code}"
+    response = client.post(
+        "/api/v1/maintenance/scans",
+        json=payload,
+        headers={"X-AIOS-Capability": cap_token},
+    )
+    assert response.status_code in (403, 503), (
+        f"Expected 403/503 on emergency stop, got {response.status_code}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +280,9 @@ def test_unadmitted_scanner_id_refused(maintenance_env) -> None:
 
     payload = {"scanner_id": "evil-unadmitted-scanner", "target_id": "bug.txt"}
     response = _approved_post(client, "/api/v1/maintenance/scans", payload)
-    assert response.status_code == 400, f"Expected 400 for invalid scanner, got {response.status_code}"
+    assert response.status_code == 400, (
+        f"Expected 400 for invalid scanner, got {response.status_code}"
+    )
     assert "not an admitted scanner adapter" in response.json()["detail"]
 
 
@@ -283,7 +296,9 @@ def test_escaped_target_path_refused(maintenance_env) -> None:
 
     payload = {"scanner_id": "admitted-scanner", "target_id": "../../../etc/passwd"}
     response = _approved_post(client, "/api/v1/maintenance/scans", payload)
-    assert response.status_code == 400, f"Expected 400 for path escape, got {response.status_code}"
+    assert response.status_code == 400, (
+        f"Expected 400 for path escape, got {response.status_code}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +311,9 @@ def test_shell_metacharacter_target_refused(maintenance_env) -> None:
 
     payload = {"scanner_id": "admitted-scanner", "target_id": "bug.txt; rm -rf /"}
     response = _approved_post(client, "/api/v1/maintenance/scans", payload)
-    assert response.status_code == 400, f"Expected 400 for shell metacharacters, got {response.status_code}"
+    assert response.status_code == 400, (
+        f"Expected 400 for shell metacharacters, got {response.status_code}"
+    )
 
 
 # ---------------------------------------------------------------------------

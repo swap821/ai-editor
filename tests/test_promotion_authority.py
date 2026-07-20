@@ -15,6 +15,9 @@ from aios.domain.evidence import (
 )
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.promotion import PromotionRequest, PromotionStatus
+from aios.domain.promotion.contracts import PromotionAuthorization
+
+from tests.helpers import consume_real_capability_proof
 
 
 @pytest.fixture
@@ -109,9 +112,27 @@ def _request(
         required_targets=("app.txt",),
         required_strength=required_strength,
         requires_capability=requires_capability,
-        capability_id="cap-1" if requires_capability else None,
-        capability_digest="cap-digest" if requires_capability else None,
-        authoritative_capability_digest="cap-digest" if requires_capability else None,
+        authorization=(
+            PromotionAuthorization(
+                proof=consume_real_capability_proof(
+                    project.parent / "proof-caps.db",
+                    mission_id="mission-1",
+                    contract_digest=contract_digest,
+                ),
+                promotion_attempt_id="promotion-attempt-1",
+                mission_id="mission-1",
+                action_id="action-1",
+                worker_id="worker-1",
+                executor_job_id="worker-1",
+                contract_digest=contract_digest,
+                workspace_digest=str(diff["workspace_digest"]),
+                diff_digest=str(diff["diff_digest"]),
+                project_root_identity=str(project.resolve()),
+                required_targets=("app.txt",),
+            )
+            if requires_capability
+            else None
+        ),
     )
 
 
@@ -191,14 +212,21 @@ def test_success_is_checkpointed_capability_bound_and_observed(staged) -> None:
     result = PromotionAuthority(manager, verification).promote(
         request,
         create_checkpoint=lambda _: calls.append("checkpoint") or "checkpoint-1",
-        consume_capability=lambda req: calls.append(req.capability_id or "") or True,
+        consume_capability=lambda req: (
+            calls.append(
+                req.authorization.proof.capability_id if req.authorization else ""
+            )
+            or True
+        ),
         apply_staged_diff=lambda _: calls.append("apply"),
         smoke_test=lambda _: calls.append("smoke") or True,
         restore_checkpoint=lambda *_: calls.append("restore") or True,
         mark_completed=lambda *_: calls.append("complete"),
     )
     assert result.status is PromotionStatus.PROMOTED
-    assert calls == ["checkpoint", "cap-1", "apply", "smoke", "complete"]
+    assert calls[0] == "checkpoint"
+    assert calls[1].startswith("capability:")
+    assert calls[2:] == ["apply", "smoke", "complete"]
     assert result.evidence_ids
 
 
@@ -210,8 +238,9 @@ def test_manager_apply_changes_only_after_authority_gate(staged) -> None:
         request,
         create_checkpoint=lambda _: "checkpoint-apply",
         apply_staged_diff=lambda _: manager.apply(lease),
-        smoke_test=lambda _: (project / "app.txt").read_text(encoding="utf-8")
-        == "after\n",
+        smoke_test=lambda _: (
+            (project / "app.txt").read_text(encoding="utf-8") == "after\n"
+        ),
         restore_checkpoint=lambda *_: True,
     )
     assert result.status is PromotionStatus.PROMOTED
@@ -226,8 +255,9 @@ def test_apply_or_smoke_failure_restores_exact_checkpoint(staged) -> None:
     result = PromotionAuthority(manager, verification).promote(
         request,
         create_checkpoint=lambda _: "snapshot-exact",
-        apply_staged_diff=lambda _: calls.append("apply")
-        or (_ for _ in ()).throw(RuntimeError("apply failed")),
+        apply_staged_diff=lambda _: (
+            calls.append("apply") or (_ for _ in ()).throw(RuntimeError("apply failed"))
+        ),
         smoke_test=lambda _: True,
         restore_checkpoint=lambda checkpoint, _: calls.append(checkpoint) or True,
     )
@@ -271,8 +301,9 @@ def test_promotion_ignores_council_rollback_git_pointer(staged) -> None:
         request,
         create_checkpoint=lambda _: "checkpoint-git-pointer",
         apply_staged_diff=lambda _: manager.apply(lease),
-        smoke_test=lambda _: (project / "app.txt").read_text(encoding="utf-8")
-        == "after\n",
+        smoke_test=lambda _: (
+            (project / "app.txt").read_text(encoding="utf-8") == "after\n"
+        ),
         restore_checkpoint=lambda *_: True,
     )
     assert result.status is PromotionStatus.PROMOTED

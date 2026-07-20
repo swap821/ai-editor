@@ -12,7 +12,6 @@ Executes the in-process integration test loop:
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +26,7 @@ from aios.application.executor.service import ExecutorService
 from aios.application.governance import EmergencyStopController, EmergencyStopHooks
 from aios.application.learning.service import (
     LearningService,
+    SkillActivationAuthorization,
     SkillCandidateSpec,
 )
 from aios.application.maintenance.service import MaintenanceConvergenceService
@@ -35,7 +35,7 @@ from aios.application.promotion.authority import PromotionAuthority
 from aios.application.workers.foundry import WorkerFoundry
 from aios.application.workspaces import StagedWorkspaceManager
 from aios.domain.evidence import VerificationObservation, VerificationPlanV1
-from aios.domain.executor import ExecutorResult
+from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.learning.contracts import ToolObservation
 from aios.domain.learning.repository import SkillRepository
 from aios.domain.learning.reuse_orchestrator import (
@@ -53,6 +53,11 @@ from aios.domain.missions.mission_contract import (
     VerificationPlan as MissionVerificationPlan,
 )
 from aios.domain.promotion import PromotionResult, PromotionStatus
+from tests.helpers import (
+    consume_real_capability_proof,
+    executor_repair_result,
+    reuse_outcome_reference,
+)
 from aios.domain.verification import SkillVerifierSpec
 from aios.domain.workers.worker_contract import WorkerStrategyName
 from aios.infrastructure.missions.sqlite_mission_repository import (
@@ -62,7 +67,9 @@ from aios.runtime.cortex_bus import CortexBus
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
 
 
-def _finding(*, target_id: str = "bug.txt", target_digest: str, source_digest: str) -> MaintenanceFinding:
+def _finding(
+    *, target_id: str = "bug.txt", target_digest: str, source_digest: str
+) -> MaintenanceFinding:
     return MaintenanceFinding(
         finding_id="finding-e2e-flywheel",
         fingerprint="e2e-flywheel-fingerprint",
@@ -126,8 +133,38 @@ def _observation(*, exit_code: int = 0) -> VerificationObservation:
     )
 
 
+def _activation_auth(skill_id: str, version: int) -> SkillActivationAuthorization:
+    return SkillActivationAuthorization(
+        skill_id=skill_id,
+        version=version,
+        proof=ConsumedCapabilityProof(
+            capability_id="cap-1",
+            token_digest="token",
+            operator_id="op-admin",
+            device_id="device-1",
+            authentication_event_id="auth-1",
+            session_id="session-1",
+            action_type="skill_activation",
+            route=f"/api/v1/skills/{skill_id}/versions/{version}/activate",
+            http_method="POST",
+            payload_digest="payload",
+            resource_digest="resource",
+            mission_id=None,
+            contract_digest=None,
+            policy_version="1.0",
+            scope="skill-activation",
+            verification_requirement="route_policy_v1",
+            consumed_at=1.0,
+            expires_at=9_999_999_999.0,
+            revoked_at=None,
+        ),
+    )
+
+
 @pytest.mark.anyio
-async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_path: Path) -> None:
+async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(
+    tmp_path: Path,
+) -> None:
     # -----------------------------------------------------------------------
     # Step 1: Environment Setup & Durable Repositories
     # -----------------------------------------------------------------------
@@ -161,9 +198,15 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
 
         async def run(self, request) -> Any:  # noqa: ANN001
             staged = request.context.get("staged_workspace", {})
-            workspace_path = Path(staged.get("workspace_path", request.spec.scope.get("workspace_root", "")))
+            workspace_path = Path(
+                staged.get(
+                    "workspace_path", request.spec.scope.get("workspace_root", "")
+                )
+            )
             if workspace_path.exists():
-                (workspace_path / "bug.txt").write_text("REPAIRED_CLEAN\n", encoding="utf-8")
+                (workspace_path / "bug.txt").write_text(
+                    "REPAIRED_CLEAN\n", encoding="utf-8"
+                )
             return SimpleNamespace(worker_id=request.spec.worker_id, status="completed")
 
     foundry = WorkerFoundry(
@@ -173,14 +216,7 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
         emergency_stop=emergency_stop,
     )
 
-    executor_runner = lambda job: ExecutorResult(  # noqa: E731
-        job_id=job.job_id,
-        status="completed",
-        exit_code=0,
-        stdout="clean execution",
-        isolation_verified=True,
-        environment_digest="env-e2e-1",
-    )
+    executor_runner = executor_repair_result
     executor_service = ExecutorService(
         profile="test",
         runner=executor_runner,
@@ -188,7 +224,9 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
     )
 
     evidence_auth = EvidenceAuthority()
-    verification_auth = VerificationAuthority(evidence=evidence_auth, database_path=db_path)
+    verification_auth = VerificationAuthority(
+        evidence=evidence_auth, database_path=db_path
+    )
 
     maint_service = MaintenanceConvergenceService(
         finding_repository=finding_repository,
@@ -196,9 +234,13 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
         mission_service=mission_service,
         worker_foundry=foundry,
         executor_service=executor_service,
-        verifier_registry=VerifierRegistry(scanner_adapters={"admitted-scanner": _scanner}),
+        verifier_registry=VerifierRegistry(
+            scanner_adapters={"admitted-scanner": _scanner}
+        ),
         verification_authority=verification_auth,
-        promotion_authority=PromotionAuthority(workspace, emergency_stop=emergency_stop),
+        promotion_authority=PromotionAuthority(
+            workspace, emergency_stop=emergency_stop
+        ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
     )
@@ -210,7 +252,9 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
         mission_service=mission_service,
         trajectory_repository=learning_trajectories,
         skill_repository=learning_skills,
-        activation_authorizer=lambda _skill, op_id, app_digest: op_id == "op-admin" and app_digest == "digest-approved",
+        activation_authorizer=lambda _skill, op_id, app_digest: (
+            op_id == "op-admin" and app_digest == "digest-approved"
+        ),
         verification_plan_validator=lambda _skill: True,
         reuse_policy=lambda _skill, _ctx: True,
         verification_authority=verification_auth,
@@ -231,7 +275,12 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
     assert len(scan_res.findings) == 1
     finding = scan_res.findings[0]
     assert finding.fingerprint == "e2e-flywheel-fingerprint"
-    log_action("maint-scanner", f"scan_completed findings={len(scan_res.findings)}", zone="GREEN", db_path=audit_db_path)
+    log_action(
+        "maint-scanner",
+        f"scan_completed findings={len(scan_res.findings)}",
+        zone="GREEN",
+        db_path=audit_db_path,
+    )
 
     # -----------------------------------------------------------------------
     # Step 3: Repair Mission -> Approve -> Worker Execution -> Verification -> Promotion -> Post-rescan Proof -> Closed
@@ -252,20 +301,35 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
         authentication_event_id="auth-e2e-1",
         session_id="session-e2e-1",
     )
-    log_action("op-admin", f"repair_create mission_id={mission_id}", zone="YELLOW", db_path=audit_db_path)
+    log_action(
+        "op-admin",
+        f"repair_create mission_id={mission_id}",
+        zone="YELLOW",
+        db_path=audit_db_path,
+    )
 
     repair_res = await maint_service.run_approved_repair(
         mission_id,
         scanner=_scanner,
         rescan_contract=_contract(project),
         capability_consumer=lambda _r: True,
+        consumed_capability_proof=consume_real_capability_proof(
+            tmp_path / "proof-caps.db",
+            mission_id=mission_id,
+            contract_digest=record.contract_digest,
+        ),
         create_checkpoint=lambda _r: "cp-e2e",
         restore_checkpoint=lambda _c, _r: True,
         smoke_test=lambda _r: True,
     )
     assert repair_res.status == "VERIFIED_RESOLVED"
     assert repair_res.scan_id is not None
-    log_action("maint-worker", f"repair_completed mission_id={mission_id}", zone="YELLOW", db_path=audit_db_path)
+    log_action(
+        "maint-worker",
+        f"repair_completed mission_id={mission_id}",
+        zone="YELLOW",
+        db_path=audit_db_path,
+    )
 
     # Verify bug.txt on disk is promoted and clean
     assert (project / "bug.txt").read_text(encoding="utf-8") == "REPAIRED_CLEAN\n"
@@ -379,18 +443,16 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
     )
     assert traj_rec.trajectory_id.startswith("trajectory-")
 
-    skill_candidate = learning_service.create_skill_candidate(traj_rec.trajectory_id, candidate_spec)
+    skill_candidate = learning_service.create_skill_candidate(
+        traj_rec.trajectory_id, candidate_spec
+    )
     assert skill_candidate.state == "candidate"
 
     # -----------------------------------------------------------------------
     # Step 6: Human Review & Approval -> Active Local Skill
     # -----------------------------------------------------------------------
     active_skill = learning_service.activate_skill(
-        skill_id=skill_candidate.skill_id,
-        version=skill_candidate.version,
-        operator_id="op-admin",
-        approval_digest="digest-approved",
-        capability_id="cap-1",
+        _activation_auth(skill_candidate.skill_id, skill_candidate.version)
     )
     assert active_skill.state == "active"
     assert active_skill.confidence == 0.8
@@ -445,12 +507,16 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
     )
 
     boosted = learning_service.record_reuse_outcome(
-        skill_id=active_skill.skill_id,
-        version=active_skill.version,
-        mission_id="mission-local-1",
-        verification_results=(local_v_result_1,),
-        workspace_digest="ws-loc-1",
-        diff_digest="diff-loc-1",
+        reuse_outcome_reference(
+            reuse_outcome_id="reuse-local-1",
+            skill=active_skill,
+            trajectory_id=traj_rec.trajectory_id,
+            mission=mission_service.repository.get("mission-local-1"),
+            verification=local_v_result_1,
+            worker_id="w-loc-1",
+            workspace_digest="ws-loc-1",
+            diff_digest="diff-loc-1",
+        )
     )
     assert boosted.confidence > 0.8
 
@@ -486,20 +552,28 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
     )
 
     learning_service.record_reuse_outcome(
-        skill_id=active_skill.skill_id,
-        version=active_skill.version,
-        mission_id="mission-local-2",
-        verification_results=(failed_v_result,),
-        workspace_digest="ws-loc-2",
-        diff_digest="diff-loc-2",
+        reuse_outcome_reference(
+            reuse_outcome_id="reuse-local-2a",
+            skill=active_skill,
+            trajectory_id=traj_rec.trajectory_id,
+            mission=mission_service.repository.get("mission-local-2"),
+            verification=failed_v_result,
+            worker_id="w-loc-2",
+            workspace_digest="ws-loc-2",
+            diff_digest="diff-loc-2",
+        )
     )
     degraded = learning_service.record_reuse_outcome(
-        skill_id=active_skill.skill_id,
-        version=active_skill.version,
-        mission_id="mission-local-2",
-        verification_results=(failed_v_result,),
-        workspace_digest="ws-loc-2",
-        diff_digest="diff-loc-2",
+        reuse_outcome_reference(
+            reuse_outcome_id="reuse-local-2b",
+            skill=active_skill,
+            trajectory_id=traj_rec.trajectory_id,
+            mission=mission_service.repository.get("mission-local-2"),
+            verification=failed_v_result,
+            worker_id="w-loc-2",
+            workspace_digest="ws-loc-2",
+            diff_digest="diff-loc-2",
+        )
     )
     assert degraded.state == "degraded"
     assert degraded.confidence < 0.8

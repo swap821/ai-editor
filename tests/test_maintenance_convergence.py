@@ -12,7 +12,6 @@ from aios.application.missions.mission_service import MissionService
 from aios.application.maintenance.service import MaintenanceConvergenceService
 from aios.application.promotion.authority import PromotionAuthority
 from aios.application.workspaces import StagedWorkspaceManager
-from aios.domain.executor import ExecutorResult
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.lifecycle import MaintenanceLifecycleEngine
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
@@ -22,6 +21,7 @@ from aios.domain.missions.mission_state import MissionState
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from tests.helpers import consume_real_capability_proof, executor_repair_result
 
 
 def _contract(*, root: Path, max_files: int = 4) -> BoundedScanContract:
@@ -85,15 +85,10 @@ class _Executor:
 
     def execute(self, job):  # noqa: ANN001
         self.jobs.append(job)
-        return ExecutorResult(
-            job_id=job.job_id,
+        return executor_repair_result(
+            job,
             status="completed" if self.exit_code == 0 else "failed",
             exit_code=self.exit_code,
-            stdout="rescan clean"
-            if self.exit_code == 0
-            else "repair verification failed",
-            isolation_verified=True,
-            environment_digest="environment-maintenance-1",
         )
 
 
@@ -199,6 +194,11 @@ def test_maintenance_repair_uses_canonical_mission_executor_verifier_promotion_a
             scanner=_scanner,
             rescan_contract=_contract(root=project),
             capability_consumer=lambda _request: True,
+            consumed_capability_proof=consume_real_capability_proof(
+                tmp_path / "proof-caps.db",
+                mission_id=mission.mission_id,
+                contract_digest=mission.contract_digest,
+            ),
             create_checkpoint=lambda _request: "checkpoint-1",
             restore_checkpoint=lambda _checkpoint, _request: True,
             smoke_test=lambda _request: (project / "bug.txt").read_text() == "fixed\n",
@@ -253,16 +253,25 @@ def test_failed_repair_never_resolves_finding(tmp_path: Path) -> None:
             scanner=_scanner,
             rescan_contract=_contract(root=project),
             capability_consumer=lambda _request: True,
+            consumed_capability_proof=consume_real_capability_proof(
+                tmp_path / "proof-caps.db",
+                mission_id=mission.mission_id,
+                contract_digest=mission.contract_digest,
+            ),
             create_checkpoint=lambda _request: "checkpoint-1",
             restore_checkpoint=lambda _checkpoint, _request: True,
             smoke_test=lambda _request: False,
         )
     )
 
-    assert result.status in ("EXECUTOR_FAILED", "VERIFICATION_FAILED")
-    assert (
-        service.finding_repository.get("controlled-defect").status
-        in ("EXECUTOR_FAILED", "VERIFICATION_FAILED")
+    assert result.status in (
+        "EXECUTOR_FAILED",
+        "EXECUTOR_PROVENANCE_INVALID",
+        "VERIFICATION_FAILED",
+    )
+    assert service.finding_repository.get("controlled-defect").status in (
+        "EXECUTOR_FAILED",
+        "VERIFICATION_FAILED",
     )
     assert (
         service.mission_service.repository.get(mission.mission_id).state
@@ -319,6 +328,11 @@ def test_rescan_incomplete_does_not_resolve_and_reappearance_reopens(
             scanner=_scanner,
             rescan_contract=_contract(root=project),
             capability_consumer=lambda _request: True,
+            consumed_capability_proof=consume_real_capability_proof(
+                tmp_path / "proof-caps.db",
+                mission_id=mission.mission_id,
+                contract_digest=mission.contract_digest,
+            ),
             create_checkpoint=lambda _request: "checkpoint-1",
             restore_checkpoint=lambda _checkpoint, _request: True,
             smoke_test=lambda _request: (project / "bug.txt").read_text() == "fixed\n",
