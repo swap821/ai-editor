@@ -7,4 +7,4 @@ google-genai>=1.0.0
 
 # Local/private voice (STT + TTS) — only needed when AIOS_VOICE_STT/TTS=true:
 faster-whisper>=1.2.1
-piper-tts>=1.4.2
+piper-tts>=1.5.0
