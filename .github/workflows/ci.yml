@@ -241,6 +241,9 @@ jobs:
             -e AIOS_EXECUTOR_URL=http://executor:8081 \
             -e AIOS_EXECUTOR_WORKSPACE_ROOT=/app/data/executor-workspaces \
             -e AIOS_EXECUTOR_REMOTE_WORKSPACE_ROOT=/workspace/jobs \
+            -e AIOS_VERIFICATION_AUTHORITY_KEY \
+            -e AIOS_PROMOTION_AUTHORITY_KEY \
+            -e CHECKPOINT_AUTHORITY_KEY \
             -v "$(pwd)/frontend:/app/frontend:ro" \
             aios python -m aios.launcher v1-check --strict --json
 
