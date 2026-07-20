@@ -637,8 +637,9 @@ def _probe_staging_and_promotion(scratch: Path) -> str:
         request,
         create_checkpoint=lambda _: "checkpoint-promote",
         apply_staged_diff=lambda _: manager.apply(lease),
-        smoke_test=lambda _: (project / "app.txt").read_text(encoding="utf-8")
-        == "after\n",
+        smoke_test=lambda _: (
+            (project / "app.txt").read_text(encoding="utf-8") == "after\n"
+        ),
         restore_checkpoint=lambda *_: True,
     )
     if promoted.status is not PromotionStatus.PROMOTED:
@@ -903,8 +904,9 @@ def _probe_emergency_stop(scratch: Path) -> str:
     called: list[str] = []
     executor = Executor(
         runner=lambda *_args, **_kwargs: called.append("run") or ("", "", 0),
-        approved_runner=lambda *_args, **_kwargs: called.append("approved")
-        or ("", "", 0),
+        approved_runner=lambda *_args, **_kwargs: (
+            called.append("approved") or ("", "", 0)
+        ),
         emergency_stop=restarted,
         audit_log=lambda *_args, **_kwargs: None,
     )
