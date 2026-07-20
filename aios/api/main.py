@@ -416,7 +416,6 @@ app.include_router(_skills_router)
 app.include_router(_maintenance_router)
 
 
-
 @app.middleware("http")
 async def bind_request_context(request: Request, call_next):
     """Stamp every request with a correlation id and bind a hashed session id."""

@@ -4,6 +4,7 @@ Replaces hardcoded string concatenation with a declarative assembly pipeline:
 each section has a priority, an optional token budget, and a render callable.
 The writer assembles them in priority order, respecting the total budget.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

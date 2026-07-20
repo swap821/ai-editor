@@ -3,6 +3,7 @@
 The tracker records outcomes without pretending that an unverified answer was a
 success. Only verification-backed outcomes may calibrate future planning.
 """
+
 from __future__ import annotations
 
 import json
@@ -82,14 +83,19 @@ class DevelopmentTracker:
 
         # S2: ingest verified outcome edges into the knowledge graph.
         # OUTSIDE the with-block — add_fact() opens its own BEGIN IMMEDIATE.
-        if outcome in ("verified_success", "verified_failure") and self._facts is not None:
+        if (
+            outcome in ("verified_success", "verified_failure")
+            and self._facts is not None
+        ):
             try:
                 from aios.core.graph_ingestion import edges_from_outcome
 
                 for s, p, o, conf in edges_from_outcome(task_text, outcome, tool_calls):
                     self._facts.add_fact(s, p, o, confidence=conf)
             except Exception:
-                logger.warning("graph ingestion from outcome failed (swallowed)", exc_info=True)
+                logger.warning(
+                    "graph ingestion from outcome failed (swallowed)", exc_info=True
+                )
 
         return row_id
 
@@ -239,13 +245,17 @@ class DevelopmentTracker:
             "tasks": tasks,
             "outcomes": counts,
             "verified_success_rate": (
-                round(counts.get("verified_success", 0) / verified, 6) if verified else None
+                round(counts.get("verified_success", 0) / verified, 6)
+                if verified
+                else None
             ),
             "verification_coverage": round(verified / tasks, 6) if tasks else 0.0,
             "human_intervention_rate": (
                 round(int(totals["interventions"]) / tasks, 6) if tasks else 0.0
             ),
-            "average_tool_calls": round(int(totals["tools"]) / tasks, 6) if tasks else 0.0,
+            "average_tool_calls": round(int(totals["tools"]) / tasks, 6)
+            if tasks
+            else 0.0,
             "blocked_actions": int(totals["blocked"]),
             "lessons": int(mistake["lessons"]),
             "repeated_mistakes": int(mistake["repeats"]),

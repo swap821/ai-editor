@@ -12,6 +12,7 @@ Design constraints (Fable's supervisory decisions):
 - Thread-safe cache access (a threading.Lock guards the cached string).
 - Ignores event types other than "turn.completed" — forward-compatible.
 """
+
 from __future__ import annotations
 
 import logging

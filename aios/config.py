@@ -522,16 +522,18 @@ def startup_banner() -> dict[str, object]:
     }
 
 
-_INSECURE_SIGNING_KEYS: Final[frozenset[str]] = frozenset({
-    "aios-authority-verification-key-v1",
-    "aios-authority-promotion-key-v1",
-    "insecure-dev-verification-key-do-not-use-in-production",
-    "insecure-dev-promotion-key-do-not-use-in-production",
-    "aios-authority-key",
-    "changeme",
-    "secret",
-    "default",
-})
+_INSECURE_SIGNING_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "aios-authority-verification-key-v1",
+        "aios-authority-promotion-key-v1",
+        "insecure-dev-verification-key-do-not-use-in-production",
+        "insecure-dev-promotion-key-do-not-use-in-production",
+        "aios-authority-key",
+        "changeme",
+        "secret",
+        "default",
+    }
+)
 
 
 def validate_authority_signing_keys(

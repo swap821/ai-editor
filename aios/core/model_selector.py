@@ -20,6 +20,7 @@ Pure and side-effect-free (no network, no model load): callers pass the tag list
 (e.g. from ``OllamaClient.list_models``) and the inferred task, so the policy
 lives in one tested place instead of the UI.
 """
+
 from __future__ import annotations
 
 import re
@@ -34,20 +35,46 @@ TASKS = (TASK_CODING, TASK_REASONING, TASK_GENERAL, TASK_FAST)
 
 # --- Model family knowledge (matched as a prefix of the tag's family) -------
 _CODER_FAMILIES = (
-    "qwen2.5-coder", "qwen3-coder", "qwen2.5coder", "deepseek-coder",
-    "codellama", "codestral", "codegemma", "starcoder", "granite-code",
+    "qwen2.5-coder",
+    "qwen3-coder",
+    "qwen2.5coder",
+    "deepseek-coder",
+    "codellama",
+    "codestral",
+    "codegemma",
+    "starcoder",
+    "granite-code",
 )
 # Reasoning / chain-of-thought families. Strong at analysis, but typically POOR
 # at function/tool calling -> excluded when require_tools is set.
 _REASONING_FAMILIES = (
-    "deepseek-r1", "qwq", "marco-o1", "openthinker", "phi4-reasoning",
+    "deepseek-r1",
+    "qwq",
+    "marco-o1",
+    "openthinker",
+    "phi4-reasoning",
 )
 _STRONG_GENERAL = (
-    "qwen3", "qwen2.5", "llama3.3", "llama3.1", "mixtral", "mistral-nemo",
-    "mistral-small", "gemma2", "command-r", "phi4",
+    "qwen3",
+    "qwen2.5",
+    "llama3.3",
+    "llama3.1",
+    "mixtral",
+    "mistral-nemo",
+    "mistral-small",
+    "gemma2",
+    "command-r",
+    "phi4",
 )
 _WEAKER_GENERAL = (
-    "llama3.2", "llama3", "llama2", "mistral", "gemma", "qwen2", "phi3", "phi",
+    "llama3.2",
+    "llama3",
+    "llama2",
+    "mistral",
+    "gemma",
+    "qwen2",
+    "phi3",
+    "phi",
 )
 #: Families that do NOT reliably tool-call (the agentic loop must avoid these).
 _NON_TOOL_FAMILIES = _REASONING_FAMILIES
@@ -58,8 +85,18 @@ _UNRELIABLE_TOOL_FAMILIES = ("mistral",)
 
 #: Substrings marking a model that should never drive the chat/agent loop.
 _EXCLUDE_SUBSTR = (
-    "embed", "embedding", "bge", "minilm", "gte-", "rerank", "nomic",
-    "guard", "vision", "llava", "moondream", "clip",
+    "embed",
+    "embedding",
+    "bge",
+    "minilm",
+    "gte-",
+    "rerank",
+    "nomic",
+    "guard",
+    "vision",
+    "llava",
+    "moondream",
+    "clip",
 )
 
 #: A non-instruct base model is a poor chat/tool driver -> demoted below instruct.
@@ -70,10 +107,34 @@ _INSTRUCT_BONUS = 40
 #: Per-task tier table: task -> {family-kind -> score}. Higher is better for that
 #: task. A kind absent from a row falls back to its ``unknown`` floor.
 _TIERS: dict[str, dict[str, int]] = {
-    TASK_CODING:    {"coder": 300, "strong": 200, "reasoning": 150, "weak": 100, "unknown": 50},
-    TASK_REASONING: {"reasoning": 300, "strong": 220, "coder": 180, "weak": 100, "unknown": 50},
-    TASK_GENERAL:   {"strong": 300, "coder": 200, "reasoning": 190, "weak": 150, "unknown": 50},
-    TASK_FAST:      {"coder": 200, "strong": 200, "weak": 200, "reasoning": 120, "unknown": 60},
+    TASK_CODING: {
+        "coder": 300,
+        "strong": 200,
+        "reasoning": 150,
+        "weak": 100,
+        "unknown": 50,
+    },
+    TASK_REASONING: {
+        "reasoning": 300,
+        "strong": 220,
+        "coder": 180,
+        "weak": 100,
+        "unknown": 50,
+    },
+    TASK_GENERAL: {
+        "strong": 300,
+        "coder": 200,
+        "reasoning": 190,
+        "weak": 150,
+        "unknown": 50,
+    },
+    TASK_FAST: {
+        "coder": 200,
+        "strong": 200,
+        "weak": 200,
+        "reasoning": 120,
+        "unknown": 60,
+    },
 }
 
 
@@ -180,7 +241,8 @@ def select_model(
     """
     task = _normalise_task(task)
     usable = [
-        m for m in (installed or [])
+        m
+        for m in (installed or [])
         if isinstance(m, str) and m.strip() and not is_excluded(m)
     ]
     if require_tools:
@@ -193,8 +255,11 @@ def select_model(
 def describe_choice(tag: str) -> str:
     """A short, human reason for why *tag* was auto-selected (for the UI badge)."""
     kind = {
-        "coder": "coder-tuned", "reasoning": "reasoning",
-        "strong": "general", "weak": "general", "unknown": "general",
+        "coder": "coder-tuned",
+        "reasoning": "reasoning",
+        "strong": "general",
+        "weak": "general",
+        "unknown": "general",
     }[_kind(tag)]
     parts = [kind]
     size = parse_size_b(tag)
@@ -206,18 +271,51 @@ def describe_choice(tag: str) -> str:
 
 # --- Task inference from the user's message ---------------------------------
 _CODING_HINTS = (
-    r"\bfix\b", r"\bbug\b", r"\bdebug\b", r"\berror\b", r"\bexception\b",
-    r"\btraceback\b", r"\bedit\b", r"\brefactor\b", r"\bimplement\b",
-    r"\bfunction\b", r"\bclass\b", r"\bmethod\b", r"\btests?\b", r"\bcode\b",
-    r"\bcompile\b", r"\bsyntax\b", r"\bregex\b", r"\bedit_file\b", r"```",
-    r"\.py\b", r"\.js\b", r"\.ts\b", r"\.jsx\b", r"\.tsx\b", r"\.css\b",
-    r"\bgit\b", r"\bnpm\b", r"\bpytest\b",
+    r"\bfix\b",
+    r"\bbug\b",
+    r"\bdebug\b",
+    r"\berror\b",
+    r"\bexception\b",
+    r"\btraceback\b",
+    r"\bedit\b",
+    r"\brefactor\b",
+    r"\bimplement\b",
+    r"\bfunction\b",
+    r"\bclass\b",
+    r"\bmethod\b",
+    r"\btests?\b",
+    r"\bcode\b",
+    r"\bcompile\b",
+    r"\bsyntax\b",
+    r"\bregex\b",
+    r"\bedit_file\b",
+    r"```",
+    r"\.py\b",
+    r"\.js\b",
+    r"\.ts\b",
+    r"\.jsx\b",
+    r"\.tsx\b",
+    r"\.css\b",
+    r"\bgit\b",
+    r"\bnpm\b",
+    r"\bpytest\b",
 )
 _REASONING_HINTS = (
-    r"\bwhy\b", r"\banaly[sz]e\b", r"\breason\b", r"\bplan\b", r"\bstrateg",
-    r"\bdesign\b", r"\bcompare\b", r"\btrade-?offs?\b", r"\bprove\b",
-    r"\bthink through\b", r"\bstep[- ]by[- ]step\b", r"\barchitect",
-    r"\bpros and cons\b", r"\bevaluate\b", r"\bshould i\b",
+    r"\bwhy\b",
+    r"\banaly[sz]e\b",
+    r"\breason\b",
+    r"\bplan\b",
+    r"\bstrateg",
+    r"\bdesign\b",
+    r"\bcompare\b",
+    r"\btrade-?offs?\b",
+    r"\bprove\b",
+    r"\bthink through\b",
+    r"\bstep[- ]by[- ]step\b",
+    r"\barchitect",
+    r"\bpros and cons\b",
+    r"\bevaluate\b",
+    r"\bshould i\b",
 )
 _CODING_HINT_PATTERNS = tuple(re.compile(pattern) for pattern in _CODING_HINTS)
 _REASONING_HINT_PATTERNS = tuple(re.compile(pattern) for pattern in _REASONING_HINTS)

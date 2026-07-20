@@ -10,6 +10,7 @@ needs at least ``min_attempts`` verified attempts. Cold-start is silent: with to
 little evidence the model is empty and nothing is injected — the organism never
 invents a personality.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -66,9 +67,13 @@ def synthesize_self_model(
         if attempts < min_attempts:
             continue
         if rate >= strong_rate and len(strengths) < max_traits:
-            strengths.append(Trait("strength", task, f"reliable at {task}", attempts, rate))
+            strengths.append(
+                Trait("strength", task, f"reliable at {task}", attempts, rate)
+            )
         elif rate <= weak_rate and len(soft_spots) < max_traits:
-            soft_spots.append(Trait("soft_spot", task, f"weaker at {task}", attempts, rate))
+            soft_spots.append(
+                Trait("soft_spot", task, f"weaker at {task}", attempts, rate)
+            )
 
     cautions: list[Trait] = []
     for lesson in mistakes.recurring(limit=max_traits):
@@ -76,7 +81,9 @@ def synthesize_self_model(
         if not text:
             continue
         cautions.append(
-            Trait("caution", "", text, int(lesson.get("occurrence_count", 0) or 0), None)
+            Trait(
+                "caution", "", text, int(lesson.get("occurrence_count", 0) or 0), None
+            )
         )
 
     return SelfModel(strengths=strengths, soft_spots=soft_spots, cautions=cautions)
@@ -92,9 +99,13 @@ def render(model: SelfModel) -> str:
         return ""
     bits: list[str] = []
     for trait in model.strengths:
-        bits.append(f"I'm reliable at {trait.subject} ({_pct(trait.rate)} of {trait.attempts} verified)")
+        bits.append(
+            f"I'm reliable at {trait.subject} ({_pct(trait.rate)} of {trait.attempts} verified)"
+        )
     for trait in model.soft_spots:
-        bits.append(f"I'm weaker at {trait.subject} ({_pct(trait.rate)} of {trait.attempts} verified)")
+        bits.append(
+            f"I'm weaker at {trait.subject} ({_pct(trait.rate)} of {trait.attempts} verified)"
+        )
     for trait in model.cautions:
         bits.append(f"a recurring lesson I've learned: {trait.detail}")
     return "Self-model from my verified work — " + "; ".join(bits) + "."

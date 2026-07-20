@@ -8,6 +8,7 @@ Safety: the query is secret-scrubbed before it leaves the machine, network I/O i
 injectable (so tests never hit the wire), the timeout is bounded, and every failure
 is fail-soft (returns ``[]`` — external search must never break recall).
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -26,6 +27,7 @@ Fetch = Callable[[str, dict[str, Any], str], dict[str, Any]]
 def _validate_endpoint(endpoint: str) -> None:
     """Reject endpoints that could exfiltrate credentials to non-HTTPS or private hosts."""
     import urllib.parse
+
     parsed = urllib.parse.urlparse(endpoint)
     if parsed.scheme != "https":
         raise ValueError(f"CRAG search endpoint must use HTTPS, got: {parsed.scheme}")
@@ -36,7 +38,9 @@ def _validate_endpoint(endpoint: str) -> None:
         raise ValueError(f"CRAG search endpoint must not target local host: {hostname}")
 
 
-def _default_fetch(endpoint: str, payload: dict[str, Any], api_key: str) -> dict[str, Any]:
+def _default_fetch(
+    endpoint: str, payload: dict[str, Any], api_key: str
+) -> dict[str, Any]:
     import requests
 
     _validate_endpoint(endpoint)
@@ -73,7 +77,9 @@ def web_search(
     safe_query = redact_paths(scan_and_redact(query).scrubbed)
     do_fetch = fetch or _default_fetch
     try:
-        data = do_fetch(endpoint, {"query": safe_query, "max_results": max_results}, api_key)
+        data = do_fetch(
+            endpoint, {"query": safe_query, "max_results": max_results}, api_key
+        )
     except Exception as exc:  # noqa: BLE001 - external search must never break recall
         logger.warning("CRAG web search failed", exc_info=exc)
         return []

@@ -213,7 +213,8 @@ class Planner:
         )
         self.skills = skills or _authority_store(memory_authority, "skills")
         if memory_authority is None and not any(
-            store is not None for store in (self.mistakes, self.development, self.skills)
+            store is not None
+            for store in (self.mistakes, self.development, self.skills)
         ):
             raise RuntimeError("MemoryAuthority or explicit memory stores are required")
         self._native = native

@@ -1,4 +1,5 @@
 """Live Pheromone Surface — ephemeral coordination signals with TTL."""
+
 from __future__ import annotations
 
 import json
@@ -76,7 +77,15 @@ class LiveSurface:
         max_id = 0
         stale_ids: list[int] = []
         for row in rows:
-            sig_id, stype, resource, worker_id, ttl_seconds, payload_json, created_at = row
+            (
+                sig_id,
+                stype,
+                resource,
+                worker_id,
+                ttl_seconds,
+                payload_json,
+                created_at,
+            ) = row
             max_id = max(max_id, sig_id)
             if (now - created_at) > ttl_seconds:
                 stale_ids.append(sig_id)
@@ -168,9 +177,7 @@ class LiveSurface:
         now = time.time()
         with self._lock:
             expired_ids = [
-                sig_id
-                for sig_id, s in self._signals.items()
-                if s.is_expired(now)
+                sig_id for sig_id, s in self._signals.items() if s.is_expired(now)
             ]
             for sig_id in expired_ids:
                 del self._signals[sig_id]

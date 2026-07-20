@@ -34,6 +34,7 @@ Privacy-hardened behaviour (H9 mitigation):
     router's evidence calibration credit the model that did the work, not the one
     that was merely picked first.
 """
+
 from __future__ import annotations
 
 import logging
@@ -47,7 +48,9 @@ logger = logging.getLogger(__name__)
 
 #: Provider names that are considered *cloud* providers.  Only one is tried per
 #: turn; if it fails the failover falls back to a local provider.
-_CLOUD_PROVIDERS: frozenset[str] = frozenset({"bedrock", "gemini", "aws", "google", "vertex"})
+_CLOUD_PROVIDERS: frozenset[str] = frozenset(
+    {"bedrock", "gemini", "aws", "google", "vertex"}
+)
 
 #: Provider names that are considered *local* providers.
 _LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "local"})
@@ -72,7 +75,9 @@ def _is_local_provider(name: str) -> bool:
 class FailoverChatClient:
     """Try a ranked list of ``(client, model, provider)`` candidates, in order."""
 
-    def __init__(self, candidates: list[Candidate], *, on_failover: Optional[FailoverHook] = None) -> None:
+    def __init__(
+        self, candidates: list[Candidate], *, on_failover: Optional[FailoverHook] = None
+    ) -> None:
         if not candidates:
             raise ValueError("FailoverChatClient requires at least one candidate")
         self._candidates: list[Candidate] = list(candidates)
@@ -140,7 +145,10 @@ class FailoverChatClient:
             if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
                 logger.info(
                     "Failover privacy filter applied (cloud candidate detected)",
-                    extra={"audit": audit, "primary_provider": self._candidates[started][2]},
+                    extra={
+                        "audit": audit,
+                        "primary_provider": self._candidates[started][2],
+                    },
                 )
 
         attempted: set[int] = set()
@@ -156,7 +164,11 @@ class FailoverChatClient:
 
             # H9: multiple ranked models from the same cloud provider are allowed;
             # a different cloud provider is skipped when a local fallback exists.
-            if i in cloud_indices and attempted_cloud_providers and provider_key not in attempted_cloud_providers:
+            if (
+                i in cloud_indices
+                and attempted_cloud_providers
+                and provider_key not in attempted_cloud_providers
+            ):
                 if has_local_fallback:
                     continue
                 # No local fallback — we have to try remaining providers as last resort.
@@ -181,7 +193,11 @@ class FailoverChatClient:
                     for failed_provider, failed_model, exc in errors:
                         try:
                             self._on_failover(
-                                failed_provider, failed_model, success_provider, success_model, exc
+                                failed_provider,
+                                failed_model,
+                                success_provider,
+                                success_model,
+                                exc,
                             )
                         except Exception:  # noqa: BLE001 - a hook must never break failover
                             pass
@@ -191,8 +207,12 @@ class FailoverChatClient:
                 self._idx = min(i + 1, len(self._candidates) - 1)  # forward-only
 
         # --- 2. All candidates from started onward failed. ---
-        detail = "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
-        raise LLMError(f"all {len(self._candidates)} model candidate(s) failed: {detail}")
+        detail = (
+            "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
+        )
+        raise LLMError(
+            f"all {len(self._candidates)} model candidate(s) failed: {detail}"
+        )
 
     def stream_chat(
         self,
@@ -237,7 +257,10 @@ class FailoverChatClient:
             if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
                 logger.info(
                     "Failover privacy filter applied (cloud candidate detected)",
-                    extra={"audit": audit, "primary_provider": self._candidates[started][2]},
+                    extra={
+                        "audit": audit,
+                        "primary_provider": self._candidates[started][2],
+                    },
                 )
 
         attempted: set[int] = set()
@@ -248,7 +271,11 @@ class FailoverChatClient:
                 continue
             client, m, provider = self._candidates[i]
             provider_key = provider.strip().lower()
-            if i in cloud_indices and attempted_cloud_providers and provider_key not in attempted_cloud_providers:
+            if (
+                i in cloud_indices
+                and attempted_cloud_providers
+                and provider_key not in attempted_cloud_providers
+            ):
                 if has_local_fallback:
                     continue
                 logger.warning(
@@ -276,7 +303,11 @@ class FailoverChatClient:
                         for failed_provider, failed_model, exc in errors:
                             try:
                                 self._on_failover(
-                                    failed_provider, failed_model, success_provider, success_model, exc
+                                    failed_provider,
+                                    failed_model,
+                                    success_provider,
+                                    success_model,
+                                    exc,
                                 )
                             except Exception:  # noqa: BLE001 - a hook must never break failover
                                 pass
@@ -295,7 +326,11 @@ class FailoverChatClient:
                     for failed_provider, failed_model, exc in errors:
                         try:
                             self._on_failover(
-                                failed_provider, failed_model, success_provider, success_model, exc
+                                failed_provider,
+                                failed_model,
+                                success_provider,
+                                success_model,
+                                exc,
                             )
                         except Exception:  # noqa: BLE001 - a hook must never break failover
                             pass
@@ -307,8 +342,12 @@ class FailoverChatClient:
                 errors.append((provider, m, exc))
                 self._idx = min(i + 1, len(self._candidates) - 1)
 
-        detail = "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
-        raise LLMError(f"all {len(self._candidates)} model candidate(s) failed: {detail}")
+        detail = (
+            "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
+        )
+        raise LLMError(
+            f"all {len(self._candidates)} model candidate(s) failed: {detail}"
+        )
 
     def stream_chat_with_tools(
         self,
@@ -346,7 +385,10 @@ class FailoverChatClient:
             if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
                 logger.info(
                     "Failover privacy filter applied (stream_chat_with_tools)",
-                    extra={"audit": audit, "primary_provider": self._candidates[started][2]},
+                    extra={
+                        "audit": audit,
+                        "primary_provider": self._candidates[started][2],
+                    },
                 )
 
         attempted: set[int] = set()
@@ -357,7 +399,11 @@ class FailoverChatClient:
                 continue
             client, m, provider = self._candidates[i]
             provider_key = provider.strip().lower()
-            if i in cloud_indices and attempted_cloud_providers and provider_key not in attempted_cloud_providers:
+            if (
+                i in cloud_indices
+                and attempted_cloud_providers
+                and provider_key not in attempted_cloud_providers
+            ):
                 if has_local_fallback:
                     continue
                 logger.warning(
@@ -385,7 +431,11 @@ class FailoverChatClient:
                         for failed_provider, failed_model, exc in errors:
                             try:
                                 self._on_failover(
-                                    failed_provider, failed_model, success_provider, success_model, exc
+                                    failed_provider,
+                                    failed_model,
+                                    success_provider,
+                                    success_model,
+                                    exc,
                                 )
                             except Exception:  # noqa: BLE001
                                 pass
@@ -405,7 +455,11 @@ class FailoverChatClient:
                     for failed_provider, failed_model, exc in errors:
                         try:
                             self._on_failover(
-                                failed_provider, failed_model, success_provider, success_model, exc
+                                failed_provider,
+                                failed_model,
+                                success_provider,
+                                success_model,
+                                exc,
                             )
                         except Exception:  # noqa: BLE001
                             pass
@@ -419,8 +473,12 @@ class FailoverChatClient:
                 errors.append((provider, m, exc))
                 self._idx = min(i + 1, len(self._candidates) - 1)
 
-        detail = "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
-        raise LLMError(f"all {len(self._candidates)} model candidate(s) failed (stream_with_tools): {detail}")
+        detail = (
+            "; ".join(f"{p}:{m} -> {exc}" for p, m, exc in errors) or "no candidates"
+        )
+        raise LLMError(
+            f"all {len(self._candidates)} model candidate(s) failed (stream_with_tools): {detail}"
+        )
 
     def list_models(self) -> Any:
         """Delegate discovery to the primary candidate (rarely used here)."""

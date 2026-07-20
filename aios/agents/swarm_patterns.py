@@ -5,6 +5,7 @@ Patterns start as ``candidate`` and are promoted to ``verified`` after repeated
 successful outcomes. The scout caste may recall a verified pattern to skip the
 expensive decomposer on familiar work.
 """
+
 from __future__ import annotations
 
 import json
@@ -151,7 +152,9 @@ class SwarmPatternMemory:
                     "score": round(score * rate, 6),
                 }
             )
-        ranked.sort(key=lambda item: (item["score"], item["success_rate"]), reverse=True)
+        ranked.sort(
+            key=lambda item: (item["score"], item["success_rate"]), reverse=True
+        )
         return ranked[:limit]
 
     def bump_use(self, pattern_id: int) -> None:

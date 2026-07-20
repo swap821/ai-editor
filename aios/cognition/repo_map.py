@@ -4,6 +4,7 @@ The map is intentionally advisory: it can suggest files and explain symbol
 relationships, but it cannot promote memory, widen worker scope, call cloud
 providers, or authorize writes.
 """
+
 from __future__ import annotations
 
 import ast
@@ -152,7 +153,9 @@ def scan_symbol_repo_map(
     """Scan Python symbols/imports under *root* as proposal/evidence only."""
     resolved = Path(root).resolve()
     if not resolved.exists() or not resolved.is_dir():
-        raise FileNotFoundError(f"project root does not exist or is not a directory: {resolved}")
+        raise FileNotFoundError(
+            f"project root does not exist or is not a directory: {resolved}"
+        )
 
     scan_limits = limits or SymbolRepoMapLimits()
     passport = harvest_project_passport(
@@ -178,11 +181,15 @@ def scan_symbol_repo_map(
         symbols=symbols,
         edges=edges,
         evidence_files=sorted(item.rel_path for item in parsed if item.readable),
-        skipped_files=sorted(skipped + [item.rel_path for item in parsed if not item.readable]),
+        skipped_files=sorted(
+            skipped + [item.rel_path for item in parsed if not item.readable]
+        ),
     )
 
 
-def query_symbols(repo_map: SymbolRepoMap, query: str, *, limit: int = 10) -> list[SymbolNode]:
+def query_symbols(
+    repo_map: SymbolRepoMap, query: str, *, limit: int = 10
+) -> list[SymbolNode]:
     """Return deterministic symbol matches for a human/worker query string."""
     terms = _query_terms(query)
     if not terms:
@@ -224,7 +231,9 @@ def scope_hints_for_contract(
         "Recommended files are restricted to MissionContract.allowed_files.",
     ]
     if out_of_scope:
-        rationale.append("Out-of-scope matches require a separate human-approved scope change.")
+        rationale.append(
+            "Out-of-scope matches require a separate human-approved scope change."
+        )
 
     return ScopeHints(
         recommended_files=recommended,
@@ -241,7 +250,9 @@ class _ParsedFile:
     edges: list[ImportEdge]
 
 
-def _iter_python_files(root: Path, limits: SymbolRepoMapLimits) -> tuple[list[Path], list[str]]:
+def _iter_python_files(
+    root: Path, limits: SymbolRepoMapLimits
+) -> tuple[list[Path], list[str]]:
     found: list[Path] = []
     skipped: list[str] = []
     for current, dirs, files in os.walk(root, topdown=True):
@@ -255,7 +266,8 @@ def _iter_python_files(root: Path, limits: SymbolRepoMapLimits) -> tuple[list[Pa
             dirs[:] = [
                 name
                 for name in sorted(dirs)
-                if name not in _IGNORED_DIRS and not _is_aios_private_dir(rel_dir / name)
+                if name not in _IGNORED_DIRS
+                and not _is_aios_private_dir(rel_dir / name)
             ]
         for name in sorted(files):
             path = current_path / name
@@ -270,7 +282,9 @@ def _iter_python_files(root: Path, limits: SymbolRepoMapLimits) -> tuple[list[Pa
     return found, skipped
 
 
-def _parse_python_file(root: Path, path: Path, limits: SymbolRepoMapLimits) -> _ParsedFile:
+def _parse_python_file(
+    root: Path, path: Path, limits: SymbolRepoMapLimits
+) -> _ParsedFile:
     rel = path.relative_to(root).as_posix()
     try:
         raw = path.read_bytes()
@@ -311,7 +325,9 @@ def _parse_python_file(root: Path, path: Path, limits: SymbolRepoMapLimits) -> _
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             symbols.append(_symbol(module, node.name, "function", rel, node.lineno))
         elif isinstance(node, ast.Import):
-            edges.extend(ImportEdge(source=module, target=alias.name) for alias in node.names)
+            edges.extend(
+                ImportEdge(source=module, target=alias.name) for alias in node.names
+            )
         elif isinstance(node, ast.ImportFrom):
             target = _import_from_target(module, node)
             if target:
@@ -338,7 +354,9 @@ def _rank_symbols(symbols: list[SymbolNode]) -> list[SymbolNode]:
 
     ranked: list[SymbolNode] = []
     for symbol in symbols:
-        kind_bonus = {"class": 0.3, "function": 0.2, "method": 0.1}.get(symbol.kind, 0.0)
+        kind_bonus = {"class": 0.3, "function": 0.2, "method": 0.1}.get(
+            symbol.kind, 0.0
+        )
         rank = float(module_counts.get(symbol.module, 0)) + kind_bonus
         ranked.append(
             SymbolNode(

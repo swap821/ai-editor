@@ -20,6 +20,7 @@ constructs this engine. That structural gap is the real no-self-approval guard; 
 The RED frozen core (``aios/security/*``, AGENTS.md §XI) is refused outright — editing
 the gate that guards the agent is T4, not T3.
 """
+
 from __future__ import annotations
 
 import os
@@ -149,7 +150,9 @@ class SelfApplyEngine:
             with self._apply_lock.acquire(timeout=0):
                 return self._apply_serialized(proposal_id, approved_by=approved_by)
         except Timeout:
-            return ApplyResult("refused", "another self-apply operation is already in progress")
+            return ApplyResult(
+                "refused", "another self-apply operation is already in progress"
+            )
 
     def _apply_serialized(self, proposal_id: int, *, approved_by: str) -> ApplyResult:
         """Apply proposal *proposal_id* on behalf of human *approved_by*.
@@ -170,7 +173,8 @@ class SelfApplyEngine:
             return ApplyResult("refused", f"no proposal with id {proposal_id}")
         if row["status"] != "proposed":
             return ApplyResult(
-                "refused", f"proposal {proposal_id} is '{row['status']}', not 'proposed'"
+                "refused",
+                f"proposal {proposal_id} is '{row['status']}', not 'proposed'",
             )
 
         target_path = row["target_path"]
@@ -185,16 +189,20 @@ class SelfApplyEngine:
         if len(approver) > 128:
             return ApplyResult("refused", "approved_by is too long")
         if scan_and_redact(approver).detected:
-            return ApplyResult("refused", "approved_by must be an identity, not credential-like data")
+            return ApplyResult(
+                "refused", "approved_by must be an identity, not credential-like data"
+            )
         if approver == proposed_by or approver == self.proposer_id:
             return ApplyResult(
-                "refused", "the proposer may not approve its own proposal (no self-approval)"
+                "refused",
+                "the proposer may not approve its own proposal (no self-approval)",
             )
 
         # 3. Zone gate — RE-DERIVE from target_path; never trust the stored zone alone.
         if classify_target(target_path, frozen_subdirs=self.frozen_subdirs) == "RED":
             return ApplyResult(
-                "refused", f"{target_path} is frozen core (RED); applying it is T4, refused"
+                "refused",
+                f"{target_path} is frozen core (RED); applying it is T4, refused",
             )
 
         # 4. Single-file confinement: the diff must touch exactly the target file, and
@@ -210,7 +218,8 @@ class SelfApplyEngine:
         resolved = _resolve_within(self.project_root, target_path)
         if resolved is None or not resolved.is_file():
             return ApplyResult(
-                "refused", f"target '{target_path}' escapes the project root or is not a file"
+                "refused",
+                f"target '{target_path}' escapes the project root or is not a file",
             )
 
         # 5. Snapshot #1 — the original bytes we can always restore to.
@@ -224,7 +233,8 @@ class SelfApplyEngine:
         ok, out = self._git_apply(diff, self.project_root, check=True)
         if not ok:
             return ApplyResult(
-                "refused", f"diff does not apply cleanly (row stays proposed): {out.strip()[:200]}"
+                "refused",
+                f"diff does not apply cleanly (row stays proposed): {out.strip()[:200]}",
             )
 
         # 7. Audit the APPLY intent BEFORE the write — fail-closed (mirrors
@@ -233,7 +243,9 @@ class SelfApplyEngine:
         #    do NOT write (nothing has changed on disk yet). `applied_audit_id` = this id.
         try:
             apply_entry = self._audit(
-                self.proposer_id, f"APPLY: {target_path} approved_by={approver}", Zone.YELLOW
+                self.proposer_id,
+                f"APPLY: {target_path} approved_by={approver}",
+                Zone.YELLOW,
             )
         except Exception as exc:  # noqa: BLE001 - fail-closed: no audit, no write
             return ApplyResult("refused", f"audit failed; not applied: {exc}")
@@ -245,8 +257,12 @@ class SelfApplyEngine:
         ok, out = self._git_apply(diff, self.project_root, check=False)
         if not ok:
             restore_error = self._restore(resolved, before_bytes)
-            suffix = f"; restore failed: {restore_error}" if restore_error else "; restored"
-            return ApplyResult("refused", f"git apply failed{suffix}: {out.strip()[:200]}")
+            suffix = (
+                f"; restore failed: {restore_error}" if restore_error else "; restored"
+            )
+            return ApplyResult(
+                "refused", f"git apply failed{suffix}: {out.strip()[:200]}"
+            )
 
         # 9. Two-snapshot integrity check (§6.3): the on-disk result must equal the
         #    original with EXACTLY the approved diff applied (computed independently
@@ -255,13 +271,21 @@ class SelfApplyEngine:
             after_bytes = resolved.read_bytes()
         except OSError as exc:
             restore_error = self._restore(resolved, before_bytes)
-            suffix = f"; restore failed: {restore_error}" if restore_error else "; restored"
-            return ApplyResult("refused", f"could not re-read target after apply: {exc}{suffix}")
+            suffix = (
+                f"; restore failed: {restore_error}" if restore_error else "; restored"
+            )
+            return ApplyResult(
+                "refused", f"could not re-read target after apply: {exc}{suffix}"
+            )
         expected = self._expected_after(before_bytes, diff, target_path)
         if expected is None or after_bytes != expected:
             restore_error = self._restore(resolved, before_bytes)
-            suffix = f"; restore failed: {restore_error}" if restore_error else "; restored"
-            return ApplyResult("refused", f"two-snapshot integrity check failed{suffix}")
+            suffix = (
+                f"; restore failed: {restore_error}" if restore_error else "; restored"
+            )
+            return ApplyResult(
+                "refused", f"two-snapshot integrity check failed{suffix}"
+            )
 
         # 10. Verify through the gated Verifier (run the suite). A fail/timeout/blocked
         #     verdict → auto-rollback to the snapshot, status='rolled_back'. The restore
@@ -298,7 +322,10 @@ class SelfApplyEngine:
         #     the row to the apply ledger entry.
         try:
             self._set_status(
-                proposal_id, "applied", approved_by=approver, applied_audit_id=apply_audit_id
+                proposal_id,
+                "applied",
+                approved_by=approver,
+                applied_audit_id=apply_audit_id,
             )
         except Exception as exc:  # noqa: BLE001 - never keep an untracked applied change
             restore_error = self._restore(resolved, before_bytes)
@@ -375,7 +402,9 @@ class SelfApplyEngine:
                 staged.unlink(missing_ok=True)
         return None
 
-    def _expected_after(self, before_bytes: bytes, diff: str, rel_path: str) -> Optional[bytes]:
+    def _expected_after(
+        self, before_bytes: bytes, diff: str, rel_path: str
+    ) -> Optional[bytes]:
         """Apply *diff* to a fresh copy of *before_bytes* in an isolated temp dir.
 
         Returns the resulting bytes (the independently-computed "expected" content),

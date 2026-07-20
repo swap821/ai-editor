@@ -11,6 +11,7 @@ Report: ``python -m aios.core.telemetry`` prints the sovereign hit-rate,
 verified-success rate per path, cost per verified success, and the session-by-
 session hit-rate curve.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -92,15 +93,30 @@ def record_run(
                 " tokens_in, tokens_out, max_zone) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     datetime.now(timezone.utc).isoformat(),
-                    session_id, task_signature, dispatch_path, provider, model,
-                    verified_outcome, latency_ms, tokens_in, tokens_out, max_zone,
+                    session_id,
+                    task_signature,
+                    dispatch_path,
+                    provider,
+                    model,
+                    verified_outcome,
+                    latency_ms,
+                    tokens_in,
+                    tokens_out,
+                    max_zone,
                 ),
             )
         # Pulse the global metrics via CortexBus
         from aios.api.main import get_cortex_bus
+
         bus = get_cortex_bus()
         if bus:
-            from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
+            from aios.core.events import (
+                CanonicalEvent,
+                CanonicalEventType,
+                EventPhase,
+                TrustLevel,
+            )
+
             canonical = CanonicalEvent(
                 event_type=CanonicalEventType.TELEMETRY_AGENT_STARTED.value,
                 phase=EventPhase.NARRATIVE.value,
@@ -112,8 +128,8 @@ def record_run(
                     "dispatch_path": dispatch_path,
                     "provider": provider,
                     "model": model,
-                    "latency_ms": latency_ms
-                }
+                    "latency_ms": latency_ms,
+                },
             )
             bus.append(canonical)
     except Exception:  # noqa: BLE001 - observation must never break a request
@@ -144,7 +160,9 @@ def verified_success_rate_by_path(
         by_path.setdefault(str(r["dispatch_path"]), []).append(r)
     result: dict[str, float] = {}
     for path, path_rows in by_path.items():
-        decided = [r for r in path_rows if r.get("verified_outcome") in _DECIDED_OUTCOMES]
+        decided = [
+            r for r in path_rows if r.get("verified_outcome") in _DECIDED_OUTCOMES
+        ]
         if not decided:
             result[path] = 0.0
             continue
@@ -193,7 +211,9 @@ def print_report(rows: Sequence[Mapping[str, object]]) -> None:
     for sid, rate in hit_rate_by_session(rows):
         trend = ""
         if prev is not None:
-            trend = " (up)" if rate > prev else (" (down)" if rate < prev else " (flat)")
+            trend = (
+                " (up)" if rate > prev else (" (down)" if rate < prev else " (flat)")
+            )
         print(f"    {sid}: {rate:.1%}{trend}")
         prev = rate
 

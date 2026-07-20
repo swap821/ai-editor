@@ -1,4 +1,5 @@
 """Immutable contracts for the operator emergency control."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

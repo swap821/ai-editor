@@ -4,6 +4,7 @@ The caste layer is an adapter over ``MissionContract``. It never grants new
 authority: applying a caste only narrows allowed tools, adds explicit forbiddens,
 lowers budgets, and records evidence requirements for auditing.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -99,7 +100,12 @@ CASTE_PROFILES: dict[CasteName, CasteProfile] = {
         name="soldier",
         purpose="security inspection",
         allowed_tools=("request_plan", "read_file"),
-        forbidden_tools=("write_file", "run_command", "request_change", "request_approval"),
+        forbidden_tools=(
+            "write_file",
+            "run_command",
+            "request_change",
+            "request_approval",
+        ),
         allowed_file_scope="read only within allowed_files; protected core remains guarded",
         timeout_seconds=240,
         max_steps=10,
@@ -149,7 +155,11 @@ def apply_caste_profile(
 
     profile = caste if isinstance(caste, CasteProfile) else None
     if profile is None:
-        profile = profile_for_caste(caste) if isinstance(caste, str) else caste_from_contract(contract)
+        profile = (
+            profile_for_caste(caste)
+            if isinstance(caste, str)
+            else caste_from_contract(contract)
+        )
     if profile is None:
         return contract
 
@@ -185,7 +195,8 @@ def apply_caste_profile(
             "forbidden_files": forbidden_files,
             "timeout_seconds": min(contract.timeout_seconds, profile.timeout_seconds),
             "max_steps": min(contract.max_steps, profile.max_steps),
-            "requires_approval": contract.requires_approval or profile.requires_approval,
+            "requires_approval": contract.requires_approval
+            or profile.requires_approval,
             "required_output": required_output,
             "metadata": metadata,
         }
@@ -202,7 +213,9 @@ def caste_contract_issues(contract: MissionContract) -> list[str]:
     extra_tools = sorted(set(contract.allowed_tools) - set(profile.allowed_tools))
     if extra_tools:
         issues.append(f"tools exceed {profile.name} caste: {', '.join(extra_tools)}")
-    forbidden_enabled = sorted(set(contract.allowed_tools) & set(contract.forbidden_tools))
+    forbidden_enabled = sorted(
+        set(contract.allowed_tools) & set(contract.forbidden_tools)
+    )
     if forbidden_enabled:
         issues.append(f"forbidden tools still enabled: {', '.join(forbidden_enabled)}")
     if profile.verification_required and not contract.verification_commands:

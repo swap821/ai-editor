@@ -942,6 +942,7 @@ def get_promotion_capability_consumer(
     capability_authority: Any = Depends(get_capability_authority),
 ) -> Callable[[Any], bool]:
     """Provide canonical promotion capability consumer validating PromotionAuthorization proof."""
+
     def consume(request: Any) -> bool:
         if not getattr(request, "requires_capability", False):
             return True
@@ -951,16 +952,21 @@ def get_promotion_capability_consumer(
         proof = getattr(authorization, "proof", None)
         if proof is None:
             return False
-        if getattr(proof, "consumed_at", None) is None or getattr(proof, "revoked_at", None) is not None:
+        if (
+            getattr(proof, "consumed_at", None) is None
+            or getattr(proof, "revoked_at", None) is not None
+        ):
             return False
         if getattr(proof, "expires_at", 0) <= getattr(proof, "consumed_at", 0):
             return False
         return True
+
     return consume
 
 
 def _resolve_external_rollback_dir(project_root: Path) -> Path:
     import os, tempfile
+
     env_dir = os.environ.get("AIOS_ROLLBACK_DIR")
     proj_resolved = project_root.resolve()
     if env_dir:
@@ -971,18 +977,20 @@ def _resolve_external_rollback_dir(project_root: Path) -> Path:
     if rollback_root == proj_resolved:
         raise ValueError("rollback root cannot equal project root")
     if rollback_root.is_relative_to(proj_resolved):
-        rollback_root = (Path(tempfile.gettempdir()) / "aios_rollback_checkpoints").resolve()
+        rollback_root = (
+            Path(tempfile.gettempdir()) / "aios_rollback_checkpoints"
+        ).resolve()
     if proj_resolved.is_relative_to(rollback_root):
         raise ValueError("project root cannot be a descendant of rollback root")
     rollback_root.mkdir(parents=True, exist_ok=True)
     return rollback_root
 
 
-
 def get_checkpoint_creator(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[Any], str]:
     """Provide canonical restorable checkpoint creator using CheckpointAuthority."""
+
     def create(request: Any) -> str:
         from aios.application.promotion.checkpoint import CheckpointAuthority
 
@@ -1004,6 +1012,7 @@ def get_checkpoint_creator(
             affected_paths=tuple(getattr(request, "required_targets", ()) or ()),
         )
         return manifest.checkpoint_id
+
     return create
 
 
@@ -1011,8 +1020,10 @@ def get_checkpoint_restorer(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[str, Any], bool]:
     """Provide canonical restorable checkpoint restorer using CheckpointAuthority."""
+
     def restore(checkpoint_id: str, request: Any) -> bool:
         from aios.application.promotion.checkpoint import CheckpointAuthority
+
         project_root = Path(getattr(request, "project_root", "")).resolve()
         authority = CheckpointAuthority(project_root=project_root)
         try:
@@ -1020,14 +1031,15 @@ def get_checkpoint_restorer(
             return receipt.status == "RESTORED"
         except Exception:
             return False
-    return restore
 
+    return restore
 
 
 def get_promotion_smoke_verifier(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[Any], bool]:
     """Provide canonical promotion smoke verifier."""
+
     def verify_smoke(request: Any) -> bool:
         project_root = Path(request.project_root).resolve()
         for target in getattr(request, "required_targets", ()):
@@ -1035,9 +1047,13 @@ def get_promotion_smoke_verifier(
             if not target_path.exists() or not target_path.is_file():
                 return False
             content = target_path.read_text(encoding="utf-8", errors="replace")
-            if "DEFECT_MARKER: fix_required" in content or "TODO_MAINTENANCE_DEFECT" in content:
+            if (
+                "DEFECT_MARKER: fix_required" in content
+                or "TODO_MAINTENANCE_DEFECT" in content
+            ):
                 return False
         return True
+
     return verify_smoke
 
 
@@ -1088,8 +1104,11 @@ def get_worker_foundry(
                 config.DATA_DIR / "staged_maintenance",
                 enrolled_roots=(config.PROJECT_ROOT,),
             )
-            code_strategy = ProductionCodeWorkerStrategy(workspace_manager=workspace_manager)
+            code_strategy = ProductionCodeWorkerStrategy(
+                workspace_manager=workspace_manager
+            )
             from aios.runtime.spawner import WorkerSpawner
+
             spawner = WorkerSpawner(runtime_root=config.COUNCIL_RUNTIME_DIR)
             _worker_foundry = WorkerFoundry(
                 runtime_root=config.PROJECT_ROOT,
@@ -1112,7 +1131,9 @@ def get_learning_service(
         verification_authority = get_verification_authority()
     if promotion_authority is None or hasattr(promotion_authority, "dependency"):
         promotion_authority = get_promotion_authority()
-    if local_workforce_service is None or hasattr(local_workforce_service, "dependency"):
+    if local_workforce_service is None or hasattr(
+        local_workforce_service, "dependency"
+    ):
         local_workforce_service = get_local_workforce_service()
     if capability_authority is None or hasattr(capability_authority, "dependency"):
         capability_authority = get_capability_authority()
@@ -1131,7 +1152,12 @@ def get_learning_service(
     def reuse_policy(skill: Any, _context: dict[str, object]) -> bool:
         return skill.state == "active" and policy.earned_autonomy_enabled()
 
-    def activation_authorizer(skill: Any, operator_id: str, approval_digest: str, capability_id: str | None = None) -> bool:
+    def activation_authorizer(
+        skill: Any,
+        operator_id: str,
+        approval_digest: str,
+        capability_id: str | None = None,
+    ) -> bool:
         """Fail-closed: any authority failure is a hard refusal — no fallback."""
         token = capability_id or approval_digest
         if not token or not operator_id or not capability_id:
@@ -1144,7 +1170,10 @@ def get_learning_service(
                 return False
             if cap.consumed_at is not None or cap.revoked_at is not None:
                 return False
-            if cap.binding.payload_digest != approval_digest and cap.binding.action_digest != approval_digest:
+            if (
+                cap.binding.payload_digest != approval_digest
+                and cap.binding.action_digest != approval_digest
+            ):
                 return False
             capability_authority.consume(token, cap.binding)
             return True
@@ -1159,7 +1188,16 @@ def get_learning_service(
         _KNOWN_VERSION = "1"
         _POLICY_MIN_STRENGTH = 1
         _FORBIDDEN = frozenset(
-            {"command", "shell", "image", "program", "executable", "argv", "script", "cmd"}
+            {
+                "command",
+                "shell",
+                "image",
+                "program",
+                "executable",
+                "argv",
+                "script",
+                "cmd",
+            }
         )
 
         plan = getattr(skill, "verification_plan", None)
@@ -1255,7 +1293,9 @@ def get_maintenance_convergence_service(
     lifecycle_engine = MaintenanceLifecycleEngine()
 
     return MaintenanceConvergenceService(
-        finding_repository=MaintenanceFindingRepository(config.OPERATIONAL_STATE_DB_PATH),
+        finding_repository=MaintenanceFindingRepository(
+            config.OPERATIONAL_STATE_DB_PATH
+        ),
         scan_repository=MaintenanceScanRepository(config.OPERATIONAL_STATE_DB_PATH),
         mission_service=mission_service,
         worker_foundry=worker_foundry,

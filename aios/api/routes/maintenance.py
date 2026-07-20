@@ -42,7 +42,9 @@ router = APIRouter(
 class StartScanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    scanner_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+    scanner_id: str = Field(
+        min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    )
     target_id: str = Field(min_length=1, max_length=512)
     scanner_version: str = Field(default="1", min_length=1, max_length=64)
     max_files: int = Field(default=100, ge=1, le=1000)
@@ -68,7 +70,9 @@ class RunApprovedRepairRequest(BaseModel):
 def _validate_target_bounded(target_id: str, allowed_root: Path) -> Path:
     """Ensure target path is relative and within allowed enrolled root."""
     if any(char in target_id for char in ";&|<>`\r\n\x00"):
-        raise HTTPException(status_code=400, detail="target path contains forbidden shell characters")
+        raise HTTPException(
+            status_code=400, detail="target path contains forbidden shell characters"
+        )
     if target_id.startswith(("/", "\\")) or ":" in target_id[:3]:
         raise HTTPException(status_code=400, detail="target path must be relative")
     try:
@@ -76,7 +80,9 @@ def _validate_target_bounded(target_id: str, allowed_root: Path) -> Path:
         resolved_target = (resolved_root / target_id).resolve()
         resolved_target.relative_to(resolved_root)
     except (ValueError, OSError) as exc:
-        raise HTTPException(status_code=400, detail="target path escapes enrolled root") from exc
+        raise HTTPException(
+            status_code=400, detail="target path escapes enrolled root"
+        ) from exc
     return resolved_target
 
 
@@ -111,14 +117,18 @@ def list_maintenance_scans(
 @router.post("/api/v1/maintenance/scans")
 def start_bounded_scan(
     payload: StartScanRequest,
-    service: MaintenanceConvergenceService = Depends(get_maintenance_convergence_service),
+    service: MaintenanceConvergenceService = Depends(
+        get_maintenance_convergence_service
+    ),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Start one bounded scan through injected scanner adapters."""
     try:
         emergency_stop.assert_operational()
     except EmergencyStopError as exc:
-        raise HTTPException(status_code=503, detail=f"Emergency stop engaged: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Emergency stop engaged: {exc}"
+        ) from exc
 
     scanner_fn = service.verifier_registry.scanner_adapters.get(payload.scanner_id)
     if scanner_fn is None:
@@ -164,14 +174,18 @@ def start_bounded_scan(
 def create_repair_mission(
     payload: CreateRepairMissionRequest,
     request: Request,
-    service: MaintenanceConvergenceService = Depends(get_maintenance_convergence_service),
+    service: MaintenanceConvergenceService = Depends(
+        get_maintenance_convergence_service
+    ),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Create a draft repair mission bound to a durable finding."""
     try:
         emergency_stop.assert_operational()
     except EmergencyStopError as exc:
-        raise HTTPException(status_code=503, detail=f"Emergency stop engaged: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Emergency stop engaged: {exc}"
+        ) from exc
 
     guard = getattr(request.state, "action_guard", None)
     operator_id = getattr(getattr(guard, "envelope", None), "operator_id", None)
@@ -179,7 +193,9 @@ def create_repair_mission(
         raise HTTPException(status_code=401, detail="authenticated operator required")
 
     enrolled_roots = getattr(service.workspace_manager, "enrolled_roots", ())
-    default_root = str(enrolled_roots[0]) if enrolled_roots else str(config.PROJECT_ROOT)
+    default_root = (
+        str(enrolled_roots[0]) if enrolled_roots else str(config.PROJECT_ROOT)
+    )
     workspace_root = payload.workspace_root or default_root
     try:
         record = service.create_repair_mission(
@@ -200,7 +216,9 @@ def create_repair_mission(
 @router.post("/api/v1/maintenance/repairs/run")
 async def run_approved_repair(
     payload: RunApprovedRepairRequest,
-    service: MaintenanceConvergenceService = Depends(get_maintenance_convergence_service),
+    service: MaintenanceConvergenceService = Depends(
+        get_maintenance_convergence_service
+    ),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
     capability_consumer: Any = Depends(get_promotion_capability_consumer),
     create_checkpoint: Any = Depends(get_checkpoint_creator),
@@ -211,11 +229,15 @@ async def run_approved_repair(
     try:
         emergency_stop.assert_operational()
     except EmergencyStopError as exc:
-        raise HTTPException(status_code=503, detail=f"Emergency stop engaged: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Emergency stop engaged: {exc}"
+        ) from exc
 
     record = service.mission_service.repository.get(payload.mission_id)
     if record is None:
-        raise HTTPException(status_code=404, detail=f"Mission {payload.mission_id!r} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Mission {payload.mission_id!r} not found"
+        )
     if record.state is not MissionState.APPROVED:
         raise HTTPException(
             status_code=400,
@@ -274,7 +296,9 @@ async def run_approved_repair(
 @router.get("/api/v1/maintenance/repairs/{mission_id}/status")
 def get_repair_status(
     mission_id: str,
-    service: MaintenanceConvergenceService = Depends(get_maintenance_convergence_service),
+    service: MaintenanceConvergenceService = Depends(
+        get_maintenance_convergence_service
+    ),
 ) -> dict[str, Any]:
     """Inspect repair mission lifecycle and rescan status."""
     record = service.mission_service.repository.get(mission_id)

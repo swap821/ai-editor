@@ -20,6 +20,7 @@ P0-4 addition: ``--proxy-headers`` tells uvicorn to trust ``X-Forwarded-For`` /
 loopback exemption because the direct peer is now a proxy. Use only when a
 trusted proxy sits in front of GAGOS and always pair it with ``AIOS_API_TOKEN``.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -69,7 +70,12 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
             "ok": result.ok,
             "summary": result.summary,
             "checks": [
-                {"name": c.name, "passed": c.passed, "required": c.required, "message": c.message}
+                {
+                    "name": c.name,
+                    "passed": c.passed,
+                    "required": c.required,
+                    "message": c.message,
+                }
                 for c in result.checks
             ],
         }
@@ -112,8 +118,12 @@ def _cmd_backup(args: argparse.Namespace) -> int:
     from aios.operations.recovery import create_backup, restore_backup, verify_backup
 
     if args.backup_command == "create":
-        destination = Path(args.output) if args.output else config.DATA_DIR / "backups" / (
-            f"gagos-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
+        destination = (
+            Path(args.output)
+            if args.output
+            else config.DATA_DIR
+            / "backups"
+            / (f"gagos-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz")
         )
         manifest = create_backup(destination=destination)
         payload = {"output": str(destination.resolve()), "manifest": manifest.as_dict()}
@@ -121,15 +131,30 @@ def _cmd_backup(args: argparse.Namespace) -> int:
         return 0
     if args.backup_command == "verify":
         manifest = verify_backup(Path(args.input))
-        _print_payload({"valid": True, "manifest": manifest.as_dict()}, as_json=args.json)
+        _print_payload(
+            {"valid": True, "manifest": manifest.as_dict()}, as_json=args.json
+        )
         return 0
     if args.backup_command == "restore":
         bundle = Path(args.input)
-        safety = Path(args.safety_backup) if args.safety_backup else config.DATA_DIR / "backups" / (
-            f"pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
+        safety = (
+            Path(args.safety_backup)
+            if args.safety_backup
+            else config.DATA_DIR
+            / "backups"
+            / (
+                f"pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
+            )
         )
         old_dir = restore_backup(bundle=bundle, safety_backup=safety)
-        _print_payload({"restored": True, "safety_backup": str(safety.resolve()), "old_data": str(old_dir) if old_dir else None}, as_json=args.json)
+        _print_payload(
+            {
+                "restored": True,
+                "safety_backup": str(safety.resolve()),
+                "old_data": str(old_dir) if old_dir else None,
+            },
+            as_json=args.json,
+        )
         return 0
     raise ValueError(f"unknown backup command: {args.backup_command}")
 
@@ -154,7 +179,9 @@ def _cmd_memory(args: argparse.Namespace) -> int:
     from aios.api.deps import get_memory_authority
 
     get_memory_authority().rebuild_derived_indexes()
-    _print_payload({"status": "ok", "operation": "memory_index_rebuild"}, as_json=args.json)
+    _print_payload(
+        {"status": "ok", "operation": "memory_index_rebuild"}, as_json=args.json
+    )
     return 0
 
 
@@ -178,13 +205,19 @@ def _cmd_executor(args: argparse.Namespace) -> int:
             }
             _print_payload(payload, as_json=args.json)
             return 1
-        _print_payload({"available": True, "backend": "private_service"}, as_json=args.json)
+        _print_payload(
+            {"available": True, "backend": "private_service"}, as_json=args.json
+        )
         return 0
 
     from aios.core.executor import DockerRunner
 
     if config.APPROVED_EXECUTION_BACKEND != "container":
-        payload = {"available": False, "backend": config.APPROVED_EXECUTION_BACKEND, "reason": "container backend is required"}
+        payload = {
+            "available": False,
+            "backend": config.APPROVED_EXECUTION_BACKEND,
+            "reason": "container backend is required",
+        }
         _print_payload(payload, as_json=args.json)
         return 1
     try:
@@ -215,7 +248,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    bootstrap_parser = subparsers.add_parser("bootstrap", help="Run environment health checks.")
+    bootstrap_parser = subparsers.add_parser(
+        "bootstrap", help="Run environment health checks."
+    )
     bootstrap_parser.add_argument(
         "--create-env",
         action="store_true",
@@ -228,40 +263,74 @@ def main(argv: list[str] | None = None) -> int:
         help="Emit machine-readable JSON instead of plain text.",
     )
 
-    doctor_parser = subparsers.add_parser("doctor", help="Report measured runtime posture.")
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Report measured runtime posture."
+    )
     doctor_parser.add_argument("--json", action="store_true", help="Emit JSON.")
 
-    backup_parser = subparsers.add_parser("backup", help="Create, verify or restore state backups.")
-    backup_subparsers = backup_parser.add_subparsers(dest="backup_command", required=True)
-    backup_create = backup_subparsers.add_parser("create", help="Create a verified state archive.")
-    backup_create.add_argument("--output", help="Archive path; defaults to data/backups.")
+    backup_parser = subparsers.add_parser(
+        "backup", help="Create, verify or restore state backups."
+    )
+    backup_subparsers = backup_parser.add_subparsers(
+        dest="backup_command", required=True
+    )
+    backup_create = backup_subparsers.add_parser(
+        "create", help="Create a verified state archive."
+    )
+    backup_create.add_argument(
+        "--output", help="Archive path; defaults to data/backups."
+    )
     backup_create.add_argument("--json", action="store_true", help="Emit JSON.")
-    backup_verify = backup_subparsers.add_parser("verify", help="Verify an archive manifest and hashes.")
+    backup_verify = backup_subparsers.add_parser(
+        "verify", help="Verify an archive manifest and hashes."
+    )
     backup_verify.add_argument("--input", required=True, help="Archive path.")
     backup_verify.add_argument("--json", action="store_true", help="Emit JSON.")
-    backup_restore = backup_subparsers.add_parser("restore", help="Restore an archive after verification.")
+    backup_restore = backup_subparsers.add_parser(
+        "restore", help="Restore an archive after verification."
+    )
     backup_restore.add_argument("--input", required=True, help="Archive path.")
     backup_restore.add_argument("--safety-backup", help="Pre-restore archive path.")
     backup_restore.add_argument("--json", action="store_true", help="Emit JSON.")
 
     audit_parser = subparsers.add_parser("audit", help="Audit-chain operations.")
     audit_subparsers = audit_parser.add_subparsers(dest="audit_command", required=True)
-    audit_verify = audit_subparsers.add_parser("verify", help="Verify the tamper-evident audit chain.")
+    audit_verify = audit_subparsers.add_parser(
+        "verify", help="Verify the tamper-evident audit chain."
+    )
     audit_verify.add_argument("--json", action="store_true", help="Emit JSON.")
 
-    cortex_parser = subparsers.add_parser("cortex", help="Cortex observation recovery operations.")
-    cortex_subparsers = cortex_parser.add_subparsers(dest="cortex_command", required=True)
-    cortex_rebuild = cortex_subparsers.add_parser("rebuild-projections", help="Rebuild derived read models.")
+    cortex_parser = subparsers.add_parser(
+        "cortex", help="Cortex observation recovery operations."
+    )
+    cortex_subparsers = cortex_parser.add_subparsers(
+        dest="cortex_command", required=True
+    )
+    cortex_rebuild = cortex_subparsers.add_parser(
+        "rebuild-projections", help="Rebuild derived read models."
+    )
     cortex_rebuild.add_argument("--json", action="store_true", help="Emit JSON.")
 
-    memory_parser = subparsers.add_parser("memory", help="Memory maintenance operations.")
-    memory_subparsers = memory_parser.add_subparsers(dest="memory_command", required=True)
-    memory_rebuild = memory_subparsers.add_parser("rebuild-index", help="Rebuild derived memory indexes.")
+    memory_parser = subparsers.add_parser(
+        "memory", help="Memory maintenance operations."
+    )
+    memory_subparsers = memory_parser.add_subparsers(
+        dest="memory_command", required=True
+    )
+    memory_rebuild = memory_subparsers.add_parser(
+        "rebuild-index", help="Rebuild derived memory indexes."
+    )
     memory_rebuild.add_argument("--json", action="store_true", help="Emit JSON.")
 
-    executor_parser = subparsers.add_parser("executor", help="Executor isolation operations.")
-    executor_subparsers = executor_parser.add_subparsers(dest="executor_command", required=True)
-    executor_probe = executor_subparsers.add_parser("probe", help="Probe the configured isolated executor.")
+    executor_parser = subparsers.add_parser(
+        "executor", help="Executor isolation operations."
+    )
+    executor_subparsers = executor_parser.add_subparsers(
+        dest="executor_command", required=True
+    )
+    executor_probe = executor_subparsers.add_parser(
+        "probe", help="Probe the configured isolated executor."
+    )
     executor_probe.add_argument("--json", action="store_true", help="Emit JSON.")
 
     args = parser.parse_args(argv)

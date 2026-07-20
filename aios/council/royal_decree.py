@@ -5,6 +5,7 @@ not execute scouts, approve work, or change the verifier path; the existing
 Council deliberation -> King approval -> worker -> Testing Queen flow remains
 the only action path.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

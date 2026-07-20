@@ -1,4 +1,5 @@
 """Domain models for the Frontier Intelligence Hiring Broker."""
+
 from typing import Sequence, Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -6,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 class HiringRequest(BaseModel):
     """A formal request to hire an intelligence provider for a mission."""
+
     model_config = ConfigDict(frozen=True)
 
     problem_id: str
@@ -13,7 +15,9 @@ class HiringRequest(BaseModel):
     purpose: str
     task_class: str
     required_capabilities: Sequence[str]
-    data_classification: Literal["public", "internal", "confidential", "secret", "local_only"]
+    data_classification: Literal[
+        "public", "internal", "confidential", "secret", "local_only"
+    ]
     context_manifest: Sequence[str]
     privacy_budget: str
     cost_budget: str
@@ -24,6 +28,7 @@ class HiringRequest(BaseModel):
 
 class HiringDecision(BaseModel):
     """The deterministic outcome of a provider hiring request."""
+
     model_config = ConfigDict(frozen=True)
 
     eligible_providers: Sequence[str]

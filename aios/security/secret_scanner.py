@@ -10,6 +10,7 @@ correlate occurrences of the same secret without ever persisting its value.
 Hardened (A+) — includes pattern-based detection for structured secrets,
 sliding-window entropy for Base64 evasion, and contextual filtering.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -37,8 +38,17 @@ _SLIDE_BASE64_RATIO: float = 0.95
 
 #: Keywords that strengthen confidence when found near a candidate secret.
 _CONTEXT_SECRET_KEYWORDS: tuple[str, ...] = (
-    "secret", "token", "key", "password", "credential", "auth",
-    "api", "private", "access", "bearer", "connect",
+    "secret",
+    "token",
+    "key",
+    "password",
+    "credential",
+    "auth",
+    "api",
+    "private",
+    "access",
+    "bearer",
+    "connect",
 )
 
 #: Named credential regexes applied before the entropy pass. Order matters only
@@ -61,9 +71,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── JWT Tokens (header.payload.signature) ───────────────────────────────
     (
         "JWT_TOKEN",
-        re.compile(
-            r"\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b"
-        ),
+        re.compile(r"\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b"),
     ),
     # ── Stripe API Keys ─────────────────────────────────────────────────────
     (
@@ -99,9 +107,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     #: catch-all fallback for genuine AWS secret material.
     (
         "AWS_SECRET_KEY",
-        re.compile(
-            r"\b[A-Za-z0-9/+=]{40}\b"
-        ),
+        re.compile(r"\b[A-Za-z0-9/+=]{40}\b"),
     ),
     # ── Database URLs with embedded credentials ─────────────────────────────
     (
@@ -114,9 +120,7 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── Generic connection strings with embedded credentials ────────────────
     (
         "CONNECTION_STRING",
-        re.compile(
-            r"\b[A-Za-z]+(?:\+\w+)?://[^:\s]*:[^@\s]+@\b"
-        ),
+        re.compile(r"\b[A-Za-z]+(?:\+\w+)?://[^:\s]*:[^@\s]+@\b"),
     ),
     # ── Generic API-key assignment patterns ─────────────────────────────────
     (
@@ -149,7 +153,9 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
 _ENTROPY_TOKEN = re.compile(r"[A-Za-z0-9+/\-_]{%d,}" % _ENTROPY_MIN_LEN)
 
 #: Base64 alphabet (used by the sliding-window pass).
-_BASE64_ALPHABET: set[str] = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+_BASE64_ALPHABET: set[str] = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+)
 
 # Keyed fingerprint secret for redaction correlation tokens.
 # In production, set AIOS_SECRET_FINGERPRINT_KEY to a strong random value.
@@ -169,7 +175,9 @@ class ScanResult:
 
 def _fingerprint(value: str) -> str:
     """Return a short, keyed, non-reversible fingerprint of *value*."""
-    return hmac.new(_FINGERPRINT_KEY, value.encode("utf-8"), hashlib.sha256).hexdigest()[:8]
+    return hmac.new(
+        _FINGERPRINT_KEY, value.encode("utf-8"), hashlib.sha256
+    ).hexdigest()[:8]
 
 
 def shannon_entropy(token: str) -> float:
@@ -206,13 +214,13 @@ def _has_secret_context(payload: str, position: int, radius: int = 50) -> bool:
     """
     start = max(0, position - radius)
     end = min(len(payload), position + radius)
-    
+
     # Expand to word boundaries to avoid chopping safe compound words (like 'fastapi')
     while start > 0 and payload[start - 1].isalnum():
         start -= 1
     while end < len(payload) and payload[end].isalnum():
         end += 1
-        
+
     context = payload[start:end].lower()
     # Mask out known safe compounds that contain 'api' to prevent false positive context flags
     context = context.replace("fastapi", "").replace("openapi", "")
@@ -228,8 +236,19 @@ def _has_aws_context(payload: str, position: int, radius: int = 100) -> bool:
     start = max(0, position - radius)
     end = min(len(payload), position + radius)
     context = payload[start:end].lower()
-    aws_keywords = ("ak", "aws", "amazon", "access", "secret", "bedrock",
-                    "s3", "ec2", "lambda", "region", "arn")
+    aws_keywords = (
+        "ak",
+        "aws",
+        "amazon",
+        "access",
+        "secret",
+        "bedrock",
+        "s3",
+        "ec2",
+        "lambda",
+        "region",
+        "arn",
+    )
     return any(kw in context for kw in aws_keywords)
 
 
@@ -319,6 +338,7 @@ def scan_and_redact(payload: str) -> ScanResult:
 
     # Pass 1 — named credential formats.
     for name, pattern in _NAMED_PATTERNS:
+
         def _replace(match: "re.Match[str]", _name: str = name) -> str:
             # For the broad AWS_SECRET_KEY pattern, require AWS context.
             if _name == "AWS_SECRET_KEY":
@@ -339,7 +359,10 @@ def scan_and_redact(payload: str) -> ScanResult:
         if _is_inside_redacted(match.start(), redacted_spans):
             return match.group(0)
         token = match.group(0)
-        if len(token) >= _credential_like_min_len(token) and shannon_entropy(token) >= _ENTROPY_THRESHOLD:
+        if (
+            len(token) >= _credential_like_min_len(token)
+            and shannon_entropy(token) >= _ENTROPY_THRESHOLD
+        ):
             findings.append("HIGH_ENTROPY")
             return f"<REDACTED:HIGH_ENTROPY:{_fingerprint(token)}>"
         return token

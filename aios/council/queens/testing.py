@@ -1,4 +1,5 @@
 """Testing Queen wrapper around verification evidence and Verifier."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -84,7 +85,9 @@ class TestingQueen:
         results = []
         for item in commands:
             command = item.get("command")
-            command_str = " ".join(command) if isinstance(command, list) else str(command)
+            command_str = (
+                " ".join(command) if isinstance(command, list) else str(command)
+            )
             output = (item.get("stdout") or "") + (item.get("stderr") or "")
             passed = item.get("returncode") == 0
             passed_count, failed_count = parse_test_counts(output)
@@ -125,7 +128,11 @@ class TestingQueen:
                 reason="Testing Queen found no verification results.",
                 constraints=["Run at least one verification command."],
                 confidence=0.75,
-                metadata={"mode": mode, "verification": results, "verification_strength": aggregate},
+                metadata={
+                    "mode": mode,
+                    "verification": results,
+                    "verification_strength": aggregate,
+                },
             )
         failed = [result for result in results if not result["passed"]]
         if failed:
@@ -136,7 +143,11 @@ class TestingQueen:
                 reason=f"{len(failed)} verification command(s) failed.",
                 constraints=["Revise the mission before King approval."],
                 confidence=0.92,
-                metadata={"mode": mode, "verification": results, "verification_strength": aggregate},
+                metadata={
+                    "mode": mode,
+                    "verification": results,
+                    "verification_strength": aggregate,
+                },
             )
         return QueenVerdict(
             queen=self.name,
@@ -145,7 +156,11 @@ class TestingQueen:
             reason=f"{len(results)} verification command(s) passed.",
             constraints=[],
             confidence=0.9,
-            metadata={"mode": mode, "verification": results, "verification_strength": aggregate},
+            metadata={
+                "mode": mode,
+                "verification": results,
+                "verification_strength": aggregate,
+            },
         )
 
 

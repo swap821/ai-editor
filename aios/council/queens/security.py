@@ -1,4 +1,5 @@
 """Security Queen wrapper around the deterministic security gateway."""
+
 from __future__ import annotations
 
 import os
@@ -103,7 +104,11 @@ class SecurityQueen:
                 metadata={"gateway_checks": checks},
             )
 
-        verdict = "allow_with_approval" if risk == "YELLOW" or contract.requires_approval else "allow"
+        verdict = (
+            "allow_with_approval"
+            if risk == "YELLOW" or contract.requires_approval
+            else "allow"
+        )
         return QueenVerdict(
             queen=self.name,
             verdict=verdict,
@@ -123,7 +128,10 @@ class SecurityQueen:
             return command
         if len(parts) >= 3:
             executable = Path(parts[0]).name.lower()
-            if executable in {"python", "python.exe"} and parts[1:3] == ["-m", "pytest"]:
+            if executable in {"python", "python.exe"} and parts[1:3] == [
+                "-m",
+                "pytest",
+            ]:
                 return " ".join(["python", "-m", "pytest", *parts[3:]])
         return command
 

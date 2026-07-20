@@ -21,4 +21,3 @@ __all__ = [
     "VerificationPlanV1",
     "VerificationResult",
 ]
-

@@ -224,10 +224,17 @@ class SqliteMissionRepository(MissionRepository):
         return [self._record_from_row(row) for row in rows]
 
     def list_active(self) -> list[MissionRecord]:
-        terminal = {s.value for s in (
-            MissionState.COMPLETED, MissionState.FAILED, MissionState.REJECTED,
-            MissionState.ROLLED_BACK, MissionState.KILLED, MissionState.BLOCKED,
-        )}
+        terminal = {
+            s.value
+            for s in (
+                MissionState.COMPLETED,
+                MissionState.FAILED,
+                MissionState.REJECTED,
+                MissionState.ROLLED_BACK,
+                MissionState.KILLED,
+                MissionState.BLOCKED,
+            )
+        }
         placeholders = ",".join("?" * len(terminal))
         with self._connect() as conn:
             rows = conn.execute(

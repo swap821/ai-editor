@@ -1,4 +1,5 @@
 """Adapters that place existing worker runtimes behind the Foundry boundary."""
+
 from __future__ import annotations
 
 import inspect
@@ -27,7 +28,9 @@ class DeterministicWorkerStrategy:
             from aios.runtime.spawner import WorkerSpawner
 
             self.spawner = WorkerSpawner(runtime_root=runtime_root)
-        return await self.spawner.run(request.contract, claim=request.context.get("claim", True))
+        return await self.spawner.run(
+            request.contract, claim=request.context.get("claim", True)
+        )
 
 
 class _CallableStrategy:

@@ -1,4 +1,5 @@
 """Versioned, structured messages for the isolated Executor Service."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

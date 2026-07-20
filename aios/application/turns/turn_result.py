@@ -22,7 +22,9 @@ class TurnResult:
     outcome: Optional[dict[str, Any]] = None
 
     @staticmethod
-    def wrap_event(turn_id: str, event_type: str, data: dict[str, Any]) -> dict[str, Any]:
+    def wrap_event(
+        turn_id: str, event_type: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Return a consistently-shaped event with turn_id attached."""
         return {
             "type": event_type,

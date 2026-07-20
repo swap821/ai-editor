@@ -3,6 +3,7 @@
 Pure functions over WeightedEdge lists. No DB access, no state, no LLM.
 The graph provides the data; inference provides the meaning.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

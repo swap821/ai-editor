@@ -1,4 +1,5 @@
 """Policy Kernel -- single authority facade for request, action, and feature policy."""
+
 from __future__ import annotations
 
 import os
@@ -19,7 +20,13 @@ from aios.domain.policy.decision import PolicyDecision
 from aios.interfaces.http import edge_security
 from aios.policy.constitution import Constitution, build_constitution
 from aios.runtime import profiles
-from aios.security.gateway import GatewayDecision, RateLimiter, Zone, classify, validate_command
+from aios.security.gateway import (
+    GatewayDecision,
+    RateLimiter,
+    Zone,
+    classify,
+    validate_command,
+)
 
 
 @dataclass(frozen=True)
@@ -65,7 +72,11 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "GREEN", 120, "session", audit_event="plan", action_type=ActionType.PLAN
     ),
     "/api/v1/execute": RouteAuthority(
-        "YELLOW", 30, "session", audit_event="approved_execute", action_type=ActionType.COMMAND
+        "YELLOW",
+        30,
+        "session",
+        audit_event="approved_execute",
+        action_type=ActionType.COMMAND,
     ),
     "/api/v1/approval/req": RouteAuthority(
         "YELLOW",
@@ -95,22 +106,38 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # Auth
     # ------------------------------------------------------------------ #
     "/api/v1/auth/session": RouteAuthority(
-        "GREEN", 60, "public", audit_event="auth_session", action_type=ActionType.AUTH_SESSION_CREATE
+        "GREEN",
+        60,
+        "public",
+        audit_event="auth_session",
+        action_type=ActionType.AUTH_SESSION_CREATE,
     ),
     "/api/v1/auth/enroll": RouteAuthority(
         # Bootstrap is already one-time and identity-gated inside the
         # enrollment service; no existing Human Sovereign exists yet from
         # which an exact capability could be issued.
-        "GREEN", 3, "public", audit_event="auth_operator_enroll", action_type=ActionType.AUTH_OPERATOR_ENROLL
+        "GREEN",
+        3,
+        "public",
+        audit_event="auth_operator_enroll",
+        action_type=ActionType.AUTH_OPERATOR_ENROLL,
     ),
     "/api/v1/auth/login": RouteAuthority(
-        "GREEN", 10, "public", audit_event="auth_operator_login", action_type=ActionType.AUTH_OPERATOR_LOGIN
+        "GREEN",
+        10,
+        "public",
+        audit_event="auth_operator_login",
+        action_type=ActionType.AUTH_OPERATOR_LOGIN,
     ),
     "/api/v1/auth/reauth": RouteAuthority(
         # The credential itself is the authentication proof and the handler
         # rotates the session; requiring a pre-existing capability here would
         # make the privileged authentication bootstrap circular.
-        "GREEN", 10, "session", audit_event="auth_operator_reauth", action_type=ActionType.AUTH_OPERATOR_REAUTH
+        "GREEN",
+        10,
+        "session",
+        audit_event="auth_operator_reauth",
+        action_type=ActionType.AUTH_OPERATOR_REAUTH,
     ),
     "/api/v1/governance/emergency-stop/engage": RouteAuthority(
         "YELLOW",
@@ -132,7 +159,11 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # Council
     # ------------------------------------------------------------------ #
     "/api/v1/council/missions": RouteAuthority(
-        "YELLOW", 20, "session", audit_event="council_mission", action_type=ActionType.COUNCIL_MISSION
+        "YELLOW",
+        20,
+        "session",
+        audit_event="council_mission",
+        action_type=ActionType.COUNCIL_MISSION,
     ),
     "/api/v1/council/missions/{mission_id}/rollback": RouteAuthority(
         "YELLOW",
@@ -142,10 +173,18 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         action_type=ActionType.COUNCIL_MISSION_ROLLBACK,
     ),
     "/api/v1/council/approve": RouteAuthority(
-        "YELLOW", 30, "session", audit_event="council_approve", action_type=ActionType.COUNCIL_APPROVE
+        "YELLOW",
+        30,
+        "session",
+        audit_event="council_approve",
+        action_type=ActionType.COUNCIL_APPROVE,
     ),
     "/api/v1/council/reject": RouteAuthority(
-        "YELLOW", 30, "session", audit_event="council_reject", action_type=ActionType.COUNCIL_REJECT
+        "YELLOW",
+        30,
+        "session",
+        audit_event="council_reject",
+        action_type=ActionType.COUNCIL_REJECT,
     ),
     # ------------------------------------------------------------------ #
     # Local Workforce
@@ -279,7 +318,11 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # Memory
     # ------------------------------------------------------------------ #
     "/api/v1/memory/search": RouteAuthority(
-        "GREEN", 120, "session", audit_event="memory_search", action_type=ActionType.MEMORY_SEARCH
+        "GREEN",
+        120,
+        "session",
+        audit_event="memory_search",
+        action_type=ActionType.MEMORY_SEARCH,
     ),
     "/api/v1/memory/consolidate": RouteAuthority(
         "YELLOW",
@@ -331,10 +374,18 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         action_type=ActionType.FACT_REJECT,
     ),
     "/api/v1/memory/facts": RouteAuthority(
-        "GREEN", 120, "session", audit_event="fact_propose", action_type=ActionType.FACT_PROPOSE
+        "GREEN",
+        120,
+        "session",
+        audit_event="fact_propose",
+        action_type=ActionType.FACT_PROPOSE,
     ),
     "/api/v1/memory/facts/reconcile": RouteAuthority(
-        "YELLOW", 30, "session", audit_event="fact_reconcile", action_type=ActionType.FACT_RECONCILE
+        "YELLOW",
+        30,
+        "session",
+        audit_event="fact_reconcile",
+        action_type=ActionType.FACT_RECONCILE,
     ),
     "/api/v1/knowledge/ingest": RouteAuthority(
         "YELLOW",
@@ -390,16 +441,28 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # Files
     # ------------------------------------------------------------------ #
     "/api/v1/files/read": RouteAuthority(
-        "GREEN", 120, "session", audit_event="files_read", action_type=ActionType.FILES_READ
+        "GREEN",
+        120,
+        "session",
+        audit_event="files_read",
+        action_type=ActionType.FILES_READ,
     ),
     "/api/v1/files/edit": RouteAuthority(
-        "YELLOW", 60, "session", audit_event="files_edit", action_type=ActionType.FILES_EDIT
+        "YELLOW",
+        60,
+        "session",
+        audit_event="files_edit",
+        action_type=ActionType.FILES_EDIT,
     ),
     # ------------------------------------------------------------------ #
     # Sovereignty / runtime
     # ------------------------------------------------------------------ #
     "/api/v1/hibernation/run": RouteAuthority(
-        "YELLOW", 10, "server-session", audit_event="hibernation_run", action_type=ActionType.HIBERNATION_RUN
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="hibernation_run",
+        action_type=ActionType.HIBERNATION_RUN,
     ),
     "/api/v1/audit/anchor/verify": RouteAuthority(
         "YELLOW",
@@ -510,7 +573,11 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # System
     # ------------------------------------------------------------------ #
     "/api/v1/intent/preview": RouteAuthority(
-        "GREEN", 120, "session", audit_event="intent_preview", action_type=ActionType.INTENT_PREVIEW
+        "GREEN",
+        120,
+        "session",
+        audit_event="intent_preview",
+        action_type=ActionType.INTENT_PREVIEW,
     ),
     "/api/v1/security/classify": RouteAuthority(
         "GREEN",
@@ -564,7 +631,11 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         action_type=ActionType.VOICE_TRANSCRIBE,
     ),
     "/api/v1/voice/speak": RouteAuthority(
-        "YELLOW", 60, "session", audit_event="voice_speak", action_type=ActionType.VOICE_SPEAK
+        "YELLOW",
+        60,
+        "session",
+        audit_event="voice_speak",
+        action_type=ActionType.VOICE_SPEAK,
     ),
     # ------------------------------------------------------------------ #
     # Main app routes
@@ -576,7 +647,11 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "GREEN", 120, "session", audit_event="generate", action_type=ActionType.GENERATE
     ),
     "/api/terminal": RouteAuthority(
-        "YELLOW", 20, "session", audit_event="terminal_command", action_type=ActionType.COMMAND
+        "YELLOW",
+        20,
+        "session",
+        audit_event="terminal_command",
+        action_type=ActionType.COMMAND,
     ),
     "/api/v1/memory/compact": RouteAuthority(
         "YELLOW",
@@ -675,7 +750,9 @@ class PolicyKernel:
 
     @property
     def rate_limit_endpoints(self) -> dict[str, int]:
-        return {path: meta.rate_limit_per_minute for path, meta in self._route_table.items()}
+        return {
+            path: meta.rate_limit_per_minute for path, meta in self._route_table.items()
+        }
 
     @property
     def endpoint_hits(self) -> dict[str, list[tuple[str, float]]]:
@@ -700,7 +777,11 @@ class PolicyKernel:
         if path in self.rate_limit_endpoints:
             return path
         for route_path in self.rate_limit_endpoints:
-            if "{" in route_path and "}" in route_path and _route_match(route_path, path):
+            if (
+                "{" in route_path
+                and "}" in route_path
+                and _route_match(route_path, path)
+            ):
                 return route_path
         return None
 
@@ -708,7 +789,9 @@ class PolicyKernel:
         """Delegate to the HTTP edge token/origin check."""
         return edge_security.check_api_token_or_loopback(request)
 
-    def check_mutation_origin_or_token(self, request: Request) -> Optional[JSONResponse]:
+    def check_mutation_origin_or_token(
+        self, request: Request
+    ) -> Optional[JSONResponse]:
         """Delegate to the HTTP edge CSRF/mutation check."""
         return edge_security.check_mutation_origin_or_token(request)
 
@@ -719,11 +802,19 @@ class PolicyKernel:
         """
         auth_error = self.check_api_token_or_loopback(request)
         if auth_error is not None:
-            body = auth_error.body if hasattr(auth_error, "body") else {"detail": "unauthorised"}
+            body = (
+                auth_error.body
+                if hasattr(auth_error, "body")
+                else {"detail": "unauthorised"}
+            )
             raise HTTPException(status_code=auth_error.status_code, detail=body)
         mutation_error = self.check_mutation_origin_or_token(request)
         if mutation_error is not None:
-            body = mutation_error.body if hasattr(mutation_error, "body") else {"detail": "forbidden"}
+            body = (
+                mutation_error.body
+                if hasattr(mutation_error, "body")
+                else {"detail": "forbidden"}
+            )
             raise HTTPException(status_code=mutation_error.status_code, detail=body)
         return {
             "allowed": True,
@@ -750,7 +841,9 @@ class PolicyKernel:
             hits.append((key, now))
             self._endpoint_hits[key] = hits
 
-    def evaluate_action(self, command: str, *, session_id: Optional[str] = None) -> AuthorityDecision:
+    def evaluate_action(
+        self, command: str, *, session_id: Optional[str] = None
+    ) -> AuthorityDecision:
         """Evaluate a single command for zone, approval, and earned autonomy."""
         max_chars = max(config.MAX_COMMAND_CHARS, 1)
         if len(command) > max_chars:
@@ -760,16 +853,35 @@ class PolicyKernel:
                 reason=f"command exceeds {config.MAX_COMMAND_CHARS} character limit",
                 command=command,
             )
-        decision = validate_command(command, session_id=session_id, rate_limiter=self.rate_limiter)
+        decision = validate_command(
+            command, session_id=session_id, rate_limiter=self.rate_limiter
+        )
         if decision.status == "BLOCK":
-            return AuthorityDecision(blocked=True, zone=decision.zone, reason=decision.reason, command=command)
+            return AuthorityDecision(
+                blocked=True,
+                zone=decision.zone,
+                reason=decision.reason,
+                command=command,
+            )
         if decision.status == "REQUIRE_HUMAN":
             if self.autonomy.is_earned(
                 "command", command, enabled=self.earned_autonomy_enabled()
             ):
-                return AuthorityDecision(allowed=True, zone=decision.zone, reason="earned autonomy", command=command)
-            return AuthorityDecision(requires_approval=True, zone=decision.zone, reason=decision.reason, command=command)
-        return AuthorityDecision(allowed=True, zone=decision.zone, reason=decision.reason, command=command)
+                return AuthorityDecision(
+                    allowed=True,
+                    zone=decision.zone,
+                    reason="earned autonomy",
+                    command=command,
+                )
+            return AuthorityDecision(
+                requires_approval=True,
+                zone=decision.zone,
+                reason=decision.reason,
+                command=command,
+            )
+        return AuthorityDecision(
+            allowed=True, zone=decision.zone, reason=decision.reason, command=command
+        )
 
     def evaluate_approved(self, command: str) -> AuthorityDecision:
         """Re-evaluate a human-approved command (RED still blocked)."""
@@ -789,7 +901,9 @@ class PolicyKernel:
                 reason=f"Human approval cannot authorise a RED action: {result.reason}",
                 command=command,
             )
-        return AuthorityDecision(allowed=True, zone=result.zone, reason="approved", command=command)
+        return AuthorityDecision(
+            allowed=True, zone=result.zone, reason="approved", command=command
+        )
 
     # ------------------------------------------------------------------ #
     # Deterministic ActionEnvelope -> PolicyDecision authority
@@ -905,6 +1019,7 @@ class PolicyKernel:
     def reset_sensitive_actions(self, session_id: Optional[str]) -> None:
         """Reset a session's sensitive-action budget after human re-authorisation."""
         from aios.security.gateway import reset_sensitive_actions as _reset
+
         _reset(session_id, self.rate_limiter)
 
     def feature_enabled(self, name: str) -> bool:

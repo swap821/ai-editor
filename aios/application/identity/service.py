@@ -68,7 +68,9 @@ class IdentityService:
             # The singleton constraint is the authority under concurrent
             # first-run requests; surface it as the same domain error as the
             # preflight check rather than leaking SQLite details.
-            raise AlreadyEnrolled("the single Human Sovereign is already enrolled") from exc
+            raise AlreadyEnrolled(
+                "the single Human Sovereign is already enrolled"
+            ) from exc
         self.store.create_device(
             device_id=f"device:{uuid.uuid4().hex}",
             operator_id=operator_id,
@@ -79,13 +81,17 @@ class IdentityService:
         operator = self._operator_for_credential(credential)
         return self._open_authenticated_session(operator, event_type="login")
 
-    def reauthenticate(self, session_cookie: str, credential: str) -> AuthenticationResult:
+    def reauthenticate(
+        self, session_cookie: str, credential: str
+    ) -> AuthenticationResult:
         current = self.get_authenticated_principal(session_cookie)
         if current is None:
             raise InvalidCredential("a valid authenticated session is required")
         operator = self._operator_for_credential(credential)
         if operator["operator_id"] != current.principal_id:
-            raise InvalidCredential("credential does not match the authenticated operator")
+            raise InvalidCredential(
+                "credential does not match the authenticated operator"
+            )
         device = self.store.device_for_operator(str(operator["operator_id"]))
         if device is None or device["device_id"] != current.device_id:
             raise InvalidCredential("operator device is unavailable or revoked")
@@ -120,14 +126,19 @@ class IdentityService:
             authentication_event_id=event_id,
         )
 
-    def get_authenticated_principal(self, session_cookie: str | None) -> Principal | None:
+    def get_authenticated_principal(
+        self, session_cookie: str | None
+    ) -> Principal | None:
         if not session_cookie:
             return None
         session = self.sessions.validate_session(session_cookie)
         if session is None:
             return None
         operator = self.store.operator()
-        if operator is None or session.data.get("operator_id") != operator["operator_id"]:
+        if (
+            operator is None
+            or session.data.get("operator_id") != operator["operator_id"]
+        ):
             return None
         event_id = str(session.data.get("authentication_event_id") or "")
         event = self.store.authentication_event(event_id)
@@ -160,7 +171,9 @@ class IdentityService:
         event_id = uuid.uuid4().hex
         device = self.store.device_for_operator(str(operator["operator_id"]))
         if device is None:
-            raise IdentityError("operator has no active device; identity resolution failed closed")
+            raise IdentityError(
+                "operator has no active device; identity resolution failed closed"
+            )
         raw_session = self.sessions.create_session(
             {
                 "operator_id": operator["operator_id"],
@@ -192,17 +205,21 @@ class IdentityService:
 
     @staticmethod
     def _principal_from_session(session_cookie: str, session) -> Principal:
-        authenticated_at = datetime.fromtimestamp(
-            session.created_at, tz=timezone.utc
-        )
+        authenticated_at = datetime.fromtimestamp(session.created_at, tz=timezone.utc)
         return Principal(
             principal_id=str(session.data["operator_id"]),
             principal_type=PrincipalType.OPERATOR,
             display_name=str(session.data["display_name"]),
             session_id=session_cookie,
-            authentication_level=str(session.data.get("authentication_level", "operator")),
+            authentication_level=str(
+                session.data.get("authentication_level", "operator")
+            ),
             authenticated_at=authenticated_at,
             device_id=str(session.data.get("device_id", "")),
-            authentication_event_id=str(session.data.get("authentication_event_id", "")),
-            metadata={"authentication_event_id": session.data.get("authentication_event_id")},
+            authentication_event_id=str(
+                session.data.get("authentication_event_id", "")
+            ),
+            metadata={
+                "authentication_event_id": session.data.get("authentication_event_id")
+            },
         )

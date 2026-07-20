@@ -4,6 +4,7 @@ The constitution is not a new authority path. It is a typed, inspectable facade
 over the existing security, router, budget, and caste defaults so higher-level
 v10 flows can reason about policy without duplicating or weakening it.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

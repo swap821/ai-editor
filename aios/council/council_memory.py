@@ -3,6 +3,7 @@
 CouncilMemory is an adapter over the existing CouncilState store. It records
 ganglia synthesis as replayable evidence and never authorizes future work.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable

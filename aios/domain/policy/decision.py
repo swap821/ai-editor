@@ -1,4 +1,5 @@
 """Immutable policy decision -- the deterministic output of the Policy Kernel."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

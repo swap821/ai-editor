@@ -4,13 +4,18 @@ This module turns the constitution snapshot into enforcement decisions for v10
 planning flows. It may block, require review, or explain existing policy. It may
 not downgrade security-gateway RED decisions or auto-approve YELLOW work.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Mapping
 
 from aios.core import router
-from aios.policy.constitution import Constitution, build_constitution, normalize_repo_path
+from aios.policy.constitution import (
+    Constitution,
+    build_constitution,
+    normalize_repo_path,
+)
 from aios.runtime.budget_guard import BudgetGuard
 from aios.runtime.castes import caste_contract_issues, caste_from_contract
 from aios.runtime.contracts import MissionContract, RiskLevel
@@ -38,14 +43,18 @@ class ConstitutionEnforcer:
         constitution: Constitution | None = None,
         budget_guard: BudgetGuard | None = None,
     ) -> None:
-        self.constitution = constitution if constitution is not None else build_constitution()
+        self.constitution = (
+            constitution if constitution is not None else build_constitution()
+        )
         self.budget_guard = (
             budget_guard
             if budget_guard is not None
             else BudgetGuard(mode=self.constitution.resource_mode)
         )
 
-    def check_file_edit(self, path: str, *, actor: str = "worker") -> EnforcementDecision:
+    def check_file_edit(
+        self, path: str, *, actor: str = "worker"
+    ) -> EnforcementDecision:
         normalized = normalize_repo_path(path)
         if self.constitution.is_frozen_path(normalized):
             return EnforcementDecision(
@@ -72,7 +81,9 @@ class ConstitutionEnforcer:
             metadata={"path": normalized, "actor": actor},
         )
 
-    def check_command(self, command: str, *, session_id: str | None = None) -> EnforcementDecision:
+    def check_command(
+        self, command: str, *, session_id: str | None = None
+    ) -> EnforcementDecision:
         decision = gateway.validate_command(command, session_id=session_id)
         return EnforcementDecision(
             allowed=decision.status == "ALLOW",
@@ -112,7 +123,9 @@ class ConstitutionEnforcer:
                 reason=f"cloud request blocked by router policy for task '{task_key}'",
                 source="router_policy",
                 fallback="local_ollama",
-                constraints=("cloud may not bypass AIOS_ROUTER_CLOUD_TASKS or cost policy",),
+                constraints=(
+                    "cloud may not bypass AIOS_ROUTER_CLOUD_TASKS or cost policy",
+                ),
                 metadata={"task": task_key},
             )
 
@@ -163,7 +176,9 @@ class ConstitutionEnforcer:
                 reason="; ".join(issues),
                 source="caste_system",
                 requires_human=True,
-                constraints=("caste profile violations must be corrected before spawn",),
+                constraints=(
+                    "caste profile violations must be corrected before spawn",
+                ),
                 metadata={"caste": profile.name if profile is not None else None},
             )
 

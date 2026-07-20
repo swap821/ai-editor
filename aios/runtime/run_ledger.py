@@ -1,4 +1,5 @@
 """Run ledger construction and persistence for Council Runtime v0.1."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -37,7 +38,8 @@ def _verification_strength(results: Any) -> VerificationStrength:
             return VerificationStrength.NONE
         raw_command = entry.get("command") or []
         command = (
-            raw_command if isinstance(raw_command, str)
+            raw_command
+            if isinstance(raw_command, str)
             else " ".join(str(part) for part in raw_command)
         )
         output = (entry.get("stdout") or "") + (entry.get("stderr") or "")
@@ -92,10 +94,12 @@ class RunLedgerStore:
 
     def __init__(self, runtime_root: str | Path) -> None:
         from aios.runtime import _safe_resolve
+
         self.runtime_root = _safe_resolve(runtime_root)
 
     def path_for(self, mission_id: str) -> Path:
         from aios.security.path_sanitizer import sanitize_path
+
         base = self.runtime_root / "missions"
         candidate = sanitize_path(base, mission_id)
         return candidate / "run_ledger.json"

@@ -66,7 +66,9 @@ def _resolve_external_dir(project_root: Path, storage_root: Path | None = None) 
         rollback_root = Path(env_dir.strip()).expanduser().resolve()
     else:
         # Default to a subpath of tempdir explicitly isolated outside project_root
-        rollback_root = (Path(tempfile.gettempdir()) / "aios_rollback_checkpoints").resolve()
+        rollback_root = (
+            Path(tempfile.gettempdir()) / "aios_rollback_checkpoints"
+        ).resolve()
 
     if rollback_root == proj_resolved:
         raise CheckpointError("rollback root cannot equal project root")
@@ -127,7 +129,9 @@ class CheckpointAuthority:
         affected_paths: Sequence[str],
     ) -> CheckpointManifest:
         if not mission_id or not action_id or not worker_id or not executor_job_id:
-            raise CheckpointError("missing required identity parameters for checkpoint creation")
+            raise CheckpointError(
+                "missing required identity parameters for checkpoint creation"
+            )
         if not contract_digest or not workspace_digest or not diff_digest:
             raise CheckpointError("missing required digests for checkpoint creation")
 
@@ -140,13 +144,17 @@ class CheckpointAuthority:
         snapshot_dir = chk_dir / "snapshot"
         snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-        project_identity = hashlib.sha256(str(self.project_root).encode("utf-8")).hexdigest()
+        project_identity = hashlib.sha256(
+            str(self.project_root).encode("utf-8")
+        ).hexdigest()
 
         path_records: list[dict[str, Any]] = []
         for rel_str in affected_paths:
             norm_rel = str(rel_str).replace("\\", "/").strip("/")
             if norm_rel.startswith("/") or ".." in norm_rel.split("/"):
-                raise CheckpointError(f"path traversal or absolute path refused: {rel_str}")
+                raise CheckpointError(
+                    f"path traversal or absolute path refused: {rel_str}"
+                )
 
             target_file = (self.project_root / norm_rel).resolve()
             if not target_file.is_relative_to(self.project_root):
@@ -158,7 +166,9 @@ class CheckpointAuthority:
 
             if existed:
                 if target_file.is_dir():
-                    raise CheckpointError(f"directory targets are not supported directly: {rel_str}")
+                    raise CheckpointError(
+                        f"directory targets are not supported directly: {rel_str}"
+                    )
                 content = target_file.read_bytes()
                 before_sha = hashlib.sha256(content).hexdigest()
                 mode_val = target_file.stat().st_mode
@@ -167,14 +177,16 @@ class CheckpointAuthority:
                 snap_file.parent.mkdir(parents=True, exist_ok=True)
                 snap_file.write_bytes(content)
 
-            path_records.append({
-                "rel_path": norm_rel,
-                "existed_before": existed,
-                "object_type": "file" if existed else "none",
-                "before_sha256": before_sha,
-                "mode": mode_val,
-                "classification": "modified" if existed else "created",
-            })
+            path_records.append(
+                {
+                    "rel_path": norm_rel,
+                    "existed_before": existed,
+                    "object_type": "file" if existed else "none",
+                    "before_sha256": before_sha,
+                    "mode": mode_val,
+                    "classification": "modified" if existed else "created",
+                }
+            )
 
         created_at = time.time()
         payload_to_digest = {
@@ -231,7 +243,9 @@ class CheckpointAuthority:
         manifest = CheckpointManifest.model_validate_json(raw_json)
 
         if manifest.state in ("consumed", "invalid"):
-            raise CheckpointError(f"checkpoint {checkpoint_id} is already in state {manifest.state}")
+            raise CheckpointError(
+                f"checkpoint {checkpoint_id} is already in state {manifest.state}"
+            )
 
         # Validate signature
         payload_to_digest = {
@@ -267,7 +281,9 @@ class CheckpointAuthority:
             target_file = self.project_root / rel_path
 
             if target_file.exists() and target_file.is_file():
-                before_digests[rel_path] = hashlib.sha256(target_file.read_bytes()).hexdigest()
+                before_digests[rel_path] = hashlib.sha256(
+                    target_file.read_bytes()
+                ).hexdigest()
             else:
                 before_digests[rel_path] = "absent"
 
@@ -282,7 +298,10 @@ class CheckpointAuthority:
                 if not snap_file.exists():
                     raise CheckpointError(f"snapshot file missing for {rel_path}")
                 content = snap_file.read_bytes()
-                if entry.get("before_sha256") and hashlib.sha256(content).hexdigest() != entry["before_sha256"]:
+                if (
+                    entry.get("before_sha256")
+                    and hashlib.sha256(content).hexdigest() != entry["before_sha256"]
+                ):
                     raise CheckpointError(f"snapshot content tampered for {rel_path}")
                 target_file.parent.mkdir(parents=True, exist_ok=True)
                 target_file.write_bytes(content)
@@ -294,13 +313,17 @@ class CheckpointAuthority:
                         shutil.rmtree(target_file)
 
             if target_file.exists() and target_file.is_file():
-                after_digests[rel_path] = hashlib.sha256(target_file.read_bytes()).hexdigest()
+                after_digests[rel_path] = hashlib.sha256(
+                    target_file.read_bytes()
+                ).hexdigest()
             else:
                 after_digests[rel_path] = "absent"
 
         # Mark consumed atomically
         consumed_manifest = manifest.model_copy(update={"state": "consumed"})
-        manifest_file.write_text(consumed_manifest.model_dump_json(indent=2), encoding="utf-8")
+        manifest_file.write_text(
+            consumed_manifest.model_dump_json(indent=2), encoding="utf-8"
+        )
 
         receipt = RollbackReceipt(
             checkpoint_id=checkpoint_id,

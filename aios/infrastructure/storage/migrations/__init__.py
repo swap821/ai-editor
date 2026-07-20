@@ -16,8 +16,7 @@ class Migration(Protocol):
     name: str
 
     @staticmethod
-    def apply(conn: sqlite3.Connection) -> None:
-        ...
+    def apply(conn: sqlite3.Connection) -> None: ...
 
 
 def ensure_migrations_table(conn: sqlite3.Connection) -> None:
@@ -62,9 +61,15 @@ def apply_migrations(
     for _, module_name, _ in pkgutil.iter_modules([str(package_dir)]):
         if not module_name[0].isdigit():
             continue
-        module = importlib.import_module(f"aios.infrastructure.storage.migrations.{module_name}")
+        module = importlib.import_module(
+            f"aios.infrastructure.storage.migrations.{module_name}"
+        )
         for _, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) and hasattr(obj, "version") and hasattr(obj, "name"):
+            if (
+                inspect.isclass(obj)
+                and hasattr(obj, "version")
+                and hasattr(obj, "name")
+            ):
                 migrations.append(obj())
     migrations.sort(key=lambda m: m.version)
     run: list[tuple[int, str]] = []

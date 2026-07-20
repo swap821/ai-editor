@@ -7,6 +7,7 @@ object. A contradiction is **not** silently committed: it is surfaced so the
 caller can route it to the Reflection Agent or a human for reconciliation
 (Blueprint 5.3 contradiction-detection flow). Exact duplicates are idempotent.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -29,7 +30,9 @@ class FactWriteResult:
 
     committed: bool
     fact_id: Optional[int]
-    reason: str  # 'committed' | 'already present' | 'reconciled' | 'contradiction' | ...
+    reason: (
+        str  # 'committed' | 'already present' | 'reconciled' | 'contradiction' | ...
+    )
     conflict_id: Optional[int] = None
     conflict_object: Optional[str] = None
 
@@ -62,7 +65,9 @@ class SemanticFacts:
     def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
         self.db_path = db_path
 
-    def find_conflict(self, subject: str, predicate: str, obj: str) -> Optional[sqlite3.Row]:
+    def find_conflict(
+        self, subject: str, predicate: str, obj: str
+    ) -> Optional[sqlite3.Row]:
         """Return an active fact with the same subject+predicate but a *different*
         object (the contradiction), or ``None``."""
         with get_connection(self.db_path) as conn:
@@ -129,7 +134,11 @@ class SemanticFacts:
                         "SET approved_by = COALESCE(approved_by, ?), "
                         "    confidence = MAX(confidence, ?) "
                         "WHERE id = ?",
-                        (approved_by, max(0.0, min(1.0, confidence)), int(existing["id"])),
+                        (
+                            approved_by,
+                            max(0.0, min(1.0, confidence)),
+                            int(existing["id"]),
+                        ),
                     )
                 return FactWriteResult(True, int(existing["id"]), "already present")
             cur = conn.execute(
@@ -177,7 +186,9 @@ class SemanticFacts:
                 "SELECT * FROM semantic_facts WHERE id = ?", (fact_id,)
             ).fetchone()
 
-    def facts_for(self, subject: str, predicate: Optional[str] = None) -> list[sqlite3.Row]:
+    def facts_for(
+        self, subject: str, predicate: Optional[str] = None
+    ) -> list[sqlite3.Row]:
         """Return active facts for *subject* (optionally filtered by *predicate*)."""
         sql = "SELECT * FROM semantic_facts WHERE subject = ? AND status = 'active'"
         params: list[object] = [subject]
@@ -442,7 +453,9 @@ class SemanticFacts:
                 (max(1, int(limit)),),
             ).fetchall()
 
-    def approve_proposal(self, proposal_id: int, *, approved_by: str) -> FactWriteResult:
+    def approve_proposal(
+        self, proposal_id: int, *, approved_by: str
+    ) -> FactWriteResult:
         """Promote one pending proposal THROUGH the contradiction-aware write.
 
         A contradiction is returned, not committed, and the proposal stays
@@ -528,7 +541,11 @@ class SemanticFacts:
             cur = conn.execute(
                 "INSERT INTO fact_proposals (subject, predicate, object, source) "
                 "VALUES (?, ?, ?, ?)",
-                (subject_clean, predicate_clean, obj_clean,
-                 scan_and_redact((source or "").strip()).scrubbed or "auto-extract"),
+                (
+                    subject_clean,
+                    predicate_clean,
+                    obj_clean,
+                    scan_and_redact((source or "").strip()).scrubbed or "auto-extract",
+                ),
             )
             return ProposalResult(True, int(cur.lastrowid), "proposed")

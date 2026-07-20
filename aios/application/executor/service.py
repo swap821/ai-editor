@@ -285,7 +285,6 @@ class ExecutorService:
         self.backend_name = backend_name
         self.require_isolation = require_isolation
 
-
     def build_command_job(
         self,
         *,
@@ -402,7 +401,6 @@ class ExecutorService:
             },
         )
 
-
     def execute(self, job: ExecutorJob) -> ExecutorResult:
         if self.profile in ("production", "demo"):
             if self.backend_name != "private_service" or self.client is None:
@@ -428,8 +426,6 @@ class ExecutorService:
         if result.job_id != job.job_id:
             raise IsolationUnavailable("executor returned a mismatched job id")
         return result
-
-
 
 
 def execute_registered_repair_operation(job: ExecutorJob) -> ExecutorResult:

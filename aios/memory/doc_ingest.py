@@ -7,6 +7,7 @@ so the conversational endpoint can ground answers in user docs.
 Privacy: ingested content stays local (SQLite + optional FAISS). The pipeline
 never sends doc content to any external service.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -201,9 +202,7 @@ class DocumentIngestor:
             conn.execute(
                 "DELETE FROM knowledge_chunks WHERE source_id = ?", (source_id,)
             )
-            conn.execute(
-                "DELETE FROM knowledge_sources WHERE id = ?", (source_id,)
-            )
+            conn.execute("DELETE FROM knowledge_sources WHERE id = ?", (source_id,))
         return True
 
     def search_chunks(self, query: str, *, limit: int = 5) -> list[str]:
@@ -217,9 +216,7 @@ class DocumentIngestor:
         if not keywords:
             return []
 
-        conditions = " OR ".join(
-            "LOWER(text_content) LIKE ?" for _ in keywords
-        )
+        conditions = " OR ".join("LOWER(text_content) LIKE ?" for _ in keywords)
         params = [f"%{kw}%" for kw in keywords[:5]]
 
         with get_connection(self.db_path) as conn:

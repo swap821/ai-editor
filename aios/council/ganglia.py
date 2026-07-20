@@ -4,6 +4,7 @@ Ganglia convert existing Queen verdicts into inspectable gradients. They do not
 replace verdict authority: security remains deterministic, and every synthesized
 result is proposal/evidence only.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -83,9 +84,7 @@ def synthesize_signals(signals: Iterable[GanglionSignal]) -> SignalSynthesis:
     signal_list = list(signals)
     risks = [signal.risk for signal in signal_list] or ["GREEN"]
     constraints = [
-        constraint
-        for signal in signal_list
-        for constraint in signal.constraints
+        constraint for signal in signal_list for constraint in signal.constraints
     ]
     security_blocks = [
         signal

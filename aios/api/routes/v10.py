@@ -4,6 +4,7 @@ The v10 scaffold is an architectural contract, not an authority path. These
 routes expose the current local evidence surfaces for the frontend without
 creating a new executor, scanner daemon, or approval bypass.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -214,9 +215,15 @@ def _ecosystem_summary(report: EcosystemReport, root: Path) -> dict[str, Any]:
     )
 
 
-def _finding_summary(payload: dict[str, Any], *, extra: dict[str, Any]) -> dict[str, Any]:
+def _finding_summary(
+    payload: dict[str, Any], *, extra: dict[str, Any]
+) -> dict[str, Any]:
     findings = list(payload.get("findings") or [])
-    severities = [str(item.get("severity", "")).lower() for item in findings if isinstance(item, dict)]
+    severities = [
+        str(item.get("severity", "")).lower()
+        for item in findings
+        if isinstance(item, dict)
+    ]
     return {
         "ranAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "activation": payload.get("activation", "proposal/evidence"),
@@ -244,11 +251,19 @@ def _resolve_scan_root(raw: str | None, workspace: Path) -> Path:
     if raw is None or not raw.strip():
         return workspace
     requested = Path(raw)
-    target = requested.resolve() if requested.is_absolute() else (workspace / requested).resolve()
+    target = (
+        requested.resolve()
+        if requested.is_absolute()
+        else (workspace / requested).resolve()
+    )
     try:
         target.relative_to(workspace)
     except ValueError as exc:
-        raise HTTPException(status_code=403, detail="scan root must stay inside the current workspace") from exc
+        raise HTTPException(
+            status_code=403, detail="scan root must stay inside the current workspace"
+        ) from exc
     if target == Path.home().resolve() or target.anchor == str(target):
-        raise HTTPException(status_code=403, detail="refusing to scan broad home/root path")
+        raise HTTPException(
+            status_code=403, detail="refusing to scan broad home/root path"
+        )
     return target

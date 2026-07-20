@@ -3,6 +3,7 @@
 Each handler is a stateless callable that receives the dependencies it needs
 from ToolAgent and returns the same (output, status, failed) tuple.
 """
+
 from __future__ import annotations
 
 import difflib
@@ -81,7 +82,11 @@ def read_file(
     """Read a scoped text file, redact secrets, and return its contents."""
     resolved = _resolve_within(read_root, filepath)
     if resolved is None:
-        return (f"[BLOCKED] Path '{filepath}' escapes the project root.", "blocked", False)
+        return (
+            f"[BLOCKED] Path '{filepath}' escapes the project root.",
+            "blocked",
+            False,
+        )
     if not resolved.is_file():
         return (f"[ERROR] Not a file: {filepath}", "blocked", False)
     try:
@@ -255,7 +260,11 @@ def create_file(
 
     resolved = _resolve_within(read_root, filepath)
     if resolved is None:
-        return (f"[BLOCKED] Path '{filepath}' escapes the project root.", "blocked", False)
+        return (
+            f"[BLOCKED] Path '{filepath}' escapes the project root.",
+            "blocked",
+            False,
+        )
     # Same containment check edit_file uses: resolve project-relative, then a
     # pure scope test against the sandbox roots (out-of-sandbox -> refused).
     scope = scope_lock.is_path_in_scope(str(read_root / filepath))
@@ -347,6 +356,7 @@ def create_file(
 
 # --------------------------------------------------------------------------- verify
 
+
 def verify_command(
     command: str,
     *,
@@ -402,6 +412,7 @@ def verify_command(
 
 # --------------------------------------------------------------------------- execute
 
+
 def _format_exec_result(result: Any) -> tuple[str, str, bool]:
     """Map a *resolved* ExecutionResult to ``(output, status, failed)``.
 
@@ -445,6 +456,7 @@ def execute_terminal(
 
 # --------------------------------------------------------------------------- browse
 
+
 def browse_url(
     url: str,
     *,
@@ -469,7 +481,11 @@ def browse_url(
 
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        return (f"[BLOCKED] URL scheme '{parsed.scheme}' is not allowed.", "blocked", False)
+        return (
+            f"[BLOCKED] URL scheme '{parsed.scheme}' is not allowed.",
+            "blocked",
+            False,
+        )
     if not parsed.hostname:
         return ("[BLOCKED] URL has no hostname.", "blocked", False)
     hostname = parsed.hostname.lower()
@@ -481,7 +497,11 @@ def browse_url(
         for _, _, _, _, sockaddr in addr_info:
             ip = ipaddress.ip_address(sockaddr[0])
             if ip.is_private or ip.is_loopback or ip.is_reserved:
-                return (f"[BLOCKED] {hostname} resolves to a non-public address.", "blocked", False)
+                return (
+                    f"[BLOCKED] {hostname} resolves to a non-public address.",
+                    "blocked",
+                    False,
+                )
     except Exception as exc:  # noqa: BLE001 - DNS failure is not a mistake
         return (f"[ERROR] could not resolve {hostname}: {exc}", "ok", True)
 
@@ -496,7 +516,11 @@ def browse_url(
             allow_redirects=False,
         )
         if resp.is_redirect or resp.is_permanent_redirect:
-            return ("[BLOCKED] URL attempted redirect — potential SSRF.", "blocked", False)
+            return (
+                "[BLOCKED] URL attempted redirect — potential SSRF.",
+                "blocked",
+                False,
+            )
         resp.raise_for_status()
         content_type = resp.headers.get("Content-Type", "")
         if "text/html" in content_type:
@@ -515,6 +539,7 @@ def browse_url(
 
 
 # --------------------------------------------------------------------------- plan
+
 
 def plan_task(
     goal: str,
@@ -570,6 +595,7 @@ def plan_task(
 
 
 # --------------------------------------------------------------------------- self-analysis
+
 
 def self_analyze(
     path: str,

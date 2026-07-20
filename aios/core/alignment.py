@@ -6,6 +6,7 @@ authoritative: it cannot approve tools, change security zones, or count as
 evidence. A completion model may propose a frame, but deterministic code
 redacts, validates, bounds, and normalizes every field before use.
 """
+
 from __future__ import annotations
 
 import json
@@ -60,7 +61,10 @@ _INTENT_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("correct", (r"\bnot what i meant\b", r"\bcorrection\b", r"\bactually\b")),
     ("review", (r"\breview\b", r"\baudit\b", r"\bfind (?:bugs|issues|risks)\b")),
     ("decide", (r"\bdecide\b", r"\bchoose\b", r"\bwhich (?:one|option)\b")),
-    ("execute", (r"\bstart\b", r"\bimplement\b", r"\bbuild\b", r"\bfix\b", r"\bcreate\b")),
+    (
+        "execute",
+        (r"\bstart\b", r"\bimplement\b", r"\bbuild\b", r"\bfix\b", r"\bcreate\b"),
+    ),
     ("plan", (r"\bplan\b", r"\barchitect", r"\bdesign\b", r"\bstrateg")),
     ("teach", (r"\bteach\b", r"\bexplain\b", r"\bhelp me understand\b")),
     ("discuss", (r"\bdiscuss\b", r"\bwhat (?:are )?your views\b", r"\bbrainstorm\b")),
@@ -248,7 +252,9 @@ def resolve_communication_policy(
     ask_first = any(
         re.search(pattern, clean, re.IGNORECASE) for pattern in _ASK_FIRST_PATTERNS
     )
-    autonomy = any(re.search(pattern, clean, re.IGNORECASE) for pattern in _AUTONOMY_PATTERNS)
+    autonomy = any(
+        re.search(pattern, clean, re.IGNORECASE) for pattern in _AUTONOMY_PATTERNS
+    )
     missing_context = bool(_CONTEXT_FREE_VAGUE.fullmatch(clean)) and not has_context
 
     if ask_first:
@@ -305,7 +311,9 @@ class UnderstandingFrame:
     correction: CorrectionState = field(default_factory=CorrectionState)
 
     @classmethod
-    def fallback(cls, user_text: str, *, has_context: bool = False) -> "UnderstandingFrame":
+    def fallback(
+        cls, user_text: str, *, has_context: bool = False
+    ) -> "UnderstandingFrame":
         """Create a conservative frame without trusting model output."""
         goal = _clean_text(user_text, fallback="Understand the user's request.")
         intent = infer_intent(goal)
@@ -345,14 +353,18 @@ class UnderstandingFrame:
             goal=_clean_text(proposal.get("goal"), fallback=base.goal) or base.goal,
             intent=intent,
             desired_outcome=(
-                _clean_text(proposal.get("desired_outcome"), fallback=base.desired_outcome)
+                _clean_text(
+                    proposal.get("desired_outcome"), fallback=base.desired_outcome
+                )
                 or base.desired_outcome
             ),
             constraints=_clean_items(proposal.get("constraints")),
             assumptions=assumptions,
             unknowns=unknowns,
             decisions=_clean_items(proposal.get("decisions")),
-            confidence=_confidence(proposal.get("confidence"), fallback=base.confidence),
+            confidence=_confidence(
+                proposal.get("confidence"), fallback=base.confidence
+            ),
             next_action=(
                 _clean_text(
                     proposal.get("next_action"),
@@ -398,7 +410,10 @@ class UnderstandingFrame:
             return ""
         parts: list[str] = []
         if self.assumptions:
-            parts.append("Unverified assumptions before proceeding: " + "; ".join(self.assumptions))
+            parts.append(
+                "Unverified assumptions before proceeding: "
+                + "; ".join(self.assumptions)
+            )
         if self.unknowns:
             parts.append(
                 "Unresolved but treated as non-blocking: " + "; ".join(self.unknowns)
@@ -494,15 +509,19 @@ def frame_from_state(value: object) -> UnderstandingFrame:
     """Revalidate one persisted frame before correction or prompt injection."""
     if not isinstance(value, dict):
         raise ValueError("stored alignment frame is unavailable")
-    user_text = _clean_text(value.get("goal"), fallback="Understand the user's request.")
+    user_text = _clean_text(
+        value.get("goal"), fallback="Understand the user's request."
+    )
     frame = UnderstandingFrame.from_proposal(value, user_text, has_context=True)
     correction = value.get("correction")
     if not isinstance(correction, dict) or not correction.get("active"):
         return frame
     fields = correction.get("corrected_fields")
-    clean_fields = tuple(
-        str(name) for name in fields if str(name) in _CORRECTABLE_FIELDS
-    ) if isinstance(fields, list) else ()
+    clean_fields = (
+        tuple(str(name) for name in fields if str(name) in _CORRECTABLE_FIELDS)
+        if isinstance(fields, list)
+        else ()
+    )
     return UnderstandingFrame(
         **{
             **frame.__dict__,

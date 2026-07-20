@@ -1,7 +1,12 @@
 """Simulated Council Runtime queen wrappers."""
+
 from aios.council.queens.critique import CritiqueQueen
 from aios.council.queens.memory import MemoryQueen
-from aios.council.queens.planner import CouncilMissionRequest, PlannerDraft, PlannerQueen
+from aios.council.queens.planner import (
+    CouncilMissionRequest,
+    PlannerDraft,
+    PlannerQueen,
+)
 from aios.council.queens.project_understanding import ProjectUnderstandingQueen
 from aios.council.queens.reflection import ReflectionQueen
 from aios.council.queens.routing import RoutingQueen

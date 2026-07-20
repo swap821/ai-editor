@@ -10,6 +10,7 @@ from aios.core.llm import OllamaClient
 from aios.domain.local_workforce.contracts import LocalWorkerModel, LocalJobProfile
 from aios.memory.db import get_connection
 
+
 class LocalWorkforceRegistry:
     """Manages the durable configuration of local clerical workers."""
 
@@ -18,7 +19,7 @@ class LocalWorkforceRegistry:
 
     def reconcile(self) -> None:
         """Discover installed Ollama models and register them if missing.
-        
+
         Does not delete models that have been removed from Ollama, but sets
         `installed=False` to preserve operator approval and job assignments.
         """
@@ -33,11 +34,10 @@ class LocalWorkforceRegistry:
                     continue
                 seen_ids.add(model_id)
                 details = m.get("details", {})
-                
+
                 # Check if it exists
                 cursor = conn.execute(
-                    "SELECT 1 FROM local_worker_models WHERE model_id = ?", 
-                    (model_id,)
+                    "SELECT 1 FROM local_worker_models WHERE model_id = ?", (model_id,)
                 )
                 exists = cursor.fetchone() is not None
 
@@ -46,7 +46,7 @@ class LocalWorkforceRegistry:
                     family = details.get("family", "unknown")
                     parameter_size = details.get("parameter_size", "unknown")
                     quantization = details.get("quantization_level", "unknown")
-                    
+
                     conn.execute(
                         """
                         INSERT INTO local_worker_models (
@@ -64,40 +64,39 @@ class LocalWorkforceRegistry:
                             quantization,
                             1,  # installed
                             0,  # operator_approved (default false)
-                            "unknown", # health
-                            "pending", # admission_status
+                            "unknown",  # health
+                            "pending",  # admission_status
                             8192,  # safe default context
                             2048,  # safe default output
-                            1,     # safe default parallelism
+                            1,  # safe default parallelism
                             "[]",  # no profiles allowed yet
-                            "verified" if family != "unknown" else "inferred"
-                        )
+                            "verified" if family != "unknown" else "inferred",
+                        ),
                     )
                 else:
                     # Model already known, just ensure it's marked installed
                     conn.execute(
                         "UPDATE local_worker_models SET installed = 1 WHERE model_id = ?",
-                        (model_id,)
+                        (model_id,),
                     )
-            
+
             # Mark models not seen as uninstalled (preserve history)
             if seen_ids:
                 placeholders = ",".join("?" for _ in seen_ids)
                 conn.execute(
                     f"UPDATE local_worker_models SET installed = 0 WHERE model_id NOT IN ({placeholders})",
-                    tuple(seen_ids)
+                    tuple(seen_ids),
                 )
             else:
                 conn.execute("UPDATE local_worker_models SET installed = 0")
-            
+
             conn.commit()
 
     def get_model(self, model_id: str) -> LocalWorkerModel | None:
         """Retrieve a local model by ID."""
         with get_connection() as conn:
             cursor = conn.execute(
-                "SELECT * FROM local_worker_models WHERE model_id = ?", 
-                (model_id,)
+                "SELECT * FROM local_worker_models WHERE model_id = ?", (model_id,)
             )
             row = cursor.fetchone()
             if not row:
@@ -112,7 +111,7 @@ class LocalWorkforceRegistry:
             for row in cursor.fetchall():
                 models.append(self._row_to_model(row))
         return models
-    
+
     def update_approval(self, model_id: str, approved: bool) -> None:
         """Update operator approval status."""
         with get_connection() as conn:
@@ -122,11 +121,13 @@ class LocalWorkforceRegistry:
                 SET operator_approved = ?
                 WHERE model_id = ?
                 """,
-                (1 if approved else 0, model_id)
+                (1 if approved else 0, model_id),
             )
             conn.commit()
 
-    def update_admission(self, model_id: str, status: str, reason: str | None = None) -> None:
+    def update_admission(
+        self, model_id: str, status: str, reason: str | None = None
+    ) -> None:
         """Update the formal admission status after qualification."""
         with get_connection() as conn:
             conn.execute(
@@ -135,7 +136,7 @@ class LocalWorkforceRegistry:
                 SET admission_status = ?, admission_reason = ?
                 WHERE model_id = ?
                 """,
-                (status, reason, model_id)
+                (status, reason, model_id),
             )
             conn.commit()
 
@@ -145,7 +146,7 @@ class LocalWorkforceRegistry:
         with get_connection() as conn:
             conn.execute(
                 "UPDATE local_worker_models SET allowed_job_profiles_json = ? WHERE model_id = ?",
-                (json.dumps(profiles_list), model_id)
+                (json.dumps(profiles_list), model_id),
             )
             conn.commit()
 
@@ -159,7 +160,7 @@ class LocalWorkforceRegistry:
                     SET health = ?, last_success = CURRENT_TIMESTAMP
                     WHERE model_id = ?
                     """,
-                    (status, model_id)
+                    (status, model_id),
                 )
             else:
                 conn.execute(
@@ -168,24 +169,26 @@ class LocalWorkforceRegistry:
                     SET health = ?, failure_count = failure_count + 1
                     WHERE model_id = ?
                     """,
-                    (status, model_id)
+                    (status, model_id),
                 )
             conn.commit()
 
     def _row_to_model(self, row: dict[str, Any]) -> LocalWorkerModel:
         profiles_raw = json.loads(row["allowed_job_profiles_json"])
         profiles = frozenset(LocalJobProfile(p) for p in profiles_raw)
-        
+
         last_success = row["last_success"]
         if last_success and isinstance(last_success, str):
             # parse CURRENT_TIMESTAMP format
             try:
                 # SQLite CURRENT_TIMESTAMP is UTC 'YYYY-MM-DD HH:MM:SS'
                 # but might contain 'T' or 'Z' depending on how it was written
-                last_success = datetime.fromisoformat(last_success.replace(" ", "T")).replace(tzinfo=timezone.utc)
+                last_success = datetime.fromisoformat(
+                    last_success.replace(" ", "T")
+                ).replace(tzinfo=timezone.utc)
             except ValueError:
                 last_success = None
-                
+
         return LocalWorkerModel(
             model_id=row["model_id"],
             provider=row["provider"],
@@ -203,5 +206,5 @@ class LocalWorkforceRegistry:
             allowed_job_profiles=profiles,
             last_success=last_success,
             failure_count=row["failure_count"],
-            metadata_confidence=row["metadata_confidence"]
+            metadata_confidence=row["metadata_confidence"],
         )

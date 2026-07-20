@@ -1,4 +1,5 @@
 """Immutable capability binding and lifecycle contracts."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -39,7 +40,10 @@ class CapabilityBinding:
             "scope": self.scope,
             "verification_requirement": self.verification_requirement,
         }
-        if any(not isinstance(value, str) or not value.strip() for value in required.values()):
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in required.values()
+        ):
             raise ValueError("capability binding fields must be non-empty strings")
         for name in ("mission_id", "contract_digest"):
             value = getattr(self, name)
@@ -85,4 +89,3 @@ class ConsumedCapabilityProof:
     consumed_at: float
     expires_at: float
     revoked_at: Optional[float] = None
-

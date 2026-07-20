@@ -471,9 +471,8 @@ def _recall_lessons(
     Carries lessons learned in earlier turns into the current one so the agent
     reasons with them. Recalled pending lessons remain advisory. Never fatal.
     """
-    if (
-        isinstance(reflector, ReflectionAgent)
-        and _authority_owns(authority, "lessons", reflector.mistakes)
+    if isinstance(reflector, ReflectionAgent) and _authority_owns(
+        authority, "lessons", reflector.mistakes
     ):
         try:
             return authority.recall_lessons(query, session_id, limit)

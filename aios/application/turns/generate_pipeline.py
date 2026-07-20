@@ -715,9 +715,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     recalled_pending = _recall_pending_commands(reflector, session_id)
 
     # 2. Persist the user turn.
-    _record_episode(
-        session_id, "user", user_text, authority=runtime.memory_authority
-    )
+    _record_episode(session_id, "user", user_text, authority=runtime.memory_authority)
 
     # 3. Agentic loop with recalled context + lessons + reflection + confirmation.
     #    `chat_client` is local Ollama or cloud Bedrock per the selected model.

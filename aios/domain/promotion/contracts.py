@@ -88,5 +88,9 @@ class PromotionResult(BaseModel):
     evidence_ids: tuple[str, ...] = ()
 
 
-__all__ = ["PromotionAuthorization", "PromotionRequest", "PromotionResult", "PromotionStatus"]
-
+__all__ = [
+    "PromotionAuthorization",
+    "PromotionRequest",
+    "PromotionResult",
+    "PromotionStatus",
+]

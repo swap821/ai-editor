@@ -11,7 +11,10 @@ import json
 import time
 from pathlib import Path
 
-from aios.application.capabilities.authority import CapabilityAuthority, ConsumedCapabilityProof
+from aios.application.capabilities.authority import (
+    CapabilityAuthority,
+    ConsumedCapabilityProof,
+)
 from aios.application.promotion.authority import PromotionAuthority
 from aios.application.promotion.checkpoint import CheckpointAuthority
 from aios.domain.evidence import PostPromotionVerificationReceipt
@@ -23,7 +26,11 @@ from aios.domain.local_workforce.contracts import (
     LocalModelCallRecord,
 )
 from aios.domain.policy.decision import PolicyDecision
-from aios.domain.promotion.contracts import PromotionAuthorization, PromotionRequest, PromotionResult
+from aios.domain.promotion.contracts import (
+    PromotionAuthorization,
+    PromotionRequest,
+    PromotionResult,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FINAL_DIR = PROJECT_ROOT / "release" / "r15" / "final"

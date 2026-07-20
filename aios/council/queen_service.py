@@ -1,4 +1,5 @@
 """Runtime Queen Services — long-lived wrappers with async inbox and lifecycle."""
+
 from __future__ import annotations
 
 import asyncio
@@ -16,9 +17,9 @@ class QueenService(ABC):
 
     def __init__(self, name: str, queue_depth: int = 16):
         self.name = name
-        self._inbox: asyncio.Queue[tuple[MissionContract, asyncio.Future[QueenVerdict]]] = (
-            asyncio.Queue(maxsize=queue_depth)
-        )
+        self._inbox: asyncio.Queue[
+            tuple[MissionContract, asyncio.Future[QueenVerdict]]
+        ] = asyncio.Queue(maxsize=queue_depth)
         self._task: asyncio.Task[None] | None = None
         self._running = False
         self._processed = 0
@@ -157,7 +158,9 @@ class ProjectUnderstandingQueenService(_SyncQueenService):
     def __init__(self, queue_depth: int = config.QUEEN_SERVICE_QUEUE_DEPTH):
         from aios.council.queens.project_understanding import ProjectUnderstandingQueen
 
-        super().__init__("project_understanding", ProjectUnderstandingQueen(), queue_depth)
+        super().__init__(
+            "project_understanding", ProjectUnderstandingQueen(), queue_depth
+        )
 
 
 # Global registry. Populated by init_queen_services() at application startup.

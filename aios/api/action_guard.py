@@ -35,7 +35,6 @@ from aios.domain.identity.models import Principal
 from aios.policy.kernel import _route_match
 
 
-
 CAPABILITY_HEADER = "x-aios-capability"
 
 # These routes already construct their own complete envelope and capability
@@ -355,4 +354,3 @@ async def enforce_action_boundary(
 
 
 __all__ = ["ActionGuardResult", "CAPABILITY_HEADER", "enforce_action_boundary"]
-

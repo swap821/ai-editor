@@ -1,4 +1,5 @@
 """Server-issued exact capability authority."""
+
 from __future__ import annotations
 
 import hashlib
@@ -10,7 +11,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
-from aios.domain.capabilities.contracts import Capability, CapabilityBinding, ConsumedCapabilityProof
+from aios.domain.capabilities.contracts import (
+    Capability,
+    CapabilityBinding,
+    ConsumedCapabilityProof,
+)
 from aios.domain.capabilities.digest import payload_digest
 from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
 from aios.security.secret_scanner import scan_and_redact
@@ -113,7 +118,9 @@ class CapabilityAuthority:
             raise CapabilityError("wildcard capability scope is forbidden")
         if action_payload is not None:
             if payload_digest(action_payload) != binding.payload_digest:
-                raise CapabilityError("capability action payload does not match its digest")
+                raise CapabilityError(
+                    "capability action payload does not match its digest"
+                )
             if _action_payload_contains_secret(action_payload):
                 raise CapabilityError(
                     "capability action payload contains credential-like data"
@@ -140,7 +147,9 @@ class CapabilityAuthority:
             raise CapabilityError("capability is unknown")
         return capability
 
-    def consume(self, token: str, binding: CapabilityBinding) -> ConsumedCapabilityProof:
+    def consume(
+        self, token: str, binding: CapabilityBinding
+    ) -> ConsumedCapabilityProof:
         capability = self.inspect(token)
         now = self.clock()
         if capability.binding != binding:
@@ -175,7 +184,6 @@ class CapabilityAuthority:
             expires_at=capability.expires_at,
             revoked_at=capability.revoked_at,
         )
-
 
     def revoke(self, capability_id: str) -> None:
         if not self.store.revoke(capability_id, self.clock()):

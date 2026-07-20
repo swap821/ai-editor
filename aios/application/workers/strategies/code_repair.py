@@ -43,32 +43,42 @@ class ProductionCodeWorkerStrategy:
                 workspace_root = Path(lease.workspace_path).resolve()
             else:
                 scope = getattr(contract, "scope", {}) or {}
-                raw_root = scope.get("workspace_root") or getattr(contract, "workspace_root", None)
+                raw_root = scope.get("workspace_root") or getattr(
+                    contract, "workspace_root", None
+                )
                 if not raw_root:
                     metadata = getattr(contract, "metadata", {}) or {}
                     raw_root = metadata.get("workspace_root")
                 if not raw_root:
-                    raise ValueError("code worker strategy requires a staged workspace root")
+                    raise ValueError(
+                        "code worker strategy requires a staged workspace root"
+                    )
                 workspace_root = Path(raw_root).resolve()
         else:
             scope = getattr(contract, "scope", {}) or {}
-            raw_root = scope.get("workspace_root") or getattr(contract, "workspace_root", None)
+            raw_root = scope.get("workspace_root") or getattr(
+                contract, "workspace_root", None
+            )
             if not raw_root:
                 metadata = getattr(contract, "metadata", {}) or {}
                 raw_root = metadata.get("workspace_root")
             if not raw_root:
-                raise ValueError("code worker strategy requires a staged workspace root")
+                raise ValueError(
+                    "code worker strategy requires a staged workspace root"
+                )
             workspace_root = Path(raw_root).resolve()
 
         project_root = config.PROJECT_ROOT.resolve()
 
         # Enforce boundary: worker MUST operate in staged workspace, never directly in project root
         if workspace_root == project_root:
-            raise ValueError("Worker strategy cannot operate directly on enrolled project root")
+            raise ValueError(
+                "Worker strategy cannot operate directly on enrolled project root"
+            )
 
         metadata = getattr(contract, "metadata", {}) or {}
         target_rel = metadata.get("target_id") or metadata.get("target_file")
-        
+
         expected_digest = ""
         if target_rel:
             target_path = (workspace_root / target_rel.replace("\\", "/")).resolve()
@@ -89,10 +99,14 @@ class ProductionCodeWorkerStrategy:
             "workspace_root": str(workspace_root),
         }
 
-        summary = f"Proposed repair operation REMOVE_MAINTENANCE_MARKER_V1 for {target_rel}"
+        summary = (
+            f"Proposed repair operation REMOVE_MAINTENANCE_MARKER_V1 for {target_rel}"
+        )
         output_digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
 
-        worker_id_val = spec.worker_id if hasattr(spec, "worker_id") else principal.worker_id
+        worker_id_val = (
+            spec.worker_id if hasattr(spec, "worker_id") else principal.worker_id
+        )
 
         return WorkerExecutionResult(
             status="completed",

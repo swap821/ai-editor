@@ -163,19 +163,26 @@ class LocalWorkforceService:
     ) -> LocalJobResult:
         """Execute a governed local clerical job through an admitted model."""
         import time, json
+
         start_t = time.time()
-        
+
         registry = self.registry
-        if registry is None or hasattr(registry, "dependency") or not hasattr(registry, "list_models"):
+        if (
+            registry is None
+            or hasattr(registry, "dependency")
+            or not hasattr(registry, "list_models")
+        ):
             from aios.api.deps import get_local_workforce_registry
+
             registry = get_local_workforce_registry()
-        
+
         try:
             models = registry.list_models()
         except Exception:
             models = []
         admitted = [
-            m for m in models
+            m
+            for m in models
             if m.installed
             and m.operator_approved
             and m.admission_status == "approved"
@@ -194,11 +201,11 @@ class LocalWorkforceService:
                 status="rejected",
                 failure_reason="No admitted healthy local model for profile",
             )
-        
+
         selected = admitted[0]
         if model_id and any(m.model_id == model_id for m in admitted):
             selected = next(m for m in admitted if m.model_id == model_id)
-            
+
         try:
             client = self.model_client_factory(selected.model_id)
             system_msg = (
@@ -227,7 +234,9 @@ class LocalWorkforceService:
                     structured_output=parsed,
                     schema_valid=False,
                     evidence_references_preserved=False,
-                    unsupported_claims=(f"Extra fields not in schema: {sorted(extra_keys)}",),
+                    unsupported_claims=(
+                        f"Extra fields not in schema: {sorted(extra_keys)}",
+                    ),
                     latency=time.time() - start_t,
                     status="failed",
                     failure_reason=f"Extra fields rejected: {sorted(extra_keys)}",
@@ -242,7 +251,9 @@ class LocalWorkforceService:
                     structured_output=parsed,
                     schema_valid=False,
                     evidence_references_preserved=False,
-                    unsupported_claims=(f"Missing required fields: {sorted(missing_keys)}",),
+                    unsupported_claims=(
+                        f"Missing required fields: {sorted(missing_keys)}",
+                    ),
                     latency=time.time() - start_t,
                     status="failed",
                     failure_reason=f"Missing required fields: {sorted(missing_keys)}",
@@ -261,9 +272,15 @@ class LocalWorkforceService:
                 if declared_type == "float" and isinstance(val, bool):
                     type_errors.append(f"{field!r}: bool is not a valid float")
                 elif declared_type == "bool" and not isinstance(val, bool):
-                    type_errors.append(f"{field!r}: expected bool, got {type(val).__name__}")
-                elif declared_type not in ("bool",) and not isinstance(val, expected_py):
-                    type_errors.append(f"{field!r}: expected {declared_type}, got {type(val).__name__}")
+                    type_errors.append(
+                        f"{field!r}: expected bool, got {type(val).__name__}"
+                    )
+                elif declared_type not in ("bool",) and not isinstance(
+                    val, expected_py
+                ):
+                    type_errors.append(
+                        f"{field!r}: expected {declared_type}, got {type(val).__name__}"
+                    )
             if type_errors:
                 return LocalJobResult(
                     job_id=request.job_id,
@@ -279,9 +296,8 @@ class LocalWorkforceService:
 
             # 4. Validate evidence references are preserved
             evidence_refs = set(request.evidence_references)
-            evidence_refs_preserved = (
-                len(evidence_refs) == 0
-                or any(str(ref) in request.redacted_payload for ref in evidence_refs)
+            evidence_refs_preserved = len(evidence_refs) == 0 or any(
+                str(ref) in request.redacted_payload for ref in evidence_refs
             )
 
             latency = time.time() - start_t

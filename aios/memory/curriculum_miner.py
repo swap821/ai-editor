@@ -10,6 +10,7 @@ explicitly accept before they enter the curriculum. This keeps the
 authority boundary intact: the system can suggest what to practice next,
 but cannot unilaterally expand its own training.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -61,7 +62,8 @@ _SKILL_PATTERNS: dict[str, re.Pattern[str]] = {
         r"(stack|queue|linked.?list|tree|graph|hash.?map|heap|trie|cache)", re.I
     ),
     "python-algorithms": re.compile(
-        r"(sort|search|fibonacci|factorial|permut|combinat|dynamic.?prog|greedy|recursive)", re.I
+        r"(sort|search|fibonacci|factorial|permut|combinat|dynamic.?prog|greedy|recursive)",
+        re.I,
     ),
     "python-string-processing": re.compile(
         r"(string|text|parse|csv|json|format|regex|slug|roman|palindrome)", re.I
@@ -188,11 +190,19 @@ class CurriculumMiner:
                         record = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if record.get("kind") == "session-complete" and record.get("outcome") == "verified_success":
-                        prompt = record.get("prompt") or record.get("answer_preview", "")
+                    if (
+                        record.get("kind") == "session-complete"
+                        and record.get("outcome") == "verified_success"
+                    ):
+                        prompt = record.get("prompt") or record.get(
+                            "answer_preview", ""
+                        )
                         if prompt:
                             successful_prompts.append(prompt)
-                    elif record.get("kind") == "turn-done" and record.get("outcome") == "verified_success":
+                    elif (
+                        record.get("kind") == "turn-done"
+                        and record.get("outcome") == "verified_success"
+                    ):
                         prompt = record.get("prompt", "")
                         if prompt:
                             successful_prompts.append(prompt)
@@ -239,21 +249,25 @@ class CurriculumMiner:
             if any(relevance(prompt, ep) > 0.85 for ep in list(existing_prompts)[:50]):
                 continue
 
-            proposals.append(CurriculumProposal(
-                skill_name=skill_name,
-                level=target_level,
-                prompt=prompt,
-                rationale=f"Escalation from verified task in {module_name}",
-                source_pattern=source_prompt[:200],
-                difficulty_delta=f"level {target_level} (added error handling / edge cases / type hints)",
-            ))
+            proposals.append(
+                CurriculumProposal(
+                    skill_name=skill_name,
+                    level=target_level,
+                    prompt=prompt,
+                    rationale=f"Escalation from verified task in {module_name}",
+                    source_pattern=source_prompt[:200],
+                    difficulty_delta=f"level {target_level} (added error handling / edge cases / type hints)",
+                )
+            )
             existing_prompts.add(prompt)
             break
 
         return proposals
 
     def _extract_description(self, prompt: str) -> Optional[str]:
-        m = re.search(r"with (?:a |an )?(.+?)(?:\. Then|\. Include|\. Ensure|\. Add)", prompt)
+        m = re.search(
+            r"with (?:a |an )?(.+?)(?:\. Then|\. Include|\. Ensure|\. Add)", prompt
+        )
         if m:
             return m.group(1).strip()
         m = re.search(r"with (.+?)(?:\.|$)", prompt)
@@ -274,16 +288,16 @@ class CurriculumMiner:
             rows = conn.execute("SELECT prompt FROM curriculum_tasks").fetchall()
         return {str(row["prompt"]) for row in rows}
 
-    def list_proposals(
-        self, *, max_proposals: int = 10
-    ) -> list[CurriculumProposal]:
+    def list_proposals(self, *, max_proposals: int = 10) -> list[CurriculumProposal]:
         """Convenience: mine from both development events and all audit logs."""
         existing = self._get_existing_prompts()
         proposals: list[CurriculumProposal] = []
 
-        proposals.extend(self.mine_from_development(
-            existing_prompts=existing, max_proposals=max_proposals
-        ))
+        proposals.extend(
+            self.mine_from_development(
+                existing_prompts=existing, max_proposals=max_proposals
+            )
+        )
 
         audit_dir = Path(config.PROJECT_ROOT) / ".aios" / "audit"
         if audit_dir.is_dir():
@@ -291,10 +305,12 @@ class CurriculumMiner:
                 if len(proposals) >= max_proposals:
                     break
                 remaining = max_proposals - len(proposals)
-                proposals.extend(self.mine_from_audit_log(
-                    log_file,
-                    existing_prompts=existing,
-                    max_proposals=remaining,
-                ))
+                proposals.extend(
+                    self.mine_from_audit_log(
+                        log_file,
+                        existing_prompts=existing,
+                        max_proposals=remaining,
+                    )
+                )
 
         return proposals[:max_proposals]

@@ -4,6 +4,7 @@ The allowlist regexes live in ONE module so the curriculum driver, daily-use
 probe, and any future evidence runners share the same fail-closed sandbox
 policy for file writes and verifier commands.
 """
+
 from __future__ import annotations
 
 import re

@@ -1,4 +1,5 @@
 """Council Runtime v0.1 package."""
+
 from __future__ import annotations
 
 import os
@@ -19,6 +20,7 @@ def _safe_resolve(raw: str | Path) -> Path:
         raise ValueError(f"path traversal detected in: {raw}")
     resolved = os.path.realpath(str(raw))
     from aios import config
+
     base = os.path.realpath(str(config.COUNCIL_RUNTIME_DIR))
     if resolved != base and not resolved.startswith(base + os.sep):
         raise ValueError(

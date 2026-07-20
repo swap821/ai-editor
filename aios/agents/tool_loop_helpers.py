@@ -5,6 +5,7 @@ operations that shape the events yielded by :class:`~aios.agents.tool_agent.Tool
 Keeping them in a dedicated module lets the main agent focus on loop orchestration
 and security dispatch while guaranteeing the SSE event contract stays stable.
 """
+
 from __future__ import annotations
 
 import re
@@ -167,9 +168,7 @@ def grant_earned(
     audit -> write sequence unchanged. Only writes are earnable in v1.
     """
     if name == "create_file":
-        approved_creations[str(args.get("filepath", ""))] = str(
-            args.get("content", "")
-        )
+        approved_creations[str(args.get("filepath", ""))] = str(args.get("content", ""))
     elif name == "edit_file":
         approved_edits[str(args.get("filepath", ""))] = (
             str(args.get("old_string", "")),
@@ -196,7 +195,9 @@ def reflect(
     mistake_id = lesson.get("mistake_id")
     if isinstance(mistake_id, int):
         pending_lessons.append((mistake_id, command))
-    summary = f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+    summary = (
+        f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+    )
     if lesson.get("recurrence"):
         summary = f"(recurring) {summary}"
     yield {
@@ -217,7 +218,9 @@ def confirm(
     preview_limit: int = 400,
 ) -> Iterator[dict[str, Any]]:
     """Promote lessons only after their exact failed command succeeds."""
-    promoted = [mistake_id for mistake_id, failed in pending_lessons if failed == command]
+    promoted = [
+        mistake_id for mistake_id, failed in pending_lessons if failed == command
+    ]
     if confirm_lesson is None or not promoted:
         return
     if not meets_promotion_floor(strength):

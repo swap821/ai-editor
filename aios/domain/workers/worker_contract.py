@@ -4,6 +4,7 @@ Workers are derived from a mission.  They never inherit the operator's
 identity or credentials and these contracts deliberately contain no authority
 or approval fields.  Authority remains on the mission/action/capability path.
 """
+
 from __future__ import annotations
 
 import hashlib

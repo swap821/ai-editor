@@ -146,7 +146,9 @@ class PostPromotionVerificationReceipt(BaseModel):
     verifier_version: str
     environment_digest: str
     evidence_ids: tuple[str, ...]
-    observation_time: float = Field(default_factory=lambda: datetime.now(timezone.utc).timestamp())
+    observation_time: float = Field(
+        default_factory=lambda: datetime.now(timezone.utc).timestamp()
+    )
     passed: bool
 
 
@@ -164,4 +166,3 @@ __all__ = [
     "VerificationPlanV1",
     "VerificationResult",
 ]
-

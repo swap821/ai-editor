@@ -4,6 +4,7 @@ ledger, real Ed25519 signing-key rotation, and a gated sandbox-reset action.
 Extracted as its own router (not folded into system.py) because every route
 here is security-operator-facing rather than general system observability.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -55,6 +56,7 @@ def security_audit(limit: int = 50, zone: Optional[str] = None) -> dict[str, Any
 class RotateTokensRequest(BaseModel):
     confirm: bool = Field(False, description="Must be explicitly true to rotate tokens")
 
+
 @router.post("/api/v1/security/tokens/rotate")
 def security_rotate_tokens(
     req: RotateTokensRequest,
@@ -66,8 +68,10 @@ def security_rotate_tokens(
     with the fresh one. The rotation itself is recorded in the ledger.
     """
     if not req.confirm:
-        raise HTTPException(status_code=422, detail="confirm must be true to rotate tokens")
-        
+        raise HTTPException(
+            status_code=422, detail="confirm must be true to rotate tokens"
+        )
+
     try:
         new_key_id = rotate_audit_key()
         log_action(principal.principal_id, "rotated audit signing key", "YELLOW")
@@ -78,7 +82,8 @@ def security_rotate_tokens(
 
 class SandboxClearRequest(BaseModel):
     confirm: bool = Field(
-        False, description="Must be explicitly true; this deletes sandbox scope-root contents."
+        False,
+        description="Must be explicitly true; this deletes sandbox scope-root contents.",
     )
 
 
@@ -95,7 +100,9 @@ def security_sandbox_clear(
     ``RollbackEngine`` enforces for git snapshots.
     """
     if not req.confirm:
-        raise HTTPException(status_code=422, detail="confirm must be true to clear the sandbox")
+        raise HTTPException(
+            status_code=422, detail="confirm must be true to clear the sandbox"
+        )
 
     roots = config.SCOPE_ROOTS
     if not roots:
@@ -108,7 +115,9 @@ def security_sandbox_clear(
             # Should never happen given config, but this is the one action in
             # the codebase that recursively deletes files — the same
             # hard-refusal RollbackEngine applies to its own scope root.
-            raise HTTPException(status_code=409, detail="refusing to clear the project root")
+            raise HTTPException(
+                status_code=409, detail="refusing to clear the project root"
+            )
         if not root_resolved.exists():
             continue
         for child in root_resolved.iterdir():
@@ -119,8 +128,18 @@ def security_sandbox_clear(
                     child.unlink()
                 removed.append(str(child))
             except OSError as exc:
-                log_action(principal.principal_id, f"sandbox clear failed for {child}: {exc}", "RED")
-                raise HTTPException(status_code=500, detail=f"failed to remove {child}: {exc}") from exc
+                log_action(
+                    principal.principal_id,
+                    f"sandbox clear failed for {child}: {exc}",
+                    "RED",
+                )
+                raise HTTPException(
+                    status_code=500, detail=f"failed to remove {child}: {exc}"
+                ) from exc
 
-    log_action(principal.principal_id, f"cleared sandbox scope roots ({len(removed)} entries removed)", "YELLOW")
+    log_action(
+        principal.principal_id,
+        f"cleared sandbox scope roots ({len(removed)} entries removed)",
+        "YELLOW",
+    )
     return {"status": "cleared", "removedCount": len(removed), "removed": removed}

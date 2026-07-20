@@ -6,6 +6,7 @@ action and returns an opaque token. Production uses a local SQLite store so
 capabilities survive a backend restart and coordinate across workers. Only
 SHA-256 digests of the bearer token and caller-supplied session id are persisted.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -151,7 +152,9 @@ class ApprovalStore:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN route TEXT")  # noqa: S608
                 if "http_method" not in columns:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN http_method TEXT")  # noqa: S608
-                rows = conn.execute(f"SELECT DISTINCT session_id FROM {table}").fetchall()  # noqa: S608
+                rows = conn.execute(
+                    f"SELECT DISTINCT session_id FROM {table}"
+                ).fetchall()  # noqa: S608
                 for row in rows:
                     session_id = str(row["session_id"])
                     digest = self._session_digest(session_id)
@@ -162,7 +165,9 @@ class ApprovalStore:
                         )
 
     @staticmethod
-    def _row_action(row: sqlite3.Row, session_id: Optional[str] = None) -> ApprovedAction:
+    def _row_action(
+        row: sqlite3.Row, session_id: Optional[str] = None
+    ) -> ApprovedAction:
         keys = set(row.keys())
         route = str(row["route"]) if "route" in keys and row["route"] else None
         http_method = (
@@ -202,7 +207,9 @@ class ApprovalStore:
         )
         expires_at = self._clock() + self.timeout_s
         if self.db_path is not None:
-            serialized = json.dumps(action.payload, separators=(",", ":"), sort_keys=True)
+            serialized = json.dumps(
+                action.payload, separators=(",", ":"), sort_keys=True
+            )
             scan = scan_and_redact(
                 self._payload_for_secret_scan(action.action_type, action.payload)
             )
@@ -229,7 +236,9 @@ class ApprovalStore:
             return token
         with self._lock:
             self._prune_locked()
-            self._pending[token] = _PendingApproval(action=action, expires_at=expires_at)
+            self._pending[token] = _PendingApproval(
+                action=action, expires_at=expires_at
+            )
         return token
 
     def consume(self, token: str, session_id: str) -> ApprovedAction:
@@ -331,7 +340,9 @@ class ApprovalStore:
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (
                         action.action_type,
-                        json.dumps(action.payload, separators=(",", ":"), sort_keys=True),
+                        json.dumps(
+                            action.payload, separators=(",", ":"), sort_keys=True
+                        ),
                         self._session_digest(action.session_id),
                         expires_at,
                         action.route,
@@ -378,7 +389,9 @@ class ApprovalStore:
         if self.db_path is not None:
             with self._connect() as conn:
                 self._prune_db(conn)
-                row = conn.execute("SELECT COUNT(*) AS n FROM approval_grants").fetchone()
+                row = conn.execute(
+                    "SELECT COUNT(*) AS n FROM approval_grants"
+                ).fetchone()
             return int(row["n"])
         with self._lock:
             self._prune_locked()
@@ -386,7 +399,9 @@ class ApprovalStore:
 
     def _prune_locked(self) -> None:
         now = self._clock()
-        expired = [token for token, row in self._pending.items() if row.expires_at < now]
+        expired = [
+            token for token, row in self._pending.items() if row.expires_at < now
+        ]
         for token in expired:
             self._pending.pop(token, None)
         for session_id, rows in list(self._grants.items()):

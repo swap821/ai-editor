@@ -1,4 +1,5 @@
 """Domain models for the Curated Local Workforce (clerical model tier)."""
+
 from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Mapping, Sequence
@@ -8,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 class LocalJobProfile(str, Enum):
     """Specific clerical jobs the local workforce is allowed to perform."""
+
     CLASSIFY = "classify"
     EXTRACT = "extract"
     SUMMARISE = "summarise"
@@ -21,6 +23,7 @@ class LocalJobProfile(str, Enum):
 
 class LocalWorkerModel(BaseModel):
     """A registered local model capable of clerical work."""
+
     model_config = ConfigDict(frozen=True)
 
     model_id: str
@@ -44,6 +47,7 @@ class LocalWorkerModel(BaseModel):
 
 class LocalJobRequest(BaseModel):
     """A request for a specific clerical task."""
+
     model_config = ConfigDict(frozen=True)
 
     job_id: str
@@ -62,6 +66,7 @@ class LocalJobResult(BaseModel):
     Hard restriction: The local clerk returns structured advisory data only.
     No shell, no filesystem tools, no Git, no network, no state mutation.
     """
+
     model_config = ConfigDict(frozen=True)
 
     job_id: str
@@ -132,4 +137,3 @@ class LocalJobResultRecord(BaseModel):
     unsupported_claims: tuple[str, ...] = ()
     status: str
     failure_reason: str | None = None
-

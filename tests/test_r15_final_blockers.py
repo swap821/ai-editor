@@ -25,7 +25,10 @@ from aios.application.learning.service import (
     SkillCandidateSpec,
 )
 from aios.application.promotion.authority import PromotionAuthority
-from aios.domain.capabilities.contracts import CapabilityBinding, ConsumedCapabilityProof
+from aios.domain.capabilities.contracts import (
+    CapabilityBinding,
+    ConsumedCapabilityProof,
+)
 from aios.domain.executor.receipt import ExecutorRepairReceipt
 from aios.domain.learning.contracts import (
     ReuseOutcomeReference,
@@ -89,6 +92,7 @@ def _make_proof(
 # Phase 1 RED Test: activate_skill with SkillActivationAuthorization
 # ---------------------------------------------------------------------------
 
+
 def test_red_1_activate_skill_loads_skill_id_none(tmp_path):
     """Proves that passing SkillActivationAuthorization without skill_id kwarg previously failed because skill_id=None."""
     db_path = tmp_path / "test_state.db"
@@ -131,6 +135,7 @@ def test_red_1_activate_skill_loads_skill_id_none(tmp_path):
 
     mission_repo = SqliteMissionRepository(db_path)
     from aios.application.missions.mission_service import MissionService
+
     mission_service = MissionService(mission_repo)
     learning_service = LearningService(
         mission_service=mission_service,
@@ -155,6 +160,7 @@ def test_red_1_legacy_loose_activation_is_removed(tmp_path):
     skill_repo = SkillRepository(db_path)
     mission_repo = SqliteMissionRepository(db_path)
     from aios.application.missions.mission_service import MissionService
+
     mission_service = MissionService(mission_repo)
     learning_service = LearningService(
         mission_service=mission_service,
@@ -175,6 +181,7 @@ def test_red_1_legacy_loose_activation_is_removed(tmp_path):
 # ---------------------------------------------------------------------------
 # Phase 2 RED Test: CapabilityAuthority returns immutable ConsumedCapabilityProof
 # ---------------------------------------------------------------------------
+
 
 def test_red_2_capability_authority_returns_consumed_capability_proof(tmp_path):
     """Proves CapabilityAuthority.consume() returns an authority-produced ConsumedCapabilityProof."""
@@ -216,11 +223,14 @@ def test_red_2_capability_authority_returns_consumed_capability_proof(tmp_path):
 # Phase 3 RED Test: PromotionAuthorization & No Token Guessing
 # ---------------------------------------------------------------------------
 
+
 def test_red_3_promotion_authorization_exact_binding():
     """Proves PromotionAuthorization binds exact consumed capability proof and mission identifiers."""
     from aios.domain.promotion.contracts import PromotionAuthorization
 
-    proof = _make_proof(action_type="MAINTENANCE_REPAIR_RUN", route="/api/v1/maintenance/repairs/run")
+    proof = _make_proof(
+        action_type="MAINTENANCE_REPAIR_RUN", route="/api/v1/maintenance/repairs/run"
+    )
     promo_auth = PromotionAuthorization(
         proof=proof,
         promotion_attempt_id="promo-att-1",
@@ -243,9 +253,13 @@ def test_red_3_promotion_authorization_exact_binding():
 # Phase 4 RED Test: CheckpointAuthority External Storage
 # ---------------------------------------------------------------------------
 
+
 def test_red_4_checkpoint_authority_external_storage(tmp_path):
     """Proves CheckpointAuthority rejects rollback directories equal to or inside project root."""
-    from aios.application.promotion.checkpoint import CheckpointAuthority, CheckpointError
+    from aios.application.promotion.checkpoint import (
+        CheckpointAuthority,
+        CheckpointError,
+    )
 
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -259,6 +273,7 @@ def test_red_4_checkpoint_authority_external_storage(tmp_path):
 # ---------------------------------------------------------------------------
 # Phase 5 RED Test: Two-Phase Rollback Restoration
 # ---------------------------------------------------------------------------
+
 
 def test_red_5_two_phase_rollback_restoration(tmp_path):
     """Proves CheckpointAuthority creates signed manifest and restores exact pre-promotion bytes."""
@@ -307,6 +322,7 @@ def test_red_5_two_phase_rollback_restoration(tmp_path):
 # Phase 6 RED Test: Post-Promotion Verification Receipt
 # ---------------------------------------------------------------------------
 
+
 def test_red_6_post_promotion_verification_receipt():
     """Proves post promotion verification requires typed PostPromotionVerificationReceipt."""
     from aios.domain.evidence import PostPromotionVerificationReceipt
@@ -333,6 +349,7 @@ def test_red_6_post_promotion_verification_receipt():
 # ---------------------------------------------------------------------------
 # Phase 7 RED Test: ExecutorRepairReceipt Schema Alignment
 # ---------------------------------------------------------------------------
+
 
 def test_red_7_executor_repair_receipt_forbids_extra_fields():
     """Proves ExecutorRepairReceipt forbids extra fields and enforces strict validation."""
@@ -367,6 +384,7 @@ def test_red_7_executor_repair_receipt_forbids_extra_fields():
 # Phase 8 RED Test: SkillApplicabilityAdvisoryV1 Forbids Extra Fields
 # ---------------------------------------------------------------------------
 
+
 def test_red_8_granite_advisory_contract_strict():
     """Proves SkillApplicabilityAdvisoryV1 strictly forbids extra fields."""
     raw = {
@@ -394,6 +412,7 @@ def test_red_8_granite_advisory_contract_strict():
 # ---------------------------------------------------------------------------
 # Phase 9 RED Test: Local Workforce Job & Model Call Records
 # ---------------------------------------------------------------------------
+
 
 def test_red_9_local_job_provenance_records():
     """Proves local workforce job requests, model calls, and result records are structured."""
@@ -443,6 +462,7 @@ def test_red_9_local_job_provenance_records():
 # Phase 10 RED Test: Reuse Lineage Mandatory Reference
 # ---------------------------------------------------------------------------
 
+
 def test_red_10_reuse_outcome_reference_mandatory():
     """Proves ReuseOutcomeReference requires all lineage fields."""
     ref = ReuseOutcomeReference(
@@ -469,6 +489,7 @@ def test_red_10_reuse_outcome_reference_mandatory():
 # ---------------------------------------------------------------------------
 # Phase 11 RED Test: Secure Signing Keys
 # ---------------------------------------------------------------------------
+
 
 def test_red_11_production_signing_key_security():
     """Proves insecure signing key defaults fail closed in production startup."""

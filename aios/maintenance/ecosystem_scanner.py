@@ -5,6 +5,7 @@ manifests, API response strings, optional git logs, and local model metadata,
 then emits proposal findings. It does not fetch vulnerability feeds, open
 network sockets, write files, mutate policy, or authorize action.
 """
+
 from __future__ import annotations
 
 import json
@@ -192,7 +193,9 @@ class EcosystemScanner:
         if not logs_root.exists():
             return EcosystemReport(findings=())
         for path in sorted(p for p in logs_root.rglob("*") if p.is_file()):
-            findings.extend(self._scan_file(path, root_path=root_path, context="git_history"))
+            findings.extend(
+                self._scan_file(path, root_path=root_path, context="git_history")
+            )
         return EcosystemReport(findings=tuple(findings))
 
     def scan_targets(self, targets: Mapping[str, str]) -> EcosystemReport:
@@ -236,7 +239,9 @@ class EcosystemScanner:
                     recommendation=_READ_ERROR_RECOMMENDATION,
                 ),
             )
-        scan_context = context or ("model_metadata" if _is_model_metadata(path) else "manifest")
+        scan_context = context or (
+            "model_metadata" if _is_model_metadata(path) else "manifest"
+        )
         return tuple(self._scan_text(target_id, payload, context=scan_context))
 
     def _scan_text(
@@ -350,11 +355,15 @@ def _scan_json_model_metadata(target_id: str, payload: str) -> list[EcosystemFin
 
 def _is_manifest(path: Path) -> bool:
     name = path.name
-    return name in _MANIFEST_NAMES or any(name.endswith(suffix) for suffix in _MANIFEST_SUFFIXES)
+    return name in _MANIFEST_NAMES or any(
+        name.endswith(suffix) for suffix in _MANIFEST_SUFFIXES
+    )
 
 
 def _is_model_metadata(path: Path) -> bool:
-    return path.name in _MODEL_METADATA_NAMES or path.as_posix().endswith("/.ollama/models.json")
+    return path.name in _MODEL_METADATA_NAMES or path.as_posix().endswith(
+        "/.ollama/models.json"
+    )
 
 
 def _is_skipped(path: Path, root: Path) -> bool:

@@ -5,6 +5,7 @@ labelled by the operator. The store is diagnostic only: observations do not
 authorize actions, establish facts, or automatically modify alignment policy.
 Caller-supplied session identifiers are persisted only as SHA-256 digests.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -77,7 +78,11 @@ def _clean_fields(values: Iterable[object]) -> list[str]:
     cleaned: list[str] = []
     for value in values:
         normalized = str(value or "").strip().lower()
-        if normalized and normalized.replace("_", "").isalnum() and normalized not in cleaned:
+        if (
+            normalized
+            and normalized.replace("_", "").isalnum()
+            and normalized not in cleaned
+        ):
             cleaned.append(normalized[:80])
         if len(cleaned) >= _MAX_FIELDS:
             break
@@ -120,7 +125,11 @@ class AlignmentEvaluationStore:
                     _session_key(session_id),
                     _allowed(frame.get("intent"), _ALLOWED_INTENTS, "unknown"),
                     _allowed(communication.get("mode"), _ALLOWED_MODES, "direct"),
-                    _allowed(communication.get("ambiguity_action"), _ALLOWED_ACTIONS, "proceed"),
+                    _allowed(
+                        communication.get("ambiguity_action"),
+                        _ALLOWED_ACTIONS,
+                        "proceed",
+                    ),
                     _confidence(frame.get("confidence")),
                     _count(frame.get("assumptions")),
                     _count(frame.get("unknowns")),
@@ -174,7 +183,9 @@ class AlignmentEvaluationStore:
                 existing = json.loads(str(row["corrected_fields_json"]))
             except json.JSONDecodeError:
                 existing = []
-            merged = _clean_fields([*(existing if isinstance(existing, list) else []), *cleaned])
+            merged = _clean_fields(
+                [*(existing if isinstance(existing, list) else []), *cleaned]
+            )
             conn.execute(
                 "UPDATE alignment_observations SET corrected = 1, corrected_fields_json = ? "
                 "WHERE id = ?",
@@ -196,7 +207,9 @@ class AlignmentEvaluationStore:
         if not normalized_outcome:
             raise ValueError("unsupported alignment outcome")
         cleaned_issues = _clean_choices(issues, ALLOWED_ISSUES)
-        cleaned_notes = scan_and_redact(" ".join(str(notes or "").split())).scrubbed[:_MAX_NOTES]
+        cleaned_notes = scan_and_redact(" ".join(str(notes or "").split())).scrubbed[
+            :_MAX_NOTES
+        ]
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             if observation_id is None:
@@ -255,7 +268,9 @@ class AlignmentEvaluationStore:
                 row_issues = json.loads(str(row["issues_json"]))
             except json.JSONDecodeError:
                 row_issues = []
-            corrected_fields.update(item for item in row_fields if isinstance(item, str))
+            corrected_fields.update(
+                item for item in row_fields if isinstance(item, str)
+            )
             issues.update(item for item in row_issues if isinstance(item, str))
             if len(recent) < max(1, min(100, int(recent_limit))):
                 recent.append(
@@ -269,8 +284,12 @@ class AlignmentEvaluationStore:
                         "assumptions_count": int(row["assumptions_count"]),
                         "unknowns_count": int(row["unknowns_count"]),
                         "corrected": bool(row["corrected"]),
-                        "corrected_fields": row_fields if isinstance(row_fields, list) else [],
-                        "human_outcome": str(row["human_outcome"]) if row["human_outcome"] else None,
+                        "corrected_fields": row_fields
+                        if isinstance(row_fields, list)
+                        else [],
+                        "human_outcome": str(row["human_outcome"])
+                        if row["human_outcome"]
+                        else None,
                         "issues": row_issues if isinstance(row_issues, list) else [],
                     }
                 )
@@ -284,7 +303,9 @@ class AlignmentEvaluationStore:
             for name, count in corrected_fields.most_common()
             if count >= 3
         ]
-        repeated.sort(key=lambda item: (-int(item["count"]), str(item["kind"]), str(item["name"])))
+        repeated.sort(
+            key=lambda item: (-int(item["count"]), str(item["kind"]), str(item["name"]))
+        )
         return {
             "total_turns": total,
             "corrected_turns": corrected,

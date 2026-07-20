@@ -1,4 +1,5 @@
 """Budget controls for Council Runtime intelligence routing."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -78,28 +79,44 @@ class BudgetGuard:
     ) -> BudgetDecision:
         policy = self.policy_for(contract)
         if self.mode == "hibernation":
-            return BudgetDecision(False, "resource mode hibernation blocks cloud", policy.fallback)
+            return BudgetDecision(
+                False, "resource mode hibernation blocks cloud", policy.fallback
+            )
         if self.mode == "conservation":
-            return BudgetDecision(False, "resource mode conservation blocks cloud", policy.fallback)
+            return BudgetDecision(
+                False, "resource mode conservation blocks cloud", policy.fallback
+            )
         if policy.mode == "local" or not policy.allow_cloud:
-            return BudgetDecision(False, "cloud disabled by model_policy", policy.fallback)
+            return BudgetDecision(
+                False, "cloud disabled by model_policy", policy.fallback
+            )
         if estimated_tokens > policy.max_tokens_per_request:
-            return BudgetDecision(False, "request token budget exceeded", policy.fallback)
+            return BudgetDecision(
+                False, "request token budget exceeded", policy.fallback
+            )
         usage = self.usage_by_mission.setdefault(contract.mission_id, BudgetUsage())
         if usage.cloud_calls >= policy.max_cloud_calls:
-            return BudgetDecision(False, "mission cloud call budget exceeded", policy.fallback)
+            return BudgetDecision(
+                False, "mission cloud call budget exceeded", policy.fallback
+            )
         if usage.tokens_total + estimated_tokens > policy.max_tokens_total:
-            return BudgetDecision(False, "mission token budget exceeded", policy.fallback)
+            return BudgetDecision(
+                False, "mission token budget exceeded", policy.fallback
+            )
         if (
             policy.mission_cloud_budget is not None
             and usage.cost_total + estimated_cost > policy.mission_cloud_budget
         ):
-            return BudgetDecision(False, "mission cloud cost budget exceeded", policy.fallback)
+            return BudgetDecision(
+                False, "mission cloud cost budget exceeded", policy.fallback
+            )
         if (
             policy.daily_cloud_budget is not None
             and self.daily_cost_total + estimated_cost > policy.daily_cloud_budget
         ):
-            return BudgetDecision(False, "daily cloud cost budget exceeded", policy.fallback)
+            return BudgetDecision(
+                False, "daily cloud cost budget exceeded", policy.fallback
+            )
         return BudgetDecision(True, fallback=policy.fallback)
 
     def record_cloud_usage(
@@ -121,8 +138,10 @@ class BudgetGuard:
     def snapshot(self) -> ResourceSnapshot:
         cloud_calls = sum(usage.cloud_calls for usage in self.usage_by_mission.values())
         cloud_allowed = self.mode == "normal"
-        reason = "cloud eligible subject to per-mission policy" if cloud_allowed else (
-            f"resource mode {self.mode} blocks cloud"
+        reason = (
+            "cloud eligible subject to per-mission policy"
+            if cloud_allowed
+            else (f"resource mode {self.mode} blocks cloud")
         )
         return ResourceSnapshot(
             mode=self.mode,

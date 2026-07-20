@@ -4,6 +4,7 @@ This module never executes a task. It only records curriculum definitions and
 matches authoritative verifier outcomes from the normal supervised agent loop.
 Progression requires repeated training success plus a held-out pass.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -74,7 +75,9 @@ class CurriculumManager:
                 "SELECT status FROM curriculum_tasks WHERE skill_name = ? AND level < ?",
                 (skill_name, level),
             ).fetchall()
-            prior_ready = bool(prior) and all(row["status"] == "mastered" for row in prior)
+            prior_ready = bool(prior) and all(
+                row["status"] == "mastered" for row in prior
+            )
             status = "available" if level == 1 or prior_ready else "locked"
             cur = conn.execute(
                 "INSERT INTO curriculum_tasks "
@@ -106,15 +109,21 @@ class CurriculumManager:
         later advisory verify embedding a stronger token in *evidence*. When omitted
         (direct callers/tests) the strength is derived from *evidence*.
         """
-        if not evidence.startswith("[VERIFY PASS]") and not evidence.startswith("[VERIFY FAIL]"):
-            raise ValueError("curriculum progress requires authoritative verifier evidence")
+        if not evidence.startswith("[VERIFY PASS]") and not evidence.startswith(
+            "[VERIFY FAIL]"
+        ):
+            raise ValueError(
+                "curriculum progress requires authoritative verifier evidence"
+            )
         expected_pass = evidence.startswith("[VERIFY PASS]")
         if bool(passed) != expected_pass:
             raise ValueError("curriculum result conflicts with verifier evidence")
         # A pass advances mastery only if it was STRONGLY verified (roadmap Phase 1):
         # a weak green is still recorded as an attempt but contributes no success, so
         # it can never unlock the next level.
-        eff_strength = strength if strength is not None else strength_from_text(evidence)
+        eff_strength = (
+            strength if strength is not None else strength_from_text(evidence)
+        )
         counts_as_success = passed and meets_promotion_floor(eff_strength)
         init_memory_db(self.db_path)
         updated: list[int] = []
@@ -126,7 +135,9 @@ class CurriculumManager:
                 (prompt.strip(),),
             ).fetchall()
             if len(rows) > 1:
-                raise ValueError("curriculum prompt is ambiguous across available tasks")
+                raise ValueError(
+                    "curriculum prompt is ambiguous across available tasks"
+                )
             if not rows and self.fuzzy_matching:
                 rows = self._fuzzy_rows(conn, prompt.strip())
             for row in rows:
@@ -139,7 +150,10 @@ class CurriculumManager:
                 updated.append(task_id)
                 skill_name = str(row["skill_name"])
                 level = int(row["level"])
-                if self._refresh_level(conn, skill_name, level) and on_mastered is not None:
+                if (
+                    self._refresh_level(conn, skill_name, level)
+                    and on_mastered is not None
+                ):
                     # Fires only on the transition to mastered (a mastered
                     # level's tasks leave 'available', so it cannot re-fire).
                     on_mastered(skill_name, level)
@@ -178,8 +192,12 @@ class CurriculumManager:
         training = [row for row in rows if not row["held_out"]]
         held_out = [row for row in rows if row["held_out"]]
         training_passes = sum(int(row["successes"]) for row in training)
-        training_covered = bool(training) and all(int(row["successes"]) > 0 for row in training)
-        held_out_passed = bool(held_out) and all(int(row["successes"]) > 0 for row in held_out)
+        training_covered = bool(training) and all(
+            int(row["successes"]) > 0 for row in training
+        )
+        held_out_passed = bool(held_out) and all(
+            int(row["successes"]) > 0 for row in held_out
+        )
         if (
             training_passes < self.training_passes_required
             or not training_covered

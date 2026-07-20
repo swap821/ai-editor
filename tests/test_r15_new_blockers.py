@@ -163,7 +163,10 @@ class TestBlocker1ActivationSignature:
             activation_authorizer=mock_authorizer,
         )
 
-        from aios.domain.capabilities.contracts import CapabilityBinding, ConsumedCapabilityProof
+        from aios.domain.capabilities.contracts import (
+            CapabilityBinding,
+            ConsumedCapabilityProof,
+        )
         from aios.application.learning.service import SkillActivationAuthorization
 
         binding = CapabilityBinding(
@@ -210,9 +213,7 @@ class TestBlocker1ActivationSignature:
         try:
             service.activate_skill(auth)
         except TypeError as exc:
-            pytest.fail(
-                f"BLOCKER 1: activate_skill() rejected authorization: {exc}"
-            )
+            pytest.fail(f"BLOCKER 1: activate_skill() rejected authorization: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +239,9 @@ class TestBlocker2ActivationFailOpen:
 
         # Rebuild the authorizer closure with the failing authority
         # by patching get_capability_authority in deps
-        with patch("aios.api.deps.get_capability_authority", return_value=failing_cap_auth):
+        with patch(
+            "aios.api.deps.get_capability_authority", return_value=failing_cap_auth
+        ):
             service = get_learning_service(
                 verification_authority=MagicMock(),
                 promotion_authority=MagicMock(),
@@ -335,7 +338,9 @@ class TestBlocker3PromotionCapabilityFailOpen:
 
         cap_auth = MagicMock()
         cap_auth.inspect.side_effect = RuntimeError("authority down")
-        cap_auth.consume_if_valid = MagicMock(side_effect=RuntimeError("authority down"))
+        cap_auth.consume_if_valid = MagicMock(
+            side_effect=RuntimeError("authority down")
+        )
 
         consumer = get_promotion_capability_consumer(capability_authority=cap_auth)
 
@@ -362,9 +367,10 @@ class TestBlocker3PromotionCapabilityFailOpen:
         assert "authoritative_capability_digest, cap_digest" not in source, (
             "BLOCKER 3: Consumer contains self-comparison fallback"
         )
-        assert "cap_digest == getattr(request, \"authoritative_capability_digest\"" not in source, (
-            "BLOCKER 3: Consumer contains self-comparison after inspect()==None"
-        )
+        assert (
+            'cap_digest == getattr(request, "authoritative_capability_digest"'
+            not in source
+        ), "BLOCKER 3: Consumer contains self-comparison after inspect()==None"
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +408,7 @@ class TestBlocker4CheckpointCreation:
         creator = get_checkpoint_creator(promotion_authority=promotion_auth)
 
         from aios.application.promotion.checkpoint import _resolve_external_dir
+
         chk_id = creator(request)
         chk_dir = _resolve_external_dir(project_root) / chk_id
 
@@ -410,7 +417,9 @@ class TestBlocker4CheckpointCreation:
         file_names = [f.name for f in files_in_chk if f.is_file()]
 
         # BLOCKER 4: currently only manifest.json exists
-        assert "manifest.json" in file_names, "Checkpoint must at least have manifest.json"
+        assert "manifest.json" in file_names, (
+            "Checkpoint must at least have manifest.json"
+        )
         assert any(name != "manifest.json" for name in file_names), (
             "BLOCKER 4: Checkpoint contains ONLY manifest.json — no file snapshot. "
             "Restoration is impossible."
@@ -534,10 +543,7 @@ class TestBlocker7ExecutorProvenance:
         # After repair: the service must parse executor_result.stdout as JSON
         # and validate operation_id matches the requested op.
         # Check that the source actually validates operation_id from structured output.
-        assert (
-            "operation_id" in source
-            and "stdout" in source
-        ), (
+        assert "operation_id" in source and "stdout" in source, (
             "BLOCKER 7: Maintenance service does not validate structured Executor "
             "provenance fields (operation_id, target, changed, before_digest, etc.) "
             "from executor_result.stdout"
@@ -556,6 +562,7 @@ class TestBlocker7ExecutorProvenance:
 def _get_maintenance_source() -> str:
     import inspect
     from aios.application.maintenance import service as maint_svc
+
     return inspect.getsource(maint_svc)
 
 
@@ -743,16 +750,18 @@ class TestBlocker9LocalJobSchema:
 
     def test_extra_json_field_is_refused(self):
         """Output with extra fields (e.g., 'hacked_field') must be rejected."""
-        raw = json.dumps({
-            "applicable": True,
-            "confidence": 0.9,
-            "reason": "ok",
-            "bounded_procedure_id": "proc-1",
-            "required_inputs_present": True,
-            "abstain": False,
-            "escalation_reason": None,
-            "hacked_extra_field": "pwned",  # EXTRA — should be rejected
-        })
+        raw = json.dumps(
+            {
+                "applicable": True,
+                "confidence": 0.9,
+                "reason": "ok",
+                "bounded_procedure_id": "proc-1",
+                "required_inputs_present": True,
+                "abstain": False,
+                "escalation_reason": None,
+                "hacked_extra_field": "pwned",  # EXTRA — should be rejected
+            }
+        )
         svc = self._make_admitted_workforce(raw)
         req = self._make_request()
         result = svc.run_advisory_job(req)
@@ -764,15 +773,17 @@ class TestBlocker9LocalJobSchema:
 
     def test_missing_required_field_is_refused(self):
         """Output missing a required field (e.g., 'confidence') must be rejected."""
-        raw = json.dumps({
-            "applicable": True,
-            # confidence missing
-            "reason": "ok",
-            "bounded_procedure_id": "proc-1",
-            "required_inputs_present": True,
-            "abstain": False,
-            "escalation_reason": None,
-        })
+        raw = json.dumps(
+            {
+                "applicable": True,
+                # confidence missing
+                "reason": "ok",
+                "bounded_procedure_id": "proc-1",
+                "required_inputs_present": True,
+                "abstain": False,
+                "escalation_reason": None,
+            }
+        )
         svc = self._make_admitted_workforce(raw)
         req = self._make_request()
         result = svc.run_advisory_job(req)
@@ -782,15 +793,17 @@ class TestBlocker9LocalJobSchema:
 
     def test_wrong_type_is_refused(self):
         """confidence as string instead of float must be rejected."""
-        raw = json.dumps({
-            "applicable": True,
-            "confidence": "not-a-float",  # wrong type
-            "reason": "ok",
-            "bounded_procedure_id": "proc-1",
-            "required_inputs_present": True,
-            "abstain": False,
-            "escalation_reason": None,
-        })
+        raw = json.dumps(
+            {
+                "applicable": True,
+                "confidence": "not-a-float",  # wrong type
+                "reason": "ok",
+                "bounded_procedure_id": "proc-1",
+                "required_inputs_present": True,
+                "abstain": False,
+                "escalation_reason": None,
+            }
+        )
         svc = self._make_admitted_workforce(raw)
         req = self._make_request()
         result = svc.run_advisory_job(req)
@@ -872,7 +885,10 @@ class TestBlocker10ReuseLineageMandatory:
         # BLOCKER 10: missing source_trajectory_id should mean FAILURE
         # but currently it is optional and skipped
         initial_confidence = skill.confidence
-        assert result.confidence <= initial_confidence or result.failure_count > skill.failure_count, (
+        assert (
+            result.confidence <= initial_confidence
+            or result.failure_count > skill.failure_count
+        ), (
             "BLOCKER 10: Missing source_trajectory_id should record failure, "
             "not increase confidence"
         )
@@ -920,26 +936,39 @@ class TestBlocker11PromotionStatusCasing:
         contract_digest = "cd-1"
         workspace_digest = "ws-d"
         diff_digest = "diff-d"
-        status_value = "promoted"  # lowercase — what PromotionStatus.PROMOTED.value returns
+        status_value = (
+            "promoted"  # lowercase — what PromotionStatus.PROMOTED.value returns
+        )
 
-        payload = json.dumps({
-            "mission_id": mission_id,
-            "action_id": action_id,
-            "status": status_value,
-            "reason_codes": ["promotion_complete"],
-            "checkpoint_id": "chk-1",
-            "diff_digest": diff_digest,
-            "restored": False,
-            "evidence_ids": [],
-        }, sort_keys=True)
+        payload = json.dumps(
+            {
+                "mission_id": mission_id,
+                "action_id": action_id,
+                "status": status_value,
+                "reason_codes": ["promotion_complete"],
+                "checkpoint_id": "chk-1",
+                "diff_digest": diff_digest,
+                "restored": False,
+                "evidence_ids": [],
+            },
+            sort_keys=True,
+        )
         payload_digest = hashlib.sha256(payload.encode()).hexdigest()
         created_at = datetime.now(timezone.utc).isoformat()
 
         # Compute the actual HMAC proof
         integrity_proof = authority._compute_integrity_proof(
-            promotion_id, mission_id, action_id, worker_id, executor_job_id,
-            contract_digest, workspace_digest, diff_digest, status_value,
-            payload_digest, created_at,
+            promotion_id,
+            mission_id,
+            action_id,
+            worker_id,
+            executor_job_id,
+            contract_digest,
+            workspace_digest,
+            diff_digest,
+            status_value,
+            payload_digest,
+            created_at,
         )
 
         conn.execute(
@@ -948,9 +977,20 @@ class TestBlocker11PromotionStatusCasing:
                 contract_digest, workspace_digest, diff_digest, status, payload_json,
                 integrity_proof, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (promotion_id, mission_id, action_id, worker_id, executor_job_id,
-             contract_digest, workspace_digest, diff_digest, status_value,
-             payload, integrity_proof, created_at),
+            (
+                promotion_id,
+                mission_id,
+                action_id,
+                worker_id,
+                executor_job_id,
+                contract_digest,
+                workspace_digest,
+                diff_digest,
+                status_value,
+                payload,
+                integrity_proof,
+                created_at,
+            ),
         )
         conn.commit()
         conn.close()
@@ -988,27 +1028,41 @@ class TestBlocker12PromotionTerminalSemantics:
 
         db_path = tmp_path / "promo_terminal.db"
         ws_manager = MagicMock(spec=StagedWorkspaceManager)
-        authority = PromotionAuthority(workspace_manager=ws_manager, database_path=db_path)
+        authority = PromotionAuthority(
+            workspace_manager=ws_manager, database_path=db_path
+        )
 
         mission_id = "m-terminal-test"
 
         def _insert_promo(status: str, created_at_dt: datetime) -> str:
             promotion_id = f"promotion-{uuid.uuid4().hex}"
-            payload = json.dumps({
-                "mission_id": mission_id,
-                "action_id": "action-1",
-                "status": status,
-                "reason_codes": [status],
-                "checkpoint_id": None,
-                "diff_digest": "diff-d",
-                "restored": status != "promoted",
-                "evidence_ids": [],
-            }, sort_keys=True)
+            payload = json.dumps(
+                {
+                    "mission_id": mission_id,
+                    "action_id": "action-1",
+                    "status": status,
+                    "reason_codes": [status],
+                    "checkpoint_id": None,
+                    "diff_digest": "diff-d",
+                    "restored": status != "promoted",
+                    "evidence_ids": [],
+                },
+                sort_keys=True,
+            )
             payload_digest = hashlib.sha256(payload.encode()).hexdigest()
             created_at = created_at_dt.isoformat()
             proof = authority._compute_integrity_proof(
-                promotion_id, mission_id, "action-1", "w-1", "ej-1",
-                "cd-1", "ws-d", "diff-d", status, payload_digest, created_at,
+                promotion_id,
+                mission_id,
+                "action-1",
+                "w-1",
+                "ej-1",
+                "cd-1",
+                "ws-d",
+                "diff-d",
+                status,
+                payload_digest,
+                created_at,
             )
             conn = sqlite3.connect(db_path)
             conn.execute(
@@ -1017,8 +1071,20 @@ class TestBlocker12PromotionTerminalSemantics:
                     contract_digest, workspace_digest, diff_digest, status, payload_json,
                     integrity_proof, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (promotion_id, mission_id, "action-1", "w-1", "ej-1",
-                 "cd-1", "ws-d", "diff-d", status, payload, proof, created_at),
+                (
+                    promotion_id,
+                    mission_id,
+                    "action-1",
+                    "w-1",
+                    "ej-1",
+                    "cd-1",
+                    "ws-d",
+                    "diff-d",
+                    status,
+                    payload,
+                    proof,
+                    created_at,
+                ),
             )
             conn.commit()
             conn.close()
@@ -1026,7 +1092,7 @@ class TestBlocker12PromotionTerminalSemantics:
 
         now = datetime.now(timezone.utc)
         _insert_promo("promoted", now - timedelta(minutes=5))  # older
-        _insert_promo("failed", now)                           # newer
+        _insert_promo("failed", now)  # newer
 
         record = authority.get_authoritative_terminal_record(mission_id)
 
@@ -1066,7 +1132,10 @@ class TestBlocker13ProductionSigningKeys:
 
         # Currently the key defaults silently to a known insecure string
         # After repair: production must refuse startup with insecure defaults
-        assert "AIOS_VERIFICATION_AUTHORITY_KEY" in source or "VERIFICATION_AUTHORITY_KEY" in source, (
+        assert (
+            "AIOS_VERIFICATION_AUTHORITY_KEY" in source
+            or "VERIFICATION_AUTHORITY_KEY" in source
+        ), (
             "BLOCKER 13: VerificationAuthority does not reference a configurable signing key"
         )
 
@@ -1097,7 +1166,11 @@ class TestBlocker13ProductionSigningKeys:
         source = inspect.getsource(PromotionAuthority._compute_integrity_proof)
         # The problem: the default is a hardcoded public string
         # After fix: there must be a validation step, not just getattr(config, "key", "hardcoded")
-        assert "aios-authority-promotion-key-v1" not in source or "refuse" in source or "INSECURE" in source, (
+        assert (
+            "aios-authority-promotion-key-v1" not in source
+            or "refuse" in source
+            or "INSECURE" in source
+        ), (
             "BLOCKER 13: PromotionAuthority hardcodes a public default key value "
             "with no startup refusal mechanism"
         )

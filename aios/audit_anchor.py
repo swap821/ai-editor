@@ -1,4 +1,5 @@
 """External audit anchoring — API wrapper over the audit chain's get_anchor/verify_chain."""
+
 from __future__ import annotations
 
 import json
@@ -11,12 +12,14 @@ from aios.security.audit_logger import get_anchor, verify_chain
 
 try:
     from aios import config
+
     _DEFAULT_DB = getattr(config, "AUDIT_DB_PATH", None)
 except ImportError:
     _DEFAULT_DB = None
 
 try:
     from aios import config as _config_mod
+
     _DEFAULT_DATA_DIR = getattr(_config_mod, "DATA_DIR", None)
 except ImportError:
     _DEFAULT_DATA_DIR = None
@@ -40,9 +43,7 @@ def _count_entries(db_path: Path) -> int:
         return 0
     conn = sqlite3.connect(str(db_path))
     try:
-        row = conn.execute(
-            "SELECT COUNT(*) FROM tamper_audit_trail"
-        ).fetchone()
+        row = conn.execute("SELECT COUNT(*) FROM tamper_audit_trail").fetchone()
         return int(row[0]) if row else 0
     except sqlite3.OperationalError:
         return 0
@@ -72,8 +73,9 @@ def verify_anchor(expected_hash: str, db_path: Path | None = None) -> dict[str, 
     }
 
 
-def publish_anchor(publisher: Callable[[dict[str, Any]], None],
-                   db_path: Path | None = None) -> dict[str, Any]:
+def publish_anchor(
+    publisher: Callable[[dict[str, Any]], None], db_path: Path | None = None
+) -> dict[str, Any]:
     anchor = get_external_anchor(db_path)
     try:
         publisher(anchor)
@@ -97,7 +99,9 @@ def publish_anchor(publisher: Callable[[dict[str, Any]], None],
     return result
 
 
-def anchor_history(db_path: Path | None = None, limit: int = 10) -> list[dict[str, Any]]:
+def anchor_history(
+    db_path: Path | None = None, limit: int = 10
+) -> list[dict[str, Any]]:
     history_file = _history_path()
     if not history_file.exists():
         return []

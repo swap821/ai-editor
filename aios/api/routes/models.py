@@ -5,6 +5,7 @@ APIRouter module. Dependency providers come from ``aios.api.deps`` — the SAME
 function objects ``main`` re-exports, so ``app.dependency_overrides`` keyed on
 either import path keep working.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -88,7 +89,17 @@ def models_auto(
     by_task = {t: select_model(models, task=t, require_tools=True) for t in TASKS}
     chosen = select_model(models, task=task, require_tools=True)
     if not chosen:
-        return {"available": False, "model": None, "task": task,
-                "reason": "no local chat model installed", "by_task": by_task}
-    return {"available": True, "model": chosen, "task": task,
-            "reason": describe_choice(chosen), "by_task": by_task}
+        return {
+            "available": False,
+            "model": None,
+            "task": task,
+            "reason": "no local chat model installed",
+            "by_task": by_task,
+        }
+    return {
+        "available": True,
+        "model": chosen,
+        "task": task,
+        "reason": describe_choice(chosen),
+        "by_task": by_task,
+    }

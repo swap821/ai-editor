@@ -15,6 +15,7 @@ Design:
   * Request / response validation guards against malformed payloads and
     MitM tampering.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -40,7 +41,9 @@ _CREDENTIAL_PATTERNS: Final[list[re.Pattern[str]]] = [
     # [a-z0-9_]* after the keyword catches compound identifiers like
     # "aws_secret_access_key" or "db_password_hash", not just an exact
     # "secret"/"password" token immediately before the operator.
-    re.compile(r"(?i)(api[_-]?key|apikey|secret|token|password|access[_-]?key)[a-z0-9_]*\s*[:=]\s*\S{8,}"),
+    re.compile(
+        r"(?i)(api[_-]?key|apikey|secret|token|password|access[_-]?key)[a-z0-9_]*\s*[:=]\s*\S{8,}"
+    ),
     re.compile(r"(?i)(AKIA[A-Z0-9]{16})"),  # AWS Access Key ID
     re.compile(r"(?i)(ASIA[A-Z0-9]{16})"),  # AWS Session Token prefix
     # AWS Secret Access Key shape: an isolated 40-char base64-alphabet run.
@@ -56,7 +59,9 @@ _CREDENTIAL_PATTERNS: Final[list[re.Pattern[str]]] = [
     re.compile(r"glpat-[A-Za-z0-9_\-]{20,}"),  # GitLab tokens
     re.compile(r"sk-[A-Za-z0-9]{20,}"),  # Generic sk- keys
     re.compile(r"xox[baprs]-[A-Za-z0-9_\-]{10,}"),  # Slack tokens
-    re.compile(r"\b[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\b"),  # JWT
+    re.compile(
+        r"\b[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\b"
+    ),  # JWT
     re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----"),
     re.compile(r"-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----"),
     re.compile(r"-----BEGIN\s+EC\s+PRIVATE\s+KEY-----"),
@@ -90,10 +95,18 @@ _MIN_HISTORY_WINDOW: Final[int] = 2
 _HISTORY_WINDOW: Final[int] = max(_MIN_HISTORY_WINDOW, config.CLOUD_HISTORY_WINDOW)
 
 #: Coding tasks may keep more context, but never less than the default floor.
-_CODING_HISTORY_WINDOW: Final[int] = max(_HISTORY_WINDOW, config.CLOUD_CODING_HISTORY_WINDOW)
+_CODING_HISTORY_WINDOW: Final[int] = max(
+    _HISTORY_WINDOW, config.CLOUD_CODING_HISTORY_WINDOW
+)
 
 _CODING_TASK_HINTS: Final[tuple[str, ...]] = (
-    "code", "coding", "debug", "fix", "implement", "refactor", "test",
+    "code",
+    "coding",
+    "debug",
+    "fix",
+    "implement",
+    "refactor",
+    "test",
 )
 
 _LARGE_BLOB_CHAR_LIMIT: Final[int] = 500
@@ -197,7 +210,8 @@ def _in_filename_context(text: str, start: int, end: int, token: str) -> bool:
     if _PATH_SHAPED.fullmatch(token):
         segments = re.split(r"[/\\]", token)
         if all(
-            len(segment) <= _MAX_PATH_SEGMENT_LEN and not _looks_like_secret_segment(segment)
+            len(segment) <= _MAX_PATH_SEGMENT_LEN
+            and not _looks_like_secret_segment(segment)
             for segment in segments
         ):
             return True
@@ -286,15 +300,25 @@ class PrivacyFilter:
         max_response_size: int = _MAX_RESPONSE_SIZE,
         max_messages: int = _MAX_MESSAGES_PER_REQUEST,
     ) -> None:
-        base_history_window = _HISTORY_WINDOW if history_window is None else history_window
-        coding_window = _CODING_HISTORY_WINDOW if coding_history_window is None else coding_history_window
-        self.history_window = self._history_window_for_task(task, base_history_window, coding_window)
+        base_history_window = (
+            _HISTORY_WINDOW if history_window is None else history_window
+        )
+        coding_window = (
+            _CODING_HISTORY_WINDOW
+            if coding_history_window is None
+            else coding_history_window
+        )
+        self.history_window = self._history_window_for_task(
+            task, base_history_window, coding_window
+        )
         self.max_request_size = max_request_size
         self.max_response_size = max_response_size
         self.max_messages = max_messages
 
     @staticmethod
-    def _history_window_for_task(task: str, history_window: int, coding_history_window: int) -> int:
+    def _history_window_for_task(
+        task: str, history_window: int, coding_history_window: int
+    ) -> int:
         base = max(_MIN_HISTORY_WINDOW, int(history_window))
         coding = max(base, int(coding_history_window))
         task_lower = str(task or "general").lower()
@@ -322,8 +346,14 @@ class PrivacyFilter:
         safe: list[dict[str, Any]] = []
         for msg in truncated:
             clean, per_msg_audit = self._redact_message(msg)
-            for key in ("redacted_system", "redacted_tool_files", "redacted_credentials",
-                        "redacted_paths", "redacted_secrets", "dropped_messages"):
+            for key in (
+                "redacted_system",
+                "redacted_tool_files",
+                "redacted_credentials",
+                "redacted_paths",
+                "redacted_secrets",
+                "dropped_messages",
+            ):
                 audit[key] += per_msg_audit.get(key, 0)
             if clean is not None:
                 safe.append(clean)
@@ -336,19 +366,26 @@ class PrivacyFilter:
         if not isinstance(response, dict):
             raise ValueError("Response must be a dict")
         import json
+
         size = len(json.dumps(response).encode("utf-8"))
         if size > self.max_response_size:
-            raise ValueError(f"Response size {size} bytes exceeds limit {self.max_response_size}")
+            raise ValueError(
+                f"Response size {size} bytes exceeds limit {self.max_response_size}"
+            )
         role = response.get("role")
         if role not in ("assistant", "user", "system", None):
             raise ValueError(f"Unexpected response role: {role}")
         content = response.get("content")
         if content is not None and not isinstance(content, str):
-            raise ValueError(f"Response content must be a string, got {type(content).__name__}")
+            raise ValueError(
+                f"Response content must be a string, got {type(content).__name__}"
+            )
         tool_calls = response.get("tool_calls")
         if tool_calls is not None:
             if not isinstance(tool_calls, list):
-                raise ValueError(f"tool_calls must be a list, got {type(tool_calls).__name__}")
+                raise ValueError(
+                    f"tool_calls must be a list, got {type(tool_calls).__name__}"
+                )
             for call in tool_calls:
                 if not isinstance(call, dict):
                     raise ValueError("Each tool_call must be a dict")
@@ -380,10 +417,16 @@ class PrivacyFilter:
         kept.reverse()
         return kept
 
-    def _redact_message(self, msg: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, int]]:
+    def _redact_message(
+        self, msg: dict[str, Any]
+    ) -> tuple[dict[str, Any] | None, dict[str, int]]:
         audit: dict[str, int] = {
-            "redacted_system": 0, "redacted_tool_files": 0, "redacted_credentials": 0,
-            "redacted_paths": 0, "redacted_secrets": 0, "dropped_messages": 0,
+            "redacted_system": 0,
+            "redacted_tool_files": 0,
+            "redacted_credentials": 0,
+            "redacted_paths": 0,
+            "redacted_secrets": 0,
+            "dropped_messages": 0,
         }
         role = msg.get("role")
         content = msg.get("content") or ""
@@ -422,7 +465,9 @@ class PrivacyFilter:
             clean = dict(msg)
             clean["content"] = content_str
             if role == "assistant" and "tool_calls" in clean:
-                clean["tool_calls"] = [self._redact_tool_call(call, audit) for call in clean["tool_calls"]]
+                clean["tool_calls"] = [
+                    self._redact_tool_call(call, audit) for call in clean["tool_calls"]
+                ]
             return clean, audit
         audit["dropped_messages"] = 1
         return None, audit
@@ -432,9 +477,25 @@ class PrivacyFilter:
         lines = text.splitlines()
         if len(lines) >= 5:
             indicators = (
-                "import ", "from ", "def ", "class ", "# ", "// ", "/*",
-                "<!DOCTYPE", "<html", "<?xml", "---", "===", "{", "}",
-                "function ", "const ", "let ", "var ", "package ",
+                "import ",
+                "from ",
+                "def ",
+                "class ",
+                "# ",
+                "// ",
+                "/*",
+                "<!DOCTYPE",
+                "<html",
+                "<?xml",
+                "---",
+                "===",
+                "{",
+                "}",
+                "function ",
+                "const ",
+                "let ",
+                "var ",
+                "package ",
             )
             if any(line.strip().startswith(indicators) for line in lines[:10]):
                 fname = self._extract_filename_hint(text)
@@ -465,7 +526,9 @@ class PrivacyFilter:
                     return token
         return "file"
 
-    def _redact_tool_call(self, call: dict[str, Any], audit: dict[str, int]) -> dict[str, Any]:
+    def _redact_tool_call(
+        self, call: dict[str, Any], audit: dict[str, int]
+    ) -> dict[str, Any]:
         clean = dict(call)
         fn = clean.get("function")
         if isinstance(fn, dict) and "arguments" in fn:
@@ -479,6 +542,7 @@ class PrivacyFilter:
                 args_str, n_path = _redact_paths(args_str)
                 audit["redacted_paths"] += n_path
                 import json
+
                 try:
                     fn["arguments"] = json.loads(args_str.replace("'", '"'))
                 except (json.JSONDecodeError, ValueError):
@@ -495,7 +559,9 @@ class PrivacyFilter:
 
     def _validate_request(self, messages: list[dict[str, Any]]) -> None:
         if len(messages) > self.max_messages:
-            raise ValueError(f"Request contains {len(messages)} messages; max is {self.max_messages}")
+            raise ValueError(
+                f"Request contains {len(messages)} messages; max is {self.max_messages}"
+            )
         for msg in messages:
             role = msg.get("role")
             if role not in ("system", "user", "assistant", "tool"):
@@ -503,6 +569,9 @@ class PrivacyFilter:
             if "content" not in msg and role != "assistant":
                 raise ValueError(f"Message with role '{role}' missing 'content' key")
         import json
+
         size = len(json.dumps(messages).encode("utf-8"))
         if size > self.max_request_size:
-            raise ValueError(f"Request body {size} bytes exceeds limit {self.max_request_size}")
+            raise ValueError(
+                f"Request body {size} bytes exceeds limit {self.max_request_size}"
+            )

@@ -6,6 +6,7 @@ to human review regardless of how safe its security zone is. The two gates are
 independent, so a GREEN-zone step can still require approval when the planner is
 unsure (Blueprint Q4 / trust principle "Confidence Gating").
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,11 +32,15 @@ class GateResult:
     reason: str
 
 
-def gate(confidence: float, threshold: float = config.CONFIDENCE_THRESHOLD) -> GateResult:
+def gate(
+    confidence: float, threshold: float = config.CONFIDENCE_THRESHOLD
+) -> GateResult:
     """Return whether *confidence* meets *threshold* (>=)."""
     passed = confidence >= threshold
     if passed:
-        return GateResult(True, f"Confidence {confidence:.3f} meets threshold {threshold:.3f}")
+        return GateResult(
+            True, f"Confidence {confidence:.3f} meets threshold {threshold:.3f}"
+        )
     return GateResult(
         False,
         f"Confidence {confidence:.3f} below threshold {threshold:.3f} — human review required",
@@ -58,6 +63,10 @@ def filter_steps(
             approved.append(step)
         else:
             escalate.append(
-                {"step": step, "reason": result.reason, "action": "REQUIRE_HUMAN_REVIEW"}
+                {
+                    "step": step,
+                    "reason": result.reason,
+                    "action": "REQUIRE_HUMAN_REVIEW",
+                }
             )
     return {"approved": approved, "escalate": escalate}

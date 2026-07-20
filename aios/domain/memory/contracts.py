@@ -1,4 +1,5 @@
 """Immutable contracts for evidence-aware memory authority."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

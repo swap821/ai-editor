@@ -28,12 +28,18 @@ def deterministic_config_scanner(context: Any) -> Sequence[MaintenanceFinding]:
     src_digest = _compute_source_digest(allowed_root)
 
     # Scan python, markdown, txt, and json files under allowed_root
-    target_files = [allowed_root] if allowed_root.is_file() else sorted(allowed_root.rglob("*"))
+    target_files = (
+        [allowed_root] if allowed_root.is_file() else sorted(allowed_root.rglob("*"))
+    )
     for file_path in target_files:
         if file_path.is_dir():
             continue
         rel_parts = file_path.relative_to(allowed_root).parts
-        if any(part.startswith(".") or part in ("__pycache__", "venv", ".venv", "node_modules") for part in rel_parts):
+        if any(
+            part.startswith(".")
+            or part in ("__pycache__", "venv", ".venv", "node_modules")
+            for part in rel_parts
+        ):
             continue
 
         try:
@@ -60,12 +66,21 @@ def deterministic_config_scanner(context: Any) -> Sequence[MaintenanceFinding]:
         file_digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
         # Check for explicit maintenance marker
-        if "# DEFECT_MARKER: fix_required" in content or "TODO_MAINTENANCE_DEFECT" in content:
-            marker = "# DEFECT_MARKER: fix_required" if "# DEFECT_MARKER: fix_required" in content else "TODO_MAINTENANCE_DEFECT"
+        if (
+            "# DEFECT_MARKER: fix_required" in content
+            or "TODO_MAINTENANCE_DEFECT" in content
+        ):
+            marker = (
+                "# DEFECT_MARKER: fix_required"
+                if "# DEFECT_MARKER: fix_required" in content
+                else "TODO_MAINTENANCE_DEFECT"
+            )
             raw_fingerprint_material = f"{ADMITTED_SCANNER_ID}:{rel_path}:{marker}"
-            fingerprint = hashlib.sha256(raw_fingerprint_material.encode("utf-8")).hexdigest()
+            fingerprint = hashlib.sha256(
+                raw_fingerprint_material.encode("utf-8")
+            ).hexdigest()
             now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-            
+
             finding = MaintenanceFinding(
                 finding_id=f"finding-{fingerprint[:12]}",
                 fingerprint=fingerprint,

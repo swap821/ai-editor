@@ -36,8 +36,8 @@ def generate_fixtures() -> None:
             "checkpoint_created_external",
             "staged_repair_executed",
             "post_promotion_verified",
-            "restoration_exactness_validated"
-        ]
+            "restoration_exactness_validated",
+        ],
     }
     (output_dir / "private-executor-lifecycle.json").write_text(
         json.dumps(exec_fixture, indent=2, sort_keys=True), encoding="utf-8"
@@ -54,14 +54,16 @@ def generate_fixtures() -> None:
         "provider": "ollama",
         "job_id": f"job-local-{uuid.uuid4().hex[:8]}",
         "model_call_id": f"call-model-{uuid.uuid4().hex[:8]}",
-        "advisory_contract_digest": hashlib.sha256(b"SkillApplicabilityAdvisoryV1").hexdigest(),
+        "advisory_contract_digest": hashlib.sha256(
+            b"SkillApplicabilityAdvisoryV1"
+        ).hexdigest(),
         "schema_validation": "valid",
         "verification_status": "PASSED",
         "advisory_result": {
             "applicable": True,
             "confidence": 0.95,
-            "signature_match": "exact"
-        }
+            "signature_match": "exact",
+        },
     }
     (output_dir / "granite-advisory-lifecycle.json").write_text(
         json.dumps(granite_fixture, indent=2, sort_keys=True), encoding="utf-8"
@@ -94,8 +96,8 @@ def generate_fixtures() -> None:
             "granite_advising",
             "private_executor_repair",
             "post_promotion_verified",
-            "confidence_incremented"
-        ]
+            "confidence_incremented",
+        ],
     }
     (output_dir / "sovereign-intelligence-heartbeat.json").write_text(
         json.dumps(heartbeat_fixture, indent=2, sort_keys=True), encoding="utf-8"

@@ -4,6 +4,7 @@ These contracts are the shared language between council orchestration, workers,
 verification, ledgers, and the human-facing report. Phase 0 defines schemas only;
 runtime behavior belongs in later phases.
 """
+
 from __future__ import annotations
 
 from typing import Any, Literal

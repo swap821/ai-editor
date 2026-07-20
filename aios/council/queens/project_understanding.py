@@ -4,6 +4,7 @@ This Queen does not call external models. It inspects the mission scope and
 project metadata, then adds constraints to keep the mission aligned with the
 project context.
 """
+
 from __future__ import annotations
 
 from aios.runtime.contracts import MissionContract, QueenEvidence, QueenVerdict
@@ -53,7 +54,10 @@ class ProjectUnderstandingQueen:
             ),
             recommended_worker_strategy=None,
             unresolved_questions=questions,
-            metadata={"project_id": project_id, "complex_task": contract.metadata.get("complex_task")},
+            metadata={
+                "project_id": project_id,
+                "complex_task": contract.metadata.get("complex_task"),
+            },
         )
 
 

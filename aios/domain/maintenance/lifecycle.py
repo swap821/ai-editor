@@ -12,31 +12,41 @@ from aios.domain.missions.mission_repository import MissionRecord
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.promotion import PromotionStatus
 
+
 class SecurityViolationError(RuntimeError):
     """Raised when an actor attempts an unauthorized state transition."""
+
 
 class MaintenanceLifecycleEngine:
     """Enforces state transitions and security rules for durable findings."""
 
-    def report_finding(self, existing: MaintenanceFinding | None, new_report: MaintenanceFinding) -> MaintenanceFinding:
+    def report_finding(
+        self, existing: MaintenanceFinding | None, new_report: MaintenanceFinding
+    ) -> MaintenanceFinding:
         """Process a new scan result for a finding."""
         if not existing:
             return new_report
 
         # If it reappears after being resolved/suppressed, reopen it
-        if existing.status in ["VERIFIED_RESOLVED", "FALSE_POSITIVE", "HUMAN_SUPPRESSED"]:
+        if existing.status in [
+            "VERIFIED_RESOLVED",
+            "FALSE_POSITIVE",
+            "HUMAN_SUPPRESSED",
+        ]:
             new_status = "REOPENED"
         else:
             new_status = existing.status
 
-        return existing.model_copy(update={
-            "last_seen": new_report.last_seen,
-            "occurrence_count": existing.occurrence_count + 1,
-            "status": new_status,
-            "deterministic_evidence": new_report.deterministic_evidence,
-            "target_digest": new_report.target_digest,
-            "source_digest": new_report.source_digest
-        })
+        return existing.model_copy(
+            update={
+                "last_seen": new_report.last_seen,
+                "occurrence_count": existing.occurrence_count + 1,
+                "status": new_status,
+                "deterministic_evidence": new_report.deterministic_evidence,
+                "target_digest": new_report.target_digest,
+                "source_digest": new_report.source_digest,
+            }
+        )
 
     def bind_mission(
         self, finding: MaintenanceFinding, mission_id: str
@@ -98,7 +108,9 @@ class MaintenanceLifecycleEngine:
         if mission.mission_id != evidence.mission_id:
             raise SecurityViolationError("mission evidence is not authoritative")
         if mission.state not in (MissionState.VERIFYING, MissionState.COMPLETED):
-            raise SecurityViolationError("mission must be verifying or completed for rescan proof")
+            raise SecurityViolationError(
+                "mission must be verifying or completed for rescan proof"
+            )
         if mission.contract_digest != evidence.mission_contract_digest:
             raise SecurityViolationError("mission contract digest does not match")
         if mission.contract.metadata.get("finding_fingerprint") != finding.fingerprint:
@@ -135,7 +147,10 @@ class MaintenanceLifecycleEngine:
             )
         if scan.rescan_of != finding.fingerprint:
             raise SecurityViolationError("rescan is not bound to this finding")
-        if scan.scanner_id != finding.scanner_id or scan.scanner_id != evidence.scanner_id:
+        if (
+            scan.scanner_id != finding.scanner_id
+            or scan.scanner_id != evidence.scanner_id
+        ):
             raise SecurityViolationError("scanner identity does not match")
         if (
             scan.scanner_version != finding.scanner_version
@@ -183,7 +198,7 @@ class MaintenanceLifecycleEngine:
 
     def mark_missing_in_scan(self, finding: MaintenanceFinding) -> MaintenanceFinding:
         """A finding was not seen in the latest scan.
-        
+
         Rule: A missing scan result alone does not prove resolution.
         The status remains unchanged until explicit verification.
         """

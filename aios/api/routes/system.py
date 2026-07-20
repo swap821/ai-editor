@@ -6,6 +6,7 @@ Dependency providers come from ``aios.api.deps`` — the SAME function objects
 ``main`` re-exports, so ``app.dependency_overrides`` keyed on either import
 path keep working.
 """
+
 from __future__ import annotations
 
 import json
@@ -77,7 +78,9 @@ class IntentPreviewResponse(BaseModel):
 
     intent: str = Field(..., description="chat | code | browse | swarm | command")
     confidence: float = Field(..., ge=0, le=1)
-    tool: Optional[str] = Field(None, description="Primary tool if intent is actionable.")
+    tool: Optional[str] = Field(
+        None, description="Primary tool if intent is actionable."
+    )
 
 
 class OnboardingStateResponse(BaseModel):
@@ -283,7 +286,10 @@ def _read_settings() -> dict[str, Any]:
     if not _SETTINGS_PATH.exists():
         return dict(_DEFAULT_SETTINGS)
     try:
-        return {**_DEFAULT_SETTINGS, **json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))}
+        return {
+            **_DEFAULT_SETTINGS,
+            **json.loads(_SETTINGS_PATH.read_text(encoding="utf-8")),
+        }
     except (OSError, json.JSONDecodeError):
         return dict(_DEFAULT_SETTINGS)
 
@@ -292,24 +298,31 @@ def _read_settings() -> dict[str, Any]:
 def get_system_config() -> dict[str, Any]:
     """Return the real, currently-persisted operator settings merged with env."""
     db_settings = _read_settings()
-    
+
     # Determine autonomy source and effective value
     autonomy_in_env = "AIOS_EARNED_AUTONOMY" in os.environ
-    autonomy_val = config.EARNED_AUTONOMY_ENABLED if autonomy_in_env else db_settings.get("autonomy", True)
-    
+    autonomy_val = (
+        config.EARNED_AUTONOMY_ENABLED
+        if autonomy_in_env
+        else db_settings.get("autonomy", True)
+    )
+
     # Determine provider source and effective value
     # We check if cloud tasks are enabled, etc. For simplicity, since provider is usually
     # controlled by AIOS_ROUTER_PREFER_LOCAL or AIOS_LLM_MODEL, we can just check if
     # the environment imposes a specific provider, or assume DB if no explicit override.
     # Currently, UI implies it's controlled by env. We'll mark it as env if AIOS_LLM_MODEL exists.
-    provider_in_env = any(k in os.environ for k in ("AIOS_LLM_MODEL", "AIOS_BEDROCK_MODEL", "AIOS_GEMINI_MODEL"))
+    provider_in_env = any(
+        k in os.environ
+        for k in ("AIOS_LLM_MODEL", "AIOS_BEDROCK_MODEL", "AIOS_GEMINI_MODEL")
+    )
     provider_val = db_settings.get("provider", "Ollama")
-    
+
     return {
         "provider": provider_val,
         "provider_source": "env" if provider_in_env else "db",
         "autonomy": autonomy_val,
-        "autonomy_source": "env" if autonomy_in_env else "db"
+        "autonomy_source": "env" if autonomy_in_env else "db",
     }
 
 
@@ -332,20 +345,23 @@ def set_system_config(
     """Persist operator settings to disk, ignoring env-hardcoded overrides."""
     current = get_system_config()
     payload = req.model_dump()
-    
+
     # Ignore attempts to persist if environmentally hardcoded
     if current["provider_source"] == "env":
         payload["provider"] = current["provider"]
     if current["autonomy_source"] == "env":
         payload["autonomy"] = current["autonomy"]
-        
+
     _SETTINGS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     log_action(principal.principal_id, f"updated system config: {payload}", "YELLOW")
     return {"status": "saved", **payload}
 
 
 class SystemRestartRequest(BaseModel):
-    confirm: bool = Field(False, description="Must be explicitly true; this restarts the live server process.")
+    confirm: bool = Field(
+        False,
+        description="Must be explicitly true; this restarts the live server process.",
+    )
 
 
 def _reexec_after_delay(delay_seconds: float) -> None:
@@ -395,7 +411,9 @@ def restart_system(
     is a clean restart, not a reset.
     """
     if not req.confirm:
-        raise HTTPException(status_code=422, detail="confirm must be true to restart the server")
+        raise HTTPException(
+            status_code=422, detail="confirm must be true to restart the server"
+        )
 
     log_action(principal.principal_id, "restarting server process (self-exec)", "RED")
     threading.Thread(target=_reexec_after_delay, args=(0.5,), daemon=True).start()

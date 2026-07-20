@@ -4,6 +4,7 @@ The projection stores only current active entities and counters.  Normal reads
 never replay the event history; replay is an explicit recovery operation driven
 by the Cortex consumer cursor.
 """
+
 from __future__ import annotations
 
 import json
@@ -62,7 +63,12 @@ class IncrementalSystemProjection:
             conn.executescript(_SCHEMA)
             self._ensure_state(conn, "last_event_id", "0")
             self._ensure_state(conn, "phase", "idle")
-            for key in ("active_turns", "active_missions", "active_workers", "active_models"):
+            for key in (
+                "active_turns",
+                "active_missions",
+                "active_workers",
+                "active_models",
+            ):
                 self._ensure_state(conn, key, "0")
 
     def _connect(self) -> sqlite3.Connection:
@@ -107,21 +113,69 @@ class IncrementalSystemProjection:
             payload = _flatten_payload(event.payload)
             event_type = event.event_type
             if event_type in {"turn.started", "directive.started"}:
-                self._activate(conn, "active_turns", _entity_id(payload, "turn_id", event.signature), payload, now)
+                self._activate(
+                    conn,
+                    "active_turns",
+                    _entity_id(payload, "turn_id", event.signature),
+                    payload,
+                    now,
+                )
             elif event_type in {"turn.completed", "turn.failed"}:
-                self._deactivate(conn, "active_turns", _entity_id(payload, "turn_id", event.signature))
+                self._deactivate(
+                    conn,
+                    "active_turns",
+                    _entity_id(payload, "turn_id", event.signature),
+                )
             elif event_type in {"mission.running", "mission.started"}:
-                self._activate(conn, "active_missions", _entity_id(payload, "mission_id", event.signature), payload, now)
-            elif event_type in {"mission.completed", "mission.failed", "mission.cancelled", "mission.rolled_back"}:
-                self._deactivate(conn, "active_missions", _entity_id(payload, "mission_id", event.signature))
+                self._activate(
+                    conn,
+                    "active_missions",
+                    _entity_id(payload, "mission_id", event.signature),
+                    payload,
+                    now,
+                )
+            elif event_type in {
+                "mission.completed",
+                "mission.failed",
+                "mission.cancelled",
+                "mission.rolled_back",
+            }:
+                self._deactivate(
+                    conn,
+                    "active_missions",
+                    _entity_id(payload, "mission_id", event.signature),
+                )
             elif event_type == "worker.started":
-                self._activate(conn, "active_workers", _entity_id(payload, "worker_id", event.signature), payload, now)
-            elif event_type in {"worker.completed", "worker.dissolved", "worker.failed", "worker.killed"}:
-                self._deactivate(conn, "active_workers", _entity_id(payload, "worker_id", event.signature))
+                self._activate(
+                    conn,
+                    "active_workers",
+                    _entity_id(payload, "worker_id", event.signature),
+                    payload,
+                    now,
+                )
+            elif event_type in {
+                "worker.completed",
+                "worker.dissolved",
+                "worker.failed",
+                "worker.killed",
+            }:
+                self._deactivate(
+                    conn,
+                    "active_workers",
+                    _entity_id(payload, "worker_id", event.signature),
+                )
             elif event_type in {"model.selected", "model.started"}:
-                self._activate(conn, "active_models", _model_id(payload, event.signature), payload, now)
+                self._activate(
+                    conn,
+                    "active_models",
+                    _model_id(payload, event.signature),
+                    payload,
+                    now,
+                )
             elif event_type in {"model.completed", "model.failed", "model.dissolved"}:
-                self._deactivate(conn, "active_models", _model_id(payload, event.signature))
+                self._deactivate(
+                    conn, "active_models", _model_id(payload, event.signature)
+                )
 
             self._set_state(conn, "last_event_id", event.id)
             counts = {
@@ -162,7 +216,9 @@ class IncrementalSystemProjection:
 
     @staticmethod
     def _count(conn: sqlite3.Connection, table: str) -> int:
-        return int(conn.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()["count"])
+        return int(
+            conn.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()["count"]
+        )
 
     def snapshot(self) -> SystemPortraitSnapshot:
         """Read current projections only; event history is never scanned."""
@@ -261,7 +317,9 @@ def get_system_projection(db_path: str | Path) -> IncrementalSystemProjection:
     with _PROJECTIONS_LOCK:
         projection = _PROJECTIONS.get(key)
         if projection is None:
-            projection = IncrementalSystemProjection(Path(db_path).with_name("system_portrait.db"))
+            projection = IncrementalSystemProjection(
+                Path(db_path).with_name("system_portrait.db")
+            )
             _PROJECTIONS[key] = projection
         return projection
 
@@ -280,7 +338,12 @@ def _entity_id(payload: dict[str, Any], key: str, fallback: str) -> str:
 
 
 def _model_id(payload: dict[str, Any], fallback: str) -> str:
-    value = payload.get("model") or payload.get("model_id") or payload.get("modelId") or fallback
+    value = (
+        payload.get("model")
+        or payload.get("model_id")
+        or payload.get("modelId")
+        or fallback
+    )
     return str(value or "")
 
 

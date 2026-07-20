@@ -24,6 +24,7 @@ Security: Every replayed step flows through ToolAgent._dispatch(), which
 calls the gateway classify(), scope_lock, audit_logger, and verifier.
 The cerebellum is a tool-call SOURCE, not a gateway bypass.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,12 +38,14 @@ from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
 
-_COMPILABLE_TOOLS = frozenset({
-    "read_file",
-    "read_directory",
-    "execute_terminal",
-    "verify",
-})
+_COMPILABLE_TOOLS = frozenset(
+    {
+        "read_file",
+        "read_directory",
+        "execute_terminal",
+        "verify",
+    }
+)
 
 DispatchFn = Callable[[str, dict[str, Any]], tuple[str, str, bool]]
 
@@ -99,13 +102,21 @@ def _parse_step(step_desc: str) -> Optional[PlaybookStep]:
         return None
 
     if tool_name == "read_file":
-        return PlaybookStep(tool_name="read_file", args={"filepath": _arg_value(arg, "filepath")})
+        return PlaybookStep(
+            tool_name="read_file", args={"filepath": _arg_value(arg, "filepath")}
+        )
     if tool_name == "read_directory":
-        return PlaybookStep(tool_name="read_directory", args={"path": _arg_value(arg, "path")})
+        return PlaybookStep(
+            tool_name="read_directory", args={"path": _arg_value(arg, "path")}
+        )
     if tool_name == "execute_terminal":
-        return PlaybookStep(tool_name="execute_terminal", args={"command": _arg_value(arg, "command")})
+        return PlaybookStep(
+            tool_name="execute_terminal", args={"command": _arg_value(arg, "command")}
+        )
     if tool_name == "verify":
-        return PlaybookStep(tool_name="verify", args={"command": _arg_value(arg, "command")})
+        return PlaybookStep(
+            tool_name="verify", args={"command": _arg_value(arg, "command")}
+        )
     return None
 
 
@@ -121,7 +132,7 @@ def _arg_value(arg: str, key: str) -> str:
     tolerate the legacy bare-value form.
     """
     prefix = f"{key}="
-    return arg[len(prefix):].strip() if arg.startswith(prefix) else arg
+    return arg[len(prefix) :].strip() if arg.startswith(prefix) else arg
 
 
 #: A word-ish run that may name a file — path separators, dots and hyphens
@@ -131,10 +142,20 @@ _TARGET_TOKEN = re.compile(r"[A-Za-z0-9_.\-][A-Za-z0-9_.\-/\\]*")
 #: Well-known extensionless filenames — real concrete targets that carry no dot
 #: or separator. Deliberately excludes word-like names (``notice``, ``authors``)
 #: whose bare-word use would over-trigger the guard.
-_BARE_FILENAMES = frozenset({
-    "dockerfile", "makefile", "rakefile", "gemfile", "procfile",
-    "jenkinsfile", "vagrantfile", "readme", "license", "changelog",
-})
+_BARE_FILENAMES = frozenset(
+    {
+        "dockerfile",
+        "makefile",
+        "rakefile",
+        "gemfile",
+        "procfile",
+        "jenkinsfile",
+        "vagrantfile",
+        "readme",
+        "license",
+        "changelog",
+    }
+)
 
 
 def _target_files(text: str) -> set[str]:
@@ -248,7 +269,9 @@ def _step_targets_are_clean(step: "PlaybookStep") -> bool:
             return False
         for tok in command.split():
             low = tok.replace("\\", "/")
-            pathish = "/" in low or ("." in low and not all(c in "0123456789." for c in low))
+            pathish = "/" in low or (
+                "." in low and not all(c in "0123456789." for c in low)
+            )
             if pathish and not _is_clean_target(tok):
                 return False
         return True
@@ -333,7 +356,9 @@ class Cerebellum:
             return pb
 
     def _try_compile_one(
-        self, skill_row: Any, conn: Any,
+        self,
+        skill_row: Any,
+        conn: Any,
     ) -> Optional[CompiledPlaybook]:
         """Attempt to compile one verified skill row.  Returns None if
         any compilation guard fails."""
@@ -521,7 +546,10 @@ class Cerebellum:
                 "SELECT consecutive_failures FROM compiled_playbooks WHERE id = ?",
                 (playbook_id,),
             ).fetchone()
-            if row and int(row["consecutive_failures"]) >= self.max_consecutive_failures:
+            if (
+                row
+                and int(row["consecutive_failures"]) >= self.max_consecutive_failures
+            ):
                 conn.execute(
                     """UPDATE compiled_playbooks
                        SET status = 'decompiled',

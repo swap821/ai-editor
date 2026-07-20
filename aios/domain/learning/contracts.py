@@ -126,5 +126,3 @@ __all__ = [
     "ToolObservation",
     "TrajectoryVerification",
 ]
-
-

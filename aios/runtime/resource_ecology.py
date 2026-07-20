@@ -1,4 +1,5 @@
 """Resource ecology primitives for runtime budget decisions."""
+
 from __future__ import annotations
 
 import os

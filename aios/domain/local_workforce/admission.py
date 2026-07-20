@@ -1,4 +1,5 @@
 """Resource admission gate for local clerical models."""
+
 from __future__ import annotations
 
 import os
@@ -11,6 +12,7 @@ from aios import config
 
 class AdmissionContext(BaseModel):
     """Contextual information needed to make an admission decision."""
+
     requested_context_size: int
     requested_output_size: int
     active_docker_workload: int = 0
@@ -19,6 +21,7 @@ class AdmissionContext(BaseModel):
 
 class AdmissionResult(BaseModel):
     """The result of the resource admission gate."""
+
     admitted: bool
     reason: str | None = None
     system_metrics: Dict[str, Any]
@@ -26,7 +29,7 @@ class AdmissionResult(BaseModel):
 
 class HardwareAdmission:
     """Evaluates whether the local hardware has capacity for a local model."""
-    
+
     def __init__(
         self,
         min_cpu_count: int = 2,
@@ -38,7 +41,7 @@ class HardwareAdmission:
     def evaluate(self, context: AdmissionContext) -> AdmissionResult:
         """Evaluate if the system has capacity for the requested model."""
         cpu_count = os.cpu_count() or 1
-        
+
         metrics = {
             "cpu_count": cpu_count,
             "active_inferences": context.active_local_inference_count,
@@ -58,7 +61,7 @@ class HardwareAdmission:
                 reason=f"Too many active local inferences: {context.active_local_inference_count}",
                 system_metrics=metrics,
             )
-            
+
         return AdmissionResult(
             admitted=True,
             reason=None,

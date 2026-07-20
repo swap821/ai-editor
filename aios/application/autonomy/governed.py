@@ -1,4 +1,5 @@
 """One governed learning loop over the existing AutonomyLedger and Cerebellum."""
+
 from __future__ import annotations
 
 import hashlib
@@ -19,14 +20,16 @@ from aios.security.secret_scanner import scan_and_redact
 class GovernedAutonomy:
     """Proposal/reuse/outcome loop; it never grants authority to a model."""
 
-    _FORBIDDEN_ACTIONS = frozenset({
-        "network_request",
-        "secret_access",
-        "package_install",
-        "control_plane_modify",
-        "policy_modify",
-        "credential_manage",
-    })
+    _FORBIDDEN_ACTIONS = frozenset(
+        {
+            "network_request",
+            "secret_access",
+            "package_install",
+            "control_plane_modify",
+            "policy_modify",
+            "credential_manage",
+        }
+    )
     _FORBIDDEN_CLASSIFICATIONS = frozenset({"SECRET", "NEVER_EXTERNAL"})
 
     def __init__(

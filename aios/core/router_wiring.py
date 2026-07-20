@@ -99,7 +99,9 @@ def _build_providers(
             continue
         cost = router.COST_HIGH if name == router.PROVIDER_BEDROCK else router.COST_LOW
         for mid in catalog_models(cloud, name, default):
-            cap = catalog.cloud_capability(mid) + (catalog.DEFAULT_BONUS if mid == default else 0)
+            cap = catalog.cloud_capability(mid) + (
+                catalog.DEFAULT_BONUS if mid == default else 0
+            )
             providers.append(
                 router.Provider(
                     name=name,
@@ -114,7 +116,12 @@ def _build_providers(
     # each registers its configured default model only.
     for client, name, default, cost in (
         (openai, router.PROVIDER_OPENAI, config.OPENAI_MODEL, router.COST_LOW),
-        (anthropic, router.PROVIDER_ANTHROPIC, config.ANTHROPIC_MODEL, router.COST_HIGH),
+        (
+            anthropic,
+            router.PROVIDER_ANTHROPIC,
+            config.ANTHROPIC_MODEL,
+            router.COST_HIGH,
+        ),
     ):
         if client is None:
             continue
@@ -192,7 +199,10 @@ def _maybe_llm_picker(
             )
             return router.parse_pick((resp or {}).get("content", ""), candidates)
         except Exception as exc:  # noqa: BLE001 - a flaky local pick must never break routing
-            logger.warning("Local LLM route picker failed; falling back to deterministic", exc_info=exc)
+            logger.warning(
+                "Local LLM route picker failed; falling back to deterministic",
+                exc_info=exc,
+            )
             return None
 
     return picker
@@ -235,7 +245,9 @@ def _active_route(
     """
     if isinstance(chat_client, FailoverChatClient):
         return chat_client.active_provider, chat_client.active_model
-    return _provider_name(chat_client, bedrock, gemini, openai=openai, anthropic=anthropic), model
+    return _provider_name(
+        chat_client, bedrock, gemini, openai=openai, anthropic=anthropic
+    ), model
 
 
 def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
@@ -285,13 +297,19 @@ def _select_chat_client(
     unavailable. No id means the local default.
     """
     if model_id in _AUTO_IDS:
-        providers = _build_providers(ollama, bedrock, gemini, openai=openai, anthropic=anthropic)
+        providers = _build_providers(
+            ollama, bedrock, gemini, openai=openai, anthropic=anthropic
+        )
         policy = _router_policy()
         # Enforce classification-bound routing: let the PrivacyBroker filter the
         # provider list before candidates are ranked.  Lazy import keeps the core
         # wiring module free of application-layer imports at load time.
         from aios.application.models.privacy_broker import PrivacyBroker
-        from aios.domain.privacy import DataClassification, ModelCallRequest, PrivacyPolicy
+        from aios.domain.privacy import (
+            DataClassification,
+            ModelCallRequest,
+            PrivacyPolicy,
+        )
 
         try:
             dc = DataClassification(data_classification)
@@ -312,15 +330,28 @@ def _select_chat_client(
         _decision = PrivacyBroker().evaluate(_broker_request)
         providers = [p for p in providers if p.name in _decision.allowed_providers]
         cands = router.candidates(
-            task, providers, policy=policy, require_tools=True,
-            metrics=metrics, calibration_weight=calibration_weight,
+            task,
+            providers,
+            policy=policy,
+            require_tools=True,
+            metrics=metrics,
+            calibration_weight=calibration_weight,
         )
-        chosen = router.pick_from(cands, picker=_maybe_llm_picker(ollama, providers, cands, task))
+        chosen = router.pick_from(
+            cands, picker=_maybe_llm_picker(ollama, providers, cands, task)
+        )
         if chosen is not None:
             ordered = [chosen] + [r for r in cands if r is not chosen]
             cascade = []
             for r in ordered:
-                client = _client_for(r.provider, ollama, bedrock, gemini, openai=openai, anthropic=anthropic)
+                client = _client_for(
+                    r.provider,
+                    ollama,
+                    bedrock,
+                    gemini,
+                    openai=openai,
+                    anthropic=anthropic,
+                )
                 if client is not None:
                     cascade.append((client, r.model, r.provider))
             if len(cascade) == 1:

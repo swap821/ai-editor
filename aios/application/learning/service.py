@@ -60,7 +60,6 @@ class SkillActivationAuthorization:
     version: int
 
 
-
 class SkillCandidateSpec(BaseModel):
     """Structured candidate fields supplied by intelligence, never authority."""
 
@@ -144,7 +143,10 @@ class LearningService:
             raise ValueError("promotion mission does not match trajectory mission")
         if promotion.status is not PromotionStatus.PROMOTED:
             raise ValueError("only promoted work can produce a trajectory")
-        if self.promotion_authority is not None and not self.promotion_authority.is_authoritative(promotion):
+        if (
+            self.promotion_authority is not None
+            and not self.promotion_authority.is_authoritative(promotion)
+        ):
             raise ValueError("promotion result is not held by PromotionAuthority")
         results = tuple(verification_results)
         if not results:
@@ -252,7 +254,9 @@ class LearningService:
     ) -> SkillRecord:
         """Activate a candidate skill using an exact capability-backed Human approval."""
         if not isinstance(authorization, SkillActivationAuthorization):
-            raise SkillActivationDenied("authorization must be a SkillActivationAuthorization instance")
+            raise SkillActivationDenied(
+                "authorization must be a SkillActivationAuthorization instance"
+            )
 
         proof = authorization.proof
         target_skill_id = authorization.skill_id
@@ -263,31 +267,49 @@ class LearningService:
             raise KeyError(f"skill {target_skill_id!r} version {ver} not found")
 
         if skill.state != "candidate":
-            raise SkillActivationDenied(f"skill is in state {skill.state!r}, expected 'candidate'")
+            raise SkillActivationDenied(
+                f"skill is in state {skill.state!r}, expected 'candidate'"
+            )
 
         now = time.time()
         if proof.expires_at <= now or proof.revoked_at is not None:
-            raise SkillActivationDenied("consumed capability proof is expired or revoked")
+            raise SkillActivationDenied(
+                "consumed capability proof is expired or revoked"
+            )
         if not proof.operator_id or not proof.operator_id.strip():
-            raise SkillActivationDenied("consumed capability proof operator_id is invalid")
-        if proof.action_type.lower() not in ("skill_activation", "route.skill_activation", "yellow"):
-            raise SkillActivationDenied(f"consumed capability proof action_type mismatch: {proof.action_type}")
+            raise SkillActivationDenied(
+                "consumed capability proof operator_id is invalid"
+            )
+        if proof.action_type.lower() not in (
+            "skill_activation",
+            "route.skill_activation",
+            "yellow",
+        ):
+            raise SkillActivationDenied(
+                f"consumed capability proof action_type mismatch: {proof.action_type}"
+            )
         expected_route = f"/api/v1/skills/{target_skill_id}/versions/{ver}/activate"
         if expected_route not in proof.route:
-            raise SkillActivationDenied(f"consumed capability proof route mismatch: {proof.route}")
+            raise SkillActivationDenied(
+                f"consumed capability proof route mismatch: {proof.route}"
+            )
         if proof.http_method.upper() != "POST":
-            raise SkillActivationDenied(f"consumed capability proof http_method mismatch: {proof.http_method}")
+            raise SkillActivationDenied(
+                f"consumed capability proof http_method mismatch: {proof.http_method}"
+            )
 
-        reviewed = self.skill_repository.transition_state(target_skill_id, ver, "human_reviewed")
+        reviewed = self.skill_repository.transition_state(
+            target_skill_id, ver, "human_reviewed"
+        )
         if reviewed is None or reviewed.state != "human_reviewed":
             raise SkillActivationDenied("skill review transition failed")
-        activated = self.skill_repository.transition_state(target_skill_id, ver, "active")
+        activated = self.skill_repository.transition_state(
+            target_skill_id, ver, "active"
+        )
         if activated is None or activated.state != "active":
             raise SkillActivationDenied("skill activation transition failed")
 
         return activated
-
-
 
     def attempt_local_reuse(
         self,
@@ -339,7 +361,10 @@ class LearningService:
         if self.local_workforce_service is not None:
             from datetime import datetime, timezone, timedelta
             from uuid import uuid4
-            from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
+            from aios.domain.local_workforce.contracts import (
+                LocalJobProfile,
+                LocalJobRequest,
+            )
 
             job_req = LocalJobRequest(
                 job_id=f"clerk-job-{uuid4().hex}",
@@ -353,7 +378,11 @@ class LearningService:
                 ),
                 token_budget=128,
                 deadline=datetime.now(timezone.utc) + timedelta(seconds=10),
-                required_output_schema={"applicable": "bool", "confidence": "float", "reason": "str"},
+                required_output_schema={
+                    "applicable": "bool",
+                    "confidence": "float",
+                    "reason": "str",
+                },
             )
 
             clerk_res = self.local_workforce_service.run_advisory_job(job_req)
@@ -428,17 +457,26 @@ class LearningService:
 
         # Lineage check across skill, mission, and promotion authority
         lineage_valid = True
-        if source_trajectory_id and source_trajectory_id not in skill.source_trajectory_ids:
+        if (
+            source_trajectory_id
+            and source_trajectory_id not in skill.source_trajectory_ids
+        ):
             lineage_valid = False
 
         if mission is None or mission.state is not MissionState.COMPLETED:
             lineage_valid = False
 
-        if mission and mission.contract.metadata.get("skill_id") and mission.contract.metadata.get("skill_id") != skill_id:
+        if (
+            mission
+            and mission.contract.metadata.get("skill_id")
+            and mission.contract.metadata.get("skill_id") != skill_id
+        ):
             lineage_valid = False
 
         # Idempotency check
-        reuse_key = f"{skill_id}:{version}:{mission_id}:{promotion_id or ''}:{workspace_digest}"
+        reuse_key = (
+            f"{skill_id}:{version}:{mission_id}:{promotion_id or ''}:{workspace_digest}"
+        )
         if not hasattr(self, "_recorded_reuse_outcomes"):
             self._recorded_reuse_outcomes = set()
         if reuse_key in self._recorded_reuse_outcomes:
@@ -449,18 +487,33 @@ class LearningService:
                 lineage_valid = False
             else:
                 prom_record = self.promotion_authority.get_record(promotion_id)
-                term_record = self.promotion_authority.get_authoritative_terminal_record(mission_id)
+                term_record = (
+                    self.promotion_authority.get_authoritative_terminal_record(
+                        mission_id
+                    )
+                )
                 if prom_record is None:
                     lineage_valid = False
-                elif prom_record.get("status") not in (PromotionStatus.PROMOTED, PromotionStatus.PROMOTED.value):
+                elif prom_record.get("status") not in (
+                    PromotionStatus.PROMOTED,
+                    PromotionStatus.PROMOTED.value,
+                ):
                     lineage_valid = False
-                elif term_record is not None and term_record.get("promotion_id") != promotion_id and term_record.get("status") not in (PromotionStatus.PROMOTED, PromotionStatus.PROMOTED.value):
+                elif (
+                    term_record is not None
+                    and term_record.get("promotion_id") != promotion_id
+                    and term_record.get("status")
+                    not in (PromotionStatus.PROMOTED, PromotionStatus.PROMOTED.value)
+                ):
                     lineage_valid = False
                 elif prom_record.get("mission_id") != mission_id:
                     lineage_valid = False
                 elif worker_id and prom_record.get("worker_id") != worker_id:
                     lineage_valid = False
-                elif executor_job_id and prom_record.get("executor_job_id") != executor_job_id:
+                elif (
+                    executor_job_id
+                    and prom_record.get("executor_job_id") != executor_job_id
+                ):
                     lineage_valid = False
                 elif prom_record.get("workspace_digest") != workspace_digest:
                     lineage_valid = False
@@ -469,7 +522,6 @@ class LearningService:
 
         if lineage_valid:
             self._recorded_reuse_outcomes.add(reuse_key)
-
 
         passed = (
             lineage_valid

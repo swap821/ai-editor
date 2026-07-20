@@ -1,4 +1,5 @@
 """Canonical Pydantic model for isolated private Executor repair receipts."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field

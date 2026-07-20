@@ -1,4 +1,5 @@
 """Structured pheromone store — typed signals with time-decay."""
+
 from __future__ import annotations
 
 import json
@@ -158,7 +159,9 @@ class PheromoneStore:
             ptype=PheromoneType(row["ptype"]),
             resource=str(row["resource"]),
             depositor=str(row["depositor"]),
-            strength=self._compute_strength(float(row["raw_strength"]), str(row["updated_at"])),
+            strength=self._compute_strength(
+                float(row["raw_strength"]), str(row["updated_at"])
+            ),
             payload=json.loads(str(row["payload_json"])),
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
@@ -192,11 +195,15 @@ class PheromoneStore:
     def decay_all(self) -> int:
         conn = self._conn()
         try:
-            rows = conn.execute("SELECT id, raw_strength, updated_at FROM pheromones").fetchall()
+            rows = conn.execute(
+                "SELECT id, raw_strength, updated_at FROM pheromones"
+            ).fetchall()
             expired_ids = [
                 int(row["id"])
                 for row in rows
-                if self._compute_strength(float(row["raw_strength"]), str(row["updated_at"]))
+                if self._compute_strength(
+                    float(row["raw_strength"]), str(row["updated_at"])
+                )
                 < self._floor
             ]
             if expired_ids:
@@ -216,10 +223,16 @@ class PheromoneStore:
         contexts: list[str] = []
         for resource in allowed_files:
             for pheromone in self.query(resource=resource):
-                summary = pheromone.payload.get("summary") if pheromone.payload else None
+                summary = (
+                    pheromone.payload.get("summary") if pheromone.payload else None
+                )
                 if not summary:
-                    count = pheromone.payload.get("count") if pheromone.payload else None
-                    outcome = pheromone.payload.get("outcome") if pheromone.payload else None
+                    count = (
+                        pheromone.payload.get("count") if pheromone.payload else None
+                    )
+                    outcome = (
+                        pheromone.payload.get("outcome") if pheromone.payload else None
+                    )
                     if outcome is not None and count is not None:
                         summary = f"{outcome} {count} times"
                     elif count is not None:

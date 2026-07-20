@@ -50,7 +50,9 @@ class VerificationAuthority:
                 # Migration check for existing SQLite tables
                 existing_cols = {
                     row["name"]
-                    for row in conn.execute("PRAGMA table_info(verification_results)").fetchall()
+                    for row in conn.execute(
+                        "PRAGMA table_info(verification_results)"
+                    ).fetchall()
                 }
                 if "payload_digest" not in existing_cols:
                     conn.execute(
@@ -65,18 +67,21 @@ class VerificationAuthority:
                         "ALTER TABLE verification_results ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"
                     )
 
-    _INSECURE_DEFAULT_KEYS: frozenset[str] = frozenset({
-        "aios-authority-verification-key-v1",
-        "aios-authority-key",
-        "changeme",
-        "secret",
-        "default",
-    })
+    _INSECURE_DEFAULT_KEYS: frozenset[str] = frozenset(
+        {
+            "aios-authority-verification-key-v1",
+            "aios-authority-key",
+            "changeme",
+            "secret",
+            "default",
+        }
+    )
 
     @staticmethod
     def _resolve_signing_key() -> str:
         """Return the configured signing key or raise RuntimeError if insecure."""
         import os
+
         key = (
             os.environ.get("AIOS_VERIFICATION_AUTHORITY_KEY")
             or os.environ.get("VERIFICATION_AUTHORITY_KEY")
@@ -106,6 +111,7 @@ class VerificationAuthority:
         self, verification_id: str, payload_digest: str, created_at: str
     ) -> str:
         import hmac as _hmac
+
         material = f"{verification_id}:{payload_digest}:{created_at}"
         return _hmac.new(
             self._signing_key.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
@@ -252,7 +258,9 @@ class VerificationAuthority:
             return None
         return self._results.get(verification_id)
 
-    def list_results_for_mission(self, mission_id: str) -> tuple[VerificationResult, ...]:
+    def list_results_for_mission(
+        self, mission_id: str
+    ) -> tuple[VerificationResult, ...]:
         """Return all valid, authority-verified results for a specific mission."""
         if self.database_path is not None:
             with self._connection() as conn:

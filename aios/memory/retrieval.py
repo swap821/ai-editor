@@ -16,6 +16,7 @@ FAISS, and an exponential recency term. This improves on the legacy
 implementation in three ways: real BM25 instead of naive term overlap, explicit
 id mapping instead of positional coupling, and UTC-correct decay timing.
 """
+
 from __future__ import annotations
 
 import math

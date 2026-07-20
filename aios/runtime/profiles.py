@@ -6,6 +6,7 @@ task classes may leave the machine, whether autonomy can be earned, and
 which experimental subsystems are enabled. The active profile is loaded by
 ``PolicyKernel`` and drives profile-scoped decisions across the backend.
 """
+
 from __future__ import annotations
 
 import json

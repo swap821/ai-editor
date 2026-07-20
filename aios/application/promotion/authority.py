@@ -23,7 +23,6 @@ from aios.domain.promotion import (
 )
 
 
-
 class CapabilityConsumer(Protocol):
     def __call__(self, request: PromotionRequest) -> bool: ...
 
@@ -238,7 +237,10 @@ class PromotionAuthority:
                 proof = auth.proof
                 if proof is None or proof.consumed_at is None:
                     reasons.append("capability_not_consumed")
-                elif proof.revoked_at is not None or proof.expires_at <= proof.consumed_at:
+                elif (
+                    proof.revoked_at is not None
+                    or proof.expires_at <= proof.consumed_at
+                ):
                     reasons.append("capability_expired_or_revoked")
                 if auth.mission_id != request.mission_id:
                     reasons.append("capability_mission_mismatch")
@@ -345,11 +347,14 @@ class PromotionAuthority:
         """Retrieve authoritative latest promotion result for a mission."""
         return self.get_authoritative_terminal_promotion(mission_id)
 
-    def get_authoritative_terminal_promotion(self, mission_id: str) -> PromotionResult | None:
+    def get_authoritative_terminal_promotion(
+        self, mission_id: str
+    ) -> PromotionResult | None:
         """Retrieve the authoritative latest terminal promotion result for a mission."""
         rec = self.get_authoritative_terminal_record(mission_id)
         if rec is not None:
             import json
+
             res = PromotionResult.model_validate(json.loads(rec["payload_json"]))
             self._promotions[mission_id] = res
             return res
@@ -359,13 +364,15 @@ class PromotionAuthority:
     # Signing key resolution
     # ---------------------------------------------------------------------------
 
-    _INSECURE_DEFAULT_KEYS: frozenset[str] = frozenset({
-        "aios-authority-promotion-key-v1",
-        "aios-authority-key",
-        "changeme",
-        "secret",
-        "default",
-    })
+    _INSECURE_DEFAULT_KEYS: frozenset[str] = frozenset(
+        {
+            "aios-authority-promotion-key-v1",
+            "aios-authority-key",
+            "changeme",
+            "secret",
+            "default",
+        }
+    )
 
     @staticmethod
     def _resolve_signing_key() -> str:
@@ -375,6 +382,7 @@ class PromotionAuthority:
         the known public insecure defaults. Tests use the env var override.
         """
         import os
+
         key = (
             os.environ.get("AIOS_PROMOTION_AUTHORITY_KEY")
             or os.environ.get("PROMOTION_AUTHORITY_KEY")
@@ -415,6 +423,7 @@ class PromotionAuthority:
         created_at: str,
     ) -> str:
         import hmac, hashlib
+
         material = f"{promotion_id}:{mission_id}:{action_id}:{worker_id}:{executor_job_id}:{contract_digest}:{workspace_digest}:{diff_digest}:{status}:{payload_digest}:{created_at}"
         return hmac.new(
             self._signing_key.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
@@ -493,6 +502,7 @@ class PromotionAuthority:
         if self.database_path is None:
             return None
         import hmac, hashlib
+
         with self._connection() as conn:
             row = conn.execute(
                 """
@@ -528,10 +538,13 @@ class PromotionAuthority:
             return None  # Tamper detected
         return row_dict
 
-    def get_authoritative_terminal_record(self, mission_id: str) -> dict[str, Any] | None:
+    def get_authoritative_terminal_record(
+        self, mission_id: str
+    ) -> dict[str, Any] | None:
         if self.database_path is None:
             return None
         from aios.domain.promotion import PromotionStatus
+
         with self._connection() as conn:
             rows = conn.execute(
                 "SELECT promotion_id FROM promotion_records WHERE mission_id = ? ORDER BY created_at DESC",
@@ -560,6 +573,7 @@ class PromotionAuthority:
         if self.database_path is None:
             raise RuntimeError("PromotionAuthority database_path is not configured")
         import sqlite3
+
         conn = sqlite3.connect(self.database_path, timeout=5.0)
         conn.row_factory = sqlite3.Row
         try:
@@ -583,4 +597,3 @@ class PromotionRefused(RuntimeError):
 
 
 __all__ = ["PromotionAuthority", "PromotionAuthorization", "PromotionRefused"]
-

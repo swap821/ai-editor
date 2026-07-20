@@ -293,9 +293,13 @@ class MaintenanceConvergenceService:
                             status="EXECUTOR_PROVENANCE_INVALID",
                         )
 
-
-                require_isolation = getattr(self.executor_service, "require_isolation", True)
-                if require_isolation and getattr(self.executor_service, "profile", "") == "production":
+                require_isolation = getattr(
+                    self.executor_service, "require_isolation", True
+                )
+                if (
+                    require_isolation
+                    and getattr(self.executor_service, "profile", "") == "production"
+                ):
                     if not getattr(executor_result, "isolation_verified", False):
                         return self._failed(
                             mission_id,
@@ -311,7 +315,11 @@ class MaintenanceConvergenceService:
                         "private executor returned a mismatched job id",
                         status="EXECUTOR_PROVENANCE_INVALID",
                     )
-                if getattr(executor_result, "status", "completed") in {"failed", "timeout", "unavailable"}:
+                if getattr(executor_result, "status", "completed") in {
+                    "failed",
+                    "timeout",
+                    "unavailable",
+                }:
                     status_val = getattr(executor_result, "status", "failed")
                     fail_status = (
                         "EXECUTOR_TIMEOUT"
@@ -516,7 +524,9 @@ class MaintenanceConvergenceService:
             # Authoritative post-promotion rescan proved resolution: NOW complete mission
             self.mission_service.complete(
                 mission_id,
-                evidence_digest=promotion.evidence_ids[0] if promotion.evidence_ids else None,
+                evidence_digest=promotion.evidence_ids[0]
+                if promotion.evidence_ids
+                else None,
             )
 
             return MaintenanceRepairResult(

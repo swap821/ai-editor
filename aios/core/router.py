@@ -33,6 +33,7 @@ passed in, so the whole decision is unit-testable with mocks (no network, no
 boto3, no Ollama). The live API layer builds :class:`Provider` rows from its
 clients and calls :func:`route`; this module never imports a client.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -124,7 +125,11 @@ class Provider:
 
     @property
     def cap(self) -> int:
-        return self.capability if self.capability is not None else default_capability(self.name)
+        return (
+            self.capability
+            if self.capability is not None
+            else default_capability(self.name)
+        )
 
 
 @dataclass(frozen=True)
@@ -184,7 +189,9 @@ def policy_allows(policy: Policy, task: str, provider: Provider) -> bool:
     return True
 
 
-def _best_model_for(provider: Provider, task: str, *, require_tools: bool) -> Optional[str]:
+def _best_model_for(
+    provider: Provider, task: str, *, require_tools: bool
+) -> Optional[str]:
     """The single best model *provider* can run for *task* (or ``None``).
 
     Local providers defer to :func:`select_model` (the tested local heuristic,
@@ -194,7 +201,9 @@ def _best_model_for(provider: Provider, task: str, *, require_tools: bool) -> Op
     if not provider.models:
         return None
     if provider.privacy == PRIVACY_LOCAL:
-        return select_model(list(provider.models), task=task, require_tools=require_tools)
+        return select_model(
+            list(provider.models), task=task, require_tools=require_tools
+        )
     return provider.models[0]
 
 
@@ -249,7 +258,9 @@ def candidates(
         base = float(prov.cap)
         if policy.prefer_local and prov.privacy == PRIVACY_LOCAL:
             base += _LOCAL_BIAS
-        score, rate = _calibrated_score(base, prov.name, model, task, metrics, calibration_weight)
+        score, rate = _calibrated_score(
+            base, prov.name, model, task, metrics, calibration_weight
+        )
         reason = _describe(prov, model, rate)
         route = Route(
             provider=prov.name,
