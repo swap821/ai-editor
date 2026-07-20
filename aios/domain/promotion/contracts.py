@@ -24,6 +24,27 @@ class PromotionStatus(StrEnum):
     FAILED = "failed"
 
 
+from aios.domain.capabilities.proof import ConsumedCapabilityProof
+
+
+class PromotionAuthorization(BaseModel):
+    """Server-issued authorization contract for promotion capability verification."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    proof: ConsumedCapabilityProof
+    promotion_attempt_id: str
+    mission_id: str
+    action_id: str
+    worker_id: str
+    executor_job_id: str
+    contract_digest: str
+    workspace_digest: str
+    diff_digest: str
+    project_root_identity: str
+    required_targets: tuple[str, ...]
+
+
 class PromotionRequest(BaseModel):
     """All values required to prove that a staged diff is still promotable."""
 
@@ -49,9 +70,7 @@ class PromotionRequest(BaseModel):
     required_strength: Annotated[int, Field(ge=0)] = 0
     freshness_seconds: Annotated[int, Field(ge=0)] = 300
     requires_capability: bool = False
-    capability_id: str | None = None
-    capability_digest: str | None = None
-    authoritative_capability_digest: str | None = None
+    authorization: PromotionAuthorization | None = None
 
 
 class PromotionResult(BaseModel):
@@ -67,29 +86,6 @@ class PromotionResult(BaseModel):
     diff_digest: str | None = None
     restored: bool = False
     evidence_ids: tuple[str, ...] = ()
-
-
-class PromotionAuthorization(BaseModel):
-    """Server-issued authorization contract for promotion capability verification."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    operator_id: str
-    mission_id: str
-    action_id: str
-    worker_id: str
-    executor_job_id: str
-    contract_digest: str
-    workspace_digest: str
-    diff_digest: str
-    project_root_identity: str
-    required_targets: tuple[str, ...]
-    promotion_route: str
-    policy_version: str
-    capability_scope: str
-    capability_resource_digest: str
-    verification_requirement: str
-    promotion_attempt_id: str
 
 
 __all__ = ["PromotionAuthorization", "PromotionRequest", "PromotionResult", "PromotionStatus"]

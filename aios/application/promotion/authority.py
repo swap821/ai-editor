@@ -231,13 +231,31 @@ class PromotionAuthority:
             ):
                 reasons.append("evidence_target_missing")
         if request.requires_capability:
-            if not request.capability_id or not request.capability_digest:
+            auth = request.authorization
+            if auth is None:
                 reasons.append("capability_binding_missing")
-            elif (
-                request.authoritative_capability_digest is not None
-                and request.capability_digest != request.authoritative_capability_digest
-            ):
-                reasons.append("capability_digest_mismatch")
+            else:
+                proof = auth.proof
+                if proof is None or proof.consumed_at is None:
+                    reasons.append("capability_not_consumed")
+                elif proof.revoked_at is not None or proof.expires_at <= proof.consumed_at:
+                    reasons.append("capability_expired_or_revoked")
+                if auth.mission_id != request.mission_id:
+                    reasons.append("capability_mission_mismatch")
+                if auth.action_id != request.action_id:
+                    reasons.append("capability_action_mismatch")
+                if auth.worker_id != request.worker_id:
+                    reasons.append("capability_worker_mismatch")
+                if auth.executor_job_id != request.executor_job_id:
+                    reasons.append("capability_executor_job_mismatch")
+                if auth.contract_digest != request.contract_digest:
+                    reasons.append("capability_contract_mismatch")
+                if auth.workspace_digest != request.workspace_digest:
+                    reasons.append("capability_workspace_mismatch")
+                if auth.diff_digest != request.diff_digest:
+                    reasons.append("capability_diff_mismatch")
+                if auth.required_targets != request.required_targets:
+                    reasons.append("capability_targets_mismatch")
         try:
             # A request carries a frozen lease, but the durable metadata under
             # the workspace manager is authoritative across restarts.  Never

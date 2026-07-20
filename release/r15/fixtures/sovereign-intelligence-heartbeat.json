@@ -1,0 +1,29 @@
+{
+  "acceptance_eligible": false,
+  "checkpoint_id": "chk-m-1-85eb3457",
+  "confidence_score": 0.96,
+  "consumed_capability_proof_id": "proof-7e5e858e",
+  "executed_at": "2026-07-20T13:15:07.888686+00:00",
+  "executor_job_id": "executor-d8784051",
+  "flywheel_status": "FIXTURE_SOVEREIGN_FLYWHEEL_EXAMPLE",
+  "frontier_finding": "maintenance_defect_001",
+  "granite_job_id": "job-local-cee6c249",
+  "promotion_id": "prom-ea7058e4",
+  "proof_level": "FIXTURE",
+  "proof_type": "fixture_sovereign_intelligence_flywheel_heartbeat",
+  "reuse_outcome_id": "reuse-c27367e6",
+  "skill_id": "repair_defect_marker",
+  "skill_version": 1,
+  "sovereign_chain": [
+    "frontier_ingested",
+    "skill_abstracted",
+    "capability_consumed",
+    "granite_advising",
+    "private_executor_repair",
+    "post_promotion_verified",
+    "confidence_incremented"
+  ],
+  "synthetic": true,
+  "trajectory_id": "traj-d2e1bc80",
+  "verification_receipt_id": "receipt-82e2e5d6"
+}

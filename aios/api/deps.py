@@ -941,32 +941,21 @@ def get_maintenance_scanner_registry() -> Any:
 def get_promotion_capability_consumer(
     capability_authority: Any = Depends(get_capability_authority),
 ) -> Callable[[Any], bool]:
-    """Provide canonical promotion capability consumer using CapabilityAuthority."""
+    """Provide canonical promotion capability consumer validating PromotionAuthorization proof."""
     def consume(request: Any) -> bool:
         if not getattr(request, "requires_capability", False):
             return True
-        cap_id = getattr(request, "capability_id", "")
-        cap_digest = getattr(request, "capability_digest", "")
-        if not cap_id and not cap_digest:
+        authorization = getattr(request, "authorization", None)
+        if authorization is None:
             return False
-        auth = capability_authority
-        if auth is None or hasattr(auth, "dependency"):
-            auth = get_capability_authority()
-        try:
-            token = getattr(request, "capability_token", None) or cap_digest or cap_id
-            if hasattr(auth, "consume_if_valid"):
-                return bool(auth.consume_if_valid(token, cap_digest))
-            cap = auth.inspect(token)
-            if cap is None:
-                # inspect() returned None — capability does not exist. Fail closed.
-                return False
-            if cap.consumed_at is not None or cap.revoked_at is not None:
-                return False
-            auth.consume(token, cap.binding)
-            return True
-        except Exception:
-            # Authority failure is a refusal. No self-comparison fallback.
+        proof = getattr(authorization, "proof", None)
+        if proof is None:
             return False
+        if getattr(proof, "consumed_at", None) is None or getattr(proof, "revoked_at", None) is not None:
+            return False
+        if getattr(proof, "expires_at", 0) <= getattr(proof, "consumed_at", 0):
+            return False
+        return True
     return consume
 
 
@@ -993,150 +982,43 @@ def _resolve_external_rollback_dir(project_root: Path) -> Path:
 def get_checkpoint_creator(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[Any], str]:
-    """Provide canonical restorable checkpoint creator outside project root."""
+    """Provide canonical restorable checkpoint creator using CheckpointAuthority."""
     def create(request: Any) -> str:
-        import json, shutil, hashlib, time
-        project_root = Path(getattr(request, "project_root", "")).resolve()
-        if not project_root.exists():
-            raise ValueError(f"project root {project_root} does not exist")
-        rollback_root = _resolve_external_rollback_dir(project_root)
-        chk_id = f"chk-{request.mission_id}-{request.contract_digest[:8]}"
-        chk_dir = rollback_root / chk_id
-        chk_dir.mkdir(parents=True, exist_ok=True)
+        from aios.application.promotion.checkpoint import CheckpointAuthority
 
-        snapshot_dir = chk_dir / "snapshot"
-        if snapshot_dir.exists():
-            shutil.rmtree(snapshot_dir)
+        def _str(val: Any, default: str) -> str:
+            if isinstance(val, str) and val:
+                return val
+            return default
 
-        shutil.copytree(str(project_root), str(snapshot_dir), symlinks=False)
-
-        affected_paths = []
-        required_targets = getattr(request, "required_targets", ())
-        if not required_targets and snapshot_dir.is_dir():
-            for file_path in snapshot_dir.rglob("*"):
-                if file_path.is_file():
-                    rel = str(file_path.relative_to(snapshot_dir)).replace("\\", "/")
-                    data = file_path.read_bytes()
-                    affected_paths.append({
-                        "rel_path": rel,
-                        "existed_before": True,
-                        "object_type": "file",
-                        "before_sha256": hashlib.sha256(data).hexdigest(),
-                        "classification": "modified",
-                    })
-        else:
-            for target_rel in required_targets:
-                norm_rel = str(target_rel).replace("\\", "/")
-                target_file = project_root / norm_rel
-                existed = target_file.exists() and target_file.is_file()
-                before_sha = hashlib.sha256(target_file.read_bytes()).hexdigest() if existed else None
-                affected_paths.append({
-                    "rel_path": norm_rel,
-                    "existed_before": existed,
-                    "object_type": "file" if existed else "none",
-                    "before_sha256": before_sha,
-                    "classification": "modified" if existed else "created",
-                })
-
-        def _str(val: Any, default: str = "") -> str:
-            return val if isinstance(val, str) else default
-
-        manifest = {
-            "checkpoint_id": chk_id,
-            "mission_id": _str(request.mission_id, "m-1"),
-            "action_id": _str(getattr(request, "action_id", None), "action-1"),
-            "worker_id": _str(getattr(request, "worker_id", None), "worker-1"),
-            "executor_job_id": _str(getattr(request, "executor_job_id", None), "job-1"),
-            "contract_digest": _str(request.contract_digest, "contract-1"),
-            "project_root": str(project_root),
-            "project_root_identity_digest": hashlib.sha256(str(project_root).encode()).hexdigest(),
-            "workspace_digest": _str(getattr(request, "workspace_digest", None), ""),
-            "diff_digest": _str(getattr(request, "diff_digest", None), ""),
-            "affected_paths": affected_paths,
-            "state": "created",
-            "creation_time": time.time(),
-        }
-
-        manifest_raw = json.dumps(manifest, sort_keys=True)
-        manifest["manifest_digest"] = hashlib.sha256(manifest_raw.encode()).hexdigest()
-        (chk_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
-        return chk_id
+        project_root = Path(getattr(request, "project_root", "") or "").resolve()
+        authority = CheckpointAuthority(project_root=project_root)
+        manifest = authority.create_checkpoint(
+            mission_id=_str(getattr(request, "mission_id", None), "m-1"),
+            action_id=_str(getattr(request, "action_id", None), "action-1"),
+            worker_id=_str(getattr(request, "worker_id", None), "worker-1"),
+            executor_job_id=_str(getattr(request, "executor_job_id", None), "job-1"),
+            contract_digest=_str(getattr(request, "contract_digest", None), "0" * 64),
+            workspace_digest=_str(getattr(request, "workspace_digest", None), "1" * 64),
+            diff_digest=_str(getattr(request, "diff_digest", None), "2" * 64),
+            affected_paths=tuple(getattr(request, "required_targets", ()) or ()),
+        )
+        return manifest.checkpoint_id
     return create
 
 
 def get_checkpoint_restorer(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[str, Any], bool]:
-    """Provide canonical restorable checkpoint restorer."""
+    """Provide canonical restorable checkpoint restorer using CheckpointAuthority."""
     def restore(checkpoint_id: str, request: Any) -> bool:
-        import json, shutil, hashlib
+        from aios.application.promotion.checkpoint import CheckpointAuthority
         project_root = Path(getattr(request, "project_root", "")).resolve()
-        rollback_root = _resolve_external_rollback_dir(project_root)
-        chk_dir = rollback_root / checkpoint_id
-        if not chk_dir.exists():
-            return False
-        manifest_file = chk_dir / "manifest.json"
-        if not manifest_file.exists():
-            return False
+        authority = CheckpointAuthority(project_root=project_root)
         try:
-            manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+            receipt = authority.restore_checkpoint(checkpoint_id)
+            return receipt.status == "RESTORED"
         except Exception:
-            return False
-
-        if manifest.get("state") in ("consumed", "invalid"):
-            return False
-
-        snapshot_dir = chk_dir / "snapshot"
-        if not snapshot_dir.is_dir():
-            return False
-
-        manifest["state"] = "restoring"
-        manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
-
-        try:
-            affected_paths = manifest.get("affected_paths", [])
-            if affected_paths:
-                for entry in affected_paths:
-                    rel_path = entry["rel_path"]
-                    target_file = project_root / rel_path
-                    if entry.get("existed_before"):
-                        snap_file = snapshot_dir / rel_path
-                        if snap_file.is_file():
-                            target_file.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(str(snap_file), str(target_file))
-                    else:
-                        if target_file.exists():
-                            if target_file.is_file():
-                                target_file.unlink()
-                            elif target_file.is_dir():
-                                shutil.rmtree(target_file)
-            else:
-                for src in snapshot_dir.rglob("*"):
-                    if src.is_file():
-                        rel = src.relative_to(snapshot_dir)
-                        dst = project_root / rel
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(str(src), str(dst))
-
-            for entry in affected_paths:
-                if entry.get("existed_before"):
-                    target_file = project_root / entry["rel_path"]
-                    if not target_file.is_file():
-                        manifest["state"] = "invalid"
-                        manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
-                        return False
-                    curr_sha = hashlib.sha256(target_file.read_bytes()).hexdigest()
-                    if entry.get("before_sha256") and curr_sha != entry["before_sha256"]:
-                        manifest["state"] = "invalid"
-                        manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
-                        return False
-
-            manifest["state"] = "consumed"
-            manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
-            return True
-        except Exception:
-            manifest["state"] = "invalid"
-            manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
             return False
     return restore
 

@@ -349,29 +349,8 @@ async def enforce_action_boundary(
         ),
     )
     request.state.action_guard = result
-    if token and decision.reason == "exact capability consumed" and binding and principal:
-        now_t = time.time()
-        token_digest_val = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        request.state.consumed_capability_proof = ConsumedCapabilityProof(
-            capability_id=f"capability:{token_digest_val[:16]}",
-            token_digest=token_digest_val,
-            operator_id=binding.operator_id,
-            device_id=binding.device_id,
-            authentication_event_id=binding.authentication_event_id,
-            session_id=binding.session_id,
-            action_type=binding.action_type,
-            route=binding.route,
-            http_method=binding.http_method,
-            payload_digest=binding.payload_digest,
-            resource_digest=binding.resource_digest,
-            mission_id=binding.mission_id,
-            contract_digest=binding.contract_digest,
-            policy_version=binding.policy_version,
-            scope=binding.scope,
-            verification_requirement=binding.verification_requirement,
-            consumed_at=now_t,
-            expires_at=now_t + 120.0,
-        )
+    if getattr(decision, "consumed_capability_proof", None) is not None:
+        request.state.consumed_capability_proof = decision.consumed_capability_proof
     return result
 
 

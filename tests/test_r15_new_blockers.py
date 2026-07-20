@@ -121,33 +121,31 @@ class TestBlocker1ActivationSignature:
 
     def test_activate_skill_accepts_capability_id(self):
         """
-        Prove that LearningService.activate_skill() accepts capability_id kwarg.
-        Before repair: TypeError → caught by generic except → HTTP 400.
-        After repair: signature includes capability_id.
+        Prove that LearningService.activate_skill() accepts authorization.
         """
         import inspect
         from aios.application.learning.service import LearningService
 
         sig = inspect.signature(LearningService.activate_skill)
         params = sig.parameters
-        assert "capability_id" in params, (
-            "BLOCKER 1: activate_skill() does not accept capability_id; "
-            "route passes it causing TypeError → HTTP 400"
+        assert "authorization" in params, (
+            "BLOCKER 1: activate_skill() does not accept authorization parameter"
         )
 
     def test_activate_skill_accepts_capability_digest(self):
-        """capability_digest must also be a named parameter."""
+        """authorization must be a named parameter."""
         import inspect
         from aios.application.learning.service import LearningService
 
         sig = inspect.signature(LearningService.activate_skill)
-        assert "capability_digest" in sig.parameters, (
-            "BLOCKER 1: activate_skill() does not accept capability_digest"
+        assert "authorization" in sig.parameters, (
+            "BLOCKER 1: activate_skill() does not accept authorization parameter"
         )
 
     def test_route_and_service_params_agree(self):
         """Route body fields must map to service parameters without TypeError."""
         # Simulate the route call as written in skills.py
+        import time
         from aios.application.learning.service import LearningService
         from unittest.mock import MagicMock
 
@@ -165,18 +163,55 @@ class TestBlocker1ActivationSignature:
             activation_authorizer=mock_authorizer,
         )
 
-        # This is exactly what the route does — must not raise TypeError
+        from aios.domain.capabilities.contracts import CapabilityBinding, ConsumedCapabilityProof
+        from aios.application.learning.service import SkillActivationAuthorization
+
+        binding = CapabilityBinding(
+            operator_id="op-1",
+            device_id="dev-1",
+            authentication_event_id="auth-1",
+            session_id="sess-1",
+            action_type="SKILL_ACTIVATE",
+            route="/api/v1/skills/test-skill/versions/1/activate",
+            http_method="POST",
+            payload_digest="0" * 64,
+            resource_digest="1" * 64,
+            mission_id="m-1",
+            contract_digest="2" * 64,
+            policy_version="1.0",
+            scope="SKILLS",
+            verification_requirement="STRONG",
+        )
+        proof = ConsumedCapabilityProof(
+            capability_id="cap-1",
+            token_digest="0" * 64,
+            operator_id="op-1",
+            device_id="dev-1",
+            authentication_event_id="auth-1",
+            session_id="sess-1",
+            action_type="skill_activation",
+            route="/api/v1/skills/test-skill/versions/1/activate",
+            http_method="POST",
+            payload_digest="0" * 64,
+            resource_digest="1" * 64,
+            mission_id="m-1",
+            contract_digest="2" * 64,
+            policy_version="1.0",
+            scope="SKILLS",
+            verification_requirement="STRONG",
+            consumed_at=time.time(),
+            expires_at=time.time() + 300.0,
+        )
+        auth = SkillActivationAuthorization(
+            proof=proof,
+            skill_id="test-skill",
+            version=1,
+        )
         try:
-            service.activate_skill(
-                "test-skill",
-                1,
-                operator_id="op-1",
-                approval_digest="digest-abc123",
-                capability_id="cap-xyz",
-            )
+            service.activate_skill(auth)
         except TypeError as exc:
             pytest.fail(
-                f"BLOCKER 1: activate_skill() rejected capability_id kwarg: {exc}"
+                f"BLOCKER 1: activate_skill() rejected authorization: {exc}"
             )
 
 
@@ -366,10 +401,9 @@ class TestBlocker4CheckpointCreation:
         promotion_auth = MagicMock()
         creator = get_checkpoint_creator(promotion_authority=promotion_auth)
 
-        from aios import config
+        from aios.application.promotion.checkpoint import _resolve_external_dir
         chk_id = creator(request)
-
-        chk_dir = config.DATA_DIR / "checkpoints" / chk_id
+        chk_dir = _resolve_external_dir(project_root) / chk_id
 
         # The checkpoint must contain more than just manifest.json
         files_in_chk = list(chk_dir.rglob("*"))

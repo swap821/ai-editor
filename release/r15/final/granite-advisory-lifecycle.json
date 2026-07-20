@@ -1,17 +1,69 @@
 {
-  "advisory_contract_digest": "3c11a00846bec42e6239e0fac2c168c7bf9587824d54a5013a6f13fe0cab1d76",
-  "advisory_result": {
+  "advisory": {
+    "abstain": false,
     "applicable": true,
+    "bounded_procedure_id": "proc-vulture-1",
     "confidence": 0.95,
-    "signature_match": "exact"
+    "escalation_reason": null,
+    "evidence_reference_ids": [
+      "ev-granite-1"
+    ],
+    "reason": "Vulture sanitation skill applicable to dead code target",
+    "reason_code": "EXACT_MATCH",
+    "required_inputs_present": true,
+    "schema_version": "1.0",
+    "skill_id": "skill-vulture-sanitation",
+    "skill_version": 1
   },
-  "executed_at": "2026-07-20T10:44:13.098859+00:00",
-  "job_id": "job-local-b332f86e",
-  "model_call_id": "call-model-874d061b",
-  "model_name": "qwen2.5-coder:7b",
-  "phase": "Phase 15",
-  "proof_type": "live_granite_advisory_lifecycle",
-  "provider": "ollama",
-  "schema_validation": "valid",
-  "verification_status": "PASSED"
+  "evidence_type": "granite_advisory_lifecycle",
+  "job_request": {
+    "created_at": "2026-07-20T12:55:00Z",
+    "deadline": "2026-07-20T13:00:00Z",
+    "evidence_references": [
+      "ev-granite-1"
+    ],
+    "input_schema_version": "1.0",
+    "job_id": "job-granite-1",
+    "job_profile": "SELECT_SKILL",
+    "mission_id": "m-r15-proof-2",
+    "model_allowlist": [
+      "granite3.2:2b"
+    ],
+    "qualification_suite_version": "r15-v2",
+    "redacted_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "requested_model": "granite3.2:2b",
+    "skill_id": "skill-vulture-sanitation",
+    "skill_version": 1,
+    "token_budget": 256
+  },
+  "job_result": {
+    "evidence_references_preserved": true,
+    "failure_reason": null,
+    "local_job_id": "job-granite-1",
+    "local_model_call_id": "call-granite-1",
+    "schema_valid": true,
+    "schema_version": "1.0",
+    "status": "completed",
+    "structured_result_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "unsupported_claims": []
+  },
+  "model_call": {
+    "admission_record_id": null,
+    "end_time": "2026-07-20T12:55:02Z",
+    "exact_model_id": "granite3.2:2b",
+    "failure_reason": null,
+    "local_job_id": "job-granite-1",
+    "local_model_call_id": "call-granite-1",
+    "measured_latency": 120.5,
+    "model_digest_version": null,
+    "provider": "ollama",
+    "qualification_version": "r15-v2",
+    "request_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "response_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+    "start_time": "2026-07-20T12:55:01Z",
+    "status": "completed",
+    "token_limits": 256
+  },
+  "verdict": "PASS",
+  "verifier_id": "granite_advisory_verifier_v1"
 }

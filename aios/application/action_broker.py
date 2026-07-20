@@ -114,7 +114,7 @@ class ActionBroker:
             return decision
         if token:
             try:
-                self.capabilities.consume(token, binding)
+                proof = self.capabilities.consume(token, binding)
             except CapabilityError as exc:
                 raise PolicyBrokerError(str(exc)) from exc
             return replace(
@@ -122,6 +122,7 @@ class ActionBroker:
                 allowed=True,
                 requires_approval=False,
                 reason="exact capability consumed",
+                consumed_capability_proof=proof,
             )
 
         if not decision.requires_approval and not issue_capability:

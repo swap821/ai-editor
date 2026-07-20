@@ -30,6 +30,7 @@ class PolicyDecision:
     reason: str = ""
     audit_event: str = ""
     approval_token: Optional[str] = None
+    consumed_capability_proof: Optional[Any] = None
     decision_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:

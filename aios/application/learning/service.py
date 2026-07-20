@@ -248,72 +248,45 @@ class LearningService:
 
     def activate_skill(
         self,
-        authorization: SkillActivationAuthorization | str | None = None,
-        version: int | None = None,
-        *,
-        skill_id: str | None = None,
-        operator_id: str | None = None,
-        approval_digest: str | None = None,
-        capability_id: str | None = None,
-        capability_digest: str | None = None,
+        authorization: SkillActivationAuthorization,
     ) -> SkillRecord:
         """Activate a candidate skill using an exact capability-backed Human approval."""
-        target_skill_id = skill_id or (authorization if isinstance(authorization, str) else None)
-        if isinstance(authorization, SkillActivationAuthorization):
-            proof = authorization.proof
-            target_skill_id = authorization.skill_id
-            ver = authorization.version
-        elif target_skill_id and version is not None:
-            ver = version
-            if self.activation_authorizer is not None:
-                skill_rec = self.skill_repository.get(target_skill_id, ver)
-                if skill_rec is None:
-                    raise KeyError(f"skill {target_skill_id!r} version {ver} not found")
-                tok = capability_id or approval_digest or ""
-                if not tok or not operator_id:
-                    raise SkillActivationDenied("capability_id or approval_digest and operator_id are required")
+        if not isinstance(authorization, SkillActivationAuthorization):
+            raise SkillActivationDenied("authorization must be a SkillActivationAuthorization instance")
 
-                import inspect
-                try:
-                    sig = inspect.signature(self.activation_authorizer)
-                    param_count = len(sig.parameters)
-                except (ValueError, TypeError):
-                    param_count = 4
+        proof = authorization.proof
+        target_skill_id = authorization.skill_id
+        ver = authorization.version
 
-                if param_count == 3:
-                    ok = self.activation_authorizer(skill_rec, operator_id, approval_digest)
-                else:
-                    ok = self.activation_authorizer(skill_rec, operator_id, approval_digest, capability_id)
-                if not ok:
-                    raise SkillActivationDenied("external authority refused skill activation")
-
-                reviewed = self.skill_repository.transition_state(target_skill_id, ver, "human_reviewed")
-                return self.skill_repository.transition_state(target_skill_id, ver, "active")
-            raise SkillActivationDenied("external authority refused skill activation: CapabilityAuthority authorizer required")
-        else:
-            raise SkillActivationDenied("invalid skill activation parameters")
-
-
-        skill = self.skill_repository.get(skill_id, ver)
+        skill = self.skill_repository.get(target_skill_id, ver)
         if skill is None:
-            raise KeyError(f"skill {skill_id!r} version {ver} not found")
+            raise KeyError(f"skill {target_skill_id!r} version {ver} not found")
+
+        if skill.state != "candidate":
+            raise SkillActivationDenied(f"skill is in state {skill.state!r}, expected 'candidate'")
 
         now = time.time()
         if proof.expires_at <= now or proof.revoked_at is not None:
             raise SkillActivationDenied("consumed capability proof is expired or revoked")
         if not proof.operator_id or not proof.operator_id.strip():
             raise SkillActivationDenied("consumed capability proof operator_id is invalid")
-        if proof.action_type not in ("skill_activation", "route.skill_activation", "YELLOW"):
+        if proof.action_type.lower() not in ("skill_activation", "route.skill_activation", "yellow"):
             raise SkillActivationDenied(f"consumed capability proof action_type mismatch: {proof.action_type}")
-        if f"/api/v1/skills/{skill_id}/versions/{ver}/activate" not in proof.route:
+        expected_route = f"/api/v1/skills/{target_skill_id}/versions/{ver}/activate"
+        if expected_route not in proof.route:
             raise SkillActivationDenied(f"consumed capability proof route mismatch: {proof.route}")
         if proof.http_method.upper() != "POST":
             raise SkillActivationDenied(f"consumed capability proof http_method mismatch: {proof.http_method}")
 
-        reviewed = self.skill_repository.transition_state(skill_id, ver, "human_reviewed")
-        if reviewed.state != "human_reviewed":
+        reviewed = self.skill_repository.transition_state(target_skill_id, ver, "human_reviewed")
+        if reviewed is None or reviewed.state != "human_reviewed":
             raise SkillActivationDenied("skill review transition failed")
-        return self.skill_repository.transition_state(skill_id, ver, "active")
+        activated = self.skill_repository.transition_state(target_skill_id, ver, "active")
+        if activated is None or activated.state != "active":
+            raise SkillActivationDenied("skill activation transition failed")
+
+        return activated
+
 
 
     def attempt_local_reuse(

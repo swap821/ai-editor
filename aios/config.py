@@ -522,6 +522,48 @@ def startup_banner() -> dict[str, object]:
     }
 
 
+_INSECURE_SIGNING_KEYS: Final[frozenset[str]] = frozenset({
+    "aios-authority-verification-key-v1",
+    "aios-authority-promotion-key-v1",
+    "insecure-dev-verification-key-do-not-use-in-production",
+    "insecure-dev-promotion-key-do-not-use-in-production",
+    "aios-authority-key",
+    "changeme",
+    "secret",
+    "default",
+})
+
+
+def validate_authority_signing_keys(
+    *,
+    verification_key: str,
+    promotion_key: str,
+    checkpoint_key: str,
+    is_production: bool = True,
+) -> None:
+    keys = {
+        "VERIFICATION_AUTHORITY_KEY": verification_key,
+        "PROMOTION_AUTHORITY_KEY": promotion_key,
+        "CHECKPOINT_AUTHORITY_KEY": checkpoint_key,
+    }
+    for name, val in keys.items():
+        if not val or not val.strip():
+            raise ValueError(f"Signing key {name} is missing or empty")
+        if len(val.strip()) < 32:
+            raise ValueError(f"Signing key {name} must be at least 32 characters long")
+        if val.strip() in _INSECURE_SIGNING_KEYS:
+            raise ValueError(f"Signing key {name} uses insecure default value: {val!r}")
+
+    vals = [v.strip() for v in keys.values()]
+    if len(set(vals)) < len(vals):
+        raise ValueError("Authority signing keys must not be equal to one another")
+
+
+VERIFICATION_AUTHORITY_KEY: Final[str] = _env_str("VERIFICATION_AUTHORITY_KEY", "")
+PROMOTION_AUTHORITY_KEY: Final[str] = _env_str("PROMOTION_AUTHORITY_KEY", "")
+CHECKPOINT_AUTHORITY_KEY: Final[str] = _env_str("CHECKPOINT_AUTHORITY_KEY", "")
+
+
 __all__ = [
     "PROJECT_ROOT",
     "DATA_DIR",
