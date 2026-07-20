@@ -1,9 +1,0 @@
-{
-  "capability_authority_status": "ACTIVE",
-  "checkpoint_authority_status": "ACTIVE",
-  "evidence_type": "sovereign_intelligence_heartbeat",
-  "heartbeat_timestamp": 1784554387.0268154,
-  "learning_service_status": "ACTIVE",
-  "registered_skills_count": 14,
-  "verdict": "PASS"
-}

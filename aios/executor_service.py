@@ -17,9 +17,12 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Header, HTTPException
 
 from aios import config
-from aios.domain.executor import ExecutorJob, ExecutorResult
+from aios.domain.executor import ExecutorJob, ExecutorRepairReceipt, ExecutorResult
 from aios.infrastructure.executor.docker_runner import DockerJobRunner
 from aios.infrastructure.executor import workspace as workspace_policy
+
+
+EXECUTOR_SERVICE_IDENTITY_VERSION = "gagos-executor-service/1"
 
 
 app = FastAPI(
@@ -216,35 +219,39 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
 
     ws_digest_after = tree_digest(workspace_root)
 
-    out_payload = json.dumps(
-        {
-            "job_id": job.job_id,
-            "operation_id": op_id,
-            "target": target_rel,
-            "changed": changed,
-            "before_digest": before_digest,
-            "after_digest": after_digest,
-            "workspace_digest_before": ws_digest_before,
-            "workspace_digest_after": ws_digest_after,
-            "isolation_backend": "private_executor_service",
-        },
-        sort_keys=True,
-    )
-
     env_dig = hashlib.sha256(
         json.dumps({"op_id": op_id}, sort_keys=True).encode()
     ).hexdigest()
+    ended = utc_now()
+    receipt = ExecutorRepairReceipt(
+        job_id=job.job_id,
+        mission_contract_digest=job.mission_contract_digest,
+        operation_id=op_id,
+        target=target_rel,
+        changed=changed,
+        before_target_digest=before_digest,
+        after_target_digest=after_digest,
+        workspace_digest_before=ws_digest_before,
+        workspace_digest_after=ws_digest_after,
+        isolation_backend="private_executor_service",
+        environment_digest=env_dig,
+        started_timestamp=started,
+        ended_timestamp=ended,
+        executor_service_identity_version=EXECUTOR_SERVICE_IDENTITY_VERSION,
+        exit_code=0,
+        receipt_version="1.0",
+    )
 
     return ExecutorResult(
         job_id=job.job_id,
         status="completed",
         exit_code=0,
-        stdout=out_payload,
+        stdout=receipt.model_dump_json(),
         stderr="",
         isolation_verified=True,
         environment_digest=env_dig,
         started_at=started,
-        ended_at=utc_now(),
+        ended_at=ended,
     )
 
 

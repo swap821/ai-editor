@@ -1,4 +1,10 @@
-# GAGOS R15 Final Repair Ledger
+# GAGOS R15 Final Repair Ledger — SUPERSEDED (HISTORICAL, CONTAINS FALSE CLAIMS)
+
+> **SUPERSEDED 2026-07-20.** This ledger's `Live Result PASSED` / `Operator Result PASSED`
+> claims (notably rows R15-14/R15-15 citing `release/r15/final/*.json`) were false: those
+> artifacts were synthetic in-process generator output, not live evidence, and were deleted.
+> The authoritative ledger is `.aios/state/R15_FINAL_AUTHORITATIVE_REPAIR_LEDGER.md`.
+> Current verdict: `R15 BLOCKED — FINAL AUTHORITATIVE REPAIR IN PROGRESS`.
 
 Initial START_SHA: `51d5a02d5f49f9203856636d34855b217e00e04c`
 Branch: `antigravity/r15-sovereign-intelligence-flywheel`

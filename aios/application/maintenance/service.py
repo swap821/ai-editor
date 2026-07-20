@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -30,6 +31,7 @@ from aios.domain.evidence import (
     VerificationObservation,
     VerificationPlanV1,
 )
+from aios.domain.executor import ExecutorJob, ExecutorRepairReceipt, ExecutorResult
 from aios.domain.maintenance.contracts import (
     MaintenanceFinding,
     MaintenanceResolutionEvidence,
@@ -52,6 +54,10 @@ from aios.application.workspaces.staged import tree_digest
 
 class MaintenanceConvergenceError(RuntimeError):
     """Raised when a maintenance lifecycle cannot proceed safely."""
+
+
+class ExecutorReceiptInvalid(RuntimeError):
+    """Raised when an Executor repair receipt fails provenance validation."""
 
 
 @dataclass(frozen=True)
@@ -267,31 +273,15 @@ class MaintenanceConvergenceService:
 
             try:
                 executor_result = self.executor_service.execute(executor_job)
-
-                out_json = {}
-                if executor_result.stdout:
-                    try:
-                        out_json = json.loads(executor_result.stdout)
-                    except Exception:
-                        out_json = {}
-
-                if isinstance(out_json, dict) and out_json:
-                    res_op_id = out_json.get("operation_id")
-                    res_target = out_json.get("target")
-                    if res_op_id and res_op_id != op_id:
-                        return self._failed(
-                            mission_id,
-                            finding,
-                            f"executor operation_id mismatch: expected {op_id}, got {res_op_id}",
-                            status="EXECUTOR_PROVENANCE_INVALID",
-                        )
-                    if res_target and res_target != target_rel:
-                        return self._failed(
-                            mission_id,
-                            finding,
-                            f"executor target_mismatch: expected {target_rel}, got {res_target}",
-                            status="EXECUTOR_PROVENANCE_INVALID",
-                        )
+                self._validate_executor_receipt(
+                    executor_result=executor_result,
+                    executor_job=executor_job,
+                    op_id=op_id,
+                    target_rel=target_rel,
+                    expected_digest=expected_digest,
+                    expected_workspace_digest=str(diff_before["workspace_digest"]),
+                    lease_workspace_path=Path(lease.workspace_path),
+                )
 
                 require_isolation = getattr(
                     self.executor_service, "require_isolation", True
@@ -353,6 +343,13 @@ class MaintenanceConvergenceService:
                     finding,
                     f"private executor failure: {exc}",
                     status=fail_status,
+                )
+            except ExecutorReceiptInvalid as exc:
+                return self._failed(
+                    mission_id,
+                    finding,
+                    str(exc),
+                    status="EXECUTOR_PROVENANCE_INVALID",
                 )
             except Exception as exc:  # noqa: BLE001 - Executor failures fail closed
                 return self._failed(
@@ -544,6 +541,92 @@ class MaintenanceConvergenceService:
             current = self.finding_repository.get(fingerprint) or finding
             return self._failed(mission_id, current, str(exc))
 
+    def _validate_executor_receipt(
+        self,
+        *,
+        executor_result: ExecutorResult,
+        executor_job: ExecutorJob,
+        op_id: str,
+        target_rel: str,
+        expected_digest: str,
+        expected_workspace_digest: str,
+        lease_workspace_path: Path,
+    ) -> ExecutorRepairReceipt:
+        stdout = executor_result.stdout
+        if not stdout or not stdout.strip():
+            raise ExecutorReceiptInvalid("executor repair receipt stdout is empty")
+        try:
+            raw = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            raise ExecutorReceiptInvalid("executor repair receipt is malformed JSON") from exc
+        try:
+            receipt = ExecutorRepairReceipt.model_validate(raw)
+        except ValueError as exc:
+            raise ExecutorReceiptInvalid(
+                f"executor repair receipt schema invalid: {exc}"
+            ) from exc
+
+        checks = (
+            (receipt.job_id == executor_job.job_id, "executor receipt job_id mismatch"),
+            (
+                receipt.mission_contract_digest
+                == executor_job.mission_contract_digest,
+                "executor receipt mission contract digest mismatch",
+            ),
+            (
+                receipt.operation_id == op_id,
+                "executor receipt operation_id mismatch",
+            ),
+            (receipt.target == target_rel, "executor receipt target mismatch"),
+            (receipt.changed is True, "executor receipt did not prove a change"),
+            (
+                receipt.workspace_digest_before == expected_workspace_digest,
+                "executor receipt workspace-before digest mismatch",
+            ),
+            (
+                receipt.isolation_backend == "private_executor_service",
+                "executor receipt isolation backend mismatch",
+            ),
+            (
+                bool(receipt.environment_digest.strip()),
+                "executor receipt environment digest is empty",
+            ),
+            (receipt.exit_code == 0, "executor receipt exit code is non-zero"),
+            (
+                receipt.receipt_version == "1.0",
+                "executor receipt version is unsupported",
+            ),
+        )
+        for ok, reason in checks:
+            if not ok:
+                raise ExecutorReceiptInvalid(reason)
+        if expected_digest and receipt.before_target_digest != expected_digest:
+            raise ExecutorReceiptInvalid("executor receipt before-target digest mismatch")
+        try:
+            started = _parse_iso8601(receipt.started_timestamp)
+            ended = _parse_iso8601(receipt.ended_timestamp)
+        except ValueError as exc:
+            raise ExecutorReceiptInvalid(
+                "executor receipt timestamps are not valid ISO-8601"
+            ) from exc
+        if ended < started:
+            raise ExecutorReceiptInvalid("executor receipt ended before it started")
+
+        target_path = (lease_workspace_path / target_rel.replace("\\", "/")).resolve()
+        try:
+            target_path.relative_to(lease_workspace_path.resolve())
+        except ValueError as exc:
+            raise ExecutorReceiptInvalid("executor receipt target escapes workspace") from exc
+        if not target_path.is_file():
+            raise ExecutorReceiptInvalid("executor receipt target is not present")
+        actual_target_digest = hashlib.sha256(target_path.read_bytes()).hexdigest()
+        if receipt.after_target_digest != actual_target_digest:
+            raise ExecutorReceiptInvalid("executor receipt after-target digest mismatch")
+        actual_workspace_digest = tree_digest(lease_workspace_path)
+        if receipt.workspace_digest_after != actual_workspace_digest:
+            raise ExecutorReceiptInvalid("executor receipt after-workspace digest mismatch")
+        return receipt
+
     def reconcile_rescan(
         self, evidence: MaintenanceResolutionEvidence
     ) -> MaintenanceFinding:
@@ -689,6 +772,10 @@ def _is_incomplete_scan(error: Exception) -> bool:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _parse_iso8601(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 __all__ = [

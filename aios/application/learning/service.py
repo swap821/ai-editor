@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, Mapping, Sequence
+from pathlib import Path
+from typing import Any, Callable, Mapping, Sequence
 import time
 from uuid import uuid4
 
@@ -21,10 +22,12 @@ from aios.domain.learning.applicability import SkillApplicabilityEngine
 from aios.domain.learning.confidence import ConfidenceUpdater
 from aios.domain.learning.contracts import (
     ExpertTrajectory,
+    ReuseOutcomeReference,
     ToolObservation,
     TrajectoryVerification,
 )
 from aios.domain.learning.repository import SkillRecord, SkillRepository
+from aios.domain.learning.reuse_outcome_repository import ReuseOutcomeRepository
 from aios.domain.learning.reuse_orchestrator import (
     EscalateToFrontierDirective,
     LocalExecutionDirective,
@@ -85,6 +88,13 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _default_reuse_outcome_db(repository: TrajectoryRepository) -> Path | str:
+    database = getattr(repository, "database", None)
+    if isinstance(database, Path | str):
+        return database
+    return ":memory:"
+
+
 class LearningService:
     """Use existing mission, verification and durable-memory authorities."""
 
@@ -100,6 +110,7 @@ class LearningService:
         verification_authority: VerificationAuthority | None = None,
         promotion_authority: PromotionAuthority | None = None,
         local_workforce_service: Any | None = None,
+        reuse_outcome_repository: ReuseOutcomeRepository | None = None,
         minimum_confidence: float = 0.8,
     ) -> None:
         self.mission_service = mission_service
@@ -113,6 +124,11 @@ class LearningService:
         self.verification_authority = verification_authority or VerificationAuthority()
         self.promotion_authority = promotion_authority
         self.local_workforce_service = local_workforce_service
+        self.reuse_outcome_repository = (
+            reuse_outcome_repository
+            if reuse_outcome_repository is not None
+            else ReuseOutcomeRepository(_default_reuse_outcome_db(trajectory_repository))
+        )
         self.applicability = SkillApplicabilityEngine(minimum_confidence)
         self.reuse = SkillReuseOrchestrator(self.applicability)
         self.trajectory_gate = TrajectoryGate()
@@ -434,36 +450,59 @@ class LearningService:
         created = self.mission_service.create(contract)
         return directive.model_copy(update={"mission_id": created.mission_id})
 
-    def record_reuse_outcome(
-        self,
-        *,
-        skill_id: str,
-        version: int,
-        mission_id: str,
-        verification_results: Sequence[VerificationResult],
-        workspace_digest: str,
-        diff_digest: str,
-        worker_id: str | None = None,
-        executor_job_id: str | None = None,
-        promotion_id: str | None = None,
-        source_trajectory_id: str | None = None,
-        local_model_call_id: str | None = None,
-    ) -> SkillRecord:
+    def record_reuse_outcome(self, reference: ReuseOutcomeReference) -> SkillRecord:
+        if not isinstance(reference, ReuseOutcomeReference):
+            raise TypeError("reference must be a ReuseOutcomeReference")
+        skill_id = reference.skill_id
+        version = reference.skill_version
+        mission_id = reference.mission_id
         skill = self.skill_repository.get(skill_id, version)
         if skill is None:
             raise KeyError(f"skill {skill_id!r} version {version} not found")
+        if not self.reuse_outcome_repository.record(reference):
+            return skill
         mission = self.mission_service.repository.get(mission_id)
-        results = tuple(verification_results)
+        results = tuple(
+            result
+            for result in (
+                self.verification_authority.get(verification_id)
+                for verification_id in reference.verification_ids
+            )
+            if result is not None
+        )
 
         # Lineage check across skill, mission, and promotion authority
         lineage_valid = True
-        if (
-            source_trajectory_id
-            and source_trajectory_id not in skill.source_trajectory_ids
-        ):
+        mandatory_values = (
+            reference.reuse_outcome_id,
+            reference.skill_id,
+            str(reference.skill_version),
+            reference.source_trajectory_id,
+            reference.mission_id,
+            reference.worker_id,
+            reference.executor_job_id,
+            reference.promotion_id,
+            reference.local_job_id,
+            reference.local_model_call_id,
+            reference.workspace_digest,
+            reference.diff_digest,
+            reference.project_digest,
+            reference.contract_digest,
+            reference.policy_version,
+        )
+        if any(not value.strip() for value in mandatory_values):
+            lineage_valid = False
+        if not reference.verification_ids:
+            lineage_valid = False
+        if reference.source_trajectory_id not in skill.source_trajectory_ids:
+            lineage_valid = False
+        source_trajectory = self.trajectory_repository.get(reference.source_trajectory_id)
+        if source_trajectory is None:
             lineage_valid = False
 
         if mission is None or mission.state is not MissionState.COMPLETED:
+            lineage_valid = False
+        elif mission.contract_digest != reference.contract_digest:
             lineage_valid = False
 
         if (
@@ -473,60 +512,56 @@ class LearningService:
         ):
             lineage_valid = False
 
-        # Idempotency check
-        reuse_key = (
-            f"{skill_id}:{version}:{mission_id}:{promotion_id or ''}:{workspace_digest}"
-        )
-        if not hasattr(self, "_recorded_reuse_outcomes"):
-            self._recorded_reuse_outcomes = set()
-        if reuse_key in self._recorded_reuse_outcomes:
-            return skill
+        if mission is not None:
+            metadata = mission.contract.metadata
+            lineage_fields = {
+                "worker_id": reference.worker_id,
+                "executor_job_id": reference.executor_job_id,
+                "promotion_id": reference.promotion_id,
+                "local_job_id": reference.local_job_id,
+                "local_model_call_id": reference.local_model_call_id,
+                "source_trajectory_id": reference.source_trajectory_id,
+            }
+            for key, expected in lineage_fields.items():
+                if metadata.get(key) and metadata.get(key) != expected:
+                    lineage_valid = False
 
         if self.promotion_authority is not None:
-            if not promotion_id:
+            prom_record = self.promotion_authority.get_record(reference.promotion_id)
+            term_record = self.promotion_authority.get_authoritative_terminal_record(
+                mission_id
+            )
+            if prom_record is None:
                 lineage_valid = False
-            else:
-                prom_record = self.promotion_authority.get_record(promotion_id)
-                term_record = (
-                    self.promotion_authority.get_authoritative_terminal_record(
-                        mission_id
-                    )
-                )
-                if prom_record is None:
-                    lineage_valid = False
-                elif prom_record.get("status") not in (
-                    PromotionStatus.PROMOTED,
-                    PromotionStatus.PROMOTED.value,
-                ):
-                    lineage_valid = False
-                elif (
-                    term_record is not None
-                    and term_record.get("promotion_id") != promotion_id
-                    and term_record.get("status")
-                    not in (PromotionStatus.PROMOTED, PromotionStatus.PROMOTED.value)
-                ):
-                    lineage_valid = False
-                elif prom_record.get("mission_id") != mission_id:
-                    lineage_valid = False
-                elif worker_id and prom_record.get("worker_id") != worker_id:
-                    lineage_valid = False
-                elif (
-                    executor_job_id
-                    and prom_record.get("executor_job_id") != executor_job_id
-                ):
-                    lineage_valid = False
-                elif prom_record.get("workspace_digest") != workspace_digest:
-                    lineage_valid = False
-                elif prom_record.get("diff_digest") != diff_digest:
-                    lineage_valid = False
-
-        if lineage_valid:
-            self._recorded_reuse_outcomes.add(reuse_key)
+            elif prom_record.get("status") not in (
+                PromotionStatus.PROMOTED,
+                PromotionStatus.PROMOTED.value,
+            ):
+                lineage_valid = False
+            elif (
+                term_record is not None
+                and term_record.get("promotion_id") != reference.promotion_id
+                and term_record.get("status")
+                not in (PromotionStatus.PROMOTED, PromotionStatus.PROMOTED.value)
+            ):
+                lineage_valid = False
+            elif prom_record.get("mission_id") != mission_id:
+                lineage_valid = False
+            elif prom_record.get("worker_id") != reference.worker_id:
+                lineage_valid = False
+            elif prom_record.get("executor_job_id") != reference.executor_job_id:
+                lineage_valid = False
+            elif prom_record.get("workspace_digest") != reference.workspace_digest:
+                lineage_valid = False
+            elif prom_record.get("diff_digest") != reference.diff_digest:
+                lineage_valid = False
 
         passed = (
             lineage_valid
             and bool(results)
             and all(result.mission_id == mission_id for result in results)
+            and tuple(result.verification_id for result in results)
+            == reference.verification_ids
             and all(result.meets_requirement for result in results)
             and all(
                 self.verification_authority.is_authoritative(result)
@@ -535,8 +570,8 @@ class LearningService:
             and all(
                 self.verification_authority.is_current(
                     result,
-                    workspace_digest=workspace_digest,
-                    diff_digest=diff_digest,
+                    workspace_digest=reference.workspace_digest,
+                    diff_digest=reference.diff_digest,
                 )
                 for result in results
             )
