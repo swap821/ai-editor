@@ -301,30 +301,34 @@ class LearningService:
             return directive
 
         if self.local_workforce_service is not None:
-            models = self.local_workforce_service.registry.list_models()
-            admitted = [
-                m
-                for m in models
-                if getattr(m, "admission_status", None) == "approved"
-                and getattr(m, "health_status", None) == "healthy"
-                and getattr(m, "operator_approved", False)
-            ]
-            if not admitted:
-                self._record_failure(skill, "no_admitted_local_clerk")
-                return EscalateToFrontierDirective(
-                    reason="No admitted healthy local clerk model available in Local Workforce"
-                )
-            clerk_model = admitted[0]
-            try:
-                client = self.local_workforce_service.model_client_factory(clerk_model.model_id)
-                prompt = (
+            from datetime import datetime, timezone, timedelta
+            from uuid import uuid4
+            from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
+            
+            job_req = LocalJobRequest(
+                job_id=f"clerk-job-{uuid4().hex}",
+                job_profile=LocalJobProfile.SELECT_SKILL,
+                input_schema_version="1.0",
+                evidence_references=frozenset({skill.skill_id}),
+                redacted_payload=(
                     f"Evaluate local skill applicability for skill_id={skill.skill_id} version={skill.version}.\n"
                     f"Inputs: {current_inputs}\nState: {current_state}\n"
                     'Respond with strictly formatted JSON: {"applicable": true, "confidence": 0.9, "reason": "ok", "bounded_procedure_id": "proc-1", "required_inputs_present": true, "abstain": false, "escalation_reason": null}'
-                )
-                raw_resp = client.complete(prompt, system="Advisory clerk evaluation. Output JSON only.")
-                import json
-                parsed = json.loads(raw_resp)
+                ),
+                token_budget=128,
+                deadline=datetime.now(timezone.utc) + timedelta(seconds=10),
+                required_output_schema={"applicable": "bool", "confidence": "float", "reason": "str"},
+            )
+            
+            clerk_res = self.local_workforce_service.run_advisory_job(job_req)
+            if clerk_res.status != "completed" or not clerk_res.structured_output:
+                if clerk_res.failure_reason != "No admitted healthy local model for profile":
+                    self._record_failure(skill, "clerk_advisory_refused")
+                    return EscalateToFrontierDirective(
+                        reason=clerk_res.failure_reason or "Local clerk advisory failed"
+                    )
+            elif clerk_res.structured_output:
+                parsed = clerk_res.structured_output
                 if (
                     not isinstance(parsed, dict)
                     or not parsed.get("applicable")
@@ -338,9 +342,6 @@ class LearningService:
                     )
                     self._record_failure(skill, "clerk_advisory_refused")
                     return EscalateToFrontierDirective(reason=reason)
-            except Exception as exc:  # noqa: BLE001 - clerk failure escalates to frontier
-                self._record_failure(skill, f"clerk_advisory_error: {exc}")
-                return EscalateToFrontierDirective(reason=f"Local clerk advisory failed: {exc}")
         contract = MissionContract(
             mission_id=mission_id,
             project_id=project_id,
@@ -387,35 +388,37 @@ class LearningService:
         mission = self.mission_service.repository.get(mission_id)
         results = tuple(verification_results)
 
-        # Check lineage equality across skill, trajectory, mission, worker, executor, promotion, verification
+        # Lineage check across skill, mission, and promotion authority
         lineage_valid = True
         if source_trajectory_id and source_trajectory_id not in skill.source_trajectory_ids:
             lineage_valid = False
 
-        if mission.contract.metadata.get("skill_id") and mission.contract.metadata.get("skill_id") != skill_id:
+        if mission is None or mission.state is not MissionState.COMPLETED:
             lineage_valid = False
 
-        held_promotion = (
-            self.promotion_authority.get_promotion(mission_id)
-            if self.promotion_authority is not None
-            else None
-        )
+        if mission and mission.contract.metadata.get("skill_id") and mission.contract.metadata.get("skill_id") != skill_id:
+            lineage_valid = False
 
         if self.promotion_authority is not None:
-            if held_promotion is None or held_promotion.status is not PromotionStatus.PROMOTED:
+            if not promotion_id:
                 lineage_valid = False
-            elif promotion_id and getattr(held_promotion, "promotion_id", None) and getattr(held_promotion, "promotion_id") != promotion_id:
-                lineage_valid = False
-
-        if worker_id and held_promotion and getattr(held_promotion, "worker_id", None) and getattr(held_promotion, "worker_id") != worker_id:
-            lineage_valid = False
-
-        if executor_job_id and held_promotion and getattr(held_promotion, "executor_job_id", None) and getattr(held_promotion, "executor_job_id") != executor_job_id:
-            lineage_valid = False
+            else:
+                prom_record = self.promotion_authority.get_record(promotion_id)
+                if prom_record is None or prom_record.get("status") != "PROMOTED":
+                    lineage_valid = False
+                elif prom_record.get("mission_id") != mission_id:
+                    lineage_valid = False
+                elif worker_id and prom_record.get("worker_id") != worker_id:
+                    lineage_valid = False
+                elif executor_job_id and prom_record.get("executor_job_id") != executor_job_id:
+                    lineage_valid = False
+                elif prom_record.get("workspace_digest") != workspace_digest:
+                    lineage_valid = False
+                elif prom_record.get("diff_digest") != diff_digest:
+                    lineage_valid = False
 
         passed = (
             lineage_valid
-            and mission.state is MissionState.COMPLETED
             and bool(results)
             and all(result.mission_id == mission_id for result in results)
             and all(result.meets_requirement for result in results)

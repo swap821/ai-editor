@@ -10,7 +10,12 @@ from aios.domain.local_workforce.admission import (
     AdmissionContext,
     HardwareAdmission,
 )
-from aios.domain.local_workforce.contracts import LocalJobProfile, LocalWorkerModel
+from aios.domain.local_workforce.contracts import (
+    LocalJobProfile,
+    LocalJobRequest,
+    LocalJobResult,
+    LocalWorkerModel,
+)
 from aios.domain.local_workforce.qualifier import QualificationSuite
 from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 
@@ -149,6 +154,94 @@ class LocalWorkforceService:
             "reason": reason,
             "qualification": result.model_dump(),
         }
+
+    def run_advisory_job(
+        self,
+        request: LocalJobRequest,
+        *,
+        model_id: str | None = None,
+    ) -> LocalJobResult:
+        """Execute a governed local clerical job through an admitted model."""
+        import time, json
+        start_t = time.time()
+        
+        registry = self.registry
+        if registry is None or hasattr(registry, "dependency") or not hasattr(registry, "list_models"):
+            from aios.api.deps import get_local_workforce_registry
+            registry = get_local_workforce_registry()
+        
+        try:
+            models = registry.list_models()
+        except Exception:
+            models = []
+        admitted = [
+            m for m in models
+            if m.installed
+            and m.operator_approved
+            and m.admission_status == "approved"
+            and getattr(m, "health", "healthy") == "healthy"
+            and request.job_profile in m.allowed_job_profiles
+        ]
+        if not admitted:
+            return LocalJobResult(
+                job_id=request.job_id,
+                model_id=model_id or "none",
+                structured_output=None,
+                schema_valid=False,
+                evidence_references_preserved=False,
+                unsupported_claims=("No admitted healthy local model for profile",),
+                latency=time.time() - start_t,
+                status="rejected",
+                failure_reason="No admitted healthy local model for profile",
+            )
+        
+        selected = admitted[0]
+        if model_id and any(m.model_id == model_id for m in admitted):
+            selected = next(m for m in admitted if m.model_id == model_id)
+            
+        try:
+            client = self.model_client_factory(selected.model_id)
+            system_msg = (
+                f"Advisory clerical job: profile={request.job_profile.value}. "
+                "Respond strictly with JSON matching the required schema. No extra text or fields."
+            )
+            raw_output = client.complete(
+                request.redacted_payload,
+                system=system_msg,
+            )
+            parsed = json.loads(raw_output)
+            if not isinstance(parsed, dict):
+                raise ValueError("Output is not a JSON object")
+            
+            valid = True
+            for k in ("applicable", "confidence", "reason"):
+                if k not in parsed:
+                    valid = False
+            
+            latency = time.time() - start_t
+            return LocalJobResult(
+                job_id=request.job_id,
+                model_id=selected.model_id,
+                structured_output=parsed,
+                schema_valid=valid,
+                evidence_references_preserved=True,
+                unsupported_claims=(),
+                latency=latency,
+                status="completed" if valid else "failed",
+                failure_reason=None if valid else "JSON schema validation failed",
+            )
+        except Exception as exc:
+            return LocalJobResult(
+                job_id=request.job_id,
+                model_id=selected.model_id,
+                structured_output=None,
+                schema_valid=False,
+                evidence_references_preserved=False,
+                unsupported_claims=(str(exc),),
+                latency=time.time() - start_t,
+                status="failed",
+                failure_reason=str(exc),
+            )
 
     def _require_model(self, model_id: str) -> LocalWorkerModel:
         model = self.registry.get_model(model_id)

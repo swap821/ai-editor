@@ -187,15 +187,16 @@ class VerificationAuthority:
                 created_at = row["created_at"]
 
                 # Integrity checks
+                if not stored_digest or not stored_proof:
+                    return None  # Unsigned legacy row quarantined
                 actual_digest = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
-                if stored_digest and stored_digest != actual_digest:
+                if stored_digest != actual_digest:
                     return None  # Tamper detected: payload digest mismatch
 
-                effective_digest = stored_digest or actual_digest
                 actual_proof = self._compute_integrity_proof(
-                    verification_id, effective_digest, created_at
+                    verification_id, stored_digest, created_at
                 )
-                if stored_proof and not hmac.compare_digest(stored_proof, actual_proof):
+                if not hmac.compare_digest(stored_proof, actual_proof):
                     return None  # Tamper detected: integrity proof mismatch
 
                 result = VerificationResult.model_validate(json.loads(payload_json))

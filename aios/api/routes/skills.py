@@ -70,6 +70,7 @@ def activate_skill_route(
             version,
             operator_id=operator_id,
             approval_digest=body.capability_digest,
+            capability_id=body.capability_id,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -190,6 +190,15 @@ SKILL_REUSE_FAILURE_K: Final[float] = _env_float("AIOS_SKILL_REUSE_FAILURE_K", 1
 SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.25)
 SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
 
+VERIFICATION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_VERIFICATION_AUTHORITY_KEY",
+    "insecure-dev-verification-key-do-not-use-in-production",
+)
+PROMOTION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_PROMOTION_AUTHORITY_KEY",
+    "insecure-dev-promotion-key-do-not-use-in-production",
+)
+
 EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", True)
 EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int(
     "AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5

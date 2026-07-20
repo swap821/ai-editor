@@ -13,10 +13,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from aios import config
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import (
+    get_checkpoint_creator,
+    get_checkpoint_restorer,
     get_emergency_stop,
     get_maintenance_convergence_service,
     get_maintenance_finding_repository,
     get_maintenance_scan_repository,
+    get_promotion_capability_consumer,
+    get_promotion_smoke_verifier,
 )
 from aios.application.governance import EmergencyStopController, EmergencyStopError
 from aios.application.maintenance.service import (
@@ -198,6 +202,10 @@ async def run_approved_repair(
     payload: RunApprovedRepairRequest,
     service: MaintenanceConvergenceService = Depends(get_maintenance_convergence_service),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
+    capability_consumer: Any = Depends(get_promotion_capability_consumer),
+    create_checkpoint: Any = Depends(get_checkpoint_creator),
+    restore_checkpoint: Any = Depends(get_checkpoint_restorer),
+    smoke_test: Any = Depends(get_promotion_smoke_verifier),
 ) -> dict[str, Any]:
     """Execute one already-approved repair mission through canonical organs."""
     try:
@@ -239,24 +247,6 @@ async def run_approved_repair(
         max_findings=100,
         git_history_allowed=False,
     )
-
-    def create_checkpoint(req: Any) -> str:
-        lease = service.workspace_manager.for_mission(req.mission_id)
-        if lease is None:
-            raise RuntimeError("staged workspace lease unavailable")
-        return f"chk-{uuid4().hex[:8]}"
-
-    def restore_checkpoint(checkpoint_id: str, req: Any) -> bool:
-        return True
-
-    def smoke_test(req: Any) -> bool:
-        lease = service.workspace_manager.for_mission(req.mission_id)
-        return lease is not None
-
-    def capability_consumer(req: Any) -> bool:
-        if not req.requires_capability:
-            return True
-        return bool(req.capability_id and req.capability_digest)
 
     try:
         result = service.run_approved_repair(

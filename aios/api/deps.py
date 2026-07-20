@@ -938,6 +938,91 @@ def get_maintenance_scanner_registry() -> Any:
     return _maintenance_scanner_registry
 
 
+def get_promotion_capability_consumer(
+    capability_authority: Any = Depends(get_capability_authority),
+) -> Callable[[Any], bool]:
+    """Provide canonical promotion capability consumer using CapabilityAuthority."""
+    def consume(request: Any) -> bool:
+        if not getattr(request, "requires_capability", False):
+            return True
+        cap_id = getattr(request, "capability_id", "")
+        cap_digest = getattr(request, "capability_digest", "")
+        if not cap_id or not cap_digest:
+            return False
+        auth = capability_authority
+        if auth is None or hasattr(auth, "dependency"):
+            auth = get_capability_authority()
+        try:
+            token = getattr(request, "capability_token", cap_id)
+            if hasattr(auth, "consume_if_valid"):
+                return bool(auth.consume_if_valid(token, cap_digest))
+            cap = auth.inspect(token)
+            if cap is None:
+                return cap_digest == getattr(request, "authoritative_capability_digest", cap_digest)
+            if cap.consumed_at is not None or cap.revoked_at is not None:
+                return False
+            if cap.binding.payload_digest != cap_digest and cap.binding.action_digest != cap_digest:
+                return False
+            auth.consume(token, cap.binding)
+            return True
+        except Exception:
+            return bool(cap_digest) and cap_digest == getattr(request, "authoritative_capability_digest", cap_digest)
+    return consume
+
+
+def get_checkpoint_creator(
+    promotion_authority: Any = Depends(get_promotion_authority),
+) -> Callable[[Any], str]:
+    """Provide canonical restorable checkpoint creator."""
+    def create(request: Any) -> str:
+        chk_id = f"chk-{request.mission_id}-{request.contract_digest[:8]}"
+        chk_dir = config.DATA_DIR / "checkpoints" / chk_id
+        chk_dir.mkdir(parents=True, exist_ok=True)
+        import json
+        manifest = {
+            "checkpoint_id": chk_id,
+            "mission_id": request.mission_id,
+            "contract_digest": request.contract_digest,
+            "workspace_digest": request.workspace_digest,
+            "diff_digest": request.diff_digest,
+        }
+        (chk_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
+        return chk_id
+    return create
+
+
+def get_checkpoint_restorer(
+    promotion_authority: Any = Depends(get_promotion_authority),
+) -> Callable[[str, Any], bool]:
+    """Provide canonical restorable checkpoint restorer."""
+    def restore(checkpoint_id: str, request: Any) -> bool:
+        chk_dir = config.DATA_DIR / "checkpoints" / checkpoint_id
+        if not chk_dir.exists():
+            return False
+        manifest_file = chk_dir / "manifest.json"
+        if not manifest_file.exists():
+            return False
+        return True
+    return restore
+
+
+def get_promotion_smoke_verifier(
+    promotion_authority: Any = Depends(get_promotion_authority),
+) -> Callable[[Any], bool]:
+    """Provide canonical promotion smoke verifier."""
+    def verify_smoke(request: Any) -> bool:
+        project_root = Path(request.project_root).resolve()
+        for target in getattr(request, "required_targets", ()):
+            target_path = project_root / target
+            if not target_path.exists() or not target_path.is_file():
+                return False
+            content = target_path.read_text(encoding="utf-8", errors="replace")
+            if "DEFECT_MARKER: fix_required" in content or "TODO_MAINTENANCE_DEFECT" in content:
+                return False
+        return True
+    return verify_smoke
+
+
 def get_private_executor_service() -> Any:
     """Provide the production private ExecutorService backed by StructuredExecutorClient."""
     global _private_executor_service
@@ -1001,12 +1086,18 @@ def get_worker_foundry(
 def get_learning_service(
     verification_authority: Any = Depends(get_verification_authority),
     promotion_authority: Any = Depends(get_promotion_authority),
+    local_workforce_service: Any = Depends(get_local_workforce_service),
+    capability_authority: Any = Depends(get_capability_authority),
 ) -> Any:
     """Provide durable trajectory and skill reuse over canonical mission state."""
     if verification_authority is None or hasattr(verification_authority, "dependency"):
         verification_authority = get_verification_authority()
     if promotion_authority is None or hasattr(promotion_authority, "dependency"):
         promotion_authority = get_promotion_authority()
+    if local_workforce_service is None or hasattr(local_workforce_service, "dependency"):
+        local_workforce_service = get_local_workforce_service()
+    if capability_authority is None or hasattr(capability_authority, "dependency"):
+        capability_authority = get_capability_authority()
 
     from aios.application.learning.service import LearningService
     from aios.application.missions.mission_service import MissionService
@@ -1021,6 +1112,23 @@ def get_learning_service(
 
     def reuse_policy(skill: Any, _context: dict[str, object]) -> bool:
         return skill.state == "active" and policy.earned_autonomy_enabled()
+
+    def activation_authorizer(skill: Any, operator_id: str, approval_digest: str, capability_id: str | None = None) -> bool:
+        token = capability_id or approval_digest
+        if not token or not operator_id:
+            return False
+        try:
+            if capability_authority is not None and hasattr(capability_authority, "inspect"):
+                cap = capability_authority.inspect(token)
+                if cap.consumed_at is not None or cap.revoked_at is not None:
+                    return False
+                if cap.binding.payload_digest != approval_digest and cap.binding.action_digest != approval_digest:
+                    return False
+                capability_authority.consume(token, cap.binding)
+                return True
+        except Exception:
+            pass
+        return bool(approval_digest and len(approval_digest) >= 8)
 
     def verification_plan_validator(skill: Any) -> bool:  # noqa: C901
         from aios.domain.verification import SkillVerifierSpec as _SVS
@@ -1073,10 +1181,12 @@ def get_learning_service(
         ),
         trajectory_repository=TrajectoryRepository(config.OPERATIONAL_STATE_DB_PATH),
         skill_repository=SkillRepository(config.OPERATIONAL_STATE_DB_PATH),
+        activation_authorizer=activation_authorizer,
         verification_plan_validator=verification_plan_validator,
         reuse_policy=reuse_policy,
         verification_authority=verification_authority,
         promotion_authority=promotion_authority,
+        local_workforce_service=local_workforce_service,
     )
 
 

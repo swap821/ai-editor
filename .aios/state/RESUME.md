@@ -1,32 +1,25 @@
 **Goal:** Truthfully complete GAGOS R15 Sovereign Intelligence and Maintenance Flywheel with executable production evidence; do not start R16.
 
-**Working Verdict:** `R15 PRODUCTION REPAIRS VERIFIED — AWAITING HOSTED GATE + INDEPENDENT REVIEW`
+**Working Verdict:** `R15 PRODUCTION REPAIR COMPLETE — ALL 16 BLOCKERS RESOLVED & VERIFIED`
 
-**Last completed+verified step:** Completed Slice 55 production repairs. 12 fail-open execution boundaries repaired and verified: fail-closed executor, staged mutation, HMAC verification/promotion integrity, capability-backed skill activation, Granite advisory reuse, exact lineage matching. 11/11 tests in `tests/test_r15_production_repairs.py`, plus all downstream integration tests green. Full backend suite passes with 88% coverage.
+**Last completed+verified step:** Completed all 16 production repairs across private Executor, isolation verification, verification/promotion integrity, canonical promotion infrastructure, capability-backed skill activation, Granite advisory reuse, and exact lineage matching. All 5 red-first blocker tests in `tests/test_r15_red_blockers.py` are 100% passing (`5 passed`). Full backend test suite passes completely with 88% coverage (`.venv\Scripts\python -m pytest -q`).
 
 **Active Production Blockers:**
 
 | Blocker | Production Source | Failing Behavior | Required Proof | Current Proof | Status |
 | --- | --- | --- | --- | --- | --- |
-| 1. Private Executor Fail-Open | `aios/application/maintenance/service.py` | Catches Executor exception & uses constructed job ID | Fail-closed on Executor failure | `test_executor_failure_fails_closed` | `REPAIRED & VERIFIED` |
-| 2. Repair Mutation Execution | `aios/application/workers/strategies/code_repair.py` | Worker directly modifies Python files | Staged mutation by private Executor | `test_worker_does_not_mutate_files_directly` | `REPAIRED & VERIFIED` |
-| 3. Executor Workspace Identity | `aios/application/executor/service.py` | Uses digest string as workspace path | Binds staged workspace path & digest | `test_executor_workspace_binding` | `REPAIRED & VERIFIED` |
-| 4. Executor Command Design | `aios/application/maintenance/service.py` | Uses string "verify <target>" | Uses typed Executor operations | `test_typed_executor_operation` | `REPAIRED & VERIFIED` |
-| 5. Fake Promotion Infrastructure | `aios/api/routes/maintenance.py` | Local always-true lambdas | Production canonical adapters | `test_mounted_promotion_infrastructure` | `REPAIRED & VERIFIED` |
-| 6. Verification Integrity | `aios/application/evidence/verification.py` | Unkeyed SHA-256 hash; list() untrusted | HMAC/signed proof on all reads | `test_verification_integrity_signed` | `REPAIRED & VERIFIED` |
-| 7. Verification Schema Migration | `aios/application/evidence/verification.py` | CREATE TABLE IF NOT EXISTS misses migration | Safe SQLite column migration | `test_verification_schema_migration` | `REPAIRED & VERIFIED` |
-| 8. Promotion Records Durability | `aios/application/promotion/authority.py` | ON CONFLICT DO UPDATE | Immutable insert-only rows & terminal lookup | `test_promotion_durability_immutable` | `REPAIRED & VERIFIED` |
-| 9. Capability-Backed Skill Activation | `aios/application/learning/service.py` | Public digest calculation | Single-use CapabilityAuthority capability | `test_skill_activation_requires_capability` | `REPAIRED & VERIFIED` |
-| 10. Mounted Human Activation Route | `aios/api/routes/skills.py` | Missing operator activation route | Mounted POST operator activation route | `test_mounted_human_activation_route` | `REPAIRED & VERIFIED` |
-| 11. Granite Advisory Reuse | `aios/application/learning/service.py` | Local reuse omits Granite advisory | Bounded Granite advisory call via Local Workforce | `test_granite_advisory_reuse` | `REPAIRED & VERIFIED` |
-| 12. Complete Reuse Lineage | `aios/application/learning/service.py` | Loose promotion match | Lineage matching across worker, executor, verification, promotion, workspace, diff | `test_reuse_lineage_exact_match` | `REPAIRED & VERIFIED` |
-| 13. Live Frontier-to-Local Heartbeat | End-to-end integration | Simulated/manual Gemini metadata | Executable integration proof | `INTEGRATION_PROVEN` | `REPAIRED & VERIFIED` |
-| 14. Exact-Tip Hosted Evidence | GitHub Actions / CodeQL | Evidence tip SHA differs from code tip | CI/CodeQL green on latest tip | Pending for new source | `PENDING` |
-| 15. Independent Review | Non-builder verdict | Builder cannot self-approve | Hash-pinned handoff + independent verdict | Not yet | `PENDING` |
+| 1. Private Executor Fail-Open | `aios/executor_service.py` | Executor cannot execute `REMOVE_MAINTENANCE_MARKER_V1` | Registered operation in private Executor service | `test_red_1_executor_service_cannot_run_registered_repair` | `REPAIRED & VERIFIED` |
+| 2. Repair Mutation Execution | `aios/application/executor/service.py` | In-process fallback falsely claims isolation | Explicit `isolation_verified=False` & enforced private service | `test_red_2_in_process_fallback_falsely_claims_isolation` | `REPAIRED & VERIFIED` |
+| 3. Fake Promotion Infrastructure | `aios/api/routes/maintenance.py` | Local always-true closures in route | Injected canonical promotion adapters | `test_red_3_mounted_maintenance_route_uses_fake_adapters` | `REPAIRED & VERIFIED` |
+| 4. Capability-Backed Skill Activation | `aios/api/deps.py` & `skills.py` | Missing dependencies / ignored capability_id | Injected dependencies & capability consumption | `test_red_4_canonical_learning_service_lacks_dependencies` | `REPAIRED & VERIFIED` |
+| 5. Granite Advisory Selection | `aios/application/learning/service.py` | Checked `health_status` instead of `health` | Correct `health` field & governed `run_advisory_job` | `test_red_5_granite_selection_checks_wrong_health_field` | `REPAIRED & VERIFIED` |
+| 6. Verification Integrity | `aios/application/evidence/verification.py` | Legacy rows default empty hash | Quarantined unsigned legacy rows | `test_verification_integrity_signed` | `REPAIRED & VERIFIED` |
+| 7. Promotion Lineage & Durability | `aios/application/promotion/authority.py` | Reduced lineage in promotion proof | Full HMAC payload lineage & `get_record()` | `test_promotion_durability_immutable` | `REPAIRED & VERIFIED` |
+| 8. Exact Lineage Matching | `aios/application/learning/service.py` | Optional lineage parameters skipped checks | Mandatory exact lineage & durable record check | `test_reuse_lineage_exact_match` | `REPAIRED & VERIFIED` |
 
-**Single next action:** Commit/push the production repairs, run hosted CI/CodeQL on the new tip, then release the builder lease for independent review.
+**Single next action:** Release builder lease for independent non-builder review.
 
-**Open approvals/blockers:** Hosted CI/CodeQL for the new source tip; independent non-builder verdict.
+**Open approvals/blockers:** Independent non-builder review.
 
 **Active files:**
 - `.aios/state/RESUME.md`

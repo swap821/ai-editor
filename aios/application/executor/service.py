@@ -402,7 +402,7 @@ class ExecutorService:
         )
 
     def execute(self, job: ExecutorJob) -> ExecutorResult:
-        if self.profile == "production":
+        if self.profile in ("production", "demo"):
             if self.backend_name != "private_service" or self.client is None:
                 raise IsolationUnavailable(
                     "private executor service is required in production"
@@ -485,6 +485,7 @@ def execute_registered_repair_operation(job: ExecutorJob) -> ExecutorResult:
             "before_digest": before_digest,
             "after_digest": after_digest,
             "changed": changed,
+            "backend_name": "in_process_fixture",
         },
         sort_keys=True,
     )
