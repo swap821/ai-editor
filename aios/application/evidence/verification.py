@@ -30,6 +30,7 @@ class VerificationAuthority:
         self.evidence = evidence or EvidenceAuthority()
         self._results: dict[str, VerificationResult] = {}
         self.database_path = Path(database_path) if database_path else None
+        self._signing_key = self._resolve_signing_key()
         if self.database_path is not None:
             self.database_path.parent.mkdir(parents=True, exist_ok=True)
             with self._connection() as conn:
@@ -64,15 +65,49 @@ class VerificationAuthority:
                         "ALTER TABLE verification_results ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"
                     )
 
+    _INSECURE_DEFAULT_KEYS: frozenset[str] = frozenset({
+        "aios-authority-verification-key-v1",
+        "aios-authority-key",
+        "changeme",
+        "secret",
+        "default",
+    })
+
+    @staticmethod
+    def _resolve_signing_key() -> str:
+        """Return the configured signing key or raise RuntimeError if insecure."""
+        import os
+        key = (
+            os.environ.get("AIOS_VERIFICATION_AUTHORITY_KEY")
+            or getattr(config, "VERIFICATION_AUTHORITY_KEY", "")
+        )
+        is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
+        allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
+        if not key:
+            if is_test or allow_insecure:
+                return "test-verification-signing-key-placeholder-safe"
+            raise RuntimeError(
+                "AIOS_VERIFICATION_AUTHORITY_KEY must be set to a secret of at least "
+                "32 characters. The verification integrity chain is insecure without it."
+            )
+        if key in VerificationAuthority._INSECURE_DEFAULT_KEYS:
+            raise RuntimeError(
+                f"AIOS_VERIFICATION_AUTHORITY_KEY is set to a known insecure default "
+                f"({key!r}). Provide a unique secret."
+            )
+        if len(key) < 32 and not (is_test or allow_insecure):
+            raise RuntimeError(
+                "AIOS_VERIFICATION_AUTHORITY_KEY must be at least 32 characters."
+            )
+        return key
+
     def _compute_integrity_proof(
         self, verification_id: str, payload_digest: str, created_at: str
     ) -> str:
-        secret = getattr(
-            config, "VERIFICATION_AUTHORITY_KEY", "aios-authority-verification-key-v1"
-        )
+        import hmac as _hmac
         material = f"{verification_id}:{payload_digest}:{created_at}"
-        return hmac.new(
-            secret.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
+        return _hmac.new(
+            self._signing_key.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
         ).hexdigest()
 
     def verify(
@@ -177,10 +212,12 @@ class VerificationAuthority:
         if self.database_path is not None:
             with self._connection() as conn:
                 row = conn.execute(
-                    "SELECT payload_json, payload_digest, integrity_proof, created_at FROM verification_results WHERE verification_id = ?",
+                    "SELECT mission_id, action_id, payload_json, payload_digest, integrity_proof, created_at FROM verification_results WHERE verification_id = ?",
                     (verification_id,),
                 ).fetchone()
             if row is not None:
+                indexed_mission_id = row["mission_id"]
+                indexed_action_id = row["action_id"]
                 payload_json = row["payload_json"]
                 stored_digest = row["payload_digest"]
                 stored_proof = row["integrity_proof"]
@@ -200,6 +237,15 @@ class VerificationAuthority:
                     return None  # Tamper detected: integrity proof mismatch
 
                 result = VerificationResult.model_validate(json.loads(payload_json))
+
+                # Blocker 14 fix: bind signed payload fields back against indexed columns.
+                # An attacker who changes the indexed column but not the payload digest
+                # will be caught here.
+                if result.mission_id != indexed_mission_id:
+                    return None  # Tamper detected: indexed mission_id was changed
+                if result.action_id != indexed_action_id:
+                    return None  # Tamper detected: indexed action_id was changed
+
                 self._results[verification_id] = result
                 return result
             return None

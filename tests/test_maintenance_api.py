@@ -347,13 +347,36 @@ def test_governed_maintenance_flow_end_to_end(maintenance_env) -> None:
     assert run_unapproved.status_code == 400
     assert "APPROVED" in run_unapproved.json()["detail"]
 
-    # 5. Approve mission through canonical MissionService
+    # 5. Approve mission through canonical MissionService with a valid capability token
+    from aios.api.deps import get_capability_authority
+    from aios.domain.capabilities.contracts import CapabilityBinding
+
+    cap_auth = get_capability_authority()
+    cap_token = cap_auth.issue(
+        CapabilityBinding(
+            operator_id="op-api-1",
+            device_id="dev-1",
+            authentication_event_id="auth-api-1",
+            session_id="session-api-1",
+            action_type="maintenance_repair",
+            route="/api/v1/maintenance/repairs/run",
+            http_method="POST",
+            payload_digest="cap-api-1",
+            resource_digest="res-1",
+            mission_id=mission_id,
+            contract_digest=mission_data["contract_digest"],
+            policy_version="1.0",
+            scope="maintenance:repair",
+            verification_requirement="verified",
+        )
+    )
+
     service.mission_service.start_deliberation(mission_id)
     service.mission_service.request_approval(mission_id)
     service.mission_service.approve(
         mission_id,
         operator_id="op-api-1",
-        capability_digest="cap-api-1",
+        capability_digest=cap_token,
         contract_digest=mission_data["contract_digest"],
         authentication_event_id="auth-api-1",
         session_id="session-api-1",

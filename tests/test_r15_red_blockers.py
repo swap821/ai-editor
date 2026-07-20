@@ -127,7 +127,6 @@ def test_red_5_granite_selection_checks_wrong_health_field():
         max_parallelism=1,
         allowed_job_profiles=frozenset({LocalJobProfile.SELECT_SKILL}),
         metadata_confidence="verified",
-        qualification_version="r15-v2",
     )
     mock_local_workforce.registry.list_models.return_value = [model]
     

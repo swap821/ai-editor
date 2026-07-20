@@ -202,6 +202,7 @@ def test_full_frontier_to_local_learning_heartbeat(learning_env) -> None:
         skill_cand.version,
         operator_id="op-admin",
         approval_digest="digest-approved",
+        capability_id="cap-1",
     )
     assert active_skill.state == "active"
 
@@ -347,6 +348,7 @@ def test_skill_degradation_and_fail_closed_escalation(learning_env) -> None:
         skill_cand.version,
         operator_id="op-admin",
         approval_digest="digest-approved",
+        capability_id="cap-1",
     )
 
     # Local reuse attempt

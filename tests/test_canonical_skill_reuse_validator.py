@@ -107,6 +107,21 @@ def _build_real_service(tmp_path: Path, *, autonomy_enabled: bool = True) -> Lea
         mock_config.OPERATIONAL_STATE_DB_PATH = tmp_path / "operational.db"
         service = get_learning_service()
 
+        if service.local_workforce_service is not None:
+            from aios.domain.local_workforce.contracts import LocalJobResult
+            service.local_workforce_service.run_advisory_job = MagicMock(
+                return_value=LocalJobResult(
+                    job_id="test-advisory-job",
+                    model_id="granite3.2:2b",
+                    structured_output={"applicable": True, "confidence": 0.9, "reason": "ok"},
+                    schema_valid=True,
+                    evidence_references_preserved=True,
+                    unsupported_claims=(),
+                    latency=0.01,
+                    status="completed",
+                )
+            )
+
     return service
 
 

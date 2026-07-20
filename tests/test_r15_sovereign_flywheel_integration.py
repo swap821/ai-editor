@@ -338,5 +338,11 @@ def test_human_skill_activation_lifecycle(tmp_path: Path) -> None:
         ls.activate_skill(skill.skill_id, skill.version, operator_id=operator_id, approval_digest="wrong-digest")
 
     # Valid digest succeeds and activates skill candidate -> human_reviewed -> active
-    activated = ls.activate_skill(skill.skill_id, skill.version, operator_id=operator_id, approval_digest=expected_digest)
+    activated = ls.activate_skill(
+        skill.skill_id,
+        skill.version,
+        operator_id=operator_id,
+        approval_digest=expected_digest,
+        capability_id="cap-1",
+    )
     assert activated.state == "active"

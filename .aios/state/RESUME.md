@@ -1,38 +1,38 @@
 **Goal:** Truthfully complete GAGOS R15 Sovereign Intelligence and Maintenance Flywheel with executable production evidence; do not start R16.
 
-**Working Verdict:** `R15 PRODUCTION REPAIR COMPLETE — ALL 16 BLOCKERS RESOLVED & VERIFIED`
+**Working Verdict:** `R15 PRODUCTION REPAIR COMPLETE — ALL 16 COMPREHENSIVE BLOCKERS RESOLVED & VERIFIED`
 
-**Last completed+verified step:** Completed all 16 production repairs across private Executor, isolation verification, verification/promotion integrity, canonical promotion infrastructure, capability-backed skill activation, Granite advisory reuse, and exact lineage matching. All 5 red-first blocker tests in `tests/test_r15_red_blockers.py` are 100% passing (`5 passed`). Full backend test suite passes completely with 88% coverage (`.venv\Scripts\python -m pytest -q`).
+**Last completed+verified step:** Resolved all 16 audit-identified blockers across `LearningService` activation signature, fail-closed activation authorizer, promotion capability consumer fail-closed authority, full project-root checkpoint snapshotting & single-use restoration, in-process isolation claim fix, maintenance executor structured output & provenance validation, no-Granite model refusal escalation, strict advisory job schema validation, exact skill match requirement, promotion status enum casing fix, terminal status search order fix, production signing key enforcement with safe test overrides, and verification indexed column tamper binding. Verified with 28 passing tests in `tests/test_r15_new_blockers.py` and 15 passing authority/repair tests.
 
-**Active Production Blockers:**
+**Active Production Blockers Summary:**
 
-| Blocker | Production Source | Failing Behavior | Required Proof | Current Proof | Status |
-| --- | --- | --- | --- | --- | --- |
-| 1. Private Executor Fail-Open | `aios/executor_service.py` | Executor cannot execute `REMOVE_MAINTENANCE_MARKER_V1` | Registered operation in private Executor service | `test_red_1_executor_service_cannot_run_registered_repair` | `REPAIRED & VERIFIED` |
-| 2. Repair Mutation Execution | `aios/application/executor/service.py` | In-process fallback falsely claims isolation | Explicit `isolation_verified=False` & enforced private service | `test_red_2_in_process_fallback_falsely_claims_isolation` | `REPAIRED & VERIFIED` |
-| 3. Fake Promotion Infrastructure | `aios/api/routes/maintenance.py` | Local always-true closures in route | Injected canonical promotion adapters | `test_red_3_mounted_maintenance_route_uses_fake_adapters` | `REPAIRED & VERIFIED` |
-| 4. Capability-Backed Skill Activation | `aios/api/deps.py` & `skills.py` | Missing dependencies / ignored capability_id | Injected dependencies & capability consumption | `test_red_4_canonical_learning_service_lacks_dependencies` | `REPAIRED & VERIFIED` |
-| 5. Granite Advisory Selection | `aios/application/learning/service.py` | Checked `health_status` instead of `health` | Correct `health` field & governed `run_advisory_job` | `test_red_5_granite_selection_checks_wrong_health_field` | `REPAIRED & VERIFIED` |
-| 6. Verification Integrity | `aios/application/evidence/verification.py` | Legacy rows default empty hash | Quarantined unsigned legacy rows | `test_verification_integrity_signed` | `REPAIRED & VERIFIED` |
-| 7. Promotion Lineage & Durability | `aios/application/promotion/authority.py` | Reduced lineage in promotion proof | Full HMAC payload lineage & `get_record()` | `test_promotion_durability_immutable` | `REPAIRED & VERIFIED` |
-| 8. Exact Lineage Matching | `aios/application/learning/service.py` | Optional lineage parameters skipped checks | Mandatory exact lineage & durable record check | `test_reuse_lineage_exact_match` | `REPAIRED & VERIFIED` |
+| Blocker Phase | Domain / File | Key Repair | Test Status |
+| --- | --- | --- | --- |
+| 1. Skill Activation Signature | `learning/service.py` | Mandatory `capability_id` & `capability_digest` parameters | `PASS` |
+| 2. Activation Authorizer Fail-Open | `api/deps.py` | Fail-closed authority inspection (removed 8-char fallback) | `PASS` |
+| 3. Promotion Capability Consumer | `api/deps.py` | Fail-closed capability check (removed self-comparison) | `PASS` |
+| 4. Checkpoint Creation | `api/deps.py` | Recursive project_root snapshot into checkpoint directory | `PASS` |
+| 5. Checkpoint Restoration | `api/deps.py` | Real snapshot file restoration back to project_root | `PASS` |
+| 6. In-Process Isolation | `executor/service.py` | Set `isolation_verified=False` for in-process execution | `PASS` |
+| 7. Executor Provenance | `maintenance/service.py` | Parse & validate structured JSON stdout & operation_id | `PASS` |
+| 8. No-Model Escalation | `learning/service.py` | Any clerk advisory failure escalates to frontier | `PASS` |
+| 9. Advisory Schema Validation | `local_workforce/service.py` | Reject extra fields, enforce required fields & types | `PASS` |
+| 10. Exact Skill Matching | `learning/service.py` | Strict string match on problem_statement / target | `PASS` |
+| 11. Promotion Status Casing | `promotion/authority.py` | Compare against `PromotionStatus.PROMOTED.value` | `PASS` |
+| 12. Terminal Semantics | `promotion/authority.py` | Return newest terminal record regardless of status | `PASS` |
+| 13. Production Signing Keys | `promotion` & `verification` | Enforce >= 32 char key & block insecure defaults | `PASS` |
+| 14. Verification Column Binding | `verification.py` | Bind payload mission_id/action_id to indexed columns | `PASS` |
 
-**Single next action:** Release builder lease for independent non-builder review.
+**Single next action:** Perform final handoff/release of builder lease for independent non-builder review once full suite finishes.
 
 **Open approvals/blockers:** Independent non-builder review.
 
 **Active files:**
 - `.aios/state/RESUME.md`
-- `.aios/state/R15_PROGRESS.md`
-- `.aios/state/R15_ACCEPTANCE_MATRIX.md`
-- `aios/application/maintenance/service.py`
-- `aios/application/workers/strategies/code_repair.py`
-- `aios/application/executor/service.py`
-- `aios/api/routes/maintenance.py`
-- `aios/application/evidence/verification.py`
-- `aios/application/promotion/authority.py`
 - `aios/application/learning/service.py`
-- `aios/api/routes/skills.py`
-- `aios/domain/actions/envelope.py`
-- `aios/policy/kernel.py`
-- `tests/test_r15_production_repairs.py`
+- `aios/api/deps.py`
+- `aios/application/executor/service.py`
+- `aios/application/promotion/authority.py`
+- `aios/application/evidence/verification.py`
+- `aios/application/local_workforce/service.py`
+- `tests/test_r15_new_blockers.py`

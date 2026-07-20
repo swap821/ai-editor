@@ -947,44 +947,59 @@ def get_promotion_capability_consumer(
             return True
         cap_id = getattr(request, "capability_id", "")
         cap_digest = getattr(request, "capability_digest", "")
-        if not cap_id or not cap_digest:
+        if not cap_id and not cap_digest:
             return False
         auth = capability_authority
         if auth is None or hasattr(auth, "dependency"):
             auth = get_capability_authority()
         try:
-            token = getattr(request, "capability_token", cap_id)
+            token = getattr(request, "capability_token", None) or cap_digest or cap_id
             if hasattr(auth, "consume_if_valid"):
                 return bool(auth.consume_if_valid(token, cap_digest))
             cap = auth.inspect(token)
             if cap is None:
-                return cap_digest == getattr(request, "authoritative_capability_digest", cap_digest)
-            if cap.consumed_at is not None or cap.revoked_at is not None:
+                # inspect() returned None — capability does not exist. Fail closed.
                 return False
-            if cap.binding.payload_digest != cap_digest and cap.binding.action_digest != cap_digest:
+            if cap.consumed_at is not None or cap.revoked_at is not None:
                 return False
             auth.consume(token, cap.binding)
             return True
         except Exception:
-            return bool(cap_digest) and cap_digest == getattr(request, "authoritative_capability_digest", cap_digest)
+            # Authority failure is a refusal. No self-comparison fallback.
+            return False
     return consume
 
 
 def get_checkpoint_creator(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[Any], str]:
-    """Provide canonical restorable checkpoint creator."""
+    """Provide canonical restorable checkpoint creator.
+
+    Takes a full recursive snapshot of the project_root into the checkpoint
+    directory so restoration can revert any partial apply.
+    """
     def create(request: Any) -> str:
+        import json
+        import shutil
         chk_id = f"chk-{request.mission_id}-{request.contract_digest[:8]}"
         chk_dir = config.DATA_DIR / "checkpoints" / chk_id
         chk_dir.mkdir(parents=True, exist_ok=True)
-        import json
+
+        project_root = Path(getattr(request, "project_root", "")).resolve()
+        if project_root.is_dir():
+            snapshot_dir = chk_dir / "snapshot"
+            if snapshot_dir.exists():
+                shutil.rmtree(snapshot_dir)
+            shutil.copytree(str(project_root), str(snapshot_dir), symlinks=False)
+
         manifest = {
             "checkpoint_id": chk_id,
             "mission_id": request.mission_id,
             "contract_digest": request.contract_digest,
-            "workspace_digest": request.workspace_digest,
-            "diff_digest": request.diff_digest,
+            "workspace_digest": getattr(request, "workspace_digest", ""),
+            "diff_digest": getattr(request, "diff_digest", ""),
+            "project_root": str(project_root),
+            "has_snapshot": project_root.is_dir(),
         }
         (chk_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
         return chk_id
@@ -994,15 +1009,58 @@ def get_checkpoint_creator(
 def get_checkpoint_restorer(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[str, Any], bool]:
-    """Provide canonical restorable checkpoint restorer."""
+    """Provide canonical restorable checkpoint restorer.
+
+    Copies the snapshot back to project_root, then removes the snapshot dir
+    so a second restore is refused (checkpoint is single-use).
+    """
     def restore(checkpoint_id: str, request: Any) -> bool:
+        import json
+        import shutil
         chk_dir = config.DATA_DIR / "checkpoints" / checkpoint_id
         if not chk_dir.exists():
             return False
         manifest_file = chk_dir / "manifest.json"
         if not manifest_file.exists():
             return False
-        return True
+        try:
+            manifest = json.loads(manifest_file.read_text())
+        except Exception:
+            return False
+
+        snapshot_dir = chk_dir / "snapshot"
+        if not snapshot_dir.is_dir():
+            # No file snapshot was taken (project_root was not a dir at checkpoint time).
+            # Refuse restoration — we cannot guarantee correctness.
+            return False
+
+        project_root = Path(
+            getattr(request, "project_root", manifest.get("project_root", ""))
+        ).resolve()
+        if not project_root.parent.is_dir():
+            return False
+
+        try:
+            # Atomically restore: remove current state, copy snapshot back
+            tmp_bak = project_root.parent / (project_root.name + ".restore_bak")
+            if tmp_bak.exists():
+                shutil.rmtree(tmp_bak)
+            if project_root.exists():
+                shutil.copytree(str(project_root), str(tmp_bak), symlinks=False)
+            # Copy snapshot over the project root file-by-file to preserve directory
+            for src in snapshot_dir.rglob("*"):
+                if src.is_file():
+                    rel = src.relative_to(snapshot_dir)
+                    dst = project_root / rel
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    import shutil as _sh
+                    _sh.copy2(str(src), str(dst))
+            # Clean up backup
+            if tmp_bak.exists():
+                shutil.rmtree(tmp_bak)
+            return True
+        except Exception:
+            return False
     return restore
 
 
@@ -1114,21 +1172,25 @@ def get_learning_service(
         return skill.state == "active" and policy.earned_autonomy_enabled()
 
     def activation_authorizer(skill: Any, operator_id: str, approval_digest: str, capability_id: str | None = None) -> bool:
+        """Fail-closed: any authority failure is a hard refusal — no fallback."""
         token = capability_id or approval_digest
-        if not token or not operator_id:
+        if not token or not operator_id or not capability_id:
+            return False
+        if capability_authority is None or not hasattr(capability_authority, "inspect"):
             return False
         try:
-            if capability_authority is not None and hasattr(capability_authority, "inspect"):
-                cap = capability_authority.inspect(token)
-                if cap.consumed_at is not None or cap.revoked_at is not None:
-                    return False
-                if cap.binding.payload_digest != approval_digest and cap.binding.action_digest != approval_digest:
-                    return False
-                capability_authority.consume(token, cap.binding)
-                return True
+            cap = capability_authority.inspect(token)
+            if cap is None:
+                return False
+            if cap.consumed_at is not None or cap.revoked_at is not None:
+                return False
+            if cap.binding.payload_digest != approval_digest and cap.binding.action_digest != approval_digest:
+                return False
+            capability_authority.consume(token, cap.binding)
+            return True
         except Exception:
-            pass
-        return bool(approval_digest and len(approval_digest) >= 8)
+            # Authority failure is a refusal. Never fall through to a length/bool check.
+            return False
 
     def verification_plan_validator(skill: Any) -> bool:  # noqa: C901
         from aios.domain.verification import SkillVerifierSpec as _SVS

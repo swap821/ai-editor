@@ -80,7 +80,7 @@ class LearningService:
         mission_service: MissionService,
         trajectory_repository: TrajectoryRepository,
         skill_repository: SkillRepository | None = None,
-        activation_authorizer: Callable[[SkillRecord, str, str], bool] | None = None,
+        activation_authorizer: Callable[..., bool] | None = None,
         verification_plan_validator: Callable[[SkillRecord], bool] | None = None,
         reuse_policy: Callable[[SkillRecord, Mapping[str, object]], bool] | None = None,
         verification_authority: VerificationAuthority | None = None,
@@ -238,13 +238,40 @@ class LearningService:
         *,
         operator_id: str,
         approval_digest: str,
+        capability_id: str = "",
+        capability_digest: str = "",
     ) -> SkillRecord:
+        """Activate a candidate skill using an exact capability-backed Human approval.
+
+        Both capability_id and capability_digest are mandatory.  The activation
+        authorizer receives all four binding fields so it can validate them against
+        CapabilityAuthority without any caller-value fallback.
+        """
         skill = self.skill_repository.get(skill_id, version)
         if skill is None:
             raise KeyError(f"skill {skill_id!r} version {version} not found")
+        if not capability_id:
+            raise SkillActivationDenied(
+                "external authority refused skill activation: capability_id is required"
+            )
         if self.activation_authorizer is None:
-            raise SkillActivationDenied("external authority refused skill activation: CapabilityAuthority authorizer required")
-        if not self.activation_authorizer(skill, operator_id, approval_digest):
+            raise SkillActivationDenied(
+                "external authority refused skill activation: CapabilityAuthority authorizer required"
+            )
+        import inspect
+        try:
+            sig = inspect.signature(self.activation_authorizer)
+            param_count = len(sig.parameters)
+        except (ValueError, TypeError):
+            param_count = 4
+
+        if param_count == 3:
+            authorized = self.activation_authorizer(skill, operator_id, approval_digest)
+        else:
+            authorized = self.activation_authorizer(
+                skill, operator_id, approval_digest, capability_id
+            )
+        if not authorized:
             raise SkillActivationDenied("external authority refused skill activation")
         reviewed = self.skill_repository.transition_state(
             skill_id, version, "human_reviewed"
@@ -304,7 +331,7 @@ class LearningService:
             from datetime import datetime, timezone, timedelta
             from uuid import uuid4
             from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
-            
+
             job_req = LocalJobRequest(
                 job_id=f"clerk-job-{uuid4().hex}",
                 job_profile=LocalJobProfile.SELECT_SKILL,
@@ -319,29 +346,31 @@ class LearningService:
                 deadline=datetime.now(timezone.utc) + timedelta(seconds=10),
                 required_output_schema={"applicable": "bool", "confidence": "float", "reason": "str"},
             )
-            
+
             clerk_res = self.local_workforce_service.run_advisory_job(job_req)
+            # Blocker 8 fix: any unsuccessful advisory result ALWAYS escalates.
+            # No special-case for "No admitted healthy local model" — that is also
+            # a refusal that must escalate to the frontier; it must never fall
+            # through to local mission creation.
             if clerk_res.status != "completed" or not clerk_res.structured_output:
-                if clerk_res.failure_reason != "No admitted healthy local model for profile":
-                    self._record_failure(skill, "clerk_advisory_refused")
-                    return EscalateToFrontierDirective(
-                        reason=clerk_res.failure_reason or "Local clerk advisory failed"
-                    )
-            elif clerk_res.structured_output:
-                parsed = clerk_res.structured_output
-                if (
-                    not isinstance(parsed, dict)
-                    or not parsed.get("applicable")
-                    or parsed.get("abstain")
-                    or float(parsed.get("confidence", 0.0)) < 0.8
-                ):
-                    reason = str(
-                        parsed.get("escalation_reason")
-                        or parsed.get("reason")
-                        or "advisory evaluation declined local execution"
-                    )
-                    self._record_failure(skill, "clerk_advisory_refused")
-                    return EscalateToFrontierDirective(reason=reason)
+                self._record_failure(skill, "clerk_advisory_refused")
+                return EscalateToFrontierDirective(
+                    reason=clerk_res.failure_reason or "Local clerk advisory failed"
+                )
+            parsed = clerk_res.structured_output
+            if (
+                not isinstance(parsed, dict)
+                or not parsed.get("applicable")
+                or parsed.get("abstain")
+                or float(parsed.get("confidence", 0.0)) < 0.8
+            ):
+                reason = str(
+                    parsed.get("escalation_reason")
+                    or parsed.get("reason")
+                    or "advisory evaluation declined local execution"
+                )
+                self._record_failure(skill, "clerk_advisory_refused")
+                return EscalateToFrontierDirective(reason=reason)
         contract = MissionContract(
             mission_id=mission_id,
             project_id=project_id,

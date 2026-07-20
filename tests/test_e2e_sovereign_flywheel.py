@@ -390,6 +390,7 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(tmp_
         version=skill_candidate.version,
         operator_id="op-admin",
         approval_digest="digest-approved",
+        capability_id="cap-1",
     )
     assert active_skill.state == "active"
     assert active_skill.confidence == 0.8

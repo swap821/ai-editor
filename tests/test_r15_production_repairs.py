@@ -281,7 +281,7 @@ def test_execute_registered_repair_operation_bounds_and_mutates(tmp_path):
 
     result = execute_registered_repair_operation(job)
     assert result.status == "completed"
-    assert result.isolation_verified is True
+    assert result.isolation_verified is False
 
     # Check file was mutated by executor
     new_text = target_file.read_text(encoding="utf-8")

@@ -212,23 +212,89 @@ class LocalWorkforceService:
             parsed = json.loads(raw_output)
             if not isinstance(parsed, dict):
                 raise ValueError("Output is not a JSON object")
-            
-            valid = True
-            for k in ("applicable", "confidence", "reason"):
-                if k not in parsed:
-                    valid = False
-            
+
+            schema = dict(request.required_output_schema)
+            required_keys = set(schema.keys())
+            output_keys = set(parsed.keys())
+
+            # Blocker 9 fix: strict schema validation
+            # 1. No extra fields beyond the declared schema
+            extra_keys = output_keys - required_keys
+            if extra_keys:
+                return LocalJobResult(
+                    job_id=request.job_id,
+                    model_id=selected.model_id,
+                    structured_output=parsed,
+                    schema_valid=False,
+                    evidence_references_preserved=False,
+                    unsupported_claims=(f"Extra fields not in schema: {sorted(extra_keys)}",),
+                    latency=time.time() - start_t,
+                    status="failed",
+                    failure_reason=f"Extra fields rejected: {sorted(extra_keys)}",
+                )
+
+            # 2. All required fields must be present
+            missing_keys = required_keys - output_keys
+            if missing_keys:
+                return LocalJobResult(
+                    job_id=request.job_id,
+                    model_id=selected.model_id,
+                    structured_output=parsed,
+                    schema_valid=False,
+                    evidence_references_preserved=False,
+                    unsupported_claims=(f"Missing required fields: {sorted(missing_keys)}",),
+                    latency=time.time() - start_t,
+                    status="failed",
+                    failure_reason=f"Missing required fields: {sorted(missing_keys)}",
+                )
+
+            # 3. Type validation for declared schema types
+            _TYPE_MAP = {"bool": bool, "float": (float, int), "int": int, "str": str}
+            type_errors: list[str] = []
+            for field, declared_type in schema.items():
+                if field not in parsed:
+                    continue
+                expected_py = _TYPE_MAP.get(str(declared_type))
+                if expected_py is None:
+                    continue
+                val = parsed[field]
+                if declared_type == "float" and isinstance(val, bool):
+                    type_errors.append(f"{field!r}: bool is not a valid float")
+                elif declared_type == "bool" and not isinstance(val, bool):
+                    type_errors.append(f"{field!r}: expected bool, got {type(val).__name__}")
+                elif declared_type not in ("bool",) and not isinstance(val, expected_py):
+                    type_errors.append(f"{field!r}: expected {declared_type}, got {type(val).__name__}")
+            if type_errors:
+                return LocalJobResult(
+                    job_id=request.job_id,
+                    model_id=selected.model_id,
+                    structured_output=parsed,
+                    schema_valid=False,
+                    evidence_references_preserved=False,
+                    unsupported_claims=tuple(type_errors),
+                    latency=time.time() - start_t,
+                    status="failed",
+                    failure_reason=f"Type validation failed: {type_errors}",
+                )
+
+            # 4. Validate evidence references are preserved
+            evidence_refs = set(request.evidence_references)
+            evidence_refs_preserved = (
+                len(evidence_refs) == 0
+                or any(str(ref) in request.redacted_payload for ref in evidence_refs)
+            )
+
             latency = time.time() - start_t
             return LocalJobResult(
                 job_id=request.job_id,
                 model_id=selected.model_id,
                 structured_output=parsed,
-                schema_valid=valid,
-                evidence_references_preserved=True,
+                schema_valid=True,
+                evidence_references_preserved=evidence_refs_preserved,
                 unsupported_claims=(),
                 latency=latency,
-                status="completed" if valid else "failed",
-                failure_reason=None if valid else "JSON schema validation failed",
+                status="completed",
+                failure_reason=None,
             )
         except Exception as exc:
             return LocalJobResult(

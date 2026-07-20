@@ -229,6 +229,7 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
             candidate.version,
             operator_id="operator-1",
             approval_digest="approval-1",
+            capability_id="cap-1",
         )
 
     authorized_service = LearningService(
@@ -243,6 +244,7 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
         candidate.version,
         operator_id="operator-1",
         approval_digest="approval-1",
+        capability_id="cap-test-1",
     )
     assert active.state == "active"
 

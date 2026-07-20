@@ -63,6 +63,7 @@ class PromotionAuthority:
         self.emergency_stop = emergency_stop
         self.database_path = Path(database_path) if database_path else None
         self._promotions: dict[str, PromotionResult] = {}
+        self._signing_key = self._resolve_signing_key()
 
         if self.database_path is not None:
             self.database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -330,6 +331,50 @@ class PromotionAuthority:
             return res
         return self._promotions.get(mission_id)
 
+    # ---------------------------------------------------------------------------
+    # Signing key resolution
+    # ---------------------------------------------------------------------------
+
+    _INSECURE_DEFAULT_KEYS: frozenset[str] = frozenset({
+        "aios-authority-promotion-key-v1",
+        "aios-authority-key",
+        "changeme",
+        "secret",
+        "default",
+    })
+
+    @staticmethod
+    def _resolve_signing_key() -> str:
+        """Return the configured signing key or raise RuntimeError if insecure.
+
+        Production policy: key must be configured, >= 32 chars, and not one of
+        the known public insecure defaults. Tests use the env var override.
+        """
+        import os
+        key = (
+            os.environ.get("AIOS_PROMOTION_AUTHORITY_KEY")
+            or getattr(config, "PROMOTION_AUTHORITY_KEY", "")
+        )
+        is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
+        allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
+        if not key:
+            if is_test or allow_insecure:
+                return "test-promotion-signing-key-placeholder-safe"
+            raise RuntimeError(
+                "AIOS_PROMOTION_AUTHORITY_KEY must be set to a secret of at least "
+                "32 characters. The promotion integrity chain is insecure without it."
+            )
+        if key in PromotionAuthority._INSECURE_DEFAULT_KEYS:
+            raise RuntimeError(
+                f"AIOS_PROMOTION_AUTHORITY_KEY is set to a known insecure default "
+                f"({key!r}). Provide a unique secret."
+            )
+        if len(key) < 32 and not (is_test or allow_insecure):
+            raise RuntimeError(
+                "AIOS_PROMOTION_AUTHORITY_KEY must be at least 32 characters."
+            )
+        return key
+
     def _compute_integrity_proof(
         self,
         promotion_id: str,
@@ -344,13 +389,10 @@ class PromotionAuthority:
         payload_digest: str,
         created_at: str,
     ) -> str:
-        secret = getattr(
-            config, "PROMOTION_AUTHORITY_KEY", "aios-authority-promotion-key-v1"
-        )
-        material = f"{promotion_id}:{mission_id}:{action_id}:{worker_id}:{executor_job_id}:{contract_digest}:{workspace_digest}:{diff_digest}:{status}:{payload_digest}:{created_at}"
         import hmac, hashlib
+        material = f"{promotion_id}:{mission_id}:{action_id}:{worker_id}:{executor_job_id}:{contract_digest}:{workspace_digest}:{diff_digest}:{status}:{payload_digest}:{created_at}"
         return hmac.new(
-            secret.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
+            self._signing_key.encode("utf-8"), material.encode("utf-8"), hashlib.sha256
         ).hexdigest()
 
     def _record(
@@ -464,14 +506,24 @@ class PromotionAuthority:
     def get_authoritative_terminal_record(self, mission_id: str) -> dict[str, Any] | None:
         if self.database_path is None:
             return None
+        from aios.domain.promotion import PromotionStatus
         with self._connection() as conn:
             rows = conn.execute(
                 "SELECT promotion_id FROM promotion_records WHERE mission_id = ? ORDER BY created_at DESC",
                 (mission_id,),
             ).fetchall()
+        # Blocker 11+12 fix: return the newest valid (tamper-verified) record regardless of
+        # status. A newer failure overrides an older promotion. We compare status using the
+        # Pydantic enum's actual .value strings (all lowercase) rather than uppercase literals.
+        _terminal_statuses = {
+            PromotionStatus.PROMOTED.value,
+            PromotionStatus.REJECTED.value,
+            PromotionStatus.ROLLED_BACK.value,
+            PromotionStatus.FAILED.value,
+        }
         for row in rows:
             rec = self.get_record(row["promotion_id"])
-            if rec is not None and rec["status"] == "PROMOTED":
+            if rec is not None and rec["status"] in _terminal_statuses:
                 return rec
         return None
 
