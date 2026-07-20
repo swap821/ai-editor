@@ -559,9 +559,18 @@ def validate_authority_signing_keys(
         raise ValueError("Authority signing keys must not be equal to one another")
 
 
-VERIFICATION_AUTHORITY_KEY: Final[str] = _env_str("VERIFICATION_AUTHORITY_KEY", "")
-PROMOTION_AUTHORITY_KEY: Final[str] = _env_str("PROMOTION_AUTHORITY_KEY", "")
-CHECKPOINT_AUTHORITY_KEY: Final[str] = _env_str("CHECKPOINT_AUTHORITY_KEY", "")
+VERIFICATION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_VERIFICATION_AUTHORITY_KEY",
+    _env_str("VERIFICATION_AUTHORITY_KEY", ""),
+)
+PROMOTION_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_PROMOTION_AUTHORITY_KEY",
+    _env_str("PROMOTION_AUTHORITY_KEY", ""),
+)
+CHECKPOINT_AUTHORITY_KEY: Final[str] = _env_str(
+    "AIOS_CHECKPOINT_AUTHORITY_KEY",
+    _env_str("CHECKPOINT_AUTHORITY_KEY", ""),
+)
 
 
 __all__ = [

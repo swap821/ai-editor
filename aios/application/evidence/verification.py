@@ -79,6 +79,7 @@ class VerificationAuthority:
         import os
         key = (
             os.environ.get("AIOS_VERIFICATION_AUTHORITY_KEY")
+            or os.environ.get("VERIFICATION_AUTHORITY_KEY")
             or getattr(config, "VERIFICATION_AUTHORITY_KEY", "")
         )
         is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
