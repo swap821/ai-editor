@@ -75,3 +75,56 @@ class ExpertTrajectory(BaseModel):
     @property
     def verification_ids(self) -> tuple[str, ...]:
         return tuple(item.verification_id for item in self.verification_results)
+
+
+class SkillApplicabilityAdvisoryV1(BaseModel):
+    """Canonical Granite local model advisory output contract."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: str = "1.0"
+    skill_id: str
+    skill_version: int
+    applicable: bool
+    confidence: float
+    reason_code: str
+    reason: str
+    bounded_procedure_id: str
+    required_inputs_present: bool
+    abstain: bool
+    escalation_reason: str | None = None
+    evidence_reference_ids: tuple[str, ...] = ()
+
+
+class ReuseOutcomeReference(BaseModel):
+    """Authority-derived lineage reference for skill reuse outcomes."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    reuse_outcome_id: str
+    skill_id: str
+    skill_version: int
+    source_trajectory_id: str
+    mission_id: str
+    worker_id: str
+    executor_job_id: str
+    promotion_id: str
+    local_job_id: str
+    local_model_call_id: str
+    verification_ids: tuple[str, ...]
+    workspace_digest: str
+    diff_digest: str
+    project_digest: str
+    contract_digest: str
+    policy_version: str
+
+
+__all__ = [
+    "ExpertTrajectory",
+    "ReuseOutcomeReference",
+    "SkillApplicabilityAdvisoryV1",
+    "ToolObservation",
+    "TrajectoryVerification",
+]
+
+

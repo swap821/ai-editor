@@ -970,38 +970,96 @@ def get_promotion_capability_consumer(
     return consume
 
 
+def _resolve_external_rollback_dir(project_root: Path) -> Path:
+    import os, tempfile
+    env_dir = os.environ.get("AIOS_ROLLBACK_DIR")
+    proj_resolved = project_root.resolve()
+    if env_dir:
+        rollback_root = Path(env_dir).expanduser().resolve()
+    else:
+        rollback_root = (config.DATA_DIR / "checkpoints").resolve()
+
+    if rollback_root == proj_resolved:
+        raise ValueError("rollback root cannot equal project root")
+    if rollback_root.is_relative_to(proj_resolved):
+        rollback_root = (Path(tempfile.gettempdir()) / "aios_rollback_checkpoints").resolve()
+    if proj_resolved.is_relative_to(rollback_root):
+        raise ValueError("project root cannot be a descendant of rollback root")
+    rollback_root.mkdir(parents=True, exist_ok=True)
+    return rollback_root
+
+
+
 def get_checkpoint_creator(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[Any], str]:
-    """Provide canonical restorable checkpoint creator.
-
-    Takes a full recursive snapshot of the project_root into the checkpoint
-    directory so restoration can revert any partial apply.
-    """
+    """Provide canonical restorable checkpoint creator outside project root."""
     def create(request: Any) -> str:
-        import json
-        import shutil
+        import json, shutil, hashlib, time
+        project_root = Path(getattr(request, "project_root", "")).resolve()
+        if not project_root.exists():
+            raise ValueError(f"project root {project_root} does not exist")
+        rollback_root = _resolve_external_rollback_dir(project_root)
         chk_id = f"chk-{request.mission_id}-{request.contract_digest[:8]}"
-        chk_dir = config.DATA_DIR / "checkpoints" / chk_id
+        chk_dir = rollback_root / chk_id
         chk_dir.mkdir(parents=True, exist_ok=True)
 
-        project_root = Path(getattr(request, "project_root", "")).resolve()
-        if project_root.is_dir():
-            snapshot_dir = chk_dir / "snapshot"
-            if snapshot_dir.exists():
-                shutil.rmtree(snapshot_dir)
-            shutil.copytree(str(project_root), str(snapshot_dir), symlinks=False)
+        snapshot_dir = chk_dir / "snapshot"
+        if snapshot_dir.exists():
+            shutil.rmtree(snapshot_dir)
+
+        shutil.copytree(str(project_root), str(snapshot_dir), symlinks=False)
+
+        affected_paths = []
+        required_targets = getattr(request, "required_targets", ())
+        if not required_targets and snapshot_dir.is_dir():
+            for file_path in snapshot_dir.rglob("*"):
+                if file_path.is_file():
+                    rel = str(file_path.relative_to(snapshot_dir)).replace("\\", "/")
+                    data = file_path.read_bytes()
+                    affected_paths.append({
+                        "rel_path": rel,
+                        "existed_before": True,
+                        "object_type": "file",
+                        "before_sha256": hashlib.sha256(data).hexdigest(),
+                        "classification": "modified",
+                    })
+        else:
+            for target_rel in required_targets:
+                norm_rel = str(target_rel).replace("\\", "/")
+                target_file = project_root / norm_rel
+                existed = target_file.exists() and target_file.is_file()
+                before_sha = hashlib.sha256(target_file.read_bytes()).hexdigest() if existed else None
+                affected_paths.append({
+                    "rel_path": norm_rel,
+                    "existed_before": existed,
+                    "object_type": "file" if existed else "none",
+                    "before_sha256": before_sha,
+                    "classification": "modified" if existed else "created",
+                })
+
+        def _str(val: Any, default: str = "") -> str:
+            return val if isinstance(val, str) else default
 
         manifest = {
             "checkpoint_id": chk_id,
-            "mission_id": request.mission_id,
-            "contract_digest": request.contract_digest,
-            "workspace_digest": getattr(request, "workspace_digest", ""),
-            "diff_digest": getattr(request, "diff_digest", ""),
+            "mission_id": _str(request.mission_id, "m-1"),
+            "action_id": _str(getattr(request, "action_id", None), "action-1"),
+            "worker_id": _str(getattr(request, "worker_id", None), "worker-1"),
+            "executor_job_id": _str(getattr(request, "executor_job_id", None), "job-1"),
+            "contract_digest": _str(request.contract_digest, "contract-1"),
             "project_root": str(project_root),
-            "has_snapshot": project_root.is_dir(),
+            "project_root_identity_digest": hashlib.sha256(str(project_root).encode()).hexdigest(),
+            "workspace_digest": _str(getattr(request, "workspace_digest", None), ""),
+            "diff_digest": _str(getattr(request, "diff_digest", None), ""),
+            "affected_paths": affected_paths,
+            "state": "created",
+            "creation_time": time.time(),
         }
-        (chk_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
+
+        manifest_raw = json.dumps(manifest, sort_keys=True)
+        manifest["manifest_digest"] = hashlib.sha256(manifest_raw.encode()).hexdigest()
+        (chk_dir / "manifest.json").write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
         return chk_id
     return create
 
@@ -1009,59 +1067,79 @@ def get_checkpoint_creator(
 def get_checkpoint_restorer(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[str, Any], bool]:
-    """Provide canonical restorable checkpoint restorer.
-
-    Copies the snapshot back to project_root, then removes the snapshot dir
-    so a second restore is refused (checkpoint is single-use).
-    """
+    """Provide canonical restorable checkpoint restorer."""
     def restore(checkpoint_id: str, request: Any) -> bool:
-        import json
-        import shutil
-        chk_dir = config.DATA_DIR / "checkpoints" / checkpoint_id
+        import json, shutil, hashlib
+        project_root = Path(getattr(request, "project_root", "")).resolve()
+        rollback_root = _resolve_external_rollback_dir(project_root)
+        chk_dir = rollback_root / checkpoint_id
         if not chk_dir.exists():
             return False
         manifest_file = chk_dir / "manifest.json"
         if not manifest_file.exists():
             return False
         try:
-            manifest = json.loads(manifest_file.read_text())
+            manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
         except Exception:
+            return False
+
+        if manifest.get("state") in ("consumed", "invalid"):
             return False
 
         snapshot_dir = chk_dir / "snapshot"
         if not snapshot_dir.is_dir():
-            # No file snapshot was taken (project_root was not a dir at checkpoint time).
-            # Refuse restoration — we cannot guarantee correctness.
             return False
 
-        project_root = Path(
-            getattr(request, "project_root", manifest.get("project_root", ""))
-        ).resolve()
-        if not project_root.parent.is_dir():
-            return False
+        manifest["state"] = "restoring"
+        manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
 
         try:
-            # Atomically restore: remove current state, copy snapshot back
-            tmp_bak = project_root.parent / (project_root.name + ".restore_bak")
-            if tmp_bak.exists():
-                shutil.rmtree(tmp_bak)
-            if project_root.exists():
-                shutil.copytree(str(project_root), str(tmp_bak), symlinks=False)
-            # Copy snapshot over the project root file-by-file to preserve directory
-            for src in snapshot_dir.rglob("*"):
-                if src.is_file():
-                    rel = src.relative_to(snapshot_dir)
-                    dst = project_root / rel
-                    dst.parent.mkdir(parents=True, exist_ok=True)
-                    import shutil as _sh
-                    _sh.copy2(str(src), str(dst))
-            # Clean up backup
-            if tmp_bak.exists():
-                shutil.rmtree(tmp_bak)
+            affected_paths = manifest.get("affected_paths", [])
+            if affected_paths:
+                for entry in affected_paths:
+                    rel_path = entry["rel_path"]
+                    target_file = project_root / rel_path
+                    if entry.get("existed_before"):
+                        snap_file = snapshot_dir / rel_path
+                        if snap_file.is_file():
+                            target_file.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(str(snap_file), str(target_file))
+                    else:
+                        if target_file.exists():
+                            if target_file.is_file():
+                                target_file.unlink()
+                            elif target_file.is_dir():
+                                shutil.rmtree(target_file)
+            else:
+                for src in snapshot_dir.rglob("*"):
+                    if src.is_file():
+                        rel = src.relative_to(snapshot_dir)
+                        dst = project_root / rel
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(str(src), str(dst))
+
+            for entry in affected_paths:
+                if entry.get("existed_before"):
+                    target_file = project_root / entry["rel_path"]
+                    if not target_file.is_file():
+                        manifest["state"] = "invalid"
+                        manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+                        return False
+                    curr_sha = hashlib.sha256(target_file.read_bytes()).hexdigest()
+                    if entry.get("before_sha256") and curr_sha != entry["before_sha256"]:
+                        manifest["state"] = "invalid"
+                        manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+                        return False
+
+            manifest["state"] = "consumed"
+            manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
             return True
         except Exception:
+            manifest["state"] = "invalid"
+            manifest_file.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
             return False
     return restore
+
 
 
 def get_promotion_smoke_verifier(

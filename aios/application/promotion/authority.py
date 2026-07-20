@@ -15,7 +15,13 @@ from aios import config
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.workspaces.staged import BaselineChanged, StagedWorkspaceManager
 from aios.domain.missions.mission_state import MissionState
-from aios.domain.promotion import PromotionRequest, PromotionResult, PromotionStatus
+from aios.domain.promotion import (
+    PromotionAuthorization,
+    PromotionRequest,
+    PromotionResult,
+    PromotionStatus,
+)
+
 
 
 class CapabilityConsumer(Protocol):
@@ -557,4 +563,5 @@ class PromotionRefused(RuntimeError):
     """Raised internally to force checkpoint recovery after a failed smoke test."""
 
 
-__all__ = ["PromotionAuthority", "PromotionRefused"]
+__all__ = ["PromotionAuthority", "PromotionAuthorization", "PromotionRefused"]
+

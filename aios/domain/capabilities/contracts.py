@@ -60,3 +60,29 @@ class Capability:
     action_payload: Optional[dict[str, Any]] = None
     consumed_at: Optional[float] = None
     revoked_at: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class ConsumedCapabilityProof:
+    """Server-created proof of a consumed exact capability."""
+
+    capability_id: str
+    token_digest: str
+    operator_id: str
+    device_id: str
+    authentication_event_id: str
+    session_id: str
+    action_type: str
+    route: str
+    http_method: str
+    payload_digest: str
+    resource_digest: str
+    mission_id: Optional[str]
+    contract_digest: Optional[str]
+    policy_version: str
+    scope: str
+    verification_requirement: str
+    consumed_at: float
+    expires_at: float
+    revoked_at: Optional[float] = None
+

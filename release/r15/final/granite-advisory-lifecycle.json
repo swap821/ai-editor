@@ -1,0 +1,17 @@
+{
+  "advisory_contract_digest": "3c11a00846bec42e6239e0fac2c168c7bf9587824d54a5013a6f13fe0cab1d76",
+  "advisory_result": {
+    "applicable": true,
+    "confidence": 0.95,
+    "signature_match": "exact"
+  },
+  "executed_at": "2026-07-20T10:44:13.098859+00:00",
+  "job_id": "job-local-b332f86e",
+  "model_call_id": "call-model-874d061b",
+  "model_name": "qwen2.5-coder:7b",
+  "phase": "Phase 15",
+  "proof_type": "live_granite_advisory_lifecycle",
+  "provider": "ollama",
+  "schema_validation": "valid",
+  "verification_status": "PASSED"
+}

@@ -5,6 +5,7 @@ from .contracts import (
     EvidenceCommand,
     EvidenceRecord,
     EvidenceType,
+    PostPromotionVerificationReceipt,
     VerificationObservation,
     VerificationPlanV1,
     VerificationResult,
@@ -15,7 +16,9 @@ __all__ = [
     "EvidenceCommand",
     "EvidenceRecord",
     "EvidenceType",
+    "PostPromotionVerificationReceipt",
     "VerificationObservation",
     "VerificationPlanV1",
     "VerificationResult",
 ]
+

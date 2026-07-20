@@ -69,4 +69,28 @@ class PromotionResult(BaseModel):
     evidence_ids: tuple[str, ...] = ()
 
 
-__all__ = ["PromotionRequest", "PromotionResult", "PromotionStatus"]
+class PromotionAuthorization(BaseModel):
+    """Server-issued authorization contract for promotion capability verification."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    operator_id: str
+    mission_id: str
+    action_id: str
+    worker_id: str
+    executor_job_id: str
+    contract_digest: str
+    workspace_digest: str
+    diff_digest: str
+    project_root_identity: str
+    required_targets: tuple[str, ...]
+    promotion_route: str
+    policy_version: str
+    capability_scope: str
+    capability_resource_digest: str
+    verification_requirement: str
+    promotion_attempt_id: str
+
+
+__all__ = ["PromotionAuthorization", "PromotionRequest", "PromotionResult", "PromotionStatus"]
+

@@ -9,7 +9,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import get_learning_service, get_skill_repository
-from aios.application.learning.service import LearningService, SkillActivationDenied
+from aios.application.learning.service import (
+    LearningService,
+    SkillActivationAuthorization,
+    SkillActivationDenied,
+)
+from aios.domain.capabilities.proof import ConsumedCapabilityProof
 
 router = APIRouter(
     tags=["skill-library"], dependencies=[Depends(enforce_action_boundary)]
@@ -19,8 +24,8 @@ router = APIRouter(
 class ActivateSkillRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    capability_id: str
-    capability_digest: str
+    capability_id: str = ""
+    capability_digest: str = ""
 
 
 class SkillReuseRequest(BaseModel):
@@ -55,23 +60,24 @@ def list_skills(
 def activate_skill_route(
     skill_id: str,
     version: int,
-    body: ActivateSkillRequest,
     request: Request,
+    body: ActivateSkillRequest | None = None,
     service: LearningService = Depends(get_learning_service),
 ) -> dict[str, Any]:
     """Operator capability-backed skill activation route."""
-    guard = getattr(request.state, "action_guard", None)
-    operator_id = getattr(getattr(guard, "envelope", None), "operator_id", None)
-    if not operator_id:
-        raise HTTPException(status_code=401, detail="authenticated operator required")
-    try:
-        skill = service.activate_skill(
-            skill_id,
-            version,
-            operator_id=operator_id,
-            approval_digest=body.capability_digest,
-            capability_id=body.capability_id,
+    proof = getattr(request.state, "consumed_capability_proof", None)
+    if proof is None or not isinstance(proof, ConsumedCapabilityProof):
+        raise HTTPException(
+            status_code=403,
+            detail="skill activation requires exact server-consumed capability proof",
         )
+    auth = SkillActivationAuthorization(
+        proof=proof,
+        skill_id=skill_id,
+        version=version,
+    )
+    try:
+        skill = service.activate_skill(auth)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SkillActivationDenied as exc:
@@ -86,6 +92,7 @@ def activate_skill_route(
         "status": "activated",
         "source": "capability_backed_human_activation",
     }
+
 
 
 @router.post("/api/v1/skills/reuse")

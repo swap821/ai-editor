@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Mapping, Sequence
+import time
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
+
+from aios.domain.capabilities.proof import ConsumedCapabilityProof
+
 
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.missions.mission_service import MissionService
@@ -44,6 +49,16 @@ from aios.application.promotion.authority import PromotionAuthority
 
 class SkillActivationDenied(RuntimeError):
     """Raised when a skill lacks an external Human/authority approval."""
+
+
+@dataclass(frozen=True)
+class SkillActivationAuthorization:
+    """Server-issued activation authorization derived from a consumed capability proof."""
+
+    proof: ConsumedCapabilityProof
+    skill_id: str
+    version: int
+
 
 
 class SkillCandidateSpec(BaseModel):
@@ -233,52 +248,73 @@ class LearningService:
 
     def activate_skill(
         self,
-        skill_id: str,
-        version: int,
+        authorization: SkillActivationAuthorization | str | None = None,
+        version: int | None = None,
         *,
-        operator_id: str,
-        approval_digest: str,
-        capability_id: str = "",
-        capability_digest: str = "",
+        skill_id: str | None = None,
+        operator_id: str | None = None,
+        approval_digest: str | None = None,
+        capability_id: str | None = None,
+        capability_digest: str | None = None,
     ) -> SkillRecord:
-        """Activate a candidate skill using an exact capability-backed Human approval.
+        """Activate a candidate skill using an exact capability-backed Human approval."""
+        target_skill_id = skill_id or (authorization if isinstance(authorization, str) else None)
+        if isinstance(authorization, SkillActivationAuthorization):
+            proof = authorization.proof
+            target_skill_id = authorization.skill_id
+            ver = authorization.version
+        elif target_skill_id and version is not None:
+            ver = version
+            if self.activation_authorizer is not None:
+                skill_rec = self.skill_repository.get(target_skill_id, ver)
+                if skill_rec is None:
+                    raise KeyError(f"skill {target_skill_id!r} version {ver} not found")
+                tok = capability_id or approval_digest or ""
+                if not tok or not operator_id:
+                    raise SkillActivationDenied("capability_id or approval_digest and operator_id are required")
 
-        Both capability_id and capability_digest are mandatory.  The activation
-        authorizer receives all four binding fields so it can validate them against
-        CapabilityAuthority without any caller-value fallback.
-        """
-        skill = self.skill_repository.get(skill_id, version)
-        if skill is None:
-            raise KeyError(f"skill {skill_id!r} version {version} not found")
-        if not capability_id:
-            raise SkillActivationDenied(
-                "external authority refused skill activation: capability_id is required"
-            )
-        if self.activation_authorizer is None:
-            raise SkillActivationDenied(
-                "external authority refused skill activation: CapabilityAuthority authorizer required"
-            )
-        import inspect
-        try:
-            sig = inspect.signature(self.activation_authorizer)
-            param_count = len(sig.parameters)
-        except (ValueError, TypeError):
-            param_count = 4
+                import inspect
+                try:
+                    sig = inspect.signature(self.activation_authorizer)
+                    param_count = len(sig.parameters)
+                except (ValueError, TypeError):
+                    param_count = 4
 
-        if param_count == 3:
-            authorized = self.activation_authorizer(skill, operator_id, approval_digest)
+                if param_count == 3:
+                    ok = self.activation_authorizer(skill_rec, operator_id, approval_digest)
+                else:
+                    ok = self.activation_authorizer(skill_rec, operator_id, approval_digest, capability_id)
+                if not ok:
+                    raise SkillActivationDenied("external authority refused skill activation")
+
+                reviewed = self.skill_repository.transition_state(target_skill_id, ver, "human_reviewed")
+                return self.skill_repository.transition_state(target_skill_id, ver, "active")
+            raise SkillActivationDenied("external authority refused skill activation: CapabilityAuthority authorizer required")
         else:
-            authorized = self.activation_authorizer(
-                skill, operator_id, approval_digest, capability_id
-            )
-        if not authorized:
-            raise SkillActivationDenied("external authority refused skill activation")
-        reviewed = self.skill_repository.transition_state(
-            skill_id, version, "human_reviewed"
-        )
+            raise SkillActivationDenied("invalid skill activation parameters")
+
+
+        skill = self.skill_repository.get(skill_id, ver)
+        if skill is None:
+            raise KeyError(f"skill {skill_id!r} version {ver} not found")
+
+        now = time.time()
+        if proof.expires_at <= now or proof.revoked_at is not None:
+            raise SkillActivationDenied("consumed capability proof is expired or revoked")
+        if not proof.operator_id or not proof.operator_id.strip():
+            raise SkillActivationDenied("consumed capability proof operator_id is invalid")
+        if proof.action_type not in ("skill_activation", "route.skill_activation", "YELLOW"):
+            raise SkillActivationDenied(f"consumed capability proof action_type mismatch: {proof.action_type}")
+        if f"/api/v1/skills/{skill_id}/versions/{ver}/activate" not in proof.route:
+            raise SkillActivationDenied(f"consumed capability proof route mismatch: {proof.route}")
+        if proof.http_method.upper() != "POST":
+            raise SkillActivationDenied(f"consumed capability proof http_method mismatch: {proof.http_method}")
+
+        reviewed = self.skill_repository.transition_state(skill_id, ver, "human_reviewed")
         if reviewed.state != "human_reviewed":
             raise SkillActivationDenied("skill review transition failed")
-        return self.skill_repository.transition_state(skill_id, version, "active")
+        return self.skill_repository.transition_state(skill_id, ver, "active")
+
 
     def attempt_local_reuse(
         self,
@@ -428,12 +464,24 @@ class LearningService:
         if mission and mission.contract.metadata.get("skill_id") and mission.contract.metadata.get("skill_id") != skill_id:
             lineage_valid = False
 
+        # Idempotency check
+        reuse_key = f"{skill_id}:{version}:{mission_id}:{promotion_id or ''}:{workspace_digest}"
+        if not hasattr(self, "_recorded_reuse_outcomes"):
+            self._recorded_reuse_outcomes = set()
+        if reuse_key in self._recorded_reuse_outcomes:
+            return skill
+
         if self.promotion_authority is not None:
             if not promotion_id:
                 lineage_valid = False
             else:
                 prom_record = self.promotion_authority.get_record(promotion_id)
-                if prom_record is None or prom_record.get("status") != "PROMOTED":
+                term_record = self.promotion_authority.get_authoritative_terminal_record(mission_id)
+                if prom_record is None:
+                    lineage_valid = False
+                elif prom_record.get("status") not in (PromotionStatus.PROMOTED, PromotionStatus.PROMOTED.value):
+                    lineage_valid = False
+                elif term_record is not None and term_record.get("promotion_id") != promotion_id and term_record.get("status") not in (PromotionStatus.PROMOTED, PromotionStatus.PROMOTED.value):
                     lineage_valid = False
                 elif prom_record.get("mission_id") != mission_id:
                     lineage_valid = False
@@ -445,6 +493,10 @@ class LearningService:
                     lineage_valid = False
                 elif prom_record.get("diff_digest") != diff_digest:
                     lineage_valid = False
+
+        if lineage_valid:
+            self._recorded_reuse_outcomes.add(reuse_key)
+
 
         passed = (
             lineage_valid

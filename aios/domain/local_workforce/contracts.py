@@ -58,7 +58,7 @@ class LocalJobRequest(BaseModel):
 
 class LocalJobResult(BaseModel):
     """The outcome of a clerical task.
-    
+
     Hard restriction: The local clerk returns structured advisory data only.
     No shell, no filesystem tools, no Git, no network, no state mutation.
     """
@@ -73,3 +73,63 @@ class LocalJobResult(BaseModel):
     latency: float
     status: Literal["completed", "failed", "timeout", "rejected"]
     failure_reason: str | None = None
+
+
+class LocalJobRequestRecord(BaseModel):
+    """Durable record of a local job request."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_id: str
+    mission_id: str | None = None
+    skill_id: str | None = None
+    skill_version: int | None = None
+    job_profile: str
+    input_schema_version: str
+    qualification_suite_version: str = "r15-v2"
+    model_allowlist: tuple[str, ...] = ()
+    requested_model: str
+    evidence_references: tuple[str, ...] = ()
+    redacted_input_digest: str
+    token_budget: int
+    deadline: str
+    created_at: str
+
+
+class LocalModelCallRecord(BaseModel):
+    """Durable record of an individual local model call."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    local_model_call_id: str
+    local_job_id: str
+    provider: str = "ollama"
+    exact_model_id: str
+    model_digest_version: str | None = None
+    qualification_version: str = "r15-v2"
+    admission_record_id: str | None = None
+    request_digest: str
+    response_digest: str
+    token_limits: int
+    measured_latency: float
+    start_time: str
+    end_time: str
+    status: str
+    failure_reason: str | None = None
+
+
+class LocalJobResultRecord(BaseModel):
+    """Durable record of a local job result."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    local_job_id: str
+    local_model_call_id: str
+    schema_version: str = "1.0"
+    structured_result_digest: str
+    schema_valid: bool
+    evidence_references_preserved: bool
+    unsupported_claims: tuple[str, ...] = ()
+    status: str
+    failure_reason: str | None = None
+

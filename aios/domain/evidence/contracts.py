@@ -130,6 +130,26 @@ class VerificationResult(BaseModel):
         return self.passed and self.strength >= self.required_strength
 
 
+class PostPromotionVerificationReceipt(BaseModel):
+    """Post-promotion, post-apply verification receipt proving final project state."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mission_id: str
+    action_id: str
+    worker_id: str
+    executor_job_id: str
+    promotion_id: str
+    project_digest: str
+    diff_digest: str
+    verifier_id: str
+    verifier_version: str
+    environment_digest: str
+    evidence_ids: tuple[str, ...]
+    observation_time: float = Field(default_factory=lambda: datetime.now(timezone.utc).timestamp())
+    passed: bool
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -139,7 +159,9 @@ __all__ = [
     "EvidenceCommand",
     "EvidenceRecord",
     "EvidenceType",
+    "PostPromotionVerificationReceipt",
     "VerificationObservation",
     "VerificationPlanV1",
     "VerificationResult",
 ]
+
