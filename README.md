@@ -1,733 +1,739 @@
 <div align="center">
 
-# G A G O S
+GAGOS
 
-## A Sovereign Intelligence Operating System
+A Local-First Sovereign Intelligence Operating System
 
-**Governed Agentic Guided Operating System**
+Small local clerk. Powerful replaceable cloud brains. Deterministic authority. Human sovereignty.
 
 <br>
 
-> Most AI projects ask: *“How much autonomy can we give the model?”*  
-> **GAGOS asks a harder question:** *“When models become powerful, where does authority live?”*
+Frontier AI intelligence is improving rapidly.
+The authority and safety infrastructure around it is not improving at the same rate.
 
-**The model is never trusted. The system must earn trust. The human remains sovereign.**
+GAGOS explores how powerful agentic AI can remain useful without becoming the authority over the human, project, machine, or evidence.
+
+Architecture · How It Works · Current Status · Quick Start · Verification
 
 </div>
 
----
+⸻
 
-## Table of Contents
+What is GAGOS?
 
-- [What This Is Not](#what-this-is-not)
-- [The Organism](#the-organism)
-- [A Mission Has a Pulse](#a-mission-has-a-pulse)
-- [Why GAGOS Is Unusual](#why-gagos-is-unusual)
-- [Constitutional Laws](#constitutional-laws)
-- [The Eight Organs](#the-eight-organs)
-- [Current Reality](#current-reality)
-- [Defensive Design](#defensive-design)
-- [Repository Anatomy](#repository-anatomy)
-- [Quick Start](#quick-start)
-- [Verification](#verification)
-- [Configuration Posture](#configuration-posture)
-- [What GAGOS Refuses to Become](#what-gagos-refuses-to-become)
-- [Research Questions](#research-questions)
-- [Development Philosophy](#development-philosophy)
-- [Contributing](#contributing)
-- [A Note from the Builder](#a-note-from-the-builder)
+GAGOS—Governed Agentic Guided Operating System—is a single-operator research prototype for safely coordinating local and cloud AI models.
 
----
+It combines:
 
-## What This Is Not
+* A small local model acting as a persistent clerk
+* Powerful cloud models acting as replaceable expert brains
+* Deterministic policy and capability enforcement
+* Human approval for consequential actions
+* Mission-bound temporary workers
+* Isolated execution
+* Independent verification
+* Provenance-aware memory
+* Promotion, rollback, and recovery
+* A living interface driven by real system events
 
-A normal AI assistant receives a prompt, calls a model, and returns an answer.
+The language model is not the operating system.
 
-**GAGOS is exploring something fundamentally different:**
+The model supplies intelligence.
 
-A local-first intelligence control plane in which permanent cognitive organs deliberate, temporary workers execute bounded missions, every important action passes through deterministic governance, evidence flows back upward, verified experience becomes memory, and the interface reflects what the system is actually doing.
+GAGOS controls:
 
-**The language models are not the operating system.** They are replaceable sources of intelligence living *inside* the operating system.
+* Which model may participate
+* What context it may receive
+* What tools may be requested
+* Which files and resources are in scope
+* Whether cloud transmission is allowed
+* Which actions require human approval
+* What counts as evidence
+* What may become trusted memory
+* What must be rejected or rolled back
 
-GAGOS is the layer that decides:
+The human remains the final source of purpose, approval, correction, and veto.
 
-- Which intelligence may participate.
-- What context it may see.
-- What tools it may request.
-- Where it may operate.
-- Which actions require approval.
-- What must be verified.
-- What may become memory.
-- What must be rolled back.
-- What the human is shown as truth.
+⸻
 
----
+The Problem
 
-## The Organism
+Most agentic systems focus on increasing what a model can do:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  👑 HUMAN SOVEREIGN                                                │
-│  Goal · Taste · Approval · Veto                                     │
-│                          ↓                                          │
-│  SOVEREIGN KERNEL                                                   │
-│  Identity · Policy · Scope · Budgets · Capabilities                 │
-│              ↓                    ↓                    ↓            │
-│  QUEEN COUNCIL              MEMORY & LEARNING        CORTEX         │
-│  Permanent cognitive organs  Episodes · Facts ·      Nervous System │
-│                              Skills · Mistakes ·                    │
-│                              Trails · Provenance                    │
-│              ↓                                                      │
-│  WORKER FOUNDRY                                                     │
-│  Creates bounded temporary intelligence                             │
-│              ↓                                                      │
-│  ┌──────────┬──────────┬──────────┐                                 │
-│  │ Builder  │ Scout    │ Test /   │                                 │
-│  │ Worker   │ Worker   │ Research │                                 │
-│  └────┬─────┴────┬─────┴────┬────┘                                 │
-│       ↓          ↓          ↓                                      │
-│  ISOLATED EXECUTION PLANE                                           │
-│  Workspace · Tool limits · Resource limits · No implicit authority  │
-│                          ↓                                          │
-│  PROOF & RECOVERY                                                   │
-│  Evidence · Verification · Promotion · Rollback                     │
-│                          ↓                                          │
-│  LIVING MIRROR                                                      │
-│  A truthful visual self-portrait                                    │
-│                          ↓                                          │
-│  👑 HUMAN SOVEREIGN (loop closed)                                   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+more reasoning
++ more tools
++ more memory
++ more autonomy
 
-### The Metaphor Is Not Decoration
+But greater intelligence does not automatically create legitimate authority.
 
-The biological and sovereign language maps to concrete engineering responsibilities.
+A model may be better than its operator at coding, architecture, research, or analysis. That does not make it the owner of:
 
-| GAGOS Concept | Engineering Meaning |
-|---------------|---------------------|
-| **Human Sovereign / King** | The authenticated human with final approval, veto and shutdown authority |
-| **Sovereign Kernel** | Deterministic identity, policy, scope, capability and budget enforcement |
-| **Queen Council** | Permanent specialist reasoning organs that deliberate but do not execute unrestricted actions |
-| **Temporary Workers** | Mission-bound processes or agents created for specific work and dissolved afterward |
-| **Cortex** | Durable observation and event infrastructure connecting the organism |
-| **Memory** | Provenance-aware episodic, semantic, factual, procedural and reflective stores |
-| **Pheromone Trails** | Decaying advisory signals learned from verified outcomes—not permissions |
-| **Living Mirror** | A 3D and 2D frontend whose operational state comes from backend truth |
-| **Immune System** | Read-only detection of unsafe patterns, drift, bypasses and internal degradation |
-| **Proof Organs** | Verification, evidence strength, audit, checkpoints and rollback |
+* The operator’s machine
+* The operator’s data
+* The operator’s project
+* The operator’s risk tolerance
+* The operator’s final goals
+* Its own permissions
 
----
+GAGOS starts from a different question:
 
-## A Mission Has a Pulse
+How can a human safely use intelligence greater than their own without surrendering authority to it?
 
-Imagine telling GAGOS:
+Its answer is structural:
 
-> *“Inspect this project, find the cause of the failing frontend test, repair it without touching the backend, verify the fix and explain what was learned.”*
+Intelligence may be powerful and replaceable.
+Authority must remain deterministic, narrow,
+inspectable, revocable, and human-controlled.
 
-A mature GAGOS mission unfolds like this:
+⸻
 
-```
+Core Thesis
+
+GAGOS is based on four separations.
+
+Intelligence is not authority
+
+Models may plan, propose, critique, explain, and generate candidate work.
+
+They may not authorize themselves.
+
+Proposal is not execution
+
+Generated code or a persuasive answer is only a proposal.
+
+Real effects require a governed mission, exact scope, valid capability, and approved execution path.
+
+Model narration is not evidence
+
+A model claiming that work succeeded does not make it true.
+
+Tests, receipts, digests, verification results, and runtime observations determine whether the result is trusted.
+
+Memory is not automatically truth
+
+Conversation history, generated text, repeated claims, and model output begin as unverified information.
+
+Trusted memory must retain provenance and be earned through evidence, verification, or explicit human approval.
+
+⸻
+
+Architecture
+
+┌──────────────────────────────────────────────────────────────┐
+│                       HUMAN SOVEREIGN                        │
+│        Purpose · Taste · Approval · Correction · Veto        │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    SOVEREIGN CONTROL PLANE                   │
+│ Identity · Constitution · Policy · Scope · Capabilities      │
+│ Privacy · Budgets · Emergency Stop · Audit                   │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  HUMAN REPRESENTATION LAYER                  │
+│ Goal · Constraints · Project Context · Approved Preferences │
+│ Corrections · Uncertainty · Communication Style              │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                      LOCAL AI CLERK                          │
+│ Classify · Structure · Redact · Prepare · Route · Abstain    │
+│ Explain · Record Provenance · Reuse Verified Skills          │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                CONSTITUTIONAL INTELLIGENCE GATEWAY           │
+│ Privacy · Model Qualification · Routing · Cost · Health      │
+│ Context Minimisation · Secret Protection · Provenance        │
+└───────────────┬──────────────────┬───────────────────────────┘
+                │                  │
+                ▼                  ▼
+┌────────────────────────┐  ┌─────────────────────────────────┐
+│ LOCAL INFERENCE        │  │ FRONTIER CLOUD INTELLIGENCE     │
+│ Ollama models          │  │ Claude · GPT · Gemini · Bedrock │
+│ Clerical workloads     │  │ Planning · Coding · Critique    │
+└───────────────┬────────┘  └────────────────┬────────────────┘
+                │                            │
+                └──────────────┬─────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  QUEEN COUNCIL + WORKER FOUNDRY              │
+│ Permanent deliberative organs · Temporary mission workers   │
+│ Plan · Critique · Research · Build · Inspect · Test          │
+└──────────────────────────────┬───────────────────────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    ISOLATED EXECUTION PLANE                  │
+│ Staged Workspace · Tool Limits · Resource Limits            │
+│ No Implicit Authority · No Silent Host Fallback              │
+└──────────────────────────────┬───────────────────────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  PROOF, PROMOTION, AND RECOVERY              │
+│ Evidence · Verification · Checkpoint · Promotion · Rollback  │
+└──────────────────────────────┬───────────────────────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                     MEMORY AND LEARNING                      │
+│ Verified Trajectories · Candidate Skills · Human Activation │
+│ Local Reuse · Confidence · Demotion · Escalation             │
+└──────────────────────────────┬───────────────────────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                       LIVING MIRROR                          │
+│ Truthful operational state · Approvals · Evidence · Health   │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               └──────────► HUMAN JUDGEMENT
+
+⸻
+
+The Local Clerk and Frontier Brains
+
+GAGOS does not assume that a small local model can replace frontier intelligence.
+
+A model such as Granite 3.2 2B running through Ollama is intended to act as a local clerk, not as the system’s supreme brain.
+
+Local clerk responsibilities
+
+The clerk may:
+
+* Classify requests
+* Extract structured information
+* Prepare a briefing for a stronger model
+* Select a previously verified skill
+* Check context completeness
+* Summarize model disagreement
+* Validate structured output
+* Explain routing decisions
+* Abstain when a task exceeds its qualified role
+* Escalate difficult work to frontier intelligence
+
+The clerk receives no unrestricted shell, filesystem, Git, network, or mutation authority.
+
+Frontier-model responsibilities
+
+Powerful cloud models may provide:
+
+* Complex reasoning
+* Architecture analysis
+* Code generation
+* Security critique
+* Research
+* Alternative approaches
+* Failure diagnosis
+* Candidate procedures
+* Constitutional criticism
+
+Their intelligence may be greater than the local model’s or the human operator’s in a particular domain.
+
+Their authority remains zero by default.
+
+GAGOS responsibilities
+
+GAGOS governs the relationship between them:
+
+Local clerk coordinates.
+Cloud models contribute intelligence.
+Deterministic services enforce authority.
+The human remains sovereign.
+
+⸻
+
+System Roles
+
+Component	Responsibility	Authority
+Human Sovereign	Purpose, values, correction, approval, veto	Final
+Constitution and Policy Kernel	Identity, risk, privacy, scope, permissions	Deterministic
+Local Clerk	Classification, preparation, routing, explanation	Advisory
+Cloud Models	Advanced reasoning and candidate solutions	Advisory
+Queen Council	Permanent specialist deliberation	Advisory
+Temporary Workers	Mission-bound research, coding, testing, inspection	Capability-limited
+Executor	Performs approved effects in isolation	Exact and bounded
+Verification Authority	Evaluates evidence against declared requirements	Deterministic
+Memory Authority	Controls provenance, promotion, contradiction, and reuse	Governed
+Living Mirror	Shows real operational state	Observational only
+
+⸻
+
+How a Mission Works
+
+Consider this request:
+
+Inspect the project, find the cause of a failing frontend test, repair it without modifying the backend, verify the result, and explain what was learned.
+
+A mature GAGOS mission follows this sequence:
+
 01  The human declares the goal
-          ↓
-02  Project knowledge and relevant memory are recalled
-          ↓
-03  The Queen Council identifies scope, uncertainty and risk
-          ↓
-04  A bounded mission contract is created
-          ↓
-05  The human approves the exact authority being requested
-          ↓
-06  Temporary workers are born inside an isolated workspace
-          ↓
-07  The workers inspect, edit, test and return evidence
-          ↓
-08  The Testing Queen challenges the result
-          ↓
-09  Verified work is promoted—or automatically rejected and rolled back
-          ↓
-10  Proven experience becomes reusable memory
-          ↓
-11  Workers dissolve
-          ↓
-12  The living interface visibly returns to rest
-```
+        ↓
+02  Shared understanding identifies constraints and uncertainty
+        ↓
+03  The local clerk classifies the task and prepares a briefing
+        ↓
+04  Privacy policy determines what may leave the machine
+        ↓
+05  The gateway selects a qualified frontier model
+        ↓
+06  The model proposes a plan or candidate change
+        ↓
+07  GAGOS creates a mission contract with exact scope
+        ↓
+08  The human reviews and approves the requested authority
+        ↓
+09  Temporary workers operate in a staged isolated workspace
+        ↓
+10  Execution produces structured receipts and evidence
+        ↓
+11  Independent verification checks the declared requirements
+        ↓
+12  Verified work is promoted, or failed work is rejected
+        ↓
+13  Post-promotion checks pass—or rollback restores the baseline
+        ↓
+14  The successful expert trajectory becomes a candidate skill
+        ↓
+15  The human decides whether that skill may become active
+        ↓
+16  The local clerk may reuse the skill under matching conditions
+        ↓
+17  Drift, uncertainty, or failure causes frontier escalation
+
+The result is not merely:
+
+AI edited a file.
+
+The intended result is:
+
+A known principal performed a specific action inside an exact mission and scope, under a known constitution and policy, using a narrow capability, inside a controlled environment, produced inspectable evidence, passed a declared verification standard, and remained reversible by the human.
+
+⸻
+
+Constitutional Invariants
+
+These are engineering constraints, not branding statements.
+
+Law	Invariant
+I	The authenticated human is the final authority.
+II	Intelligence never grants itself authority.
+III	Models may propose actions but may not approve them.
+IV	RED actions remain blocked even when requested persuasively.
+V	Every side effect must be attributable to a principal and mission.
+VI	Authority must be exact, narrow, expiring, revocable, and non-replayable.
+VII	Cloud transmission requires deterministic privacy permission.
+VIII	Untrusted work must not execute directly inside the control plane.
+IX	Evidence must precede promotion and trusted learning.
+X	Unknown or unavailable state must never be displayed as success.
+XI	Cortex and frontend events may report authority but never create it.
+XII	Important mutations must remain auditable and recoverable.
+XIII	A model may propose constitutional change but may not ratify it.
+XIV	The human may stop, revoke, correct, reject, and roll back.
+
+⸻
+
+Key Capabilities
+
+Sovereign identity and exact capabilities
+
+GAGOS binds consequential actions to operator, device, authentication event, session, route, payload, resource, mission, contract, and policy context.
+
+Approval is not a reusable boolean.
+
+It is an exact authorization for a specific action.
+
+Privacy-aware model routing
+
+Local and cloud providers are selected under deterministic policy using:
+
+* Task class
+* Privacy classification
+* Model qualification
+* Tool support
+* Cost
+* Latency
+* Provider health
+* Operator policy
+* Mission constraints
+* Verified success history
+
+The local model may help choose among permitted candidates. It may not open a policy gate that the operator-owned system closed.
+
+Queen Council
+
+Permanent specialist organs support:
+
+* Planning
+* Security
+* Memory
+* Testing
+* Routing
+* Reflection
+* Critique
+* Project understanding
 
-**The intended result is not merely:** *“AI changed a file.”*
+Queens deliberate and constrain work.
 
-**It is:**
+They do not receive unrestricted execution authority.
 
-> A specific principal performed a specific action inside a specific mission and scope, under a specific policy, using a specific capability, inside a known environment, produced inspectable evidence, passed a declared verification standard, and remained reversible by the human.
+Temporary Worker Foundry
 
----
+Temporary workers are created for bounded missions such as:
 
-## Why GAGOS Is Unusual
+* Research
+* Coding
+* Testing
+* Inspection
+* Debugging
+* Review
 
-### 1. Intelligence and Authority Are Separated
+They receive limited context, scope, tools, time, and resources. They return evidence and then dissolve.
 
-Models may **propose, reason, plan, critique, generate candidate changes, and interpret evidence.**
+Isolated execution
 
-Models may **not define their own permissions.**
+Approved mutations are intended to cross one execution boundary into a staged workspace with:
 
-A persuasive model response is not an authorization token.
+* Explicit project scope
+* Resource limits
+* Bounded output
+* No network by default
+* No secret access by default
+* Process-tree termination
+* No silent fallback to unrestricted host execution
 
-### 2. The Council Is Permanent; Workers Are Temporary
+Evidence and verification
 
-Most agent systems create a flat crowd of agents and let them negotiate.
+GAGOS distinguishes model claims from authoritative evidence.
 
-**GAGOS separates two kinds of intelligence:**
+Verification may include:
 
-| Permanent Organs | Temporary Workers |
-|------------------|-------------------|
-| The Queen Council maintains stable responsibilities: planning, memory, security, testing, reflection. | Workers are born for a mission, receive limited scope and tools, return evidence and dissolve. |
-| Queens produce verdicts, constraints and evidence. | This limits long-lived privilege and prevents every specialist from becoming another permanent autonomous process. |
-| They do not receive unlimited execution authority. | |
+* Tests
+* Builds
+* Type checks
+* Linting
+* Security scans
+* File and workspace digests
+* Structured execution receipts
+* Target-specific verification strength
+* Post-promotion checks
+
+Provenance-aware memory
+
+Memory types remain distinct:
+
+* Working memory
+* Conversation state
+* Episodic memory
+* Semantic retrieval
+* Verified facts
+* Project knowledge
+* Procedural skills
+* Mistake memory
+* Reflection lessons
+* Development curriculum
+* Advisory swarm patterns
+
+Memory records retain source, confidence, verification status, contradiction, and supersession lineage.
+
+Frontier-to-local learning
+
+A successful cloud-assisted workflow can become locally reusable only through:
 
-### 3. Memory Must Be Earned
+frontier proposal
+→ governed mission
+→ execution evidence
+→ authoritative verification
+→ successful promotion
+→ expert trajectory
+→ candidate skill
+→ human activation
+→ qualified local reuse
+
+Failure, environment drift, policy changes, or contradictory evidence can reduce confidence, suspend, or revoke the skill.
 
-GAGOS does not treat repetition as truth.
+Emergency control and recovery
 
-A statement, model output, project scan or worker result may begin as:
+The system is designed to support:
 
-```
-observation → candidate → proposal
-```
+* Capability revocation
+* Queued-mission cancellation
+* Active-worker termination
+* Autonomy disablement
+* Evidence preservation
+* Persistent emergency-stop state
+* Checkpointing
+* Promotion rollback
+* Crash-safe resumption
 
-It should become trusted memory only through **evidence, verification or explicit human approval.**
+Truthful Living Mirror
 
-Memories retain **provenance, confidence, contradiction and supersession history.**
+The frontend is intended to behave as the system’s body—not as a fictional AI animation.
+
+Operational states such as:
+
+* Listening
+* Deliberating
+* Waiting for approval
+* Executing
+* Verifying
+* Blocked
+* Repairing
+* Recovering
+* Learning
+* Resting
 
-### 4. Verification Has Strength
+must originate from canonical backend state or be clearly labelled as ambient presentation.
 
-A successful process exit is not always proof.
+⸻
+
+Current Status
+
+Alpha research prototype. Not production-ready.
+
+GAGOS contains substantial implementations of its major organs, but the repository is still converging toward one complete and independently proven V1 runtime.
 
-GAGOS distinguishes weak signals from behavior-confirming evidence. Downstream learning is limited by the weakest authoritative evidence in the chain.
+Substantially implemented
 
-> A passing test for one file should never erase an unresolved failure in another target.
+* Deterministic security classification
+* Sovereign identity foundations
+* Exact capability contracts
+* Policy and action-broker boundaries
+* Mission contracts
+* Queen Council
+* Worker Foundry
+* Local and cloud model routing
+* Structured local clerical jobs
+* Staged workspaces
+* Evidence and verification authorities
+* Promotion and rollback foundations
+* Provenance-aware memory
+* Expert trajectory and candidate-skill learning
+* Cortex event infrastructure
+* Living 3D and workbench frontend
+* Durable emergency-stop authority
 
-### 5. The Frontend Is Meant to Be the System's Body
+Still being completed or proven
 
-The interface is not supposed to animate fictional intelligence.
+* One universal gateway for every model call
+* Complete human-representation context for every provider
+* Durable end-to-end local-clerk provenance
+* Repeated live Granite clerk evidence
+* Complete private-Executor runtime proof
+* Crash-safe mission resumption
+* Skill confidence, demotion, and endurance evidence
+* Human-ratified constitutional amendments
+* Constitutional learning
+* Fully truthful read models and operator walkthrough
+* Clean-machine packaging, backup, and restore
+* Exact-tip release evidence and independent review
 
-Worker births, approvals, verification failures, model routing, memory formation and system degradation should originate from **real operational events.**
+Executable release truth
 
-Ambient motion can make the organism feel alive. It must not make false operational claims.
+Do not infer readiness from this README.
 
-### 6. Local and Cloud Intelligence Coexist Under Policy
+Use:
 
-GAGOS can use local inference and configured cloud providers, but provider availability alone does not grant permission to send data externally.
+gagos v1-check --json
+gagos v1-check --strict
 
-Routing decisions account for:
+The strict check is expected to remain blocked until every required runtime proof exists.
 
-- Task type
-- Privacy classification
-- Local capability
-- Cost
-- Latency
-- Model health
-- Operator policy
-- Mission constraints
+Source presence alone does not count as completion.
 
-**Cloud intelligence is an optional cognitive resource—not the owner of the system.**
+A subsystem must be:
 
----
+reachable
++ enforced
++ durable
++ observable
++ tested
++ integrated
++ live-proven
 
-## Constitutional Laws
+Detailed wave status and proof limitations belong in the release and convergence ledgers, not in permanent README claims.
 
-These are not branding statements. They are **architectural invariants.**
+⸻
 
-| Law | Statement |
-|-----|-----------|
-| **I** | The Human Sovereign is the final authority. |
-| **II** | A model may propose an action but may never authorize itself. |
-| **III** | RED actions remain blocked. Approval does not magically make them safe. |
-| **IV** | Every side effect must have an attributable principal and mission. |
-| **V** | Authority must be narrow, exact, expiring and revocable. |
-| **VI** | Untrusted work must not execute directly inside the control plane. |
-| **VII** | Unknown state must be shown as unknown—not invented. |
-| **VIII** | Evidence must exist before successful experience becomes trusted memory. |
-| **IX** | The Cortex carries observations, never permission. |
-| **X** | Every important mutation must remain auditable and recoverable. |
+What GAGOS Can Demonstrate
 
----
-
-## The Eight Organs
-
-### Ⅰ. Sovereign Kernel
-
-The trusted control spine.
+At single-operator scale, the completed V1 aims to demonstrate that:
 
-- Operator identity
-- Session posture
-- Deterministic risk classification
-- Scope enforcement
-- Approval capabilities
-- Tool permissions
-- Resource budgets
-- Data-classification policy
-- Emergency shutdown
-- Autonomy limits
-
-### Ⅱ. Queen Council
+* A small local model can operate as a persistent constitutional clerk
+* Frontier models can remain powerful but replaceable
+* Intelligence and authority can be structurally separated
+* Sensitive context can be minimized or blocked before cloud use
+* Models cannot approve their own actions
+* Human approval can be bound to an exact payload and scope
+* Untrusted work can execute in an isolated staged environment
+* Model claims can be challenged by independent verification
+* Failed promotion can trigger rollback
+* Successful frontier workflows can become candidate local skills
+* Local skills can abstain and escalate when conditions change
+* The human can inspect, correct, revoke, stop, and recover the system
 
-Permanent specialist cognition.
+⸻
 
-Current and emerging Queen responsibilities include:
+What GAGOS Does Not Claim
 
-- Planning
-- Memory
-- Security
-- Testing
-- Routing
-- Reflection
-- Critique
-- Project understanding
-
-Queens produce verdicts, constraints and evidence. They do not receive unlimited execution authority.
-
-### Ⅲ. Worker Foundry
-
-Creates temporary intelligence for bounded missions.
+GAGOS does not claim to:
 
-Worker forms may include:
+* Solve model alignment
+* Solve all agentic-AI safety risks
+* Make arbitrary autonomous action safe
+* Replace an operating-system kernel
+* Replace frontier intelligence with a small local model
+* Provide enterprise multi-tenancy
+* Provide formal mathematical verification
+* Meet regulated-industry compliance requirements
+* Be safe for medical, military, financial, or critical-infrastructure control
+* Understand human emotion as objective truth
+* Be production-ready today
 
-- Builder
-- Scout
-- Forager
-- Soldier
-- Nurse
-- Researcher
-- Inspector
-- Test worker
-- Role-pass worker
-- Swarm strategy
+The defensible claim is narrower:
 
-The caste metaphor describes **constrained behavior profiles**—not decorative agent names.
+GAGOS is a single-operator systems prototype demonstrating how powerful replaceable AI models can be governed through local constitutional control, bounded authority, isolation, provenance, verification, recovery, and human veto.
 
-### Ⅳ. Execution Plane
+⸻
 
-The boundary between proposed intelligence and real-world effects.
+Repository Structure
 
-- Structured commands instead of ambient shell access
-- Isolated workspaces
-- Explicit file scope
-- Resource limits
-- No network by default
-- Secret isolation
-- Staged changes
-- Bounded output
-- Process-tree termination
-- No silent host fallback
-
-### Ⅴ. Cortex Nervous System
-
-Durable signals connecting the organism.
-
-The Cortex records what happened:
-
-- A turn began
-- A plan formed
-- Memory was recalled
-- A worker started
-- An action was blocked
-- Human approval became necessary
-- Verification passed or failed
-- A worker dissolved
-
-**The Cortex must never decide what is permitted.**
-
-### Ⅵ. Memory and Learning
-
-GAGOS explores several complementary forms of memory:
-
-- Working memory
-- Conversation state
-- Episodic memory
-- Semantic retrieval
-- Verified facts
-- Procedural skills
-- Mistake memory
-- Developmental curriculum
-- Swarm patterns
-- Council memory
-- Narrative self-model
-- Pheromone trails
-
-Different memories answer different questions. They should not be collapsed into one giant vector search.
-
-### Ⅶ. Proof and Recovery
-
-The system must be able to explain why it trusts an outcome.
-
-- Verification plans
-- Evidence records
-- Evidence-strength classification
-- Target-specific results
-- Audit chains
-- Snapshots
-- Promotion gates
-- Post-promotion checks
-- Rollback
-
-### Ⅷ. Living Mirror
-
-The frontend is the organism's self-portrait.
-
-Built with **React, Vite, React Three Fiber, Three.js, Monaco** and a hybrid 3D/DOM workbench, it brings together:
-
-- Conversation
-- Council deliberation
-- Project files
-- Code editing
-- Terminal activity
-- Memory inspection
-- Worker and swarm state
-- Governance
-- Verification
-- System health
-
-The visual system is ambitious by design: the AI-OS should not look like another rectangle with a chat box.
-
----
-
-## Current Reality
-
-GAGOS is an **alpha research prototype** under active architectural convergence. It is not production-ready.
-
-The repository already contains unusually deep working substrates, but not every subsystem has yet converged into one production-grade causal spine.
-
-### v1 release truth
-
-Use `gagos v1-check --json` or `gagos v1-check --strict` for the executable
-release declaration. Each blocking gate reports both `source_present` and
-`runtime_proven`; source presence alone never counts as production readiness.
-
-On the current `5e73a37` baseline, durable Human Sovereign identity is now
-`PARTIAL` (source and hermetic authority proof exist; production runtime proof
-is unavailable), while exact capabilities are now `PARTIAL`: the server-issued
-exact-capability core and hermetic route proof exist, and production approval
-issuance is migrated; the legacy ApprovalStore compatibility adapter remains
-outside the production dependency graph, while the production ActionBroker
-now fronts the exact command/approval/rollback family and the universal
-pre-dispatch guard covers ordinary mutating routes. Runtime proof remains open.
-The isolated Executor Service,
-PromotionAuthority, EmergencyStopController, and TurnCoordinator are
-`PARTIAL` until their production wiring has real runtime proof. The strict
-check must remain non-zero until those blockers are resolved by the Human
-Sovereign and verified through the required runtime evidence.
-
-The R0 executable-truth reset and R1 HTTP trust-boundary repair are now
-self-verified in this checkout. Browser mutations require a validated session,
-exact Origin, and matching CSRF proof; privileged routes ignore JSON body
-session identifiers; and untrusted proxy/Host/Origin claims are rejected.
-These repairs do not change the blocked/partial release status without the
-required production runtime evidence.
-
-R2 now has a durable single-operator identity with device records, bounded
-authentication events, one-time local enrollment material, hashed-only
-credential storage, opaque sessions, rotation, revocation, and strong
-re-authentication for privileged routes. Anonymous local sessions and
-caller-supplied authority fields are not treated as operator authority. R3 now
-adds complete capability binding, canonical digests, server-owned replay payloads,
-durable same-session grant cursors, atomic one-use/revocation, and ActionBroker
-payload/route/method checks. R4 adds the complete immutable ActionEnvelope fields,
-fail-closed unknown-route/action/version checks, and a universal
-`ActionEnvelope -> PolicyKernel -> ActionBroker` dependency before ordinary
-mutating handlers. Generate, terminal, execute, rollback, and Council rollback
-now issue exact capabilities; RED routes are refused before side effects and
-YELLOW routes challenge with exact capabilities. Full packaged runtime
-authority proof remains open. R5 is verified at its declared boundary:
-`/api/v1/chat` and
-`/api/generate` enter the registered `TurnCoordinator` handler spine,
-mission/governance mode is explicit request metadata rather than an
-unconditional route default, and both conversational and generation pipelines
-are now application-owned. Focused handler and full backend gates are green;
-a real isolated production-profile process proved chat/generate lifecycles,
-durable Cortex events, two exact approval pauses/resumes, no-write-before-
-approval, and final verification without leaving files behind.
-`TurnCoordinator` is verified for this wave; the overall v1 declaration remains
-partial for the other packaged authority/runtime gates.
-
-R6 now makes the SQLite mission repository authoritative for Council mission
-approval and rejection. A real Human Sovereign principal, exact consumed
-capability digest, authentication event, session, contract digest, and runtime
-contract digest are required and persisted; JSON decisions/reports are emitted
-only after the authoritative transition. Concurrent duplicate approvals,
-approval after rejection, altered contracts, synthetic approval actors, and
-unapproved execution are refused. The focused and broader R6 regression gates
-are green, including a real Council-originated worker execution. This is a
-verified wave boundary, not an overall v1 readiness claim; the strict release
-still has packaged authority and executor/recovery blockers.
-
-R7 is verified at its declared WorkerFoundry boundary: handler-less temporary
-strategies are no longer advertised by default, lifecycle observations use the
-canonical `worker.*` events with derived principal and contract context, and
-direct generation `rolePass`/`swarm` requests fail closed as experimental until
-Foundry owns them. The latest full backend gate is `3,096 passed, 5 skipped` at
-`89.22%` coverage; overall production readiness remains partial.
-
-R8 is `VERIFIED` at its declared private Executor boundary: the structured
-client validates authenticated job identity and isolation proof, production/demo
-paths refuse host or local-Docker fallback, and Compose/CI encode the
-control-plane/private-executor topology. The focused R8 gate is `119 passed,
-3 skipped`. A live source-bearing no-socket control-plane probe reached the
-private service and disposable worker, proving non-root execution, no network,
-staged-workspace confinement, bounded/truncated output, timeout refusal, and
-missing-service refusal. Overall production readiness remains partial while
-staged workspaces, evidence/promotion, memory, mirror, and emergency-control
-waves remain open.
-
-R9 is `VERIFIED` at the staged-workspace boundary. Production/demo Council
-execution now stages each enrolled project before WorkerFoundry admits a mutable
-worker; durable mission leases enforce one owner, enrollment, no symlinks, no
-path traversal, and deterministic baselines/diffs. MissionService cleans the
-stage after terminal success and retains it after failed verification for
-evidence inspection. R10 is now `VERIFIED` at the bounded
-evidence/verification/promotion/rollback boundary: EvidenceBundle binds worker
-output to its mission and environment, VerificationAuthority rejects weak or
-mismatched proof, and PromotionAuthority owns checkpoint, exact apply,
-post-promotion smoke, completion, or rollback. The R10 focused gate is `66
-passed, 1 skipped`; the latest authoritative full backend gate exits `0` with
-all tests passing at `88.94%` coverage. Overall production readiness remains
-partial while packaged identity/capability proof, memory, mirror, and
-emergency-control waves remain open.
-
-R11 is currently `PARTIAL` at the MemoryAuthority boundary. Recall events now
-carry authority-derived trust, advisory/unverified memory cannot become verified
-through event emission, episodic turn writes plus conversation restore and
-semantic chat indexing use authority adapters, production specialized recall
-uses authority adapters, and production fact/development/skill/lesson/
-reflection/consolidation/planner/compaction writes dispatch through authority
-adapters. Council lesson recall and mission-scoped append-only deliberation
-evidence also use scoped adapters. Contradiction reconciliation, supersession,
-consolidator bulk status reads, default-chat confidence calibration reads, and
-reflection lesson reads now dispatch through MemoryAuthority in the production
-path, with direct-store bypass regressions covered. Advisory pheromone
-operations, Council context, hibernation preview, and system onboarding
-episodic counts also route through authority-owned adapters. The process-wide
-working/semantic compactor facades in `aios/api/main.py`, Cortex self-model
-production wiring, consolidation and semantic-indexer dependencies, and the
-development metrics/skills/trails read routes and system metrics now use the
-authority as well, including the mirror snapshot's development and skill
-reads. Specialist dependency providers return the canonical
-facts/development/skills/lessons stores while explicit injected fakes remain
-supported. Planner, ReflectionAgent, and the authority bootstrap's
-consolidator reuse those registered stores rather than opening parallel
-production databases. Generate-pipeline facts, skills, lessons, self-model,
-and confidence-calibration reads now require authority ownership before taking
-the authority path, preserving explicit noncanonical fakes.
-The post-write affected gate
-is `340 passed, 2 skipped` across `342` collected tests. The follow-on
-planner/native-planner/compaction gate is `73 passed` across `73` collected
-tests. The focused provider/architecture/API regression is `188 passed`.
-authoritative package-wide gate exits `0` with `3,159` collected,
-`3,151 passed, 8 skipped`, `91.04%` line coverage (`21,129/23,209`), and
-`80.57%` branch coverage (`5,016/6,226`); combined coverage is `88.82%`.
-An isolated production-profile loopback process proved operator enrollment,
-login, strong re-authentication, authenticated MemoryAuthority reads, and
-`/api/generate` entry at `200 text/event-stream`, reaching `human_required`
-with no filesystem write. The legacy daily-use probe remains stale and
-correctly returns `403` because it does not bootstrap the browser session and
-CSRF contract; the complete packaged runtime matrix remains open.
-
-| Area | Current Reality |
-|------|-----------------|
-| Deterministic security gateway | ✅ Implemented |
-| GREEN / YELLOW / RED classification | ✅ Implemented |
-| Human approval flows | ✅ Implemented, still undergoing authority hardening |
-| Queen Council | ✅ Implemented as a real backend runtime |
-| Mission contracts and verdicts | ✅ Implemented, evolving toward a unified contract |
-| Temporary workers | ✅ Implemented, isolation architecture still converging |
-| Verification-strength model | ✅ Implemented |
-| Audit and rollback concepts | ✅ Implemented |
-| Hybrid memory and retrieval | ✅ Implemented |
-| Local and cloud model routing | ✅ Implemented behind configuration and policy |
-| CRAG and project knowledge | ✅ Implemented |
-| Pheromone and skill learning | ✅ Implemented as advisory learning |
-| Cortex event substrate | ✅ Implemented, delivery/read-model mechanics evolving |
-| Living 3D frontend | ✅ Implemented |
-| Truthful backend mirror | ⚠️ Partially implemented and actively hardened |
-| Single canonical action authority | 🔄 In convergence |
-| Full production worker cage | 🔄 In convergence |
-| Production packaging | ❌ Not complete |
-| Unrestricted autonomy | 🚫 Intentionally not supported |
-
-**Honesty matters more than an impressive feature count.**
-
-A subsystem is not considered complete merely because:
-
-- A class exists
-- A configuration flag exists
-- A test imports it
-- A UI component renders
-- A document describes it
-
-It must be **reachable, enforced, observable and verified** through the real product path.
-
----
-
-## Defensive Design
-
-### Security Cage
-
-The deterministic security layer classifies operations and blocks unsafe behavior before execution.
-
-- Scope roots
-- Protected foundation files
-- Secret scanning
-- Prompt-injection checks
-- Command classification
-- Rate limiting
-- Human approval
-- Container-backed execution paths
-- Fail-closed behavior
-
-### Vulture
-
-The Vulture is the beginning of an internal immune system.
-
-Its role is to detect and surface evidence of:
-
-- Security bypasses
-- Approval bypasses
-- Unsafe self-modification
-- Secret-material handling
-- Trusted-memory activation without proof
-- Internal architectural rot
-
-It is deliberately **read-only**. Detection does not equal autonomous deletion.
-
-### Ecosystem Scanner
-
-The ecosystem layer inspects local dependency and project evidence. Its purpose is to help the organism understand the environment surrounding it without silently widening network access or mutating the project.
-
-### Audit
-
-Important decisions and actions are intended to remain attributable and tamper-evident.
-
-The long-term goal is not simply to record logs. It is to reconstruct causality:
-
-```
-Human directive
-  → Council decision
-    → Mission contract
-      → Capability
-        → Worker action
-          → Evidence
-            → Verification
-              → Promotion or rollback
-                → Memory consequence
-```
-
----
-
-## Repository Anatomy
-
-```
 ai-editor/
 │
 ├── aios/
-│   ├── api/                 # FastAPI surface and route adapters
-│   ├── agents/              # Tool agents, role passes, swarms, reflection
-│   ├── council/             # Queen Council and deliberative organs
-│   ├── cognition/           # Project and structural understanding
-│   ├── core/                # Routing, execution, verification, autonomy
-│   ├── interfaces/          # External boundaries such as HTTP policy
-│   ├── learning/            # Meta-learning and developmental systems
-│   ├── maintenance/         # Vulture, ecosystem and sanitation evidence
-│   ├── memory/              # Episodic, semantic, factual and skill memory
-│   ├── policy/              # Constitution and governance vocabulary
-│   ├── runtime/             # Missions, workers, Cortex, ledgers and snapshots
-│   └── security/            # Deterministic security spine
+│   ├── api/                 # FastAPI routes and application adapters
+│   ├── application/         # Authorities and use-case orchestration
+│   ├── council/             # Permanent Queen Council runtime
+│   ├── core/                # Model selection and core coordination
+│   ├── domain/              # Typed missions, evidence, learning, capabilities
+│   ├── infrastructure/      # Persistence, migrations, provider adapters
+│   ├── memory/              # Episodic, semantic, factual, and skill stores
+│   ├── policy/              # Constitution and deterministic policy
+│   ├── runtime/             # Cortex, workers, budgets, and execution support
+│   └── security/            # Security gateway and protected control spine
 │
 ├── frontend/
 │   └── src/
-│       ├── components/      # Interface and canvas organs
-│       ├── superbrain/      # Living 3D organism and nervous reactions
-│       └── workbench/       # Conversation, code, files and governance
+│       ├── components/      # Shared UI components
+│       ├── superbrain/      # Living 3D organism and reaction system
+│       └── workbench/       # Conversation, files, code, and governance
 │
-├── tests/                   # Unit, integration and adversarial evidence
-├── tools/                   # Audits, probes and verification utilities
-├── docs/                    # Architecture, ADRs, plans and research notes
-├── .aios/                   # Builder continuity, state and project memory
-└── docker-compose.yml       # Local runtime and observability stack
-```
+├── tests/                   # Unit, integration, adversarial, and release tests
+├── tools/                   # Audit, qualification, and proof utilities
+├── docs/                    # Architecture, plans, ADRs, and operations
+├── release/                 # Explicitly labelled release evidence and fixtures
+├── .aios/                   # Builder continuity and convergence ledgers
+└── docker-compose.yml       # Local control-plane and service topology
 
----
+⸻
 
-## Quick Start
+Quick Start
 
-### Requirements
+Requirements
 
-- Python 3.11 or newer
-- Node.js 20 or newer
-- Git
-- Optional: Docker Desktop
-- Optional: Ollama for local inference
+* Python 3.11 or newer
+* Node.js 20 or newer
+* Git
+* Optional: Ollama for local models
+* Optional: Docker Desktop for container and isolated-executor development
 
-### 1. Clone
+Clone
 
-```bash
 git clone https://github.com/swap821/ai-editor.git
 cd ai-editor
-```
 
-### 2. Create the Python Environment
+Backend environment
 
-**Windows PowerShell**
+Windows PowerShell
 
-```powershell
 py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[test]"
-```
 
-**Linux or macOS**
+Linux or macOS
 
-```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[test]"
-```
 
-### 3. Optional: Local Model
+Optional local clerk model
 
-```bash
-ollama pull qwen2.5-coder:7b
-```
+Install Ollama, then pull a small qualified model.
 
-Configure the chosen model through the environment rather than assuming the example is the repository default.
+Example:
 
-### 4. Start the Control Plane
+ollama pull granite3.2:2b
 
-```bash
+Configure it explicitly:
+
+AIOS_LLM_MODEL=granite3.2:2b
+OLLAMA_HOST=http://127.0.0.1:11434
+
+The example model is not a claim that every installation or role is already qualified. Production roles should depend on actual qualification evidence.
+
+Start the backend
+
 python -m aios
-```
 
-The default local API address is: `http://127.0.0.1:8000`
+The default local API address is:
 
-### 5. Start the Living Frontend
+http://127.0.0.1:8000
+
+Start the frontend
 
 Open another terminal:
 
-```bash
 cd frontend
 npm ci
 npm run dev
-```
 
-Open the local URL printed by Vite.
+Open the local address printed by Vite.
 
----
+⸻
 
-## Verification
+Configuration
 
-The repository treats **test evidence as more important than README claims.**
+The runtime configuration source is aios/config.py.
 
-### Backend
+Common settings include:
 
-```bash
+# Explicit project scope
+AIOS_SCOPE_ROOTS=training_ground;lab
+# Local inference
+AIOS_LLM_MODEL=granite3.2:2b
+OLLAMA_HOST=http://127.0.0.1:11434
+# Cloud-eligible task classes
+AIOS_ROUTER_CLOUD_TASKS=reasoning,coding
+# Hard local-only posture
+AIOS_ROUTER_CLOUD_TASKS=
+# Worker limits
+AIOS_SWARM_MAX_WORKERS=4
+AIOS_COUNCIL_MAX_CONCURRENT_WORKERS=4
+# Execution boundary
+AIOS_APPROVED_EXECUTION_BACKEND=container
+# Local API
+AIOS_API_HOST=127.0.0.1
+AIOS_API_PORT=8000
+
+Cloud provider availability does not automatically permit cloud transmission.
+
+Privacy classification, operator policy, cost limits, provider health, mission constraints, and the security control plane must also allow the route.
+
+Never commit real credentials.
+
+⸻
+
+Verification
+
+README claims are weaker than executable evidence.
+
+Backend
+
 python tools/thesis_audit.py
 python -m pytest -q
 python -m pytest -q \
@@ -735,202 +741,204 @@ python -m pytest -q \
   --cov-report=term-missing \
   --cov-report=xml \
   --cov-fail-under=85
-```
 
-### Frontend
+Frontend
 
-```bash
 cd frontend
 npm run typecheck
 npm run lint
 npm run test:coverage
 npm run build
-```
 
-> **Verification rule:** Do not copy old pass counts into reports. Run the commands and report the current result.
+Release declaration
 
----
+gagos v1-check --json
+gagos v1-check --strict
 
-## Configuration Posture
+Evidence rules
 
-The complete source of truth is `aios/config.py`.
+* Do not publish old test counts as current truth.
+* Do not label fixtures as live evidence.
+* Do not claim a provider was tested when it was mocked.
+* Do not claim isolation when execution occurred on the host.
+* Do not claim rollback without verifying restored state.
+* Do not declare a subsystem complete because a class exists.
+* Pin proof to the exact commit that produced it.
 
-`AIOS_SWARM_CLOUD_BURST` is a separate worker-swarm egress control; it does
-not change the router task-class allowlist. Keep it set to `0` for local-only
-swarm execution, and remember that provider policy and the security cage still
-apply.
+⸻
 
-Common configuration areas include:
+Security Model
 
-```python
-# Explicit project scope
-AIOS_SCOPE_ROOTS=training_ground;lab
+GAGOS assumes that:
 
-# Local inference
-AIOS_LLM_MODEL=qwen2.5-coder:7b
-OLLAMA_HOST=http://127.0.0.1:11434
+* Model output may be incorrect or malicious
+* Retrieved context may contain prompt injection
+* Generated commands may be unsafe
+* Provider responses may expose unsupported claims
+* Memory may become stale or contradictory
+* Approval tokens may be replayed or tampered with
+* Workers may exceed intended scope
+* Frontend state may become disconnected from backend truth
+* A successful test may still be insufficient evidence
 
-# Cloud eligibility
-AIOS_ROUTER_CLOUD_TASKS=reasoning,coding
+Defences include:
 
-# Hard local-only override
-AIOS_ROUTER_CLOUD_TASKS=""
+* Deterministic policy classification
+* Scope locking
+* Protected foundation paths
+* Secret scanning and redaction
+* Prompt-injection detection
+* Exact capability binding
+* One-use capability consumption
+* Rate limiting
+* Staged workspaces
+* Private execution boundaries
+* Verification-strength requirements
+* Promotion authority
+* Rollback
+* Tamper-evident provenance
+* Emergency stop
+* Fail-closed unknown state
 
-# Worker limits
-AIOS_SWARM_MAX_WORKERS=4
-AIOS_COUNCIL_MAX_CONCURRENT_WORKERS=4
+Security reports should describe the exact threat, boundary, reproduction, and evidence.
 
-# Execution boundary
-AIOS_APPROVED_EXECUTION_BACKEND=container
+⸻
 
-# API edge
-AIOS_API_HOST=127.0.0.1
-AIOS_API_PORT=8000
-```
+Development Principles
 
-> **Do not place real credentials inside the repository.**  
-> Do not infer a safety guarantee from one environment variable alone. Runtime validation and policy enforcement must agree.
+Build the system that supervises intelligence—not the illusion that intelligence supervises itself.
 
----
+Priorities:
 
-## What GAGOS Refuses to Become
+1. Authority before autonomy
+2. Identity before delegation
+3. Privacy before cloud use
+4. Isolation before execution
+5. Evidence before memory
+6. Verification before promotion
+7. Recovery before mutation
+8. Truth before animation
+9. Provenance before learning
+10. Coherence before feature count
 
-GAGOS is **not**:
+A new subsystem must have:
 
-- ❌ An operating-system kernel replacement
-- ❌ An LLM with unrestricted terminal access
-- ❌ A wrapper around a single model provider
-- ❌ A theatrical multi-agent chat room
-- ❌ A system where every agent is permanent
-- ❌ A dashboard that fabricates activity
-- ❌ A memory store that treats generated text as truth
-- ❌ A self-modifying system that can weaken its own constitution
-- ❌ A promise that autonomy is safe merely because a human clicked "approve"
-- ❌ Production-ready today
+* A clear responsibility
+* One state owner
+* One production authority path
+* Typed contracts
+* Real callers
+* Risk classification
+* Tests
+* Observability
+* Failure behaviour
+* Recovery behaviour
+* A reason existing organs cannot perform the same function
 
-**The intended destination is:**
+Do not add another agent merely because an LLM can generate one.
 
-> Supervised, explainable, permissioned, evidence-backed and recoverable autonomy for one developer.
+⸻
 
----
+Contributing
 
-## Research Questions
+High-value contributions include:
 
-GAGOS is also an engineering research project. It asks:
+* Finding authority or capability bypasses
+* Improving local-clerk qualification
+* Eliminating direct provider-call paths
+* Strengthening secret protection
+* Improving isolated execution
+* Adding adversarial verification
+* Testing rollback and crash recovery
+* Detecting stale or fabricated UI state
+* Improving memory contradiction handling
+* Testing skill demotion and drift
+* Simplifying duplicated control paths
+* Improving cross-platform installation
+* Improving accessibility and reduced motion
+* Producing honest live-runtime evidence
 
-1. Can permanent cognitive organs and temporary workers outperform a flat agent swarm?
-2. Can autonomy be earned per action class rather than granted globally?
-3. Can verification strength prevent weak successes from poisoning memory?
-4. Can a local system combine multiple models without letting any provider become authority?
-5. Can an AI interface feel alive while remaining constitutionally truthful?
-6. Can biological concepts such as pheromones, immune response, consolidation and development become useful computational mechanisms rather than metaphors?
-7. Can one developer build a safe miniature intelligence institution instead of another assistant?
+Before opening a pull request:
 
-The project does not pretend these questions are solved. It turns them into **code, tests and falsifiable architecture.**
-
----
-
-## Development Philosophy
-
-> **Build the system that supervises intelligence, not the illusion that intelligence supervises itself.**
-
-Changes should preserve these priorities:
-
-1. **Authority** before autonomy
-2. **Isolation** before execution
-3. **Evidence** before memory
-4. **Verification** before promotion
-5. **Recovery** before mutation
-6. **Truth** before animation
-7. **Coherence** before feature count
-
-A new subsystem should not be accepted merely because it is interesting. It must have:
-
-- A defined organ
-- A production constructor
-- A real caller
-- An authority classification
-- A state owner
-- Tests
-- Observability
-- Failure behavior
-- A reason it cannot be implemented by an existing subsystem
-
----
-
-## Contributing
-
-GAGOS welcomes careful engineering, adversarial review and architectural criticism.
-
-**High-value contributions include:**
-
-- Finding authority bypasses
-- Improving worker isolation
-- Strengthening verification
-- Detecting fabricated or stale frontend state
-- Simplifying duplicated runtime paths
-- Improving cross-platform behavior
-- Adding side-effect assertions to security tests
-- Improving accessibility and reduced-motion support
-- Making memory provenance clearer
-- Proving that a dormant subsystem is either useful or dead
-
-### Before Opening a Pull Request
-
-```bash
 python -m pytest -q --cov=aios --cov-fail-under=85
 cd frontend
 npm run typecheck
 npm run lint
 npm run test:coverage
 npm run build
-```
 
-> **Never weaken a security invariant to make a test green.**
+Never weaken a security invariant merely to make a test green.
 
----
+⸻
 
-## A Note from the Builder
+Research Direction
 
-GAGOS began with a simple discomfort:
+GAGOS asks several falsifiable engineering questions:
 
-> Giving a powerful language model more tools does not automatically create a trustworthy system.
+1. Can a small local model serve as a reliable constitutional clerk without pretending to be frontier intelligence?
+2. Can replaceable frontier models provide advanced reasoning without receiving authority?
+3. Can exact capabilities prevent approval from becoming a vague reusable permission?
+4. Can verification prevent persuasive but incorrect model output from becoming trusted experience?
+5. Can successful frontier trajectories become safe local procedures?
+6. Can failed or stale procedures automatically lose trust?
+7. Can permanent deliberative organs and temporary workers outperform a flat swarm?
+8. Can a living interface remain visually expressive without fabricating operational state?
+9. Can an AI system improve its governance through proposals while reserving constitutional ratification for the human?
+10. Can one developer demonstrate a small but complete institution for governing superior machine intelligence?
 
-The interesting engineering problem is not only making AI more capable. It is building the structures around intelligence that make capability:
+The project does not treat these questions as solved.
 
-- **Bounded**
-- **Inspectable**
-- **Correctable**
-- **Reversible**
-- **Accountable to a human**
+It turns them into code, failure cases, tests, and runtime evidence.
 
-This repository is being built as a serious single-developer prototype—not because one developer can recreate an enterprise AI platform, but because the central ideas can be demonstrated at human scale.
+⸻
 
-A sovereign intelligence system does not begin by asking the model to rule.
+Builder’s Note
 
-**It begins by designing a constitution the model cannot quietly escape.**
+GAGOS began with one concern:
 
----
+Giving a powerful model more tools does not automatically create a trustworthy system.
+
+I am not trying to outperform frontier AI laboratories or recreate their models.
+
+The project explores the complementary problem:
+
+How can a human safely coordinate intelligence that may exceed their own in many domains while preserving authority, privacy, correction, reversibility, and final control?
+
+GAGOS is being built as a serious single-developer prototype because this architectural principle can be demonstrated at human scale.
+
+The local model does not need to become the greatest intelligence.
+
+It needs to become a reliable clerk.
+
+The cloud model does not need to become the sovereign.
+
+It needs to remain a replaceable expert.
+
+The system does not need to trust either one blindly.
+
+It needs to preserve evidence, enforce authority, and remain accountable to the human.
+
+⸻
 
 <div align="center">
 
-## GAGOS
+GAGOS
 
-Many models may think.  
-Temporary workers may act.  
-Evidence must return.  
-The system must remember honestly.  
-The human remains sovereign.
+Many models may think.
+Temporary workers may act.
+Evidence must return.
+Learning must be earned.
+Authority remains with the human.
 
----
+<br>
 
-**Built by Kumar Swapnil**
+Built by Kumar Swapnil
 
-[Explore the architecture](https://github.com/swap821/ai-editor) · 
-[Inspect the control plane](https://github.com/swap821/ai-editor/tree/master/aios) · 
-[Enter the living interface](https://github.com/swap821/ai-editor/tree/master/frontend) · 
-[Read the tests](https://github.com/swap821/ai-editor/tree/master/tests)
+Control Plane ·
+Living Interface ·
+Tests ·
+Documentation
 
-Licensed under the [Apache License 2.0](LICENSE).
+Licensed under the Apache License 2.0.
 
 </div>
