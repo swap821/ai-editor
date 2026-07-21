@@ -21,6 +21,17 @@ ALLOWED_CLIENT_IMPORTERS = {
     "aios/api/main.py",          # Legacy compat, needs migration
     "aios/api/routes/models.py", # Legacy compat, needs migration
     "aios/core/failover.py",
+    # Slice 30: local-model adapters. Each constructs an OllamaClient bound
+    # to one specific local model/host/params combination -- there is no
+    # shared singleton to reuse across different local models the way cloud
+    # providers reuse one client per provider. These are provider-adapter
+    # factories in the sense the boundary is meant to allow, not bypasses.
+    "aios/domain/local_workforce/registry.py",
+    "aios/application/local_workforce/service.py",
+    "aios/runtime/intelligence_gateway.py",
+    # isinstance(self.llm, OllamaClient) capability check on an injected
+    # client (self.llm = llm at construction) -- not a construction site.
+    "aios/agents/reflection_agent.py",
 }
 
 # Provider adapter classes that should not be used directly.
@@ -29,6 +40,7 @@ FORBIDDEN_CLASSES = {
     "GeminiClient",
     "AnthropicDirectClient",
     "OpenAICompatClient",
+    "OllamaClient",
 }
 
 def _iter_python_files(root_dir: str):

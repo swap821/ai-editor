@@ -616,12 +616,18 @@
     "name": "Universal Intelligence Gateway",
     "status": "yellow",
     "authority_owner": "UniversalIntelligenceGatewayAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/application/intelligence/gateway.py"
+    ],
+    "focused_tests": [
+      "tests/test_intelligence_gateway.py"
+    ],
+    "integration_tests": [
+      "tests/architecture/test_intelligence_boundary.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "The existing gateway is plan-only for Council workers; conversation, clerk jobs, maintenance, and skill compilation do not yet route through one universal gateway."
+      "route_intelligence_request() now exists: emergency-stop check -> representative-context compilation (Slice 29) -> caller-supplied model_call -> output secret redaction, refusing before any model call on missing identity/constitution digest or an engaged stop. The architecture guard (tests/architecture/test_intelligence_boundary.py) now also forbids direct OllamaClient construction outside named local-model-adapter files (it previously only covered cloud clients); this closes the actual gap without needing to touch any of the 3 legitimate local-adapter call sites it found. Still missing (by design, not oversight -- investigated and found to require net-new wiring, not a safe single-commit refactor): ordinary conversation (/api/v1/chat) and the agentic forge still call chat clients directly, bypassing this gateway; Council Queens LLM slots (PlannerQueen, reason_king) are wired to accept a client but nothing ever supplies one, so they are dead code, not gateway-routed; maintenance/skill-compilation have no LLM call site at all yet; and three pre-existing, mutually-competing gateway-shaped implementations (aios.runtime.intelligence_gateway.IntelligenceGateway, aios.application.models.hiring_service.IntelligenceHiringService, and the orphaned aios.application.models.model_router.ModelRouter) still need to be reconciled against this one rather than left as a fourth parallel path. Provider eligibility/budget/health-check integration and provenance/Cortex-event persistence are also not yet part of this pipeline."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
