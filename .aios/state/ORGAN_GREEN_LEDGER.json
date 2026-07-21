@@ -742,12 +742,21 @@
     "name": "Durable Local-Clerk Provenance and Continuity Organ",
     "status": "yellow",
     "authority_owner": "ClerkProvenanceAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/infrastructure/storage/migrations/0005_local_workforce_provenance.py",
+      "aios/infrastructure/local_workforce/sqlite_store.py",
+      "aios/application/local_workforce/provenance.py",
+      "aios/launcher.py"
+    ],
+    "focused_tests": [
+      "tests/test_local_workforce_provenance.py"
+    ],
+    "integration_tests": [
+      "tests/test_launcher.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Domain contracts for local job requests/model calls/results exist, but local_job_requests/local_model_calls/local_job_results are not durably persisted or queryable via gagos provenance clerk-job."
+      "LocalJobRequestRecord/LocalModelCallRecord/LocalJobResultRecord already existed as typed contracts but were referenced nowhere outside their own definition -- no repository, no store, not even a test. Slice 33 built the real thing: LocalWorkforceProvenanceStore (SQLite, migration 0005, scope=local_workforce) with per-record sha256 digests computed at write and verified at read (a row edited outside the store is detected, not silently trusted), a duplicate job_id insert fails closed via the primary key rather than silently overwriting, and `gagos provenance clerk-job <job-id>` reconstructs the request -> model-call -> result trace honestly even from partial (crash-shaped) state. Verified restart-reconstruction and tamper-detection directly, not just asserted. Still missing: nothing in the real LocalWorkforceService.run_advisory_job() path calls this store yet, so no real job's provenance is persisted in production; and 'missing provenance prevents learned-skill promotion' is not wired into aios.application.learning.service at all."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

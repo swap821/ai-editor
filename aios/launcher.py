@@ -360,6 +360,29 @@ def organ_check(config: LauncherConfig, *, strict: bool, as_json: bool) -> int:
     return 0 if report.all_green or not strict else 1
 
 
+def provenance_clerk_job(config: LauncherConfig, *, job_id: str, as_json: bool) -> int:
+    from aios import config as aios_config
+    from aios.application.local_workforce import get_clerk_job_provenance
+    from aios.infrastructure.local_workforce import LocalWorkforceProvenanceStore
+
+    store = LocalWorkforceProvenanceStore(
+        aios_config.DATA_DIR / "local_workforce_provenance.db"
+    )
+    trace = get_clerk_job_provenance(store, job_id)
+    if as_json:
+        payload = {
+            "job_id": trace.job_id,
+            "status": trace.status,
+            "request": trace.request.model_dump(mode="json") if trace.request else None,
+            "model_calls": [call.model_dump(mode="json") for call in trace.model_calls],
+            "result": trace.result.model_dump(mode="json") if trace.result else None,
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(trace.render())
+    return 0 if trace.request is not None else 1
+
+
 def _delegate_maintenance(command: str, arguments: list[str]) -> int:
     """Keep the Slice 21 maintenance commands under the one product CLI."""
     from aios.__main__ import main as aios_main
@@ -408,6 +431,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     organ_parser.add_argument("--strict", action="store_true")
     organ_parser.add_argument("--json", action="store_true")
+    provenance_parser = subparsers.add_parser(
+        "provenance", help="Inspect durable provenance records."
+    )
+    provenance_subparsers = provenance_parser.add_subparsers(
+        dest="provenance_command", required=True
+    )
+    clerk_job_parser = provenance_subparsers.add_parser(
+        "clerk-job", help="Reconstruct one local-clerk job's provenance trace."
+    )
+    clerk_job_parser.add_argument("job_id")
+    clerk_job_parser.add_argument("--json", action="store_true")
     for maintenance_command in ("backup", "audit", "cortex", "memory", "executor"):
         maintenance_parser = subparsers.add_parser(
             maintenance_command,
@@ -443,6 +477,8 @@ def main(argv: list[str] | None = None) -> int:
             return v1_check(config, strict=args.strict, as_json=args.json)
         if args.command == "organ-check":
             return organ_check(config, strict=args.strict, as_json=args.json)
+        if args.command == "provenance" and args.provenance_command == "clerk-job":
+            return provenance_clerk_job(config, job_id=args.job_id, as_json=args.json)
         if args.command in {"backup", "audit", "cortex", "memory", "executor"}:
             return _delegate_maintenance(args.command, args.arguments)
     except LauncherError as exc:
