@@ -637,12 +637,19 @@
     "name": "Model Registry and Capability Passport",
     "status": "yellow",
     "authority_owner": "ModelPassportAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/models/contracts.py",
+      "aios/application/models/passport.py"
+    ],
+    "focused_tests": [
+      "tests/test_model_passport_and_health.py"
+    ],
+    "integration_tests": [
+      "tests/test_runtime_intelligence_gateway.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No durable, evidence-backed ModelPassportV1 with qualified_roles/admission_status exists yet."
+      "ModelPassportV1 now exists (typed, evidence-backed shape: qualified_roles/disallowed_roles/tool_protocol_status/admission_status) wrapping the existing aios.core.router.Provider pure-data model with the role-scoped admission concept it does not carry. is_admitted_for_role()/can_drive_tools()/is_stale_for_version() are real, deterministic checks. Still missing: nothing actually runs a qualification suite yet -- every ModelPassportV1 in this codebase must be hand-constructed; real qualification against the live granite3.2:2b Ollama model is Slice 32, and no durable store persists a passport across restarts."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -652,12 +659,19 @@
     "name": "Cloud Budget and Provider-Health Organ",
     "status": "yellow",
     "authority_owner": "ProviderHealthBudgetAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/models/contracts.py",
+      "aios/application/models/health.py"
+    ],
+    "focused_tests": [
+      "tests/test_model_passport_and_health.py"
+    ],
+    "integration_tests": [
+      "tests/test_runtime_gaps.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No durable per-provider health/circuit-breaker/budget tracking with role-specific verified metrics exists yet."
+      "ProviderHealthSnapshot + ProviderHealthTracker now exist: a real, deterministic closed/open/half-open circuit breaker driven entirely by caller-reported call outcomes (in-memory per-process, matching aios.runtime.budget_guard.BudgetGuard's own established convention, not a new durability promise). Unknown budget/cost is represented as None, never fabricated as zero. Still missing: nothing wires real provider calls (deps.py client factories, router_wiring) through this tracker yet, so it tracks nothing in production; no durable persistence across restarts; and BudgetGuard itself is unchanged -- the two are not yet unified into one budget+health view."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
