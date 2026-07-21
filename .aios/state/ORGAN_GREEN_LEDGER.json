@@ -901,12 +901,19 @@
     "name": "Constitutional Learning Organ",
     "status": "yellow",
     "authority_owner": "ConstitutionalLearningAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/governance/learning.py",
+      "aios/application/governance/constitutional_learning.py"
+    ],
+    "focused_tests": [
+      "tests/test_constitutional_learning.py"
+    ],
+    "integration_tests": [
+      "tests/test_constitutional_amendment.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No governance-weakness-to-amendment-proposal pipeline or GovernanceLessonV1 curriculum exists yet."
+      "Confirmed genuinely missing before building. GovernanceLessonV1 + propose_lesson()/lesson_to_amendment_proposal()/require_all_simulations_pass() now exist, feeding Slice 37's amendment pipeline directly rather than duplicating it. The one rule this organ exists to serve -- GAGOS may learn its sovereignty mechanisms are weak but may never itself propose reducing human authority -- is enforced by a deterministic keyword screen (assert_never_reduces_human_authority) checked against both the lesson's own text and the diff text independently, verified directly against 8 distinct authority-reducing phrasings. require_all_simulations_pass() treats a missing one of the 9 named adversarial checks exactly like a failed one -- never silently skipped. A full proposal -> simulation -> human-ratification -> rollback-capable-activation path was run end to end in a test, reusing Slice 37's real ratify_amendment/activate_amendment/rollback_amendment unchanged. Still missing (honest scope note, not an oversight): the 9 adversarial simulations are a fixed typed catalog this module requires results FOR, not simulations this module RUNS -- real adversarial testing against a running system is not implemented here. No HTTP route or durable persistence for lessons either."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
