@@ -594,12 +594,19 @@
     "name": "Human Representative Context Compiler",
     "status": "yellow",
     "authority_owner": "RepresentativeContextCompilerAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/intelligence/representative_context.py",
+      "aios/application/intelligence/context_compiler.py"
+    ],
+    "focused_tests": [
+      "tests/test_representative_context_compiler.py"
+    ],
+    "integration_tests": [
+      "tests/test_human_representation.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No provider-neutral RepresentativeContextV1 compiler exists; model calls do not yet carry a stored context digest."
+      "RepresentativeContextV1 now exists (typed, digested, cloud/local privacy-minimized) with compile_representative_context() composing ConstitutionSnapshotV1/OperatorPreferenceV1/ProjectPassportV1/CorrectionRecordV1 into one immutable packet. Cloud target scrubs free-text fields via the existing SecretPolicy and structurally withholds relevant_memory_refs; contradicted/superseded preferences are excluded; stale passports are flagged in uncertainty. Still missing: nothing calls this compiler yet -- IntelligenceRequest and ModelCallRequest still carry only a bare prompt/principal_id with no context_digest field (confirmed by a red-first test), so no model call is actually forced through this compiler. That wiring is Slice 30 (Universal Intelligence Gateway) territory."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
