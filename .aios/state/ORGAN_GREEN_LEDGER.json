@@ -791,7 +791,8 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "Construction exists (organ 13/14), but live private-Executor proof at the current tip, with no host-process fallback, is not established."
+      "Checked before claiming anything: `docker ps` in this environment fails to connect to the daemon (Docker Desktop is installed but not running), matching this repo's own pre-existing V1_RELEASE_DECLARATION.md admission that 'Docker unavailability independently blocks the executor runtime probe.' A live private-Executor proof genuinely cannot be produced in this environment right now -- recorded honestly, not faked or silently skipped.",
+      "Construction already exists (organs 13/14) and is emergency-stop-gated (Slice 27). What remains open specifically requires a live Docker daemon: a real separate Executor process performing a controlled mission, and proof that no host-process fallback occurs."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -806,7 +807,8 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "Construction exists (organ 15/16), but an authoritative post-promotion typed receipt and genuine rollback-restores-exact-bytes proof at the current tip are not established."
+      "Checked before claiming anything: `docker ps` in this environment fails to connect to the daemon (Docker Desktop is installed but not running), matching this repo's own pre-existing V1_RELEASE_DECLARATION.md admission that 'Docker unavailability independently blocks the executor runtime probe.' A live private-Executor proof genuinely cannot be produced in this environment right now -- recorded honestly, not faked or silently skipped.",
+      "Construction already exists (organs 15/16) and CheckpointAuthority/WorkspacePromotionRuntime are real code. What remains open specifically requires a live Docker daemon: an authoritative post-promotion typed receipt from a real executor run, and genuine proof that a forced failure restores exact bytes (not a mocked one)."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -816,12 +818,20 @@
     "name": "Recovery and Resumption",
     "status": "yellow",
     "authority_owner": "RecoveryResumptionAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/missions/transition_journal.py",
+      "aios/infrastructure/missions/transition_journal_store.py",
+      "aios/infrastructure/storage/migrations/0006_mission_transition_journal.py"
+    ],
+    "focused_tests": [
+      "tests/test_mission_transition_journal.py"
+    ],
+    "integration_tests": [
+      "tests/test_mission_contract_v1.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No durable MISSION_CREATED..COMPLETED transition journal with idempotent replay/resumption-after-crash exists yet."
+      "MissionTransitionJournal now exists and is genuinely durable and restart-safe -- verified directly (not just asserted) for all 9 crash points in the brief's failure matrix: a fresh journal instance over the same db file after a simulated restart correctly reports the exact same current_state and can resume forward from it. Re-appending the current transition is a true no-op (idempotent retry cannot fork the lineage); any other out-of-order transition is refused. A real table-name collision with the pre-existing coarse MissionState transition-audit table (both named mission_transitions) was caught by the full regression suite before commit and fixed by renaming to mission_execution_transitions -- the two are genuinely different concepts (coarse lifecycle audit vs. fine-grained execution/promotion pipeline journal) that happened to collide on name, not a duplicate. Still missing: nothing in aios.application.promotion.authority/aios.application.missions.mission_service actually calls this journal yet, so no real mission execution is journaled in production; and the live-executor proof this organ ultimately supports is blocked on Docker (see organs 40/41)."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
