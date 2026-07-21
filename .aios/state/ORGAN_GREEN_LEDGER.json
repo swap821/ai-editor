@@ -766,12 +766,17 @@
     "name": "Multi-Model Deliberation and Dissent Organ",
     "status": "yellow",
     "authority_owner": "DeliberationCouncilAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
+    "production_entrypoints": [
+      "aios/domain/intelligence/deliberation.py",
+      "aios/application/intelligence/deliberation.py"
+    ],
+    "focused_tests": [
+      "tests/test_deliberation.py"
+    ],
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No typed DeliberationRole/independent-answer-preserving record exists; disagreement is not yet preserved through synthesis."
+      "Confirmed zero prior art anywhere in the repo before building (no 'dissent'/'disagreement'/'DeliberationRole' hits). DeliberationRole/ModelPosition/DeliberationRecord now exist, typed and digested. should_trigger_deliberation() returns the exact trigger reasons, not an opaque bool. verify_independence() catches two independence-required roles sharing a provider. synthesize_deliberation() derives unresolved_minority_concerns from every position's reported security concerns (a synthesis step can summarise disagreement but cannot silently drop one), and blocks_promotion() gates on it. Fewer than 2 real positions raises DeliberationError rather than faking a single-model deliberation (truthful cloud-outage degradation). Still missing: Council Queens' LLM slots (PlannerQueen, king_complete) are wired to accept a client but nothing in production ever supplies one (confirmed in Slice 30 research) -- there is no live deliberation to actually trigger this from yet, so this organ has no integration test against a real Council path. Prompt-injection-in-one-model's-response detection is also not built."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
