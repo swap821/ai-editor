@@ -879,12 +879,19 @@
     "name": "Constitutional Amendment Authority",
     "status": "yellow",
     "authority_owner": "ConstitutionalAmendmentAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/governance/amendments.py",
+      "aios/application/governance/amendment_authority.py"
+    ],
+    "focused_tests": [
+      "tests/test_constitutional_amendment.py"
+    ],
+    "integration_tests": [
+      "tests/test_constitution_snapshot.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No ConstitutionalAmendmentProposalV1 contract or human-ratification-only activation path exists yet."
+      "Confirmed genuinely missing (grep for ConstitutionalAmendment/amendment_authority found nothing but this slice's own additions) before building. ConstitutionalAmendmentProposalV1 + propose_amendment()/critique_amendment()/simulate_amendment()/ratify_amendment()/activate_amendment()/rollback_amendment()/reject_amendment() now exist. ratify_amendment() can only be satisfied by a real, already-consumed capability bound to the exact operator and to CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION -- models/workers have no path to produce one. Foundation-law-touching proposals are refused even with a valid capability. activate_amendment() reuses Slice 26's build_constitution_snapshot() chaining machinery directly and is now gated by emergency_stop -- closing a boundary Slice 27 flagged before this organ existed. Verified directly: existing MissionContract instances keep their original constitution_digest after activation (frozen contract, never mutated), and rollback refuses a snapshot that isn't the exact predecessor. Still missing: no aios/api/routes/ HTTP surface, no durable persistence of proposals, and CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION is not registered in the real ActionType/PolicyKernel routing table, so no real capability can actually be issued for it yet in production."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
