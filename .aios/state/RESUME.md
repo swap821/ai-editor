@@ -1,37 +1,26 @@
 **Goal:** GAGOS Completion Plan Slices 25-40 (close the remaining 32 yellow/missing organs across 16 causal slices, per the operator's `/loop` directive).
 
-**Working Verdict:** `SLICES 25 & 26 COMMITTED (c613097, 6ccf588) — SLICE 27 (emergency stop hard-wiring) IN PROGRESS, real progress landed, not yet committed`
+**Working Verdict:** `SLICES 25, 26 & 27 COMMITTED (c613097, 6ccf588, 833f8d4) — SLICE 28 (human representation core) IN PROGRESS, real progress landed, not yet committed`
 
 **Last completed+verified step:**
-- **Slice 25** (committed `c613097`) and **Slice 26** (committed `6ccf588`): see git log for full detail — organ truth ledger, `ConstitutionSnapshotV1`, `session_generation`/`constitution_digest`.
-- **Slice 27** (uncommitted, working tree): Grounded via a fresh Explore pass against `aios/application/governance/emergency_stop.py` (confirmed `assert_operational()`/`is_engaged()` already exist; the clear-capability/generation flow is already correct — nothing to build there) and a boundary-by-boundary audit that found the plan's own listed boundaries already gated at Worker Foundry spawn, scheduler dequeue, capability issuance, executor dispatch, promotion, and autonomy continuation -- but **5 boundaries were genuinely ungated**:
-  1. `aios/runtime/intelligence_gateway.py::IntelligenceGateway.request()` -- zero check before either local or cloud provider calls. Added `emergency_stop` param + `_assert_operational()` guard; wired the one real production construction site (`aios/runtime/worker_api.py::WorkerRuntime`) with a read-only controller (no-op hooks, same durable db) since that class runs inside the isolated worker process and doesn't own the revocation hooks itself.
-  2. `aios/application/learning/service.py::LearningService.activate_skill()`/`.attempt_local_reuse()` -- added guard + `emergency_stop` param; wired at `aios/api/deps.py::get_learning_service`.
-  3. `aios/application/maintenance/service.py::MaintenanceConvergenceService.run_scan()`/`.run_approved_repair()` -- previously gated only at the HTTP route layer (duplicated 3x with inconsistent error handling, still open); added a service-layer guard too. Wired at `deps.py::get_maintenance_convergence_service`.
-  4. `aios/operations/recovery.py::restore_backup()` -- added an `emergency_stop` keyword param checked before any destructive filesystem action; wired at the CLI call site in `aios/__main__.py`.
-  5. `aios/application/capabilities/authority.py::CapabilityAuthority.consume()` -- `issue()` already checked; `consume()` didn't. Added the same guard (defense-in-depth alongside the `revoke_all_active` hook).
-  - Fixed two existing tests (`tests/test_runtime_gaps.py`, `tests/test_runtime_intelligence_gateway.py`) that monkeypatch `IntelligenceGateway` with a zero-arg stub -- added `__init__(self, **_kwargs)` so they tolerate the new `emergency_stop` kwarg.
-  - New test suite `tests/test_emergency_stop_boundaries.py` (8 tests, all passing) exercises all 5 new gates red-first (each refuses when the latch is engaged; the intelligence-gateway case also proves it still works normally when not engaged).
-  - Updated `.aios/state/ORGAN_GREEN_LEDGER.json` (organ 26 stays yellow, real entrypoints/tests recorded, blockers narrowed to the genuinely remaining gaps) and `docs/architecture/GAGOS_54_ORGANS.md`. Regenerated `release/organ-proof-manifest.json`.
-- Full regression sweep run per-boundary as each gate landed (WorkerRuntime/caste/runtime-gaps tests, learning-service tests, maintenance tests, capability/governance tests) — all green. Full-suite final confirmation is the next action before committing.
+- **Slices 25-27** committed — see git log for full detail (organ truth ledger; `ConstitutionSnapshotV1` + identity extension; emergency-stop hard-wiring across 5 boundaries).
+- **Slice 28** (uncommitted, working tree): Grounded via a fresh Explore pass across `aios/memory/operator_model.py`, `self_model.py`, `project_passport.py`, `aios/cognition/repo_map.py`, and the alignment/conversation-correction machinery. Key finding: organs 27-29 (Operator Taste Model, Project Understanding, Correction Lineage) each already have substantial real infrastructure to wrap (`SemanticFacts` contradiction/confidence lifecycle, `harvest_project_passport()`, `ConversationStateStore.record_correction()`'s before/after frame lineage) -- only organ 30 (Human-State Interpreter) had zero prior art anywhere in the repo.
+  - New domain module `aios/domain/memory/human_representation.py`: `OperatorPreferenceV1` (typed source_type/confidence/status/supersedes/contradicted_by), `ProjectPassportV1` (typed project_id/verified_at_commit/passport_digest), `CorrectionRecordV1` (`grants_authority` pinned `Literal[False]`), `HumanStateHypothesis` (`user_correctable`/`grants_authority` pinned literals -- pydantic rejects any attempt to construct one with different values, confirmed by test).
+  - New application module `aios/application/memory/human_representation.py`: `build_project_passport_v1()` wraps `harvest_project_passport()` and adds a canonical-JSON sha256 digest (same convention as `MissionContract.digest()`/`ConstitutionSnapshotV1`); `is_project_passport_stale()` compares `verified_at_commit` against the commit under evaluation (no-commit-recorded is conservatively stale, not silently trusted); `build_correction_record_v1()` wraps the frame dicts the existing store already produces; `classify_human_state()` is a small deterministic regex classifier (same style as `aios.core.alignment.infer_communication_mode`) with a fixed priority order (frustrated/rushed outrank softer signals) and an honest "neutral, low confidence" fallback rather than a fabricated guess.
+  - New test suite `tests/test_human_representation.py` (22 tests, all passing).
+  - Updated `.aios/state/ORGAN_GREEN_LEDGER.json` (organs 27-30 stay yellow, real entrypoints/tests recorded, blockers narrowed) and `docs/architecture/GAGOS_54_ORGANS.md`. Regenerated `release/organ-proof-manifest.json`.
+- Full-suite final confirmation is the next action before committing.
 
-**Single next action:** Run the full backend suite one more time, commit Slice 27 (`feat(governance): enforce emergency stop across every side-effect boundary`), then move to Slice 28 (Human Representation Core: Operator Taste Model, Project Understanding Organ, Correction/Interpretation-Lineage Organ, Communication and Human-State Interpreter). Ground it first -- ask what, if anything, already exists under `aios/memory/operator_model.py`, `aios/memory/self_model.py`, `aios/memory/project_passport.py`, and `aios/cognition/repo_map.py` before assuming a blank slate.
+**Single next action:** Run the full backend suite one more time, commit Slice 28 (`feat(operator): add temporal human representation and project passports`), then move to Slice 29 (Human Representative Context Compiler). Ground it against how model/LLM calls are constructed today (`aios/runtime/intelligence_gateway.py::IntelligenceRequest`, `aios/domain/privacy/contracts.py::ModelCallRequest` -- both confirmed in Slices 27/26 research to carry only a bare `principal_id`/`mission_id`, no compiled representative-context digest) before assuming a blank slate.
 
-**Open approvals/blockers:** None blocking Slice 28. Carried over from before: (1) stashed broken WIP from before Slice 25 still needs operator triage (`git stash list`); (2) `aios/security/audit_logger.py` constitution_digest threading needs explicit operator approval (frozen core); (3) new from Slice 27 -- the route-layer emergency-stop check duplication in `routes/council.py` vs `routes/maintenance.py` (inconsistent 503-vs-uncaught error handling) would benefit from centralizing in `enforce_action_boundary`, not yet done.
+**Open approvals/blockers:** None blocking Slice 29. Carried over: (1) stashed broken WIP from before Slice 25 still needs operator triage (`git stash list`); (2) `aios/security/audit_logger.py` constitution_digest threading needs explicit operator approval (frozen core); (3) route-layer emergency-stop check duplication (`routes/council.py` vs `routes/maintenance.py`) not yet centralized; (4) new from Slice 28 -- none of the four new contracts are wired into a live persistence/conversation path yet; each is a typed contract + builder function, not an end-to-end system. This is accurately reflected in the ledger's known_blockers, not overclaimed.
 
 **Active files:**
 - `.aios/state/RESUME.md`
 - `.aios/state/ORGAN_GREEN_LEDGER.json`
 - `docs/architecture/GAGOS_54_ORGANS.md`
 - `release/organ-proof-manifest.json`
-- `aios/runtime/intelligence_gateway.py`
-- `aios/runtime/worker_api.py`
-- `aios/application/learning/service.py`
-- `aios/application/maintenance/service.py`
-- `aios/operations/recovery.py`
-- `aios/application/capabilities/authority.py`
-- `aios/__main__.py`
-- `aios/api/deps.py`
-- `tests/test_emergency_stop_boundaries.py`
-- `tests/test_runtime_gaps.py`
-- `tests/test_runtime_intelligence_gateway.py`
+- `aios/domain/memory/human_representation.py`
+- `aios/domain/memory/__init__.py`
+- `aios/application/memory/human_representation.py`
+- `tests/test_human_representation.py`

@@ -508,12 +508,18 @@
     "name": "Operator Taste Model",
     "status": "yellow",
     "authority_owner": "OperatorTasteModelAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/memory/human_representation.py"
+    ],
+    "focused_tests": [
+      "tests/test_human_representation.py"
+    ],
+    "integration_tests": [
+      "tests/test_personalization.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No typed OperatorPreferenceV1 with source_type/confidence/supersession lifecycle exists yet."
+      "OperatorPreferenceV1 now exists (typed source_type/confidence/status/supersedes/contradicted_by) wrapping the existing confidence and contradiction lifecycle in aios.memory.facts.SemanticFacts. Still missing: a persistence adapter that actually stores/reads OperatorPreferenceV1 records (today it is a contract with no store), and project-scoped leak-prevention enforcement at the store layer."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -523,12 +529,19 @@
     "name": "Project Understanding Organ",
     "status": "yellow",
     "authority_owner": "ProjectUnderstandingAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/memory/human_representation.py",
+      "aios/application/memory/human_representation.py"
+    ],
+    "focused_tests": [
+      "tests/test_human_representation.py"
+    ],
+    "integration_tests": [
+      "tests/test_project_passport.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No durable ProjectPassportV1 contract exists yet."
+      "ProjectPassportV1 now exists (typed project_id/verified_at_commit/passport_digest) with build_project_passport_v1() wrapping the existing harvest_project_passport() scanner, and is_project_passport_stale() for commit-drift detection. Still missing: invariants and explicit_human_decisions have no source in the existing scanner (both default empty rather than being fabricated), and no durable store persists a ProjectPassportV1 across process restarts."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -538,12 +551,20 @@
     "name": "Correction and Interpretation-Lineage Organ",
     "status": "yellow",
     "authority_owner": "CorrectionLineageAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/memory/human_representation.py",
+      "aios/application/memory/human_representation.py"
+    ],
+    "focused_tests": [
+      "tests/test_human_representation.py"
+    ],
+    "integration_tests": [
+      "tests/test_alignment.py",
+      "tests/test_memory.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No explicit correction-lineage chain (frame revision -> human correction -> retained prior interpretation) exists yet."
+      "CorrectionRecordV1 now exists (typed, digested, grants_authority pinned False) wrapping the existing before/after frame lineage already persisted by aios.memory.conversation.ConversationStateStore.record_correction(). Still missing: the store itself does not yet construct/return CorrectionRecordV1 -- callers must build one from its raw dict output; that wiring, plus a query surface for the read model described in Slice 39, remain open."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -553,12 +574,17 @@
     "name": "Communication and Human-State Interpreter",
     "status": "yellow",
     "authority_owner": "HumanStateInterpreterAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
+    "production_entrypoints": [
+      "aios/domain/memory/human_representation.py",
+      "aios/application/memory/human_representation.py"
+    ],
+    "focused_tests": [
+      "tests/test_human_representation.py"
+    ],
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No typed, correctable, non-authoritative HumanStateHypothesis contract exists yet."
+      "HumanStateHypothesis now exists (typed, grants_authority and user_correctable pinned literals) with classify_human_state(), a small deterministic regex classifier in the same style as aios.core.alignment.infer_communication_mode -- this organ had no prior art at all before Slice 28. Still missing: it is not wired into any live turn/conversation path yet, has no persistence, and the classifier itself is a first-pass heuristic that has not been measured against real operator messages."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
