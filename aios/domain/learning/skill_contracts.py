@@ -12,11 +12,24 @@ SkillState = Literal[
     "human_reviewed",
     "qualified",
     "active",
+    "probation",
     "degraded",
+    "suspended",
+    "revoked",
     "superseded",
     "deprecated",
     "blocked",
 ]
+"""Slice 36 added `probation`, `suspended`, `revoked` -- each has a distinct
+meaning from the states already here, not a synonym: `probation` is reduced-
+trust reuse before a skill has earned full `active` status (distinct from
+`human_reviewed`, which is pre-activation); `suspended` is an automatic,
+confidence-driven, reviewable disablement (distinct from `blocked`, which is
+an authority-imposed block); `revoked` is a permanent human decision
+(distinct from `deprecated`, which means superseded by a newer version, not
+that the skill was wrong). `active`/`degraded`/`superseded`/`deprecated`/
+`blocked` already covered the brief's `trusted`/`degraded`/(none)/(none)/
+(none) concepts, so were not duplicated."""
 
 
 class SkillContract(BaseModel):

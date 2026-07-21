@@ -87,14 +87,46 @@ class SkillRepository:
         current = self.get(skill_id, version)
         if current is None:
             raise KeyError(f"skill {skill_id!r} version {version} not found")
+        # "revoked" is reachable from every non-terminal state, not just
+        # adjacent ones: the foundation law "human can stop, revoke and
+        # correct" (Slice 26) means revocation is never gated behind the
+        # skill's normal lifecycle progression.
         allowed: dict[SkillState, set[SkillState]] = {
-            "candidate": {"human_reviewed", "blocked", "deprecated"},
-            "human_reviewed": {"active", "blocked", "deprecated"},
-            "active": {"degraded", "superseded", "deprecated"},
-            "degraded": {"human_reviewed", "blocked", "deprecated"},
+            "candidate": {"human_reviewed", "blocked", "deprecated", "revoked"},
+            "human_reviewed": {
+                "probation",
+                "active",
+                "blocked",
+                "deprecated",
+                "revoked",
+            },
+            "probation": {
+                "active",
+                "degraded",
+                "suspended",
+                "blocked",
+                "deprecated",
+                "revoked",
+            },
+            "active": {
+                "degraded",
+                "suspended",
+                "superseded",
+                "deprecated",
+                "revoked",
+            },
+            "degraded": {
+                "human_reviewed",
+                "suspended",
+                "revoked",
+                "blocked",
+                "deprecated",
+            },
+            "suspended": {"human_reviewed", "revoked", "deprecated"},
+            "revoked": set(),
             "superseded": set(),
             "deprecated": set(),
-            "blocked": {"human_reviewed", "deprecated"},
+            "blocked": {"human_reviewed", "revoked", "deprecated"},
         }
         if state not in allowed[current.state]:
             raise ValueError(f"invalid skill transition {current.state!r} -> {state!r}")

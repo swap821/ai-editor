@@ -841,12 +841,20 @@
     "name": "Local Skill Reuse, Confidence and Demotion",
     "status": "yellow",
     "authority_owner": "SkillLifecycleAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/learning/skill_contracts.py",
+      "aios/domain/learning/repository.py",
+      "aios/application/learning/skill_lifecycle.py"
+    ],
+    "focused_tests": [
+      "tests/test_skill_lifecycle.py"
+    ],
+    "integration_tests": [
+      "tests/domain/test_skill_library.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Skills are captured from verified missions, but the candidate -> trusted -> degraded -> revoked lifecycle and confidence-driven demotion are not implemented."
+      "Confirmed real, substantial prior infrastructure before building: SkillRepository.transition_state() already has a full authority-validated lifecycle graph, and ConfidenceUpdater already tracks confidence/success/failure counts -- its own docstring says 'we don't automatically change state here... the applicability engine will catch the low confidence on the next run,' i.e. this exact gap. Slice 36 added the 3 states with genuinely distinct meaning (probation/suspended/revoked -- not synonyms for existing states, see the comment in skill_contracts.py), extended the transition graph so revocation is reachable from every non-terminal state (foundation law: human can stop/revoke/correct), and built evaluate_demotion()/apply_reuse_outcome()/human_revoke() composing the existing pieces. Precondition-failure reasons (applicability, version_drift) force immediate suspension regardless of confidence; a statistical confidence floor demotes active->degraded->suspended after enough evidence. Still missing: nothing in the real LearningService.attempt_local_reuse()/record_reuse_outcome() path calls apply_reuse_outcome() yet, so no real reuse actually triggers automatic demotion in production."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -861,7 +869,7 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No golden release cohort (12 governed missions, 4 candidate skills, forced refusal/demotion/revocation cases) has been run."
+      "The brief's golden release cohort (12 governed frontier missions across 2 real cloud providers, 4 candidate skills, 3 verified local reuses each, forced-refusal/version-drift-suspension/failed-reuse-demotion/human-revocation/cloud-outage/uncertain-escalation cases) requires hours of real governed mission execution against live frontier providers. Checked realistically rather than assumed: this is not achievable or appropriate to run autonomously in this environment/pass -- it needs real cloud credentials, real mission budgets, and genuine multi-hour wall-clock execution, not something to simulate or fake. Recorded honestly as not attempted, not silently skipped. The individual mechanisms this cohort would exercise (demotion, revocation, suspension) are real and unit-tested in organ 43; what's missing is the live, expensive, end-to-end proof run itself."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
