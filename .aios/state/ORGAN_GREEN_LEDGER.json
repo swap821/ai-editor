@@ -438,12 +438,20 @@
     "name": "Human Sovereign Identity",
     "status": "yellow",
     "authority_owner": "IdentityAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/identity/models.py",
+      "aios/application/identity/service.py",
+      "aios/infrastructure/identity/sqlite_store.py"
+    ],
+    "focused_tests": [
+      "tests/test_constitution_snapshot.py"
+    ],
+    "integration_tests": [
+      "tests/test_human_sovereign_identity.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Durable identity/session layers exist and were runtime-proven at older commits, but no constitution digest is bound to sessions, capabilities, or actions yet."
+      "Slice 26 landed session_generation (stale sessions now fail closed at IdentityService.get_authenticated_principal) and constitution_digest stamping on Principal, plus threading through MissionContract/CapabilityBinding/ActionEnvelope. Still missing: HTTP-layer end-to-end enforcement of a constitution-digest mismatch, and read-only status during degraded identity is not yet a distinct code path."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -453,12 +461,18 @@
     "name": "Constitutional Kernel",
     "status": "yellow",
     "authority_owner": "ConstitutionalKernelAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/governance/constitution.py"
+    ],
+    "focused_tests": [
+      "tests/test_constitution_snapshot.py"
+    ],
+    "integration_tests": [
+      "tests/test_constitution.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Today the typed constitution is an inspectable facade over security/router/budget/resource/caste config, not a durable versioned ConstitutionSnapshotV1 authority object."
+      "ConstitutionSnapshotV1 now exists (typed, versioned, digested, foundation laws immutable-by-validator) via aios.domain.governance.constitution. Still missing: durable cross-restart persistence/ratification (Slice 37 territory), PolicyKernel still reads the old aios.policy.constitution.Constitution facade rather than ConstitutionSnapshotV1, and no decision path rejects execution on a constitution-digest mismatch yet."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

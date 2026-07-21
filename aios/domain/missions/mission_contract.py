@@ -55,6 +55,7 @@ class MissionContract(BaseModel):
     requires_approval: bool = True
     policy_version: str = "v1"
     capability_digest: str | None = None
+    constitution_digest: str | None = None
     budget: MissionBudget = Field(default_factory=MissionBudget)
     scope: dict[str, Any] = Field(default_factory=dict)
     allowed_files: list[str] = Field(default_factory=list)
@@ -84,6 +85,7 @@ class MissionContract(BaseModel):
                 "requires_approval",
                 "policy_version",
                 "capability_digest",
+                "constitution_digest",
                 "budget",
                 "scope",
                 "allowed_files",

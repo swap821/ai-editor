@@ -179,15 +179,16 @@ def test_shipped_ledger_has_all_54_organs_and_zero_violations() -> None:
     assert validate_ledger(records) == ()
 
 
-def test_shipped_ledger_32_target_organs_start_yellow_with_truthful_blockers() -> None:
+def test_shipped_ledger_32_target_organs_remain_yellow_with_truthful_blockers() -> None:
+    """Target organs may show real partial progress (entrypoints/tests) as
+    slices land, but must never claim `green` and must always carry a
+    truthful blocker describing exactly what remains -- never an empty
+    blocker that would look like an oversight of a finished organ."""
     records = {r.organ_id: r for r in load_ledger(LEDGER_PATH)}
     for organ_id in TARGET_ORGAN_IDS:
         record = records[organ_id]
-        assert record.status == "yellow", f"organ {organ_id} should start yellow"
+        assert record.status == "yellow", f"organ {organ_id} should still be yellow"
         assert record.known_blockers, f"organ {organ_id} has no truthful blocker"
-        assert not record.production_entrypoints, (
-            f"organ {organ_id} claims a production entrypoint while yellow"
-        )
 
 
 def test_shipped_ledger_green_organs_have_tests_and_no_blockers() -> None:

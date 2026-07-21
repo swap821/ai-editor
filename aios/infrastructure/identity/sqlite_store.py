@@ -55,6 +55,14 @@ class IdentityStore:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS session_generations (
+                    operator_id TEXT PRIMARY KEY,
+                    generation INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS authentication_events (
                     event_id TEXT PRIMARY KEY,
                     operator_id TEXT NOT NULL,
@@ -207,4 +215,33 @@ class IdentityStore:
     def authentication_event_count(self) -> int:
         with closing(self._connect()) as conn:
             row = conn.execute("SELECT COUNT(*) FROM authentication_events").fetchone()
+        return int(row[0]) if row else 0
+
+    def bump_session_generation(self, operator_id: str) -> int:
+        """Advance and return the operator's current session generation.
+
+        Called every time a new authenticated session is issued (login or
+        reauthentication). Any previously-issued session stamped with an
+        older generation becomes stale the moment a newer one is issued.
+        """
+        with closing(self._connect()) as conn:
+            conn.execute(
+                "INSERT INTO session_generations(operator_id, generation) "
+                "VALUES (?, 1) "
+                "ON CONFLICT(operator_id) DO UPDATE SET generation = generation + 1",
+                (operator_id,),
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT generation FROM session_generations WHERE operator_id = ?",
+                (operator_id,),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    def current_session_generation(self, operator_id: str) -> int:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT generation FROM session_generations WHERE operator_id = ?",
+                (operator_id,),
+            ).fetchone()
         return int(row[0]) if row else 0

@@ -183,6 +183,7 @@ class CapabilityAuthority:
             consumed_at=now,
             expires_at=capability.expires_at,
             revoked_at=capability.revoked_at,
+            constitution_digest=capability.binding.constitution_digest,
         )
 
     def revoke(self, capability_id: str) -> None:

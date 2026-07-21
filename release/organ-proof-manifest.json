@@ -1,16 +1,16 @@
 {
   "schema_version": "1",
-  "created_at": "2026-07-21T17:12:02+00:00",
-  "source_commit_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+  "created_at": "2026-07-21T17:54:32+00:00",
+  "source_commit_sha": "c613097bd1858d54c161f7f763d82544e28d686f",
   "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
-  "ledger_sha256": "09e000bf6e726e340843e8fa65d69987da1293c17b4d934ff4867937a17ac2e1",
+  "ledger_sha256": "6719ee3c255e53a07a8668ab41f30517b65f98d863497a3fe80ea8b89c386c18",
   "organ_summary": {
     "total": 54,
     "green": 22,
     "yellow": 32
   },
   "files": {
-    ".aios/state/ORGAN_GREEN_LEDGER.json": "09e000bf6e726e340843e8fa65d69987da1293c17b4d934ff4867937a17ac2e1",
+    ".aios/state/ORGAN_GREEN_LEDGER.json": "6719ee3c255e53a07a8668ab41f30517b65f98d863497a3fe80ea8b89c386c18",
     "docs/architecture/GAGOS_54_ORGANS.md": "7d8689faff175a1b09012f7f0b991222a3050243ee64ba41c890e915a083c8b3"
   },
   "note": "This manifest hash-pins the Slice 25 organ ledger baseline at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never this baseline sha, and must never be labelled fixture."

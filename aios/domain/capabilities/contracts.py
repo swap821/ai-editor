@@ -24,6 +24,7 @@ class CapabilityBinding:
     policy_version: str
     scope: str
     verification_requirement: str
+    constitution_digest: Optional[str] = None
 
     def __post_init__(self) -> None:
         required = {
@@ -45,7 +46,7 @@ class CapabilityBinding:
             for value in required.values()
         ):
             raise ValueError("capability binding fields must be non-empty strings")
-        for name in ("mission_id", "contract_digest"):
+        for name in ("mission_id", "contract_digest", "constitution_digest"):
             value = getattr(self, name)
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ValueError(f"{name} must be non-empty when provided")
@@ -89,3 +90,4 @@ class ConsumedCapabilityProof:
     consumed_at: float
     expires_at: float
     revoked_at: Optional[float] = None
+    constitution_digest: Optional[str] = None

@@ -96,6 +96,7 @@ class IdentityService:
         if device is None or device["device_id"] != current.device_id:
             raise InvalidCredential("operator device is unavailable or revoked")
         event_id = uuid.uuid4().hex
+        generation = self.store.bump_session_generation(str(operator["operator_id"]))
         raw_session = self.sessions.upgrade_session(session_cookie)
         new_cookie = hashlib.sha256(raw_session.encode("utf-8")).hexdigest()
         session = self.sessions.validate_session(new_cookie)
@@ -107,6 +108,7 @@ class IdentityService:
             authentication_level="privileged",
             authentication_event_id=event_id,
             device_id=device["device_id"],
+            session_generation=generation,
         )
         self.sessions.persist_session(session)
         self.store.record_authentication_event(
@@ -148,6 +150,14 @@ class IdentityService:
             return None
         if event.get("device_id") != session.data.get("device_id"):
             return None
+        stamped_generation = int(session.data.get("session_generation") or 0)
+        current_generation = self.store.current_session_generation(
+            str(operator["operator_id"])
+        )
+        if stamped_generation != current_generation:
+            # Slice 26: a newer session (login/reauthentication) superseded
+            # this one. Fail closed rather than honoring a stale generation.
+            return None
         return self._principal_from_session(session_cookie, session)
 
     def revoke_session(self, session_cookie: str | None) -> None:
@@ -174,6 +184,7 @@ class IdentityService:
             raise IdentityError(
                 "operator has no active device; identity resolution failed closed"
             )
+        generation = self.store.bump_session_generation(str(operator["operator_id"]))
         raw_session = self.sessions.create_session(
             {
                 "operator_id": operator["operator_id"],
@@ -181,6 +192,7 @@ class IdentityService:
                 "authentication_level": "operator",
                 "authentication_event_id": event_id,
                 "device_id": device["device_id"],
+                "session_generation": generation,
             }
         )
         session_cookie = hashlib.sha256(raw_session.encode("utf-8")).hexdigest()
@@ -206,8 +218,9 @@ class IdentityService:
     @staticmethod
     def _principal_from_session(session_cookie: str, session) -> Principal:
         authenticated_at = datetime.fromtimestamp(session.created_at, tz=timezone.utc)
+        operator_id = str(session.data["operator_id"])
         return Principal(
-            principal_id=str(session.data["operator_id"]),
+            principal_id=operator_id,
             principal_type=PrincipalType.OPERATOR,
             display_name=str(session.data["display_name"]),
             session_id=session_cookie,
@@ -222,4 +235,26 @@ class IdentityService:
             metadata={
                 "authentication_event_id": session.data.get("authentication_event_id")
             },
+            session_generation=int(session.data.get("session_generation") or 0),
+            constitution_digest=IdentityService._current_constitution_digest(
+                operator_id
+            ),
         )
+
+    @staticmethod
+    def _current_constitution_digest(operator_id: str) -> str:
+        """Stamp the digest of the constitution active right now.
+
+        Slice 26 note: this snapshot is rebuilt fresh from live config on
+        every call (matching `aios.policy.constitution.build_constitution`'s
+        existing convention) rather than read from a durably persisted,
+        version-chained store. Durable ratification with a persisted
+        `previous_snapshot_digest` chain across process restarts is
+        Slice 37's Constitutional Amendment Authority; until then this is an
+        honest per-process digest, not a cross-restart-stable one.
+        """
+        from aios.domain.governance.constitution import build_constitution_snapshot
+
+        return build_constitution_snapshot(
+            ratified_by_operator_id=operator_id
+        ).snapshot_digest

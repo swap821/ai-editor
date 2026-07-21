@@ -139,6 +139,7 @@ class ActionEnvelope:
     authentication_event_id: Optional[str] = None
     mission_id: Optional[str] = None
     contract_digest: Optional[str] = None
+    constitution_digest: Optional[str] = None
     resource: Any = field(default_factory=dict)
     resource_digest: Optional[str] = None
     payload_digest: Optional[str] = None
@@ -163,6 +164,7 @@ class ActionEnvelope:
             "authentication_event_id",
             "mission_id",
             "contract_digest",
+            "constitution_digest",
             "requested_capability",
         ):
             value = getattr(self, name)

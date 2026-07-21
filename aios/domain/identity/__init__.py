@@ -1,6 +1,7 @@
 """Durable Human Sovereign identity contracts."""
 
 from .models import (
+    CREDENTIAL_STRENGTHS,
     AuthenticationResult,
     EnrollmentResult,
     Principal,
@@ -8,6 +9,7 @@ from .models import (
 )
 
 __all__ = [
+    "CREDENTIAL_STRENGTHS",
     "AuthenticationResult",
     "EnrollmentResult",
     "Principal",

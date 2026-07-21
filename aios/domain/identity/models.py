@@ -18,6 +18,13 @@ class PrincipalType(StrEnum):
     RECOVERY = "recovery"
 
 
+#: Known values for `AuthenticationEvent.strength` / `Principal.credential_strength`.
+#: Not an enum (the fields remain free-text for forward compatibility with the
+#: infrastructure layer's existing storage), but this is the canonical set
+#: `IdentityService` produces today.
+CREDENTIAL_STRENGTHS: tuple[str, ...] = ("operator", "strong")
+
+
 @dataclass(frozen=True)
 class Principal:
     """Authenticated identity attached to a request or action."""
@@ -34,6 +41,16 @@ class Principal:
     client_address: str = ""
     parent_principal_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    #: Slice 26: monotonic generation stamped at session-issue time. A
+    #: principal whose generation no longer matches the operator's current
+    #: stored generation is stale and must fail closed (see
+    #: `IdentityService.get_authenticated_principal`).
+    session_generation: int = 0
+    #: Slice 26: digest of the `ConstitutionSnapshotV1` active when this
+    #: principal's session was issued. Empty string means "not yet stamped"
+    #: (pre-Slice-26 sessions, or callers that construct a Principal outside
+    #: `IdentityService`) rather than a false claim of constitutional binding.
+    constitution_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -72,6 +89,11 @@ class AuthenticatedRequestContext:
     authentication_strength: str
     client_address: str
     request_id: str
+    #: Slice 26 additions -- see `Principal.session_generation`/`.constitution_digest`.
+    session_generation: int = 0
+    constitution_digest: str = ""
+    issued_at: datetime | None = None
+    expires_at: datetime | None = None
 
 
 @dataclass(frozen=True)
