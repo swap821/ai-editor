@@ -16,12 +16,27 @@ from typing import Any
 
 from aios import config
 from aios.application.read_models.projection import IncrementalSystemProjection
+from aios.core.approvals import ApprovalStore
+from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
+from aios.infrastructure.identity.sqlite_store import IdentityStore
 from aios.runtime.cortex_bus import CortexBus
 from aios.security.audit_logger import verify_chain
 
 
 class RecoveryError(RuntimeError):
     """Raised when recovery cannot prove the operation is safe."""
+
+
+@dataclass(frozen=True, slots=True)
+class RestoreInvalidationReport:
+    """What a restore forced stale. Never silent -- always returned so a
+    caller (CLI/API) can show the operator exactly what now requires
+    re-authentication or re-issuing."""
+
+    operator_id: str | None
+    session_generation_bumped: bool
+    capabilities_revoked: int
+    approvals_cleared: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +175,65 @@ def verify_backup(bundle: Path) -> BackupManifest:
         raise RecoveryError(f"backup cannot be read: {exc}") from exc
 
 
+def invalidate_stale_authority_after_restore(
+    *,
+    data_dir: Path,
+    identity_db_name: str = config.IDENTITY_DB_PATH.name,
+    capability_db_name: str = config.CAPABILITY_DB_PATH.name,
+    approval_db_name: str = config.APPROVAL_DB_PATH.name,
+    now: float | None = None,
+) -> RestoreInvalidationReport:
+    """Force every pre-restore session, capability and pending approval stale.
+
+    Restoring a backup reinstates whatever the identity, capability and
+    approval databases looked like at snapshot time -- including session
+    generations, unconsumed capabilities and pending YELLOW approvals that
+    may since have been superseded, consumed or expired in the live system.
+    A restore is exactly the kind of event that must never silently
+    resurrect stale authority, so this always runs once the restored state
+    is live, never as an opt-in step a caller might skip.
+
+    Reuses each domain's own real store unchanged: `IdentityStore.
+    bump_session_generation` (Slice 26 -- any session stamped with the old
+    generation already fails `stamped_generation != current_generation`),
+    `CapabilityStore.revoke_all_active`, and `ApprovalStore.clear`. A
+    missing database (fresh install, or a backup predating that subsystem)
+    is not an error -- there is nothing stale to invalidate.
+    """
+    resolved_now = now if now is not None else datetime.now(timezone.utc).timestamp()
+
+    operator_id: str | None = None
+    session_generation_bumped = False
+    identity_path = data_dir / identity_db_name
+    if identity_path.exists():
+        identity_store = IdentityStore(identity_path)
+        operator = identity_store.operator()
+        if operator is not None:
+            operator_id = str(operator["operator_id"])
+            identity_store.bump_session_generation(operator_id)
+            session_generation_bumped = True
+
+    capabilities_revoked = 0
+    capability_path = data_dir / capability_db_name
+    if capability_path.exists():
+        capabilities_revoked = CapabilityStore(capability_path).revoke_all_active(
+            resolved_now
+        )
+
+    approvals_cleared = False
+    approval_path = data_dir / approval_db_name
+    if approval_path.exists():
+        ApprovalStore(db_path=approval_path).clear()
+        approvals_cleared = True
+
+    return RestoreInvalidationReport(
+        operator_id=operator_id,
+        session_generation_bumped=session_generation_bumped,
+        capabilities_revoked=capabilities_revoked,
+        approvals_cleared=approvals_cleared,
+    )
+
+
 def restore_backup(
     *,
     bundle: Path,
@@ -167,7 +241,12 @@ def restore_backup(
     safety_backup: Path | None = None,
     emergency_stop: Any | None = None,
 ) -> Path | None:
-    """Stage and install verified state; retain the old directory when present."""
+    """Stage and install verified state; retain the old directory when present.
+
+    Once the restored state is live, `invalidate_stale_authority_after_restore`
+    always runs -- a restored old session, capability or pending approval
+    must never silently act as current.
+    """
     if emergency_stop is not None:
         emergency_stop.assert_operational()
     manifest = verify_backup(Path(bundle))
@@ -205,6 +284,7 @@ def restore_backup(
             )
             destination.rename(old_dir)
         staging.rename(destination)
+        invalidate_stale_authority_after_restore(data_dir=destination)
         return old_dir
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
@@ -247,7 +327,9 @@ def rebuild_projections(*, bus: CortexBus | None = None) -> int:
 __all__ = [
     "BackupManifest",
     "RecoveryError",
+    "RestoreInvalidationReport",
     "create_backup",
+    "invalidate_stale_authority_after_restore",
     "rebuild_projections",
     "restore_backup",
     "verify_audit",

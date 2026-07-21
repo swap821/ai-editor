@@ -1035,12 +1035,18 @@
     "name": "Backup and Disaster-Recovery Organ",
     "status": "yellow",
     "authority_owner": "BackupDisasterRecoveryAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/operations/recovery.py"
+    ],
+    "focused_tests": [
+      "tests/test_restore_invalidation.py"
+    ],
+    "integration_tests": [
+      "tests/test_operations.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Backup/restore does not yet guarantee stale capabilities, pending approvals, and old sessions never restore as active."
+      "The genuinely-missing piece from this organ's own stated gap is now closed: invalidate_stale_authority_after_restore() always runs once restore_backup() installs restored state (not opt-in) and reuses each domain's real store unchanged -- IdentityStore.bump_session_generation (any session stamped with the pre-restore generation fails the exact Slice 26 `stamped_generation != current_generation` check), CapabilityStore.revoke_all_active, and ApprovalStore.clear. Verified directly: a pending approval from the snapshot is no longer consumable, an unconsumed capability from the snapshot is revoked, a session generation newer than the snapshot is still invalidated (not just older ones), and a fresh install with no prior identity/capability/approval database is a safe no-op. Still yellow (honest scope note): no live disaster-recovery drill has been run (this environment cannot simulate an actual crash/restart cycle against a production deployment), doctor_report() does not yet check backup freshness/existence, and there is no scheduled/automatic backup cadence -- create_backup must still be invoked manually."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
