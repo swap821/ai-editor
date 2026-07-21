@@ -338,6 +338,28 @@ def v1_check(config: LauncherConfig, *, strict: bool, as_json: bool) -> int:
     return 0 if declaration.ready or not strict else 1
 
 
+def organ_check(config: LauncherConfig, *, strict: bool, as_json: bool) -> int:
+    from aios.application.governance.organ_ledger import evaluate_organs
+
+    report = evaluate_organs(config.repo_root)
+    if as_json:
+        print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
+    else:
+        print(
+            f"GAGOS organ ledger: {report.green_count}/{report.total_organs} green"
+            f" ({'CONFORMANT' if report.conformant else 'NON-CONFORMANT'})"
+        )
+        if report.violations:
+            print("  violations:")
+            for violation in report.violations:
+                print(f"    - {violation}")
+        else:
+            print("  no ledger violations")
+    if report.violations:
+        return 1
+    return 0 if report.all_green or not strict else 1
+
+
 def _delegate_maintenance(command: str, arguments: list[str]) -> int:
     """Keep the Slice 21 maintenance commands under the one product CLI."""
     from aios.__main__ import main as aios_main
@@ -381,6 +403,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     v1_parser.add_argument("--strict", action="store_true")
     v1_parser.add_argument("--json", action="store_true")
+    organ_parser = subparsers.add_parser(
+        "organ-check", help="Report the 54-organ truth ledger conformance."
+    )
+    organ_parser.add_argument("--strict", action="store_true")
+    organ_parser.add_argument("--json", action="store_true")
     for maintenance_command in ("backup", "audit", "cortex", "memory", "executor"):
         maintenance_parser = subparsers.add_parser(
             maintenance_command,
@@ -414,6 +441,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if report.ok else 1
         if args.command == "v1-check":
             return v1_check(config, strict=args.strict, as_json=args.json)
+        if args.command == "organ-check":
+            return organ_check(config, strict=args.strict, as_json=args.json)
         if args.command in {"backup", "audit", "cortex", "memory", "executor"}:
             return _delegate_maintenance(args.command, args.arguments)
     except LauncherError as exc:

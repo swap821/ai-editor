@@ -1,0 +1,105 @@
+# GAGOS 54 Organs
+
+**Established:** Slice 25 of the GAGOS Completion Plan (Slices 25-40), baseline
+commit `f3cb6122fb8d86bf0ae5b603da8f60678d7231ad`.
+
+This is the canonical enumeration of every organ the GAGOS Completion Plan
+tracks to green. It is a *baseline*, not a finished audit: the 22 organs
+marked green below are grounded in code and tests that exist in this
+checkout today (see `production_entrypoints`/`focused_tests` in
+`.aios/state/ORGAN_GREEN_LEDGER.json`), not in historical claims from
+`.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md` that a later truth-reset
+(`cc2ecea`) showed could not always be trusted at face value. The 32 organs
+marked yellow are exactly the organs named across Slices 26-40; each starts
+from the truthful blocker stated in that slice's own "current position",
+not an optimistic completion claim.
+
+Machine-readable source of truth: `.aios/state/ORGAN_GREEN_LEDGER.json`,
+validated by `aios.application.governance.organ_ledger.validate_ledger` and
+surfaced via `python -m aios.launcher organ-check [--json] [--strict]`.
+
+## Status vocabulary
+
+- **green** — typed contract, one production authority path, durable state,
+  tests, and (where required) live evidence stamped with the commit under
+  evaluation. Never a synthetic fixture presented as live proof.
+- **yellow** — genuinely partial or missing; the ledger records the exact
+  blocker instead of an aspirational claim.
+
+## Green organs (22) — established prior to Slice 25
+
+| # | Organ | Authority owner | Entry point | Tests |
+|---|-------|------------------|-------------|-------|
+| 1 | Security Gateway | `SecurityGatewayAuthority` | `aios/security/gateway.py` | `tests/test_security.py`, `tests/adversarial/test_gateway_bypass.py` |
+| 2 | Scope Lock | `ScopeLockAuthority` | `aios/security/scope_lock.py` | `tests/test_security.py`, `tests/adversarial/test_sandbox_escape.py` |
+| 3 | Secret Scanner | `SecretScannerAuthority` | `aios/security/secret_scanner.py` | `tests/test_security.py`, `tests/adversarial/test_secret_detection.py` |
+| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `aios/security/audit_logger.py` | `tests/test_audit.py`, `tests/adversarial/test_audit_integrity.py` |
+| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `aios/security/injection_shield.py` | `tests/test_generate_input_shield.py`, `tests/test_chat_input_shield.py` |
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `aios/interfaces/http/edge_security.py` | `tests/test_edge_security.py`, `tests/test_api.py` |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | `aios/policy/kernel.py` | `tests/test_policy_kernel.py`, `tests/test_route_registry_conformance.py` |
+| 8 | Action Broker | `ActionBrokerAuthority` | `aios/application/action_broker.py` | `tests/test_action_broker.py`, `tests/test_release_conformance.py` |
+| 9 | Exact Capability Authority | `CapabilityAuthority` | `aios/application/capabilities/authority.py` | `tests/test_exact_capabilities.py`, `tests/test_e2e_sovereign_flywheel.py` |
+| 10 | Mission Authority | `MissionAuthority` | `aios/application/missions/mission_service.py` | `tests/test_mission_contract_v1.py`, `tests/test_council_orchestrator.py` |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `aios/application/turns/turn_coordinator.py` | `tests/test_turn_coordinator.py`, `tests/test_chat.py` |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | `aios/application/workers/foundry.py` | `tests/test_worker_foundry.py`, `tests/test_council_orchestrator.py` |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `aios/executor_service.py` | `tests/test_executor_service.py`, `tests/test_release_conformance.py` |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `aios/application/workspaces/staged.py` | `tests/test_staged_workspaces.py`, `tests/test_council_orchestrator.py` |
+| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `aios/application/evidence/verification.py` | `tests/test_verification_strength.py`, `tests/test_promotion_authority.py` |
+| 16 | Promotion Authority (construction) | `PromotionAuthority` | `aios/application/promotion/authority.py` | `tests/test_promotion_authority.py`, `tests/test_council_orchestrator.py` |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | `aios/runtime/cortex_bus.py` | `tests/test_cortex_bus.py`, `tests/test_release_conformance.py` |
+| 18 | Memory Authority (construction) | `MemoryAuthority` | `aios/application/memory/authority.py` | `tests/test_memory_authority.py`, `tests/test_chat.py` |
+| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `aios/application/governance/emergency_stop.py` | `tests/test_governance.py`, `tests/test_release_conformance.py` |
+| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `frontend/src/superbrain/lib/livingMirrorRegistry.ts` | `frontend/src/superbrain/lib/livingMirrorRegistry.test.ts`, `frontend/src/superbrain/lib/aiosMirror.test.ts` |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `aios/council/council_orchestrator.py` | `tests/test_council_orchestrator.py`, `tests/test_e2e_sovereign_flywheel.py` |
+| 22 | V1 Release Declaration (`gagos v1-check`) | `ReleaseDeclarationAuthority` | `aios/application/governance/v1_declaration.py` | `tests/test_v1_declaration.py`, `tests/test_launcher.py` |
+
+## Yellow organs (32) — the Slices 26-40 completion target
+
+| # | Organ | Authority owner | Slice | Truthful blocker |
+|---|-------|------------------|-------|-------------------|
+| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | 25 / 40 | Ledger established at this baseline; the strict gate stays non-green until every organ below turns green and Slice 40's final release proof lands. |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | 26 | Durable identity/session layers exist and were runtime-proven at older commits, but no constitution digest is bound to sessions, capabilities, or actions yet. |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | 26 | Today's typed constitution is an inspectable facade over security/router/budget/resource/caste config, not a durable versioned `ConstitutionSnapshotV1` authority object. |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | 27 | `EmergencyStopController` is durable and hook-based, but `assert_operational()` is not yet required at every listed side-effect boundary (worker spawn, scheduler dequeue, skill activation, backup restore, amendment activation). |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | 28 | No typed `OperatorPreferenceV1` with `source_type`/confidence/supersession lifecycle exists yet. |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | 28 | No durable `ProjectPassportV1` contract exists yet. |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | 28 | No explicit correction-lineage chain (frame revision -> human correction -> retained prior interpretation) exists yet. |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | 28 | No typed, correctable, non-authoritative `HumanStateHypothesis` contract exists yet. |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | 29 | No provider-neutral `RepresentativeContextV1` compiler exists; model calls do not yet carry a stored context digest. |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | 30 | The existing gateway is plan-only for Council workers; conversation, clerk jobs, maintenance, and skill compilation do not yet route through one universal gateway. |
+| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | 31 | No durable, evidence-backed `ModelPassportV1` with `qualified_roles`/`admission_status` exists yet. |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | 31 | No durable per-provider health/circuit-breaker/budget tracking with role-specific verified metrics exists yet. |
+| 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | 32 | Bounded clerk profiles are only partially formalised; the full `CLASSIFY_REQUEST`/`PREPARE_FRONTIER_BRIEF`/etc. profile set is not qualification-tested. |
+| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | 32 | No dispatcher choosing between deterministic code / local clerk / frontier escalation / human clarification exists yet. |
+| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | 32 | No live qualification suite has been run against the actual `granite3.2:2b` Ollama model (JSON adherence, abstention, injection resistance, latency). |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | 33 | Domain contracts for local job requests/model calls/results exist, but `local_job_requests`/`local_model_calls`/`local_job_results` are not durably persisted or queryable via `gagos provenance clerk-job`. |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | 34 | No typed `DeliberationRole`/independent-answer-preserving record exists; disagreement is not yet preserved through synthesis. |
+| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | 35 | Construction exists (organ #13/#14), but live private-Executor proof at the current tip, with no host-process fallback, is not established. |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | 35 | Construction exists (organ #15/#16), but an authoritative post-promotion typed receipt and genuine rollback-restores-exact-bytes proof at the current tip are not established. |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | 35 | No durable `MISSION_CREATED`..`COMPLETED` transition journal with idempotent replay/resumption-after-crash exists yet. |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | 36 | Skills are captured from verified missions, but the candidate -> trusted -> degraded -> revoked lifecycle and confidence-driven demotion are not implemented. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | 36 | No golden release cohort (12 governed missions, 4 candidate skills, forced refusal/demotion/revocation cases) has been run. |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | 37 | No `ConstitutionalAmendmentProposalV1` contract or human-ratification-only activation path exists yet. |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | 38 | No governance-weakness-to-amendment-proposal pipeline or `GovernanceLessonV1` curriculum exists yet. |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | 39 | Canonical projections (`SystemHeartbeatProjection`, `ApprovalProjection`, etc.) with measured/derived/stale/unavailable field provenance are not fully built. |
+| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | 39 | Reaction-registry construction exists (organ #20), but end-to-end truthful reflection across every organ above is not complete. |
+| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | 39 | No pinned (not scroll-hidden) exact-decision approval surface exists yet. |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | 39 | No UI answers "why was this model chosen / what was sent / what was removed" yet. |
+| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | 39 | No single heartbeat surface shows identity/constitution/stop/budget/executor/learning state together yet. |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | 40 | No unified correlation-ID tracked telemetry across model calls, clerk, executor, mission queue, verification, promotion, rollback, and emergency-stop exists yet. |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | 40 | Key rotation, a bounded grace period, and truthful Ollama-absence handling are not fully implemented. |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | 40 | Backup/restore does not yet guarantee stale capabilities, pending approvals, and old sessions never restore as active. |
+
+## How this ledger is enforced
+
+```
+python -m aios.launcher organ-check --json
+python -m aios.launcher organ-check --strict
+```
+
+`--strict` exits non-zero until all 54 organs are green. `validate_ledger`
+additionally refuses: duplicate `organ_id`, duplicate `authority_owner`,
+missing or unknown organs, a `green` organ without focused or integration
+tests, a `green` organ that requires live evidence but has none, live
+evidence labelled `fixture` where `live` is required, and live evidence
+stamped with any commit other than the one under evaluation.

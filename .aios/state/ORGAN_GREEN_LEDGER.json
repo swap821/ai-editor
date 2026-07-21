@@ -1,0 +1,901 @@
+[
+  {
+    "organ_id": 1,
+    "name": "Security Gateway",
+    "status": "green",
+    "authority_owner": "SecurityGatewayAuthority",
+    "production_entrypoints": [
+      "aios/security/gateway.py"
+    ],
+    "focused_tests": [
+      "tests/test_security.py",
+      "tests/adversarial/test_gateway_bypass.py"
+    ],
+    "integration_tests": [
+      "tests/adversarial/test_gateway_bypass.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 2,
+    "name": "Scope Lock",
+    "status": "green",
+    "authority_owner": "ScopeLockAuthority",
+    "production_entrypoints": [
+      "aios/security/scope_lock.py"
+    ],
+    "focused_tests": [
+      "tests/test_security.py"
+    ],
+    "integration_tests": [
+      "tests/adversarial/test_sandbox_escape.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 3,
+    "name": "Secret Scanner",
+    "status": "green",
+    "authority_owner": "SecretScannerAuthority",
+    "production_entrypoints": [
+      "aios/security/secret_scanner.py"
+    ],
+    "focused_tests": [
+      "tests/test_security.py"
+    ],
+    "integration_tests": [
+      "tests/adversarial/test_secret_detection.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 4,
+    "name": "Tamper-Evident Audit Logger",
+    "status": "green",
+    "authority_owner": "AuditLoggerAuthority",
+    "production_entrypoints": [
+      "aios/security/audit_logger.py"
+    ],
+    "focused_tests": [
+      "tests/test_audit.py"
+    ],
+    "integration_tests": [
+      "tests/adversarial/test_audit_integrity.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 5,
+    "name": "Prompt Injection Shield",
+    "status": "green",
+    "authority_owner": "InjectionShieldAuthority",
+    "production_entrypoints": [
+      "aios/security/injection_shield.py"
+    ],
+    "focused_tests": [
+      "tests/test_generate_input_shield.py"
+    ],
+    "integration_tests": [
+      "tests/test_chat_input_shield.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 6,
+    "name": "Edge Trust Boundary",
+    "status": "green",
+    "authority_owner": "EdgeTrustAuthority",
+    "production_entrypoints": [
+      "aios/interfaces/http/edge_security.py"
+    ],
+    "focused_tests": [
+      "tests/test_edge_security.py"
+    ],
+    "integration_tests": [
+      "tests/test_api.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 7,
+    "name": "Policy Kernel",
+    "status": "green",
+    "authority_owner": "PolicyKernelAuthority",
+    "production_entrypoints": [
+      "aios/policy/kernel.py"
+    ],
+    "focused_tests": [
+      "tests/test_policy_kernel.py"
+    ],
+    "integration_tests": [
+      "tests/test_route_registry_conformance.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 8,
+    "name": "Action Broker",
+    "status": "green",
+    "authority_owner": "ActionBrokerAuthority",
+    "production_entrypoints": [
+      "aios/application/action_broker.py"
+    ],
+    "focused_tests": [
+      "tests/test_action_broker.py"
+    ],
+    "integration_tests": [
+      "tests/test_release_conformance.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 9,
+    "name": "Exact Capability Authority",
+    "status": "green",
+    "authority_owner": "CapabilityAuthority",
+    "production_entrypoints": [
+      "aios/application/capabilities/authority.py"
+    ],
+    "focused_tests": [
+      "tests/test_exact_capabilities.py"
+    ],
+    "integration_tests": [
+      "tests/test_e2e_sovereign_flywheel.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 10,
+    "name": "Mission Authority",
+    "status": "green",
+    "authority_owner": "MissionAuthority",
+    "production_entrypoints": [
+      "aios/application/missions/mission_service.py"
+    ],
+    "focused_tests": [
+      "tests/test_mission_contract_v1.py"
+    ],
+    "integration_tests": [
+      "tests/test_council_orchestrator.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 11,
+    "name": "Turn Coordinator",
+    "status": "green",
+    "authority_owner": "TurnCoordinatorAuthority",
+    "production_entrypoints": [
+      "aios/application/turns/turn_coordinator.py"
+    ],
+    "focused_tests": [
+      "tests/test_turn_coordinator.py"
+    ],
+    "integration_tests": [
+      "tests/test_chat.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 12,
+    "name": "Worker Foundry",
+    "status": "green",
+    "authority_owner": "WorkerFoundryAuthority",
+    "production_entrypoints": [
+      "aios/application/workers/foundry.py"
+    ],
+    "focused_tests": [
+      "tests/test_worker_foundry.py"
+    ],
+    "integration_tests": [
+      "tests/test_council_orchestrator.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 13,
+    "name": "Isolated Executor Service (construction)",
+    "status": "green",
+    "authority_owner": "ExecutorServiceAuthority",
+    "production_entrypoints": [
+      "aios/executor_service.py"
+    ],
+    "focused_tests": [
+      "tests/test_executor_service.py"
+    ],
+    "integration_tests": [
+      "tests/test_release_conformance.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 14,
+    "name": "Staged Workspace Manager (construction)",
+    "status": "green",
+    "authority_owner": "StagedWorkspaceAuthority",
+    "production_entrypoints": [
+      "aios/application/workspaces/staged.py"
+    ],
+    "focused_tests": [
+      "tests/test_staged_workspaces.py"
+    ],
+    "integration_tests": [
+      "tests/test_council_orchestrator.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 15,
+    "name": "Evidence and Verification Authority (construction)",
+    "status": "green",
+    "authority_owner": "VerificationAuthority",
+    "production_entrypoints": [
+      "aios/application/evidence/verification.py"
+    ],
+    "focused_tests": [
+      "tests/test_verification_strength.py"
+    ],
+    "integration_tests": [
+      "tests/test_promotion_authority.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 16,
+    "name": "Promotion Authority (construction)",
+    "status": "green",
+    "authority_owner": "PromotionAuthority",
+    "production_entrypoints": [
+      "aios/application/promotion/authority.py"
+    ],
+    "focused_tests": [
+      "tests/test_promotion_authority.py"
+    ],
+    "integration_tests": [
+      "tests/test_council_orchestrator.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 17,
+    "name": "Cortex Observation Bus",
+    "status": "green",
+    "authority_owner": "CortexBusAuthority",
+    "production_entrypoints": [
+      "aios/runtime/cortex_bus.py"
+    ],
+    "focused_tests": [
+      "tests/test_cortex_bus.py"
+    ],
+    "integration_tests": [
+      "tests/test_release_conformance.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 18,
+    "name": "Memory Authority (construction)",
+    "status": "green",
+    "authority_owner": "MemoryAuthority",
+    "production_entrypoints": [
+      "aios/application/memory/authority.py"
+    ],
+    "focused_tests": [
+      "tests/test_memory_authority.py"
+    ],
+    "integration_tests": [
+      "tests/test_chat.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 19,
+    "name": "Emergency Stop Controller (construction)",
+    "status": "green",
+    "authority_owner": "EmergencyStopController",
+    "production_entrypoints": [
+      "aios/application/governance/emergency_stop.py"
+    ],
+    "focused_tests": [
+      "tests/test_governance.py"
+    ],
+    "integration_tests": [
+      "tests/test_release_conformance.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 20,
+    "name": "Living Mirror Reaction Registry (construction)",
+    "status": "green",
+    "authority_owner": "LivingMirrorAuthority",
+    "production_entrypoints": [
+      "frontend/src/superbrain/lib/livingMirrorRegistry.ts"
+    ],
+    "focused_tests": [
+      "frontend/src/superbrain/lib/livingMirrorRegistry.test.ts"
+    ],
+    "integration_tests": [
+      "frontend/src/superbrain/lib/aiosMirror.test.ts"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 21,
+    "name": "Queen Council Orchestrator",
+    "status": "green",
+    "authority_owner": "QueenCouncilAuthority",
+    "production_entrypoints": [
+      "aios/council/council_orchestrator.py"
+    ],
+    "focused_tests": [
+      "tests/test_council_orchestrator.py"
+    ],
+    "integration_tests": [
+      "tests/test_e2e_sovereign_flywheel.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 22,
+    "name": "V1 Release Declaration (gagos v1-check)",
+    "status": "green",
+    "authority_owner": "ReleaseDeclarationAuthority",
+    "production_entrypoints": [
+      "aios/application/governance/v1_declaration.py"
+    ],
+    "focused_tests": [
+      "tests/test_v1_declaration.py"
+    ],
+    "integration_tests": [
+      "tests/test_launcher.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
+    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 23,
+    "name": "Release Conformance Organ",
+    "status": "yellow",
+    "authority_owner": "ReleaseConformanceAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Ledger established at this baseline (Slice 25); the strict gate stays non-green until every organ below turns green and Slice 40 final release proof lands."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 24,
+    "name": "Human Sovereign Identity",
+    "status": "yellow",
+    "authority_owner": "IdentityAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Durable identity/session layers exist and were runtime-proven at older commits, but no constitution digest is bound to sessions, capabilities, or actions yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 25,
+    "name": "Constitutional Kernel",
+    "status": "yellow",
+    "authority_owner": "ConstitutionalKernelAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Today the typed constitution is an inspectable facade over security/router/budget/resource/caste config, not a durable versioned ConstitutionSnapshotV1 authority object."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 26,
+    "name": "Emergency Stop Organ (full boundary hard-wiring)",
+    "status": "yellow",
+    "authority_owner": "EmergencyStopHardWiringAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "EmergencyStopController is durable and hook-based, but assert_operational() is not yet required at every listed side-effect boundary (worker spawn, scheduler dequeue, skill activation, backup restore, amendment activation)."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 27,
+    "name": "Operator Taste Model",
+    "status": "yellow",
+    "authority_owner": "OperatorTasteModelAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No typed OperatorPreferenceV1 with source_type/confidence/supersession lifecycle exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 28,
+    "name": "Project Understanding Organ",
+    "status": "yellow",
+    "authority_owner": "ProjectUnderstandingAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No durable ProjectPassportV1 contract exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 29,
+    "name": "Correction and Interpretation-Lineage Organ",
+    "status": "yellow",
+    "authority_owner": "CorrectionLineageAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No explicit correction-lineage chain (frame revision -> human correction -> retained prior interpretation) exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 30,
+    "name": "Communication and Human-State Interpreter",
+    "status": "yellow",
+    "authority_owner": "HumanStateInterpreterAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No typed, correctable, non-authoritative HumanStateHypothesis contract exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 31,
+    "name": "Human Representative Context Compiler",
+    "status": "yellow",
+    "authority_owner": "RepresentativeContextCompilerAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No provider-neutral RepresentativeContextV1 compiler exists; model calls do not yet carry a stored context digest."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 32,
+    "name": "Universal Intelligence Gateway",
+    "status": "yellow",
+    "authority_owner": "UniversalIntelligenceGatewayAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "The existing gateway is plan-only for Council workers; conversation, clerk jobs, maintenance, and skill compilation do not yet route through one universal gateway."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 33,
+    "name": "Model Registry and Capability Passport",
+    "status": "yellow",
+    "authority_owner": "ModelPassportAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No durable, evidence-backed ModelPassportV1 with qualified_roles/admission_status exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 34,
+    "name": "Cloud Budget and Provider-Health Organ",
+    "status": "yellow",
+    "authority_owner": "ProviderHealthBudgetAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No durable per-provider health/circuit-breaker/budget tracking with role-specific verified metrics exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 35,
+    "name": "Local Clerk Runtime",
+    "status": "yellow",
+    "authority_owner": "LocalClerkRuntimeAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Bounded clerk profiles are only partially formalised; the full CLASSIFY_REQUEST/PREPARE_FRONTIER_BRIEF/etc profile set is not qualification-tested."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 36,
+    "name": "Clerical Job Contract and Dispatcher",
+    "status": "yellow",
+    "authority_owner": "ClerkDispatcherAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No dispatcher choosing between deterministic code / local clerk / frontier escalation / human clarification exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 37,
+    "name": "Local Model Qualification and Health",
+    "status": "yellow",
+    "authority_owner": "LocalModelQualificationAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No live qualification suite has been run against the actual granite3.2:2b Ollama model (JSON adherence, abstention, injection resistance, latency)."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 38,
+    "name": "Durable Local-Clerk Provenance and Continuity Organ",
+    "status": "yellow",
+    "authority_owner": "ClerkProvenanceAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Domain contracts for local job requests/model calls/results exist, but local_job_requests/local_model_calls/local_job_results are not durably persisted or queryable via gagos provenance clerk-job."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 39,
+    "name": "Multi-Model Deliberation and Dissent Organ",
+    "status": "yellow",
+    "authority_owner": "DeliberationCouncilAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No typed DeliberationRole/independent-answer-preserving record exists; disagreement is not yet preserved through synthesis."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 40,
+    "name": "Isolated Workspace and Executor (live proof)",
+    "status": "yellow",
+    "authority_owner": "IsolatedExecutorLiveAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Construction exists (organ 13/14), but live private-Executor proof at the current tip, with no host-process fallback, is not established."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 41,
+    "name": "Promotion, Checkpoint and Rollback (live proof)",
+    "status": "yellow",
+    "authority_owner": "PromotionRollbackLiveAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Construction exists (organ 15/16), but an authoritative post-promotion typed receipt and genuine rollback-restores-exact-bytes proof at the current tip are not established."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 42,
+    "name": "Recovery and Resumption",
+    "status": "yellow",
+    "authority_owner": "RecoveryResumptionAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No durable MISSION_CREATED..COMPLETED transition journal with idempotent replay/resumption-after-crash exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 43,
+    "name": "Local Skill Reuse, Confidence and Demotion",
+    "status": "yellow",
+    "authority_owner": "SkillLifecycleAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Skills are captured from verified missions, but the candidate -> trusted -> degraded -> revoked lifecycle and confidence-driven demotion are not implemented."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 44,
+    "name": "Golden Mission and Endurance Evaluation",
+    "status": "yellow",
+    "authority_owner": "GoldenMissionEnduranceAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No golden release cohort (12 governed missions, 4 candidate skills, forced refusal/demotion/revocation cases) has been run."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 45,
+    "name": "Constitutional Amendment Authority",
+    "status": "yellow",
+    "authority_owner": "ConstitutionalAmendmentAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No ConstitutionalAmendmentProposalV1 contract or human-ratification-only activation path exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 46,
+    "name": "Constitutional Learning Organ",
+    "status": "yellow",
+    "authority_owner": "ConstitutionalLearningAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No governance-weakness-to-amendment-proposal pipeline or GovernanceLessonV1 curriculum exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 47,
+    "name": "Read-Model and Projection Organ",
+    "status": "yellow",
+    "authority_owner": "ReadModelProjectionAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Canonical projections (SystemHeartbeatProjection, ApprovalProjection, etc.) with measured/derived/stale/unavailable field provenance are not fully built."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 48,
+    "name": "Truthful Living Mirror (full truthful UI)",
+    "status": "yellow",
+    "authority_owner": "TruthfulMirrorAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Reaction-registry construction exists (organ 20), but end-to-end truthful reflection across every organ above is not complete."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 49,
+    "name": "Approval and Decision Surface",
+    "status": "yellow",
+    "authority_owner": "ApprovalDecisionSurfaceAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No pinned (not scroll-hidden) exact-decision approval surface exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 50,
+    "name": "Provenance and Explanation Surface",
+    "status": "yellow",
+    "authority_owner": "ProvenanceExplanationSurfaceAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No UI answers why a model was chosen, what was sent to it, or what was removed, yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 51,
+    "name": "Sovereign Control and Heartbeat Surface",
+    "status": "yellow",
+    "authority_owner": "SovereignHeartbeatSurfaceAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No single heartbeat surface shows identity/constitution/stop/budget/executor/learning state together yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 52,
+    "name": "Observability and Health Organ",
+    "status": "yellow",
+    "authority_owner": "ObservabilityAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "No unified correlation-ID tracked telemetry across model calls, clerk, executor, mission queue, verification, promotion, rollback, and emergency-stop exists yet."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 53,
+    "name": "Installation, Configuration and Key Authority",
+    "status": "yellow",
+    "authority_owner": "InstallationConfigurationAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Key rotation, a bounded grace period, and truthful Ollama-absence handling are not fully implemented."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  },
+  {
+    "organ_id": 54,
+    "name": "Backup and Disaster-Recovery Organ",
+    "status": "yellow",
+    "authority_owner": "BackupDisasterRecoveryAuthority",
+    "production_entrypoints": [],
+    "focused_tests": [],
+    "integration_tests": [],
+    "live_evidence": [],
+    "known_blockers": [
+      "Backup/restore does not yet guarantee stale capabilities, pending approvals, and old sessions never restore as active."
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false
+  }
+]
