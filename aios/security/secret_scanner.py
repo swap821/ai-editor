@@ -10,10 +10,12 @@ correlate occurrences of the same secret without ever persisting its value.
 Hardened (A+) — includes pattern-based detection for structured secrets,
 sliding-window entropy for Base64 evasion, and contextual filtering.
 """
+
 from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -31,12 +33,21 @@ _ENTROPY_THRESHOLD: float = 4.0
 _SLIDE_WINDOW_MIN: int = 20
 _SLIDE_WINDOW_MAX: int = 80
 #: Fraction of window chars that must be in the base64 alphabet to qualify.
-_SLIDE_BASE64_RATIO: float = 0.80
+_SLIDE_BASE64_RATIO: float = 0.95
 
 #: Keywords that strengthen confidence when found near a candidate secret.
 _CONTEXT_SECRET_KEYWORDS: tuple[str, ...] = (
-    "secret", "token", "key", "password", "credential", "auth",
-    "api", "private", "access", "bearer", "connect",
+    "secret",
+    "token",
+    "key",
+    "password",
+    "credential",
+    "auth",
+    "api",
+    "private",
+    "access",
+    "bearer",
+    "connect",
 )
 
 #: Named credential regexes applied before the entropy pass. Order matters only
@@ -46,24 +57,25 @@ _CONTEXT_SECRET_KEYWORDS: tuple[str, ...] = (
 _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── Private Keys (PEM/SSH) ──────────────────────────────────────────────
     (
+        # Any PEM/SSH/PGP private-key block. ``[A-Z0-9 ]*`` covers RSA/EC/DSA/OPENSSH/
+        # ENCRYPTED (and any future header); ``( BLOCK)?`` covers PGP key blocks.
+        # PEM markers are unambiguous, so this broadening adds zero false positives.
         "PRIVATE_KEY",
         re.compile(
-            r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
             r"[\s\S]*?"
-            r"-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            r"-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
         ),
     ),
     # ── JWT Tokens (header.payload.signature) ───────────────────────────────
     (
         "JWT_TOKEN",
-        re.compile(
-            r"\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b"
-        ),
+        re.compile(r"\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b"),
     ),
     # ── Stripe API Keys ─────────────────────────────────────────────────────
     (
         "STRIPE_API_KEY",
-        re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]{24,}\b"),
+        re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9_]{24,}\b"),
     ),
     # ── OpenAI API Keys ─────────────────────────────────────────────────────
     ("OPENAI_API_KEY", re.compile(r"\bsk-[A-Za-z0-9]{32,}\b")),
@@ -81,37 +93,33 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
     # ── Slack Tokens ────────────────────────────────────────────────────────
     (
         "SLACK_TOKEN",
-        re.compile(r"\bxox[baprs]-[A-Za-z0-9-]+\b"),
+        re.compile(r"\bxox[baprs]-[A-Za-z0-9_-]+\b"),
     ),
     # ── Google API keys (AIza…). Typical length is 39 chars; allow slack. ───
     ("GOOGLE_API_KEY", re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b")),
     # ── Anthropic API keys (sk-ant-api03-…, sk-ant-api04-…, etc.). ──────────
     ("ANTHROPIC_API_KEY", re.compile(r"\bsk-ant-api[0-9]{2}-[A-Za-z0-9_-]{32,}\b")),
     # ── Bearer tokens ───────────────────────────────────────────────────────
-    ("BEARER_TOKEN", re.compile(r"\bBearer\s+[A-Za-z0-9\-._~+/]+=*")),
+    ("BEARER_TOKEN", re.compile(r"\bBearer\s+[A-Za-z0-9\-._~+/]{20,}=*")),
     # ── AWS Secret Keys (40-char base64; only flagged with AWS context).
     #: Placed AFTER more specific provider patterns so it only acts as a
     #: catch-all fallback for genuine AWS secret material.
     (
         "AWS_SECRET_KEY",
-        re.compile(
-            r"\b[A-Za-z0-9/+=]{40}\b"
-        ),
+        re.compile(r"\b[A-Za-z0-9/+=]{40}\b"),
     ),
     # ── Database URLs with embedded credentials ─────────────────────────────
     (
         "DATABASE_URL",
         re.compile(
-            r"\b(?:postgres|mysql|mongodb|redis)://[^:]+:[^@]+@\b",
+            r"\b(?:postgres|mysql|mongodb|redis)://[^:\s]*:[^@\s]+@\b",
             re.IGNORECASE,
         ),
     ),
     # ── Generic connection strings with embedded credentials ────────────────
     (
         "CONNECTION_STRING",
-        re.compile(
-            r"\b[A-Za-z]+(?:\+\w+)?://[^:]+:[^@]+@\b"
-        ),
+        re.compile(r"\b[A-Za-z]+(?:\+\w+)?://[^:\s]*:[^@\s]+@\b"),
     ),
     # ── Generic API-key assignment patterns ─────────────────────────────────
     (
@@ -119,6 +127,20 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
         re.compile(
             r"\b(?:password|passwd|secret|api[_-]?key|apikey|token)\s*[=:]\s*"
             r"['\"]?[A-Za-z0-9\-_]{12,}['\"]?",
+            re.IGNORECASE,
+        ),
+    ),
+    # ── Short hex secret, KEYWORD-GATED ─────────────────────────────────────
+    #: Closes the short-hex gap below ASSIGNED_SECRET's 12-char floor (e.g.
+    #: ``api_key: a1b2c3d4``). The secret keyword + assignment is REQUIRED, so a
+    #: bare hex token in prose (a git SHA, an id, a color) is NOT redacted — the
+    #: gate keeps false positives near zero. Placed after ASSIGNED_SECRET so longer
+    #: values keep that label.
+    (
+        "SHORT_SECRET",
+        re.compile(
+            r"\b(?:password|passwd|secret|api[_-]?key|apikey|token)\s*[=:]\s*"
+            r"['\"]?[A-Fa-f0-9]{8,}['\"]?",
             re.IGNORECASE,
         ),
     ),
@@ -130,7 +152,15 @@ _NAMED_PATTERNS: list[tuple[str, Pattern[str]]] = [
 _ENTROPY_TOKEN = re.compile(r"[A-Za-z0-9+/\-_]{%d,}" % _ENTROPY_MIN_LEN)
 
 #: Base64 alphabet (used by the sliding-window pass).
-_BASE64_ALPHABET: set[str] = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+_BASE64_ALPHABET: set[str] = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+)
+
+# Keyed fingerprint secret for redaction correlation tokens.
+# In production, set AIOS_SECRET_FINGERPRINT_KEY to a strong random value.
+_FINGERPRINT_KEY: bytes = os.environ.get(
+    "AIOS_SECRET_FINGERPRINT_KEY", "aios-dev-secret-fingerprint-key"
+).encode("utf-8")
 
 
 @dataclass(frozen=True)
@@ -143,8 +173,10 @@ class ScanResult:
 
 
 def _fingerprint(value: str) -> str:
-    """Return a short, non-reversible SHA-256 fingerprint of *value*."""
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:8]
+    """Return a short, keyed, non-reversible fingerprint of *value*."""
+    return hashlib.pbkdf2_hmac(
+        "sha256", value.encode("utf-8"), _FINGERPRINT_KEY, 10_000
+    ).hex()[:8]
 
 
 def shannon_entropy(token: str) -> float:
@@ -181,7 +213,16 @@ def _has_secret_context(payload: str, position: int, radius: int = 50) -> bool:
     """
     start = max(0, position - radius)
     end = min(len(payload), position + radius)
+
+    # Expand to word boundaries to avoid chopping safe compound words (like 'fastapi')
+    while start > 0 and payload[start - 1].isalnum():
+        start -= 1
+    while end < len(payload) and payload[end].isalnum():
+        end += 1
+
     context = payload[start:end].lower()
+    # Mask out known safe compounds that contain 'api' to prevent false positive context flags
+    context = context.replace("fastapi", "").replace("openapi", "")
     return any(kw in context for kw in _CONTEXT_SECRET_KEYWORDS)
 
 
@@ -194,8 +235,19 @@ def _has_aws_context(payload: str, position: int, radius: int = 100) -> bool:
     start = max(0, position - radius)
     end = min(len(payload), position + radius)
     context = payload[start:end].lower()
-    aws_keywords = ("ak", "aws", "amazon", "access", "secret", "bedrock",
-                    "s3", "ec2", "lambda", "region", "arn")
+    aws_keywords = (
+        "ak",
+        "aws",
+        "amazon",
+        "access",
+        "secret",
+        "bedrock",
+        "s3",
+        "ec2",
+        "lambda",
+        "region",
+        "arn",
+    )
     return any(kw in context for kw in aws_keywords)
 
 
@@ -285,6 +337,7 @@ def scan_and_redact(payload: str) -> ScanResult:
 
     # Pass 1 — named credential formats.
     for name, pattern in _NAMED_PATTERNS:
+
         def _replace(match: "re.Match[str]", _name: str = name) -> str:
             # For the broad AWS_SECRET_KEY pattern, require AWS context.
             if _name == "AWS_SECRET_KEY":
@@ -305,7 +358,10 @@ def scan_and_redact(payload: str) -> ScanResult:
         if _is_inside_redacted(match.start(), redacted_spans):
             return match.group(0)
         token = match.group(0)
-        if len(token) >= _credential_like_min_len(token) and shannon_entropy(token) >= _ENTROPY_THRESHOLD:
+        if (
+            len(token) >= _credential_like_min_len(token)
+            and shannon_entropy(token) >= _ENTROPY_THRESHOLD
+        ):
             findings.append("HIGH_ENTROPY")
             return f"<REDACTED:HIGH_ENTROPY:{_fingerprint(token)}>"
         return token

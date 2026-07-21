@@ -61,32 +61,59 @@ function BrowseView({ url, explanation }: { url: string; explanation: string }) 
   );
 }
 
+/** What the operator decided — passed to onSettled so a consumer (e.g. the chat
+ *  chrome) can narrate the outcome in plain language. */
+export interface ApprovalOutcome {
+  action: 'authorize' | 'reject';
+  kind: PendingApproval['kind'];
+  filepath: string;
+  /** The proposed artifact, so a consumer can fill a "writing" slab on authorize:
+   *  full file content for a create, the unified diff for an edit. */
+  content: string;
+  diff: string;
+}
+
 export default function ApprovalPanel({
   pending,
   onSettled,
 }: {
   pending: PendingApproval;
   /** Called after AUTHORIZE/REJECT completes (the replay may pause again —
-   *  the HUD re-reads the adapter's pending state). */
-  onSettled: () => void;
+   *  the HUD re-reads the adapter's pending state). The outcome is optional so
+   *  callers that only need to refresh (e.g. SuperbrainHUD) can ignore it. */
+  onSettled: (outcome?: ApprovalOutcome) => void;
 }) {
   const [busy, setBusy] = useState<'authorize' | 'reject' | null>(null);
 
   const authorize = useCallback(() => {
     setBusy('authorize');
+    const decided: ApprovalOutcome = {
+      action: 'authorize',
+      kind: pending.kind,
+      filepath: pending.filepath,
+      content: pending.content,
+      diff: pending.diff,
+    };
     void approvePendingApproval().finally(() => {
       setBusy(null);
-      onSettled();
+      onSettled(decided);
     });
-  }, [onSettled]);
+  }, [onSettled, pending.kind, pending.filepath]);
 
   const reject = useCallback(() => {
     setBusy('reject');
+    const decided: ApprovalOutcome = {
+      action: 'reject',
+      kind: pending.kind,
+      filepath: pending.filepath,
+      content: pending.content,
+      diff: pending.diff,
+    };
     void rejectPendingApproval().finally(() => {
       setBusy(null);
-      onSettled();
+      onSettled(decided);
     });
-  }, [onSettled]);
+  }, [onSettled, pending.kind, pending.filepath]);
 
   return (
     <section className="approval-panel" role="alertdialog" aria-label="Operator approval required">

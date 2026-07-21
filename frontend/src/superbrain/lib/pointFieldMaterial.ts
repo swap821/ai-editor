@@ -23,6 +23,9 @@ const VERTEX = /* glsl */ `
   uniform float uReabsorb;   // 0 = present, 1 = dissolved up/away
   uniform float uSprayHide;  // 0 = cauda tail shown, 1 = tail retracted (while orchestrating)
   uniform float uSprayBand;  // body-axis cutoff: points with aBand below this are the "tail"
+  uniform float uTension;    // emotional weather (B2): 0 = calm (byte-identical prior look),
+                             // 1 = maximally unsure — the per-point shimmer sharpens
+                             // (amplitude + rate). Motion only; hue untouched (sacred palette).
   attribute float aSize;
   attribute vec3 aColor;
   attribute vec3 aNormal;    // surface normal — breathe displaces along it
@@ -48,7 +51,11 @@ const VERTEX = /* glsl */ `
     // flagged). A tiny per-point shimmer keeps each puncta individually alive on
     // top of the coherent breath.
     p += aNormal * (uGrow * 0.014 * length(position) * uBreath);
-    p += aNormal * 0.002 * sin(uTime * 1.7 + aPhase);
+    // EMOTIONAL WEATHER (B2): confidence-driven tension sharpens the per-point
+    // shimmer — calm laminar drift when the mind is sure (uTension 0 reproduces
+    // the prior 0.002 / 1.7 exactly), fine-grained restlessness when unsure.
+    float tension = clamp(uTension, 0.0, 1.0);
+    p += aNormal * (0.002 + 0.004 * tension) * sin(uTime * (1.7 + 2.3 * tension) + aPhase);
     // FLOW BAND: a soft gaussian highlight sweeping the body axis (subtle on the
     // brain; reads strongly down the spine).
     float center = fract(uTime * uFlowSpeed);
@@ -240,6 +247,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uVertebrae: { value: 0 },    // orchestration: reveal vertebral segments down the spine (luminance, no hue change). Dial: window.__POINTFIELD.uVertebrae
       uSprayHide: { value: 0 },    // orchestration: retract the cauda-equina tail (low aBand) so the bottom clears for the active surface
       uSprayBand: { value: 0.17 }, // body-axis cutoff below which a point is "tail". Dial: window.__POINTFIELD.uSprayBand
+      uTension: { value: 0 },      // emotional weather (B2): confidence-driven micro-jitter; 0 = calm/prior look. Dial: window.__POINTFIELD.uTension
       uArrivalDark: { value: 0.12 }, // arrival ignition floor (born-from-darkness); raise toward 1 to disable. Dial: window.__POINTFIELD.uArrivalDark
       uFogStart: { value: 15.0 },     // depth haze begins ~at the brain (camera ~uRefDist). Dial: window.__POINTFIELD.uFogStart
       uHazeStrength: { value: 0.45 }, // subtle depth recession; raise on the RTX for a deeper poster slab. Dial: window.__POINTFIELD.uHazeStrength
@@ -261,6 +269,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v19';
+  material.customProgramCacheKey = () => 'pointfield_v20';
   return material;
 }

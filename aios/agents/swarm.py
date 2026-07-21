@@ -23,6 +23,7 @@ gated, and a YELLOW write/command pauses the WHOLE swarm (``human_required``
 flows out with a worker ``role`` tag); the replayed turn restarts the swarm with
 the loop's grant pre-apply landing approved writes first.
 """
+
 from __future__ import annotations
 
 import re
@@ -38,7 +39,15 @@ from aios.agents.tool_agent import STEP_LIMIT_TEXT
 DECOMPOSER_TOOLS = frozenset({"read_file", "read_directory", "plan"})
 SCOUT_TOOLS = frozenset({"plan"})
 WORKER_TOOLS = frozenset(
-    {"read_file", "read_directory", "execute_terminal", "edit_file", "create_file", "verify", "browse"}
+    {
+        "read_file",
+        "read_directory",
+        "execute_terminal",
+        "edit_file",
+        "create_file",
+        "verify",
+        "browse",
+    }
 )
 SYNTHESIZER_TOOLS = frozenset({"read_file", "read_directory", "verify"})
 
@@ -184,7 +193,9 @@ def _run_quorum(
     """Run the QUORUM caste for one subtask's redundant replicas."""
     role = f"quorum-{subtask_index + 1}"
     note = _format_quorum_note(subtask, results)
-    return _run_leg(make_agent, shared, role, QUORUM_PROMPT, QUORUM_TOOLS, note=note, max_iters=4)
+    return _run_leg(
+        make_agent, shared, role, QUORUM_PROMPT, QUORUM_TOOLS, note=note, max_iters=4
+    )
 
 
 def _run_leg(
@@ -362,7 +373,12 @@ def run_swarm(
 
     if plan is None:
         decomposer = _run_leg(
-            make_agent, shared, "decomposer", DECOMPOSER_PROMPT, DECOMPOSER_TOOLS, max_iters=4
+            make_agent,
+            shared,
+            "decomposer",
+            DECOMPOSER_PROMPT,
+            DECOMPOSER_TOOLS,
+            max_iters=4,
         )
         yield from decomposer.events
         if decomposer.stopped:
@@ -453,7 +469,12 @@ def run_swarm(
                 _deposit(quorum, shared, role=f"worker-{index + 1}")
             else:
                 _deposit(results[0], shared)
-            yield {"type": "caste_end", "role": "swarm", "caste": f"worker-{index + 1}", "outcome": "ok"}
+            yield {
+                "type": "caste_end",
+                "role": "swarm",
+                "caste": f"worker-{index + 1}",
+                "outcome": "ok",
+            }
             any_work = any_work or any(r.wrote for r in results)
     else:
         # Concurrent path: fan out all replicas, then quorum per subtask.
@@ -481,18 +502,33 @@ def run_swarm(
                 _deposit(quorum, shared, role=f"worker-{index + 1}")
             else:
                 _deposit(results[0], shared)
-            yield {"type": "caste_end", "role": "swarm", "caste": f"worker-{index + 1}", "outcome": "ok"}
+            yield {
+                "type": "caste_end",
+                "role": "swarm",
+                "caste": f"worker-{index + 1}",
+                "outcome": "ok",
+            }
             any_work = any_work or any(r.wrote for r in results)
 
     # 3. SYNTHESIZE from verifier evidence (skipped if no worker produced work).
     if any_work:
         synthesizer = _run_leg(
-            make_agent, shared, "synthesizer", SYNTHESIZER_PROMPT, SYNTHESIZER_TOOLS, max_iters=6
+            make_agent,
+            shared,
+            "synthesizer",
+            SYNTHESIZER_PROMPT,
+            SYNTHESIZER_TOOLS,
+            max_iters=6,
         )
         yield from synthesizer.events
         if synthesizer.stopped:
             return
-        yield {"type": "caste_end", "role": "swarm", "caste": "synthesizer", "outcome": "ok"}
+        yield {
+            "type": "caste_end",
+            "role": "swarm",
+            "caste": "synthesizer",
+            "outcome": "ok",
+        }
 
     yield {"type": "done"}
 

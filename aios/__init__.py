@@ -1,4 +1,4 @@
-"""aios — a local-first, memory-driven, security-gated, human-supervised AI OS.
+"""GAGOS — a local-first, memory-driven, security-gated, human-supervised AI operating system.
 
 Package layout
 --------------
@@ -14,6 +14,7 @@ Package layout
 All tunables (paths, retrieval weights, security thresholds) live in
 :mod:`aios.config`, the single source of truth for configuration.
 """
+
 from __future__ import annotations
 
 __version__ = "0.1.0"

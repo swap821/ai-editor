@@ -31,7 +31,7 @@ class FakeCloud:
 
 
 def test_capability_tiers() -> None:
-    assert cloud_capability("us.anthropic.claude-3-5-sonnet-20241022-v2:0") == 340  # sonnet -> frontier
+    assert cloud_capability("us.anthropic.claude-3-5-sonnet-20241022-v2:0") == 360  # top frontier
     assert cloud_capability("gemini-2.5-pro") == 340                                # -pro -> frontier
     assert cloud_capability("gemini-2.5-flash") == 300                              # flash -> strong
     assert cloud_capability("amazon.nova-lite-v1:0") == 250                         # lite -> light

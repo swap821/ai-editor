@@ -63,6 +63,28 @@ def test_falls_over_to_next_on_llmerror() -> None:
     assert bad.calls == 1 and good.calls == 1
 
 
+def test_same_cloud_provider_can_try_ranked_model_fallback_before_local() -> None:
+    bad, good, local = Boom(), OK("served-by-same-provider"), OK("local")
+    fc = FailoverChatClient(
+        [(bad, "claude", "bedrock"), (good, "nova", "bedrock"), (local, "qwen", "ollama")]
+    )
+    out = fc.chat(MSG)
+    assert out["content"] == "served-by-same-provider"
+    assert fc.active_provider == "bedrock" and fc.active_model == "nova"
+    assert bad.calls == 1 and good.calls == 1 and local.calls == 0
+
+
+def test_different_cloud_provider_is_skipped_when_local_fallback_exists() -> None:
+    bad, other_cloud, local = Boom(), OK("other-cloud"), OK("local")
+    fc = FailoverChatClient(
+        [(bad, "gemini-pro", "gemini"), (other_cloud, "sonnet", "bedrock"), (local, "qwen", "ollama")]
+    )
+    out = fc.chat(MSG)
+    assert out["content"] == "local"
+    assert fc.active_provider == "ollama" and fc.active_model == "qwen"
+    assert bad.calls == 1 and other_cloud.calls == 0 and local.calls == 1
+
+
 def test_all_candidates_failing_raises_llmerror() -> None:
     fc = FailoverChatClient([(Boom(), "a", "gemini"), (Boom(), "b", "bedrock")])
     with pytest.raises(LLMError):
@@ -90,6 +112,53 @@ def test_non_llmerror_propagates_and_does_not_failover() -> None:
     with pytest.raises(ValueError):
         fc.chat(MSG)
     assert after.calls == 0
+
+
+class StreamOK:
+    """A streaming client that yields fixed chunks and records the model."""
+
+    def __init__(self, chunks: list[str]) -> None:
+        self.chunks = chunks
+        self.calls = 0
+        self.models: list[str | None] = []
+
+    def stream_chat(self, messages, *, tools=None, model=None):
+        self.calls += 1
+        self.models.append(model)
+        yield from self.chunks
+
+    def chat(self, messages, *, tools=None, model=None):
+        raise AssertionError("streaming path should not call chat")
+
+
+class StreamBoom:
+    """A streaming client that fails before yielding any chunk."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def stream_chat(self, messages, *, tools=None, model=None):
+        self.calls += 1
+        raise LLMError("stream provider down")
+
+
+
+def test_stream_chat_yields_chunks_from_successful_candidate() -> None:
+    c = StreamOK(["hel", "lo"])
+    fc = FailoverChatClient([(c, "stream-model", "gemini")])
+
+    assert list(fc.stream_chat(MSG)) == ["hel", "lo"]
+    assert fc.active_provider == "gemini" and fc.active_model == "stream-model"
+    assert c.calls == 1 and c.models == ["stream-model"]
+
+
+def test_stream_chat_fails_over_before_first_chunk() -> None:
+    bad, good = StreamBoom(), StreamOK(["fallback ", "stream"])
+    fc = FailoverChatClient([(bad, "m1", "bedrock"), (good, "m2", "bedrock")])
+
+    assert list(fc.stream_chat(MSG)) == ["fallback ", "stream"]
+    assert fc.active_provider == "bedrock" and fc.active_model == "m2"
+    assert bad.calls == 1 and good.calls == 1
 
 
 def test_empty_candidate_list_is_rejected() -> None:

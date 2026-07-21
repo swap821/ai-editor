@@ -5,6 +5,7 @@ holds the active task context, tool variables, and conversation history for the
 life of the process and is never persisted. This implementation is thread-safe
 so concurrent agent loops can share one instance.
 """
+
 from __future__ import annotations
 
 import threading

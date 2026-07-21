@@ -15,6 +15,7 @@ Two collaborators live here:
   the SQLite row id). Inner-product metric over normalised vectors means search
   scores ARE cosine similarities in ``[-1, 1]``.
 """
+
 from __future__ import annotations
 
 import threading

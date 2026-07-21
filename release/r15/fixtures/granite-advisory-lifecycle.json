@@ -1,0 +1,19 @@
+{
+  "acceptance_eligible": false,
+  "advisory_contract_digest": "3c11a00846bec42e6239e0fac2c168c7bf9587824d54a5013a6f13fe0cab1d76",
+  "advisory_result": {
+    "applicable": true,
+    "confidence": 0.95,
+    "signature_match": "exact"
+  },
+  "executed_at": "2026-07-20T13:15:07.888686+00:00",
+  "job_id": "job-local-cee6c249",
+  "model_call_id": "call-model-beb9169b",
+  "model_name": "granite3.2:2b",
+  "proof_level": "FIXTURE",
+  "proof_type": "fixture_granite_advisory_lifecycle",
+  "provider": "ollama",
+  "schema_validation": "valid",
+  "synthetic": true,
+  "verification_status": "PASSED"
+}

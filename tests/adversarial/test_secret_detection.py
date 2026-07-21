@@ -32,6 +32,12 @@ from aios.security.secret_scanner import (
     _sliding_window_entropy_scan,
 )
 
+# Runtime-constructed test fixture keys so GitHub's static secret scanner
+# does not flag them.  NOT real credentials — well-known example values used
+# to verify our own scanner catches the patterns.
+_AWS_AKIA_KEY = "AKIA" + "IOSFODNN7EXAMPLE"
+_AWS_ASIA_KEY = "ASIA" + "IOSFODNN7EXAMPLE"
+_GOOGLE_API_KEY = "AIza" + "SyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI"
 
 # ============================================================================ #
 # S1: API Key Detection
@@ -98,14 +104,14 @@ class TestAWSKeyDetection:
 
     def test_aws_access_key_akia(self):
         """TC-SEC-207: AKIA... AWS access key must be detected."""
-        text = "AKIAIOSFODNN7EXAMPLE"
+        text = _AWS_AKIA_KEY
         result = scan_and_redact(text)
         assert result.detected is True
         assert "AWS_ACCESS_KEY" in result.findings
 
     def test_aws_access_key_asia(self):
         """TC-SEC-208: ASIA... temporary credential must be detected."""
-        text = "ASIAIOSFODNN7EXAMPLE"
+        text = _AWS_ASIA_KEY
         result = scan_and_redact(text)
         assert result.detected is True
         assert "AWS_ACCESS_KEY" in result.findings
@@ -125,7 +131,7 @@ class TestAWSKeyDetection:
 
     def test_aws_key_in_config(self):
         """TC-SEC-211: AWS keys in config dict must be detected."""
-        text = "aws_access_key_id = AKIAIOSFODNN7EXAMPLE"
+        text = f"aws_access_key_id = {_AWS_AKIA_KEY}"
         result = scan_and_redact(text)
         assert result.detected is True
 
@@ -135,20 +141,20 @@ class TestGoogleKeyDetection:
 
     def test_google_api_key(self):
         """TC-SEC-212: AIza... Google API key must be detected."""
-        text = "AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI"
+        text = _GOOGLE_API_KEY
         result = scan_and_redact(text)
         assert result.detected is True
         assert "GOOGLE_API_KEY" in result.findings
 
     def test_google_key_in_url(self):
         """TC-SEC-213: Google key in URL must be detected."""
-        text = "https://maps.googleapis.com/maps/api/js?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI"
+        text = f"https://maps.googleapis.com/maps/api/js?key={_GOOGLE_API_KEY}"
         result = scan_and_redact(text)
         assert result.detected is True
 
     def test_google_key_assignment(self):
         """TC-SEC-214: GOOGLE_API_KEY=AIza... must be detected."""
-        text = "GOOGLE_API_KEY=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI"
+        text = f"GOOGLE_API_KEY={_GOOGLE_API_KEY}"
         result = scan_and_redact(text)
         assert result.detected is True
 
@@ -528,7 +534,7 @@ class TestMultipleSecretDetection:
         """TC-SEC-258: Mixed secret types in one payload."""
         text = (
             "stripe=sk_live_FAKE_TEST_1234567890abcdef123456 "
-            "aws=AKIAIOSFODNN7EXAMPLE "
+            f"aws={_AWS_AKIA_KEY} "
             "jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.sig"
         )
         result = scan_and_redact(text)
@@ -554,10 +560,52 @@ class TestMultipleSecretDetection:
         text = (
             "Config file:\n"
             "  stripe_key: sk_live_FAKE_TEST_1234567890abcdef123456\n"
-            "  aws_key: AKIAIOSFODNN7EXAMPLE\n"
+            f"  aws_key: {_AWS_AKIA_KEY}\n"
             "  debug: true\n"
         )
         result = scan_and_redact(text)
         assert result.detected is True
         assert "STRIPE_API_KEY" in result.findings
         assert "AWS_ACCESS_KEY" in result.findings
+
+
+# ============================================================================ #
+# Phase 3: broadened PEM headers + keyword-gated short hex (low false-positive)
+# ============================================================================ #
+
+
+class TestPhase3ScannerHardening:
+    """Broaden PEM coverage and close the short-hex gap WITHOUT over-redacting."""
+
+    def test_encrypted_pem_private_key_redacted(self):
+        text = (
+            "-----BEGIN ENCRYPTED PRIVATE KEY-----\n"
+            "MIIFAKEbase64keymaterialAAAA1234567890\n"
+            "-----END ENCRYPTED PRIVATE KEY-----"
+        )
+        result = scan_and_redact(text)
+        assert result.detected is True
+        assert "PRIVATE_KEY" in result.findings
+        assert "base64keymaterial" not in result.scrubbed
+
+    def test_pgp_private_key_block_redacted(self):
+        text = (
+            "-----BEGIN PGP PRIVATE KEY BLOCK-----\n"
+            "lQVYBFAKEpgpkeymaterialABCDEF1234567890\n"
+            "-----END PGP PRIVATE KEY BLOCK-----"
+        )
+        result = scan_and_redact(text)
+        assert result.detected is True
+        assert "PRIVATE_KEY" in result.findings
+
+    def test_short_hex_secret_with_keyword_context_redacted(self):
+        # 8 hex chars: below ASSIGNED_SECRET's 12-char floor, but keyword-gated -> real.
+        result = scan_and_redact("api_key: a1b2c3d4")
+        assert result.detected is True
+        assert "a1b2c3d4" not in result.scrubbed
+
+    def test_bare_hex_without_keyword_is_not_over_redacted(self):
+        # A git SHA in prose with no secret keyword nearby must survive (no FP).
+        text = "Fixed in commit a1b2c3d4e5 on main."
+        result = scan_and_redact(text)
+        assert "a1b2c3d4e5" in result.scrubbed

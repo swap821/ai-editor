@@ -11,6 +11,7 @@ treated as out-of-scope.
 Scope roots default to :data:`aios.config.SCOPE_ROOTS` (the ``training_ground``
 "playground") and can be re-declared per session via :func:`set_scope_roots`.
 """
+
 from __future__ import annotations
 
 import re
@@ -69,13 +70,13 @@ def get_scope_roots() -> tuple[Path, ...]:
 
 def _is_within(resolved: Path, root: Path) -> bool:
     """Return True if *resolved* is *root* itself or nested beneath it."""
-    if resolved == root:
+    import os
+
+    res_str = os.path.realpath(str(resolved))
+    root_str = os.path.realpath(str(root))
+    if res_str == root_str or res_str.startswith(root_str + os.sep):
         return True
-    try:
-        resolved.relative_to(root)
-        return True
-    except ValueError:
-        return False
+    return False
 
 
 def is_path_in_scope(candidate: str) -> ScopeResult:
@@ -120,6 +121,63 @@ def _looks_like_path(token: str) -> bool:
     if token.startswith(".."):
         return True
     return len(token) >= 2 and token[1] == ":" and token[0].isalpha()
+
+
+#: Verbs whose bare (no-separator) argument is a file/directory TARGET, not
+#: free text -- e.g. ``mkdir probe_dir``. These need scope-checking even
+#: though ``probe_dir`` alone fails ``_looks_like_path`` (no separator), since
+#: the executor's real process cwd is the repo root the primary scope root
+#: lives under, not the scope root itself (see ``Executor._scope_cwd``) — a
+#: bare relative target therefore lands next to the sandbox, not inside it.
+#: Confirmed via a live repro: an approved ``mkdir probe_dir`` created
+#: ``probe_dir`` as a sibling of ``training_ground/`` instead of nested under
+#: it. Rather than try to resolve a bare word (which is ambiguous about which
+#: directory it's relative to), we require an explicit sandbox-relative path
+#: for these verbs — matching the prefix already mandated for autonomous
+#: writes (see ``aios/probe_common.py``'s ``ALLOWED_FILE_RE``). Limited to
+#: simple verbs with plain positional path arguments; PowerShell cmdlets
+#: (``New-Item``, ``Copy-Item``, ...) commonly pass paths via ``-Path``/
+#: ``-Destination`` flag/value pairs and are intentionally out of scope here
+#: to avoid false-blocking legitimate flag values.
+_WRITE_VERBS = frozenset(
+    {
+        "mkdir",
+        "md",
+        "rmdir",
+        "rd",
+        "touch",
+        "rm",
+        "del",
+        "erase",
+        "cp",
+        "copy",
+        "mv",
+        "move",
+        "ren",
+        "rename",
+    }
+)
+
+
+def _bare_write_target_is_out_of_scope(words: list[str]) -> Optional[str]:
+    """First bare (unprefixed) path argument to a write verb, if any.
+
+    Returns the offending word, or ``None`` if the command doesn't open with
+    a write verb or every argument already carries an explicit path.
+    """
+    if not words:
+        return None
+    verb = words[0].strip("\"'").lower()
+    if verb not in _WRITE_VERBS:
+        return None
+    for raw in words[1:]:
+        token = raw.strip("\"'")
+        if not token or token.startswith("-"):
+            continue  # unix-style flag, not a path argument
+        if _looks_like_path(token):
+            continue  # already carries an explicit path; the normal check covers it
+        return token
+    return None
 
 
 def command_stays_in_scope(command: str) -> CommandScopeResult:
@@ -174,4 +232,15 @@ def command_stays_in_scope(command: str) -> CommandScopeResult:
         check = is_path_in_scope(token)
         if not check.in_scope:
             return CommandScopeResult(False, check.reason, offending=token)
+
+    bare_target = _bare_write_target_is_out_of_scope(words)
+    if bare_target is not None:
+        return CommandScopeResult(
+            False,
+            f"'{bare_target}' has no explicit sandbox-relative path (e.g. "
+            f"'training_ground/{bare_target}') — a bare argument to a "
+            "file-mutating command is ambiguous about which directory it "
+            "targets and is refused rather than guessed.",
+            offending=bare_target,
+        )
     return CommandScopeResult(True, "All path tokens within scope.")

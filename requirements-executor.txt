@@ -1,0 +1,8 @@
+# Minimal runtime lock for the private Executor Service image.
+# The executor owns the Docker socket but does not run the control-plane ML,
+# retrieval, or frontend stack; keep that larger dependency closure out of the
+# privileged service image.
+cryptography==49.0.0
+fastapi==0.139.2
+python-dotenv==1.2.2
+uvicorn==0.51.0

@@ -1,9 +1,10 @@
-// Browser-native TTS loop for the Jarvis voice surface.
+// Browser-native TTS loop for the GAGOS voice surface.
 // Subscribes to cognition voice-speaking events, speaks the final reply,
 // and publishes speaking/speaking-complete events so the 3D brain keeps glowing.
 // SSR-safe: no window access until startVoiceSpeak() is called.
 import { useEffect, useState } from 'react';
 import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { speakText } from '../superbrain/lib/aiosAdapter';
 
 export interface VoiceSpeakState {
   supported: boolean;
@@ -19,6 +20,20 @@ let cognitionUnsub: (() => void) | null = null;
 let startCount = 0;
 let pendingText = '';
 let currentUtterance: SpeechSynthesisUtterance | null = null;
+let backendTTSEnabled = false;
+let audioCtx: AudioContext | null = null;
+let currentSource: AudioBufferSourceNode | null = null;
+/**
+ * Bumped by cancelSpeech() (called at the top of every speak()). Each
+ * speakViaBackend() call captures the generation it was started under and
+ * checks it before applying the network response's side effects -- without
+ * this, a stale reply whose fetch/decode round-trip is still in flight when
+ * a newer reply arrives can win the race and start playing after the newer
+ * reply already started (cancelSpeech() has nothing to stop yet, since the
+ * stale call's AudioBufferSourceNode doesn't exist until its own decode
+ * resolves, which can happen after the new call's).
+ */
+let speakGeneration = 0;
 
 function set(next: Partial<VoiceSpeakState>): void {
   state = { ...state, ...next };
@@ -68,11 +83,13 @@ function selectVoice(): SpeechSynthesisVoice | undefined {
 }
 
 function cancelSpeech(): void {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
-  try {
-    window.speechSynthesis.cancel();
-  } catch {
-    // ignore
+  speakGeneration += 1;
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+  }
+  if (currentSource) {
+    try { currentSource.stop(); } catch { /* already stopped */ }
+    currentSource = null;
   }
   currentUtterance = null;
 }
@@ -95,10 +112,7 @@ function publishSpeakingComplete(): void {
   });
 }
 
-function speak(text: string): void {
-  if (!state.supported || state.muted || !text.trim()) return;
-  cancelSpeech();
-  const trimmed = text.trim();
+function speakViaBrowser(trimmed: string): void {
   const utter = new window.SpeechSynthesisUtterance(trimmed);
   const voice = selectVoice();
   if (voice) utter.voice = voice;
@@ -125,6 +139,46 @@ function speak(text: string): void {
     });
   };
   window.speechSynthesis.speak(utter);
+}
+
+function speakViaBackend(trimmed: string): void {
+  const myGeneration = speakGeneration;
+  set({ speaking: true });
+  publishSpeaking(trimmed);
+  speakText(trimmed)
+    .then((buf) => {
+      if (!audioCtx) audioCtx = new AudioContext();
+      return audioCtx.decodeAudioData(buf);
+    })
+    .then((decoded) => {
+      if (myGeneration !== speakGeneration) return; // superseded while decoding
+      const src = audioCtx!.createBufferSource();
+      currentSource = src;
+      src.buffer = decoded;
+      src.connect(audioCtx!.destination);
+      src.onended = () => {
+        if (currentSource === src) currentSource = null;
+        set({ speaking: false });
+        publishSpeakingComplete();
+      };
+      src.start();
+    })
+    .catch(() => {
+      if (myGeneration !== speakGeneration) return; // superseded; don't clobber the active call
+      set({ speaking: false });
+      speakViaBrowser(trimmed);
+    });
+}
+
+function speak(text: string): void {
+  if (!state.supported || state.muted || !text.trim()) return;
+  cancelSpeech();
+  const trimmed = text.trim();
+  if (backendTTSEnabled) {
+    speakViaBackend(trimmed);
+  } else {
+    speakViaBrowser(trimmed);
+  }
 }
 
 function ingest(event: { type: string; source?: string; data?: { phase?: string; reply?: string; text?: string } }): void {
@@ -165,10 +219,19 @@ export function startVoiceSpeak(): () => void {
   }
   return () => {
     startCount -= 1;
-    if (startCount === 0 && cognitionUnsub) {
-      cognitionUnsub();
-      cognitionUnsub = null;
+    if (startCount === 0) {
+      if (cognitionUnsub) {
+        cognitionUnsub();
+        cognitionUnsub = null;
+      }
       cancelSpeech();
+      // Close the backend-TTS AudioContext (a separate context from
+      // soundEngine.ts's own) when the last consumer unmounts, instead of
+      // holding an audio device handle open for the life of the tab.
+      if (audioCtx) {
+        try { void audioCtx.close(); } catch { /* already closed */ }
+        audioCtx = null;
+      }
     }
   };
 }
@@ -177,6 +240,17 @@ export function setVoiceSpeakMuted(muted: boolean): void {
   writeMute(muted);
   set({ muted });
   if (muted) cancelSpeech();
+}
+
+export function setBackendTTS(enabled: boolean): void {
+  backendTTSEnabled = enabled;
+}
+
+export function interruptSpeech(): void {
+  if (!state.speaking) return;
+  cancelSpeech();
+  set({ speaking: false });
+  publishSpeakingComplete();
 }
 
 export function isVoiceSpeakMuted(): boolean {
@@ -219,6 +293,10 @@ export function __resetVoiceSpeakForTests(): void {
   startCount = 0;
   pendingText = '';
   currentUtterance = null;
+  currentSource = null;
+  backendTTSEnabled = false;
+  audioCtx = null;
+  speakGeneration = 0;
   try {
     window.localStorage.removeItem(MUTE_KEY);
   } catch {

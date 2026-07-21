@@ -11,12 +11,11 @@ The design is **hybrid**, in three deterministic layers + one optional LLM layer
 
   1. **POLICY (operator-owned, deterministic).** A :class:`Policy` gates which
      ``(task, provider)`` pairs are even *eligible*: a PRIVACY gate (a cloud
-     provider is allowed only for task classes the operator opted in via
-     ``cloud_tasks``), a COST ceiling, and availability. The default
-     :data:`LOCAL_FIRST` policy has an **empty** ``cloud_tasks`` -> nothing ever
-     leaves the machine, so wiring this router in is behaviour-preserving until
-     the operator sets the privacy boundary. **The local LLM can never override
-     the policy** — it only chooses *within* the allowed set.
+     provider is allowed only for task classes present in ``cloud_tasks``), a COST
+     ceiling, and availability. The pure :data:`LOCAL_FIRST` fallback has an
+     **empty** ``cloud_tasks`` -> nothing ever leaves the machine; the live API
+     layer passes the configured process default instead. **The local LLM can
+     never override the policy** — it only chooses *within* the allowed set.
   2. **DETERMINISTIC RANK.** The allowed candidates are scored by a transparent
      heuristic (capability tier, a local-first bias, cost), optionally blended
      with **evidence calibration** — the measured per-(provider, model, task)
@@ -34,6 +33,7 @@ passed in, so the whole decision is unit-testable with mocks (no network, no
 boto3, no Ollama). The live API layer builds :class:`Provider` rows from its
 clients and calls :func:`route`; this module never imports a client.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -51,6 +51,8 @@ from aios.core.model_selector import (
 PROVIDER_OLLAMA = "ollama"
 PROVIDER_BEDROCK = "bedrock"
 PROVIDER_GEMINI = "gemini"
+PROVIDER_OPENAI = "openai"
+PROVIDER_ANTHROPIC = "anthropic"
 
 #: UI model-id prefixes (``ollama.qwen2.5-coder:7b`` etc.). The router's chosen
 #: model is a BARE id/tag; :func:`route_model_id` re-attaches the prefix for the
@@ -59,6 +61,8 @@ _PREFIX = {
     PROVIDER_OLLAMA: "ollama.",
     PROVIDER_BEDROCK: "bedrock.",
     PROVIDER_GEMINI: "gemini.",
+    PROVIDER_OPENAI: "openai.",
+    PROVIDER_ANTHROPIC: "anthropic.",
 }
 
 # --- Privacy + cost tags -----------------------------------------------------
@@ -77,6 +81,8 @@ _DEFAULT_CAPABILITY = {
     PROVIDER_OLLAMA: 100,
     PROVIDER_BEDROCK: 300,
     PROVIDER_GEMINI: 300,
+    PROVIDER_OPENAI: 300,
+    PROVIDER_ANTHROPIC: 300,
 }
 #: Tie-bias that makes a local provider win over an equally-capable cloud one when
 #: the policy allows both (local-first preference). Small on purpose: genuine
@@ -97,7 +103,7 @@ def default_capability(provider: str) -> int:
 class Provider:
     """A routable LLM provider expressed as **data** (no client — keeps it pure).
 
-    * ``name`` — ``ollama`` | ``bedrock`` | ``gemini``.
+    * ``name`` — ``ollama`` | ``bedrock`` | ``gemini`` | ``openai`` | ``anthropic``.
     * ``privacy`` — :data:`PRIVACY_LOCAL` or :data:`PRIVACY_CLOUD`; the privacy
       gate keys off this.
     * ``cost`` — :data:`COST_FREE` / ``COST_LOW`` / ``COST_HIGH`` (coarse).
@@ -119,17 +125,20 @@ class Provider:
 
     @property
     def cap(self) -> int:
-        return self.capability if self.capability is not None else default_capability(self.name)
+        return (
+            self.capability
+            if self.capability is not None
+            else default_capability(self.name)
+        )
 
 
 @dataclass(frozen=True)
 class Policy:
     """The operator-owned routing policy. **The local LLM cannot override it.**
 
-    * ``cloud_tasks`` — the task classes ALLOWED to leave the machine. Default
-      **empty** -> local-first, nothing goes to cloud (the safe default until the
-      operator sets the privacy boundary). To let generic reasoning escalate, the
-      operator adds e.g. ``TASK_REASONING``.
+    * ``cloud_tasks`` — the task classes ALLOWED to leave the machine. Empty means
+      local-first and no automatic cloud route. The API wiring passes the
+      configured process default, which may be non-empty.
     * ``max_cost`` — the highest cost tier any route may use.
     * ``prefer_local`` — when True (default), a local candidate gets a small bias
       so it wins ties; capability/evidence gaps can still escalate to an allowed
@@ -141,9 +150,8 @@ class Policy:
     prefer_local: bool = True
 
 
-#: The behaviour-preserving default: cloud disabled (empty ``cloud_tasks``),
-#: local-first. Wiring the router in under this policy keeps today's local-only
-#: routing byte-for-byte until the operator opts task classes into the cloud.
+#: Pure fallback policy: cloud disabled (empty ``cloud_tasks``), local-first.
+#: The live process usually passes :mod:`aios.config`'s configured policy instead.
 LOCAL_FIRST = Policy()
 
 
@@ -151,7 +159,7 @@ LOCAL_FIRST = Policy()
 class Route:
     """A concrete routing decision: run *model* on *provider* for the task."""
 
-    provider: str  # PROVIDER_OLLAMA | PROVIDER_BEDROCK | PROVIDER_GEMINI
+    provider: str  # PROVIDER_OLLAMA | PROVIDER_BEDROCK | PROVIDER_GEMINI | PROVIDER_OPENAI | PROVIDER_ANTHROPIC
     model: str  # the bare model id/tag (no provider prefix)
     privacy: str
     cost: str
@@ -181,7 +189,9 @@ def policy_allows(policy: Policy, task: str, provider: Provider) -> bool:
     return True
 
 
-def _best_model_for(provider: Provider, task: str, *, require_tools: bool) -> Optional[str]:
+def _best_model_for(
+    provider: Provider, task: str, *, require_tools: bool
+) -> Optional[str]:
     """The single best model *provider* can run for *task* (or ``None``).
 
     Local providers defer to :func:`select_model` (the tested local heuristic,
@@ -191,7 +201,9 @@ def _best_model_for(provider: Provider, task: str, *, require_tools: bool) -> Op
     if not provider.models:
         return None
     if provider.privacy == PRIVACY_LOCAL:
-        return select_model(list(provider.models), task=task, require_tools=require_tools)
+        return select_model(
+            list(provider.models), task=task, require_tools=require_tools
+        )
     return provider.models[0]
 
 
@@ -246,7 +258,9 @@ def candidates(
         base = float(prov.cap)
         if policy.prefer_local and prov.privacy == PRIVACY_LOCAL:
             base += _LOCAL_BIAS
-        score, rate = _calibrated_score(base, prov.name, model, task, metrics, calibration_weight)
+        score, rate = _calibrated_score(
+            base, prov.name, model, task, metrics, calibration_weight
+        )
         reason = _describe(prov, model, rate)
         route = Route(
             provider=prov.name,

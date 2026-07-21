@@ -34,6 +34,7 @@ real cyclomatic metric (else the AST branch-count proxy) and ``coverage`` for th
 the coverage join only *reads* an existing ``.coverage`` file; neither runs tests.
 A ``dead_code`` finding is deferred (it would need a third dep, ``vulture``).
 """
+
 from __future__ import annotations
 
 import ast
@@ -49,6 +50,7 @@ from typing import Optional
 
 from aios import config
 from aios.core.llm import LLMClient, LLMError
+from aios.core.self_apply import classify_target
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
 
@@ -125,27 +127,6 @@ def finding_fingerprint(target_path: str, finding_type: str, symbol: str) -> str
     ).hexdigest()
 
 
-def classify_target(
-    rel_path: str,
-    *,
-    package: str = "aios",
-    frozen_subdirs: tuple[str, ...] = ("security",),
-) -> str:
-    """Deterministic would-be-apply zone for a project-relative path.
-
-    A file under a frozen subdir of *package* (e.g. ``aios/security/…``, the frozen
-    core in AGENTS.md §XI) is **RED** — editing the gate that guards the agent is the
-    highest-risk action. Every other path is **YELLOW**. This is the single source of
-    truth shared by T2 (records ``proposed_zone``) and T3 (the apply zone gate), so
-    the two can never diverge.
-    """
-    for sub in frozen_subdirs:
-        base = f"{package}/{sub}"
-        if rel_path == base or rel_path.startswith(base + "/"):
-            return "RED"
-    return "YELLOW"
-
-
 @dataclass(frozen=True)
 class SelfAnalysisReport:
     """The structured result of an analysis run (T0 map + T1 findings)."""
@@ -161,9 +142,9 @@ class ReconcileResult:
     """Outcome of reconciling a fresh scan into ``self_analysis_report``."""
 
     inserted: int  #: genuinely new findings written at status 'open'
-    updated: int   #: existing open findings whose evidence was refreshed
-    closed: int    #: open rows whose finding vanished from the scan (deleted)
-    skipped: int   #: fresh findings already in a decided/in-flight status
+    updated: int  #: existing open findings whose evidence was refreshed
+    closed: int  #: open rows whose finding vanished from the scan (deleted)
+    skipped: int  #: fresh findings already in a decided/in-flight status
     open_total: int  #: open rows under the analyzed scope after reconcile
 
 
@@ -244,9 +225,7 @@ class SelfAnalysisAgent:
         except (OSError, SyntaxError, ValueError):
             return None
 
-        functions = tuple(
-            n.name for n in ast.walk(tree) if isinstance(n, _FUNC_NODES)
-        )
+        functions = tuple(n.name for n in ast.walk(tree) if isinstance(n, _FUNC_NODES))
         classes = tuple(n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef))
         imports, intra = self._collect_imports(tree)
         return ModuleFacts(
@@ -259,7 +238,9 @@ class SelfAnalysisAgent:
             sha256=hashlib.sha256(src.encode("utf-8")).hexdigest(),
         )
 
-    def _collect_imports(self, tree: ast.AST) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    def _collect_imports(
+        self, tree: ast.AST
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """Return ``(all_imports, intra_package_imports)`` as sorted dotted names.
 
         An import counts as intra-package when it names this package
@@ -322,27 +303,40 @@ class SelfAnalysisAgent:
         measured = self._measured_files()
         test_imports = self._test_imports()
         for rel_path, m in facts.items():
-            path = (self.path_root / rel_path)
+            path = self.path_root / rel_path
             stem = Path(rel_path).stem
             testable = stem != "__init__" and bool(m.functions or m.classes)
 
             if testable and not self._has_test(rel_path, test_imports):
                 findings.append(
-                    Finding(rel_path, "missing_test",
-                            f"no conventional or import-linked test for a module defining "
-                            f"{len(m.functions)} function(s)/{len(m.classes)} class(es)")
+                    Finding(
+                        rel_path,
+                        "missing_test",
+                        f"no conventional or import-linked test for a module defining "
+                        f"{len(m.functions)} function(s)/{len(m.classes)} class(es)",
+                    )
                 )
 
-            if testable and measured is not None and os.path.realpath(str(path)) not in measured:
+            if (
+                testable
+                and measured is not None
+                and os.path.realpath(str(path)) not in measured
+            ):
                 findings.append(
-                    Finding(rel_path, "uncovered",
-                            "module has no executed lines in the coverage data")
+                    Finding(
+                        rel_path,
+                        "uncovered",
+                        "module has no executed lines in the coverage data",
+                    )
                 )
 
             if m.loc > self.loc_smell_threshold and not m.functions and not m.classes:
                 findings.append(
-                    Finding(rel_path, "smell",
-                            f"{m.loc} LOC but defines no functions or classes")
+                    Finding(
+                        rel_path,
+                        "smell",
+                        f"{m.loc} LOC but defines no functions or classes",
+                    )
                 )
 
             findings.extend(self._scan_source_findings(path, rel_path))
@@ -383,7 +377,9 @@ class SelfAnalysisAgent:
                     imports.update(alias.name for alias in node.names)
                 elif isinstance(node, ast.ImportFrom) and node.module:
                     imports.add(node.module)
-                    imports.update(f"{node.module}.{alias.name}" for alias in node.names)
+                    imports.update(
+                        f"{node.module}.{alias.name}" for alias in node.names
+                    )
         return imports
 
     def _has_test(self, rel_path: str, test_imports: set[str]) -> bool:
@@ -413,9 +409,12 @@ class SelfAnalysisAgent:
                 marker = _TODO_MARKER.search(token.string)
                 if marker is not None:
                     out.append(
-                        Finding(rel_path, "todo",
-                                f"{marker.group(1)} marker at line {token.start[0]}",
-                                symbol=token.string.strip())
+                        Finding(
+                            rel_path,
+                            "todo",
+                            f"{marker.group(1)} marker at line {token.start[0]}",
+                            symbol=token.string.strip(),
+                        )
                     )
         except (IndentationError, tokenize.TokenError):
             return out
@@ -431,16 +430,21 @@ class SelfAnalysisAgent:
             span = self._func_span(node)
             if span > self.long_function_threshold:
                 out.append(
-                    Finding(rel_path, "smell",
-                            f"function '{node.name}' is {span} lines long "
-                            f"(> {self.long_function_threshold})",
-                            symbol=node.name)
+                    Finding(
+                        rel_path,
+                        "smell",
+                        f"function '{node.name}' is {span} lines long "
+                        f"(> {self.long_function_threshold})",
+                        symbol=node.name,
+                    )
                 )
 
         out.extend(self._complexity_findings(src, tree, rel_path))
         return out
 
-    def _complexity_findings(self, src: str, tree: ast.AST, rel_path: str) -> list[Finding]:
+    def _complexity_findings(
+        self, src: str, tree: ast.AST, rel_path: str
+    ) -> list[Finding]:
         """Cyclomatic-complexity findings for *rel_path*.
 
         Prefers radon's :func:`cc_visit` — a real cyclomatic metric (read-only AST
@@ -463,10 +467,13 @@ class SelfAnalysisAgent:
                         continue
                     if block.complexity > self.complexity_threshold:
                         out.append(
-                            Finding(rel_path, "complexity",
-                                    f"cyclomatic complexity {block.complexity} "
-                                    f"(> {self.complexity_threshold})",
-                                    symbol=block.name)
+                            Finding(
+                                rel_path,
+                                "complexity",
+                                f"cyclomatic complexity {block.complexity} "
+                                f"(> {self.complexity_threshold})",
+                                symbol=block.name,
+                            )
                         )
                 return out
         return self._complexity_proxy_findings(tree, rel_path)
@@ -485,10 +492,13 @@ class SelfAnalysisAgent:
             complexity = branches + 1  # 1 base path + one per decision point
             if complexity > self.complexity_threshold:
                 out.append(
-                    Finding(rel_path, "complexity",
-                            f"function '{node.name}' branch-count proxy {complexity} "
-                            f"(> {self.complexity_threshold})",
-                            symbol=node.name)
+                    Finding(
+                        rel_path,
+                        "complexity",
+                        f"function '{node.name}' branch-count proxy {complexity} "
+                        f"(> {self.complexity_threshold})",
+                        symbol=node.name,
+                    )
                 )
         return out
 
@@ -628,8 +638,11 @@ class SelfAnalysisAgent:
                 ).fetchone()[0]
 
         return ReconcileResult(
-            inserted=inserted, updated=updated, closed=closed,
-            skipped=skipped, open_total=int(open_total),
+            inserted=inserted,
+            updated=updated,
+            closed=closed,
+            skipped=skipped,
+            open_total=int(open_total),
         )
 
     def read_findings(
@@ -699,7 +712,9 @@ class SelfAnalysisAgent:
         if client is None:
             return None
         try:
-            source = (self.path_root / target_path).read_text(encoding="utf-8", errors="replace")
+            source = (self.path_root / target_path).read_text(
+                encoding="utf-8", errors="replace"
+            )
         except OSError:
             return None
         prompt = (
@@ -748,7 +763,12 @@ class SelfAnalysisAgent:
                     "UPDATE self_analysis_report "
                     "SET proposed_diff = ?, proposed_zone = ?, proposed_by = ?, status = 'proposed' "
                     "WHERE id = ?",
-                    (diff, self._classify_target(target_path), self.PROPOSER_ID, int(row["id"])),
+                    (
+                        diff,
+                        self._classify_target(target_path),
+                        self.PROPOSER_ID,
+                        int(row["id"]),
+                    ),
                 )
             proposed += 1
         return proposed

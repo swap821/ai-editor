@@ -85,34 +85,48 @@ function filterAllowedTags(html) {
   });
 }
 
-/** Sanitize <a> tags: only allow http://, https://, mailto:, tel:, #anchor. */
+/**
+ * Sanitize <a> tags: only allow http://, https://, mailto:, tel:, #anchor
+ * hrefs, and rebuild the tag keeping ONLY href/rel/class/data-* — every
+ * other attribute (including `style`, which the old attribute-preserving
+ * approach let through unfiltered) is dropped rather than selectively
+ * patched, so a new dangerous attribute can't reopen this hole later.
+ */
 function sanitizeAnchorTag(tagHtml) {
+  if (!/^<a\b/i.test(tagHtml)) return tagHtml; // closing </a> — no attributes to filter
+
   const hrefMatch = tagHtml.match(/\s+href\s*=\s*["']([^"]*)["']/i);
-  if (!hrefMatch) {
-    // No href — safe, keep as-is (could be <a name="...">)
-    return tagHtml;
-  }
-  const href = hrefMatch[1].trim();
-  const isSafe =
-    href.startsWith('http://') ||
-    href.startsWith('https://') ||
-    href.startsWith('mailto:') ||
-    href.startsWith('tel:') ||
-    href.startsWith('#') ||
-    href.startsWith('/') ||
-    /^[a-zA-Z0-9_-]+\.html?$/i.test(href);
-
-  if (!isSafe) {
-    // Unsafe href — strip the href attribute but keep tag
-    return tagHtml.replace(/\s+href\s*=\s*["'][^"]*["']/gi, '');
+  let safeHref = null;
+  if (hrefMatch) {
+    const href = hrefMatch[1].trim();
+    const isSafe =
+      href.startsWith('http://') ||
+      href.startsWith('https://') ||
+      href.startsWith('mailto:') ||
+      href.startsWith('tel:') ||
+      href.startsWith('#') ||
+      href.startsWith('/') ||
+      /^[a-zA-Z0-9_-]+\.html?$/i.test(href);
+    if (isSafe) safeHref = href;
   }
 
-  // Safe href — ensure rel="noopener noreferrer" for external links
-  const hasRel = /\s+rel\s*=/i.test(tagHtml);
-  if (!hasRel && (href.startsWith('http://') || href.startsWith('https://'))) {
-    return tagHtml.replace(/>\s*$/, ' rel="noopener noreferrer">');
+  // Strip every attribute except class/data-* — href/rel are rebuilt below
+  // from the validated value, never carried through unfiltered.
+  let result = tagHtml.replace(/\s+[a-zA-Z_:][-\w:.]*\s*=\s*["'][^"']*["']/g, (attr) => {
+    const attrName = attr.split('=')[0].trim().toLowerCase();
+    if (attrName === 'class' || attrName.startsWith('data-')) return attr;
+    return '';
+  });
+
+  if (safeHref) {
+    const rel =
+      safeHref.startsWith('http://') || safeHref.startsWith('https://')
+        ? ' rel="noopener noreferrer"'
+        : '';
+    result = result.replace(/^<a\b/i, `<a href="${safeHref}"${rel}`);
   }
-  return tagHtml;
+
+  return result;
 }
 
 /**
@@ -127,14 +141,22 @@ export function sanitizeHtml(dirty) {
 
   let clean = dirty;
 
-  // 1. Remove ALL <script> tags and their content entirely
-  clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, '');
+  // 1. Remove ALL <script> tags and their content entirely (fixed-point loop
+  //    to handle nested/obfuscated fragments that a single pass would miss).
+  {
+    const scriptBlock = /<script\b[^<]*(?:(?!<\/script[^>]*>)<[^<]*)*<\/script[^>]*>/gi;
+    let prev;
+    do { prev = clean; clean = clean.replace(scriptBlock, ''); } while (clean !== prev);
+  }
 
   // 2. Remove other dangerous tags entirely
   clean = clean.replace(getDangerousTagPattern(), '');
 
-  // 3. Strip ALL event handler attributes (onerror, onclick, onload, etc.)
-  clean = clean.replace(EVENT_HANDLER_PATTERN, '');
+  // 3. Strip ALL event handler attributes (fixed-point loop).
+  {
+    let prev;
+    do { prev = clean; clean = clean.replace(EVENT_HANDLER_PATTERN, ''); } while (clean !== prev);
+  }
 
   // 4. Strip dangerous URL schemes in attributes
   clean = clean.replace(DANGEROUS_URL_PATTERN, '');
@@ -148,12 +170,21 @@ export function sanitizeHtml(dirty) {
   // 7. Filter to allowed tag whitelist + sanitize attributes
   clean = filterAllowedTags(clean);
 
-  // 8. Defense-in-depth: catch any remaining <script...> patterns
-  clean = clean.replace(/<script\b[^>]*>/gi, '');
-  clean = clean.replace(/<\/script\s*>/gi, '');
+  // 8. Defense-in-depth: catch any remaining <script...> patterns (fixed-point loop).
+  {
+    const scriptTag = /<\/?script\b[^>]*>/gi;
+    while (scriptTag.test(clean)) {
+      scriptTag.lastIndex = 0;
+      clean = clean.replace(scriptTag, '');
+    }
+  }
 
-  // 9. Catch HTML comment-based attacks
-  clean = clean.replace(/<!--[\s\S]*?-->/g, '');
+  // 9. Catch HTML comment-based attacks (fixed-point loop).
+  {
+    const commentPat = /<!--[\s\S]*?-->/g;
+    let prev;
+    do { prev = clean; clean = clean.replace(commentPat, ''); } while (clean !== prev);
+  }
 
   return clean;
 }

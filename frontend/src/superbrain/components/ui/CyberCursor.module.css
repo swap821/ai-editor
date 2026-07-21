@@ -52,7 +52,7 @@
   height: 4px;
   margin: -2px 0 0 -2px; /* static centering offset — never animated */
   border-radius: 50%;
-  background: #5ce1e6;
+  background: var(--accent);
   transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -63,7 +63,7 @@
   height: 28px;
   margin: -14px 0 0 -14px; /* static centering offset — never animated */
   border-radius: 50%;
-  border: 1px solid rgba(92, 225, 230, 0.6);
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
   transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -72,7 +72,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: rgba(92, 225, 230, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   opacity: 0;
   transition: opacity 250ms cubic-bezier(0.16, 1, 0.3, 1);
 }

@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetTabStoreForTests,
   beginRetractingMaterializedTab,
+  claimWorkMaterialization,
   clearMaterializedTab,
   focusMaterializedTab,
   focusNextMaterializedTab,
@@ -11,6 +12,8 @@ import {
   getMaterializedTabByKind,
   getOccupiedVertebraSeats,
   getTabStoreSnapshot,
+  isWorkMaterializationClaimed,
+  releaseWorkMaterialization,
   setMaterializedTabLifecycle,
   showApprovalSurface,
   showContentSurface,
@@ -165,5 +168,64 @@ describe('showReplySurface', () => {
     expect(second.id).toBe(first.id);
     expect(second.content?.code).toBe('one two');
     expect(getTabStoreSnapshot().tabs.filter((t) => t.content?.filepath === REPLY_FILEPATH)).toHaveLength(1);
+  });
+});
+
+describe('work-materialization claim', () => {
+  beforeEach(() => {
+    __resetTabStoreForTests();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is unclaimed by default', () => {
+    expect(isWorkMaterializationClaimed()).toBe(false);
+  });
+
+  it('is claimed for the given window and expires after it', () => {
+    claimWorkMaterialization(15000);
+    expect(isWorkMaterializationClaimed()).toBe(true);
+
+    vi.advanceTimersByTime(14999);
+    expect(isWorkMaterializationClaimed()).toBe(true);
+
+    vi.advanceTimersByTime(2);
+    expect(isWorkMaterializationClaimed()).toBe(false);
+  });
+
+  it('releaseWorkMaterialization ends the claim immediately', () => {
+    claimWorkMaterialization(15000);
+    expect(isWorkMaterializationClaimed()).toBe(true);
+    releaseWorkMaterialization();
+    expect(isWorkMaterializationClaimed()).toBe(false);
+  });
+
+  // Regression for the 2026-07-10 audit: GagosChrome claimed materialization
+  // once at turn start with the default 15s window and never refreshed it
+  // during streaming, so any turn running longer than 15s before its first
+  // re-claim point (tool calls/agent dispatch before the final code
+  // emission is a normal turn shape) let the claim lapse mid-flight and the
+  // backend's CODE EMITTED auto-fire would materialize a duplicate tab.
+  // GagosChrome now re-claims on every streaming chunk (onWritingChunk /
+  // onWritingCodeChunk) -- this proves that repeated re-claiming genuinely
+  // keeps the window alive past where a single claim would have expired.
+  it('repeated re-claiming (simulating streaming chunks) keeps the window alive past a single claim window', () => {
+    claimWorkMaterialization(15000);
+
+    // Five chunks, 5s apart -- a 25s turn total, well past the original
+    // 15s window, each chunk refreshing the claim like onWritingChunk does.
+    for (let i = 0; i < 5; i += 1) {
+      vi.advanceTimersByTime(5000);
+      expect(isWorkMaterializationClaimed()).toBe(true);
+      claimWorkMaterialization();
+    }
+
+    // Without a final re-claim, the window still correctly expires 15s
+    // after the LAST refresh (not held open forever).
+    vi.advanceTimersByTime(15001);
+    expect(isWorkMaterializationClaimed()).toBe(false);
   });
 });

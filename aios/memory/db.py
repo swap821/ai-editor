@@ -6,12 +6,15 @@ and the :class:`sqlite3.Row` factory are applied uniformly. The schema is
 defined declaratively in ``schema.sql`` and applied idempotently by
 :func:`init_memory_db`.
 """
+
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -21,6 +24,32 @@ from aios.memory.relevance import content_hash, skill_signature_v2
 
 #: Location of the declarative DDL applied by :func:`init_memory_db`.
 _SCHEMA_PATH: Path = Path(__file__).resolve().parent / "schema.sql"
+
+
+def retry_on_locked(max_retries: int = 3, base_delay: float = 0.1):
+    """Retry a function on sqlite3.OperationalError with 'locked' in message.
+
+    Exponential backoff: base_delay * 2^attempt (0.1s, 0.2s, 0.4s).
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_err = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except sqlite3.OperationalError as e:
+                    if "locked" not in str(e).lower():
+                        raise
+                    last_err = e
+                    if attempt < max_retries:
+                        time.sleep(base_delay * (2**attempt))
+            raise last_err  # type: ignore[misc]
+
+        return wrapper
+
+    return decorator
 
 
 def connect(db_path: Path = config.MEMORY_DB_PATH) -> sqlite3.Connection:
@@ -58,12 +87,34 @@ def get_connection(
     conn = connect(db_path)
     try:
         yield conn
-        conn.commit()
+        _commit_with_retry(conn)
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+
+
+def _commit_with_retry(
+    conn: sqlite3.Connection, max_retries: int = 3, base_delay: float = 0.1
+) -> None:
+    """Commit with exponential backoff on database-locked errors.
+
+    Even with WAL mode, a writer can still collide with another writer holding
+    the single write lock under heavy concurrent load. Retrying the commit a
+    few times with backoff (0.1s, 0.2s, 0.4s) lets that transient contention
+    clear instead of surfacing a spurious failure to the caller.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            conn.commit()
+            return
+        except sqlite3.OperationalError as e:
+            if "locked" not in str(e).lower():
+                raise
+            if attempt == max_retries:
+                raise
+            time.sleep(base_delay * (2**attempt))
 
 
 def init_memory_db(db_path: Path = config.MEMORY_DB_PATH) -> None:
@@ -86,6 +137,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
     added to ``schema.sql`` after a DB was first created must be applied with
     ``ALTER TABLE`` here. Runs inside the caller's transaction (after the script).
     """
+    # mistake_pool.failed_command (added to persist fail->confirm tracking across
+    # approval-replay boundaries; see schema.sql). Nullable-by-default, no backfill.
+    mistake_cols = {row[1] for row in conn.execute("PRAGMA table_info(mistake_pool)")}
+    if mistake_cols and "failed_command" not in mistake_cols:
+        conn.execute(
+            "ALTER TABLE mistake_pool ADD COLUMN failed_command TEXT NOT NULL DEFAULT ''"
+        )
+
     # self_analysis_report.fingerprint (added post-PR#4 for finding reconcile).
     cols = {row[1] for row in conn.execute("PRAGMA table_info(self_analysis_report)")}
     if cols and "fingerprint" not in cols:
@@ -127,7 +186,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
     # Semantic memories originally stored only text/vector ids. Add lifecycle
     # metadata, backfill stable hashes, and merge exact normalized duplicates.
-    semantic_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_memory)")}
+    semantic_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(semantic_memory)")
+    }
     semantic_additions = {
         "content_hash": "TEXT",
         "memory_type": "TEXT NOT NULL DEFAULT 'chat'",
@@ -137,7 +198,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     }
     for name, ddl in semantic_additions.items():
         if semantic_cols and name not in semantic_cols:
-            conn.execute(f"ALTER TABLE semantic_memory ADD COLUMN {name} {ddl}")
+            if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
+                raise ValueError(f"invalid column name: {name}")
+            conn.execute(f"ALTER TABLE semantic_memory ADD COLUMN {name} {ddl}")  # noqa: S608
 
     semantic_rows = conn.execute(
         "SELECT id, text_content, occurrence_count FROM semantic_memory "
@@ -169,20 +232,46 @@ def _migrate(conn: sqlite3.Connection) -> None:
     fact_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_facts)")}
     if fact_cols and "approved_by" not in fact_cols:
         conn.execute("ALTER TABLE semantic_facts ADD COLUMN approved_by TEXT")
+    # S2: confidence column on semantic_facts (default 1.0 for existing rows).
+    if fact_cols and "confidence" not in fact_cols:
+        conn.execute(
+            "ALTER TABLE semantic_facts ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0"
+        )
 
     # Procedural skills: trail mechanics (arc-level signature_v2 + reuse
     # pheromone columns), backfill, and consolidation of fragmented trails.
-    skill_cols = {row[1] for row in conn.execute("PRAGMA table_info(procedural_skills)")}
+    skill_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(procedural_skills)")
+    }
     skill_additions = {
         "signature_v2": "TEXT",
         "reuse_success_count": "INTEGER NOT NULL DEFAULT 0",
         "reuse_failure_count": "INTEGER NOT NULL DEFAULT 0",
         "last_reused_at": "DATETIME",
         "superseded_by": "INTEGER",
+        # Verification-strength taxonomy (roadmap Phase 1): weak greens are
+        # recorded but ineligible to promote; the latest success's strength is kept.
+        "weak_success_count": "INTEGER NOT NULL DEFAULT 0",
+        "verification_strength": "TEXT",
     }
     for name, ddl in skill_additions.items():
         if skill_cols and name not in skill_cols:
-            conn.execute(f"ALTER TABLE procedural_skills ADD COLUMN {name} {ddl}")
+            if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
+                raise ValueError(f"invalid column name: {name}")
+            conn.execute(f"ALTER TABLE procedural_skills ADD COLUMN {name} {ddl}")  # noqa: S608
+
+    # Swarm patterns: verification-strength taxonomy (roadmap Phase 1 extension) —
+    # a below-floor green is recorded but ineligible to promote a pattern.
+    swarm_cols = {row[1] for row in conn.execute("PRAGMA table_info(swarm_patterns)")}
+    swarm_additions = {
+        "weak_success_count": "INTEGER NOT NULL DEFAULT 0",
+        "verification_strength": "TEXT",
+    }
+    for name, ddl in swarm_additions.items():
+        if swarm_cols and name not in swarm_cols:
+            if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
+                raise ValueError(f"invalid column name: {name}")
+            conn.execute(f"ALTER TABLE swarm_patterns ADD COLUMN {name} {ddl}")  # noqa: S608
 
     # Backfill arc identities (NULL-only => idempotent; pure function of stored
     # data, no clock).

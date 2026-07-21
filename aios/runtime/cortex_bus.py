@@ -1,0 +1,571 @@
+"""Durable, cross-process, per-entity-ordered cortex bus (W1 substrate).
+
+An outbox for COLD-PATH OBSERVATIONS — signals a re-derivable observer acts on
+off the hot path (self-model rebuild, future council triggers). It carries what
+HAPPENED, never what is PERMITTED: no authority-bearing decision (skill
+promotion, autonomy, approval) may flow through it. Append is durable
+(commit-then-notify); dispatch drains undispatched rows in append order,
+preserving per-entity ordering, and marks each dispatched only after its
+handlers succeed (at-least-once — handlers must be idempotent). W1 wires no
+producers or consumers; it is the floor future observers stand on.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import sqlite3
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
+from aios import config
+from aios.core.events import CanonicalEvent
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class BusEvent:
+    """One observation on the bus."""
+
+    id: int
+    event_type: str
+    signature: str
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ConsumerCursor:
+    """Durable progress for one independent observation consumer."""
+
+    consumer_name: str
+    last_event_id: int
+    status: str
+    failure_count: int
+    updated_at: str
+
+
+class ConsumerReplayGap(RuntimeError):
+    """Raised when retention removed history needed by a consumer."""
+
+    def __init__(self, consumer_name: str, cursor: int, earliest_event_id: int) -> None:
+        self.consumer_name = consumer_name
+        self.cursor = cursor
+        self.earliest_event_id = earliest_event_id
+        super().__init__(
+            f"consumer {consumer_name!r} is behind retention boundary: "
+            f"cursor={cursor}, earliest_event_id={earliest_event_id}; snapshot required"
+        )
+
+
+# THE LAW, enforced structurally (not just documented): the bus carries what
+# HAPPENED, never what is PERMITTED. Event types in these authority families
+# are refused at append — fail-closed at the substrate boundary, so no future
+# producer can quietly route a decision through the observation tier. (The
+# adversarial W2 review correctly flagged a test-only guard as tautological;
+# this gate is the structural fix.)
+_AUTHORITY_EVENT_PREFIXES: tuple[str, ...] = (
+    "skill.",
+    "autonomy.",
+    "approval.",
+    "verdict.",
+    "zone.",
+    "grant.",
+)
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS cortex_events (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    event_type    TEXT NOT NULL,
+    signature     TEXT NOT NULL,
+    payload       TEXT NOT NULL,
+    dispatched_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_cortex_pending
+    ON cortex_events(dispatched_at, id);
+CREATE TABLE IF NOT EXISTS cortex_consumers (
+    consumer_name TEXT PRIMARY KEY,
+    last_event_id INTEGER NOT NULL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'active',
+    failure_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS cortex_consumer_failures (
+    consumer_name TEXT NOT NULL,
+    event_id INTEGER NOT NULL,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'retrying',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (consumer_name, event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cortex_consumer_failures_status
+    ON cortex_consumer_failures(consumer_name, status, event_id);
+"""
+
+
+def _row_to_event(row: sqlite3.Row) -> BusEvent:
+    return BusEvent(
+        id=int(row["id"]),
+        event_type=str(row["event_type"]),
+        signature=str(row["signature"]),
+        payload=json.loads(row["payload"]),
+    )
+
+
+class CortexBus:
+    """A durable SQLite outbox with idempotent, per-entity-ordered dispatch."""
+
+    def __init__(
+        self,
+        db_path: Optional[Path] = None,
+        *,
+        retention_max: Optional[int] = None,
+        retention_days: Optional[int] = None,
+        hint_path: Optional[Path] = None,
+    ) -> None:
+        # Resolve config at CALL time, not import time: a def-time default
+        # freezes the value before test isolation / env overrides can apply
+        # (the repo's known monkeypatch-staleness trap).
+        self.db_path = db_path if db_path is not None else config.CORTEX_BUS_DB
+        self.retention_max = max(
+            1,
+            int(
+                retention_max
+                if retention_max is not None
+                else config.CORTEX_BUS_RETENTION_MAX
+            ),
+        )
+        self.retention_days = max(
+            1,
+            int(
+                retention_days
+                if retention_days is not None
+                else config.CORTEX_BUS_RETENTION_DAYS
+            ),
+        )
+        self.hint_path = hint_path or self.db_path.with_suffix(".hint")
+        self._handlers: list[Callable[[BusEvent], None]] = []
+        self._init()
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a connection scoped to one ``with`` block.
+
+        Mirrors ``sqlite3.Connection``'s own context-manager semantics
+        (commit on success, rollback on exception) but ALSO closes the
+        connection on exit — plain ``sqlite3.Connection.__exit__`` only
+        commits/rolls back the transaction, it never closes the connection,
+        which otherwise leaks one open connection/file handle per call.
+        """
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _init(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(_SCHEMA)
+
+    # ── Producer side ────────────────────────────────────────────────────────
+
+    def append(self, event: CanonicalEvent) -> int:
+        """Durably append one observation; returns its id. Touches the wake-hint.
+
+        Enforces the retention cap fail-soft: never lets the outbox grow
+        unbounded, preferring to drop dispatched rows and, only if the whole
+        table is still over cap, the OLDEST pending row (logged) — never raises
+        and never blocks a turn.
+        """
+        if not isinstance(event, CanonicalEvent):
+            raise TypeError("CortexBus.append requires a CanonicalEvent")
+        event_type = event.event_type.strip()
+        signature = (
+            event.worker_id
+            or event.mission_id
+            or event.turn_id
+            or event.session_id
+            or event.source
+        ).strip()
+        if not event_type or not signature:
+            raise ValueError(
+                "cortex event requires a non-empty event_type and signature"
+            )
+        if event_type.startswith(_AUTHORITY_EVENT_PREFIXES):
+            raise ValueError(
+                f"authority-bearing event type {event_type!r} may never ride the "
+                "cortex bus — decisions stay synchronous on the verifier's return "
+                "value (ADR §4.1)"
+            )
+        body = json.dumps(event.to_dict(), ensure_ascii=False)
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO cortex_events (event_type, signature, payload) "
+                "VALUES (?, ?, ?)",
+                (event_type, signature, body),
+            )
+            event_id = int(cur.lastrowid)
+            total = int(
+                conn.execute("SELECT COUNT(*) AS n FROM cortex_events").fetchone()["n"]
+            )
+            overflow = total - self.retention_max
+            if overflow > 0:
+                # dispatched_at IS NULL sorts 0 before 1, so dispatched rows are
+                # dropped FIRST; the oldest pending is dropped only if the table
+                # is still over cap after that.
+                dropped = conn.execute(
+                    "DELETE FROM cortex_events WHERE id IN ("
+                    "  SELECT id FROM cortex_events "
+                    "  ORDER BY (dispatched_at IS NULL), id ASC LIMIT ?"
+                    ")",
+                    (overflow,),
+                ).rowcount
+                if dropped:
+                    logger.warning(
+                        "cortex bus over cap (%d/%d) — dropped %d oldest event(s)",
+                        total,
+                        self.retention_max,
+                        dropped,
+                    )
+            conn.commit()
+        self._touch_hint()
+        return event_id
+
+    def _touch_hint(self) -> None:
+        try:
+            self.hint_path.parent.mkdir(parents=True, exist_ok=True)
+            self.hint_path.write_text("1", encoding="utf-8")
+        except OSError:
+            pass  # the hint is an optimization; polling still drains the outbox
+
+    # ── Consumer side ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _validate_consumer_name(consumer_name: str) -> str:
+        normalized = str(consumer_name or "").strip()
+        if not normalized:
+            raise ValueError("cortex consumer name is required")
+        if len(normalized) > 128 or any(
+            char
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+            for char in normalized
+        ):
+            raise ValueError("cortex consumer name contains unsafe characters")
+        return normalized
+
+    def register_consumer(
+        self, consumer_name: str, *, start_event_id: int = 0
+    ) -> ConsumerCursor:
+        """Create a cursor once; later registrations never reset progress."""
+        name = self._validate_consumer_name(consumer_name)
+        if int(start_event_id) < 0:
+            raise ValueError("consumer cursor cannot be negative")
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO cortex_consumers "
+                "(consumer_name, last_event_id) VALUES (?, ?)",
+                (name, int(start_event_id)),
+            )
+            row = conn.execute(
+                "SELECT consumer_name, last_event_id, status, failure_count, updated_at "
+                "FROM cortex_consumers WHERE consumer_name = ?",
+                (name,),
+            ).fetchone()
+        assert row is not None
+        return _row_to_cursor(row)
+
+    def consumer_cursor(self, consumer_name: str) -> ConsumerCursor:
+        return self.register_consumer(consumer_name)
+
+    def reset_consumer(
+        self, consumer_name: str, *, start_event_id: int = 0
+    ) -> ConsumerCursor:
+        """Reset one derived observer cursor for an explicit recovery replay.
+
+        This operation touches only observation-consumer progress. It cannot
+        alter event history or any authority-bearing state.
+        """
+        name = self._validate_consumer_name(consumer_name)
+        start = int(start_event_id)
+        if start < 0:
+            raise ValueError("consumer cursor cannot be negative")
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO cortex_consumers "
+                "(consumer_name, last_event_id, status, failure_count) "
+                "VALUES (?, ?, 'active', 0) "
+                "ON CONFLICT(consumer_name) DO UPDATE SET "
+                "last_event_id = excluded.last_event_id, status = 'active', "
+                "failure_count = 0, updated_at = CURRENT_TIMESTAMP",
+                (name, start),
+            )
+            conn.execute(
+                "DELETE FROM cortex_consumer_failures WHERE consumer_name = ?",
+                (name,),
+            )
+        return self.consumer_cursor(name)
+
+    def consumer_batch(self, consumer_name: str, *, limit: int = 100) -> list[BusEvent]:
+        """Fetch the next bounded page for one cursor without advancing it.
+
+        A consumer can retry its own page without blocking any other consumer.
+        Quarantined events are intentionally skipped only after the bounded
+        failure policy advances that consumer's cursor.
+        """
+        cursor = self.consumer_cursor(consumer_name)
+        name = cursor.consumer_name
+        page_size = max(1, int(limit))
+        with self._connect() as conn:
+            earliest_row = conn.execute(
+                "SELECT MIN(id) AS first_id FROM cortex_events"
+            ).fetchone()
+            earliest = earliest_row["first_id"] if earliest_row else None
+            if earliest is not None and cursor.last_event_id < int(earliest) - 1:
+                raise ConsumerReplayGap(name, cursor.last_event_id, int(earliest))
+            rows = conn.execute(
+                "SELECT e.id, e.event_type, e.signature, e.payload "
+                "FROM cortex_events AS e "
+                "WHERE e.id > ? AND NOT EXISTS ("
+                "  SELECT 1 FROM cortex_consumer_failures AS f "
+                "  WHERE f.consumer_name = ? AND f.event_id = e.id "
+                "    AND f.status = 'quarantined'"
+                ") ORDER BY e.id ASC LIMIT ?",
+                (cursor.last_event_id, name, page_size),
+            ).fetchall()
+        return [_row_to_event(row) for row in rows]
+
+    def ack_consumer(self, consumer_name: str, event_id: int) -> ConsumerCursor:
+        """Advance one cursor exactly once, in event-id order.
+
+        Acknowledging an already-consumed id is idempotent.  Skipping an active
+        event is refused so a consumer cannot accidentally lose observations.
+        """
+        name = self._validate_consumer_name(consumer_name)
+        target = int(event_id)
+        if target <= 0:
+            raise ValueError("event id must be positive")
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT last_event_id FROM cortex_consumers WHERE consumer_name = ?",
+                (name,),
+            ).fetchone()
+            if row is None:
+                self.register_consumer(name)
+                current = 0
+            else:
+                current = int(row["last_event_id"])
+            if target <= current:
+                return self.consumer_cursor(name)
+            if target != current + 1:
+                raise ValueError(
+                    f"consumer {name!r} cannot skip from {current} to {target}"
+                )
+            event = conn.execute(
+                "SELECT id FROM cortex_events WHERE id = ?", (target,)
+            ).fetchone()
+            if event is None:
+                raise ConsumerReplayGap(name, current, target)
+            conn.execute(
+                "UPDATE cortex_consumers SET last_event_id = ?, status = 'active', "
+                "failure_count = 0, updated_at = CURRENT_TIMESTAMP "
+                "WHERE consumer_name = ?",
+                (target, name),
+            )
+            conn.execute(
+                "DELETE FROM cortex_consumer_failures WHERE consumer_name = ? AND event_id = ?",
+                (name, target),
+            )
+        return self.consumer_cursor(name)
+
+    def fail_consumer(
+        self,
+        consumer_name: str,
+        event_id: int,
+        error: str,
+        *,
+        max_attempts: int = 3,
+    ) -> ConsumerCursor:
+        """Record one consumer-local failure and quarantine after bounded retries."""
+        name = self._validate_consumer_name(consumer_name)
+        target = int(event_id)
+        attempts_limit = max(1, int(max_attempts))
+        with self._connect() as conn:
+            consumer = conn.execute(
+                "SELECT last_event_id FROM cortex_consumers WHERE consumer_name = ?",
+                (name,),
+            ).fetchone()
+            if consumer is None:
+                raise ValueError(f"unknown cortex consumer: {name}")
+            current = int(consumer["last_event_id"])
+            if target != current + 1:
+                raise ValueError(
+                    f"consumer {name!r} failure is not for its next event: "
+                    f"cursor={current}, event_id={target}"
+                )
+            event = conn.execute(
+                "SELECT id FROM cortex_events WHERE id = ?", (target,)
+            ).fetchone()
+            if event is None:
+                raise ConsumerReplayGap(name, current, target)
+            prior = conn.execute(
+                "SELECT failure_count FROM cortex_consumer_failures "
+                "WHERE consumer_name = ? AND event_id = ?",
+                (name, target),
+            ).fetchone()
+            attempts = int(prior["failure_count"]) + 1 if prior else 1
+            status = "quarantined" if attempts >= attempts_limit else "retrying"
+            conn.execute(
+                "INSERT INTO cortex_consumer_failures "
+                "(consumer_name, event_id, failure_count, last_error, status, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP) "
+                "ON CONFLICT(consumer_name, event_id) DO UPDATE SET "
+                "failure_count = excluded.failure_count, last_error = excluded.last_error, "
+                "status = excluded.status, updated_at = CURRENT_TIMESTAMP",
+                (name, target, attempts, str(error)[:500], status),
+            )
+            if status == "quarantined":
+                conn.execute(
+                    "UPDATE cortex_consumers SET last_event_id = ?, status = ?, "
+                    "failure_count = ?, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE consumer_name = ?",
+                    (target, status, attempts, name),
+                )
+            else:
+                conn.execute(
+                    "UPDATE cortex_consumers SET status = ?, failure_count = ?, "
+                    "updated_at = CURRENT_TIMESTAMP WHERE consumer_name = ?",
+                    (status, attempts, name),
+                )
+        return self.consumer_cursor(name)
+
+    def subscribe(self, handler: Callable[[BusEvent], None]) -> Callable[[], None]:
+        """Register an in-process handler. Handlers MUST be idempotent (an event
+        may be delivered more than once on replay) and MUST NOT carry authority."""
+        self._handlers.append(handler)
+
+        def unsubscribe() -> None:
+            try:
+                self._handlers.remove(handler)
+            except ValueError:
+                pass
+
+        return unsubscribe
+
+    def peek_pending(self, limit: int = 1000) -> list[BusEvent]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, event_type, signature, payload FROM cortex_events "
+                "WHERE dispatched_at IS NULL ORDER BY id ASC LIMIT ?",
+                (max(1, int(limit)),),
+            ).fetchall()
+        return [_row_to_event(row) for row in rows]
+
+    def fetch_since(self, event_id: int, limit: int = 1000) -> list[BusEvent]:
+        """Fetch up to `limit` events that occurred after `event_id`, regardless of dispatch status."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, event_type, signature, payload FROM cortex_events "
+                "WHERE id > ? ORDER BY id ASC LIMIT ?",
+                (event_id, max(1, int(limit))),
+            ).fetchall()
+        return [_row_to_event(row) for row in rows]
+
+    def pending_count(self) -> int:
+        with self._connect() as conn:
+            return int(
+                conn.execute(
+                    "SELECT COUNT(*) AS n FROM cortex_events WHERE dispatched_at IS NULL"
+                ).fetchone()["n"]
+            )
+
+    def dispatch_pending(self, limit: int = 1000) -> int:
+        """Drain undispatched events in append (id) order — preserving per-entity
+        ordering — calling every handler, then marking each dispatched ONLY if all
+        its handlers succeeded. A handler that raises leaves its event pending for
+        the next drain (at-least-once). Returns the count marked dispatched.
+
+        NOTE (W1): draining in id order is a global single pass, which trivially
+        preserves the per-entity ordering handlers rely on. Concurrent
+        per-signature dispatch (so a slow handler on one signature cannot delay
+        another) is a future optimization; it is not needed until a real handler
+        proves slow, and W1 wires none.
+        """
+        dispatched = 0
+        for event in self.peek_pending(limit=limit):
+            try:
+                for handler in self._handlers:
+                    handler(event)
+            except Exception:  # noqa: BLE001 - a bad handler must not sink the bus
+                logger.warning(
+                    "cortex handler failed for event %s (%s); leaving pending",
+                    event.id,
+                    event.event_type,
+                )
+                continue
+            with self._connect() as conn:
+                conn.execute(
+                    "UPDATE cortex_events SET dispatched_at = CURRENT_TIMESTAMP "
+                    "WHERE id = ?",
+                    (event.id,),
+                )
+                conn.commit()
+            dispatched += 1
+        return dispatched
+
+    def hint_pending(self) -> bool:
+        """True if a producer has touched the wake-hint since the last poll."""
+        return self.hint_path.exists()
+
+    def poll_once(self) -> int:
+        """One dispatcher tick: clear the wake-hint, then drain. Draining always
+        runs (even with no hint) so a lost hint never strands an observation —
+        the hint only lets the loop wake EARLY, it is never the sole trigger."""
+        try:
+            self.hint_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return self.dispatch_pending()
+
+    # ── Maintenance ──────────────────────────────────────────────────────────
+
+    def sweep(self) -> int:
+        """Retention: delete DISPATCHED events beyond the count cap or older than
+        the day window. Pending events are never swept. Returns rows removed."""
+        with self._connect() as conn:
+            removed = conn.execute(
+                "DELETE FROM cortex_events WHERE dispatched_at IS NOT NULL AND ("
+                "  dispatched_at < datetime('now', ?)"
+                "  OR id NOT IN ("
+                "    SELECT id FROM cortex_events WHERE dispatched_at IS NOT NULL "
+                "    ORDER BY id DESC LIMIT ?"
+                "  )"
+                ")",
+                (f"-{self.retention_days} days", self.retention_max),
+            ).rowcount
+            conn.commit()
+        return int(removed)
+
+
+def _row_to_cursor(row: sqlite3.Row) -> ConsumerCursor:
+    return ConsumerCursor(
+        consumer_name=str(row["consumer_name"]),
+        last_event_id=int(row["last_event_id"]),
+        status=str(row["status"]),
+        failure_count=int(row["failure_count"]),
+        updated_at=str(row["updated_at"]),
+    )
+
+
+__all__ = ["BusEvent", "ConsumerCursor", "ConsumerReplayGap", "CortexBus"]

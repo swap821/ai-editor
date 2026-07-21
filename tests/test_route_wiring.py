@@ -9,11 +9,15 @@ sent to a cloud client, even when no local model exists. Fakes only; no network.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from aios import config
+from aios.api.deps import get_policy_kernel
 from aios.api.main import _build_providers, _provider_name, _select_chat_client
 from aios.core.catalog import clear_catalog_cache
+from aios.runtime import profiles
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +27,30 @@ def _clear_catalog():
     clear_catalog_cache()
     yield
     clear_catalog_cache()
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_profile():
+    """Keep the process-wide PolicyKernel in the local-first profile unless a test overrides it."""
+    kernel = get_policy_kernel()
+    kernel._active_profile = profiles.get_profile("local-first")
+    yield
+    kernel._active_profile = profiles.get_profile("local-first")
+
+
+def _set_cloud_policy(monkeypatch, *, cloud_tasks=(), prefer_local=True, max_cost="high"):
+    """Drive the router through the kernel's active profile while mirroring legacy config knobs."""
+    base = profiles.get_profile("local-first")
+    profile = replace(
+        base,
+        router_cloud_tasks=tuple(str(t).lower() for t in cloud_tasks),
+        router_prefer_local=prefer_local,
+        router_max_cost=max_cost,
+    )
+    get_policy_kernel()._active_profile = profile
+    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", tuple(cloud_tasks))
+    monkeypatch.setattr(config, "ROUTER_PREFER_LOCAL", prefer_local)
+    monkeypatch.setattr(config, "ROUTER_MAX_COST", max_cost)
 
 
 class FakeOllama:
@@ -47,7 +75,7 @@ class FakeOllama:
 
 # --- Default policy (cloud OFF): auto stays local, exactly as before --------
 def test_auto_picks_best_local_under_default_policy(monkeypatch) -> None:
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ())  # default: cloud off
+    _set_cloud_policy(monkeypatch, cloud_tasks=())  # default: cloud off
     ollama = FakeOllama(["llama3.1:8b", "qwen2.5-coder:7b"])
     client, model = _select_chat_client(
         "auto", ollama, bedrock=object(), gemini=object(), task="coding"
@@ -59,7 +87,7 @@ def test_auto_picks_best_local_under_default_policy(monkeypatch) -> None:
 def test_auto_never_falls_back_to_cloud_for_unopted_task(monkeypatch) -> None:
     # No local model AND cloud not opted in -> must NOT use Bedrock/Gemini. The
     # privacy boundary holds on the fallback path; we drop to the local default.
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ())
+    _set_cloud_policy(monkeypatch, cloud_tasks=())
     ollama = FakeOllama([])
     bedrock, gemini = object(), object()
     client, model = _select_chat_client("auto", ollama, bedrock=bedrock, gemini=gemini, task="coding")
@@ -70,7 +98,7 @@ def test_auto_never_falls_back_to_cloud_for_unopted_task(monkeypatch) -> None:
 
 # --- Opted-in task: auto may escalate to an available cloud provider --------
 def test_auto_routes_to_cloud_when_task_opted_in_and_no_local(monkeypatch) -> None:
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
     gemini = object()
     client, model = _select_chat_client(
         "auto", FakeOllama([]), bedrock=None, gemini=gemini, task="reasoning"
@@ -82,7 +110,7 @@ def test_auto_routes_to_cloud_when_task_opted_in_and_no_local(monkeypatch) -> No
 def test_auto_keeps_local_for_a_task_not_opted_in(monkeypatch) -> None:
     # Only 'reasoning' may go to cloud; a coding turn with a local model present
     # stays local even though cloud providers are available.
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
     ollama = FakeOllama(["qwen2.5-coder:7b"])
     client, model = _select_chat_client(
         "auto", ollama, bedrock=object(), gemini=object(), task="coding"
@@ -93,7 +121,7 @@ def test_auto_keeps_local_for_a_task_not_opted_in(monkeypatch) -> None:
 
 # --- Explicit picks are unchanged by the router wiring ----------------------
 def test_explicit_ollama_pick_still_local(monkeypatch) -> None:
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("coding",))  # even with cloud opted in
+    _set_cloud_policy(monkeypatch, cloud_tasks=("coding",))  # even with cloud opted in
     ollama = FakeOllama(["qwen2.5-coder:7b"])
     client, model = _select_chat_client("ollama.qwen2.5-coder:7b", ollama, bedrock=object())
     assert client is ollama and model == "qwen2.5-coder:7b"
@@ -110,7 +138,7 @@ def test_hybrid_picker_honours_local_model_choice(monkeypatch) -> None:
     # reasoning opted into cloud + a local model present -> 2 candidates (local +
     # gemini). Deterministic #1 is gemini (higher capability), but the local model
     # picks the local one; its choice is honoured (it IS an allowed candidate).
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
     monkeypatch.setattr(config, "ROUTER_LLM_PICK", True)  # pin (the dev .env may disable it)
     # For a reasoning task the local candidate is the general model (llama3.1:8b
     # beats the coder), so the local model picks that allowed id.
@@ -124,7 +152,7 @@ def test_hybrid_picker_honours_local_model_choice(monkeypatch) -> None:
 
 def test_hybrid_picker_garbage_reply_falls_back_to_deterministic(monkeypatch) -> None:
     # The local model returns nonsense -> the deterministic winner (gemini) stands.
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
     monkeypatch.setattr(config, "ROUTER_LLM_PICK", True)  # pin (the dev .env may disable it)
     gemini = object()
     ollama = FakeOllama(["qwen2.5-coder:7b"], chat_reply={"content": "uhh not sure"})
@@ -136,7 +164,7 @@ def test_hybrid_picker_garbage_reply_falls_back_to_deterministic(monkeypatch) ->
 def test_hybrid_picker_not_invoked_when_single_candidate(monkeypatch) -> None:
     # Default policy (cloud off) -> only the local candidate -> no real choice, so
     # the local model is NOT consulted (zero added latency on the common path).
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ())
+    _set_cloud_policy(monkeypatch, cloud_tasks=())
     ollama = FakeOllama(["qwen2.5-coder:7b"], chat_reply={"content": "should not be read"})
     client, model = _select_chat_client("auto", ollama, bedrock=object(), gemini=object(), task="reasoning")
     assert not ollama.chat_called
@@ -144,7 +172,7 @@ def test_hybrid_picker_not_invoked_when_single_candidate(monkeypatch) -> None:
 
 
 def test_hybrid_picker_disabled_by_config_stays_deterministic(monkeypatch) -> None:
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
     monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
     gemini = object()
     ollama = FakeOllama(["qwen2.5-coder:7b"], chat_reply={"content": "ollama.qwen2.5-coder:7b"})
@@ -158,8 +186,7 @@ def test_calibration_reorders_auto_route(monkeypatch) -> None:
     # Two cloud providers opted in, local-first off, no local model (so the hybrid
     # picker can't run). Deterministic tie-break picks the cheaper Gemini; measured
     # evidence that Bedrock verifies far more often re-ranks it to win once calibrated.
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
-    monkeypatch.setattr(config, "ROUTER_PREFER_LOCAL", False)
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",), prefer_local=False)
     bedrock, gemini = object(), object()
     metrics = {
         ("bedrock", config.BEDROCK_MODEL, "reasoning"): 0.95,
@@ -180,7 +207,7 @@ def test_calibration_reorders_auto_route(monkeypatch) -> None:
 def test_auto_returns_failover_cascade_with_fallbacks(monkeypatch) -> None:
     # reasoning opted in + a local model + both clouds -> the primary is the picked
     # route and the cascade carries the rest as fallbacks (one outage never blocks).
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("reasoning",))
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
     monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)  # deterministic primary
     client, _ = _select_chat_client(
         "auto", FakeOllama(["qwen2.5-coder:7b", "llama3.1:8b"]),
@@ -218,7 +245,7 @@ def test_build_providers_spans_the_cloud_catalog() -> None:
 def test_auto_failover_cascade_spans_catalog_models(monkeypatch) -> None:
     # coding opted into cloud + a multi-model Bedrock catalog -> the failover cascade
     # carries several specific cloud models (not just one per provider).
-    monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", ("coding",))
+    _set_cloud_policy(monkeypatch, cloud_tasks=("coding",))
     monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
     bed = FakeBedrock(["amazon.nova-pro-v1:0", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"])
     client, _ = _select_chat_client("auto", FakeOllama(["qwen2.5-coder:7b"]), bed, task="coding")
@@ -232,3 +259,70 @@ def test_provider_name_maps_client_to_provider() -> None:
     assert _provider_name(gem, bed, gem) == "gemini"
     assert _provider_name(oll, bed, gem) == "ollama"
     assert _provider_name(oll, None, None) == "ollama"
+
+
+# --- OpenAI-compat and Anthropic-direct provider wiring -----------------------
+def test_explicit_openai_pick_routes_and_strips_prefix() -> None:
+    oai = object()
+    client, model = _select_chat_client("openai.gpt-4o", FakeOllama([]), None, openai=oai)
+    assert client is oai and model == "gpt-4o"
+
+
+def test_explicit_openai_unconfigured_raises_503() -> None:
+    with pytest.raises(Exception) as exc_info:
+        _select_chat_client("openai.gpt-4o", FakeOllama([]), None, openai=None)
+    assert exc_info.value.status_code == 503
+
+
+def test_explicit_anthropic_pick_routes_and_strips_prefix() -> None:
+    anth = object()
+    client, model = _select_chat_client(
+        "anthropic.claude-sonnet-4-20250514", FakeOllama([]), None, anthropic=anth
+    )
+    assert client is anth and model == "claude-sonnet-4-20250514"
+
+
+def test_explicit_anthropic_unconfigured_raises_503() -> None:
+    with pytest.raises(Exception) as exc_info:
+        _select_chat_client("anthropic.claude-sonnet-4-20250514", FakeOllama([]), None, anthropic=None)
+    assert exc_info.value.status_code == 503
+
+
+def test_provider_name_detects_openai_and_anthropic() -> None:
+    oai, anth, bed, gem = object(), object(), object(), object()
+    assert _provider_name(oai, bed, gem, openai=oai) == "openai"
+    assert _provider_name(anth, bed, gem, anthropic=anth) == "anthropic"
+    assert _provider_name(oai, bed, gem, openai=oai, anthropic=anth) == "openai"
+
+
+def test_build_providers_includes_openai_and_anthropic() -> None:
+    oai, anth = object(), object()
+    provs = _build_providers(FakeOllama([]), None, None, openai=oai, anthropic=anth)
+    oai_provs = [p for p in provs if p.name == "openai"]
+    anth_provs = [p for p in provs if p.name == "anthropic"]
+    assert len(oai_provs) == 1
+    assert len(anth_provs) == 1
+    assert oai_provs[0].privacy == "cloud"
+    assert anth_provs[0].privacy == "cloud"
+    assert config.OPENAI_MODEL in oai_provs[0].models
+    assert config.ANTHROPIC_MODEL in anth_provs[0].models
+
+
+def test_auto_routes_to_openai_when_task_opted_in(monkeypatch) -> None:
+    _set_cloud_policy(monkeypatch, cloud_tasks=("coding",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
+    oai = object()
+    client, model = _select_chat_client(
+        "auto", FakeOllama([]), None, openai=oai, task="coding"
+    )
+    assert model == config.OPENAI_MODEL
+
+
+def test_auto_never_routes_to_openai_for_unopted_task(monkeypatch) -> None:
+    _set_cloud_policy(monkeypatch, cloud_tasks=())
+    oai = object()
+    client, model = _select_chat_client(
+        "auto", FakeOllama(["qwen2.5-coder:7b"]), None, openai=oai, task="coding"
+    )
+    assert client is not oai
+    assert model == "qwen2.5-coder:7b"

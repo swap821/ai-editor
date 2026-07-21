@@ -9,6 +9,15 @@ export interface MaterializedTabContent {
   code: string;
   language: string;
   filepath: string;
+  /** True while the being is still WRITING this surface (code may be empty or
+   *  partial) — the slab shows a "writing…" cue + cursor. Cleared (false) once
+   *  the final code lands and the line-reveal settles to `live`. */
+  streaming?: boolean;
+  /** PREVIEW of the work's result: the verdict + captured run/verify output, so
+   *  the focused slab can show what the code DID (not just what it says). Set when
+   *  a verify_result for this file arrives. */
+  verifyVerdict?: 'pass' | 'fail';
+  verifyOutput?: string;
 }
 
 export interface MaterializedInputSurface {
@@ -409,4 +418,5 @@ export function __resetTabStoreForTests(): void {
   snapshot = { tabs: [], focusId: null, attention: null };
   tabSequence = 0;
   listeners.clear();
+  workMaterializationClaimUntil = 0;
 }

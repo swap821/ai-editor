@@ -19,10 +19,11 @@
 
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { useGLTF, useTexture } from '@react-three/drei';
+import { useTexture } from '@react-three/drei';
+import { useBrainScene } from '@/lib/brainScene';
 
 export default function OrganSurface() {
-  const { scene } = useGLTF('/models/brain.glb');
+  const scene = useBrainScene(); // manual loader (brainScene.ts) — drei useGLTF hangs under CSP
   const maps = useTexture({
     map: '/textures/brain/diffuse.png',
     normalMap: '/textures/brain/normal.png',

@@ -17,6 +17,7 @@ Properties:
     only consults this layer when one is installed (``set_injection_shield``), so
     the default gateway stays pure-regex and dependency-light (no torch).
 """
+
 from __future__ import annotations
 
 from typing import Optional, Sequence
@@ -55,7 +56,9 @@ class VectorInjectionShield:
             threshold if threshold is not None else config.INJECTION_VECTOR_THRESHOLD
         )
         self._embedder = embedder
-        self._patterns = tuple(patterns) if patterns is not None else _CURATED_INJECTIONS
+        self._patterns = (
+            tuple(patterns) if patterns is not None else _CURATED_INJECTIONS
+        )
         self._matrix: Optional[np.ndarray] = None  # (n, dim), L2-normalised
 
     def _ensure(self) -> None:

@@ -55,7 +55,7 @@ class FlakyRunner:
         self.calls += 1
         if self.calls == 1:
             return "", "boom: assertion failed", 1
-        return "ok", "", 0
+        return "3 passed in 0.2s", "", 0
 
 
 class PassRunner:
@@ -93,6 +93,14 @@ class FakePlannerLLM:
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
         self.calls.append((prompt, system))
         return self.response
+
+
+class EmptyPlannerMemory:
+    def relevant_verified(self, query: str, limit: int = 5) -> list[dict]:
+        return []
+
+    def relevant_success_rate(self, query: str):
+        return None
 
 
 #: A fixed 3-step plan with one step (step 2) below the 0.72 confidence gate.
@@ -461,7 +469,36 @@ def test_agent_reflects_on_command_failure() -> None:
 
 
 def test_agent_promotes_lesson_after_corrective_success() -> None:
-    # Fail a command (records lesson 7), then succeed on the retry -> verify it.
+    # Fail a test command (records lesson 7), then succeed on the retry with
+    # behavior-asserting output -> verify it.
+    chat = ScriptedChat([
+        _tool_call("execute_terminal", {"command": "pytest -q"}),
+        _tool_call("execute_terminal", {"command": "pytest -q"}),
+        {"role": "assistant", "content": "Fixed and passing."},
+    ])
+
+    def on_failure(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "guard the input",
+                "recurrence": False, "mistake_id": 7}
+
+    confirmed: list[int] = []
+    events = list(
+        ToolAgent(
+            chat, _flaky_executor(), max_iters=4,
+            on_failure=on_failure, confirm_lesson=confirmed.append,
+            approved_commands=["pytest -q"],
+        ).run([{"role": "user", "content": "make the tests pass"}])
+    )
+
+    assert confirmed == [7], "the lesson should be promoted after the corrective success"
+    verify_steps = [e for e in events if e.get("tool") == "reflect" and "Verified" in e.get("output", "")]
+    assert verify_steps, "a 'lesson verified' step should be surfaced"
+
+
+def test_agent_does_not_promote_lesson_after_weak_corrective_success() -> None:
+    # The same failed command succeeds on retry, but it is a weak GREEN command
+    # ("echo" with no assertions), so it cannot turn a mistake into planner-visible
+    # verified lesson evidence.
     chat = ScriptedChat([
         _tool_call("execute_terminal", {"command": "echo tests"}),
         _tool_call("execute_terminal", {"command": "echo tests"}),
@@ -480,9 +517,9 @@ def test_agent_promotes_lesson_after_corrective_success() -> None:
         ).run([{"role": "user", "content": "make the tests pass"}])
     )
 
-    assert confirmed == [7], "the lesson should be promoted after the corrective success"
+    assert confirmed == []
     verify_steps = [e for e in events if e.get("tool") == "reflect" and "Verified" in e.get("output", "")]
-    assert verify_steps, "a 'lesson verified' step should be surfaced"
+    assert verify_steps == []
 
 
 def test_agent_does_not_verify_failed_command_lesson_on_unrelated_success() -> None:
@@ -1033,7 +1070,11 @@ def test_agent_pre_applies_granted_edit_and_skips_when_landed(sandbox) -> None:
     assert f.read_text(encoding="utf-8") == "value = 2\n"
     assert any(str(e.get("id", "")).startswith("grant-edit") for e in events)
 
-    # Second replay with the same grant: the edit already landed — stay quiet.
+    # Second replay with the same grant: the edit already landed — no re-apply
+    # (no grant-edit tool_result) and no block; but the RECIPE still carries
+    # the write (exactly one tool_call), the workflow-steps analog of the
+    # noop-verify queueing: the final done-replay's workflow_steps — and any
+    # skill it mints — must include every write of the approval chain.
     chat2 = ScriptedChat([
         {"role": "assistant", "content": "Confirmed."},
     ])
@@ -1042,7 +1083,11 @@ def test_agent_pre_applies_granted_edit_and_skips_when_landed(sandbox) -> None:
     ).run([{"role": "user", "content": "bump the value"}]))
 
     assert f.read_text(encoding="utf-8") == "value = 2\n"
-    assert not any(str(e.get("id", "")).startswith("grant-edit") for e in events2)
+    grant_frames = [e for e in events2 if str(e.get("id", "")).startswith("grant-edit")]
+    assert [e["type"] for e in grant_frames] == ["tool_call"], (
+        f"a landed grant replays as one recipe tool_call, nothing else; got "
+        f"{[e['type'] for e in grant_frames]}"
+    )
     assert not any(e["type"] == "tool_blocked" for e in events2)
 
 
@@ -1202,35 +1247,11 @@ def test_agent_verify_reports_pass_and_does_not_reflect() -> None:
     assert events[-1]["type"] == "done"
 
 
-@pytest.mark.parametrize(
-    "raw, expected",
-    [
-        # repo-relative path the model commonly writes -> stripped to sandbox-relative
-        ("pytest training_ground/test_x.py", "pytest test_x.py"),
-        ('pytest "training_ground/test_x.py" -q', 'pytest "test_x.py" -q'),
-        ("python -m pytest ./training_ground/test_x.py", "python -m pytest test_x.py"),
-        ("pytest training_ground/sub/test_x.py", "pytest sub/test_x.py"),
-        # already-correct / unrelated commands are untouched (idempotent no-ops)
-        ("pytest test_x.py", "pytest test_x.py"),
-        ("pytest -q", "pytest -q"),
-        ('pytest "test_x.py" -q', 'pytest "test_x.py" -q'),
-        # a token that merely CONTAINS the name but is not a path segment is left alone
-        ("pytest mytraining_ground/test_x.py", "pytest mytraining_ground/test_x.py"),
-    ],
-)
-def test_normalise_sandbox_paths_strips_redundant_root_prefix(raw, expected) -> None:
-    # The verify tool runs FROM the sandbox cwd, so a repo-relative path would
-    # double-nest and collect 0 tests (exit 4 -> spurious FAIL). The normaliser
-    # strips ONLY the exact sandbox-root segment, leaving everything else intact.
-    assert config.SCOPE_ROOTS[0].name == "training_ground"  # guards the fixtures above
-    agent = ToolAgent(ScriptedChat([]), _executor(), max_iters=1)
-    assert agent._normalise_sandbox_paths(raw) == expected
-
-
-def test_verify_runs_mispathed_model_command_after_normalisation() -> None:
-    # End-to-end: the model verifies with a repo-relative path; the normaliser
-    # makes it sandbox-relative so the check actually runs (PASS), instead of a
-    # spurious FAIL from a 0-tests-collected double-nest.
+def test_verify_runs_repo_relative_model_command_unmodified() -> None:
+    # End-to-end: the verify cwd is now the repo root (see Executor._scope_cwd),
+    # so a model-issued repo-relative path like "training_ground/test_x.py" is
+    # already correct and must pass through unchanged -- no stripping/rewriting.
+    assert config.SCOPE_ROOTS[0].name == "training_ground"  # guards the fixture below
     chat = ScriptedChat([
         _tool_call("verify", {"command": "pytest training_ground/test_x.py"}),
         {"role": "assistant", "content": "Verified — all green."},
@@ -1238,7 +1259,7 @@ def test_verify_runs_mispathed_model_command_after_normalisation() -> None:
     events = list(
         ToolAgent(
             chat, _passing_executor(), max_iters=3,
-            approved_commands=["pytest test_x.py"],  # the NORMALISED form is what runs
+            approved_commands=["pytest training_ground/test_x.py"],  # unmodified form
         ).run([{"role": "user", "content": "verify it"}])
     )
     results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "verify"]
@@ -1257,8 +1278,9 @@ def test_agent_verify_requires_human_approval() -> None:
 
 def test_agent_verify_reports_fail_and_reflects_once() -> None:
     # A failing verification reports FAIL AND fires the on_failure reflection hook
-    # (the Verifier fires it) — but the dispatch path must NOT double-reflect, so
-    # no separate 'reflect' step is surfaced from the verify path.
+    # EXACTLY ONCE (the Verifier fires it internally) — the verify dispatch path
+    # then SURFACES that already-recorded lesson as a reflect-* step without
+    # ever calling the hook a second time (no double-recording).
     chat = ScriptedChat([
         _tool_call("verify", {"command": "pytest"}),
         {"role": "assistant", "content": "Verification failed; noted."},
@@ -1281,11 +1303,15 @@ def test_agent_verify_reports_fail_and_reflects_once() -> None:
 
     results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "verify"]
     assert results and "VERIFY FAIL" in results[0]["output"]
-    # The SAME reflection hook fired, once, with the failed command + its output.
-    assert reflected and reflected[0][0] == "pytest"
+    # The SAME reflection hook fired, EXACTLY once, with the failed command + output.
+    assert len(reflected) == 1 and reflected[0][0] == "pytest"
     assert "boom" in reflected[0][1]
-    # ...and the verify path did not also emit a 'reflect' step (no double-reflect).
-    assert not any(e.get("tool") == "reflect" for e in events)
+    # ...and the verify path DOES surface it as a reflect-* step (FIX 1) —
+    # but the hook itself was not called again to produce it.
+    reflect_events = [e for e in events if e.get("tool") == "reflect"]
+    assert len(reflect_events) == 1
+    assert reflect_events[0]["id"].startswith("reflect-")
+    assert "fix the broken case" in reflect_events[0]["output"]
     assert events[-1]["type"] == "done"
 
 
@@ -1314,6 +1340,136 @@ def test_agent_verify_red_command_is_refused_by_gateway_not_run() -> None:
     assert events[-1]["type"] == "done"
 
 
+def test_agent_verify_success_confirms_pending_lesson() -> None:
+    # FIX 2: after a verify-tool FAILURE recorded a lesson (FIX 1), a LATER
+    # verify-tool SUCCESS on the EXACT same command must promote it -- a
+    # reflect-tool step with a verify-* id (has_confirm_step's shape), gated
+    # by the STRONG promotion floor (same strength derivation as execute_terminal).
+    cmd = "pytest tests/test_x.py -q"
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": cmd}),
+        _tool_call("verify", {"command": cmd}),
+        {"role": "assistant", "content": "Fixed and verified."},
+    ])
+
+    def hook(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "boom",
+                "recurrence": False, "mistake_id": 42}
+
+    confirmed: list[int] = []
+    events = list(
+        ToolAgent(
+            chat, _flaky_executor(), max_iters=4,
+            approved_commands=[cmd], on_failure=hook,
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify the fix"}])
+    )
+
+    reflect_events = [e for e in events if e.get("tool") == "reflect"]
+    # First: the failure surfaces as reflect-*; second: the success confirms
+    # via a reflect-tool step whose id starts with "verify-".
+    assert any(e["id"].startswith("reflect-") for e in reflect_events)
+    confirm_events = [e for e in reflect_events if e["id"].startswith("verify-")]
+    assert confirm_events, "a verify-tool success on the exact failed command must confirm it"
+    assert confirmed == [42]
+    assert events[-1]["type"] == "done"
+
+
+def test_agent_confirms_recalled_pending_lesson_across_run_boundary() -> None:
+    # Confirm-across-approval-boundary: a lesson recorded in an EARLIER run()
+    # (before an approval pause) is seeded via recalled_pending. When its EXACT
+    # command succeeds in this run -- with NO failure this run -- it is promoted,
+    # so the fail->confirm chain survives the replayed continuation.
+    cmd = "pytest tests/test_x.py -q"
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": cmd}),
+        {"role": "assistant", "content": "Verified."},
+    ])
+    ex = Executor(
+        runner=PassRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
+    confirmed: list[int] = []
+    events = list(
+        ToolAgent(
+            chat, ex, max_iters=3,
+            approved_commands=[cmd],
+            recalled_pending=[(99, cmd)],
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify the fix"}])
+    )
+    confirm_events = [
+        e for e in events
+        if e.get("tool") == "reflect" and str(e.get("id", "")).startswith("verify-")
+    ]
+    assert confirm_events, "a seeded recalled lesson must confirm when its exact command succeeds"
+    assert confirmed == [99]
+
+
+def test_agent_recalled_pending_not_confirmed_by_unrelated_command() -> None:
+    # The seed must preserve the exact-command invariant: an unrelated command's
+    # success must NOT promote a recalled lesson.
+    cmd_failed = "pytest tests/test_x.py -q"
+    cmd_other = "pytest tests/test_y.py -q"
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": cmd_other}),
+        {"role": "assistant", "content": "done"},
+    ])
+    ex = Executor(
+        runner=PassRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
+    confirmed: list[int] = []
+    list(
+        ToolAgent(
+            chat, ex, max_iters=3,
+            approved_commands=[cmd_other],
+            recalled_pending=[(99, cmd_failed)],
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify"}])
+    )
+    assert confirmed == [], "an unrelated command's success must not confirm a recalled lesson"
+
+
+def test_agent_verify_success_does_not_confirm_a_different_command() -> None:
+    # The confirm path must only promote the EXACT failed command's lesson --
+    # a verify success on an unrelated command must not spuriously confirm.
+    chat = ScriptedChat([
+        _tool_call("verify", {"command": "pytest tests/test_a.py -q"}),
+        _tool_call("verify", {"command": "pytest tests/test_b.py -q"}),
+        {"role": "assistant", "content": "done"},
+    ])
+
+    def hook(command: str, error_output: str):
+        return {"error_type": "AssertionError", "lesson_text": "boom",
+                "recurrence": False, "mistake_id": 7}
+
+    confirmed: list[int] = []
+
+    class TwoCommandRunner:
+        def __call__(self, command, *, cwd, env, timeout_s):
+            if "test_a" in command:
+                return "", "boom: assertion failed", 1
+            return "3 passed in 0.2s", "", 0
+
+    ex = Executor(
+        runner=TwoCommandRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
+    events = list(
+        ToolAgent(
+            chat, ex, max_iters=4,
+            approved_commands=["pytest tests/test_a.py -q", "pytest tests/test_b.py -q"],
+            on_failure=hook,
+            confirm_lesson=lambda mid: confirmed.append(mid),
+        ).run([{"role": "user", "content": "verify both"}])
+    )
+
+    confirm_events = [
+        e for e in events if e.get("tool") == "reflect" and str(e.get("id", "")).startswith("verify-")
+    ]
+    assert not confirm_events, "a success on a DIFFERENT command must not confirm the pending lesson"
+    assert confirmed == []
+    assert events[-1]["type"] == "done"
+
+
 # --------------------------------------------------------------------------- #
 # plan — decompose a goal into a confidence-gated plan BEFORE acting
 # (Slice 5 Planner + the 0.72 confidence gate, now wired into the live loop)
@@ -1327,7 +1483,10 @@ def test_agent_plan_lists_ordered_steps() -> None:
         {"role": "assistant", "content": "Here is my plan."},
     ])
     events = list(
-        ToolAgent(chat, _executor(), max_iters=3, planner_llm=planner_llm).run(
+        ToolAgent(
+            chat, _executor(), max_iters=3, planner_llm=planner_llm,
+            mistakes=EmptyPlannerMemory(),
+        ).run(
             [{"role": "user", "content": "refactor the parser safely"}]
         )
     )
@@ -1350,7 +1509,10 @@ def test_agent_plan_flags_low_confidence_step_for_human_review() -> None:
         {"role": "assistant", "content": "One step needs review."},
     ])
     events = list(
-        ToolAgent(chat, _executor(), max_iters=3, planner_llm=planner_llm).run(
+        ToolAgent(
+            chat, _executor(), max_iters=3, planner_llm=planner_llm,
+            mistakes=EmptyPlannerMemory(),
+        ).run(
             [{"role": "user", "content": "do the risky thing"}]
         )
     )
@@ -1376,6 +1538,7 @@ def test_agent_plan_surfaces_planner_error_cleanly() -> None:
     events = list(
         ToolAgent(
             chat, _executor(), max_iters=3, planner_llm=planner_llm,
+            mistakes=EmptyPlannerMemory(),
             on_failure=lambda c, o: reflected.append(c),
         ).run([{"role": "user", "content": "whatever"}])
     )
@@ -1423,6 +1586,7 @@ def test_agent_plan_survives_planner_llm_error() -> None:
     events = list(
         ToolAgent(
             chat, _executor(), max_iters=3, planner_llm=_BoomPlannerLLM(),
+            mistakes=EmptyPlannerMemory(),
             on_failure=lambda c, o: reflected.append(c),
         ).run([{"role": "user", "content": "do the thing"}])
     )
@@ -1565,6 +1729,8 @@ class FakeResponse:
         self.text = text
         self.headers = headers or {"Content-Type": "text/html"}
         self.status_code = status_code
+        self.is_redirect = False
+        self.is_permanent_redirect = False
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -1599,7 +1765,7 @@ def test_browse_blocks_local_and_private_urls() -> None:
 
 
 def test_browse_fetches_and_extracts_text(monkeypatch) -> None:
-    def fake_get(url, *, timeout, headers):
+    def fake_get(url, *, timeout, headers, **kwargs):
         return FakeResponse("<html><body><p>Hello world</p></body></html>")
 
     monkeypatch.setattr("requests.get", fake_get)

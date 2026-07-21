@@ -1,4 +1,4 @@
-"""FastAPI orchestration layer for the AI OS.
+"""FastAPI orchestration layer for GAGOS.
 
 Exposes the subsystems behind versioned HTTP endpoints. Phase 3a + 3b are live:
 
@@ -12,27 +12,30 @@ Exposes the subsystems behind versioned HTTP endpoints. Phase 3a + 3b are live:
     POST /api/v1/rollback          restore the sandbox to a prior snapshot
     GET  /api/v1/alignment/evaluation diagnostic human-alignment evidence
     POST /api/v1/alignment/feedback explicit human label for a visible frame
+    POST /api/v1/projects/passport/scan local-only project evidence scan
 
 Collaborators (LLM client, executor, rollback engine) are supplied via
 dependency injection so tests can override them with fakes/sandboxes and avoid
 any network, model, or host side effects.
 """
+
 from __future__ import annotations
 
-import ipaddress
+import asyncio
+import hashlib
 import json
 import re
-import secrets
 import sqlite3
-import sys
 import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable, Iterator, Optional, Any, Sequence, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -41,33 +44,81 @@ from pydantic import BaseModel, Field
 import aios
 from aios import config
 from aios.logging_config import configure_logging, get_logger, session_log_key
-from aios.core.metrics import CONTENT_TYPE_LATEST, MetricsCollector, MetricsMiddleware, generate_latest, get_collector
-from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
-from aios.agents.rollback_engine import RollbackEngine, RollbackError
-from aios.agents.role_pass import run_role_pass
-from aios.agents.swarm import run_swarm
+from aios.core.metrics import MetricsMiddleware
+from aios.agents.reflection_agent import ReflectionAgent
 from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
-from aios.core.executor import (
-    Executor,
-    _bounded_run,
-    approved_runner_from_config,
-    validate_approved_execution_backend,
+from aios.core.cerebellum import Cerebellum
+from aios.core.executor import Executor
+from aios.core.confidence_filter import gate as confidence_gate
+from aios.core.planner import (
+    Planner,
+    PlannerError,
+    plan_to_prompt_block,
+    serialize_plan,
 )
-from aios.core import catalog, router
+from aios.core.events import (
+    event_for_sse,
+    CanonicalEvent,
+    CanonicalEventType,
+    TrustLevel,
+    EventPhase,
+)
+from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules import these from main
+    get_alignment_evaluation_store,
+    get_alignment_interpreter,
+    get_anthropic_client,
+    get_autonomy,
+    get_bedrock_client,
+    get_cerebellum,
+    get_conversation_state_store,
+    get_curriculum_manager,
+    get_development_tracker,
+    get_emergency_stop,
+    get_gemini_client,
+    get_llm_client,
+    get_memory_consolidator,
+    get_memory_authority,
+    get_mistake_memory,
+    get_native_planner,
+    get_ollama_client,
+    get_openai_client,
+    get_reflection_agent,
+    get_semantic_facts,
+    get_semantic_indexer,
+    get_skill_memory,
+    get_swarm_pattern_memory,
+    get_session_manager,
+    get_identity_service,
+    get_authenticated_principal,
+    require_privileged_operator,
+    get_executor,
+    get_action_broker,
+    get_capability_authority,
+    get_policy_kernel,
+    get_rollback_engine,
+    get_self_apply_engine,
+    get_edit_snapshot,
+    _session_id_from_request,
+    _RATE_LIMITER,
+    _SESSION_MANAGER,
+)
+from aios.interfaces.http import edge_security
+from aios.policy.kernel import RouteAuthority
+from aios.core import catalog, router, telemetry
 from aios.core.bedrock import BedrockClient
 from aios.core.gemini import CURATED_MODELS as GEMINI_CURATED_MODELS
 from aios.core.gemini import GeminiClient
 from aios.core.llm import LLMClient, LLMError, OllamaClient
-from aios.core.model_selector import (
-    TASK_FAST,
-    TASKS,
-    describe_choice,
-    infer_task,
-    select_model,
-    supports_tool_protocol,
+from aios.application.turns import (
+    RuntimeDeps,
+    TurnContext,
+    TurnCoordinator,
+    TurnMode,
+    production_handlers,
 )
+from aios.core.model_selector import TASK_FAST, infer_task
 from aios.core.router_wiring import (
     _AUTO_IDS,
     _active_route,
@@ -80,53 +131,74 @@ from aios.core.router_wiring import (
     _router_policy,
     _select_chat_client,
 )
-from aios.core.approvals import ApprovalError, ApprovalStore
+from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
+from aios.application.action_broker import ActionBroker, PolicyBrokerError
+from aios.api.action_guard import enforce_action_boundary
+from aios.domain.actions.envelope import (
+    ActionEnvelope,
+    ActionType,
+    Principal as EnvelopePrincipal,
+)
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest, resource_digest
+from aios.domain.identity.models import Principal
 from aios.core.alignment import (
     AlignmentInterpreter,
     apply_user_corrections,
     frame_from_state,
-    validate_user_corrections,
 )
-from aios.core.planner import Planner, PlannerError
-from aios.core.self_apply import DEFAULT_VERIFY_COMMAND, SelfApplyEngine
-from aios.core.session_manager import SessionManager
-from aios.core.verifier import Verifier
+from aios.core.native_planner import NativePlanner
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.compaction import MemoryCompactor
+from aios.application.memory.adapters import MemoryCompactionAdapter
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
-from aios.memory.development import DevelopmentTracker
+from aios.memory.relevance import signature as task_signature
 from aios.memory.embeddings import VectorIndex
-from aios.memory.episodic import EpisodicMemory
+from aios.memory.fact_extraction import extract_candidates
 from aios.memory.facts import SemanticFacts
-from aios.memory.retrieval import hybrid_search
+from aios.memory.mistake import MistakeMemory
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
-from aios.memory.working import WorkingMemory
-from aios.security.audit_logger import init_audit_db, log_action, verify_chain
-from aios.security.gateway import RateLimiter, Zone, classify
+from aios.runtime.contracts import KingReport, RunLedger
+from aios.runtime.cortex_bus import CortexBus
+from aios.runtime.cortex_bus_dispatcher import CortexBusDispatcher
+from aios.runtime.self_model_handler import SelfModelHandler
+from aios.runtime.king_report import KingReportStore
+from aios.runtime.run_ledger import RunLedgerStore
+from aios.runtime.snapshots import SnapshotManager
+from aios.runtime import turn_state
+from aios.council import CouncilMissionRequest, CouncilOrchestrator
+from aios.council.council_state import CouncilState
+from aios.council.queen_verdict import has_blocking_verdict
+from aios.core.verification_strength import (
+    VerificationStrength,
+    meets_promotion_floor,
+    strength_from_text,
+)
+from aios.security.audit_logger import init_audit_db, log_action
+from aios.security.gateway import Zone, classify
 from aios.security.secret_scanner import scan_and_redact
 
-_APPROVALS = ApprovalStore(db_path=config.APPROVAL_DB_PATH)
-_RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
-
-#: Server-side session manager with httpOnly cookie support.
-#: Sessions are stored in-memory keyed by SHA-256 hash; the raw ID
-#: never leaves the server except inside the httpOnly cookie response.
-_SESSION_MANAGER = SessionManager(max_age=3600, cleanup_interval=300)
+# Approval/rate-limit/session singletons moved to aios.api.deps (tranche 2).
 
 #: Cloud chat-client singletons. Built lazily and reused across requests so we do
 #: not re-run boto3/gcloud credential discovery on every turn. Enablement is still
 #: checked per request so setting changes take effect without editing this module.
-_bedrock_client: Optional[BedrockClient] = None
-_gemini_client: Optional[GeminiClient] = None
-_bedrock_lock = threading.Lock()
-_gemini_lock = threading.Lock()
+# Lazy cloud-client singletons moved to aios.api.deps (monolith split).
+
+# ── Cortex bus W2 — singletons (None when CORTEX_BUS is off) ─────────────────
+# The bus and its dispatcher are module-level so the lifespan can start/stop
+# them and the generate endpoint can append to them without FastAPI Depends.
+# Both are None when config.CORTEX_BUS is False (the default) — zero overhead
+# on the hot path when the feature is off.
+_cortex_bus: Optional[CortexBus] = None
+_cortex_dispatcher: Optional[CortexBusDispatcher] = None
+_self_model_handler: Optional[SelfModelHandler] = None
 
 logger = get_logger(__name__)
-_METRICS = get_collector()
 
 
 @asynccontextmanager
@@ -142,8 +214,14 @@ async def lifespan(app: FastAPI):
                 "or when AIOS_TRUST_PROXY_HEADERS is enabled"
             )
         if len(config.API_TOKEN) < 32:
-            raise RuntimeError("AIOS_API_TOKEN must be at least 32 characters for non-loopback use")
-    validate_approved_execution_backend()
+            raise RuntimeError(
+                "AIOS_API_TOKEN must be at least 32 characters for non-loopback use"
+            )
+    backend_warning = get_policy_kernel().validate_execution_backend()
+    if backend_warning:
+        logger.warning("approved_execution_backend", detail=backend_warning)
+    active_profile = get_policy_kernel().active_runtime_profile()
+    logger.info("runtime_profile_active", profile=active_profile.name)
     init_memory_db()
     init_audit_db()
     # Opt-in second injection layer: install the vector blocklist when enabled.
@@ -160,15 +238,107 @@ async def lifespan(app: FastAPI):
                 "Vector injection shield failed to load; regex layer remains active",
                 exc_info=exc,
             )
+    # Cortex bus W2: start the drainer ONLY when opted in.  The bus default is
+    # OFF (config.CORTEX_BUS=False) — this block is completely skipped in the
+    # common case, so behavior is byte-identical to W1 when the flag is unset.
+    global _cortex_bus, _cortex_dispatcher, _self_model_handler
+    if config.CORTEX_BUS:
+        try:
+            _cortex_bus = CortexBus()
+            # The first observer: the self-model rebuild subscribed BEFORE the
+            # dispatcher starts, so no early event dispatches into a void. The
+            # per-turn recall path reads this handler's cache (falling back to
+            # inline synthesis until the first event lands) — that is what
+            # actually takes the synthesis off the hot path.
+            _self_model_handler = SelfModelHandler(
+                memory_authority=get_memory_authority()
+            )
+            _cortex_bus.subscribe(_self_model_handler)
+            _cortex_dispatcher = _build_cortex_dispatcher(_cortex_bus)
+            _cortex_dispatcher.start()
+            logger.info("cortex_bus_started")
+        except Exception as exc:  # noqa: BLE001 - enhancement; never block startup
+            logger.warning("cortex_bus_failed_to_start", exc_info=exc)
+            _cortex_bus = None
+            _cortex_dispatcher = None
+            _self_model_handler = None
+    # Boot attestation: hash the security spine and log integrity.
+    try:
+        from aios.boot_attestation import attest_boot
+
+        attestation = attest_boot(Path(config.PROJECT_ROOT))
+        logger.info(
+            "boot_attestation",
+            integrity=attestation["integrity"],
+            spine_hash=attestation["hash"][:16],
+        )
+    except Exception as exc:  # noqa: BLE001 - never block startup
+        logger.warning("boot_attestation_failed", exc_info=exc)
     yield
+    # Shutdown: stop the dispatcher cleanly if it was started.
+    if _cortex_dispatcher is not None:
+        try:
+            _cortex_dispatcher.stop()
+        except Exception:  # noqa: BLE001
+            pass
+        _cortex_dispatcher = None
+        _cortex_bus = None
+        _self_model_handler = None
 
 
 app = FastAPI(
-    title="GAGOS - AI OS",
+    title="GAGOS",
     version=aios.__version__,
-    summary="Local-first, memory-driven, security-gated, human-supervised AI OS.",
+    summary="Local-first, memory-driven, security-gated, human-supervised AI operating system.",
     lifespan=lifespan,
 )
+
+
+# ── Cortex bus W2 helpers ─────────────────────────────────────────────────────
+
+
+def _build_cortex_dispatcher(bus: CortexBus) -> CortexBusDispatcher:
+    """Factory for the dispatcher (isolated so tests can call it directly)."""
+    return CortexBusDispatcher(bus, poll_interval=0.25)
+
+
+def get_cortex_bus() -> Optional[CortexBus]:
+    """Return the live cortex bus, or None when the bus is off (default)."""
+    return _cortex_bus if config.CORTEX_BUS else None
+
+
+def _get_cortex_dispatcher() -> Optional[CortexBusDispatcher]:
+    """Return the live dispatcher, or None when the bus is off (default)."""
+    return _cortex_dispatcher if config.CORTEX_BUS else None
+
+
+def _append_turn_completed(
+    bus: Optional[CortexBus], session_id: str, turn_id: str
+) -> None:
+    """Best-effort: append a 'turn.completed' OBSERVATION to the cortex bus.
+
+    Called immediately after the 'done' SSE frame is emitted. Carries a
+    NON-AUTHORITY payload (observation metadata only — no skill promotion,
+    autonomy credit, or approval decision). Silently no-ops when bus is None
+    (i.e. when CORTEX_BUS is off) so the common path is completely unaffected.
+    """
+    if bus is None:
+        return
+    try:
+        canonical = CanonicalEvent(
+            event_type=CanonicalEventType.TURN_COMPLETED.value,
+            phase=EventPhase.NARRATIVE.value,
+            status="completed",
+            trust=TrustLevel.VERIFIED.value,
+            source="aios.api.main",
+            session_id=session_id,
+            turn_id=turn_id,
+            payload={"ts": datetime.now(timezone.utc).isoformat()},
+        )
+        bus.append(canonical)
+    except Exception:  # noqa: BLE001 — best-effort; never break a turn
+        logger.warning("cortex_bus_append_failed", exc_info=True)
+
 
 # Browser clients (the Vite front-end) run on a different origin, so the API
 # must opt them in explicitly. Origins come from config (env-overridable).
@@ -180,34 +350,70 @@ app = FastAPI(
 # headers are also narrowed from "*" to the surface the front-end actually uses.
 def _validate_cors_origins(origins: tuple[str, ...]) -> list[str]:
     """Reject wildcard/host-less origins so credentialed CORS can't widen silently."""
-    from urllib.parse import urlparse
-
-    validated: list[str] = []
-    for origin in origins:
-        if origin == "*":
-            raise RuntimeError(
-                "AIOS_CORS_ORIGINS may not contain '*' while credentials are "
-                "allowed (the CORS spec forbids it; it would widen credentialed "
-                "cross-origin access). List explicit scheme://host[:port] origins."
-            )
-        parsed = urlparse(origin)
-        if not parsed.scheme or not parsed.netloc:
-            raise RuntimeError(
-                f"AIOS_CORS_ORIGINS entry {origin!r} is not a valid origin "
-                "(expected scheme://host[:port])."
-            )
-        validated.append(origin)
-    return validated
+    return edge_security.validate_cors_origins(origins)
 
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_validate_cors_origins(config.API_CORS_ORIGINS),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-AIOS-Capability",
+        "X-Correlation-ID",
+        "X-Request-ID",
+    ],
 )
 app.add_middleware(MetricsMiddleware)
+
+# ── Sub-routers extracted from this module ────────────────────────────────────
+from aios.api.routes.memory import (  # noqa: E402 — mounted after app + deps exist
+    ConversationSessionRequest,  # noqa: F401 — used by the conversation/session route below
+    get_doc_ingestor,  # noqa: F401 — re-exported: tests import this from main
+    router as _memory_router,
+)
+from aios.api.routes.development import router as _development_router  # noqa: E402
+from aios.api.routes.models import router as _models_router  # noqa: E402
+from aios.api.routes.system import router as _system_router  # noqa: E402
+from aios.api.routes.auth import router as _auth_router  # noqa: E402
+from aios.api.routes.actions import router as _actions_router  # noqa: E402
+from aios.api.routes.voice import router as _voice_router
+from aios.api.routes.sovereignty import router as _sovereignty_router
+from aios.api.routes.council import router as _council_router
+from aios.api.routes.projects import router as _projects_router
+from aios.api.routes.files import router as _files_router
+from aios.api.routes.security import router as _security_router
+from aios.api.routes.execution_debugger import router as _execution_debugger_router
+from aios.api.routes.v10 import router as _v10_router
+from aios.api.routes.mirror import router as _mirror_router
+from aios.api.routes.governance import router as _governance_router
+from aios.api.routes.local_workforce import router as _local_workforce_router
+from aios.api.routes.hiring import router as _hiring_router
+from aios.api.routes.skills import router as _skills_router
+from aios.api.routes.maintenance import router as _maintenance_router
+
+app.include_router(_system_router)
+app.include_router(_auth_router)
+app.include_router(_actions_router)
+app.include_router(_memory_router)
+app.include_router(_development_router)
+app.include_router(_models_router)
+app.include_router(_voice_router)
+app.include_router(_sovereignty_router)
+app.include_router(_council_router)
+app.include_router(_projects_router)
+app.include_router(_files_router)
+app.include_router(_security_router)
+app.include_router(_execution_debugger_router)
+app.include_router(_v10_router)
+app.include_router(_mirror_router)
+app.include_router(_governance_router)
+app.include_router(_local_workforce_router)
+app.include_router(_hiring_router)
+app.include_router(_skills_router)
+app.include_router(_maintenance_router)
 
 
 @app.middleware("http")
@@ -217,30 +423,13 @@ async def bind_request_context(request: Request, call_next):
 
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     clear_contextvars()
-    bind_contextvars(request_id=request_id, method=request.method, path=request.url.path)
+    bind_contextvars(
+        request_id=request_id, method=request.method, path=request.url.path
+    )
     try:
-        session_id: Optional[str] = None
-        # P0 SECURITY: prefer session from httpOnly cookie (not accessible to JS/XSS)
-        # Fall back to body field for clients that haven't migrated yet.
-        cookie_hash = request.cookies.get("session_id")
-        if cookie_hash:
-            manager = get_session_manager()
-            session = manager.validate_session(cookie_hash)
-            if session is not None:
-                # Use the session hash as the log key (raw ID never leaves memory)
-                session_id = session.session_hash
-        if not session_id and request.method in ("POST", "PUT", "PATCH"):
-            content_type = request.headers.get("content-type", "")
-            if "application/json" in content_type:
-                try:
-                    body = await request.body()
-                    payload = json.loads(body.decode("utf-8")) if body else None
-                except Exception:
-                    payload = None
-                if isinstance(payload, dict):
-                    body_sid = payload.get("sessionId") or payload.get("session_id")
-                    if body_sid:
-                        session_id = str(body_sid)
+        session_id = await edge_security.extract_session_id(
+            request, allow_body_fallback=True
+        )
         if session_id:
             bind_contextvars(session_id_hash=session_log_key(session_id))
         response = await call_next(request)
@@ -254,374 +443,85 @@ async def bind_request_context(request: Request, call_next):
 #: "testclient" is deliberately NOT included — it must never be a production
 #: backdoor. Tests that need unauthenticated access should use an explicit
 #: loopback client address.
-_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
-def _is_private_ip(ip: str) -> bool:
-    """Return True if *ip* is a loopback, link-local, or RFC 1918/4193 address.
+_LOOPBACK_HOSTS = edge_security.LOOPBACK_HOSTS
 
-    Uses the standard-library ``ipaddress`` module so IPv4 and IPv6 are both
-    handled correctly (e.g. ``::1``, ``fc00::``, ``fe80::``).
-    """
-    ip = ip.strip()
-    if not ip:
-        return True  # empty = unsafe, treat as private
-    try:
-        addr = ipaddress.ip_address(ip)
-        return addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_reserved
-    except ValueError:
-        # Not a valid IP — could be a Unix socket path or empty string.
-        # Fail closed: treat unparseable as private (untrusted).
-        return True
+
+def _is_private_ip(ip: str) -> bool:
+    """Return True if *ip* is loopback, link-local, or RFC 1918/4193 address."""
+    return edge_security.is_private_ip(ip)
 
 
 def _real_client_ip(request: Request) -> str:
-    """Return the best-effort real client IP for auth decisions.
-
-    When TRUST_PROXY_HEADERS is enabled, parse X-Forwarded-For as a
-    comma-separated chain and take the **rightmost** non-private IP (the one
-    closest to the server that is still a public/resolvable address). If every
-    IP in the chain is private, fall back to the direct peer — in that case
-    the deployment MUST set AIOS_API_TOKEN because loopback exemption is
-    unsafe behind a proxy.
-
-    When TRUST_PROXY_HEADERS is disabled, use the direct peer IP.
-    """
-    direct = request.client.host if request.client else ""
-    if not config.TRUST_PROXY_HEADERS:
-        return direct
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if not forwarded:
-        return direct
-    # X-Forwarded-For is a comma-separated chain: left = original client,
-    # right = closest to server. Take the rightmost non-private IP.
-    chain = [h.strip() for h in forwarded.split(",") if h.strip()]
-    # If TRUSTED_PROXIES is configured, only trust entries from those proxies.
-    if config.TRUSTED_PROXIES:
-        # Walk from rightmost to leftmost, stop at first IP that is NOT a
-        # trusted proxy (that IP made the request through the proxy chain).
-        for ip in reversed(chain):
-            if ip not in config.TRUSTED_PROXIES:
-                return ip
-        # Every IP in the chain is a trusted proxy — use direct peer.
-        return direct
-    # No trusted proxy whitelist: take the rightmost non-private IP.
-    for ip in reversed(chain):
-        if not _is_private_ip(ip):
-            return ip
-    # All IPs in the chain are private — possible spoofing attempt.
-    return direct
+    """Return the best-effort real client IP for auth decisions."""
+    return edge_security.real_client_ip(request)
 
 
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
-    """Protect API and schema surfaces; keep unauthenticated use loopback-only.
+    """Protect API and schema surfaces; keep unauthenticated use loopback-only."""
+    error = edge_security.check_api_token_or_loopback(request)
+    if error is not None:
+        return error
+    return await call_next(request)
 
-    When the operator has configured a trusted reverse proxy, the loopback
-    exemption is disabled entirely: the direct peer may be the proxy, so only
-    a bearer token can authenticate the real client.
 
-    Protected paths:
-      * All ``/api/*`` routes
-      * ``/health`` and ``/metrics`` (intelligence-leaking observability)
-      * ``/docs``, ``/redoc``, ``/openapi.json`` ONLY when docs are enabled
-    """
-    path = request.url.path
-    always_protected = path.startswith("/api/") or path in ("/health", "/metrics")
-    docs_paths = {"/docs", "/redoc", "/openapi.json"}
-    protected = always_protected or (config.ENABLE_DOCS and path in docs_paths)
-    if protected and request.method != "OPTIONS":
-        if config.API_TOKEN:
-            auth = request.headers.get("authorization", "")
-            expected = f"Bearer {config.API_TOKEN}"
-            if not secrets.compare_digest(auth, expected):
-                return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
-        else:
-            # No API token configured — ONLY loopback is permitted, and NEVER
-            # when behind a proxy (the peer IP is the proxy, not the client).
-            client_ip = _real_client_ip(request)
-            if config.TRUST_PROXY_HEADERS or client_ip not in _LOOPBACK_HOSTS:
-                return JSONResponse(
-                    status_code=403,
-                    content={"detail": "unauthenticated API access is loopback-only; "
-                                       "set AIOS_API_TOKEN for non-loopback or proxy deployments"},
-                )
+@app.middleware("http")
+async def require_browser_or_token_for_mutations(request: Request, call_next):
+    """CSRF/Mutation protection: block unauthenticated non-browser mutations."""
+    error = edge_security.check_mutation_origin_or_token(request)
+    if error is not None:
+        return error
     return await call_next(request)
 
 
 # --------------------------------------------------------------------------- #
 # In-memory sliding-window rate limiter for sensitive API endpoints.
-# Protects against brute-force on approval tokens and DoS on execute/reflect.
-# Best-effort, per-process; the durable RateLimiter governs RED actions.
+# Protects against brute-force on approval tokens, noisy control routes, and
+# expensive evidence scans. Best-effort, per-process; the durable RateLimiter
+# governs RED actions. The route authority map is metadata only here: it
+# centralizes API-surface posture without becoming a new security authority.
 # --------------------------------------------------------------------------- #
 _RATE_LIMIT_WINDOW_S = 60.0
-_RATE_LIMIT_ENDPOINTS: dict[str, int] = {
-    "/api/v1/approval/req": 10,
-    "/api/v1/execute": 30,
-    "/api/terminal": 20,
-}
-_RATE_LIMIT_HITS: dict[str, list[tuple[str, float]]] = {}
-_RATE_LIMIT_LOCK = threading.Lock()
+
+
+# Route authority and per-endpoint rate limiting are owned by the PolicyKernel.
+# Force lazy initialization now (this module is the runtime assembly point).
+_POLICY_KERNEL = get_policy_kernel()
+# Keep backward-compatible aliases so existing tests can import them from main.
+_ROUTE_AUTHORITY = _POLICY_KERNEL.route_table
+_RATE_LIMIT_ENDPOINTS = _POLICY_KERNEL.rate_limit_endpoints
+_RATE_LIMIT_HITS = _POLICY_KERNEL.endpoint_hits
+
+
+def _rate_limited_route_path(request: Request) -> str | None:
+    """Return the literal or templated route key used by the rate limiter."""
+    return _POLICY_KERNEL.rate_limited_route_path(request.url.path)
 
 
 def _check_endpoint_rate_limit(path: str, client_ip: str) -> None:
-    """Raise HTTP 429 if *client_ip* exceeds the per-minute cap for *path*.
-
-    A simple monotonic sliding window keyed by ``path|ip``. Best-effort and
-    in-process; intended to slow brute-force on approval tokens and noisy
-    execute/terminal endpoints.
-    """
-    cap = _RATE_LIMIT_ENDPOINTS.get(path)
-    if cap is None:
-        return
-    key = f"{path}|{client_ip}"
-    now = time.monotonic()
-    cutoff = now - _RATE_LIMIT_WINDOW_S
-    with _RATE_LIMIT_LOCK:
-        hits = [t for t in _RATE_LIMIT_HITS.get(key, []) if t[1] > cutoff]
-        if len(hits) >= cap:
-            _RATE_LIMIT_HITS[key] = hits
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    f"Rate limit exceeded for {path}. "
-                    f"Limit is {cap} per {int(_RATE_LIMIT_WINDOW_S)}s."
-                ),
-            )
-        hits.append((key, now))
-        _RATE_LIMIT_HITS[key] = hits
+    """Backward-compatible alias for the kernel's endpoint rate-limit check."""
+    return _POLICY_KERNEL.check_endpoint_rate_limit(path, client_ip)
 
 
 @app.middleware("http")
 async def endpoint_rate_limit(request: Request, call_next):
-    """Apply per-endpoint, per-IP rate limits before the request reaches handlers."""
-    if request.method != "OPTIONS":
-        path = request.url.path
-        if path in _RATE_LIMIT_ENDPOINTS:
-            # Use the same IP extraction logic as the auth middleware.
-            client_ip = _real_client_ip(request)
-            try:
-                _check_endpoint_rate_limit(path, client_ip)
-            except HTTPException:
-                return JSONResponse(
-                    status_code=429,
-                    content={"detail": f"Rate limit exceeded for {path}"},
-                )
-    return await call_next(request)
+    """Preflight only the legacy approval parser that can reject before broker.
 
-
-def get_session_manager() -> SessionManager:
-    """Provide the server-side session manager singleton."""
-    return _SESSION_MANAGER
-
-
-def get_llm_client() -> LLMClient:
-    """Provide the default local LLM client. Overridden in tests."""
-    return OllamaClient()
-
-
-def get_ollama_client() -> OllamaClient:
-    """Provide a concrete Ollama client for streaming + model discovery.
-
-    Distinct from :func:`get_llm_client` (which yields the minimal protocol) so
-    the chat/discovery endpoints can use streaming and ``/api/tags`` while
-    remaining overridable in tests.
+    Ordinary routes are counted by ``PolicyKernel``.  The approval-resume
+    route still inspects a bearer from its body before it can reach its broker
+    call, so this uses the same kernel bucket to prevent invalid-token floods.
     """
-    return OllamaClient()
-
-
-def get_bedrock_client() -> Optional[BedrockClient]:
-    """Provide the AWS Bedrock cloud chat client, or ``None`` when unconfigured.
-
-    Returns ``None`` unless Bedrock is opted in (region + model set) *and* boto3
-    is importable — so the agent transparently stays on local inference when the
-    cloud isn't set up. Overridden in tests with a fake.
-
-    The client is built lazily and reused across requests; enablement is checked
-    fresh each call (mirrors :func:`_router_policy`).
-    """
-    global _bedrock_client
-    if not (config.BEDROCK_REGION and config.BEDROCK_MODEL):
-        return None
-    if _bedrock_client is not None:
-        return _bedrock_client
-    with _bedrock_lock:
-        if _bedrock_client is not None:
-            return _bedrock_client
+    if request.method != "OPTIONS" and request.url.path == "/api/v1/approval/req":
         try:
-            _bedrock_client = BedrockClient()
-        except LLMError:
-            return None
-    return _bedrock_client
-
-
-def get_gemini_client() -> Optional[GeminiClient]:
-    """Provide the Google Gemini (Vertex AI) chat client, or ``None`` when unset.
-
-    Returns ``None`` unless Gemini is opted in (a GCP project is set) *and* the
-    ``google-genai`` SDK is importable — so the agent transparently stays on
-    local/Bedrock inference when Gemini isn't configured. Auth is the laptop's
-    ``gcloud`` ADC; this never touches a key on disk. Overridden in tests.
-
-    The client is built lazily and reused across requests; enablement is checked
-    fresh each call (mirrors :func:`_router_policy`).
-    """
-    global _gemini_client
-    if not (config.GEMINI_PROJECT and config.GEMINI_MODEL):
-        return None
-    if _gemini_client is not None:
-        return _gemini_client
-    with _gemini_lock:
-        if _gemini_client is not None:
-            return _gemini_client
-        try:
-            _gemini_client = GeminiClient()
-        except LLMError:
-            return None
-    return _gemini_client
-
-
-def get_executor() -> Executor:
-    """Provide the default scope-constrained executor. Overridden in tests."""
-    return Executor(
-        approved_runner=approved_runner_from_config(),
-        rate_limiter=_RATE_LIMITER,
-    )
-
-def get_approval_store() -> ApprovalStore:
-    """Provide the durable local multi-worker approval capability store."""
-    return _APPROVALS
-
-
-def get_rollback_engine() -> RollbackEngine:
-    """Provide the default sandbox rollback engine. Overridden in tests."""
-    return RollbackEngine()
-
-
-def get_self_apply_engine(
-    executor: Executor = Depends(get_executor),
-) -> SelfApplyEngine:
-    """Provide the Self-Analysis T3 apply engine (verifies via the gated Executor).
-
-    The engine is the ONLY way an approved proposal reaches the real ``aios/`` source
-    — there is deliberately no agent tool that applies. Overridden in tests with a
-    fake verifier + temp project root so no real shell/suite runs.
-    """
-    isolated_runner = approved_runner_from_config()
-
-    def project_root_runner(
-        command: str, *, cwd: str, env: dict[str, str], timeout_s: int
-    ) -> tuple[str, str, int]:
-        """Run self-apply verification from the project root, after gateway approval.
-
-        ``SelfApplyEngine`` verifies changes to ``aios/`` with ``pytest tests/``.
-        The ordinary agent executor intentionally runs in ``training_ground/``;
-        using that cwd would look for ``training_ground/tests`` and roll back good
-        proposals. The command still passes through the same Executor gateway and
-        audit path before this runner is invoked.
-        """
-        if command != DEFAULT_VERIFY_COMMAND:
-            raise ValueError("self-apply verifier accepts only the fixed project test command")
-        if isolated_runner is not None:
-            return isolated_runner(
-                command,
-                cwd=str(config.PROJECT_ROOT),
-                env=env,
-                timeout_s=timeout_s,
+            _POLICY_KERNEL.check_endpoint_rate_limit(
+                "/api/v1/approval/req", edge_security.real_client_ip(request)
             )
-        completed = _bounded_run(
-            [sys.executable, "-m", "pytest", "tests/", "-q"],
-            cwd=str(config.PROJECT_ROOT),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        return completed.stdout or "", completed.stderr or "", completed.returncode
-
-    verify_executor = Executor(
-        runner=project_root_runner,
-        timeout_s=120,
-        actor="self-apply-verifier",
-    )
-    return SelfApplyEngine(verifier=Verifier(verify_executor))
-
-
-def get_edit_snapshot() -> Callable[..., object]:
-    """Provide the pre-edit snapshot hook for the agent's ``edit_file`` tool.
-
-    Returns a callable that lazily constructs a sandbox :class:`RollbackEngine`
-    and snapshots it — only when an approved edit is actually applied, so read /
-    command turns pay nothing. Fail-closed: a snapshot failure propagates so the
-    agent refuses the edit (no unprotected write). Overridden in tests with a recorder.
-    """
-    def snapshot(message: str = "pre-edit snapshot") -> None:
-        # Let failures propagate: the agent treats a snapshot error as fail-closed
-        # and refuses the edit, so a write is never applied without a captured
-        # pre-edit state to roll back to.
-        RollbackEngine().create_snapshot(message)
-
-    return snapshot
-
-
-def get_semantic_indexer() -> Optional[SemanticMemory]:
-    """Provide the L3 semantic writer used to index completed chat turns.
-
-    Returns ``None`` when :data:`aios.config.INDEX_CHAT` is disabled (so no
-    embedding model is loaded). Overridden in tests with a fake recorder so the
-    suite never loads the real embedder or mutates the on-disk vector index.
-    """
-    return SemanticMemory() if config.INDEX_CHAT else None
-
-
-def get_reflection_agent(
-    llm: LLMClient = Depends(get_llm_client),
-) -> Optional[ReflectionAgent]:
-    """Provide the reflection agent that turns a command failure into a lesson.
-
-    Returns ``None`` when :data:`aios.config.REFLECT_ON_FAILURE` is disabled.
-    Reuses the injected LLM client so it is fully overridable in tests.
-    """
-    return ReflectionAgent(llm) if config.REFLECT_ON_FAILURE else None
-
-
-def get_development_tracker() -> DevelopmentTracker:
-    """Provide the evidence-backed developmental metrics store."""
-    return DevelopmentTracker()
-
-
-def get_skill_memory() -> SkillMemory:
-    """Provide verification-backed procedural skill memory."""
-    return SkillMemory()
-
-
-def get_swarm_pattern_memory() -> SwarmPatternMemory:
-    """Provide the ant-colony swarm's decomposition-pattern memory."""
-    return SwarmPatternMemory()
-
-
-def get_semantic_facts() -> SemanticFacts:
-    """Provide the human-approved personalization facts store (REAL only).
-
-    Reads the ``semantic_facts`` table (human-gated writes); returns an empty
-    list when no facts exist, so the conversational endpoint stays honest —
-    personalization is dormant, never fabricated, when nothing is known. Cheap
-    and stateless (opens a fresh connection per call). Overridden in tests.
-    """
-    return SemanticFacts()
-
-
-def get_autonomy() -> AutonomyLedger:
-    """Provide the earned-autonomy ledger (opt-in; off => never grants autonomy)."""
-    return AutonomyLedger()
-
-
-def get_curriculum_manager() -> CurriculumManager:
-    """Provide the non-autonomous curriculum evidence store."""
-    return CurriculumManager()
-
-
-def get_memory_consolidator() -> MemoryConsolidator:
-    """Provide the evidence-gated trusted-memory promotion service."""
-    return MemoryConsolidator()
+        except HTTPException:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded for /api/v1/approval/req"},
+            )
+    return await call_next(request)
 
 
 def get_compactor() -> MemoryCompactor:
@@ -641,41 +541,15 @@ def get_compactor() -> MemoryCompactor:
                     episodic=_EPISODIC,
                     index=_VECTOR_INDEX,
                 )
+                get_memory_authority().register_adapter(
+                    "compaction", MemoryCompactionAdapter(_COMPACTOR)
+                )
     return _COMPACTOR
-
-
-def get_conversation_state_store() -> ConversationStateStore:
-    """Provide durable, unverified shared-understanding state."""
-    return ConversationStateStore()
-
-
-def get_alignment_evaluation_store() -> AlignmentEvaluationStore:
-    """Provide diagnostic human-alignment evidence; it never changes policy."""
-    return AlignmentEvaluationStore()
-
-
-def get_alignment_interpreter(
-    llm: LLMClient = Depends(get_llm_client),
-) -> Optional[AlignmentInterpreter]:
-    """Provide the advisory per-turn alignment interpreter.
-
-    Returns ``None`` when :data:`aios.config.INTERPRET_ALIGNMENT` is disabled,
-    so a generated turn costs no extra local completion. Reuses the injected
-    LLM client so tests override it with fakes.
-    """
-    return AlignmentInterpreter(llm) if config.INTERPRET_ALIGNMENT else None
 
 
 # --------------------------------------------------------------------------- #
 # Request models
 # --------------------------------------------------------------------------- #
-class MemorySearchRequest(BaseModel):
-    """Body for ``/memory/search``."""
-
-    query: str = Field(..., description="Natural-language search query.")
-    top_k: int = Field(3, ge=1, le=50, description="Number of results to return.")
-
-
 class MemoryCompactRequest(BaseModel):
     """Body for ``/memory/compact``."""
 
@@ -683,72 +557,6 @@ class MemoryCompactRequest(BaseModel):
         True,
         description="When True, preview what would be removed. False performs the sweep.",
     )
-
-
-class ClassifyRequest(BaseModel):
-    """Body for ``/security/classify``."""
-
-    command: str = Field(..., description="Action payload to classify.")
-
-
-class ReflectRequest(BaseModel):
-    """Body for ``/reflect``."""
-
-    command: str = Field(..., description="The action/command that failed.")
-    error_output: str = Field(..., description="Captured error text.")
-    task_id: Optional[str] = Field(None, description="Stable id for recurrence detection.")
-
-
-class PlanRequest(BaseModel):
-    """Body for ``/plan``."""
-
-    goal: str = Field(..., description="High-level goal to decompose into steps.")
-
-
-class ExecuteRequest(BaseModel):
-    """Body for ``/execute``."""
-
-    command: str = Field(..., description="Command to classify, gate, and run.")
-    session_id: Optional[str] = Field(
-        None,
-        alias="sessionId",
-        description="Required for a YELLOW command's server-issued approval capability.",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class ApprovalRequest(BaseModel):
-    """Body for ``/approval/req`` — a human's decision on an escalated action."""
-
-    approval_token: str = Field(..., alias="approvalToken")
-    session_id: str = Field(..., alias="sessionId")
-    approve: bool = Field(..., description="True to authorise execution, False to reject.")
-
-    model_config = {"populate_by_name": True}
-
-
-class RollbackRequest(BaseModel):
-    """Body for ``/rollback``."""
-
-    snapshot_id: Optional[str] = Field(
-        None, description="Target snapshot SHA; defaults to the previous snapshot."
-    )
-    approval_token: Optional[str] = Field(
-        None, alias="approvalToken",
-        description="Server-issued approval token authorising this destructive operation.",
-    )
-    session_id: str = Field(..., alias="sessionId", description="Session that requested rollback.")
-
-    model_config = {"populate_by_name": True}
-
-
-class ApplyProposalRequest(BaseModel):
-    """Body for the Self-Analysis T3 apply endpoint — the HUMAN approver's id."""
-
-    approved_by: str = Field("", alias="approvedBy")
-
-    model_config = {"populate_by_name": True}
 
 
 class GenerateRequest(BaseModel):
@@ -761,7 +569,9 @@ class GenerateRequest(BaseModel):
     configured Bedrock and never silently changes providers.
     """
 
-    messages: list[dict[str, Any]] = Field(default_factory=lambda: cast(list[dict[str, Any]], []))
+    messages: list[dict[str, Any]] = Field(
+        default_factory=lambda: cast(list[dict[str, Any]], [])
+    )
     model_id: Optional[str] = Field(None, alias="modelId")
     session_id: str = Field("ui-session", alias="sessionId")
     approval_tokens: list[str] = Field(default_factory=list, alias="approvalTokens")
@@ -771,26 +581,123 @@ class GenerateRequest(BaseModel):
     approved_commands: list[str] = Field(default_factory=list, alias="approvedCommands")
     #: File edits the human has authorised this turn (the edit analog of
     #: ``approvedCommands``), each ``{filepath, old_string, new_string}``.
-    approved_edits: list[dict[str, Any]] = Field(default_factory=list, alias="approvedEdits")
+    approved_edits: list[dict[str, Any]] = Field(
+        default_factory=list, alias="approvedEdits"
+    )
     #: New files the human has authorised this turn (the create analog of
     #: ``approvedEdits``), each ``{filepath, content}``.
-    approved_creations: list[dict[str, Any]] = Field(default_factory=list, alias="approvedCreations")
-    #: Opt-in sequential role-pass castes (planner -> coder -> reviewer over
-    #: the one supervised loop). Absent/false -> the endpoint behaves
-    #: byte-identically to the single-agent loop.
+    approved_creations: list[dict[str, Any]] = Field(
+        default_factory=list, alias="approvedCreations"
+    )
+    #: Experimental role-pass selector. It is intentionally not production
+    #: selected until WorkerFoundry owns its lifecycle.
     role_pass: bool = Field(False, alias="rolePass")
-    #: Opt-in ephemeral worker swarm: decompose -> N gated workers -> synthesize
-    #: (ant-colony stigmergy over the same supervised loop). Absent/false ->
-    #: unchanged. Takes precedence over rolePass when both are set.
+    #: Experimental swarm selector. It is intentionally not production selected
+    #: until WorkerFoundry owns its lifecycle. Takes precedence over rolePass
+    #: when both are set for the refusal message.
     swarm: bool = Field(False, alias="swarm")
+    #: Explicitly opt into mission authority for this turn.  The route no
+    #: longer upgrades every forge request to mission mode implicitly.
+    mission_requested: bool = Field(False, alias="missionRequested")
+    #: Explicit governance semantics are separate from mission semantics.
+    governance_requested: bool = Field(False, alias="governanceRequested")
 
     model_config = {"populate_by_name": True}
+
+
+def _generate_capability_binding(
+    principal: Principal,
+    action_type: str,
+    payload: dict[str, Any],
+    *,
+    route: str = "/api/generate",
+) -> CapabilityBinding:
+    """Bind one generate approval to the authenticated human and exact action."""
+    if action_type not in {"command", "edit", "create"}:
+        raise CapabilityError(f"unsupported generate capability action: {action_type}")
+    return CapabilityBinding(
+        operator_id=principal.principal_id,
+        device_id=principal.device_id,
+        authentication_event_id=principal.authentication_event_id,
+        session_id=principal.session_id,
+        action_type=action_type,
+        route=route,
+        http_method="POST",
+        payload_digest=payload_digest(payload),
+        resource_digest=resource_digest({"workspace": "training_ground"}),
+        mission_id=None,
+        contract_digest=None,
+        policy_version="v1",
+        scope="training_ground/",
+        verification_requirement=(
+            "command_exit_zero"
+            if action_type == "command"
+            else "write_auto_verify_pass"
+        ),
+    )
+
+
+def _generate_action_envelope(
+    principal: Principal,
+    request: Request,
+    action_type: str,
+    payload: dict[str, Any],
+) -> ActionEnvelope:
+    """Build the R4 envelope for one streamed generate approval."""
+    return ActionEnvelope(
+        route="/api/generate",
+        action_type=ActionType.GENERATE,
+        http_method="POST",
+        payload=payload,
+        principal=EnvelopePrincipal(
+            session_id=principal.session_id,
+            actor_source="session",
+            client_ip=principal.client_address or "127.0.0.1",
+        ),
+        request_id=principal.request_id or request.headers.get("x-request-id"),
+        operator_id=principal.principal_id,
+        device_id=principal.device_id,
+        authentication_event_id=principal.authentication_event_id,
+        resource={"workspace": "training_ground"},
+        requested_capability=f"generate.{action_type}",
+        correlation_id=(
+            request.headers.get("x-correlation-id")
+            or principal.request_id
+            or request.headers.get("x-request-id")
+            or str(uuid.uuid4())
+        ),
+    )
+
+
+def _validate_generate_action_payload(
+    action_type: str,
+    payload: object,
+) -> dict[str, Any]:
+    """Accept only the server-issued payload shapes the tool loop can replay."""
+    if not isinstance(payload, dict):
+        raise CapabilityError("generate capability payload is not an object")
+    required = {
+        "command": ("command",),
+        "edit": ("filepath", "old_string", "new_string"),
+        "create": ("filepath", "content"),
+    }.get(action_type)
+    if required is None or any(
+        not isinstance(payload.get(key), str) for key in required
+    ):
+        raise CapabilityError("generate capability payload is malformed")
+    if any(
+        not str(payload[key]).strip()
+        for key in required
+        if key in {"command", "filepath"}
+    ):
+        raise CapabilityError("generate capability payload contains an empty target")
+    return dict(payload)
 
 
 class ChatRequest(BaseModel):
     """Body for ``/api/v1/chat`` — the lean Hinglish conversational endpoint.
 
-    Conversation only (the Jarvis voice mind, Slice 1): a single ``transcript``
+    Conversation only (the GAGOS voice mind): a single ``transcript``
     line from the operator + an optional ``sessionId``. It reuses the multi-LLM
     router (privacy gate intact), memory recall, and REAL personalization facts,
     then streams one reply. NO file-write or coding tools run here — this is talk,
@@ -816,345 +723,20 @@ class TerminalRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
-class FactPromotionRequest(BaseModel):
-    """Body for human-approved contradiction-aware fact promotion."""
-
-    subject: str
-    predicate: str
-    object: str
-    approved_by: str = Field(..., alias="approvedBy")
-
-    model_config = {"populate_by_name": True}
-
-
-class CurriculumTaskRequest(BaseModel):
-    """Body for defining a safe curriculum task; definitions never auto-run."""
-
-    skill_name: str = Field(..., alias="skillName")
-    level: int = Field(..., ge=1)
-    prompt: str
-    held_out: bool = Field(False, alias="heldOut")
-
-    model_config = {"populate_by_name": True}
-
-
-class ConversationSessionRequest(BaseModel):
-    """Request restoration of one durable conversation session."""
-
-    session_id: str = Field(..., min_length=1, alias="sessionId")
-    limit: int = Field(50, ge=1, le=100)
-
-    model_config = {"populate_by_name": True}
-
-
-class ConversationCorrectionRequest(BaseModel):
-    """User-authored corrections to the current advisory interpretation."""
-
-    session_id: str = Field(..., min_length=1, alias="sessionId")
-    corrections: dict[str, Any]
-
-    model_config = {"populate_by_name": True}
-
-
-class AlignmentFeedbackRequest(BaseModel):
-    """Explicit human evaluation of the latest visible understanding frame."""
-
-    session_id: str = Field(..., min_length=1, alias="sessionId")
-    observation_id: Optional[int] = Field(None, ge=1, alias="observationId")
-    outcome: str
-    issues: list[str] = Field(default_factory=list)
-    notes: str = Field("", max_length=2000)
-
-    model_config = {"populate_by_name": True}
-
-
-class IntentPreviewRequest(BaseModel):
-    """Body for ``/api/v1/intent/preview`` — a lightweight rule-based prediction
-    of what the operator is about to ask, so the UI can hint the dock before the
-    turn is even sent. No LLM call; deterministic and cheap."""
-
-    text: str = Field(..., max_length=2000, description="Operator's current draft.")
-
-
-class IntentPreviewResponse(BaseModel):
-    """Predicted intent class for the command dock."""
-
-    intent: str = Field(..., description="chat | code | browse | swarm | command")
-    confidence: float = Field(..., ge=0, le=1)
-    tool: Optional[str] = Field(None, description="Primary tool if intent is actionable.")
-
-
-class OnboardingStateResponse(BaseModel):
-    """Read-only view of which product milestones the operator has reached."""
-
-    firstDirective: bool
-    firstApproval: bool
-    firstVerify: bool
-    firstCloudRoute: bool
-    firstAutonomy: bool
-
-
-class SessionCreateResponse(BaseModel):
-    """Response from POST /api/v1/auth/session — session created."""
-
-    authenticated: bool = Field(
-        ..., description="True when the session is authenticated."
-    )
-    session_id: str = Field(
-        ..., alias="sessionId", description="The session identifier (for cookie-based clients)."
-    )
-    cookie_based: bool = Field(
-        True, alias="cookieBased",
-        description="True when session travels via httpOnly cookie.",
-    )
-    warning: Optional[str] = Field(
-        None,
-        description="Security warning when cookie-less fallback is in use.",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class SessionStatusResponse(BaseModel):
-    """Response from GET /api/v1/auth/session — current session status."""
-
-    authenticated: bool = Field(
-        ..., description="True when a valid session exists."
-    )
-    cookie_based: bool = Field(
-        True, alias="cookieBased",
-        description="True when session travels via httpOnly cookie.",
-    )
-    session_id: Optional[str] = Field(
-        None, alias="sessionId",
-        description="The session identifier (only when not cookie-based).",
-    )
-
     model_config = {"populate_by_name": True}
 
 
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
-@app.get("/health")
-def health() -> dict[str, Any]:
-    """Liveness probe."""
-    return {"status": "ok", "version": aios.__version__}
 
 
-@app.get("/metrics")
-def metrics(
-    tracker: DevelopmentTracker = Depends(get_development_tracker),
-    approvals: ApprovalStore = Depends(get_approval_store),
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> Response:
-    """Prometheus scrapable operational metrics."""
-    _METRICS.update(
-        tracker.summary(),
-        approvals.grant_count(),
-        autonomy.earned_count(),
-        audit_db_path=config.AUDIT_DB_PATH,
-    )
-    return Response(
-        content=generate_latest(_METRICS.registry),
-        media_type=CONTENT_TYPE_LATEST,
-    )
-
-
-def _classify_intent(text: str) -> IntentPreviewResponse:
-    """Rule-based intent preview for the command dock."""
-    t = text.lower().strip()
-    if not t:
-        return IntentPreviewResponse(intent="chat", confidence=1.0, tool=None)
-    if re.search(r"https?://|^(browse|search|look\s+up)\b", t):
-        return IntentPreviewResponse(intent="browse", confidence=0.92, tool="browse")
-    if re.search(r"\b(swarm|workers|plan\s+(out|it)|decompose|multi-agent)\b", t):
-        return IntentPreviewResponse(intent="swarm", confidence=0.9, tool="swarm")
-    if re.match(r"^(run|execute|install|pip|npm|git|python|bash|sh)\b", t):
-        return IntentPreviewResponse(intent="command", confidence=0.85, tool="execute")
-    if re.match(r"^(write|build|create|make|code|implement|fix|add|generate)\b", t):
-        return IntentPreviewResponse(intent="code", confidence=0.9, tool="edit_file")
-    return IntentPreviewResponse(intent="chat", confidence=0.8, tool=None)
-
-
-@app.post("/api/v1/intent/preview")
-def intent_preview(req: IntentPreviewRequest) -> IntentPreviewResponse:
-    """Return a cheap, deterministic intent preview for the current draft."""
-    return _classify_intent(req.text)
-
-
-def _has_any_approval_grant(store: ApprovalStore) -> bool:
-    """True if any approval has ever been redeemed (cross-session)."""
-    if store.db_path is not None:
-        with store._connect() as conn:
-            row = conn.execute("SELECT COUNT(*) AS n FROM approval_grants").fetchone()
-            return int(row["n"]) > 0
-    with store._lock:
-        return any(store._grants.values())
-
-
-def _has_verified_success() -> bool:
-    """True if any development event has outcome verified_success."""
-    with get_connection(config.MEMORY_DB_PATH) as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) AS n FROM development_events WHERE outcome = ?",
-            ("verified_success",),
-        ).fetchone()
-        return int(row["n"]) > 0
-
-
-def _has_cloud_route() -> bool:
-    """True if a cloud-route audit entry has been recorded."""
-    init_audit_db(config.AUDIT_DB_PATH)
-    conn = sqlite3.connect(str(config.AUDIT_DB_PATH), timeout=30.0)
-    try:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT COUNT(*) AS n FROM tamper_audit_trail WHERE actor = ?",
-            ("cloud-route",),
-        ).fetchone()
-        return int(row["n"]) > 0
-    finally:
-        conn.close()
-
-
-@app.get("/api/v1/onboarding/state")
-def onboarding_state(
-    approvals: ApprovalStore = Depends(get_approval_store),
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> OnboardingStateResponse:
-    """Return which first-run milestones have been reached."""
-    ledger = autonomy.ledger_map()
-    return OnboardingStateResponse(
-        firstDirective=_EPISODIC.count(None) > 0,
-        firstApproval=_has_any_approval_grant(approvals),
-        firstVerify=_has_verified_success(),
-        firstCloudRoute=_has_cloud_route(),
-        firstAutonomy=ledger["summary"]["earned"] > 0,
-    )
-
-
-# --------------------------------------------------------------------------- #
-# Session management — httpOnly Secure SameSite=Strict cookies (H2 hardening)
-# --------------------------------------------------------------------------- #
-# SECURITY: Session IDs are managed server-side and travel in httpOnly cookies
-# that are completely inaccessible to JavaScript. This prevents XSS-based
-# session theft (OWASP A07:2021). The raw session ID is never logged or exposed.
-# --------------------------------------------------------------------------- #
-
-def _set_session_cookie(response: Response, raw_session_id: str) -> str:
-    """Set the session_id cookie with httpOnly, Secure, SameSite=Strict flags.
-
-    Returns the cookie value (the SHA-256 hash) so it can be used as a
-    session identifier in logs (the raw ID is never logged).
-    """
-    cookie_value = hashlib.sha256(raw_session_id.encode()).hexdigest()
-    # In development (loopback) Secure=False so the cookie works over HTTP.
-    # In production behind HTTPS, Secure=True is enforced by config check.
-    secure = config.API_HOST not in {"127.0.0.1", "localhost", "::1"}
-    response.set_cookie(
-        key="session_id",
-        value=cookie_value,
-        httponly=True,          # NOT accessible to JavaScript — prevents XSS theft
-        secure=secure,          # HTTPS only in production; loopback allows HTTP
-        samesite="strict",      # NOT sent cross-origin — prevents CSRF
-        max_age=3600,           # 1 hour
-        path="/",             # Sent for all API paths
-    )
-    return cookie_value
-
-
-@app.post("/api/v1/auth/session")
-def create_session(
-    response: Response,
-    manager: SessionManager = Depends(get_session_manager),
-) -> SessionCreateResponse:
-    """Create a new server-side session and set the httpOnly session cookie.
-
-    The session ID is stored in an httpOnly, Secure, SameSite=Strict cookie.
-    JavaScript cannot read this cookie, preventing XSS-based session theft.
-
-    If cookies are blocked (e.g., privacy mode), the session ID is returned
-    in the response body with a security warning — the client should fall
-    back to sending it in the ``sessionId`` field of subsequent requests.
-    """
-    raw_id = manager.create_session()
-    cookie_hash = _set_session_cookie(response, raw_id)
-    return SessionCreateResponse(
-        authenticated=True,
-        session_id=cookie_hash,
-        cookie_based=True,
-    )
-
-
-@app.get("/api/v1/auth/session")
-def get_session_status(
-    request: Request,
-    manager: SessionManager = Depends(get_session_manager),
-) -> SessionStatusResponse:
-    """Check whether the current session is valid.
-
-    Returns ``authenticated: true`` when the request carries a valid
-    session cookie. The frontend calls this on load to determine whether
-    a session exists without needing to read the cookie directly
-    (httpOnly cookies are invisible to JavaScript).
-    """
-    cookie_hash = request.cookies.get("session_id")
-    session = manager.validate_session(cookie_hash)
-    if session is not None:
-        return SessionStatusResponse(
-            authenticated=True,
-            cookie_based=True,
-        )
-    return SessionStatusResponse(
-        authenticated=False,
-        cookie_based=True,
-    )
-
-
-@app.delete("/api/v1/auth/session")
-def destroy_session(
-    request: Request,
-    response: Response,
-    manager: SessionManager = Depends(get_session_manager),
-) -> dict[str, Any]:
-    """Invalidate the current session (logout).
-
-    Removes the session from server-side storage AND clears the cookie
-    so the browser stops sending it.
-    """
-    cookie_hash = request.cookies.get("session_id")
-    manager.invalidate_session(cookie_hash)
-    response.delete_cookie(
-        key="session_id",
-        path="/",
-        httponly=True,
-        secure=config.API_HOST not in {"127.0.0.1", "localhost", "::1"},
-        samesite="strict",
-    )
-    return {"authenticated": False}
-
-
-@app.post("/api/v1/memory/search")
-def memory_search(req: MemorySearchRequest) -> dict[str, Any]:
-    """Hybrid BM25 + FAISS + temporal-decay retrieval over semantic memory."""
-    results = hybrid_search(req.query, top_k=req.top_k)
-    return {"query": req.query, "results": [asdict(r) for r in results]}
-
-
-@app.post("/api/v1/memory/consolidate")
-def memory_consolidate(
-    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
-) -> dict[str, Any]:
-    """Idempotently index current verified lessons and active approved facts."""
-    return consolidator.run()
-
-
-@app.post("/api/v1/memory/compact")
+@app.post("/api/v1/memory/compact", dependencies=[Depends(enforce_action_boundary)])
 def memory_compact(
     req: MemoryCompactRequest,
+    _principal: Any = Depends(require_privileged_operator),
     compactor: MemoryCompactor = Depends(get_compactor),
+    authority=Depends(get_memory_authority),
 ) -> JSONResponse:
     """Operator-triggered memory compaction (audited "sleep" sweep).
 
@@ -1163,534 +745,15 @@ def memory_compact(
     removed when dry-run is enabled; when disabled, performs the sweep and
     writes one audit entry under actor ``sleep-consolidation``.
     """
-    result = compactor.compact(dry_run=req.dry_run)
+    authority_adapters = getattr(authority, "adapters", {})
+    if "compaction" in authority_adapters and authority.owns_store(
+        "compaction", compactor
+    ):
+        result = authority.compact_memory(dry_run=req.dry_run)
+    else:
+        result = compactor.compact(dry_run=req.dry_run)
     status_code = 200 if req.dry_run else 202
     return JSONResponse(content=result, status_code=status_code)
-
-
-@app.post("/api/v1/conversation/session")
-def restore_conversation_session(
-    req: ConversationSessionRequest,
-    state: ConversationStateStore = Depends(get_conversation_state_store),
-) -> dict[str, Any]:
-    """Restore recent dialogue and the latest unverified alignment frame."""
-    rows = _EPISODIC.recent(req.session_id, req.limit)
-    messages = [
-        {"role": str(row["role"]), "content": [{"text": str(row["content"])}]}
-        for row in rows
-        if row["role"] in {"user", "assistant"}
-    ]
-    return {
-        "alignment": state.get(req.session_id),
-        "activeCorrection": state.active_correction(req.session_id),
-        "correctionHistory": state.correction_history(req.session_id),
-        "messages": messages,
-    }
-
-
-@app.post("/api/v1/conversation/correction")
-def correct_conversation_alignment(
-    req: ConversationCorrectionRequest,
-    state: ConversationStateStore = Depends(get_conversation_state_store),
-    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-) -> dict[str, Any]:
-    """Apply user-authored interpretation overrides; never grant authority."""
-    current_payload = state.get(req.session_id)
-    if current_payload is None:
-        raise HTTPException(status_code=404, detail="no alignment frame exists for session")
-    try:
-        incoming = validate_user_corrections(req.corrections)
-        active = state.active_correction(req.session_id)
-        merged = dict(active["corrections"]) if active is not None else {}
-        merged.update(incoming)
-        current = frame_from_state(current_payload)
-        corrected = apply_user_corrections(current, merged, revision=1)
-        corrected_payload = corrected.as_dict()
-        evaluation_payload = current_payload.get("evaluation")
-        if isinstance(evaluation_payload, dict):
-            corrected_payload["evaluation"] = evaluation_payload
-        revision, persisted = state.record_correction(
-            req.session_id,
-            before_frame=current_payload,
-            after_frame=corrected_payload,
-            corrections=merged,
-            corrected_fields=sorted(merged),
-            expected_revision=(int(active["revision"]) if active is not None else None),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    try:
-        observation_id = (
-            evaluation_payload.get("observation_id")
-            if isinstance(evaluation_payload, dict)
-            else None
-        )
-        evaluation.mark_latest_corrected(
-            req.session_id,
-            sorted(merged),
-            observation_id=int(observation_id) if observation_id else None,
-        )
-    except Exception as exc:  # noqa: BLE001 - diagnostic evidence must never break correction
-        logger.warning("Failed to mark alignment observation as corrected", exc_info=exc)
-    return {
-        "alignment": persisted,
-        "activeCorrection": {
-            "revision": revision,
-            "corrections": merged,
-            "fields": sorted(merged),
-        },
-        "correctionHistory": state.correction_history(req.session_id),
-    }
-
-
-@app.get("/api/v1/alignment/evaluation")
-def alignment_evaluation_summary(
-    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-) -> dict[str, Any]:
-    """Return diagnostic alignment evidence without changing policy."""
-    return evaluation.summary()
-
-
-@app.post("/api/v1/alignment/feedback")
-def record_alignment_feedback(
-    req: AlignmentFeedbackRequest,
-    evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-) -> dict[str, Any]:
-    """Record explicit operator feedback on the latest session observation."""
-    try:
-        observation_id = evaluation.record_feedback(
-            req.session_id,
-            outcome=req.outcome,
-            issues=req.issues,
-            notes=req.notes,
-            observation_id=req.observation_id,
-        )
-    except ValueError as exc:
-        status = 404 if "no alignment observation" in str(exc) else 422
-        raise HTTPException(status_code=status, detail=str(exc)) from exc
-    return {
-        "observationId": observation_id,
-        "automaticPolicyUpdates": False,
-    }
-
-
-@app.post("/api/v1/conversation/correction/clear")
-def clear_conversation_alignment_correction(
-    req: ConversationSessionRequest,
-    state: ConversationStateStore = Depends(get_conversation_state_store),
-) -> dict[str, Any]:
-    """Clear active user corrections and restore the superseded base frame."""
-    try:
-        restored = state.clear_correction(req.session_id)
-        alignment = frame_from_state(restored).as_dict()
-        evaluation_payload = restored.get("evaluation")
-        if isinstance(evaluation_payload, dict):
-            alignment["evaluation"] = evaluation_payload
-        state.save(req.session_id, alignment)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {
-        "alignment": alignment,
-        "activeCorrection": None,
-        "correctionHistory": state.correction_history(req.session_id),
-    }
-
-
-@app.post("/api/v1/memory/facts")
-def promote_fact(
-    req: FactPromotionRequest,
-    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
-) -> dict[str, Any]:
-    """Promote one human-approved fact, refusing unresolved contradictions."""
-    result = consolidator.promote_fact(
-        req.subject, req.predicate, req.object, approved_by=req.approved_by
-    )
-    if result.reason == "contradiction":
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "reason": result.reason,
-                "conflictId": result.conflict_id,
-                "conflictObject": result.conflict_object,
-            },
-        )
-    if not result.committed:
-        raise HTTPException(status_code=422, detail=result.reason)
-    return asdict(result)
-
-
-@app.post("/api/v1/memory/facts/reconcile")
-def reconcile_fact(
-    req: FactPromotionRequest,
-    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
-) -> dict[str, Any]:
-    """Human-approved replacement of a contradictory fact and its vector."""
-    result = consolidator.reconcile_fact(
-        req.subject, req.predicate, req.object, approved_by=req.approved_by
-    )
-    if not result.committed:
-        raise HTTPException(status_code=422, detail=result.reason)
-    return asdict(result)
-
-
-@app.get("/api/v1/memory/facts/graph")
-def memory_facts_graph(
-    start: str,
-    depth: int = 2,
-    facts: SemanticFacts = Depends(get_semantic_facts),
-) -> dict[str, Any]:
-    """Multi-hop fact-graph traversal from *start* — the transitive reasoning
-    single-hop ``facts_for`` cannot do (G1). Read-only: returns the active-fact
-    edges reachable within *depth* hops, each with its hop ``depth`` and a
-    ``path``, so the planner (or the lattice's fact view) can reason over
-    transitive knowledge. ``depth`` is clamped to [1, 4] in ``traverse``."""
-    if not start.strip():
-        raise HTTPException(status_code=422, detail="start is required")
-    rows = facts.traverse(start, max_depth=depth)
-    edges = [
-        {
-            "subject": r["subject"],
-            "predicate": r["predicate"],
-            "object": r["object"],
-            "depth": r["depth"],
-            "path": r["path"],
-        }
-        for r in rows
-    ]
-    return {"start": start.strip(), "depth": max(1, min(int(depth), 4)), "edges": edges}
-
-
-@app.get("/api/v1/development/metrics")
-def development_metrics(
-    tracker: DevelopmentTracker = Depends(get_development_tracker),
-) -> dict[str, Any]:
-    """Return measured behavior-change and verification coverage metrics."""
-    return tracker.summary()
-
-
-@app.get("/api/v1/development/skills")
-def development_skills(
-    status: Optional[str] = None,
-    skills: SkillMemory = Depends(get_skill_memory),
-) -> dict[str, Any]:
-    """List candidate and verified procedural skills."""
-    return {"skills": skills.list(status=status)}
-
-
-@app.get("/api/v1/development/trails")
-def development_trails(
-    skills: SkillMemory = Depends(get_skill_memory),
-) -> dict[str, Any]:
-    """The pheromone map: every trail's computed strength, decay, and reuse
-    evidence as of now, plus superseded-fragment lineage and the constants in
-    effect — read-only observability and the tuning evidence base."""
-    return skills.trail_map()
-
-
-@app.get("/api/v1/development/workspace")
-def development_workspace() -> dict[str, Any]:
-    """The agent's manufacturing workspace: the text files currently in
-    ``training_ground/`` (the agent's writable sandbox), most-recent first, with
-    contents. Read-only observability so a UI (the forge editor) can show the
-    mind's ACTUAL written files — independent of how the write landed (approval,
-    earned-autonomy, or edit). Strictly confined to ``training_ground/`` (no path
-    parameter, no traversal); skips caches/binaries and caps file count + size so
-    the response stays small."""
-    from pathlib import Path
-
-    root = Path(config.PROJECT_ROOT) / "training_ground"
-    text_exts = {
-        ".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".json",
-        ".md", ".txt", ".sh", ".yml", ".yaml", ".toml",
-    }
-    files: list[dict[str, str]] = []
-    if root.is_dir():
-        def _mtime(path: Path) -> float:
-            try:
-                return path.stat().st_mtime
-            except OSError:
-                return 0.0
-
-        candidates = [
-            p for p in root.rglob("*")
-            if p.is_file()
-            and "__pycache__" not in p.parts
-            and p.suffix.lower() in text_exts
-        ]
-        candidates.sort(key=_mtime, reverse=True)  # newest write first
-        for p in candidates:
-            try:
-                if p.stat().st_size > 200_000:
-                    continue
-                content = p.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            files.append({"path": p.relative_to(root).as_posix(), "content": content})
-            if len(files) >= 16:
-                break
-    return {"root": "training_ground", "files": files}
-
-
-@app.get("/api/v1/development/autonomy")
-def development_autonomy(
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> dict[str, Any]:
-    """The earned-autonomy ledger: which YELLOW action classes have graduated to
-    autonomous execution by verified-success evidence, which are revoked, and the
-    threshold + master switch in effect — read-only observability for the operator."""
-    return autonomy.ledger_map()
-
-
-@app.post("/api/v1/development/autonomy/revoke")
-def development_autonomy_revoke(
-    signature: str,
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-) -> dict[str, Any]:
-    """Operator force-revoke of an earned signature — human authority over the
-    bridge stays absolute: any earned class can be pulled back to YELLOW at will."""
-    return {"revoked": autonomy.revoke(signature)}
-
-
-@app.get("/api/v1/development/curriculum")
-def development_curriculum(
-    skill_name: Optional[str] = None,
-    curriculum: CurriculumManager = Depends(get_curriculum_manager),
-) -> dict[str, Any]:
-    """List safe curriculum definitions and evidence state."""
-    return {"tasks": curriculum.list(skill_name)}
-
-
-@app.post("/api/v1/development/curriculum")
-def add_curriculum_task(
-    req: CurriculumTaskRequest,
-    curriculum: CurriculumManager = Depends(get_curriculum_manager),
-) -> dict[str, Any]:
-    """Define a curriculum task without executing it."""
-    try:
-        task_id = curriculum.add_task(
-            req.skill_name, req.level, req.prompt, held_out=req.held_out
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"id": task_id, "executed": False}
-
-
-@app.post("/api/v1/security/classify")
-def security_classify(req: ClassifyRequest) -> dict[str, Any]:
-    """Deterministic, fail-closed security-zone classification."""
-    result = classify(req.command)
-    return {
-        "zone": result.zone.value,
-        "confidence": result.confidence,
-        "reason": result.reason,
-    }
-
-
-@app.get("/api/v1/audit/verify")
-def audit_verify(from_entry: int = 1, to_entry: Optional[int] = None) -> dict[str, Any]:
-    """Verify the tamper-evident audit hash chain over an optional id range."""
-    status = verify_chain(from_id=from_entry, to_id=to_entry)
-    if not status.valid:
-        logger.critical(
-            "Audit hash-chain verification failed",
-            broken_at=status.broken_at,
-            reason=status.reason,
-            total_entries=status.total_entries,
-        )
-        _METRICS.record_audit_verify_failure()
-    return asdict(status)
-
-
-@app.post("/api/v1/reflect")
-def reflect(req: ReflectRequest, llm: LLMClient = Depends(get_llm_client)) -> dict[str, Any]:
-    """Run the reflection agent on a failure and store a structured lesson."""
-    agent = ReflectionAgent(llm)
-    try:
-        reflection = agent.reflect(req.command, req.error_output, task_id=req.task_id)
-    except ReflectionError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return asdict(reflection)
-
-
-def _serialize_plan(plan: Any) -> dict[str, Any]:
-    """Flatten a Plan (with TaskStep dataclasses) into JSON-safe primitives."""
-    return {
-        "goal": plan.goal,
-        "requires_human": plan.requires_human,
-        "steps": [asdict(s) for s in plan.steps],
-        "approved": [asdict(s) for s in plan.approved],
-        "escalate": [
-            {"step": asdict(e["step"]), "reason": e["reason"], "action": e["action"]}
-            for e in plan.escalate
-        ],
-        "calibrations": [asdict(c) for c in plan.calibrations],
-    }
-
-
-@app.post("/api/v1/plan")
-def plan(req: PlanRequest, llm: LLMClient = Depends(get_llm_client)) -> dict[str, Any]:
-    """Decompose a goal into a confidence-gated task tree."""
-    planner = Planner(llm)
-    try:
-        result = planner.plan(req.goal)
-    except PlannerError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return _serialize_plan(result)
-
-
-@app.post("/api/v1/execute")
-def execute(
-    req: ExecuteRequest,
-    executor: Executor = Depends(get_executor),
-    approvals: ApprovalStore = Depends(get_approval_store),
-) -> dict[str, Any]:
-    """Classify, gate, audit, and (if GREEN) run a command in the sandbox."""
-    result = executor.execute(req.command, session_id=req.session_id)
-    response = asdict(result)
-    if result.status == "REQUIRE_APPROVAL":
-        if not req.session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="sessionId is required to approve a YELLOW command",
-            )
-        response["approvalToken"] = approvals.issue(
-            "command", {"command": req.command}, req.session_id
-        )
-        response["sessionId"] = req.session_id
-    return response
-
-
-@app.post("/api/v1/approval/req")
-def approval_req(
-    req: ApprovalRequest,
-    executor: Executor = Depends(get_executor),
-    approvals: ApprovalStore = Depends(get_approval_store),
-) -> dict[str, Any]:
-    """Resolve a human decision on an escalated (YELLOW) action.
-
-    Approve -> run the command in the sandbox (RED is still refused). Reject ->
-    audit the rejection and return without running.
-    """
-    try:
-        action = approvals.consume(req.approval_token, req.session_id)
-    except ApprovalError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    command = str(action.payload.get("command", ""))
-    if not req.approve:
-        if action.action_type == "command":
-            executor.reset_sensitive_actions(req.session_id)
-        target = command or str(action.payload.get("filepath", action.action_type))
-        log_action("human-approval", f"REJECTED {action.action_type}: {target}", Zone.YELLOW)
-        return {
-            "decision": "rejected",
-            "actionType": action.action_type,
-            "command": command,
-            "executed": False,
-        }
-    if action.action_type != "command":
-        raise HTTPException(status_code=400, detail="approval token is not for a command")
-    executor.reset_sensitive_actions(req.session_id)
-
-    result = executor.execute_approved(command)
-    return {
-        "decision": "approved",
-        "command": command,
-        "executed": result.status == "OK",
-        "result": asdict(result),
-    }
-
-
-@app.post("/api/v1/rollback")
-def rollback(
-    req: RollbackRequest,
-    engine: RollbackEngine = Depends(get_rollback_engine),
-    approvals: ApprovalStore = Depends(get_approval_store),
-) -> dict[str, Any]:
-    """Restore the sandbox working tree to a prior snapshot.
-
-    Rollback is a DESTRUCTIVE operation that requires a server-issued approval
-    token. When called without a token, one is issued and returned so the UI
-    can prompt the human approver; when called with a valid token, the token
-    is consumed and the rollback executes.
-    """
-    # No token yet — issue one and pause for human approval (same pattern as
-    # the YELLOW command flow in /api/v1/execute).
-    if not req.approval_token:
-        token = approvals.issue(
-            "rollback", {"snapshot_id": req.snapshot_id}, req.session_id
-        )
-        return {
-            "requiresApproval": True,
-            "approvalToken": token,
-            "actionType": "rollback",
-            "snapshotId": req.snapshot_id,
-            "executed": False,
-        }
-    # Token present — consume it (atomic; prevents replay / double-spend).
-    try:
-        approvals.consume(req.approval_token, req.session_id)
-    except ApprovalError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    try:
-        result = engine.rollback(req.snapshot_id)
-    except RollbackError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return asdict(result)
-
-
-# --------------------------------------------------------------------------- #
-# Self-Analysis T3 — human-gated review + apply of fix proposals
-# The agent has NO tool to apply (see tool_agent); these human-called endpoints
-# are the ONLY path from a 'proposed' row to a real write in aios/.
-# --------------------------------------------------------------------------- #
-@app.get("/api/v1/self-analysis/proposals")
-def list_proposals(status: Optional[str] = "proposed") -> dict[str, Any]:
-    """List Self-Analysis findings (default the ``proposed`` ones) for the review UI."""
-    init_memory_db()
-    sql = (
-        "SELECT id, target_path, finding_type, evidence, proposed_zone, "
-        "proposed_diff, proposed_by, approved_by, status FROM self_analysis_report"
-    )
-    params: list[Any] = []
-    if status:
-        sql += " WHERE status = ?"
-        params.append(status)
-    sql += " ORDER BY id DESC LIMIT 200"
-    with get_connection() as conn:
-        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
-    return {"proposals": rows}
-
-
-@app.post("/api/v1/self-analysis/proposals/{proposal_id}/apply")
-def apply_proposal(
-    proposal_id: int,
-    req: ApplyProposalRequest,
-    engine: SelfApplyEngine = Depends(get_self_apply_engine),
-) -> dict[str, Any]:
-    """Apply an approved proposal to ``aios/`` — gated, verified, auto-rollback (T3)."""
-    result = engine.apply(proposal_id, approved_by=req.approved_by)
-    return asdict(result)
-
-
-@app.post("/api/v1/self-analysis/proposals/{proposal_id}/reject")
-def reject_proposal(proposal_id: int) -> dict[str, Any]:
-    """Reject a ``proposed`` finding (status -> ``rejected``); never applies anything."""
-    init_memory_db()
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT status FROM self_analysis_report WHERE id = ?", (proposal_id,)
-        ).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"no proposal with id {proposal_id}")
-        if row["status"] != "proposed":
-            raise HTTPException(
-                status_code=409,
-                detail=f"proposal {proposal_id} is '{row['status']}', not 'proposed'",
-            )
-        conn.execute(
-            "UPDATE self_analysis_report SET status = 'rejected' WHERE id = ?", (proposal_id,)
-        )
-    return {"id": proposal_id, "status": "rejected"}
 
 
 # --------------------------------------------------------------------------- #
@@ -1698,75 +761,6 @@ def reject_proposal(proposal_id: int) -> dict[str, Any]:
 # These three endpoints back the React UI's main surfaces. The ``/api/v1/*``
 # routes above expose individual subsystems; these compose them for the UI.
 # --------------------------------------------------------------------------- #
-@app.get("/api/v1/models/local")
-def models_local(client: OllamaClient = Depends(get_ollama_client)) -> dict[str, Any]:
-    """List installed models policy-compatible with this conversational UI."""
-    info = client.list_models()
-    models = info.get("models") or []
-    chat_models = [
-        model
-        for model in models
-        if isinstance(model, str) and supports_tool_protocol(model)
-    ]
-    return {**info, "models": chat_models}
-
-
-@app.get("/api/v1/models/bedrock")
-def models_bedrock(
-    bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
-) -> dict[str, Any]:
-    """List invocable AWS Bedrock text models for the picker.
-
-    ``{"available": bool, "models": [{"id","name"}]}`` — empty when Bedrock isn't
-    configured or the credentials lack control-plane (discovery) access, in which
-    case the UI falls back to a curated cloud list.
-    """
-    if bedrock is None:
-        return {"configured": False, "available": False, "models": []}
-    models = bedrock.list_models()
-    return {"configured": True, "available": bool(models), "models": models}
-
-
-@app.get("/api/v1/models/gemini")
-def models_gemini(
-    gemini: Optional[GeminiClient] = Depends(get_gemini_client),
-) -> dict[str, Any]:
-    """List invocable Google Gemini models for the picker.
-
-    ``{"configured": bool, "available": bool, "models": [{"id","name"}]}`` — empty
-    when Gemini isn't configured (no GCP project). When configured, ``list_models``
-    already falls back to the curated Gemini set if live Vertex discovery is
-    unavailable, so the picker always has the well-known models to offer.
-    """
-    if gemini is None:
-        return {"configured": False, "available": False, "models": []}
-    models = gemini.list_models()
-    return {"configured": True, "available": bool(models), "models": models}
-
-
-@app.get("/api/v1/models/auto")
-def models_auto(
-    task: str = "coding",
-    client: OllamaClient = Depends(get_ollama_client),
-) -> dict[str, Any]:
-    """What the agent would auto-select, per task (drives the 'Auto' picker entry).
-
-    Choosing the best local model is the agent's job, not the user's. Returns the
-    pick for *task* plus a ``by_task`` map (coding/reasoning/general/fast) over the
-    LIVE installed set, so the UI can show "Auto · <model>" and surface how the
-    agent routes by purpose. Selection applies the live loop's tool-capability
-    requirement, so discovery never advertises a different Auto route than runtime.
-    """
-    models = client.list_models().get("models") or []
-    by_task = {t: select_model(models, task=t, require_tools=True) for t in TASKS}
-    chosen = select_model(models, task=task, require_tools=True)
-    if not chosen:
-        return {"available": False, "model": None, "task": task,
-                "reason": "no local chat model installed", "by_task": by_task}
-    return {"available": True, "model": chosen, "task": task,
-            "reason": describe_choice(chosen), "by_task": by_task}
-
-
 def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten the UI history (``content`` arrays) into Ollama chat messages."""
     out: list[dict[str, Any]] = []
@@ -1792,38 +786,130 @@ def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _sse(event: str, data: dict[str, Any]) -> str:
+def _sse(
+    event: str,
+    data: dict[str, Any],
+    *,
+    turn_id: Optional[str] = None,
+    seq: Optional[int] = None,
+) -> str:
     """Format one Server-Sent Event frame.
 
     All newline characters (\\n, \\r) in the JSON payload are escaped to \\n
     and \\r so that an LLM output cannot inject fake SSE events by embedding
     ``\\n\\nevent: approve\\ndata: {...}`` inside a data field.
     """
-    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    if turn_id is not None and seq is not None:
+        event_obj = event_for_sse(event, data, turn_id=turn_id, seq=seq)
+        data = event_obj.to_sse_payload()
+
+        bus = get_cortex_bus()
+        if bus is not None:
+            # Opportunistic mapping to a canonical event for the truthful journal
+            canonical_type = event
+            if event == "turn.started":
+                canonical_type = CanonicalEventType.TURN_STARTED.value
+            elif event == "route":
+                canonical_type = CanonicalEventType.ROUTE_SELECTED.value
+            elif event == "human_required":
+                canonical_type = CanonicalEventType.APPROVAL_REQUIRED.value
+            elif event == "done":
+                canonical_type = CanonicalEventType.TURN_COMPLETED.value
+            elif event == "error":
+                canonical_type = CanonicalEventType.TURN_FAILED.value
+
+            canonical = CanonicalEvent(
+                event_type=canonical_type,
+                phase=event_obj.phase.value,
+                status=(
+                    "completed"
+                    if event == "done"
+                    else "failed"
+                    if event == "error"
+                    else "in_progress"
+                ),
+                trust=TrustLevel.ADVISORY.value,
+                source="aios.api.main.sse",
+                session_id=turn_id,
+                turn_id=turn_id,
+                sequence=seq,
+                payload=data,
+            )
+            try:
+                bus.append(canonical)
+            except Exception:
+                pass
+    payload = json.dumps(data, ensure_ascii=False)
     # Defensive: escape any literal newlines that would break the SSE frame.
     payload = payload.replace("\r", "\\r").replace("\n", "\\n")
     return f"event: {event}\ndata: {payload}\n\n"
 
 
+def _sse_writer(turn_id: str) -> Callable[[str, dict[str, Any]], str]:
+    seq = 0
+
+    def write(event: str, data: dict[str, Any]) -> str:
+        nonlocal seq
+        seq += 1
+        return _sse(event, data, turn_id=turn_id, seq=seq)
+
+    return write
+
+
 #: Agent event type -> SSE event name the front-end's stream reader understands.
 _STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
 
-#: Episodic (L2) memory facade — the durable, chronological record of every turn.
-_EPISODIC = EpisodicMemory()
+#: Process-wide memory facades are all authority-owned adapters.  The
+#: compatibility names remain because the compactor and legacy tests consume
+#: these narrow interfaces.
+_MEMORY_AUTHORITY = get_memory_authority()
+_EPISODIC = _MEMORY_AUTHORITY.adapters["episodic"]
+_WORKING = _MEMORY_AUTHORITY.adapters["working"]
+_SEMANTIC = _MEMORY_AUTHORITY.adapters["semantic"]
 
-#: Working (L1) memory facade — session-scoped RAM-only state.
-_WORKING = WorkingMemory()
-
-#: Semantic (L3) memory facade — durable knowledge chunks + vectors.
-_SEMANTIC = SemanticMemory()
-
-#: FAISS vector index shared with semantic memory.
+#: FAISS vector index exposed by the authority-owned semantic adapter.
 _VECTOR_INDEX = _SEMANTIC.index
 
 #: Process-wide audited memory compactor so working-session touch timestamps are
 #: preserved across independent FastAPI dependency injections.
 _COMPACTOR: Optional[MemoryCompactor] = None
 _COMPACTOR_LOCK = threading.Lock()
+
+
+# ── TurnCoordinator helpers ──────────────────────────────────────────────────
+# Slice 6: both /api/generate and /api/v1/chat resolve through one coordinator.
+# The routes stay thin HTTP adapters; the coordinator owns turn identity, mode
+# classification, and the common event contract.
+
+
+def _build_turn_context(
+    session_id: str,
+    directive: str,
+    *,
+    model_id: Optional[str] = None,
+    approval_tokens: Optional[list[str]] = None,
+    mission_requested: bool = False,
+    governance_requested: bool = False,
+    data_classification: str = "PROJECT_INTERNAL",
+) -> TurnContext:
+    """Create a canonical TurnContext for the current directive."""
+    mode = TurnCoordinator.classify_mode(
+        directive,
+        mission_requested=mission_requested,
+        governance_requested=governance_requested,
+    )
+    return TurnContext(
+        turn_id=str(uuid.uuid4()),
+        session_id=session_id,
+        operator_id=None,
+        project_id=None,
+        directive=directive,
+        mode=mode,
+        model_id=model_id,
+        approval_tokens=tuple(approval_tokens or []),
+        data_classification=data_classification,
+        correlation_id=str(uuid.uuid4()),
+    )
 
 
 #: System prompt for the lean conversational endpoint (the GAGOS voice mind,
@@ -1848,285 +934,67 @@ CHAT_SYSTEM_PROMPT = (
 )
 
 
-def _operator_facts_block(facts: SemanticFacts, subject: str = "operator") -> Optional[str]:
-    """Build a REAL-facts-only personalization block, or ``None`` when dormant.
-
-    Reads human-approved active facts for *subject* (newest-first) and renders
-    them as ``subject predicate object`` triples. Honesty law: when there are no
-    facts the block is ``None`` (personalization stays dormant — never fabricated).
-    Best-effort: any store error degrades to ``None`` rather than breaking chat.
-    """
-    try:
-        rows = facts.facts_for(subject)
-    except Exception as exc:  # noqa: BLE001 - personalization is an enhancement, never fatal
-        logger.warning("Failed to load operator facts block", exc_info=exc)
-        return None
-    if not rows:
-        return None
-    triples = "\n".join(
-        f"- {row['subject']} {row['predicate']} {row['object']}" for row in rows
-    )
-    return (
-        "KNOWN FACTS ABOUT THE OPERATOR (human-approved; use to personalize, "
-        "never invent beyond these):\n" + triples
-    )
-
-
-
-
-def _recall_facts(facts: SemanticFacts, user_text: str) -> Optional[str]:
-    """Recall relevant semantic facts (+ single-hop neighbors) for the forge.
-
-    The agentic loop reasons about code and architecture, so it needs the
-    structured, approved facts from the knowledge graph — not just raw chat
-    memory. This block searches active facts whose subject/object appears in
-    the user message, includes one hop of neighbors for context, and renders
-    the result as prompt-ready triples. Empty or failing recall degrades to
-    ``None`` so the turn is never blocked by the fact store.
-    """
-    user_text = (user_text or "").strip()
-    if not user_text:
-        return None
-    try:
-        matched = facts.search(user_text)
-    except Exception as exc:  # noqa: BLE001 - recall is advisory
-        logger.warning("Failed to search semantic facts", exc_info=exc)
-        return None
-    if not matched:
-        return None
-
-    # Collect subjects/objects to expand with single-hop neighbors.
-    nodes: set[str] = set()
-    for row in matched:
-        nodes.add(str(row["subject"]))
-        nodes.add(str(row["object"]))
-
-    expanded: set[tuple[str, str, str]] = set()
-    for row in matched:
-        expanded.add((str(row["subject"]), str(row["predicate"]), str(row["object"])))
-    for node in nodes:
-        try:
-            for row in facts.neighbors(node):
-                expanded.add((str(row["subject"]), str(row["predicate"]), str(row["object"])))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to load neighbors for %s", node, exc_info=exc)
-
-    if not expanded:
-        return None
-    triples = "\n".join(
-        f"- {s} {p} {o}" for s, p, o in sorted(expanded)
-    )
-    return (
-        "RELEVANT APPROVED FACTS (use these; do not invent beyond this graph):\n"
-        + triples
-    )
-def _latest_user(chat_messages: list[dict[str, Any]]) -> str:
-    """Return the most recent user message text (already flattened to a string)."""
-    for msg in reversed(chat_messages):
-        if msg["role"] == "user":
-            return msg["content"]
-    return ""
+from aios.api.turn_pipeline import (
+    FactRecallResult,
+    _calibrate_default_confidence,
+    _crag_cloud_source,
+    _crag_document_source,
+    _crag_external_sources,
+    _crag_llm_judge,
+    _crag_web_source,
+    _index_turn,
+    _latest_user,
+    _make_confirm_hook,
+    _make_failure_hook,
+    _operator_facts_block,
+    _recall_facts,
+    _recall_lessons,
+    _recall_memory,
+    _recall_pending_commands,
+    _recall_self_model,
+    _recall_skills,
+    _record_episode,
+    _verify_target_key,
+    _verify_target_keys,
+    _workflow_step,
+)
 
 
-def _recall_memory(query: str, top_k: int = 3) -> Optional[str]:
-    """Best-effort hybrid recall of relevant semantic memories for *query*.
-
-    Returns a prompt-ready knowledge block, or ``None`` when there is nothing
-    relevant (or the memory subsystem is unavailable). ``hybrid_search``
-    short-circuits to empty without loading the embedding model when the
-    semantic index is empty, so this is a cheap no-op on a fresh system.
-    """
-    try:
-        hits = hybrid_search(query, top_k=top_k)
-    except Exception as exc:  # noqa: BLE001 - recall is an enhancement, never fatal
-        logger.warning("Memory recall failed; continuing without context", exc_info=exc)
-        return None
-    if not hits:
-        return None
-    trusted = [
-        hit for hit in hits if getattr(hit, "verification_status", "unverified") == "verified"
-    ]
-    unverified = [hit for hit in hits if hit not in trusted]
-    blocks: list[str] = []
-    if trusted:
-        blocks.append(
-            "VERIFIED TRUSTED MEMORY (still prefer current tool evidence when available):\n"
-            + "\n".join(f"- {hit.text}" for hit in trusted)
-        )
-    if unverified:
-        blocks.append(
-            "UNVERIFIED PRIOR CHAT MEMORY (may be stale or wrong; use only as a lead, "
-            "never as evidence, and verify against tools/files before acting):\n"
-            + "\n".join(f"- {hit.text}" for hit in unverified)
-        )
-    return "\n\n".join(blocks)
-
-
-def _record_episode(session_id: str, role: str, content: str) -> None:
-    """Persist one turn to L2 episodic memory. Best-effort; never fatal."""
-    if not content or not content.strip():
-        return
-    try:
-        _EPISODIC.record(session_id, role, scan_and_redact(content).scrubbed)
-    except Exception as exc:  # noqa: BLE001 - persistence must not break the chat
-        logger.warning("Failed to record episodic memory", exc_info=exc)
-
-
-def _recall_lessons(
-    reflector: Optional[ReflectionAgent], session_id: str, query: str, limit: int = 5
-) -> list[dict[str, Any]]:
-    """Best-effort recall of pending same-task and verified cross-task lessons.
-
-    Carries lessons learned in earlier turns into the current one so the agent
-    reasons with them. Recalled pending lessons remain advisory. Never fatal.
-    """
-    if reflector is None:
-        return []
-    try:
-        recall_relevant = getattr(reflector, "recall_relevant", None)
-        if callable(recall_relevant):
-            return recall_relevant(query, session_id, limit)
-        return reflector.recall_pending(session_id, limit)
-    except Exception as exc:  # noqa: BLE001 - lesson recall is an enhancement, never fatal
-        logger.warning("Failed to recall lessons", exc_info=exc)
-        return []
-
-
-def _recall_skills(skills: SkillMemory, query: str, limit: int = 3) -> list[dict[str, Any]]:
-    """Best-effort recall of reusable workflows backed by repeated verification."""
-    try:
-        return skills.relevant_verified(query, limit)
-    except Exception as exc:  # noqa: BLE001 - skill recall is an enhancement, never fatal
-        logger.warning("Failed to recall verified skills", exc_info=exc)
-        return []
-
-
-def _verify_target_key(command: str) -> str:
-    """Classification key for one verification target.
-
-    The same file is legitimately verified through different command
-    spellings within one turn (the forced auto-verify vs the model's own
-    pytest call), so the key is the basename of the first ``.py`` token. A
-    suite-wide verify with no file token keys on the whole command — a
-    whole-suite FAIL must be resolved by a whole-suite PASS.
-    """
-    for token in command.replace('"', " ").replace("'", " ").split():
-        if token.endswith(".py"):
-            return token.replace("\\", "/").rsplit("/", 1)[-1].lower()
-    return command.strip().lower() or "unattributed"
-
-
-def _workflow_step(event: dict[str, Any]) -> str:
-    """Create a compact, redacted procedural step from one tool-call event."""
-    name = str(event.get("tool", ""))
-    raw_input = event.get("input")
-    if not isinstance(raw_input, dict):
-        return name
-    useful = []
-    for key in ("command", "filepath", "path", "goal"):
-        value = raw_input.get(key)
-        if value is not None and str(value).strip():
-            useful.append(f"{key}={str(value).strip()[:160]}")
-    detail = ", ".join(useful)
-    return scan_and_redact(f"{name}: {detail}" if detail else name).scrubbed
-
-
-def _index_turn(
-    indexer: Optional[SemanticMemory], user_text: str, answer: str
-) -> None:
-    """Embed a completed Q->A turn into L3 semantic memory so future recall finds it.
-
-    Best-effort and gated by the injected *indexer* (``None`` disables it). This
-    is what makes recall self-reinforcing: today's answer becomes tomorrow's
-    recalled context. Skipped for empty answers.
-    """
-    answer = (answer or "").strip()
-    if indexer is None or not answer:
-        return
-    try:
-        payload = f"UNVERIFIED_CHAT\nUser: {user_text}\nAssistant: {answer}"
-        clean = scan_and_redact(payload).scrubbed
-        try:
-            indexer.add(clean, memory_type="chat", verification_status="unverified")
-        except TypeError:
-            indexer.add(clean)
-    except Exception as exc:  # noqa: BLE001 - indexing must not break the chat
-        logger.warning("Failed to index completed turn into semantic memory", exc_info=exc)
-
-
-def _make_failure_hook(reflector: Optional[ReflectionAgent], session_id: str) -> Optional[Any]:
-    """Build the agent's on-failure hook from a reflection agent (or ``None``).
-
-    The hook records a structured lesson in the Mistake pool and returns a small
-    summary for the UI; any failure to reflect is swallowed so a learning step
-    never breaks the chat.
-    """
-    if reflector is None:
-        return None
-
-    def hook(command: str, error_output: str) -> Optional[dict[str, Any]]:
-        try:
-            reflection = reflector.reflect(command, error_output, task_id=session_id)
-        except ReflectionError:
-            return None
-        except Exception as exc:  # noqa: BLE001 - reflection must never break the chat
-            logger.warning("Reflection agent failed to record lesson", exc_info=exc)
-            return None
-        return {
-            "error_type": reflection.error_type,
-            "lesson_text": reflection.lesson_text,
-            "recurrence": reflection.recurrence,
-            "mistake_id": reflection.mistake_id,
-        }
-
-    return hook
-
-
-def _make_confirm_hook(
-    reflector: Optional[ReflectionAgent],
-    consolidator: Optional[MemoryConsolidator] = None,
-):
-    """Build the agent's lesson-confirmation hook (promotes pending->verified).
-
-    Guarded so promotion can never break the chat; ``None`` when reflection is
-    disabled, in which case the agent simply never confirms.
-    """
-    if reflector is None:
-        return None
-
-    def confirm(mistake_id: int) -> None:
-        try:
-            reflector.confirm_lesson(mistake_id)
-            if consolidator is not None:
-                consolidator.consolidate_lesson(mistake_id)
-        except Exception as exc:  # noqa: BLE001 - confirmation must never break the chat
-            logger.warning("Failed to confirm/consolidate lesson", exc_info=exc)
-
-    return confirm
-
-
-@app.post("/api/generate")
+@app.post("/api/generate", dependencies=[Depends(enforce_action_boundary)])
 def generate(
     req: GenerateRequest,
+    request: Request,
+    _principal: Principal = Depends(require_privileged_operator),
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+    openai_client: Optional[Any] = Depends(get_openai_client),
+    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
     executor: Executor = Depends(get_executor),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
     snapshot: Callable[..., object] = Depends(get_edit_snapshot),
     planner_llm: LLMClient = Depends(get_llm_client),
-    approvals: ApprovalStore = Depends(get_approval_store),
+    capabilities: CapabilityAuthority = Depends(get_capability_authority),
+    broker: ActionBroker = Depends(get_action_broker),
+    mistakes: MistakeMemory = Depends(get_mistake_memory),
     development: DevelopmentTracker = Depends(get_development_tracker),
     skills: SkillMemory = Depends(get_skill_memory),
     swarm_patterns: SwarmPatternMemory = Depends(get_swarm_pattern_memory),
     autonomy: AutonomyLedger = Depends(get_autonomy),
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
+    cerebellum: Cerebellum = Depends(get_cerebellum),
+    native_planner: NativePlanner = Depends(get_native_planner),
     consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
     conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
-    alignment_evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-    alignment_interpreter: Optional[AlignmentInterpreter] = Depends(get_alignment_interpreter),
+    alignment_evaluation: AlignmentEvaluationStore = Depends(
+        get_alignment_evaluation_store
+    ),
+    alignment_interpreter: Optional[AlignmentInterpreter] = Depends(
+        get_alignment_interpreter
+    ),
     facts: SemanticFacts = Depends(get_semantic_facts),
+    memory_authority=Depends(get_memory_authority),
     compactor: MemoryCompactor = Depends(get_compactor),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
@@ -2145,574 +1013,74 @@ def generate(
     """
     chat_messages = _to_chat_messages(req.messages)
     user_text = _latest_user(chat_messages)
-    _enforce_conversation_rate_limit(req.session_id)
+    # Agentic generation can execute tools and therefore must be bound to the
+    # authenticated operator session.  The legacy body sessionId remains part
+    # of the request model for compatibility, but it is never authoritative.
+    session_id = _principal.session_id
+    _enforce_conversation_rate_limit(session_id)
     if len(user_text) > 2000:
+        raise HTTPException(status_code=422, detail="Input exceeds 2000 characters.")
+    if injection_reason := _check_prompt_injection(user_text):
         raise HTTPException(
-            status_code=422, detail="Input exceeds 2000 characters."
+            status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}"
         )
-    if (injection_reason := _check_prompt_injection(user_text)):
-        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
-    # The agent routes by PURPOSE: infer the task from the user's message so 'auto'
-    # picks a coder for code, a reasoner for analysis, etc. (require_tools still
-    # keeps the loop on a tool-capable model regardless of the inferred task).
-    task = infer_task(user_text)
-    chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini, task=task,
-        metrics=_route_metrics(development, req.model_id),
-        calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
+
+    ctx = _build_turn_context(
+        session_id,
+        user_text,
+        model_id=req.model_id,
+        approval_tokens=req.approval_tokens,
+        mission_requested=req.mission_requested,
+        governance_requested=req.governance_requested,
     )
-    # The serving model is announced lazily from inside the stream (see
-    # `_route_frame`); here we only normalise `model` to the route's view of it.
-    _, model = _active_route(chat_client, bedrock, gemini, model)
+    runtime = RuntimeDeps(
+        chat_client=client,
+        bedrock=bedrock,
+        gemini=gemini,
+        openai_client=openai_client,
+        anthropic_client=anthropic_client,
+        executor=executor,
+        indexer=indexer,
+        reflector=reflector,
+        snapshot=snapshot,
+        planner_llm=planner_llm,
+        mistakes=mistakes,
+        development=development,
+        skills=skills,
+        swarm_patterns=swarm_patterns,
+        autonomy=autonomy,
+        curriculum=curriculum,
+        cerebellum=cerebellum,
+        consolidator=consolidator,
+        conversation_state=conversation_state,
+        alignment_evaluation=alignment_evaluation,
+        alignment_interpreter=alignment_interpreter,
+        facts=facts,
+        memory_authority=memory_authority,
+        compactor=compactor,
+        extra={
+            "route": "/api/generate",
+            "request_model": req,
+            "http_request": request,
+            "principal": _principal,
+            "capabilities": capabilities,
+            "broker": broker,
+        },
+    )
+    from aios.application.turns.generate_pipeline import (
+        prepare_generate_state,
+        stream_generate,
+    )
 
-    def _route_meta() -> dict[str, Any]:
-        """Development metadata for the model that ACTUALLY served (post-failover)."""
-        p, m = _active_route(chat_client, bedrock, gemini, model)
-        return {"provider": p, "model": m, "task": task}
-
-    session_id = req.session_id
-    compactor.touch_working_session(session_id)
-    if req.approved_commands or req.approved_edits or req.approved_creations:
-        raise HTTPException(
-            status_code=400,
-            detail="raw approved payloads are not accepted; use server-issued approvalTokens",
-        )
-    approved_commands: list[str] = []
-    approved_edits: list[dict[str, Any]] = []
-    approved_creations: list[dict[str, Any]] = []
-    try:
-        if not req.approval_tokens:
-            approvals.clear_session(session_id)
-        for token in req.approval_tokens:
-            action = approvals.redeem(token, session_id)
-            if action.action_type == "command":
-                executor.reset_sensitive_actions(session_id)
-        for action in approvals.grants(session_id):
-            if action.action_type == "command":
-                approved_commands.append(str(action.payload["command"]))
-            elif action.action_type == "edit":
-                approved_edits.append(action.payload)
-            elif action.action_type == "create":
-                approved_creations.append(action.payload)
-    except (ApprovalError, KeyError) as exc:
-        raise HTTPException(status_code=400, detail=f"invalid approval token: {exc}") from exc
-
-    def event_stream() -> Iterator[str]:
-        if not user_text:
-            yield _sse("error", {"text": "No user message provided."})
-            return
-
-        # The ACTIVE BRAIN for this turn: which provider/model served it + a privacy
-        # indicator, so the UI can show the voyaging mind's current brain. Emitted
-        # LAZILY — only once a model has actually served (the first text/tool_call/
-        # code), and again whenever a mid-loop failover switches the serving model —
-        # so the badge names the model that did the work, never a ranked-but-
-        # uninvocable primary that silently failed over. A `FailoverChatClient` only
-        # knows which candidate served AFTER its first `chat()` returns; announcing
-        # before that would advertise the cascade head, which may not be invocable.
-        # Purely informational; the cage decides regardless.
-        announced_route: Optional[tuple[str, str]] = None
-
-        def _route_frame() -> Optional[str]:
-            nonlocal announced_route
-            p, m = _active_route(chat_client, bedrock, gemini, model)
-            if (p, m) == announced_route:
-                return None  # unchanged since the last announcement — don't repeat
-            announced_route = (p, m)
-            return _sse(
-                "route",
-                {
-                    "provider": p,
-                    "model": m,
-                    "privacy": "local" if p == router.PROVIDER_OLLAMA else "cloud",
-                    "task": task,
-                    "auto": req.model_id in _AUTO_IDS,
-                },
-            )
-
-        # 1. Understand + apply the deterministic communication policy + recall.
-        #    The alignment frame is advisory. Its communication policy may pause
-        #    a context-free request to ask a question, but it has no execution or
-        #    approval authority and is never treated as evidence. When the
-        #    interpreter is disabled (AIOS_INTERPRET_ALIGNMENT=false) the turn
-        #    skips interpretation entirely: no frame, observation, or ask-pause.
-        context_parts: list[str] = []
-        alignment = None
-        if alignment_interpreter is not None:
-            base_alignment = alignment_interpreter.understand(chat_messages)
-            alignment = base_alignment
-            active_correction = conversation_state.active_correction(session_id)
-            if active_correction is not None:
-                try:
-                    alignment = apply_user_corrections(
-                        alignment,
-                        active_correction["corrections"],
-                        revision=int(active_correction["revision"]),
-                    )
-                except (TypeError, ValueError) as exc:
-                    # Corrupt optional continuity state must never break chat or
-                    # silently gain authority.
-                    logger.warning("Failed to apply active user correction", exc_info=exc)
-            context_parts.append(alignment.to_prompt_block())
-            alignment_payload = alignment.as_dict()
-            base_alignment_payload = base_alignment.as_dict()
-            try:
-                observation_id = (
-                    alignment_evaluation.latest_observation_id(session_id)
-                    if req.approval_tokens
-                    else alignment_evaluation.record(session_id, alignment_payload)
-                )
-                if observation_id is not None:
-                    alignment_payload["evaluation"] = {
-                        "observation_id": observation_id,
-                        "automatic_policy_updates": False,
-                    }
-                    base_alignment_payload["evaluation"] = alignment_payload["evaluation"]
-            except Exception as exc:  # noqa: BLE001 - evaluation must never break the chat
-                logger.warning("Failed to record alignment evaluation", exc_info=exc)
-            try:
-                if active_correction is not None and alignment.correction.active:
-                    conversation_state.refresh_active_correction(
-                        session_id,
-                        base_frame=base_alignment_payload,
-                        corrected_frame=alignment_payload,
-                    )
-                else:
-                    conversation_state.save(session_id, alignment_payload)
-            except Exception as exc:  # noqa: BLE001 - continuity must never break the chat
-                logger.warning("Failed to persist alignment frame", exc_info=exc)
-            yield _sse("alignment", alignment_payload)
-            if alignment.communication.ambiguity_action == "ask":
-                question = alignment.communication.clarifying_question
-                _record_episode(session_id, "user", user_text)
-                _record_episode(session_id, "assistant", question)
-                approvals.clear_session(session_id)
-                yield _sse("text_chunk", {"text": question})
-                yield _sse("done", {})
-                return
-
-        semantic = _recall_memory(user_text)
-        if semantic:
-            context_parts.append(semantic)
-            yield _sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "query_knowledge",
-                    "output": semantic[:400],
-                    "id": "memory-recall",
-                },
-            )
-
-        lessons = _recall_lessons(reflector, session_id, user_text)
-        if lessons:
-            block = "RELEVANT LESSONS (verified cross-task or pending from this task):\n" + "\n".join(
-                f"- [{le.get('verification_status', 'pending')}; {le['error_type']}] "
-                f"{le['lesson_text']}"
-                for le in lessons
-            )
-            context_parts.append(block)
-            yield _sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "reflect",
-                    "output": f"Recalled {len(lessons)} past lesson(s); filtered for relevance.",
-                    "id": "lesson-recall",
-                },
-            )
-
-        recalled_skills = _recall_skills(skills, user_text)
-        if recalled_skills:
-            skill_block = "VERIFIED REUSABLE WORKFLOWS:\n" + "\n".join(
-                f"- For {skill['goal_pattern']}: {' -> '.join(skill['steps'])} "
-                f"(verified success rate {skill['success_rate']:.0%})"
-                for skill in recalled_skills
-            )
-            context_parts.append(skill_block)
-            yield _sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "query_skills",
-                    "output": f"Recalled {len(recalled_skills)} verified workflow(s).",
-                    "id": "skill-recall",
-                },
-            )
-
-        facts_block = _recall_facts(facts, user_text)
-        if facts_block:
-            context_parts.append(facts_block)
-            yield _sse(
-                "step",
-                {
-                    "type": "tool_result",
-                    "tool": "query_facts",
-                    "output": facts_block[:400],
-                    "id": "fact-recall",
-                },
-            )
-
-        memory_context = "\n\n".join(context_parts) or None
-
-        # 2. Persist the user turn.
-        _record_episode(session_id, "user", user_text)
-
-        # 3. Agentic loop with recalled context + lessons + reflection + confirmation.
-        #    `chat_client` is local Ollama or cloud Bedrock per the selected model.
-        #    The factory exists so the role-pass castes can stamp out per-role
-        #    views (system prompt + tool subset) over the SAME gated wiring.
-        def make_agent(**overrides: Any) -> ToolAgent:
-            return ToolAgent(
-                chat_client,
-                executor,
-                model=model,
-                session_id=session_id,
-                memory_context=memory_context,
-                on_failure=_make_failure_hook(reflector, session_id),
-                confirm_lesson=_make_confirm_hook(reflector, consolidator),
-                approved_commands=approved_commands,
-                approved_edits=approved_edits,
-                approved_creations=approved_creations,
-                snapshot=snapshot,
-                # The Planner needs a COMPLETION client (.complete()); pass the local
-                # get_llm_client one — never `chat_client`, which may be cloud Bedrock —
-                # so planning always uses the local completion model.
-                planner_llm=planner_llm,
-                # Self-Analysis T2 (propose_fixes) drafts diffs with the SAME completion
-                # client (not chat_client). It only writes proposals to the report —
-                # never edits or applies source.
-                self_analysis_llm=planner_llm,
-                # Earned-autonomy bridge: opt-in, off by default. When enabled and
-                # a write class has earned it, the turn applies it without pausing
-                # (still gated, audited, and revoked instantly on a verified fail).
-                autonomy=autonomy,
-                **overrides,
-            )
-
-        # Cloud-burst factory: when the ant-colony's CLOUD_BROKER labels a subtask
-        # as cloud-eligible, it runs through a dedicated cloud chat client. The
-        # provider is surfaced in `cloud_route` SSE frames so the UI can mark the
-        # leg as having left the local machine.
-        cloud_client: Optional[Any] = None
-        cloud_provider: Optional[str] = None
-        cloud_model: Optional[str] = None
-        if req.swarm and config.SWARM_CLOUD_BURST_ENABLED:
-            if config.BEDROCK_ENABLED:
-                cloud_client = BedrockClient()
-                cloud_provider = "bedrock"
-                cloud_model = config.BEDROCK_MODEL
-            elif config.GEMINI_ENABLED:
-                cloud_client = GeminiClient()
-                cloud_provider = "gemini"
-                cloud_model = config.GEMINI_MODEL
-
-        def make_cloud_agent(**overrides: Any) -> ToolAgent:
-            if cloud_client is None:
-                raise RuntimeError("Cloud burst requested but no cloud provider is configured")
-            return ToolAgent(
-                cloud_client,
-                executor,
-                model=cloud_model,
-                session_id=session_id,
-                memory_context=memory_context,
-                on_failure=_make_failure_hook(reflector, session_id),
-                confirm_lesson=_make_confirm_hook(reflector, consolidator),
-                approved_commands=approved_commands,
-                approved_edits=approved_edits,
-                approved_creations=approved_creations,
-                snapshot=snapshot,
-                planner_llm=planner_llm,
-                self_analysis_llm=planner_llm,
-                autonomy=autonomy,
-                **overrides,
-            )
-        answer_parts: list[str] = []
-        workflow_steps: list[str] = []
-        blocked_actions = 0
-        verification_evidence: list[str] = []
-        verify_verdicts: dict[str, str] = {}
-        #: Verdicts from the FORCED auto-verify only (id ``autoverify-*``). This is
-        #: the authoritative evidence for the turn's outcome; the model's own
-        #: ``verify`` tool calls are advisory and must not override it.
-        auto_verdicts: dict[str, str] = {}
-        communication_notice = (
-            alignment.communication_notice() if alignment is not None else ""
-        )
-        if communication_notice:
-            answer_parts.append(communication_notice)
-            yield _sse("text_chunk", {"text": communication_notice})
-
-        def record_outcome(outcome: str) -> None:
-            """Best-effort development, skill, and curriculum evidence write."""
-            try:
-                development.record(
-                    user_text,
-                    outcome,
-                    tool_calls=len(workflow_steps),
-                    human_interventions=len(req.approval_tokens),
-                    blocked_actions=blocked_actions,
-                    metadata=_route_meta(),
-                )
-            except Exception as exc:  # noqa: BLE001 - metrics must never break chat
-                logger.warning("Development metrics recording failed", exc_info=exc)
-            if outcome not in {"verified_success", "verified_failure"}:
-                return
-            passed = outcome == "verified_success"
-            if passed:
-                evidence = next(
-                    (
-                        item
-                        for item in reversed(verification_evidence)
-                        if item.startswith("[VERIFY PASS]")
-                    ),
-                    "",
-                )
-            else:
-                evidence = next(
-                    (
-                        item
-                        for item in reversed(verification_evidence)
-                        if item.startswith("[VERIFY FAIL]")
-                    ),
-                    "",
-                )
-            direct_id: Optional[int] = None
-            if workflow_steps:
-                try:
-                    direct_id = skills.record_attempt(
-                        user_text, workflow_steps, success=passed
-                    )
-                except Exception as exc:  # noqa: BLE001 - skill learning is best-effort
-                    logger.warning("Failed to record skill attempt", exc_info=exc)
-            # Reuse pheromone: trails that were recalled into this turn's
-            # context share its verifier verdict — minus the trail the agent
-            # re-walked directly, which record_attempt already credited.
-            # Exclude ONLY the trail the agent re-walked directly (already credited
-            # by record_attempt) so it isn't double-credited. When direct_id is
-            # None (no direct walk, or record_attempt failed) there is nothing to
-            # exclude, so every recalled trail correctly earns reuse credit. The
-            # explicit None check documents that intent (the old `!= direct_id` was
-            # an always-true int-vs-None compare — same behavior, but a smell).
-            reused_ids = [
-                int(s["skill_id"])
-                for s in recalled_skills
-                if direct_id is None or int(s["skill_id"]) != direct_id
-            ]
-            if reused_ids:
-                try:
-                    skills.record_reuse(reused_ids, success=passed)
-                except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
-                    logger.warning("Failed to record skill reuse credit", exc_info=exc)
-            if swarm_plan:
-                try:
-                    swarm_patterns.record_attempt(
-                        user_text, swarm_plan, success=passed
-                    )
-                except Exception as exc:  # noqa: BLE001 - pattern learning is best-effort
-                    logger.warning("Failed to record swarm pattern attempt", exc_info=exc)
-            try:
-                curriculum.record_matching(user_text, passed=passed, evidence=evidence)
-            except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
-                logger.warning("Failed to record curriculum match", exc_info=exc)
-
-        if req.swarm:
-            event_source = run_swarm(
-                make_agent,
-                chat_messages,
-                pattern_memory=swarm_patterns,
-                make_cloud_agent=make_cloud_agent if cloud_client is not None else None,
-                cloud_provider=cloud_provider,
-            )
-        elif req.role_pass:
-            event_source = run_role_pass(make_agent, chat_messages)
-        else:
-            event_source = make_agent().run(chat_messages)
-        swarm_plan: Optional[list[str]] = None
-        for ev in event_source:
-            kind = ev["type"]
-            if kind in ("tool_call", "text", "code", "done", "human_required"):
-                # A model produced output (or the turn is ending) -> the failover
-                # client now names the model that ACTUALLY served. Announce (or
-                # refresh on failover) the brain BEFORE the event, so the badge
-                # tracks the real worker. `done`/`human_required` are a fallback:
-                # they guarantee the badge still appears for a turn whose model
-                # served no text/tool_call (e.g. an empty answer). `_route_frame`
-                # is idempotent, so this never double-announces an unchanged route.
-                route_frame = _route_frame()
-                if route_frame is not None:
-                    yield route_frame
-            if kind in _STEP_EVENTS:
-                if kind == "tool_call":
-                    workflow_steps.append(_workflow_step(ev))
-                elif kind == "tool_blocked":
-                    blocked_actions += 1
-                if kind == "tool_result":
-                    output = str(ev.get("output", ""))
-                    if output.startswith("[VERIFY PASS]") or output.startswith("[VERIFY FAIL]"):
-                        verification_evidence.append(output)
-                        raw_target = str(ev.get("target") or "")
-                        key = (
-                            _verify_target_key(raw_target)
-                            if raw_target
-                            # Unattributed evidence keys uniquely: its verdict
-                            # can never be cleared by a later PASS elsewhere
-                            # (fail-closed).
-                            else f"unattributed-{len(verification_evidence)}"
-                        )
-                        verdict = "PASS" if output.startswith("[VERIFY PASS]") else "FAIL"
-                        verify_verdicts[key] = verdict
-                        # The FORCED auto-verify (run by the system after a write) is
-                        # the authoritative evidence; the model's OWN `verify` tool
-                        # call is advisory. A model running a broken verify command —
-                        # e.g. a mis-pathed `pytest training_ground/test_x.py` from the
-                        # sandbox cwd → exit 4, 0 tests — must NOT fail a turn whose
-                        # written code actually passes the forced check.
-                        if str(ev.get("id", "")).startswith("autoverify"):
-                            auto_verdicts[key] = verdict
-                        # Surface a typed verification frame so the UI can celebrate or
-                        # reflect without parsing the raw tool output.
-                        yield _sse(
-                            "verify_result",
-                            {"verdict": verdict.lower(), "target": key, "output": output[:320]},
-                        )
-                yield _sse("step", ev)
-            elif kind == "text":
-                answer_parts.append(ev["text"])
-                yield _sse("text_chunk", {"text": ev["text"]})
-            elif kind == "code":
-                yield _sse("code", {"code": ev["code"], "language": ev["language"]})
-            elif kind == "error":
-                yield _sse("error", {"text": ev["text"]})
-            elif kind == "earned_autonomy":
-                # The earned-autonomy bridge auto-applied a write with NO human
-                # pause — the write class earned it by verified-success evidence.
-                # Surface it so the brain can show itself acting on its own
-                # earned trust (still gated, audited, and revocable).
-                yield _sse("earned_autonomy", ev)
-            elif kind == "swarm_plan":
-                # Plan event from the ant-colony; used internally for pattern
-                # recording and also surfaced to the UI so the HUD can render it.
-                swarm_plan = ev.get("plan")
-                yield _sse(kind, ev)
-            elif kind in ("caste_start", "caste_end", "cloud_route"):
-                # Observational swarm lifecycle frames for the 3D HUD.
-                if kind == "cloud_route" and cloud_provider:
-                    try:
-                        log_action(
-                            "cloud-route",
-                            json.dumps({"provider": cloud_provider, "model": cloud_model}),
-                            Zone.GREEN,
-                        )
-                    except Exception as exc:  # noqa: BLE001 - audit must never break the stream
-                        logger.warning("Failed to record cloud-route audit entry", exc_info=exc)
-                yield _sse(kind, ev)
-            elif kind == "human_required":
-                # The agent paused on a YELLOW command. Ask the UI for approval;
-                # the turn ends here (no answer recorded) and is replayed once the
-                # human authorises the command. Surface the *command* in plain
-                # language — never the raw classifier reason, which embeds the
-                # matched regex pattern (e.g. "\\bpip\\s+install\\b") and belongs
-                # in the audit log, not in a human approval prompt. Shape matches
-                # the frontend's pendingAction handler ({commands, explanation}).
-                cmd = ev["command"]
-                edit = ev.get("edit")
-                creation = ev.get("creation")
-                if edit is not None:
-                    token = approvals.issue("edit", edit, session_id)
-                    # An edit_file approval: surface the unified diff + the edit
-                    # triple so the UI shows the diff and re-sends it as an
-                    # approved edit on resume (a snapshot is taken before writing).
-                    payload = {
-                        "input": {
-                            "edits": [edit],
-                            "approvalToken": token,
-                            "diff": ev.get("diff", ""),
-                            "explanation": (
-                                "The agent wants to edit a file. Review the diff "
-                                "and approve to apply it. A snapshot is taken first, "
-                                "then an available sibling test runs automatically."
-                            ),
-                        },
-                        "text": f"Approval required to apply an edit to {ev.get('filepath', '')}",
-                        "requiresApproval": True,
-                    }
-                elif creation is not None:
-                    token = approvals.issue("create", creation, session_id)
-                    # A create_file approval: surface the all-additions diff + the
-                    # {filepath, content} pair so the UI shows the new file and
-                    # re-sends it as an approved creation on resume (a snapshot is
-                    # taken before writing, so the new file stays revertible).
-                    payload = {
-                        "input": {
-                            "creations": [creation],
-                            "approvalToken": token,
-                            "diff": ev.get("diff", ""),
-                            "explanation": (
-                                "The agent wants to create a new file. Review the "
-                                "contents and approve to write it. A snapshot is "
-                                "taken first, then an available sibling test runs "
-                                "automatically."
-                            ),
-                        },
-                        "text": f"Approval required to create {ev.get('filepath', '')}",
-                        "requiresApproval": True,
-                    }
-                else:
-                    token = approvals.issue("command", {"command": cmd}, session_id)
-                    payload = {
-                        "input": {
-                            "commands": [cmd],
-                            "approvalToken": token,
-                            "explanation": (
-                                "The agent wants to run a caution-level command "
-                                "(e.g. a package install, git write, or file "
-                                "change). Review it and approve to let it run."
-                            ),
-                        },
-                        "text": f"Approval required to run: {cmd}",
-                        "requiresApproval": True,
-                    }
-                try:
-                    development.record(
-                        user_text,
-                        "paused",
-                        tool_calls=len(workflow_steps),
-                        human_interventions=len(req.approval_tokens),
-                        blocked_actions=blocked_actions,
-                        metadata=_route_meta(),
-                    )
-                except Exception as exc:  # noqa: BLE001 - metrics must never break approval
-                    logger.warning("Development metrics recording failed for paused turn", exc_info=exc)
-                yield _sse("human_required", payload)
-            elif kind == "done":
-                # 4. Persist the answer (L2) and consolidate the turn into L3.
-                answer = "".join(answer_parts)
-                _record_episode(session_id, "assistant", answer)
-                _index_turn(indexer, user_text, answer)
-                # The turn's outcome is the PER-TARGET final verdict: for every
-                # target that was verified this turn, its LAST verdict must be
-                # PASS. A turn that fails, self-corrects, and re-verifies the
-                # same target green IS a verified success — the loop's whole
-                # design is verify -> reflect -> fix (operator decision
-                # 2026-06-11, refined the same day from global last-evidence-
-                # wins) — but a final PASS on one target can no longer mask an
-                # unresolved FAIL on another.
-                if not verification_evidence:
-                    record_outcome("unverified")
-                else:
-                    # The FORCED auto-verify is authoritative; fall back to the
-                    # model's own verify only when nothing was auto-verified.
-                    authoritative = auto_verdicts or verify_verdicts
-                    if any(v == "FAIL" for v in authoritative.values()):
-                        record_outcome("verified_failure")
-                    else:
-                        record_outcome("verified_success")
-                approvals.clear_session(session_id)
-                yield _sse("done", {})
-
+    turn = TurnCoordinator(
+        deps=runtime,
+        handlers=production_handlers(
+            stream_generate,
+            preparer=prepare_generate_state,
+        ),
+    ).coordinate(ctx)
     return StreamingResponse(
-        event_stream(),
+        turn.events,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -2780,24 +1148,50 @@ def _check_prompt_injection(text: str) -> Optional[str]:
     return None
 
 
-@app.post("/api/v1/chat")
+def _stream_chat_chunks(
+    chat_client: Any,
+    messages: list[dict[str, Any]],
+    *,
+    model: str,
+) -> Iterator[str]:
+    """Yield real chat chunks when available, else preserve word streaming."""
+    stream_fn = getattr(chat_client, "stream_chat", None)
+    if callable(stream_fn):
+        for chunk in stream_fn(messages, tools=None, model=model):
+            text = str(chunk)
+            if text:
+                yield text
+        return
+
+    reply = chat_client.chat(messages, tools=None, model=model)
+    text = str((reply or {}).get("content", "")).strip() or "(no answer)"
+    for word in re.findall(r"\S+\s*", text):
+        yield word
+
+
+@app.post("/api/v1/chat", dependencies=[Depends(enforce_action_boundary)])
 def chat(
     req: ChatRequest,
+    request: Request,
     client: OllamaClient = Depends(get_ollama_client),
     bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
     gemini: Optional[GeminiClient] = Depends(get_gemini_client),
+    openai_client: Optional[Any] = Depends(get_openai_client),
+    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
     indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
     facts: SemanticFacts = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
+    memory_authority=Depends(get_memory_authority),
 ) -> StreamingResponse:
-    """Stream a lean Hinglish conversational reply (the Jarvis voice mind, Slice 1).
+    """Stream a lean Hinglish conversational reply (the GAGOS voice mind).
 
     This is CONVERSATION, not the agentic forge: it reuses the cross-provider
     router (so the operator's local-first privacy gate is fully intact), recalls
     relevant memory, and injects REAL personalization facts, then calls the chat
     client ONCE for a single reply — NO ``ToolAgent`` loop, NO file-write/coding
-    tools. The reply is fake-streamed word-by-word (mirroring ``ToolAgent._finish``)
-    so cloud and local providers share one wire shape. Frames, in order:
+    tools. Providers with streaming support forward real chunks; non-streaming
+    clients fall back to word-by-word chunks so every route keeps one wire shape.
+    Frames, in order:
 
       * ``route``       — the provider/model that served + a privacy indicator.
       * ``text_chunk``  — the reply, as a sequence of ``{"text": ...}`` frames.
@@ -2807,84 +1201,91 @@ def chat(
     completed turn is embedded into L3 (self-reinforcing recall), exactly like
     ``/api/generate``. Best-effort persistence never breaks the chat.
     """
-    compactor.touch_working_session(req.session_id)
-    _enforce_conversation_rate_limit(req.session_id)
+    session_id = _session_id_from_request(request, req.session_id)
+    authority_adapters = getattr(memory_authority, "adapters", {})
+    if "compaction" in authority_adapters and memory_authority.owns_store(
+        "compaction", compactor
+    ):
+        memory_authority.touch_working_session(session_id)
+    else:
+        compactor.touch_working_session(session_id)
+    _enforce_conversation_rate_limit(session_id)
     user_text = req.transcript.strip()
-    if (injection_reason := _check_prompt_injection(user_text)):
-        raise HTTPException(status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}")
-    # Route by purpose (general for chitchat, coding for code talk, etc.). The
-    # privacy gate lives inside _select_chat_client via _router_policy(): with the
-    # default empty ROUTER_CLOUD_TASKS, `auto` stays local-only. Never force cloud.
-    task = infer_task(user_text)
-    chat_client, model = _select_chat_client(
-        req.model_id, client, bedrock, gemini=gemini, task=task,
-    )
-    provider, model = _active_route(chat_client, bedrock, gemini, model)
-
-    def event_stream() -> Iterator[str]:
-        if not user_text:
-            yield _sse("error", {"text": "No transcript provided."})
-            return
-
-        # Build the conversational system prompt: the Hinglish persona + REAL
-        # operator facts (dormant when none) + relevant prior memory.
-        system_parts: list[str] = [CHAT_SYSTEM_PROMPT]
-        persona = _operator_facts_block(facts)
-        if persona:
-            system_parts.append(persona)
-        recall = _recall_memory(user_text)
-        if recall:
-            system_parts.append(recall)
-        messages = [
-            {"role": "system", "content": "\n\n".join(system_parts)},
-            {"role": "user", "content": user_text},
-        ]
-
-        _record_episode(req.session_id, "user", user_text)
-
-        # The ACTIVE BRAIN for this turn (the UI 'voyaging mind' badge): provider/
-        # model that served + privacy indicator. Local-first respected — the
-        # provider is whatever the router chose, never hardcoded cloud.
-        yield _sse(
-            "route",
-            {
-                "provider": provider,
-                "model": model,
-                "privacy": "local" if provider == router.PROVIDER_OLLAMA else "cloud",
-                "task": task,
-                "auto": req.model_id in _AUTO_IDS,
-            },
+    if injection_reason := _check_prompt_injection(user_text):
+        raise HTTPException(
+            status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}"
         )
 
-        # ONE chat call, tools=None => pure text, no tool loop, no file writes.
-        try:
-            reply = chat_client.chat(messages, tools=None, model=model)
-        except LLMError as exc:
-            yield _sse("error", {"text": str(exc)})
-            return
-        text = str((reply or {}).get("content", "")).strip() or "(no answer)"
+    ctx = _build_turn_context(
+        session_id,
+        user_text,
+        model_id=req.model_id,
+        approval_tokens=[],
+    )
 
-        # Fake-stream word-by-word, mirroring ToolAgent._finish, so the UI's
-        # existing text_chunk reader works identically for local + cloud.
-        for word in re.findall(r"\S+\s*", text):
-            yield _sse("text_chunk", {"text": word})
-
-        _record_episode(req.session_id, "assistant", text)
-        _index_turn(indexer, user_text, text)
-        yield _sse("done", {})
-
+    # The application handler owns provider selection, prompt construction,
+    # streaming, persistence, and terminal lifecycle.  The HTTP route only
+    # supplies validated input plus injected infrastructure callbacks.
+    task = infer_task(user_text)
+    turn = TurnCoordinator(
+        deps=RuntimeDeps(
+            bedrock=bedrock,
+            gemini=gemini,
+            openai_client=openai_client,
+            anthropic_client=anthropic_client,
+            indexer=indexer,
+            facts=facts,
+            memory_authority=memory_authority,
+            compactor=compactor,
+            extra={
+                "route": "/api/v1/chat",
+                "user_text": user_text,
+                "model_id": req.model_id,
+                "task": task,
+                "select_chat_client": lambda selected_task: _select_chat_client(
+                    req.model_id,
+                    client,
+                    bedrock,
+                    gemini=gemini,
+                    openai=openai_client,
+                    anthropic=anthropic_client,
+                    task=selected_task,
+                    data_classification=ctx.data_classification,
+                ),
+                "active_route": _active_route,
+                "sse_writer": _sse_writer,
+                "stream_chat_chunks": _stream_chat_chunks,
+                "record_episode": _record_episode,
+                "index_turn": _index_turn,
+                "operator_facts_block": _operator_facts_block,
+                "recall_memory": _recall_memory,
+                "chat_system_prompt": CHAT_SYSTEM_PROMPT,
+                "facts_auto_extract": config.FACTS_AUTO_EXTRACT,
+                "facts_auto_extract_max": config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
+                "cortex_bus": _cortex_bus,
+                "logger": logger,
+                "telemetry": telemetry,
+                "task_signature": task_signature,
+                "ollama_provider": router.PROVIDER_OLLAMA,
+                "auto_ids": _AUTO_IDS,
+            },
+        ),
+        handlers=production_handlers(),
+    ).coordinate(ctx)
     return StreamingResponse(
-        event_stream(),
+        turn.events,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-@app.post("/api/terminal")
+@app.post("/api/terminal", dependencies=[Depends(enforce_action_boundary)])
 def terminal(
     req: TerminalRequest,
+    request: Request,
+    _principal: Principal = Depends(require_privileged_operator),
     executor: Executor = Depends(get_executor),
-    approvals: ApprovalStore = Depends(get_approval_store),
+    broker: ActionBroker = Depends(get_action_broker),
 ) -> dict[str, Any]:
     """Run a UI-terminal command through the security gateway + sandbox.
 
@@ -2893,7 +1294,59 @@ def terminal(
     reported as needing approval, and only GREEN runs in the scope-locked
     sandbox. Every outcome is audited by the executor.
     """
-    result = executor.execute(req.command, session_id=req.session_id)
+    # Shell-command approval capabilities are bound to the validated browser
+    # session.  Ignore the legacy body field so it cannot select another
+    # principal or smuggle a privileged session through JSON.
+    session_id = _principal.session_id
+    payload = {"command": req.command}
+    envelope = ActionEnvelope(
+        route=request.url.path,
+        action_type=ActionType.COMMAND,
+        http_method=request.method,
+        payload=payload,
+        principal=EnvelopePrincipal(
+            session_id=_principal.session_id,
+            actor_source="session",
+            client_ip=_principal.client_address or "127.0.0.1",
+        ),
+        request_id=_principal.request_id or request.headers.get("x-request-id"),
+        operator_id=_principal.principal_id,
+        device_id=_principal.device_id,
+        authentication_event_id=_principal.authentication_event_id,
+        resource={"workspace": "training_ground"},
+        requested_capability="command.execute",
+        correlation_id=(
+            request.headers.get("x-correlation-id")
+            or _principal.request_id
+            or request.headers.get("x-request-id")
+            or str(uuid.uuid4())
+        ),
+    )
+    try:
+        decision = broker.submit(
+            envelope,
+            capability_binding=_generate_capability_binding(
+                _principal,
+                "command",
+                payload,
+                route="/api/terminal",
+            ),
+        )
+    except PolicyBrokerError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    if decision.blocked:
+        return {"output": f"[BLOCKED] {decision.reason}", "isError": True}
+    if decision.requires_approval:
+        return {
+            "output": f"[APPROVAL REQUIRED] {decision.reason}",
+            "isError": False,
+            "requiresApproval": True,
+            "approvalToken": decision.approval_token,
+            "command": req.command,
+        }
+
+    result = executor.execute(req.command, session_id=session_id)
 
     if result.status == "OK":
         output = (result.stdout or "") + (result.stderr or "")
@@ -2902,18 +1355,14 @@ def terminal(
             "isError": bool(result.exit_code),
         }
     if result.status == "REQUIRE_APPROVAL":
-        if not req.session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="sessionId is required to approve a YELLOW command",
-            )
-        token = approvals.issue("command", {"command": req.command}, req.session_id)
-        return {
-            "output": f"[APPROVAL REQUIRED] {result.reason}",
-            "isError": False,
-            "requiresApproval": True,
-            "approvalToken": token,
-            "command": req.command,
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="executor disagreed with ActionBroker decision",
+        )
     # BLOCKED / TIMEOUT / ERROR
     return {"output": f"[{result.status}] {result.reason}", "isError": True}
+
+
+# Re-exports for backward compat — tests import these from aios.api.main
+from aios.api.routes.voice import _get_stt_service, _get_tts_service  # noqa: F401, E402
+from aios.api.routes.council import get_council_runtime_root  # noqa: F401, E402

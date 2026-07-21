@@ -12,6 +12,7 @@ execute → verify → reflect loop.
 Fail-closed: a blocked, timed-out, or un-launchable verification counts as a
 FAIL, never a silent pass.
 """
+
 from __future__ import annotations
 
 import re
@@ -19,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from aios.core.executor import Executor
+from aios.core.verification_strength import VerificationStrength, derive_strength
 
 #: Reflection hook: ``(command, error_output) -> optional lesson summary``. The
 #: same shape the agentic loop uses, so the verifier can drive reflection too.
@@ -40,19 +42,40 @@ class VerifierResult:
     failed_count: int = 0
     exit_code: Optional[int] = None
     status: str = "OK"  # the underlying ExecutionResult.status
+    strength: VerificationStrength = VerificationStrength.NONE  # evidence strength
+    #: Set on a genuine failure ONLY when the reflection hook actually recorded
+    #: a lesson (``on_failure`` returned a dict with an int ``mistake_id``).
+    #: Callers use this to SURFACE the (already-recorded) lesson as a
+    #: ``reflect-*`` step without ever calling ``on_failure`` a second time --
+    #: the Verifier is the sole recorder.
+    mistake_id: Optional[int] = None
+    #: Human-readable summary of the recorded lesson (empty when none).
+    lesson_summary: str = ""
 
 
 def _parse_counts(output: str) -> tuple[int, int]:
     """Extract ``(passed, failed)`` test counts from runner output (0 if absent)."""
     passed = _PASSED.search(output)
     failed = _FAILED.search(output)
-    return (int(passed.group(1)) if passed else 0, int(failed.group(1)) if failed else 0)
+    return (
+        int(passed.group(1)) if passed else 0,
+        int(failed.group(1)) if failed else 0,
+    )
+
+
+#: Executor statuses that are GATE DECISIONS, not run failures — a RED security
+#: block and a YELLOW approval pause are correct policy outcomes, never mistakes,
+#: so they must not feed reflection (else the mistake pool fills with spurious
+#: "ApprovalRequired" lessons and the genuine test-failure reflection is masked).
+_GATE_STATUSES = frozenset({"BLOCKED", "REQUIRE_APPROVAL"})
 
 
 class Verifier:
     """Runs a verification command and judges pass/fail (Blueprint stage 8)."""
 
-    def __init__(self, executor: Executor, *, on_failure: Optional[FailureHook] = None) -> None:
+    def __init__(
+        self, executor: Executor, *, on_failure: Optional[FailureHook] = None
+    ) -> None:
         self.executor = executor
         #: Optional reflection hook fired on a genuine verification failure.
         self.on_failure = on_failure
@@ -79,18 +102,23 @@ class Verifier:
         output = ((result.stdout or "") + (result.stderr or "")).strip()
 
         if result.status != "OK":
-            # Could not even run to completion (blocked / timeout / launch error):
-            # cannot prove success, so fail-closed. A security BLOCK is correct
-            # behaviour, not a mistake — only genuine run failures feed reflection.
+            # Could not even run to completion (blocked / awaiting approval /
+            # timeout / launch error): cannot prove success, so fail-closed. A
+            # security BLOCK (RED) and a REQUIRE_APPROVAL pause (YELLOW) are gate
+            # DECISIONS, not mistakes — only a genuine run failure (ran and the
+            # tests failed, or it timed out / errored mid-run) feeds reflection.
             summary = f"[{result.status}] {result.reason}".strip()
-            if result.status != "BLOCKED":
-                self._maybe_reflect(command, summary or result.status)
+            lesson = None
+            if result.status not in _GATE_STATUSES:
+                lesson = self._maybe_reflect(command, summary or result.status)
             return VerifierResult(
                 passed=False,
                 summary=summary,
                 confidence_delta=-0.1,
                 exit_code=result.exit_code,
                 status=result.status,
+                mistake_id=_lesson_mistake_id(lesson),
+                lesson_summary=_lesson_summary(lesson),
             )
 
         passed_count, failed_count = _parse_counts(output)
@@ -109,11 +137,17 @@ class Verifier:
                 failed_count=failed_count,
                 exit_code=result.exit_code,
                 status="OK",
+                strength=derive_strength(
+                    passed=True,
+                    passed_count=passed_count,
+                    failed_count=failed_count,
+                    command=command,
+                ),
             )
 
         # Ran, but failed: bounded negative delta, scaled mildly by failure count.
         delta = max(-1.0, -0.1 * max(1, failed_count))
-        self._maybe_reflect(command, output)
+        lesson = self._maybe_reflect(command, output)
         return VerifierResult(
             passed=False,
             summary=output[-500:] or "verification failed",
@@ -122,13 +156,42 @@ class Verifier:
             failed_count=failed_count,
             exit_code=result.exit_code,
             status="OK",
+            mistake_id=_lesson_mistake_id(lesson),
+            lesson_summary=_lesson_summary(lesson),
         )
 
-    def _maybe_reflect(self, command: str, error_output: str) -> None:
-        """Fire the reflection hook on failure; never let it break verification."""
+    def _maybe_reflect(
+        self, command: str, error_output: str
+    ) -> Optional[dict[str, Any]]:
+        """Fire the reflection hook on failure; never let it break verification.
+
+        Returns the lesson dict the hook recorded (``{"mistake_id", "error_type",
+        "lesson_text", "recurrence"}``), or ``None`` when there is no hook or it
+        recorded nothing. This is the ONLY place a genuine verify failure is
+        recorded — callers (the tool loop) must only SURFACE this return value,
+        never call ``on_failure`` again for the same failure.
+        """
         if self.on_failure is None:
-            return
+            return None
         try:
-            self.on_failure(command, error_output)
+            return self.on_failure(command, error_output)
         except Exception:  # noqa: BLE001 - reflection must never break verification
-            pass
+            return None
+
+
+def _lesson_mistake_id(lesson: Optional[dict[str, Any]]) -> Optional[int]:
+    if not lesson:
+        return None
+    mistake_id = lesson.get("mistake_id")
+    return mistake_id if isinstance(mistake_id, int) else None
+
+
+def _lesson_summary(lesson: Optional[dict[str, Any]]) -> str:
+    if not lesson:
+        return ""
+    summary = (
+        f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+    )
+    if lesson.get("recurrence"):
+        summary = f"(recurring) {summary}"
+    return summary

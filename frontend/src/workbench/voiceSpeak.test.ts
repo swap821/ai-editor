@@ -2,12 +2,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetVoiceSpeakForTests,
   getVoiceSpeakState,
+  interruptSpeech,
   isVoiceSpeakMuted,
+  setBackendTTS,
   setVoiceSpeakMuted,
   startVoiceSpeak,
   subscribeVoiceSpeak,
 } from './voiceSpeak';
 import { publishCognition } from '../superbrain/lib/cognitionBus';
+import { speakText } from '../superbrain/lib/aiosAdapter';
+
+vi.mock('../superbrain/lib/aiosAdapter', () => ({
+  speakText: vi.fn(),
+}));
+
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+const flush = () => new Promise((r) => setTimeout(r, 0));
 
 interface MockUtterance {
   text: string;
@@ -26,8 +43,8 @@ function installSpeechMocks(voices: SpeechSynthesisVoice[] = []) {
     if (u.onstart) u.onstart();
   });
   const cancel = vi.fn(() => {
-    if (last?.onend) {
-      const l = last;
+    const l = last;
+    if (l?.onend) {
       last = null;
       l.onend();
     }
@@ -166,5 +183,152 @@ describe('voiceSpeak', () => {
     const utter = mocks.getLastUtterance();
     expect(utter?.voice?.lang).toBe('hi-IN');
     stop();
+  });
+
+  describe('backend TTS', () => {
+    class MockSource {
+      buffer: { tag: string } | null = null;
+      onended: (() => void) | null = null;
+      connect(): void {}
+      start(): void {
+        startedTags.push(this.buffer?.tag ?? '');
+      }
+      stop(): void {}
+    }
+
+    const closeSpy = vi.fn();
+
+    class MockAudioContext {
+      destination = {};
+      createBufferSource(): MockSource {
+        return new MockSource();
+      }
+      decodeAudioData(buf: unknown): Promise<unknown> {
+        return Promise.resolve(buf);
+      }
+      close(): Promise<void> {
+        closeSpy();
+        return Promise.resolve();
+      }
+    }
+
+    let startedTags: string[];
+
+    beforeEach(() => {
+      startedTags = [];
+      closeSpy.mockClear();
+      installSpeechMocks();
+      vi.stubGlobal('AudioContext', MockAudioContext);
+      setBackendTTS(true);
+    });
+
+    it('does not let a stale reply start playing after a newer reply already started', async () => {
+      const stop = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      const first = deferred<ArrayBuffer>();
+      const second = deferred<ArrayBuffer>();
+      speakTextMock.mockImplementationOnce(() => first.promise);
+      speakTextMock.mockImplementationOnce(() => second.promise);
+
+      // FIRST reply starts speaking; its network round-trip is still in flight.
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'FIRST' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+
+      // SECOND reply supersedes it before FIRST's network resolves.
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'SECOND' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+
+      // SECOND's network resolves first, then the stale FIRST's resolves after.
+      second.resolve({ tag: 'SECOND' } as unknown as ArrayBuffer);
+      await flush();
+      first.resolve({ tag: 'FIRST' } as unknown as ArrayBuffer);
+      await flush();
+
+      expect(startedTags).toEqual(['SECOND']);
+      stop();
+    });
+
+    it('still plays a reply normally when nothing supersedes it', async () => {
+      const stop = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'ONLY' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      await flush();
+
+      expect(startedTags).toEqual(['ONLY']);
+      stop();
+    });
+
+    it('closes the AudioContext when the last consumer stops', async () => {
+      const stop = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'ONLY' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      await flush();
+
+      expect(closeSpy).not.toHaveBeenCalled();
+      stop();
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not close the AudioContext while other consumers are still mounted', async () => {
+      const stopA = startVoiceSpeak();
+      const stopB = startVoiceSpeak();
+      const speakTextMock = vi.mocked(speakText);
+      speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'ONLY' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      await flush();
+
+      stopA();
+      expect(closeSpy).not.toHaveBeenCalled();
+      stopB();
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('interruptSpeech', () => {
+    it('stops active speech and sets speaking to false', () => {
+      const mocks = installSpeechMocks();
+      const stop = startVoiceSpeak();
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Long text' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      expect(getVoiceSpeakState().speaking).toBe(true);
+
+      interruptSpeech();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(mocks.cancel).toHaveBeenCalled();
+      stop();
+    });
+
+    it('does nothing when not speaking', () => {
+      const mocks = installSpeechMocks();
+      const stop = startVoiceSpeak();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+
+      interruptSpeech();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(mocks.cancel).not.toHaveBeenCalled();
+      stop();
+    });
+
+    it('does not toggle mute state', () => {
+      installSpeechMocks();
+      const stop = startVoiceSpeak();
+      expect(getVoiceSpeakState().muted).toBe(false);
+
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Hi' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      interruptSpeech();
+
+      expect(getVoiceSpeakState().muted).toBe(false);
+      stop();
+    });
   });
 });

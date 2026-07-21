@@ -1,0 +1,37 @@
+{
+  "os": "Windows",
+  "python": "3.14.5",
+  "ollama": "available",
+  "installed_models": [
+    "qwen2.5:3b",
+    "granite3.2:2b",
+    "gemma3:4b",
+    "mistral:7b",
+    "deepseek-r1:8b",
+    "qwen2.5:7b",
+    "qwen2.5-coder:7b",
+    "qwen2.5-coder:3b",
+    "nomic-embed-text:latest",
+    "llama3.2:3b",
+    "qwen2.5-coder:1.5b-base",
+    "llama3.1:8b"
+  ],
+  "cloud_providers": {
+    "gemini": {
+      "configured_for_probe": true,
+      "credential_source": "gcloud ADC",
+      "project": "ai-editor-498414",
+      "model": "gemini-2.5-flash",
+      "authenticated_probe": "passed"
+    },
+    "bedrock": {
+      "configured_for_probe": false,
+      "credential_present": false,
+      "authenticated_probe": "not_run"
+    }
+  },
+  "cloud_burst_probe": "release/r15/cloud-burst-evidence.json",
+  "private_executor": "unavailable",
+  "backend_gate": "3235 passed, 8 skipped, 88% coverage",
+  "credential_handling": "ADC was used transiently for the probe; no credential material is stored in this repository."
+}

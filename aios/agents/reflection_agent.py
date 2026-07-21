@@ -12,9 +12,11 @@ Safeguards (Blueprint Q6):
   * ``confidence_delta`` is clamped to ``[-1.0, 0.0]`` by the storage layer, so
     a lesson can only reduce the planner's confidence, never inflate it.
 """
+
 from __future__ import annotations
 
 import json
+import logging
 import re
 import uuid
 from dataclasses import dataclass
@@ -22,8 +24,21 @@ from pathlib import Path
 from typing import Any, Optional
 
 from aios import config
-from aios.core.llm import LLMClient
+from aios.core.llm import LLMClient, OllamaClient
+from aios.core.verification_strength import VerificationStrength
 from aios.memory.mistake import MistakeMemory
+
+logger = logging.getLogger(__name__)
+
+
+def _authority_store(authority: Any | None, name: str) -> Any | None:
+    """Return a registered specialist store without constructing a shadow store."""
+    if authority is None:
+        return None
+    adapters = getattr(authority, "adapters", {})
+    adapter = adapters.get(name) if hasattr(adapters, "get") else None
+    return getattr(adapter, "store", None)
+
 
 REFLECT_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
 Analyse the failed action, identify the root cause, and formulate a generalised lesson so
@@ -101,9 +116,62 @@ class ReflectionAgent:
         *,
         mistakes: Optional[MistakeMemory] = None,
         db_path: Path = config.MEMORY_DB_PATH,
+        memory_authority: Optional[Any] = None,
     ) -> None:
         self.llm = llm
-        self.mistakes = mistakes or MistakeMemory(db_path)
+        self.memory_authority = memory_authority
+        self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
+        if memory_authority is None and self.mistakes is None:
+            raise RuntimeError(
+                "MemoryAuthority or an explicit mistake store is required"
+            )
+
+    #: How many times to ask the model for a parseable lesson before giving up.
+    #: ``json_mode`` makes a valid JSON object the norm, but a small local model
+    #: can still occasionally emit a field-incomplete one; one cheap retry (the
+    #: sampler varies at temperature > 0) recovers the rare miss.
+    _MAX_REFLECT_ATTEMPTS = 2
+
+    def _complete_reflection(self, prompt: str) -> str:
+        """Ask the LLM for a lesson, requesting JSON-constrained decoding when the
+        backing client is a local Ollama model.
+
+        A small local model (``llama3.2:3b``) reliably starts a JSON object but
+        trails off into prose, so the greedy extractor finds no complete object
+        and the whole reflection is lost. Ollama's ``format: "json"`` grammar
+        constraint fixes this at the source (measured 0/5 -> 5/5 parseable on the
+        real multi-failure verify output). Cloud clients keep the plain path.
+        """
+        if isinstance(self.llm, OllamaClient):
+            return self.llm.complete(
+                prompt, system=REFLECT_SYSTEM_PROMPT, json_mode=True
+            )
+        return self.llm.complete(prompt, system=REFLECT_SYSTEM_PROMPT)
+
+    def _reflect_parsed(self, prompt: str) -> dict:
+        """Complete and parse a lesson, retrying a bounded number of times on an
+        unparseable response before surfacing the :class:`ReflectionError`."""
+        last_error: Optional[ReflectionError] = None
+        for _ in range(self._MAX_REFLECT_ATTEMPTS):
+            raw = self._complete_reflection(prompt)
+            try:
+                return _parse_reflection(raw)
+            except ReflectionError as exc:
+                last_error = exc
+        raise last_error or ReflectionError("Reflection produced no output.")
+
+    def _authority_owns_lessons(self) -> bool:
+        """Use authority lesson operations only for its canonical store."""
+        if self.memory_authority is None:
+            return False
+        owns_store = getattr(self.memory_authority, "owns_store", None)
+        if not callable(owns_store):
+            # Preserve lightweight authority fakes that predate ownership checks.
+            return True
+        try:
+            return bool(owns_store("lessons", self.mistakes))
+        except Exception:  # noqa: BLE001 - lesson recall/write is best effort
+            return False
 
     def reflect(
         self,
@@ -111,7 +179,7 @@ class ReflectionAgent:
         error_output: str,
         *,
         task_id: Optional[str] = None,
-    ) -> Reflection:
+    ) -> Optional[Reflection]:
         """Analyse one failure and persist a structured lesson.
 
         Args:
@@ -127,12 +195,14 @@ class ReflectionAgent:
         Raises:
             ReflectionError: If the LLM output is unparseable or incomplete.
         """
+        if config.OFFLINE_MODE:
+            logger.info("reflection skipped: offline mode")
+            return None
         task_id = task_id or uuid.uuid4().hex
         prompt = REFLECT_USER_TEMPLATE.format(
             command=command, error_output=error_output[:2000]
         )
-        raw = self.llm.complete(prompt, system=REFLECT_SYSTEM_PROMPT)
-        data = _parse_reflection(raw)
+        data = self._reflect_parsed(prompt)
 
         try:
             confidence_delta = float(data.get("confidence_delta", -0.1))
@@ -144,17 +214,28 @@ class ReflectionAgent:
         fix_applied = str(data["fix_applied"]).strip()
         lesson_text = str(data["lesson_text"]).strip()
 
-        mistake_id, recurrence = self.mistakes.record_or_increment(
-            task_id=task_id,
-            error_type=error_type,
-            root_cause=root_cause,
-            fix_applied=fix_applied,
-            lesson_text=lesson_text,
-            confidence_delta=confidence_delta,
-        )
+        record_kwargs = {
+            "task_id": task_id,
+            "error_type": error_type,
+            "root_cause": root_cause,
+            "fix_applied": fix_applied,
+            "lesson_text": lesson_text,
+            "confidence_delta": confidence_delta,
+            "failed_command": command,
+        }
+        if self._authority_owns_lessons():
+            mistake_id, recurrence = self.memory_authority.record_lesson_or_increment(
+                **record_kwargs
+            )
+        else:
+            mistake_id, recurrence = self.mistakes.record_or_increment(**record_kwargs)
 
         # Re-read the stored (clamped) delta so the return value is accurate.
-        stored = self.mistakes.get(mistake_id)
+        stored = (
+            self.memory_authority.lesson_get(mistake_id)
+            if self._authority_owns_lessons()
+            else self.mistakes.get(mistake_id)
+        )
         stored_delta = float(stored["confidence_delta"]) if stored else confidence_delta
 
         return Reflection(
@@ -168,9 +249,27 @@ class ReflectionAgent:
             recurrence=recurrence,
         )
 
-    def confirm_lesson(self, mistake_id: int) -> None:
-        """Promote a lesson to 'verified' after it proves itself on a later task."""
-        self.mistakes.promote(mistake_id)
+    def confirm_lesson(
+        self,
+        mistake_id: int,
+        *,
+        strength: VerificationStrength = VerificationStrength.STRONG,
+    ) -> None:
+        """Promote a lesson after it proves itself with strong enough evidence."""
+        if self._authority_owns_lessons():
+            self.memory_authority.promote_lesson(mistake_id, strength=strength)
+        else:
+            self.mistakes.promote(mistake_id, strength=strength)
+
+    def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
+        """``(mistake_id, failed_command)`` for this task's pending lessons.
+
+        Used to seed the tool loop's fail->confirm tracker at the start of a turn
+        so a lesson recorded before an approval pause is still promoted when its
+        exact command later succeeds (the in-memory tracker is per-run())."""
+        if self._authority_owns_lessons():
+            return self.memory_authority.pending_lesson_commands(task_id)
+        return self.mistakes.pending_command_pairs(task_id)
 
     def recall_pending(self, task_id: str, limit: int = 5) -> list[dict[str, Any]]:
         """Return this task's pending lessons as plain dicts for injection.
@@ -179,7 +278,11 @@ class ReflectionAgent:
         earlier turns of the same session. Each dict carries ``mistake_id``,
         ``error_type`` and ``lesson_text``.
         """
-        rows = self.mistakes.pending_for_task(task_id, limit)
+        rows = (
+            self.memory_authority.pending_lessons_for_task(task_id, limit)
+            if self._authority_owns_lessons()
+            else self.mistakes.pending_for_task(task_id, limit)
+        )
         return [
             {
                 "mistake_id": int(row["id"]),
@@ -193,6 +296,8 @@ class ReflectionAgent:
         self, task_text: str, task_id: str, limit: int = 5
     ) -> list[dict[str, Any]]:
         """Recall same-task pending lessons plus verified cross-session lessons."""
+        if self._authority_owns_lessons():
+            return self.memory_authority.recall_lessons(task_text, task_id, limit)
         pending = [
             {**lesson, "verification_status": "pending", "relevance": 1.0}
             for lesson in self.recall_pending(task_id, limit)

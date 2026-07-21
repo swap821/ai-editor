@@ -5,6 +5,7 @@ session. It restores continuity; it does not verify the frame, promote facts, or
 grant any authority. Caller-supplied session identifiers are stored only as
 SHA-256 digests.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -28,10 +29,24 @@ class ConversationStateStore:
         return hashlib.sha256(session_id.encode("utf-8")).hexdigest()
 
     @staticmethod
+    def _scrub_value(value: object) -> object:
+        if isinstance(value, str):
+            return scan_and_redact(value).scrubbed
+        if isinstance(value, list):
+            return [ConversationStateStore._scrub_value(item) for item in value]
+        if isinstance(value, dict):
+            return {
+                str(key): ConversationStateStore._scrub_value(item)
+                for key, item in value.items()
+            }
+        return value
+
+    @staticmethod
     def _payload(value: object, *, label: str) -> str:
-        payload = scan_and_redact(
-            json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
-        ).scrubbed
+        scrubbed = ConversationStateStore._scrub_value(value)
+        payload = json.dumps(
+            scrubbed, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+        )
         parsed = json.loads(payload)
         if not isinstance(parsed, (dict, list)):
             raise ValueError(f"{label} must remain structured JSON")
@@ -155,7 +170,9 @@ class ConversationStateStore:
             if current_revision != expected_revision:
                 raise ValueError("conversation correction changed; retry")
             base_before = (
-                str(active["before_frame_json"]) if active is not None else before_payload
+                str(active["before_frame_json"])
+                if active is not None
+                else before_payload
             )
             conn.execute(
                 "UPDATE conversation_corrections SET status = 'superseded', "
@@ -238,7 +255,9 @@ class ConversationStateStore:
             )
         return restored
 
-    def correction_history(self, session_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    def correction_history(
+        self, session_id: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
         """Return newest-first correction lifecycle entries without raw session ids."""
         if not session_id:
             return []

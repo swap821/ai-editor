@@ -1,0 +1,68 @@
+{
+  "proof_level": [
+    "production_composition",
+    "live_cloud_provider"
+  ],
+  "source_sha": "3746e69dfcad6d3041cdfa2d1837b1c7e0a2fbb9",
+  "executed_at_utc": "2026-07-18T23:20:50+00:00",
+  "finished_at_utc": "2026-07-18T23:21:00+00:00",
+  "runtime_profile": "operator",
+  "credential_source": "Google ADC",
+  "provider_configuration": {
+    "provider": "gemini",
+    "project": "ai-editor-498414",
+    "configured_model": "gemini-2.5-flash",
+    "selected_model": "gemini-2.5-pro",
+    "fallback": null
+  },
+  "request": {
+    "classification": "PUBLIC",
+    "task": "reasoning",
+    "allowed_providers": [
+      "gemini"
+    ],
+    "local_only": false,
+    "max_tokens": 64,
+    "mission_id": "mission-r15-live-hiring-3746e69b",
+    "turn_id": "turn-r15-live-hiring-3746e69b"
+  },
+  "result": {
+    "status": "completed",
+    "result_length": 2,
+    "output_digest": "565339bc4d33d72817b583024112eb7f5cdf3e5eef0252d6ec1b9c9a94e12bb3",
+    "latency_ms": 2935,
+    "durable_record_status_after_reopen": "completed",
+    "durable_provenance_fields": [
+      "actual_tokens",
+      "allowed_providers",
+      "cost",
+      "data_classification",
+      "estimated_tokens",
+      "fallback",
+      "latency_ms",
+      "local_cloud_decision",
+      "mission_id",
+      "output_digest",
+      "principal_id",
+      "purpose",
+      "recorded_at",
+      "redactions",
+      "request_id",
+      "requested_max_tokens",
+      "selected_model",
+      "selected_provider",
+      "status",
+      "turn_id"
+    ],
+    "cortex_event_types": [
+      "intelligence.model_call.completed"
+    ]
+  },
+  "scope_notes": [
+    "The request used public text only and no tools.",
+    "The call ran inside the FastAPI application lifespan and used the existing dependency composition.",
+    "The request asked for 64 output tokens while the configured Gemini adapter default was 128; the durable record preserved the requested bound and the provider call completed through the live adapter.",
+    "The provider output is advisory; no authority, execution, promotion, or verification decision was delegated to Gemini.",
+    "No raw provider output, token, credential, or secret was persisted."
+  ]
+}

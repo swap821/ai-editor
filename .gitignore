@@ -59,10 +59,43 @@ GAG demo/
 /.agents/*
 !/.agents/skills/
 /agents/
+.swarm/
+ruvector.db
+agentdb.rvf
+agentdb.rvf.lock
 # One-off cloned external design toolkit (contains nested foreign .git repos).
 /codex-design-workspace/
 # Reserved audit scratch + escalated dev-server logs (local only).
 .aios/audit/
 .aios/state/vite-escalated-*.log
+.aios/state/*_live.log
+.aios/state/proof_*.jpg
 .gstack/
 coverage.xml
+
+# --- Agent-runtime generated local state (2026-07-06 triage) ---
+# Claude-flow/ruflo generated skill mirrors: ~60 dirs stamped by `ruflo init`.
+# The four hand-authored skills committed before this rule stay tracked
+# (gitignore never drops tracked files); `git add -f` any new deliberate skill.
+.agents/skills/
+# Codex co-agent scratch tree.
+.codex/
+# Session coverage/probe scratch logs at the .aios root.
+.aios/cov_agent_*
+.aios/fable_*
+.aios/tmp_shots/
+# Curriculum/mission runs generate arbitrary artifacts inside the sandbox
+# work-tree (email_validator.py, test_string_reverser.py, ...). The curated
+# sandbox files committed before this rule stay tracked (gitignore never
+# affects tracked files); add a new deliberate sandbox file with `git add -f`.
+training_ground/*
+# lab/ is the short-name sandbox scope root (same posture as training_ground/,
+# see aios/config.py SCOPE_ROOTS + aios/probe_common.py). Runtime seed
+# fixtures from the learning-loop prover are ignored; lab/__init__.py and
+# lab/conftest.py are force-added.
+lab/*
+
+scratch.py
+
+frontend/eslint-report*.json
+

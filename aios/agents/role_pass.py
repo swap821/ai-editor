@@ -17,6 +17,7 @@ verdict is computed by this conductor from verifier evidence only — model
 prose can neither pass nor fail the work — and a failing review buys exactly
 one coder retry followed by one final review.
 """
+
 from __future__ import annotations
 
 from typing import Any, Callable, Iterator, Optional
@@ -26,7 +27,14 @@ from aios.agents.tool_agent import STEP_LIMIT_TEXT
 #: Caste tool subsets, enforced at ToolAgent._dispatch (not by prompt).
 PLANNER_TOOLS = frozenset({"read_file", "read_directory", "plan"})
 CODER_TOOLS = frozenset(
-    {"read_file", "read_directory", "execute_terminal", "edit_file", "create_file", "verify"}
+    {
+        "read_file",
+        "read_directory",
+        "execute_terminal",
+        "edit_file",
+        "create_file",
+        "verify",
+    }
 )
 REVIEWER_TOOLS = frozenset({"read_file", "read_directory", "verify"})
 
@@ -129,7 +137,9 @@ def run_role_pass(
                     pass_wrote["value"] = True
                 output = str(event.get("output", ""))
                 if output.startswith(("[VERIFY PASS]", "[VERIFY FAIL]")):
-                    target = str(event.get("target") or f"v{len(state['fail_targets'])}")
+                    target = str(
+                        event.get("target") or f"v{len(state['fail_targets'])}"
+                    )
                     state["fail_targets"][target] = output.startswith("[VERIFY FAIL]")
                 if str(event.get("tool", "")) == "plan":
                     state["plan_artifact"] = output

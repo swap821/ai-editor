@@ -3,6 +3,7 @@
 The tracker records outcomes without pretending that an unverified answer was a
 success. Only verification-backed outcomes may calibrate future planning.
 """
+
 from __future__ import annotations
 
 import json
@@ -10,10 +11,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+import logging
+
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, signature
 from aios.security.secret_scanner import scan_and_redact
+
+logger = logging.getLogger(__name__)
 
 _OUTCOMES = frozenset({"verified_success", "verified_failure", "unverified", "paused"})
 
@@ -30,8 +35,14 @@ class OutcomeEvidence:
 class DevelopmentTracker:
     """Persist task outcomes and compute evidence-backed development metrics."""
 
-    def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
+    def __init__(
+        self,
+        db_path: Path = config.MEMORY_DB_PATH,
+        *,
+        facts: Optional["SemanticFacts"] = None,
+    ) -> None:
         self.db_path = db_path
+        self._facts = facts
 
     def record(
         self,
@@ -68,7 +79,25 @@ class DevelopmentTracker:
                     payload,
                 ),
             )
-            return int(cur.lastrowid)
+            row_id = int(cur.lastrowid)
+
+        # S2: ingest verified outcome edges into the knowledge graph.
+        # OUTSIDE the with-block — add_fact() opens its own BEGIN IMMEDIATE.
+        if (
+            outcome in ("verified_success", "verified_failure")
+            and self._facts is not None
+        ):
+            try:
+                from aios.core.graph_ingestion import edges_from_outcome
+
+                for s, p, o, conf in edges_from_outcome(task_text, outcome, tool_calls):
+                    self._facts.add_fact(s, p, o, confidence=conf)
+            except Exception:
+                logger.warning(
+                    "graph ingestion from outcome failed (swallowed)", exc_info=True
+                )
+
+        return row_id
 
     def relevant_success_rate(
         self, query: str, *, min_attempts: int = 3, limit: int = 50
@@ -149,6 +178,47 @@ class DevelopmentTracker:
             if total >= floor
         }
 
+    def task_profile(
+        self, *, min_attempts: int = 1, limit: int = 5000
+    ) -> dict[str, tuple[int, float]]:
+        """Per-task ``(verified_attempts, verified_success_rate)`` from the evidence.
+
+        Like :meth:`model_task_success_rates` but keyed on the task category alone
+        (across providers/models) — the input to the narrative self-model. Reads ONLY
+        ``verified_success``/``verified_failure`` events (so weak greens, recorded as
+        ``unverified`` by the Phase 1 gate, are excluded by construction). The
+        store-level floor stays 1; the self-model applies its own ``min_attempts``.
+        """
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT outcome, metadata_json FROM development_events "
+                "WHERE outcome IN ('verified_success','verified_failure') "
+                "ORDER BY id DESC LIMIT ?",
+                (max(int(limit), 1),),
+            ).fetchall()
+        tally: dict[str, list[int]] = {}  # task -> [successes, total]
+        for row in rows:
+            try:
+                meta = json.loads(row["metadata_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(meta, dict):
+                continue
+            task = str(meta.get("task") or "").strip()
+            if not task:
+                continue
+            agg = tally.setdefault(task, [0, 0])
+            agg[1] += 1
+            if row["outcome"] == "verified_success":
+                agg[0] += 1
+        floor = max(int(min_attempts), 1)
+        return {
+            task: (total, round(succ / total, 6))
+            for task, (succ, total) in tally.items()
+            if total >= floor
+        }
+
     def summary(self) -> dict[str, Any]:
         """Return high-signal developmental metrics over all recorded tasks."""
         init_memory_db(self.db_path)
@@ -175,13 +245,17 @@ class DevelopmentTracker:
             "tasks": tasks,
             "outcomes": counts,
             "verified_success_rate": (
-                round(counts.get("verified_success", 0) / verified, 6) if verified else None
+                round(counts.get("verified_success", 0) / verified, 6)
+                if verified
+                else None
             ),
             "verification_coverage": round(verified / tasks, 6) if tasks else 0.0,
             "human_intervention_rate": (
                 round(int(totals["interventions"]) / tasks, 6) if tasks else 0.0
             ),
-            "average_tool_calls": round(int(totals["tools"]) / tasks, 6) if tasks else 0.0,
+            "average_tool_calls": round(int(totals["tools"]) / tasks, 6)
+            if tasks
+            else 0.0,
             "blocked_actions": int(totals["blocked"]),
             "lessons": int(mistake["lessons"]),
             "repeated_mistakes": int(mistake["repeats"]),

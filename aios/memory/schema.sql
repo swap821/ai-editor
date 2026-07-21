@@ -1,5 +1,5 @@
 -- aios/memory/schema.sql
--- Schema for the AI OS memory layers: L2 Episodic, L3 Semantic, L4 Mistake.
+-- Schema for the GAGOS memory layers: L2 Episodic, L3 Semantic, L4 Mistake.
 --
 -- L1 Working memory is RAM-only (see working.py) and intentionally has no table.
 -- The tamper-evident audit trail lives in a SEPARATE database
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS semantic_memory (
     timestamp     DATETIME DEFAULT CURRENT_TIMESTAMP,
     content_hash  TEXT,
     memory_type   TEXT NOT NULL DEFAULT 'chat'
-                  CHECK (memory_type IN ('chat','lesson','fact','preference','procedure')),
+                  CHECK (memory_type IN ('chat','lesson','fact','preference','procedure','document')),
     verification_status TEXT NOT NULL DEFAULT 'unverified'
                   CHECK (verification_status IN ('unverified','verified','superseded')),
     occurrence_count INTEGER NOT NULL DEFAULT 1,
@@ -108,7 +108,14 @@ CREATE TABLE IF NOT EXISTS mistake_pool (
     verification_status TEXT NOT NULL DEFAULT 'pending'
                         CHECK (verification_status IN ('pending','verified','superseded')),
     superseded_by       INTEGER REFERENCES mistake_pool(id),
-    occurrence_count    INTEGER NOT NULL DEFAULT 1
+    occurrence_count    INTEGER NOT NULL DEFAULT 1,
+    -- The exact command whose failure produced this lesson. Stored so a later
+    -- turn (or an approval-replayed continuation of the same turn) can rebuild
+    -- the fail->confirm tracking from the DB and promote the lesson when that
+    -- exact command finally succeeds -- the in-memory tracker is per-run() and
+    -- does not survive an approval pause. Empty for lessons recorded without a
+    -- command (e.g. legacy rows).
+    failed_command      TEXT NOT NULL DEFAULT ''
 );
 
 -- == L3b: Semantic facts (entity-relation triples) ===========================
@@ -123,8 +130,26 @@ CREATE TABLE IF NOT EXISTS semantic_facts (
     predicate   TEXT NOT NULL,
     object      TEXT NOT NULL,
     approved_by TEXT,
+    confidence  REAL NOT NULL DEFAULT 1.0,
     status      TEXT NOT NULL DEFAULT 'active'
                 CHECK (status IN ('active','superseded'))
+);
+
+-- Auto-extracted fact candidates awaiting human review. A SEPARATE table on
+-- purpose: every recall path reads only semantic_facts, so an unreviewed
+-- proposal is structurally incapable of reaching a prompt. Approval promotes
+-- through the contradiction-aware add_fact; rejection is recorded, not deleted.
+CREATE TABLE IF NOT EXISTS fact_proposals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    subject     TEXT NOT NULL,
+    predicate   TEXT NOT NULL,
+    object      TEXT NOT NULL,
+    source      TEXT NOT NULL DEFAULT 'auto-extract',
+    status      TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','approved','rejected')),
+    resolved_by TEXT,
+    resolved_at DATETIME
 );
 
 -- == Self-Analysis report (the module's own-code diagnostics) =================
@@ -208,6 +233,26 @@ CREATE TABLE IF NOT EXISTS procedural_skills (
     superseded_by       INTEGER                     -- lineage pointer for consolidated fragments
 );
 
+-- == Compiled playbooks (Cerebellum — sovereignty engine S1) ================
+-- Deterministic tool-call sequences compiled from verified procedural skills.
+-- A compiled playbook replays without an LLM call, through the full security
+-- gateway.  Decompiled after consecutive replay failures.
+CREATE TABLE IF NOT EXISTS compiled_playbooks (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    compiled_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+    skill_id              INTEGER NOT NULL REFERENCES procedural_skills(id),
+    goal_pattern          TEXT NOT NULL,
+    signature_v2          TEXT,
+    steps_json            TEXT NOT NULL,
+    status                TEXT NOT NULL DEFAULT 'compiled'
+                          CHECK (status IN ('compiled','decompiled')),
+    replay_count          INTEGER NOT NULL DEFAULT 0,
+    consecutive_failures  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_compiled_skill ON compiled_playbooks(skill_id);
+CREATE INDEX IF NOT EXISTS idx_compiled_status ON compiled_playbooks(status);
+
 -- == Safe curriculum =========================================================
 -- Curriculum tasks never auto-execute. Verified live outcomes matching a task
 -- update its evidence; a level is mastered only after training passes plus a
@@ -227,6 +272,25 @@ CREATE TABLE IF NOT EXISTS curriculum_tasks (
     UNIQUE(skill_name, level, prompt)
 );
 
+-- == Knowledge sources (user-uploaded documents for RAG grounding) ===========
+CREATE TABLE IF NOT EXISTS knowledge_sources (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename      TEXT NOT NULL,
+    mime_type     TEXT NOT NULL,
+    content_hash  TEXT NOT NULL UNIQUE,
+    chunk_count   INTEGER NOT NULL DEFAULT 0,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id     INTEGER NOT NULL REFERENCES knowledge_sources(id) ON DELETE CASCADE,
+    chunk_index   INTEGER NOT NULL,
+    text_content  TEXT NOT NULL,
+    source_offset INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source ON knowledge_chunks(source_id);
+
 -- == Indexes =================================================================
 CREATE INDEX IF NOT EXISTS idx_episodic_session ON episodic_memory(session_id);
 CREATE INDEX IF NOT EXISTS idx_episodic_time    ON episodic_memory(timestamp);
@@ -237,6 +301,7 @@ CREATE INDEX IF NOT EXISTS idx_mistake_time     ON mistake_pool(timestamp);
 CREATE INDEX IF NOT EXISTS idx_mistake_verified ON mistake_pool(verification_status)
     WHERE verification_status = 'verified';
 CREATE INDEX IF NOT EXISTS idx_facts_sp         ON semantic_facts(subject, predicate);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON fact_proposals(status);
 CREATE INDEX IF NOT EXISTS idx_development_sig  ON development_events(task_signature);
 CREATE INDEX IF NOT EXISTS idx_development_outcome ON development_events(outcome);
 CREATE INDEX IF NOT EXISTS idx_skills_status    ON procedural_skills(status);
@@ -244,3 +309,26 @@ CREATE INDEX IF NOT EXISTS idx_curriculum_skill ON curriculum_tasks(skill_name, 
 -- Self-analysis hot paths: triaging by status, and looking up a file's history.
 CREATE INDEX IF NOT EXISTS idx_sar_status       ON self_analysis_report(status);
 CREATE INDEX IF NOT EXISTS idx_sar_path         ON self_analysis_report(target_path);
+
+-- == Local Workforce Registry (R15) ==========================================
+-- Persists the operator's approved local models for clerical work.
+CREATE TABLE IF NOT EXISTS local_worker_models (
+    model_id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    family TEXT NOT NULL,
+    parameter_size TEXT NOT NULL,
+    quantization TEXT NOT NULL,
+    installed INTEGER NOT NULL CHECK (installed IN (0,1)),
+    operator_approved INTEGER NOT NULL CHECK (operator_approved IN (0,1)),
+    health TEXT NOT NULL CHECK (health IN ('healthy','degraded','failing','unknown')),
+    admission_status TEXT NOT NULL CHECK (admission_status IN ('pending','approved','rejected')),
+    admission_reason TEXT,
+    max_context INTEGER NOT NULL,
+    max_output INTEGER NOT NULL,
+    max_parallelism INTEGER NOT NULL,
+    allowed_job_profiles_json TEXT NOT NULL,
+    last_success DATETIME,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    metadata_confidence TEXT NOT NULL CHECK (metadata_confidence IN ('verified','inferred','unknown'))
+);
+

@@ -96,17 +96,74 @@ def test_chat_streams_text_chunk_then_done(
     )
     assert response.status_code == 200
     body = response.text
-    # route announced, the reply streamed as text_chunk(s), terminal done.
+    # lifecycle starts, route is announced, reply streams as text_chunk(s), then done.
+    assert "event: turn.started" in body
     assert "event: route" in body
     assert "event: text_chunk" in body
     assert "event: done" in body
     # local-first respected: provider is the router's local pick, privacy local.
     assert '"provider": "ollama"' in body
     assert '"privacy": "local"' in body
+    # Slice 6: every event carries a unique turn_id and the canonical mode.
+    assert '"mode": "conversation"' in body
+    assert '"turn_id"' in body
     # the reply text actually reached the wire.
     assert "ho" in body and "jayega" in body
     # text_chunk precedes done.
+    assert body.index("event: turn.started") < body.index("event: route")
     assert body.index("event: text_chunk") < body.index("event: done")
+
+
+class StreamingChatOllama(CapturingChatOllama):
+    """Local stand-in exposing stream_chat; chat() must not be used."""
+
+    def stream_chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ):
+        self.calls.append(messages)
+        self.tools_seen.append(tools)
+        yield "Arre "
+        yield "stream ho raha hai"
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        raise AssertionError("streaming chat endpoint should consume stream_chat")
+
+
+
+def test_chat_consumes_real_stream_chunks_when_available() -> None:
+    ollama = StreamingChatOllama()
+    indexer = FakeIndexer()
+    app.dependency_overrides[get_ollama_client] = lambda: ollama
+    app.dependency_overrides[get_bedrock_client] = lambda: None
+    app.dependency_overrides[get_gemini_client] = lambda: None
+    app.dependency_overrides[get_semantic_indexer] = lambda: indexer
+    app.dependency_overrides[get_semantic_facts] = lambda: FakeFacts()
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.post(
+                "/api/v1/chat",
+                json={"transcript": "stream karke bolo", "sessionId": "voice-stream"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.text
+    assert body.index("event: route") < body.index("event: text_chunk")
+    assert "Arre " in body
+    assert "stream ho raha hai" in body
+    assert ollama.tools_seen == [None]
+    assert indexer.added and "Arre stream ho raha hai" in indexer.added[0]
 
 
 def test_chat_system_prompt_is_hinglish_conversational(

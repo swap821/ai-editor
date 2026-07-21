@@ -38,6 +38,19 @@ def test_redeemed_grant_expires() -> None:
     assert store.grants("s1") == []
 
 
+def test_connect_closes_the_underlying_connection_after_the_with_block(tmp_path) -> None:
+    # Regression: ``with self._connect() as conn:`` only commits-or-rolls-back
+    # (that's all sqlite3.Connection.__enter__/__exit__ do) -- it never closes
+    # the connection. Every DB-backed call therefore leaked one open sqlite3
+    # connection/file handle. After the fix, the connection must be closed by
+    # the time the ``with`` block exits.
+    store = ApprovalStore(db_path=tmp_path / "approvals.db")
+    with store._connect() as conn:
+        pass
+    with pytest.raises(sqlite3.ProgrammingError):
+        conn.execute("SELECT 1")
+
+
 def test_durable_token_survives_store_restart_and_is_single_use(tmp_path) -> None:
     path = tmp_path / "approvals.sqlite"
     first = ApprovalStore(timeout_ms=1000, db_path=path)
@@ -99,3 +112,41 @@ def test_durable_store_refuses_payload_containing_a_secret(tmp_path) -> None:
 
     with pytest.raises(ApprovalError, match="credential-like data"):
         store.issue("create", {"filepath": "secret.txt", "content": secret}, "s1")
+
+
+def test_durable_store_allows_rollback_snapshot_sha_false_positive(tmp_path) -> None:
+    store = ApprovalStore(timeout_ms=1000, db_path=tmp_path / "approvals.sqlite")
+    snapshot_id = "362869006241aca05ad0219b818267172ec2e53d"
+
+    token = store.issue("rollback", {"snapshot_id": snapshot_id}, "s1")
+
+    assert store.consume(token, "s1").payload["snapshot_id"] == snapshot_id
+
+
+def test_durable_store_allows_rollback_mission_id_false_positive(tmp_path) -> None:
+    store = ApprovalStore(timeout_ms=1000, db_path=tmp_path / "approvals.sqlite")
+    payload = {
+        "mission_id": "mission-46d0a75c984b",
+        "snapshot_id": "791d70d93f158eea8a8ed49d44dc36acbb526b0d",
+    }
+
+    token = store.issue("rollback", payload, "s1")
+
+    assert store.consume(token, "s1").payload == payload
+
+
+def test_durable_store_still_refuses_secret_in_rollback_payload(tmp_path) -> None:
+    store = ApprovalStore(timeout_ms=1000, db_path=tmp_path / "approvals.sqlite")
+    snapshot_id = "362869006241aca05ad0219b818267172ec2e53d"
+    secret = "sk-" + "a" * 40
+
+    with pytest.raises(ApprovalError, match="credential-like data"):
+        store.issue(
+            "rollback",
+            {
+                "mission_id": "mission-46d0a75c984b",
+                "snapshot_id": snapshot_id,
+                "note": secret,
+            },
+            "s1",
+        )

@@ -1,15 +1,23 @@
-"""Prometheus-format observability metrics for the AI-OS.
+"""Prometheus-format observability metrics for GAGOS.
 
 All metrics live in a dedicated :class:`CollectorRegistry` so tests stay isolated
 and no other library can accidentally pollute the scrape output.
 """
+
 from __future__ import annotations
 
 import time
 from pathlib import Path
 from typing import Any, Optional
 
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -18,7 +26,7 @@ from aios.security.audit_logger import verify_chain
 
 
 class MetricsCollector:
-    """Collect and expose AI-OS operational metrics in Prometheus text format."""
+    """Collect and expose GAGOS operational metrics in Prometheus text format."""
 
     def __init__(self) -> None:
         self._build_metrics()
@@ -26,7 +34,9 @@ class MetricsCollector:
     def _build_metrics(self) -> None:
         """Create the registry and metric objects."""
         self.registry = CollectorRegistry()
-        self._tasks = Gauge("aios_tasks_total", "Total recorded turn tasks", registry=self.registry)
+        self._tasks = Gauge(
+            "aios_tasks_total", "Total recorded turn tasks", registry=self.registry
+        )
         self._verified_success_rate = Gauge(
             "aios_verified_success_rate",
             "Ratio of verified outcomes that succeeded",
@@ -53,7 +63,9 @@ class MetricsCollector:
             registry=self.registry,
         )
         self._lessons = Gauge(
-            "aios_lessons_total", "Total recorded mistake lessons", registry=self.registry
+            "aios_lessons_total",
+            "Total recorded mistake lessons",
+            registry=self.registry,
         )
         self._repeated_mistakes = Gauge(
             "aios_repeated_mistakes_total",
@@ -61,7 +73,9 @@ class MetricsCollector:
             registry=self.registry,
         )
         self._approvals = Gauge(
-            "aios_approvals_total", "Total issued approval grants", registry=self.registry
+            "aios_approvals_total",
+            "Total issued approval grants",
+            registry=self.registry,
         )
         self._earned_autonomy = Gauge(
             "aios_earned_autonomy_grants_total",
@@ -111,7 +125,9 @@ class MetricsCollector:
         self._verified_success_rate.set(
             float(summary.get("verified_success_rate") or 0.0)
         )
-        self._verification_coverage.set(float(summary.get("verification_coverage") or 0.0))
+        self._verification_coverage.set(
+            float(summary.get("verification_coverage") or 0.0)
+        )
         self._human_intervention_rate.set(
             float(summary.get("human_intervention_rate") or 0.0)
         )
@@ -122,7 +138,9 @@ class MetricsCollector:
         self._approvals.set(int(approvals_count))
         self._earned_autonomy.set(int(earned_autonomy_count))
 
-        status = verify_chain(db_path=audit_db_path) if audit_db_path else verify_chain()
+        status = (
+            verify_chain(db_path=audit_db_path) if audit_db_path else verify_chain()
+        )
         self._audit_chain_valid.set(1.0 if status.valid else 0.0)
 
     def record_audit_verify_failure(self) -> None:
@@ -133,7 +151,9 @@ class MetricsCollector:
         self, method: str, route: str, status_code: int, duration: float
     ) -> None:
         """Record a completed HTTP request."""
-        self._http_requests.labels(method=method, route=route, status_code=status_code).inc()
+        self._http_requests.labels(
+            method=method, route=route, status_code=status_code
+        ).inc()
         self._http_request_duration.labels(method=method, route=route).observe(duration)
         if status_code >= 500:
             self._http_request_errors.labels(method=method, route=route).inc()

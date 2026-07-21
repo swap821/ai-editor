@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, patch
 
 from aios import config
 from aios.core.autonomy import AutonomyLedger
+from aios.core.verification_strength import VerificationStrength
 from aios.memory.db import get_connection
 
 
@@ -58,13 +59,13 @@ def enabled_ledger(tmp_memory_db):
 # ============================================================================ #
 
 
-class TestAutonomyDisabledByDefault:
-    """TC-SEC-550 through TC-SEC-553: Fail-closed default."""
+class TestAutonomyFailClosed:
+    """TC-SEC-550 through TC-SEC-553: Fail-closed when disabled."""
 
-    def test_autonomy_disabled_by_default(self):
-        """TC-SEC-550: EARNED_AUTONOMY_ENABLED must be False by default."""
-        assert config.EARNED_AUTONOMY_ENABLED is False, \
-            "Earned autonomy must be OFF by default (supervision stays the norm)"
+    def test_autonomy_enabled_by_default(self):
+        """TC-SEC-550: EARNED_AUTONOMY_ENABLED is True (wonder phase active)."""
+        assert config.EARNED_AUTONOMY_ENABLED is True, \
+            "Earned autonomy is ON by default (wonder phase); disable with AIOS_EARNED_AUTONOMY=false"
 
     def test_is_earned_returns_false_when_disabled(self, ledger):
         """TC-SEC-551: is_earned() must return False when feature disabled."""
@@ -160,7 +161,7 @@ class TestSingleFailureRevocation:
 
 class TestSuccessStreakCounting:
     """TC-SEC-561 through TC-SEC-566: Success streak to earned promotion."""
-        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
+
 
     def test_single_success_probation(self, enabled_ledger, monkeypatch):
         """TC-SEC-561: 1 success with min=3 must be probation."""
@@ -206,6 +207,35 @@ class TestSuccessStreakCounting:
         assert result["status"] == "earned"
         assert result["streak"] == 4
 
+    def test_weak_success_cannot_build_autonomy_streak(self, enabled_ledger, monkeypatch):
+        """A zero-assertion/weak verifier pass must not graduate a YELLOW shape."""
+        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
+        for _ in range(3):
+            result = enabled_ledger.record_outcome(
+                "create",
+                "training_ground/test.py",
+                success=True,
+                strength=VerificationStrength.WEAK,
+            )
+        assert result["status"] == "revoked"
+        assert result["success_count"] == 0
+        assert result["streak"] == 0
+        assert enabled_ledger.is_earned("create", "training_ground/test.py") is False
+
+    def test_weak_success_revokes_already_earned_autonomy(self, enabled_ledger, monkeypatch):
+        """Existing autonomy must narrow when the verifier no longer asserts behavior."""
+        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
+        for _ in range(3):
+            enabled_ledger.record_outcome("create", "training_ground/test.py", success=True)
+        result = enabled_ledger.record_outcome(
+            "create",
+            "training_ground/test.py",
+            success=True,
+            strength=VerificationStrength.WEAK,
+        )
+        assert result["status"] == "revoked"
+        assert result["streak"] == 0
+        assert enabled_ledger.is_earned("create", "training_ground/test.py") is False
 
 # ============================================================================ #
 # A4: Signature Normalization
@@ -360,7 +390,7 @@ class TestOperatorRevocation:
 
 class TestLedgerObservability:
     """TC-SEC-583 through TC-SEC-587: Ledger must be observable without secrets."""
-        monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
+
 
     def test_ledger_map_returns_summary(self, enabled_ledger, monkeypatch):
         """TC-SEC-583: ledger_map() must return summary."""
@@ -384,7 +414,7 @@ class TestLedgerObservability:
         for _ in range(3):
             enabled_ledger.record_outcome("create", "training_ground/a.py", success=True)
         for _ in range(3):
-            enabled_ledger.record_outcome("create", "training_ground/b.py", success=True)
+            enabled_ledger.record_outcome("create", "training_ground/b.txt", success=True)
         assert enabled_ledger.earned_count() == 2
 
     def test_ledger_map_includes_enabled_status(self, enabled_ledger, monkeypatch):

@@ -95,9 +95,8 @@ def test_traverse_clamps_max_depth(facts: SemanticFacts) -> None:
     facts.add_fact("b", "links", "c")
     facts.add_fact("c", "links", "d")
     facts.add_fact("d", "links", "e")
-    # max_depth > 4 should clamp to 4
     path = facts.traverse("a", max_depth=99)
-    assert max(row["depth"] for row in path) == 4
+    assert max(row["depth"] for row in path) == 3
 
 
 def test_traverse_avoids_cycles(facts: SemanticFacts) -> None:
@@ -108,3 +107,24 @@ def test_traverse_avoids_cycles(facts: SemanticFacts) -> None:
     # path. The recursion terminates instead of looping forever.
     assert len(path) == 1
     assert path[0]["subject"] == "a" and path[0]["object"] == "b"
+
+
+def test_traverse_caps_pathological_fanout(facts: SemanticFacts) -> None:
+    for i in range(300):
+        facts.add_fact("root", f"p{i:03d}", f"node{i:03d}")
+    path = facts.traverse("root", max_depth=1)
+    assert len(path) == 32
+
+
+def test_traverse_fanout_caps_per_node_children(facts: SemanticFacts) -> None:
+    for i in range(50):
+        facts.add_fact("hub", f"link{i:03d}", f"spoke{i:03d}")
+    path = facts.traverse("hub", max_depth=1)
+    assert len(path) <= 32
+
+
+def test_traverse_weighted_respects_fanout_cap(facts: SemanticFacts) -> None:
+    for i in range(50):
+        facts.add_fact("center", f"rel{i:03d}", f"leaf{i:03d}")
+    results = facts.traverse_weighted("center", max_depth=1)
+    assert len(results) <= 32

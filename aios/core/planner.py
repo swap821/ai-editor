@@ -12,19 +12,33 @@ The planner never executes anything; it only proposes. Like the reflection
 agent, it depends on the :class:`~aios.core.llm.LLMClient` protocol, so tests
 inject a deterministic fake and need neither Ollama nor a model.
 """
+
 from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Any, Optional, TYPE_CHECKING
 
 from aios import config
+
+if TYPE_CHECKING:
+    from aios.core.native_planner import NativePlanner
 from aios.core.confidence_filter import TaskStep, filter_steps
 from aios.core.llm import LLMClient
 from aios.memory.development import DevelopmentTracker
 from aios.memory.mistake import MistakeMemory
 from aios.memory.skills import SkillMemory
+
+
+def _authority_store(authority: Any | None, name: str) -> Any | None:
+    """Return a registered specialist store without constructing a shadow store."""
+    if authority is None:
+        return None
+    adapters = getattr(authority, "adapters", {})
+    adapter = adapters.get(name) if hasattr(adapters, "get") else None
+    return getattr(adapter, "store", None)
+
 
 PLAN_SYSTEM_PROMPT = """You are the planning module of a supervised AI operating system.
 Decompose the user's goal into 3 to 6 concrete, ordered sub-tasks. For each sub-task,
@@ -59,11 +73,59 @@ class Plan:
     approved: list[TaskStep]
     escalate: list[dict[str, Any]]
     calibrations: list["Calibration"]
+    native_source: Optional[Any] = None
 
     @property
     def requires_human(self) -> bool:
         """True if any step fell below the confidence threshold."""
         return len(self.escalate) > 0
+
+
+def serialize_plan(plan: "Plan") -> dict[str, Any]:
+    """Flatten a :class:`Plan` (with TaskStep dataclasses) into JSON-safe primitives.
+
+    Shared by the standalone ``POST /api/v1/plan`` endpoint and the in-loop
+    plan stage's ``plan`` SSE event, so both surfaces speak ONE shape —
+    including the ``native`` flag (the raw ``native_source`` template object
+    stays internal; the boolean is the serializable fact callers need).
+    """
+    return {
+        "goal": plan.goal,
+        "requires_human": plan.requires_human,
+        "native": plan.native_source is not None,
+        "steps": [asdict(s) for s in plan.steps],
+        "approved": [asdict(s) for s in plan.approved],
+        "escalate": [
+            {"step": asdict(e["step"]), "reason": e["reason"], "action": e["action"]}
+            for e in plan.escalate
+        ],
+        "calibrations": [asdict(c) for c in plan.calibrations],
+    }
+
+
+def plan_to_prompt_block(plan: "Plan") -> str:
+    """Render a :class:`Plan` as the advisory context block the agent reads.
+
+    Lives next to :func:`serialize_plan` for the same reason: the escalate
+    entries' internal shape is encapsulated here, not at each consumer. The
+    block states its own authority honestly (advisory; approval still happens
+    per-action at execution time) and tells the model NOT to re-plan the same
+    goal with the ``plan`` tool — the stage already paid that consultation.
+    """
+    lines = [
+        f"{step.step_id}. {step.description} (confidence {step.confidence:.2f})"
+        for step in plan.steps
+    ]
+    if plan.escalate:
+        lines.append(
+            "Steps requiring human sign-off before risky execution: "
+            + ", ".join(str(e["step"].step_id) for e in plan.escalate)
+        )
+    return (
+        "TASK PLAN (advisory, confidence-gated; escalated steps pause for "
+        "approval at execution time; already computed — do not call the plan "
+        "tool again for this same goal):\n" + "\n".join(lines)
+    )
 
 
 @dataclass(frozen=True)
@@ -137,12 +199,26 @@ class Planner:
         mistakes: Optional[MistakeMemory] = None,
         development: Optional[DevelopmentTracker] = None,
         skills: Optional[SkillMemory] = None,
+        native: Optional["NativePlanner"] = None,
+        memory_authority: Optional[Any] = None,
     ) -> None:
         self.llm = llm
         self.threshold = threshold
-        self.mistakes = mistakes or MistakeMemory()
-        self.development = development or DevelopmentTracker()
-        self.skills = skills or SkillMemory()
+        self.memory_authority = memory_authority
+        # Production callers pass the authority without specialist stores. Reuse
+        # its registered stores so calibration cannot open parallel databases.
+        self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
+        self.development = development or _authority_store(
+            memory_authority, "development"
+        )
+        self.skills = skills or _authority_store(memory_authority, "skills")
+        if memory_authority is None and not any(
+            store is not None
+            for store in (self.mistakes, self.development, self.skills)
+        ):
+            raise RuntimeError("MemoryAuthority or explicit memory stores are required")
+        self._native = native
+        self._last_native_source: Optional[Any] = None
 
     def _calibrate(self, goal: str, step: TaskStep) -> tuple[TaskStep, Calibration]:
         """Adjust self-reported confidence using only verified external evidence."""
@@ -151,21 +227,39 @@ class Planner:
         outcome = None
         verified_skills: list[dict[str, Any]] = []
         try:
-            lessons = self.mistakes.relevant_verified(query, limit=5)
+            lessons = (
+                self.memory_authority.recall_verified_lessons(query, 5)
+                if self.memory_authority is not None
+                and self.memory_authority.owns_store("lessons", self.mistakes)
+                else self.mistakes.relevant_verified(query, limit=5)
+            )
         except Exception:  # noqa: BLE001 - planning remains available if memory is down
             pass
         try:
-            outcome = self.development.relevant_success_rate(query)
+            outcome = (
+                self.memory_authority.development_success_rate(query)
+                if self.memory_authority is not None
+                and self.memory_authority.owns_store("development", self.development)
+                else self.development.relevant_success_rate(query)
+            )
         except Exception:  # noqa: BLE001 - planning remains available if metrics are down
             pass
         try:
-            verified_skills = self.skills.relevant_verified(query, limit=3)
+            verified_skills = (
+                self.memory_authority.recall_skills(query, 3)
+                if self.memory_authority is not None
+                and self.memory_authority.owns_store("skills", self.skills)
+                else self.skills.relevant_verified(query, limit=3)
+            )
         except Exception:  # noqa: BLE001 - planning remains available if memory is down
             pass
 
         lesson_adjustment = max(
             -0.4,
-            sum(float(item["confidence_delta"]) * float(item["relevance"]) for item in lessons),
+            sum(
+                float(item["confidence_delta"]) * float(item["relevance"])
+                for item in lessons
+            ),
         )
         history_adjustment = 0.0
         if outcome is not None:
@@ -227,6 +321,30 @@ class Planner:
         """
         if not goal or not goal.strip():
             raise PlannerError("Goal must be a non-empty string.")
+
+        self._last_native_source = None
+
+        # ── Sovereignty S3: native planning from verified experience ──
+        if self._native is not None:
+            native_result = self._native.try_plan(goal.strip())
+            if native_result is not None:
+                self._last_native_source = native_result
+                partition = filter_steps(native_result.steps, self.threshold)
+                return Plan(
+                    goal=goal.strip(),
+                    steps=native_result.steps,
+                    approved=partition["approved"],
+                    escalate=partition["escalate"],
+                    calibrations=[],
+                    native_source=native_result,
+                )
+
+        # -- Offline guard (sovereignty S4) -----------------------------------
+        if config.OFFLINE_MODE:
+            raise PlannerError(
+                "Offline mode: no native plan matched this goal. "
+                "LLM planning is unavailable."
+            )
 
         prompt = PLAN_USER_TEMPLATE.format(goal=goal.strip())
         raw = self.llm.complete(prompt, system=PLAN_SYSTEM_PROMPT)

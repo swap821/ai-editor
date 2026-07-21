@@ -1,98 +1,51 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createTurnMetabolismSignals,
-  deriveTurnMetabolismSnapshot,
-  reduceTurnMetabolismEvent,
-} from './turnMetabolism';
+import { deriveTurnMetabolismSnapshot } from './turnMetabolism';
 import { postureHex } from './bodyPosture';
 
-const NOW = 10_000;
-
 describe('turnMetabolism', () => {
-  it('rests when no cognition event has stamped the body', () => {
-    const snapshot = deriveTurnMetabolismSnapshot(createTurnMetabolismSignals(), NOW);
+  it('derives rest state by default or when explicitly idle', () => {
+    const snapshot1 = deriveTurnMetabolismSnapshot('idle');
+    const snapshot2 = deriveTurnMetabolismSnapshot('unknown_phase');
 
-    expect(snapshot).toMatchObject({
+    expect(snapshot1).toMatchObject({
       phase: 'rest',
       intensity: 0,
       surfaceExcitation: 0,
       rootExcitation: 0,
       held: false,
     });
+    
+    expect(snapshot2.phase).toBe('rest');
   });
 
-  it('maps directive and route signals to thinking metabolism', () => {
-    let signals = createTurnMetabolismSignals();
-    signals = reduceTurnMetabolismEvent(signals, { type: 'directive', label: 'build' }, NOW);
-    signals = reduceTurnMetabolismEvent(signals, { type: 'route', label: 'ACTIVE BRAIN' }, NOW + 100);
-
-    const snapshot = deriveTurnMetabolismSnapshot(signals, NOW + 300);
-
-    expect(snapshot.phase).toBe('thinking');
-    expect(snapshot.surfaceExcitation).toBeGreaterThan(0);
-    expect(snapshot.rootExcitation).toBeGreaterThan(0);
-    // P2.4: the tint is now single-sourced from the sacred palette — thinking
-    // wears the bible's 'think' hue (#b06eff purple), not the old drifted cyan.
-    expect(snapshot.tint).toBe(postureHex('think'));
-  });
-
-  it('lets real tool work outrank a recent thinking signal', () => {
-    let signals = createTurnMetabolismSignals();
-    signals = reduceTurnMetabolismEvent(signals, { type: 'directive' }, NOW);
-    signals = reduceTurnMetabolismEvent(
-      signals,
-      { type: 'agent-dispatch', detail: 'tool engaged: pytest', label: 'PYTEST' },
-      NOW + 500,
-    );
-
-    const snapshot = deriveTurnMetabolismSnapshot(signals, NOW + 800);
+  it('maps active phase to working metabolism', () => {
+    const snapshot = deriveTurnMetabolismSnapshot('active');
 
     expect(snapshot.phase).toBe('working');
-    expect(snapshot.rootExcitation).toBeGreaterThan(snapshot.surfaceExcitation);
-    expect(snapshot.breathGain).toBeGreaterThan(0.2);
+    expect(snapshot.intensity).toBeGreaterThan(0.5);
+    expect(snapshot.surfaceExcitation).toBeGreaterThan(0);
+    expect(snapshot.rootExcitation).toBeGreaterThan(0);
+    expect(snapshot.tint).toBe(postureHex('stream'));
   });
 
-  it('holds approval until an approval resolution event arrives', () => {
-    let signals = createTurnMetabolismSignals();
-    signals = reduceTurnMetabolismEvent(signals, { type: 'approval-required', label: 'hold' }, NOW);
+  it('maps explicit phases exactly', () => {
+    const thinking = deriveTurnMetabolismSnapshot('thinking');
+    expect(thinking.phase).toBe('thinking');
+    expect(thinking.tint).toBe(postureHex('think'));
 
-    const held = deriveTurnMetabolismSnapshot(signals, NOW + 60_000);
-    expect(held.phase).toBe('approval');
-    expect(held.held).toBe(true);
-    expect(held.breathGain).toBeLessThan(0);
+    const error = deriveTurnMetabolismSnapshot('error');
+    expect(error.phase).toBe('error');
+    expect(error.tint).toBe(postureHex('error'));
 
-    signals = reduceTurnMetabolismEvent(signals, { type: 'approval-resolved', label: 'approved' }, NOW + 60_500);
-    const settled = deriveTurnMetabolismSnapshot(signals, NOW + 60_600);
-    expect(settled.phase).toBe('settling');
-    expect(settled.held).toBe(false);
+    const settling = deriveTurnMetabolismSnapshot('settling');
+    expect(settling.phase).toBe('settling');
+    expect(settling.tint).toBe(postureHex('complete'));
   });
 
-  it('maps cognition faults, rejected approvals, and verification red to error metabolism', () => {
-    const fault = reduceTurnMetabolismEvent(
-      createTurnMetabolismSignals(),
-      { type: 'synthesis', label: 'COGNITION FAULT', detail: 'backend error' },
-      NOW,
-    );
-    const rejected = reduceTurnMetabolismEvent(
-      createTurnMetabolismSignals(),
-      { type: 'approval-resolved', label: 'rejected' },
-      NOW,
-    );
-    const red = reduceTurnMetabolismEvent(
-      createTurnMetabolismSignals(),
-      { type: 'knowledge-acquired', label: 'VERIFICATION RED' },
-      NOW,
-    );
-
-    expect(deriveTurnMetabolismSnapshot(fault, NOW + 100).phase).toBe('error');
-    expect(deriveTurnMetabolismSnapshot(rejected, NOW + 100).phase).toBe('error');
-    expect(deriveTurnMetabolismSnapshot(red, NOW + 100).phase).toBe('error');
-  });
-
-  it('decays stale events back to rest', () => {
-    let signals = createTurnMetabolismSignals();
-    signals = reduceTurnMetabolismEvent(signals, { type: 'agent-dispatch' }, NOW);
-
-    expect(deriveTurnMetabolismSnapshot(signals, NOW + 3601).phase).toBe('rest');
+  it('marks approval phase as held', () => {
+    const approval = deriveTurnMetabolismSnapshot('approval');
+    expect(approval.phase).toBe('approval');
+    expect(approval.held).toBe(true);
+    expect(approval.breathGain).toBeLessThan(0);
   });
 });

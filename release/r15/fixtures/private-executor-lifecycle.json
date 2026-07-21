@@ -1,0 +1,22 @@
+{
+  "acceptance_eligible": false,
+  "audit_trail": [
+    "checkpoint_created_external",
+    "staged_repair_executed",
+    "post_promotion_verified",
+    "restoration_exactness_validated"
+  ],
+  "checkpoint_id": "chk-m-1-85eb3457",
+  "container_image": "aios-executor:v1.0-fixture",
+  "executed_at": "2026-07-20T13:15:07.888686+00:00",
+  "executor_backend": "private_service_fixture",
+  "isolation_verified": true,
+  "promoted_digest": "6a45f97a63b9d295fbb402025fc91c8c28fa7661f1a95cc6d2762dbc1ed28c46",
+  "proof_level": "FIXTURE",
+  "proof_type": "fixture_private_executor_lifecycle",
+  "repair_operation": "REMOVE_MAINTENANCE_MARKER_V1",
+  "restored_digest": "58258d0ba4b9137671d429cb057bd330507e5c987486b507109b64ce8af0b50c",
+  "staged_digest": "6a45f97a63b9d295fbb402025fc91c8c28fa7661f1a95cc6d2762dbc1ed28c46",
+  "synthetic": true,
+  "verification_status": "PASSED"
+}

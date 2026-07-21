@@ -3,7 +3,7 @@
 Implements the same ``chat(messages, *, tools, model) -> message-dict`` contract
 as :class:`aios.core.llm.OllamaClient` and :class:`aios.core.bedrock.BedrockClient`,
 backed by **Gemini via Vertex AI** (the ``google-genai`` SDK). This gives the
-AI-OS a Google frontier model alongside local + Bedrock — *without* changing the
+GAGOS a Google frontier model alongside local + Bedrock — *without* changing the
 tool loop, memory, reflection, or the security gateway. The chosen model is still
 only a proposer; the cage verifies regardless (RED stays hard-blocked).
 
@@ -26,15 +26,17 @@ Design notes (mirrors ``bedrock.py`` so the three providers stay symmetric):
     before transmission so conversation history, tool results, and secrets never
     leave the local machine unredacted.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
+from aios.core.stream_protocol import StreamFinished
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +99,12 @@ def _to_gemini(
                 {
                     "role": "user",
                     "parts": [
-                        {"function_response": {"name": name, "response": {"result": str(content)}}}
+                        {
+                            "function_response": {
+                                "name": name,
+                                "response": {"result": str(content)},
+                            }
+                        }
                     ],
                 }
             )
@@ -119,7 +126,8 @@ def _to_tools(tools: Optional[list[dict[str, Any]]]) -> Optional[list[dict[str, 
             {
                 "name": str(fn.get("name", "")),
                 "description": str(fn.get("description", "")),
-                "parameters": fn.get("parameters") or {"type": "object", "properties": {}},
+                "parameters": fn.get("parameters")
+                or {"type": "object", "properties": {}},
             }
         )
     return [{"function_declarations": decls}]
@@ -159,13 +167,71 @@ def _parse_output(response: Any) -> dict[str, Any]:
             tool_calls.append(
                 {
                     "id": None,
-                    "function": {"name": str(fc.name), "arguments": _coerce_args(getattr(fc, "args", None))},
+                    "function": {
+                        "name": str(fc.name),
+                        "arguments": _coerce_args(getattr(fc, "args", None)),
+                    },
                 }
             )
     result: dict[str, Any] = {"role": "assistant", "content": text}
     if tool_calls:
         result["tool_calls"] = tool_calls
     return result
+
+
+def _stream_text_from_gemini(chunks: Any) -> Iterator[str]:
+    """Yield text chunks from a Gemini ``generate_content_stream`` iterable."""
+    for chunk in chunks or []:
+        text = getattr(chunk, "text", None)
+        if text:
+            yield str(text)
+            continue
+        parsed = _parse_output(chunk)
+        content = parsed.get("content")
+        if content:
+            yield str(content)
+
+
+def _stream_from_gemini(chunks: Any) -> Iterator[str | StreamFinished]:
+    """Yield text deltas then a :class:`StreamFinished` with any tool_calls.
+
+    Each streaming chunk may contain text parts or function_call parts. Text
+    is yielded immediately; function_calls are accumulated and returned in the
+    final :class:`StreamFinished`.
+    """
+    text_parts: list[str] = []
+    tool_calls: list[dict[str, Any]] = []
+
+    for chunk in chunks or []:
+        text = getattr(chunk, "text", None)
+        if text:
+            text_parts.append(str(text))
+            yield str(text)
+            continue
+        # Parse full chunk for both text and function_calls
+        candidates = getattr(chunk, "candidates", None) or []
+        if not candidates:
+            continue
+        content = getattr(candidates[0], "content", None)
+        parts = (getattr(content, "parts", None) or []) if content is not None else []
+        for part in parts:
+            t = getattr(part, "text", None)
+            if t:
+                text_parts.append(str(t))
+                yield str(t)
+            fc = getattr(part, "function_call", None)
+            if fc is not None and getattr(fc, "name", None):
+                tool_calls.append(
+                    {
+                        "id": None,
+                        "function": {
+                            "name": str(fc.name),
+                            "arguments": _coerce_args(getattr(fc, "args", None)),
+                        },
+                    }
+                )
+
+    yield StreamFinished(tool_calls=tool_calls, content="".join(text_parts))
 
 
 class GeminiClient:
@@ -211,6 +277,7 @@ class GeminiClient:
         *,
         tools: Optional[list[dict[str, Any]]] = None,
         model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """One non-streaming chat turn via Gemini ``generate_content``.
 
@@ -230,15 +297,19 @@ class GeminiClient:
             )
 
         system_text, contents = _to_gemini(safe_messages)
+        output_tokens = self.max_tokens if max_tokens is None else max_tokens
+        if output_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
         gen_config: dict[str, Any] = {
             "temperature": self.temperature,
-            "max_output_tokens": self.max_tokens,
+            "max_output_tokens": output_tokens,
         }
         if system_text.strip():
             gen_config["system_instruction"] = system_text
-        # Bound 2.5-era "thinking" so it can't silently eat the output budget and
-        # return zero text (``0`` disables it; ``-1`` leaves the model default on).
-        if self.thinking_budget >= 0:
+        # A positive value bounds 2.5-era "thinking".  Vertex rejects an explicit
+        # zero for some discovered models, so zero and negative values leave the
+        # provider default untouched.
+        if self.thinking_budget > 0:
             gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
         tool_decls = _to_tools(tools)
         if tool_decls:
@@ -267,6 +338,104 @@ class GeminiClient:
         # --- Validate response structure before returning to the agent. ---
         self._privacy_filter.validate_response(result)
         return result
+
+    def stream_chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+    ) -> Iterator[str]:
+        """Yield text chunks from Gemini ``generate_content_stream``.
+
+        STREAM SEAM (C4): main.py no-tool chat paths may consume this.
+        Privacy is identical to :meth:`chat`: sanitize before cloud transmission
+        and scrub provider failures before surfacing them as :class:`LLMError`.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Gemini privacy filter applied", extra=audit)
+
+        system_text, contents = _to_gemini(safe_messages)
+        gen_config: dict[str, Any] = {
+            "temperature": self.temperature,
+            "max_output_tokens": self.max_tokens,
+        }
+        if system_text.strip():
+            gen_config["system_instruction"] = system_text
+        if self.thinking_budget > 0:
+            gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
+        tool_decls = _to_tools(tools)
+        if tool_decls:
+            gen_config["tools"] = tool_decls
+
+        try:
+            stream = self._client.models.generate_content_stream(
+                model=model or self.model,
+                contents=contents,
+                config=gen_config,
+            )
+            yield from _stream_text_from_gemini(stream)
+        except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Gemini generate_content_stream failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,
+            )
+            raise LLMError(
+                f"Gemini generate_content_stream failed for '{model or self.model}': {scrubbed}"
+            ) from exc
+
+    def stream_chat_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: Optional[str] = None,
+    ) -> Iterator[str | StreamFinished]:
+        """Stream text chunks then a :class:`StreamFinished` with tool_calls.
+
+        Same privacy/error contract as :meth:`stream_chat`, but the final
+        yielded item is always a :class:`StreamFinished` carrying any tool_calls
+        the model produced during the stream.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Gemini privacy filter applied", extra=audit)
+
+        system_text, contents = _to_gemini(safe_messages)
+        gen_config: dict[str, Any] = {
+            "temperature": self.temperature,
+            "max_output_tokens": self.max_tokens,
+        }
+        if system_text.strip():
+            gen_config["system_instruction"] = system_text
+        if self.thinking_budget > 0:
+            gen_config["thinking_config"] = {"thinking_budget": self.thinking_budget}
+        tool_decls = _to_tools(tools)
+        if tool_decls:
+            gen_config["tools"] = tool_decls
+
+        try:
+            stream = self._client.models.generate_content_stream(
+                model=model or self.model,
+                contents=contents,
+                config=gen_config,
+            )
+            yield from _stream_from_gemini(stream)
+        except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
+            scrubbed = scrub_exception(exc)
+            logger.warning(
+                "Gemini stream_chat_with_tools failed for '%s': %s",
+                model or self.model,
+                scrubbed,
+                exc_info=False,
+            )
+            raise LLMError(
+                f"Gemini stream_chat_with_tools failed for '{model or self.model}': {scrubbed}"
+            ) from exc
 
     def list_models(self) -> list[dict[str, str]]:
         """List invocable Gemini chat models for the picker (best-effort).

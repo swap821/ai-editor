@@ -15,12 +15,15 @@ Design:
   * Request / response validation guards against malformed payloads and
     MitM tampering.
 """
+
 from __future__ import annotations
 
 import hashlib
 import logging
 import re
 from typing import Any, Final
+
+from aios import config
 
 #: Minimal generic replacement for system prompts (never transmits the real one).
 _GENERIC_SYSTEM_PROMPT: Final[str] = (
@@ -35,14 +38,30 @@ _CREDENTIAL_PATTERNS: Final[list[re.Pattern[str]]] = [
     # Generic bearer / token / api-key patterns
     re.compile(r"(?i)bearer\s+[A-Za-z0-9_\-]{8,}"),
     re.compile(r"(?i)authorization\s*[:\s]\s*[A-Za-z0-9_\-+/=]{8,}"),
-    re.compile(r"(?i)(api[_-]?key|apikey|secret|token|password)\s*[:=]\s*\S{8,}"),
+    # [a-z0-9_]* after the keyword catches compound identifiers like
+    # "aws_secret_access_key" or "db_password_hash", not just an exact
+    # "secret"/"password" token immediately before the operator.
+    re.compile(
+        r"(?i)(api[_-]?key|apikey|secret|token|password|access[_-]?key)[a-z0-9_]*\s*[:=]\s*\S{8,}"
+    ),
     re.compile(r"(?i)(AKIA[A-Z0-9]{16})"),  # AWS Access Key ID
     re.compile(r"(?i)(ASIA[A-Z0-9]{16})"),  # AWS Session Token prefix
+    # AWS Secret Access Key shape: an isolated 40-char base64-alphabet run.
+    # Matched by shape alone (no nearby keyword required) because this is a
+    # fixed, well-known credential format — the same approach real secret
+    # scanners (gitleaks, truffleHog) use, since keyword-adjacency alone
+    # (see the generic pattern above) misses a bare pasted value with no
+    # "secret ="-style prefix, and the entropy backstop below deliberately
+    # exempts path-shaped tokens (2026-07-07 egress fix) which a slash-
+    # bearing AWS secret can coincidentally look like.
+    re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])"),
     re.compile(r"gh[ps]_[A-Za-z0-9_]{30,}"),  # GitHub tokens
     re.compile(r"glpat-[A-Za-z0-9_\-]{20,}"),  # GitLab tokens
     re.compile(r"sk-[A-Za-z0-9]{20,}"),  # Generic sk- keys
     re.compile(r"xox[baprs]-[A-Za-z0-9_\-]{10,}"),  # Slack tokens
-    re.compile(r"\b[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\b"),  # JWT
+    re.compile(
+        r"\b[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\b"
+    ),  # JWT
     re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----"),
     re.compile(r"-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----"),
     re.compile(r"-----BEGIN\s+EC\s+PRIVATE\s+KEY-----"),
@@ -69,8 +88,30 @@ _MAX_REQUEST_SIZE: Final[int] = 2 * 1024 * 1024  # 2 MiB
 #: Maximum number of messages allowed in a single request.
 _MAX_MESSAGES_PER_REQUEST: Final[int] = 50
 
-#: Number of recent conversation turns to retain for cloud transmission.
-_HISTORY_WINDOW: Final[int] = 2
+#: Minimum number of recent conversation turns to retain for cloud transmission.
+_MIN_HISTORY_WINDOW: Final[int] = 2
+
+#: Default recent conversation turns retained for cloud transmission.
+_HISTORY_WINDOW: Final[int] = max(_MIN_HISTORY_WINDOW, config.CLOUD_HISTORY_WINDOW)
+
+#: Coding tasks may keep more context, but never less than the default floor.
+_CODING_HISTORY_WINDOW: Final[int] = max(
+    _HISTORY_WINDOW, config.CLOUD_CODING_HISTORY_WINDOW
+)
+
+_CODING_TASK_HINTS: Final[tuple[str, ...]] = (
+    "code",
+    "coding",
+    "debug",
+    "fix",
+    "implement",
+    "refactor",
+    "test",
+)
+
+_LARGE_BLOB_CHAR_LIMIT: Final[int] = 500
+_LARGE_BLOB_LINE_LIMIT: Final[int] = 8
+_LARGE_BLOB_TRUNCATION_MARKER: Final[str] = "[...truncated...]"
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +120,13 @@ def _looks_like_secret(value: str) -> bool:
     """Return ``True`` if *value* looks like a high-entropy secret string."""
     if len(value) <= _SECRET_ENTROPY_THRESHOLD:
         return False
-    lower = value.lower()
-    upper = value.upper()
-    digit_count = sum(1 for c in value if c.isdigit())
-    if digit_count == 0:
-        return bool(re.match(r"^[A-Za-z0-9_+/=-]+$", value)) and len(value) > 24
-    return bool(re.match(r"^[A-Za-z0-9_+/=\-]{20,}$", value))
+    # No digit-count-based carve-out: a 2026-07-10 adversarial audit found a
+    # 21-24 char all-alphabetic secret ("qwertyuiopasdfghjklzxc") slipped
+    # through the old `len > 24` bar reserved for the no-digit case. Real
+    # secrets don't reliably contain digits (base32/hex-lowercase alphabets,
+    # word-based tokens), so digit presence is not a trustworthy signal —
+    # apply the same >20 threshold regardless.
+    return bool(re.match(r"^[A-Za-z0-9_+/=\-]+$", value))
 
 
 def _hash_placeholder(value: str) -> str:
@@ -93,11 +135,102 @@ def _hash_placeholder(value: str) -> str:
     return f"[SENSITIVE: {h}]"
 
 
+#: A slash-joined run of file-name-safe segments (no base64 ``+``/``=``).
+_PATH_SHAPED = re.compile(r"[A-Za-z0-9_\-]+(?:[/\\][A-Za-z0-9_\-]+)+")
+
+#: A dot-extension immediately following a token (``.py``, ``.md``, ...).
+_EXT_AFTER = re.compile(r"\.[A-Za-z0-9]{1,5}(?![A-Za-z0-9])")
+
+#: Real path segments (directory/file names) are rarely longer than this;
+#: an individual segment beyond it is a tell that a slash-bearing secret
+#: (base64 alphabet includes '/') was incidentally split by that slash
+#: rather than being a genuine path component. 36 comfortably exceeds this
+#: repo's own longest legitimate segments (~30-31 chars, e.g. timestamped
+#: test-fixture names) while sitting well below the 40+ char single-segment
+#: fragments a 2026-07-10 adversarial audit found slipping through
+#: unbounded (a 44-char slash-bearing secret split as a 43-char + 4-char
+#: segment previously fullmatched _PATH_SHAPED with no length check at all).
+_MAX_PATH_SEGMENT_LEN: Final[int] = 36
+
+#: Minimum alphabetic-character count before the case-transition check below
+#: applies — below this, ratio noise makes the signal unreliable (e.g. "Ab"
+#: is 1 transition / 2 chars = 0.5 but is obviously not a secret).
+_MIN_SEGMENT_ALPHA_FOR_ENTROPY_CHECK: Final[int] = 8
+
+#: A segment whose upper/lower CASE TRANSITIONS (as a fraction of its
+#: alphabetic characters) exceed this is almost certainly random-generated
+#: (base64/hex-mixed-case secrets), not a natural identifier. Calibrated
+#: empirically against this repo's own real path segments (snake_case
+#: identifiers and ISO8601-timestamped fixture names top out at ~0.08 —
+#: at most one embedded capital) versus real secret fragments recovered
+#: from the 2026-07-10 audit's bypasses (minimum 0.28, most >0.9) — a wide
+#: margin separates the two populations, unlike raw Shannon entropy (which
+#: timestamps inflate for legitimate segments) or segment length alone
+#: (which a deliberately-balanced split, e.g. 31/19 chars, defeats).
+_MAX_CASE_TRANSITION_RATIO: Final[float] = 0.15
+
+
+def _looks_like_secret_segment(segment: str) -> bool:
+    """True when *segment* has random-generated case-mixing, not natural text."""
+    alpha = [c for c in segment if c.isalpha()]
+    if len(alpha) < _MIN_SEGMENT_ALPHA_FOR_ENTROPY_CHECK:
+        return False
+    transitions = sum(1 for a, b in zip(alpha, alpha[1:]) if a.islower() != b.islower())
+    return (transitions / len(alpha)) > _MAX_CASE_TRANSITION_RATIO
+
+
+def _in_filename_context(text: str, start: int, end: int, token: str) -> bool:
+    """True when the matched token is a file path or path component.
+
+    Egress fix (2026-07-07, operator-approved): the entropy heuristic used to
+    glue slash-separated path segments into one long "token" and redact it as
+    a secret — blinding cloud models to the very filename they were asked to
+    work on (the learning-loop prover recorded models echoing the redaction
+    hash back as a filename). A token is exempt when it is path-shaped, sits
+    directly after a path separator, or is directly followed by a
+    dot-extension. Scope note: this is the PRIVACY egress layer (protecting
+    operator data leaving the machine); the security scanner's entropy
+    backstop — which deliberately catches path-DISGUISED credentials — is
+    separate and unchanged.
+
+    Hardened 2026-07-10 after an adversarial audit found the path-shaped
+    exemption alone waved through slash-bearing secrets regardless of shape
+    plausibility: a path-shaped token is now exempt only when EVERY segment
+    is both a plausible length (<=36 chars) AND doesn't look
+    random-generated (see _looks_like_secret_segment). A single long or
+    high-case-transition segment defeats the exemption for the whole token,
+    even if other segments are short.
+
+    KNOWN LIMITATION (disclosed, not silently claimed fixed): this remains a
+    heuristic classifier, not a proof. A secret deliberately engineered to
+    avoid mixed-case (e.g. all-lowercase-hex, chunked into short segments)
+    can still slip through — closing that fully is an open problem for any
+    regex/heuristic-based scanner, not something this fix claims to solve.
+    """
+    if _PATH_SHAPED.fullmatch(token):
+        segments = re.split(r"[/\\]", token)
+        if all(
+            len(segment) <= _MAX_PATH_SEGMENT_LEN
+            and not _looks_like_secret_segment(segment)
+            for segment in segments
+        ):
+            return True
+        # Path-shaped but at least one segment is implausible (too long or
+        # random-looking) — fall through to the other two checks instead of
+        # returning False outright, since this token could still be exempt
+        # via a genuine adjacent separator or extension.
+    if start > 0 and text[start - 1] in "/\\":
+        return True
+    return bool(_EXT_AFTER.match(text, end))
+
+
 def _redact_high_entropy(text: str) -> tuple[str, int]:
     """Replace high-entropy strings in *text* with hashed placeholders."""
     count = 0
     for match in re.finditer(r"[A-Za-z0-9_+/=\-]{20,}", text):
         token = match.group(0)
+        if _in_filename_context(text, match.start(), match.end(), token):
+            continue
         if _looks_like_secret(token):
             placeholder = _hash_placeholder(token)
             text = text[: match.start()] + placeholder + text[match.end() :]
@@ -123,6 +256,13 @@ def _redact_paths(text: str) -> tuple[str, int]:
         text = new_text
         count += n
     return text, count
+
+
+def redact_paths(text: str) -> str:
+    """Public path-redaction for any egress surface outside the cloud pipeline
+    (e.g. web search): replace absolute file paths with ``[PATH REDACTED]``."""
+    redacted, _ = _redact_paths(text)
+    return redacted
 
 
 def scrub_exception(exc: BaseException | str) -> str:
@@ -153,15 +293,38 @@ class PrivacyFilter:
     def __init__(
         self,
         *,
-        history_window: int = _HISTORY_WINDOW,
+        history_window: int | None = None,
+        coding_history_window: int | None = None,
+        task: str = "general",
         max_request_size: int = _MAX_REQUEST_SIZE,
         max_response_size: int = _MAX_RESPONSE_SIZE,
         max_messages: int = _MAX_MESSAGES_PER_REQUEST,
     ) -> None:
-        self.history_window = history_window
+        base_history_window = (
+            _HISTORY_WINDOW if history_window is None else history_window
+        )
+        coding_window = (
+            _CODING_HISTORY_WINDOW
+            if coding_history_window is None
+            else coding_history_window
+        )
+        self.history_window = self._history_window_for_task(
+            task, base_history_window, coding_window
+        )
         self.max_request_size = max_request_size
         self.max_response_size = max_response_size
         self.max_messages = max_messages
+
+    @staticmethod
+    def _history_window_for_task(
+        task: str, history_window: int, coding_history_window: int
+    ) -> int:
+        base = max(_MIN_HISTORY_WINDOW, int(history_window))
+        coding = max(base, int(coding_history_window))
+        task_lower = str(task or "general").lower()
+        if any(hint in task_lower for hint in _CODING_TASK_HINTS):
+            return coding
+        return base
 
     def filter(
         self,
@@ -183,8 +346,14 @@ class PrivacyFilter:
         safe: list[dict[str, Any]] = []
         for msg in truncated:
             clean, per_msg_audit = self._redact_message(msg)
-            for key in ("redacted_system", "redacted_tool_files", "redacted_credentials",
-                        "redacted_paths", "redacted_secrets", "dropped_messages"):
+            for key in (
+                "redacted_system",
+                "redacted_tool_files",
+                "redacted_credentials",
+                "redacted_paths",
+                "redacted_secrets",
+                "dropped_messages",
+            ):
                 audit[key] += per_msg_audit.get(key, 0)
             if clean is not None:
                 safe.append(clean)
@@ -197,19 +366,26 @@ class PrivacyFilter:
         if not isinstance(response, dict):
             raise ValueError("Response must be a dict")
         import json
+
         size = len(json.dumps(response).encode("utf-8"))
         if size > self.max_response_size:
-            raise ValueError(f"Response size {size} bytes exceeds limit {self.max_response_size}")
+            raise ValueError(
+                f"Response size {size} bytes exceeds limit {self.max_response_size}"
+            )
         role = response.get("role")
         if role not in ("assistant", "user", "system", None):
             raise ValueError(f"Unexpected response role: {role}")
         content = response.get("content")
         if content is not None and not isinstance(content, str):
-            raise ValueError(f"Response content must be a string, got {type(content).__name__}")
+            raise ValueError(
+                f"Response content must be a string, got {type(content).__name__}"
+            )
         tool_calls = response.get("tool_calls")
         if tool_calls is not None:
             if not isinstance(tool_calls, list):
-                raise ValueError(f"tool_calls must be a list, got {type(tool_calls).__name__}")
+                raise ValueError(
+                    f"tool_calls must be a list, got {type(tool_calls).__name__}"
+                )
             for call in tool_calls:
                 if not isinstance(call, dict):
                     raise ValueError("Each tool_call must be a dict")
@@ -241,17 +417,31 @@ class PrivacyFilter:
         kept.reverse()
         return kept
 
-    def _redact_message(self, msg: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, int]]:
+    def _redact_message(
+        self, msg: dict[str, Any]
+    ) -> tuple[dict[str, Any] | None, dict[str, int]]:
         audit: dict[str, int] = {
-            "redacted_system": 0, "redacted_tool_files": 0, "redacted_credentials": 0,
-            "redacted_paths": 0, "redacted_secrets": 0, "dropped_messages": 0,
+            "redacted_system": 0,
+            "redacted_tool_files": 0,
+            "redacted_credentials": 0,
+            "redacted_paths": 0,
+            "redacted_secrets": 0,
+            "dropped_messages": 0,
         }
         role = msg.get("role")
         content = msg.get("content") or ""
         if role == "system":
-            audit["redacted_system"] = 1
-            if content and str(content).strip():
-                return {"role": "system", "content": _GENERIC_SYSTEM_PROMPT}, audit
+            content_str = str(content)
+            content_str, n_cred = _redact_credentials(content_str)
+            audit["redacted_credentials"] += n_cred
+            content_str, n_sec = _redact_high_entropy(content_str)
+            audit["redacted_secrets"] += n_sec
+            content_str, n_path = _redact_paths(content_str)
+            audit["redacted_paths"] += n_path
+            if content_str.strip():
+                audit["redacted_system"] = int(content_str != str(content))
+                return {"role": "system", "content": content_str}, audit
+            audit["dropped_messages"] = 1
             return None, audit
         if role == "tool":
             content_str = str(content)
@@ -275,7 +465,9 @@ class PrivacyFilter:
             clean = dict(msg)
             clean["content"] = content_str
             if role == "assistant" and "tool_calls" in clean:
-                clean["tool_calls"] = [self._redact_tool_call(call, audit) for call in clean["tool_calls"]]
+                clean["tool_calls"] = [
+                    self._redact_tool_call(call, audit) for call in clean["tool_calls"]
+                ]
             return clean, audit
         audit["dropped_messages"] = 1
         return None, audit
@@ -285,25 +477,58 @@ class PrivacyFilter:
         lines = text.splitlines()
         if len(lines) >= 5:
             indicators = (
-                "import ", "from ", "def ", "class ", "# ", "// ", "/*",
-                "<!DOCTYPE", "<html", "<?xml", "---", "===", "{", "}",
-                "function ", "const ", "let ", "var ", "package ",
+                "import ",
+                "from ",
+                "def ",
+                "class ",
+                "# ",
+                "// ",
+                "/*",
+                "<!DOCTYPE",
+                "<html",
+                "<?xml",
+                "---",
+                "===",
+                "{",
+                "}",
+                "function ",
+                "const ",
+                "let ",
+                "var ",
+                "package ",
             )
             if any(line.strip().startswith(indicators) for line in lines[:10]):
                 fname = self._extract_filename_hint(text)
                 stub = f"[FILE CONTENT REDACTED: {fname}]"
                 return stub, count + 1
-        if len(text) > 500 and text.count("\n") < 3:
-            return "[LARGE BLOB REDACTED]", count + 1
+        if len(text) > _LARGE_BLOB_CHAR_LIMIT:
+            return self._truncate_large_blob(text), count + 1
         return text, count
+
+    def _truncate_large_blob(self, text: str) -> str:
+        lines = text.splitlines() or [text]
+        head = "\n".join(lines[:_LARGE_BLOB_LINE_LIMIT])
+        if len(head) > _LARGE_BLOB_CHAR_LIMIT:
+            head = head[:_LARGE_BLOB_CHAR_LIMIT].rstrip()
+        head, _ = _redact_credentials(head)
+        head, _ = _redact_high_entropy(head)
+        head, _ = _redact_paths(head)
+        return f"{head}\n{_LARGE_BLOB_TRUNCATION_MARKER}"
 
     def _extract_filename_hint(self, text: str) -> str:
         for line in text.splitlines()[:3]:
-            for match in re.finditer(r"[^/\s]+\.[a-zA-Z0-9]{1,10}", line):
-                return match.group(0)
+            # Avoid regex to completely mitigate CodeQL ReDoS warnings
+            for token in line.split():
+                if "/" in token or "\\" in token:
+                    continue
+                parts = token.rsplit(".", 1)
+                if len(parts) == 2 and 1 <= len(parts[1]) <= 10 and parts[1].isalnum():
+                    return token
         return "file"
 
-    def _redact_tool_call(self, call: dict[str, Any], audit: dict[str, int]) -> dict[str, Any]:
+    def _redact_tool_call(
+        self, call: dict[str, Any], audit: dict[str, int]
+    ) -> dict[str, Any]:
         clean = dict(call)
         fn = clean.get("function")
         if isinstance(fn, dict) and "arguments" in fn:
@@ -317,6 +542,7 @@ class PrivacyFilter:
                 args_str, n_path = _redact_paths(args_str)
                 audit["redacted_paths"] += n_path
                 import json
+
                 try:
                     fn["arguments"] = json.loads(args_str.replace("'", '"'))
                 except (json.JSONDecodeError, ValueError):
@@ -333,7 +559,9 @@ class PrivacyFilter:
 
     def _validate_request(self, messages: list[dict[str, Any]]) -> None:
         if len(messages) > self.max_messages:
-            raise ValueError(f"Request contains {len(messages)} messages; max is {self.max_messages}")
+            raise ValueError(
+                f"Request contains {len(messages)} messages; max is {self.max_messages}"
+            )
         for msg in messages:
             role = msg.get("role")
             if role not in ("system", "user", "assistant", "tool"):
@@ -341,6 +569,9 @@ class PrivacyFilter:
             if "content" not in msg and role != "assistant":
                 raise ValueError(f"Message with role '{role}' missing 'content' key")
         import json
+
         size = len(json.dumps(messages).encode("utf-8"))
         if size > self.max_request_size:
-            raise ValueError(f"Request body {size} bytes exceeds limit {self.max_request_size}")
+            raise ValueError(
+                f"Request body {size} bytes exceeds limit {self.max_request_size}"
+            )

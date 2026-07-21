@@ -1,7 +1,7 @@
 /**
  * getSessionId — the single source of truth for the operator's session id.
  *
- * ONE conversation per operator, SHARED across every face of the AI-OS (the
+ * ONE conversation per operator, SHARED across every face of GAGOS (the
  * canon HUD command bar, the workbench organs, and the classic IDE) so they all
  * continue the SAME backend conversation under the SAME session.
  *
@@ -31,7 +31,7 @@ export const SESSION_STORAGE_KEY = 'aios_session_id';
 /** The stable id used when storage is unavailable (SSR, privacy mode, sandbox). */
 export const FALLBACK_SESSION_ID = 'gag-superbrain-hud';
 
-/** The AI-OS API base URL. */
+/** The GAGOS API base URL. */
 const AIOS_BASE = process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
 
 /** Whether the backend supports cookie-based sessions (detected at runtime). */
@@ -39,6 +39,15 @@ let _cookieBased = true;
 
 /** Whether we've already attempted session setup. */
 let _sessionChecked = false;
+
+/**
+ * The in-flight (or completed) session-detection check. Concurrent callers
+ * during the async init window all await this SAME promise instead of each
+ * racing their own checkServerSession() round-trip — otherwise a second
+ * caller could observe `_sessionChecked` flipped true before `_cookieBased`
+ * reflects the real, awaited result, and read the stale default.
+ */
+let _initPromise: Promise<void> | null = null;
 
 /** In-memory session ID for the cookie-blocked fallback. NEVER persisted. */
 let _fallbackSessionId: string | null = null;
@@ -107,17 +116,27 @@ async function createServerSession(): Promise<boolean> {
 export async function initSession(): Promise<string> {
   if (typeof window === 'undefined') return FALLBACK_SESSION_ID;
 
-  // Try cookie-based session first (server-side, httpOnly)
+  // Try cookie-based session first (server-side, httpOnly). _sessionChecked
+  // only flips to true once the awaited result is in, and every concurrent
+  // caller shares the one in-flight promise, so nobody can observe a "checked
+  // but not yet resolved" state and read the stale _cookieBased default.
   if (!_sessionChecked) {
-    _sessionChecked = true;
-    const hasSession = await checkServerSession();
-    if (!hasSession) {
-      const created = await createServerSession();
-      if (!created) {
-        // Backend doesn't support cookie sessions — fall back to storage
-        _cookieBased = false;
-      }
+    if (!_initPromise) {
+      _initPromise = (async () => {
+        const hasSession = await checkServerSession();
+        if (!hasSession) {
+          const created = await createServerSession();
+          const verified = created ? await checkServerSession() : false;
+          if (!verified) {
+            // Backend doesn't support cookie sessions — fall back to storage
+            _cookieBased = false;
+          }
+        }
+      })().finally(() => {
+        _sessionChecked = true;
+      });
     }
+    await _initPromise;
   }
 
   if (_cookieBased) {
@@ -135,10 +154,15 @@ export async function initSession(): Promise<string> {
       _fallbackSessionId = existing;
       return existing;
     }
-    const created =
-      typeof window.crypto?.randomUUID === 'function'
-        ? window.crypto.randomUUID()
-        : `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const created = (() => {
+      if (typeof window.crypto?.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      const bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      return `sb-${hex}`;
+    })();
     window.sessionStorage.setItem(SESSION_STORAGE_KEY, created);
     _fallbackSessionId = created;
 
@@ -155,7 +179,14 @@ export async function initSession(): Promise<string> {
   } catch {
     // Storage blocked — return in-memory fallback (lost on refresh)
     if (!_fallbackSessionId) {
-      _fallbackSessionId = `mem-${Date.now().toString(36)}`;
+      if (typeof window.crypto?.randomUUID === 'function') {
+        _fallbackSessionId = `mem-${window.crypto.randomUUID()}`;
+      } else {
+        const bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        _fallbackSessionId = `mem-${hex}`;
+      }
     }
     return _fallbackSessionId;
   }
@@ -211,6 +242,22 @@ export function getSessionIdForBody(): string | null {
   return getSessionId();
 }
 
+export interface SessionContext {
+  clientId: string;
+  bodySessionId: string | null;
+  cookieBased: boolean;
+}
+
+/** Initialize the session and return the request-shaping context. */
+export async function ensureSession(): Promise<SessionContext> {
+  const clientId = await initSession();
+  return {
+    clientId,
+    bodySessionId: getSessionIdForBody(),
+    cookieBased: isCookieBasedSession(),
+  };
+}
+
 /**
  * Destroy the current session (logout).
  *
@@ -238,4 +285,13 @@ export async function destroySession(): Promise<void> {
     // Storage blocked
   }
   _fallbackSessionId = null;
+}
+
+/** Test seam: reset module-level session detection without reloading the page. */
+export function __resetSessionForTests(): void {
+  _cookieBased = true;
+  _sessionChecked = false;
+  _initPromise = null;
+  _fallbackSessionId = null;
+  _fallbackWarningEmitted = false;
 }

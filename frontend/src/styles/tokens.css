@@ -1,5 +1,5 @@
 /* ============================================================================
-   AI ORCHESTRATOR — DESIGN TOKENS  (single source of truth)
+   GAGOS — DESIGN TOKENS  (single source of truth)
    ----------------------------------------------------------------------------
    This file is the design language. To restyle the entire application, edit
    tokens here — components consume these variables and should rarely change.
@@ -43,6 +43,10 @@
   --accent-dim:    rgba(123, 245, 251, 0.12);
   --accent-glow:   rgba(123, 245, 251, 0.28);
   --accent-grad:   linear-gradient(135deg, #7bf5fb 0%, #b06eff 100%);
+  --neon-cyan:   #7bf5fb;
+  --neon-purple: #b06eff;
+  --neon-green:  #54f0a0;
+  --neon-orange: #ff7e40;
 
   /* ── Color · Semantic status (each has fg + dim bg) ─────────────────── */
   --success:     #34d399;
@@ -119,6 +123,60 @@
   --z-dropdown: 100;
   --z-overlay: 200;
   --z-toast: 300;
+
+  /* ── Antigravity Tokens (Phase 1) ───────────────────────────────────── */
+  --ag-blur-xs: blur(4px);
+  --ag-blur-sm: blur(8px);
+  --ag-blur-md: blur(16px);
+  --ag-blur-lg: blur(24px);
+  --ag-blur-xl: blur(40px);
+  --ag-saturate: saturate(1.6);
+  --ag-saturate-high: saturate(2.0);
+  --ag-opacity-1: 0.92;
+  --ag-opacity-2: 0.85;
+  --ag-opacity-3: 0.75;
+  --ag-opacity-4: 0.60;
+  --ag-glow-cyan: inset 0 0 20px rgba(123, 245, 251, 0.06);
+  --ag-glow-purple: inset 0 0 20px rgba(167, 139, 250, 0.06);
+  --ag-glow-amber: inset 0 0 20px rgba(251, 191, 36, 0.06);
+  --ag-shimmer: 0 0 0 1px rgba(123, 245, 251, 0.08);
+  --ag-shimmer-hover: 0 0 0 1px rgba(123, 245, 251, 0.15);
+  --ag-shimmer-active: 0 0 0 1px rgba(123, 245, 251, 0.25);
+  --ag-rim-cyan: 0 0 30px rgba(123, 245, 251, 0.10);
+  --ag-rim-purple: 0 0 30px rgba(167, 139, 250, 0.10);
+  --ag-surface-base: rgba(10, 11, 16, 0.92);
+  --ag-surface-cyan: rgba(10, 14, 18, 0.85);
+  --ag-surface-purple: rgba(14, 10, 18, 0.85);
+  --ag-surface-amber: rgba(18, 14, 10, 0.85);
+  --ag-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ag-float: cubic-bezier(0.4, 0, 0.2, 1);
+  --ag-sink: cubic-bezier(0.4, 0, 0.2, 1);
+  --ag-wobble: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --editor-bg: #0a0b10;
+  --editor-gutter: #0d0e13;
+  --editor-line-highlight: rgba(123, 245, 251, 0.04);
+  --editor-selection: rgba(123, 245, 251, 0.15);
+  --diff-add: rgba(52, 211, 153, 0.12);
+  --diff-del: rgba(248, 113, 113, 0.12);
+  --diff-change: rgba(251, 191, 36, 0.12);
+  --terminal-bg: #08090c;
+  --terminal-prompt: var(--neon-cyan);
+  --terminal-success: var(--success);
+  --terminal-error: var(--danger);
+  --tree-hover: rgba(255, 255, 255, 0.04);
+  --tree-active: rgba(123, 245, 251, 0.08);
+  --tree-badge-edit: var(--neon-cyan);
+  --tree-badge-verify: var(--warn);
+  --tree-badge-approve: var(--success);
+  --tree-badge-fail: var(--danger);
+  --aura-hibernation: #60a5fa;
+  --aura-conservation: #fbbf24;
+  --aura-normal: #7bf5fb;
+  --aura-expansion: #a78bfa;
+  --aura-feast: #fbbf24;
+  --scar-recurring: #f87171;
+  --scar-resolved: #34d399;
+  --scar-dormant: #6b7280;
 }
 
 /* Honor the OS reduced-motion preference globally. */

@@ -12,9 +12,58 @@ export default defineConfig(({ mode }) => {
   // one place a Vite build can feed the product's env into the lab's env shape —
   // so we bridge VITE_* -> NEXT_PUBLIC_* here instead of editing the ported file.
   const env = loadEnv(mode, process.cwd(), '')
-  const AIOS_BASE = env.VITE_API_BASE || 'http://localhost:8000'
+  // Production is served by the same-origin gateway. An empty base makes all
+  // browser calls relative to that gateway; development keeps the API port.
+  const AIOS_BASE = env.VITE_API_BASE ?? (mode === 'production' ? '' : 'http://localhost:8000')
+  let AIOS_ORIGIN = 'http://localhost:8000'
+  let AIOS_WS_ORIGIN = 'ws://localhost:8000'
+  try {
+    const parsed = new URL(AIOS_BASE)
+    AIOS_ORIGIN = parsed.origin
+    AIOS_WS_ORIGIN = `${parsed.protocol === 'https:' ? 'wss:' : 'ws:'}//${parsed.host}`
+  } catch {
+    // Keep the default local backend origin.
+  }
+
+  // ── Content-Security-Policy (C18), MODE-AWARE ─────────────────────────────
+  // The dev server MUST allow script 'unsafe-inline' — @vitejs/plugin-react
+  // injects an inline React-refresh preamble. The production BUILD has no inline
+  // scripts (the boot loader is the external /boot-loader.js), so the shipped CSP
+  // drops 'unsafe-inline' entirely. 'wasm-unsafe-eval' is kept (WebGL/three may
+  // compile WASM) — it permits WebAssembly only, NOT JS eval(). No 'unsafe-eval'
+  // (troika runs main-thread, see troikaConfig.ts) and no blob: in script-src.
+  // Fonts are self-hosted, so no CDN allowance. A too-strict `script-src 'self'`
+  // once blocked all of this and silently killed the 3D scene.
+  const isDev = mode !== 'production'
+  const csp = [
+    "default-src 'self'",
+    isDev
+      ? "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"
+      : "script-src 'self' 'wasm-unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    `connect-src 'self' ${AIOS_WS_ORIGIN} ${AIOS_ORIGIN} ws://localhost:8000 wss://* http://localhost:8000 https://*`,
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ') + ';'
+  const cspPlugin = {
+    name: 'gagos-csp',
+    transformIndexHtml() {
+      return [{
+        tag: 'meta',
+        attrs: { 'http-equiv': 'Content-Security-Policy', content: csp },
+        injectTo: 'head-prepend',
+      }]
+    },
+  }
+
   return {
     plugins: [
+      cspPlugin,
       react(),
       tailwindcss(),
     ],
@@ -32,11 +81,13 @@ export default defineConfig(({ mode }) => {
       // caused). Honours VITE_API_BASE so an operator override applies to BOTH UIs.
       'process.env.NEXT_PUBLIC_AIOS_URL': JSON.stringify(AIOS_BASE),
       // SECURITY: API token is NO LONGER baked into the bundle at build time.
-      // The adapter loads auth at runtime from a secure /auth/token endpoint
-      // (httpOnly cookie) or an in-memory token fetched after login.
+      // The adapter uses httpOnly session cookies for operator continuity; a
+      // token-protected non-loopback deployment must sit behind a trusted
+      // same-origin/reverse-proxy auth boundary rather than exposing the bearer
+      // token to browser JavaScript.
       // 'process.env.NEXT_PUBLIC_AIOS_TOKEN' is intentionally REMOVED —
       // embedding secrets in the frontend bundle exposes them to anyone who
-      // views the source.  See aiosAdapter.ts:runtimeAuth() for the replacement.
+      // views the source.
     },
     // ── W5-2 CODE-SPLIT ───────────────────────────────────────────────────────
     // The prod build used to emit one ~1.3 MB chunk (over Vite's 500 KB warning).
@@ -85,6 +136,27 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ['./src/test/setup.js'],
       css: false,
+      // Coverage honesty (operator-ordered 2026-07-02): the frontend had NO
+      // coverage measurement at all — 411 green tests and no number. Scope:
+      // everything under src/ is MEASURED so the truth is visible; floors are
+      // claimed only where unit tests genuinely bind behavior (the pure-logic
+      // libraries). The canvas bodies are per-frame WebGL choreography,
+      // exercised by the live browser and the operator's eye — measured,
+      // never floor-claimed until a conformance harness exists.
+      coverage: {
+        provider: 'v8',
+        reporter: ['text-summary', 'text'],
+        include: ['src/**/*.{js,jsx,ts,tsx}'],
+        exclude: ['src/**/*.test.*', 'src/test/**', 'src/main.jsx'],
+        // First-ever measurement (2026-07-02): all files 33.0% lines —
+        // superbrain/lib 76.1%, workbench 71.9%, canvas bodies on faith.
+        // Floors sit a couple points under measured truth: they catch
+        // regression, not aspiration. Raise them as the number rises.
+        thresholds: {
+          'src/superbrain/lib/**': { lines: 74, branches: 61, functions: 73, statements: 73 },
+          'src/workbench/**': { lines: 69, branches: 57, functions: 69, statements: 66 },
+        },
+      },
     },
   }
 })

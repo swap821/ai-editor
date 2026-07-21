@@ -4,19 +4,28 @@ A workflow is never trusted because the model described it or because it ran
 once. It becomes ``verified`` only after repeated verification-backed success,
 and can be demoted again when later verified failures reduce its success rate.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 from aios import config
+from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, skill_signature_v2, tokens
 from aios.security.secret_scanner import scan_and_redact
+
+if TYPE_CHECKING:
+    from aios.core.cerebellum import Cerebellum
+    from aios.memory.facts import SemanticFacts
+
+logger = logging.getLogger(__name__)
 
 #: SQLite ``CURRENT_TIMESTAMP`` formats emitted for ``updated_at``. Parsed
 #: locally rather than importing the twin helper in retrieval.py so this module
@@ -53,10 +62,14 @@ class SkillMemory:
         *,
         min_successes: int = 3,
         min_success_rate: float = 0.8,
+        cerebellum: Optional["Cerebellum"] = None,
+        facts: Optional["SemanticFacts"] = None,
     ) -> None:
         self.db_path = db_path
         self.min_successes = max(min_successes, 1)
         self.min_success_rate = max(0.0, min(1.0, min_success_rate))
+        self._cerebellum = cerebellum
+        self._facts = facts
 
     @staticmethod
     def _signature(goal: str, steps: list[str]) -> str:
@@ -64,7 +77,14 @@ class SkillMemory:
         workflow = "|".join(step.strip().lower() for step in steps if step.strip())
         return hashlib.sha256(f"{goal_tokens}|{workflow}".encode("utf-8")).hexdigest()
 
-    def record_attempt(self, goal: str, steps: list[str], *, success: bool) -> int:
+    def record_attempt(
+        self,
+        goal: str,
+        steps: list[str],
+        *,
+        success: bool,
+        strength: VerificationStrength = VerificationStrength.STRONG,
+    ) -> int:
         """Record one verification-backed attempt and recalculate trust status.
 
         Trail identity is the arc-level ``signature_v2`` (goal tokens + tool
@@ -72,11 +92,22 @@ class SkillMemory:
         workflow with redaction noise in a filepath argument — reinforce ONE
         trail instead of fragmenting. The exact legacy ``signature`` is still
         stored on insert as lineage.
+
+        *strength* is the verification-strength that produced *success*. Only a
+        success at or above the promotion floor (default STRONG) increments the
+        promotion-eligible ``success_count``; a below-floor success is recorded in
+        ``weak_success_count`` but can never make a skill ``verified`` — a weak
+        green is remembered, but it cannot calibrate the future. Defaults to STRONG
+        so callers that do not yet pass strength keep their existing behavior.
         """
-        clean_steps = [scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()]
+        clean_steps = [
+            scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()
+        ]
         goal = scan_and_redact(goal.strip()).scrubbed
         if not goal or not clean_steps:
             raise ValueError("skill attempt requires a goal and workflow steps")
+        eligible = success and meets_promotion_floor(strength)
+        weak = success and not eligible
         sig = self._signature(goal, clean_steps)
         sig_v2 = skill_signature_v2(goal, clean_steps)
         steps_json = json.dumps(clean_steps, separators=(",", ":"))
@@ -84,7 +115,7 @@ class SkillMemory:
         with get_connection(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                "SELECT id, success_count, failure_count, steps_json "
+                "SELECT id, success_count, failure_count, weak_success_count, steps_json "
                 "FROM procedural_skills "
                 "WHERE signature_v2 = ? AND status != 'superseded'",
                 (sig_v2,),
@@ -93,27 +124,36 @@ class SkillMemory:
                 cur = conn.execute(
                     "INSERT INTO procedural_skills "
                     "(signature, signature_v2, goal_pattern, steps_json, "
-                    "success_count, failure_count) VALUES (?, ?, ?, ?, ?, ?)",
+                    "success_count, failure_count, weak_success_count, "
+                    "verification_strength) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         sig,
                         sig_v2,
                         goal,
                         steps_json,
-                        1 if success else 0,
+                        1 if eligible else 0,
                         0 if success else 1,
+                        1 if weak else 0,
+                        strength.name if success else None,
                     ),
                 )
                 skill_id = int(cur.lastrowid)
-                successes, failures = (1, 0) if success else (0, 1)
+                successes, failures = (1 if eligible else 0), (0 if success else 1)
             else:
                 skill_id = int(row["id"])
-                successes = int(row["success_count"]) + (1 if success else 0)
+                successes = int(row["success_count"]) + (1 if eligible else 0)
                 failures = int(row["failure_count"]) + (0 if success else 1)
+                weak_total = int(row["weak_success_count"] or 0) + (1 if weak else 0)
                 conn.execute(
                     "UPDATE procedural_skills SET success_count = ?, failure_count = ?, "
-                    "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (successes, failures, skill_id),
+                    "weak_success_count = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (successes, failures, weak_total, skill_id),
                 )
+                if success:
+                    conn.execute(
+                        "UPDATE procedural_skills SET verification_strength = ? WHERE id = ?",
+                        (strength.name, skill_id),
+                    )
                 # Recipe-quality refresh only (counts are never rewritten): a
                 # successful walk whose steps carry fewer redaction artifacts
                 # replaces the stored recipe, because recalled steps are
@@ -137,7 +177,38 @@ class SkillMemory:
                 "WHERE id = ?",
                 (status, skill_id),
             )
-            return skill_id
+
+        # Sovereignty S1: keep the compiled-experience engine in sync with this
+        # skill's trust status. Promotion attempts compilation into a
+        # replayable playbook; demotion (a later verified failure dropping the
+        # trail back to 'candidate') decompiles any existing playbook so the
+        # cerebellum never replays a skill that lost verification. Deliberately
+        # OUTSIDE the `with get_connection(...)` block above: the cerebellum
+        # opens its own connection, and calling it while this method's own
+        # BEGIN IMMEDIATE transaction is still open would self-deadlock against
+        # SQLite's single-writer lock (this transaction has already committed
+        # by this point, so there is no locking conflict).
+        if status == "verified" and self._cerebellum is not None:
+            self._cerebellum.try_compile_skill(skill_id)
+        elif status == "candidate" and self._cerebellum is not None:
+            self._cerebellum.invalidate_for_skill(skill_id)
+
+        # S2: ingest verified skill edges into the knowledge graph.
+        if status == "verified" and self._facts is not None:
+            try:
+                from aios.core.graph_ingestion import edges_from_skill
+
+                rate = successes / max(successes + failures, 1)
+                for s, p, o, conf in edges_from_skill(
+                    goal, clean_steps, success_rate=rate
+                ):
+                    self._facts.add_fact(s, p, o, confidence=conf)
+            except Exception:
+                logger.warning(
+                    "graph ingestion from skill failed (swallowed)", exc_info=True
+                )
+
+        return skill_id
 
     @staticmethod
     def _reuse_factor(reuse_successes: int, reuse_failures: int) -> float:
@@ -344,7 +415,8 @@ class SkillMemory:
                     "goal_pattern": str(row["goal_pattern"]),
                     "steps": row["steps"],
                     "status": str(row["status"]),
-                    "quarantined": str(row["status"]) == "candidate" and meets_promotion,
+                    "quarantined": str(row["status"]) == "candidate"
+                    and meets_promotion,
                     "success_count": successes,
                     "failure_count": failures,
                     "success_rate": round(rate, 6),

@@ -379,15 +379,15 @@ def test_curriculum_requires_training_and_held_out_verifier_evidence(
     next_id = curriculum.add_task("python", 2, "advanced task")
 
     curriculum.record_matching(
-        "training task", passed=True, evidence="[VERIFY PASS] 1 passed"
+        "training task", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
     )
     curriculum.record_matching(
-        "training task", passed=True, evidence="[VERIFY PASS] 1 passed"
+        "training task", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
     )
     assert next(item for item in curriculum.list() if item["id"] == next_id)["status"] == "locked"
 
     curriculum.record_matching(
-        "held out task", passed=True, evidence="[VERIFY PASS] 1 passed"
+        "held out task", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
     )
     rows = curriculum.list()
     assert all(item["status"] == "mastered" for item in rows if item["level"] == 1)
@@ -406,7 +406,7 @@ def test_curriculum_locks_missing_prerequisites_and_refuses_ambiguous_evidence(
     curriculum.add_task("javascript", 1, "shared prompt")
     with pytest.raises(ValueError, match="ambiguous"):
         curriculum.record_matching(
-            "shared prompt", passed=True, evidence="[VERIFY PASS] 1 passed"
+            "shared prompt", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
         )
 
 
@@ -418,15 +418,15 @@ def test_curriculum_requires_coverage_of_every_defined_task(tmp_path: Path) -> N
 
     for _ in range(2):
         curriculum.record_matching(
-            "training one", passed=True, evidence="[VERIFY PASS] 1 passed"
+            "training one", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
         )
     curriculum.record_matching(
-        "held out", passed=True, evidence="[VERIFY PASS] 1 passed"
+        "held out", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
     )
     assert any(item["status"] == "available" for item in curriculum.list())
 
     curriculum.record_matching(
-        "training two", passed=True, evidence="[VERIFY PASS] 1 passed"
+        "training two", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
     )
     assert all(item["status"] == "mastered" for item in curriculum.list())
 

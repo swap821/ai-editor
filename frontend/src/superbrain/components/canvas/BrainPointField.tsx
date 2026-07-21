@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { getWeather, hesitationFlinch, installWeather, tensionOf } from '@/lib/phaseWeather';
+import { subscribeCognition } from '@/lib/cognitionBus';
 import * as THREE from 'three';
 import { samplePointField, type PointFieldSource, type PointFieldData } from '@/lib/pointFieldSampler';
 import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePointField';
@@ -14,7 +16,7 @@ import { getTabStoreSnapshot } from '@/lib/tabStore';
 import { easeOutBack, easeOutExpo, easeOutQuint, flashBell, clamp01 } from '@/lib/motionEasing';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { useReducedMotion } from '@/lib/reducedMotion';
-import type { CognitionUniforms } from './SuperbrainScene';
+import type { CognitionUniforms } from './SuperbrainScene.LEGACY';
 
 /** Concatenate two point-field datasets into one (brain first, then spine). */
 function mergeData(a: PointFieldData, b: PointFieldData): PointFieldData {
@@ -93,6 +95,10 @@ export default function BrainPointField({
   spineCount?: number;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  // HESITATION (B3): the bus event arrives off the render clock, so it is
+  // flagged pending and stamped with clock time on the next frame.
+  const hesitationPendingRef = useRef(false);
+  const hesitationOnsetRef = useRef(-999);
   const noticeOnsetRef = useRef(-1); // clock (s) when the being last BEGAN noticing (wake catch)
   const noticeWasOffRef = useRef(true); // rising-edge detector for the notice onset
   const workOnsetRef = useRef(-1); // clock (s) when work last began (orchestration-onset cascade)
@@ -179,8 +185,14 @@ export default function BrainPointField({
   };
   useEffect(() => {
     setDpr();
+    installWeather(); // B2: bind the emotional weather to the cognition bus (idempotent)
+    // B3: the honest pause — a hesitation event arms the held-breath beat.
+    const unsubHesitation = subscribeCognition((event) => {
+      if (event.type === 'hesitation') hesitationPendingRef.current = true;
+    });
     window.addEventListener('resize', setDpr);
     return () => {
+      unsubHesitation();
       window.removeEventListener('resize', setDpr);
       geometry.dispose();
       material.dispose();
@@ -378,6 +390,14 @@ export default function BrainPointField({
     // intake rings at the very bottom) RETRACTS while the being is orchestrating —
     // any work surface present — so it stops cluttering the bottom behind the active
     // surface; it unfurls back at rest. Gated on real panel presence (not phase) so
+    // EMOTIONAL WEATHER (B2): the mind's live confidence becomes field tension —
+    // calm laminar drift when sure, fine-grained shimmer when unsure. Motion
+    // only (amplitude/rate of the existing per-point shimmer); hue untouched.
+    // Reduced-motion pins it calm; stale weather self-fades (tensionOf).
+    if (u.uTension) {
+      const tensionTarget = reduce ? 0 : tensionOf(getWeather(), Date.now());
+      u.uTension.value = THREE.MathUtils.damp(u.uTension.value, tensionTarget, 1.6, delta);
+    }
     // it stays hidden even when a materialized tab sits idle.
     if (u.uSprayHide) {
       const orchestrating = getTabStoreSnapshot().tabs.some(
@@ -433,7 +453,15 @@ export default function BrainPointField({
       approvalWasHeldRef.current = isApproval;
       const sinceError = errorOnsetRef.current >= 0 ? tnow - errorOnsetRef.current : 999;
       const sinceApproval = approvalReleaseRef.current >= 0 ? tnow - approvalReleaseRef.current : 999;
-      let flinch = 0;
+      // HESITATION (B3): stamp the pending bus event onto the render clock,
+      // then let the held-breath envelope ride the same flinch channel — one
+      // slow dim swell, deliberately unlike the error wince or release burst.
+      if (hesitationPendingRef.current) {
+        hesitationOnsetRef.current = tnow;
+        hesitationPendingRef.current = false;
+      }
+      const sinceHesitation = hesitationOnsetRef.current >= 0 ? tnow - hesitationOnsetRef.current : 999;
+      let flinch = hesitationFlinch(sinceHesitation, reduce);
       let flowSurge = 0;
       if (reduce) {
         if (sinceError < 0.6) flinch = Math.max(flinch, (1 - sinceError / 0.6) * 0.4);

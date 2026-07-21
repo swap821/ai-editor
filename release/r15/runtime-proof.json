@@ -1,0 +1,85 @@
+{
+  "all_passed": true,
+  "proof_level": "contract_fixture",
+  "failures": [],
+  "proofs": {
+    "local_workforce_registry": {
+      "name": "local_workforce_registry",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "registry restart preserved approval, admission, profile, and health state"
+    },
+    "local_workforce_qualification": {
+      "name": "local_workforce_qualification",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "r15-v2 qualification fixtures passed per-test schema, injection, tool, resource, concurrency, and secret gates; live local evidence is recorded separately"
+    },
+    "local_workforce_non_authority": {
+      "name": "local_workforce_non_authority",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "structured local result preserved evidence and exposed no authority or tool fields"
+    },
+    "hardware_admission": {
+      "name": "hardware_admission",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "hardware admission accepted an idle fixture and refused an over-concurrency fixture"
+    },
+    "canonical_intelligence_hiring": {
+      "name": "canonical_intelligence_hiring",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "hiring selected the lowest-cost eligible provider from the declared candidate set"
+    },
+    "privacy_gated_cloud_use": {
+      "name": "privacy_gated_cloud_use",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "secret classification redacted the prompt and reduced provider eligibility to local Ollama"
+    },
+    "expert_trajectory_provenance": {
+      "name": "expert_trajectory_provenance",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "complete proposal, action, verification, promotion, and context provenance qualified; incomplete context refused"
+    },
+    "skill_applicability": {
+      "name": "skill_applicability",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "active skill passed required-input and project-state checks; state mismatch refused"
+    },
+    "skill_re_escalation": {
+      "name": "skill_re_escalation",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "applicable skill reused locally and missing input deterministically escalated to frontier"
+    },
+    "maintenance_finding_persistence": {
+      "name": "maintenance_finding_persistence",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "finding survived repository restart; free-form resolution remained refused"
+    },
+    "maintenance_repair_mission_contract": {
+      "name": "maintenance_repair_mission_contract",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "bounded scan produced an advisory proposal and approval-bound repair mission contract; no execution claim"
+    },
+    "maintenance_resolution_authority": {
+      "name": "maintenance_resolution_authority",
+      "passed": true,
+      "proof_level": "contract_fixture",
+      "evidence": "local and system free-form actors could not resolve; structured governed evidence is required"
+    },
+    "maintenance_structured_verifier": {
+      "name": "maintenance_structured_verifier",
+      "passed": true,
+      "evidence": "maintenance.rescan ran through a fixed typed registry with bounded structured arguments and shell-free argv",
+      "proof_level": "fixture"
+    }
+  }
+}

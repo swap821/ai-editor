@@ -21,15 +21,12 @@ export type CognitionEventType =
   | 'agent-dispatch'
   /** A synthesis cycle completed. */
   | 'synthesis'
-  /** The AI-OS paused for human approval — the organism holds its breath.
+  /** GAGOS paused for human approval — the organism holds its breath.
    *  This is the product's thesis rendered as an event: a supervised mind
    *  visibly deferring to its operator. */
   | 'approval-required'
   /** The operator resolved a pending approval (approve or reject). */
   | 'approval-resolved'
-  /** A successful adapter poll: real link/latency/trail/metric snapshot in
-   *  `data` (AiosTelemetry). Link loss publishes one with link=false. */
-  | 'telemetry'
   /** The active brain for a turn: which provider/model served it and whether it
    *  stayed local. `data` carries {provider, model, privacy, task, auto}. The
    *  sovereignty row shows it; additive, so the canon idle frame is untouched. */
@@ -39,7 +36,34 @@ export type CognitionEventType =
   | 'voice-speaking'
   /** A verification tool returned a PASS or FAIL verdict — surface it as a
    *  transient celebration or reflection cue. */
-  | 'verify';
+  | 'verify'
+  /** The mind is not confident enough to proceed and asks for clarity — the
+   *  emotion layer's honest pause (backend `confidence.gated`). Distinct from
+   *  approval-required: there is no permission token, only uncertainty. */
+  | 'hesitation'
+  /** Sovereignty S1: the cerebellum matched a compiled playbook and is replaying
+   *  from muscle memory — no LLM consultation.  The body enters reflex phase
+   *  (orange, low metabolism, quiet brain cloud, fast spine firing). */
+  | 'reflex-recall'
+  /** Sovereignty S2: the knowledge graph produced an inference chain from
+   *  confidence-weighted traversal — associative recall from stored facts. */
+  | 'graph-recall'
+  /** Sovereignty S3: the native planner produced a plan from verified
+   *  experience templates — no LLM consultation needed for planning. */
+  | 'template-plan'
+  /** Terminal stream output */
+  | 'terminal'
+  /** Budget tracker update */
+  | 'budget'
+  /** File tree / repo map update */
+  | 'file_tree'
+  /** Raycast voice toggle */
+  | 'raycast-voice-toggle'
+  /** Mirror stream backend events */
+  | 'aios.cognitive_action'
+  | 'aios.intent'
+  | 'message'
+  | 'error';
 
 export interface CognitionEvent {
   type: CognitionEventType;
@@ -53,6 +77,23 @@ export interface CognitionEvent {
   source?: string;
   /** Structured payload for data-carrying events (e.g. telemetry). */
   data?: Record<string, unknown>;
+  /** Cognitive phase of the organism when this fired (typed event spine:
+   *  chemotaxis / reflex / emotion / narrative / wonder). Optional — absent on
+   *  events from non-turn sources or pre-spine backends; every consumer must
+   *  treat a missing phase as "unknown", never as an error. */
+  phase?: string;
+  /** Monotonic per-turn sequence number from the typed event spine. */
+  seq?: number;
+  /** Server-generated spine_id for causality tracking */
+  spine_id?: string;
+  /** Message body payload for mirror events */
+  body?: any;
+  redacted?: boolean;
+  role?: string;
+  speaker?: string;
+  metadata?: any;
+  code?: string;
+  recoverable?: boolean;
 }
 
 type Listener = (event: CognitionEvent) => void;

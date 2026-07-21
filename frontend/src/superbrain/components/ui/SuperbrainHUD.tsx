@@ -10,6 +10,7 @@ import { isSoundOn, startSound, stopSound } from '@/lib/soundEngine';
 import {
   getLastTelemetry,
   getLinkState,
+  subscribeTelemetry,
   getPendingApproval,
   sendVoiceTurn,
   subscribePendingApproval,
@@ -533,7 +534,7 @@ export default function SuperbrainHUD({
   onSurfaceChange,
 }: SuperbrainHUDProps) {
   const [directive, setDirective] = useState('');
-  // Jarvis VOICE (push-to-talk): speak -> POST /api/v1/chat -> the mind speaks
+  // GAGOS VOICE (push-to-talk): speak -> POST /api/v1/chat -> the mind speaks
   // back. A CONVERSATION channel, separate from the typed forge command bar: the
   // conversational endpoint runs NO tools and has NO approval mechanism, so a
   // spoken word can never redeem an approval token. The reply also flows to the
@@ -628,7 +629,7 @@ export default function SuperbrainHUD({
   const [turnState, setTurnState] = useState<'idle' | 'streaming' | 'done' | 'error'>('idle');
   const doneTimerRef = useRef<number | null>(null);
   /* A REAL, detectable submit failure: the operator dispatched while the link
-   * to the AI-OS was down (getLinkState() false). Honest · it is a true offline
+   * to GAGOS was down (getLinkState() false). Honest · it is a true offline
    * condition, never a fabricated error. Clears on the next focus/submit. */
   const [submitError, setSubmitError] = useState<string | null>(null);
   const errorTimerRef = useRef<number | null>(null);
@@ -817,6 +818,28 @@ export default function SuperbrainHUD({
     [],
   );
 
+  useEffect(() => {
+    return subscribeTelemetry(() => {
+      const link = getLinkState();
+      setLinkUp(link);
+      if (!link) return;
+      const t = getLastTelemetry();
+      setTelemetry(t);
+      if (!t) return;
+      const prev = prevVerifiedRef.current;
+      const delta = prev !== null && t.verified > prev ? t.verified - prev : null;
+      prevVerifiedRef.current = t.verified;
+      heartbeatCountRef.current += 1;
+      if (delta !== null || heartbeatCountRef.current % 3 === 1) {
+        appendTermLine(
+          `Telemetry · ${t.trails}t ${t.verified}v ${t.latencyMs}ms`,
+          false,
+          { delta }
+        );
+      }
+    });
+  }, [appendTermLine]);
+
   /* ----- knowledge intake + agent mesh reactions ----- */
   const [sourcePulse, setSourcePulse] = useState<SourcePulse | null>(null);
   /* The center port that a real event just touched. Carries the metric channel
@@ -836,6 +859,8 @@ export default function SuperbrainHUD({
     privacy: string;
     task?: string;
     auto?: boolean;
+    turn_id?: string;
+    mode?: string;
   } | null>(null);
 
   /* ----- nervous system: the HUD reacts to the same events as the 3D scene ----- */
@@ -937,38 +962,7 @@ export default function SuperbrainHUD({
           }
           break;
         }
-        case 'telemetry': {
-          const data = (event.data ?? {}) as Record<string, unknown>;
-          if (data.link === false) {
-            setLinkUp(false);
-          } else {
-            setLinkUp(true);
-            const t = data as unknown as AiosTelemetry;
-            setTelemetry(t);
-            // The REAL verified-trail delta this poll surfaced: a non-negative
-            // gain over the last count we logged (the first live poll just
-            // seeds the baseline, never claiming a delta). A growth is a real
-            // hash-chain entry, so it earns the accent +N column.
-            const prev = prevVerifiedRef.current;
-            const delta = prev !== null && t.verified > prev ? t.verified - prev : null;
-            prevVerifiedRef.current = t.verified;
-            // A quiet real heartbeat every few polls · telemetry owns the
-            // idle channel while the link is alive. A real verified gain is
-            // surfaced the instant it happens, regardless of the cadence.
-            heartbeatCountRef.current += 1;
-            if (delta !== null || heartbeatCountRef.current % 3 === 1) {
-              // One middle-dot per line (the metadata-strip ration): the three
-              // figures read as compact mono columns (Nt / Nv / Nms), so the
-              // line keeps a single separator instead of three.
-              appendTermLine(
-                `Telemetry · ${t.trails}t ${t.verified}v ${t.latencyMs}ms`,
-                false,
-                { delta },
-              );
-            }
-          }
-          break;
-        }
+        // (telemetry is handled by a separate subscriber)
         case 'synthesis':
           appendTermLine(`Synthesis · ${event.detail ?? event.label ?? 'cycle complete'}`);
           setApprovalHold(false);
@@ -997,8 +991,9 @@ export default function SuperbrainHUD({
           setPendingApproval(getPendingApproval());
           break;
         case 'route': {
-          // The active brain for this turn · which provider/model served it and
-          // whether it stayed local (a policy-permitted cloud escalation reads CLOUD).
+          // The active brain for this turn · which provider/model served it,
+          // whether it stayed local (a policy-permitted cloud escalation reads CLOUD),
+          // and the canonical turn identity + mode from the TurnCoordinator.
           const d = (event.data ?? {}) as Record<string, unknown>;
           if (typeof d.model === 'string' && d.model) {
             setActiveBrain({
@@ -1007,8 +1002,11 @@ export default function SuperbrainHUD({
               privacy: String(d.privacy ?? ''),
               task: typeof d.task === 'string' ? d.task : undefined,
               auto: typeof d.auto === 'boolean' ? d.auto : undefined,
+              turn_id: typeof d.turn_id === 'string' ? d.turn_id : undefined,
+              mode: typeof d.mode === 'string' ? d.mode : undefined,
             });
-            appendTermLine(`Brain · ${d.model} (${String(d.privacy ?? '?')})`);
+            const modeTag = typeof d.mode === 'string' ? ` · ${d.mode}` : '';
+            appendTermLine(`Brain · ${d.model} (${String(d.privacy ?? '?')})${modeTag}`);
           }
           break;
         }
@@ -1157,6 +1155,14 @@ export default function SuperbrainHUD({
     else startVoice();
   }, [voiceListening, startVoice]);
 
+  useEffect(() => {
+    return subscribeCognition((e) => {
+      if (e.type === 'raycast-voice-toggle') {
+        toggleVoice();
+      }
+    });
+  }, [toggleVoice]);
+
   const cycleVoiceLang = useCallback(() => {
     setVoiceLang((prev) => (prev === 'en-IN' ? 'hi-IN' : 'en-IN'));
   }, []);
@@ -1171,7 +1177,7 @@ export default function SuperbrainHUD({
     if (turnState === 'streaming') return;
     const nextDirective = directive.trim();
     if (!nextDirective) return;
-    /* HONEST failure path: if the link to the AI-OS is genuinely down at submit
+    /* HONEST failure path: if the link to GAGOS is genuinely down at submit
      * time the directive cannot be served. This is a real, detectable condition
      * (getLinkState()), not a fabricated error · surface it on the bar with an
      * assertive announcement and DO NOT pretend a turn began. */
@@ -1298,7 +1304,7 @@ export default function SuperbrainHUD({
 
             <div className="system-summary">
               {/* The dot tells the truth: green only while the adapter's
-                  last poll genuinely reached the AI-OS. */}
+                  last poll genuinely reached GAGOS. */}
               <span role="status">
                 <i className={`status-dot ${linkUp ? 'status-dot--live' : 'status-dot--down'}`} />{' '}
                 {linkUp ? 'CORE ONLINE' : 'LINK OFFLINE'}
@@ -1493,10 +1499,7 @@ export default function SuperbrainHUD({
           </header>
 
           <section className="core-readout" aria-label="Core status">
-            {/* SUPERMIND is the literal product name (claims nothing falsifiable),
-                so it stays. The fake "/ NN" build-tag is purged (P2): the only
-                live sub-readout is the REAL derived phase + honest link state. */}
-            <h2>SUPERMIND</h2>
+            <h2>GAGOS</h2>
             {/* aria-live sits on THIS line only (not the section): the static h2
                 must not re-announce on every 500ms phase tick · only the changed
                 phase + link words speak. */}
@@ -1579,7 +1582,7 @@ export default function SuperbrainHUD({
             </div>
           ) : null}
 
-          {/* COMMAND BAR · DIRECT THE SUPERMIND · the pilot vessel. Every readout
+          {/* COMMAND BAR · DIRECT GAGOS · the pilot vessel. Every readout
               is HONEST: the Execute label + the indeterminate working arc reflect
               the REAL turn-state (generating / synthesis), never a fabricated %;
               the brain chip + engaged counter read real `route`/`agent-dispatch`
@@ -1597,7 +1600,7 @@ export default function SuperbrainHUD({
               &gt;_
             </span>
             <div className="command-field">
-              <label htmlFor="directive">DIRECT THE SUPERMIND</label>
+              <label htmlFor="directive">DIRECT GAGOS</label>
               <input
                 id="directive"
                 value={directive}

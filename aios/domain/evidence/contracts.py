@@ -1,0 +1,168 @@
+"""Immutable, provenance-bound evidence contracts."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from enum import StrEnum
+import hashlib
+import json
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class EvidenceType(StrEnum):
+    COMMAND = "command"
+    TEST = "test"
+    STATIC_CHECK = "static_check"
+    DIFF = "diff"
+    ENVIRONMENT = "environment"
+    OBSERVATION = "observation"
+
+
+class VerificationPlanV1(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    intended_behavior: str
+    targets: tuple[str, ...] = ()
+    required_tests: tuple[str, ...] = ()
+    static_checks: tuple[str, ...] = ()
+    security_checks: tuple[str, ...] = ()
+    expected_side_effects: tuple[str, ...] = ()
+    forbidden_side_effects: tuple[str, ...] = ()
+    minimum_strength: int = 3
+    freshness_seconds: int = 300
+
+
+class VerificationObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    command: str
+    exit_code: int | None
+    stdout: str = ""
+    stderr: str = ""
+    passed_count: int = 0
+    failed_count: int = 0
+    tool_version: str = "unknown"
+    observed_at: str = Field(default_factory=lambda: _utc_now())
+
+
+class EvidenceCommand(BaseModel):
+    """Redacted command identity retained in a mission evidence bundle."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    command: str
+    return_code: int | None
+    stdout_digest: str
+    stderr_digest: str
+    tool_version: str
+    observed_at: str = Field(default_factory=lambda: _utc_now())
+
+
+class EvidenceBundle(BaseModel):
+    """Immutable worker evidence binding all promotion-relevant identities."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mission_id: str
+    worker_id: str
+    contract_digest: str
+    workspace_digest: str
+    diff_digest: str
+    executor_job_id: str
+    environment_digest: str
+    commands: tuple[EvidenceCommand, ...] = ()
+    verification_strength: int = 0
+    targets_exercised: tuple[str, ...] = ()
+    started_at: str
+    ended_at: str
+
+    def digest(self) -> str:
+        payload = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class EvidenceRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    evidence_id: str
+    mission_id: str
+    action_id: str
+    worker_id: str
+    evidence_type: EvidenceType
+    source: str
+    content_reference: str
+    content_digest: str
+    redaction_status: str
+    produced_at: str = Field(default_factory=lambda: _utc_now())
+    environment_digest: str
+    tool_version: str
+    trust_level: str
+    verification_strength: int = 0
+    supersedes: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class VerificationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    verification_id: str
+    mission_id: str
+    action_id: str
+    target: str
+    passed: bool
+    strength: int
+    required_strength: int
+    evidence_ids: tuple[str, ...]
+    workspace_digest: str
+    diff_digest: str
+    environment_digest: str
+    command: str
+    output_digest: str
+    tool_version: str
+    observed_at: str = Field(default_factory=lambda: _utc_now())
+
+    @property
+    def meets_requirement(self) -> bool:
+        return self.passed and self.strength >= self.required_strength
+
+
+class PostPromotionVerificationReceipt(BaseModel):
+    """Post-promotion, post-apply verification receipt proving final project state."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mission_id: str
+    action_id: str
+    worker_id: str
+    executor_job_id: str
+    promotion_id: str
+    project_digest: str
+    diff_digest: str
+    verifier_id: str
+    verifier_version: str
+    environment_digest: str
+    evidence_ids: tuple[str, ...]
+    observation_time: float = Field(
+        default_factory=lambda: datetime.now(timezone.utc).timestamp()
+    )
+    passed: bool
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+__all__ = [
+    "EvidenceBundle",
+    "EvidenceCommand",
+    "EvidenceRecord",
+    "EvidenceType",
+    "PostPromotionVerificationReceipt",
+    "VerificationObservation",
+    "VerificationPlanV1",
+    "VerificationResult",
+]

@@ -1,10 +1,11 @@
-"""Centralised structured logging configuration for the AI-OS.
+"""Centralised structured logging configuration for GAGOS.
 
 The backend uses ``structlog`` bound to the standard-library logging sink so that
 existing tooling (``caplog`` in tests, journald, etc.) works out of the box while
 still getting per-request context variables (request_id, session_id) and
 optional JSON output.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +22,9 @@ _CONFIGURED: bool = False
 DEFAULT_LEVEL: Final[str] = "INFO"
 
 
-def configure_logging(*, json_format: bool | None = None, level: str | None = None) -> None:
+def configure_logging(
+    *, json_format: bool | None = None, level: str | None = None
+) -> None:
     """Configure structlog + stdlib logging. Idempotent.
 
     Parameters

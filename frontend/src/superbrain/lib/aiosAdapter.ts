@@ -1,5 +1,5 @@
 /**
- * aiosAdapter — binds the superbrain's nervous system to the REAL AI-OS.
+ * aiosAdapter — binds the superbrain's nervous system to the REAL GAGOS backend.
  *
  * Everything the demo used to fake now has a true source:
  *   - the command bar streams a real supervised turn (POST /api/generate,
@@ -17,33 +17,43 @@
 
 import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
-import { getSessionId } from './sessionId';
+import { __resetSessionForTests, ensureSession } from './sessionId';
 import {
-  endSwarmCaste,
-  markSwarmCloudSubtask,
   resetSwarmHUD,
-  startSwarmCaste,
-  startSwarmPlan,
 } from './swarmHUDStore';
+
+
+export function humanizeRedactionMarkers(text: string | null | undefined): string {
+  if (!text) return text as string;
+  return text.replace(BACKEND_REDACTION_MARKER_RE, '(a sensitive value was withheld)');
+}
 
 export const AIOS_BASE =
   process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
 
-// Bearer token (optional). Read from the Next-style env in the lab; the product
-// (Vite) build injects the same name via vite.config `define` from
-// VITE_AIOS_API_TOKEN. Empty by default (loopback dev) — only sent when set, so
-// a token-protected / non-loopback backend no longer 401s the default UI.
-const AIOS_TOKEN = process.env.NEXT_PUBLIC_AIOS_TOKEN ?? '';
-
 function authHeaders(): Record<string, string> {
-  return AIOS_TOKEN ? { Authorization: `Bearer ${AIOS_TOKEN}` } : {};
+  return {};
 }
 
-// One session per operator, SHARED with the classic UI and the workbench organs
-// (the same persisted `aios_session_id`) so every face of the AI-OS continues
-// the SAME conversation. Single-sourced in ./sessionId — read-or-create-persist,
-// SSR-safe — so the four faces can never drift apart.
-const SESSION_ID: string = getSessionId();
+const FETCH_CREDENTIALS: RequestCredentials = 'include';
+// Backend redaction markers (secret scanner / privacy filter) arrive as literal
+// "[SENSITIVE: <id>]" (and sibling "[... REDACTED]") tokens. This is the ONE
+// shared source pattern — GagosChrome's chip renderer imports it directly
+// rather than keeping its own copy. It carries the /g flag, which is safe for
+// String.prototype.split()/.replace() (today's two call sites; neither touches
+// lastIndex) but NOT safe to share across a future .test()/.exec() caller in a
+// loop — a stateful /g regex's lastIndex persists on the object between calls.
+// Any future consumer needing test()/exec() semantics must clone this constant
+// via `new RegExp(...)` first rather than calling test()/exec() on it directly.
+export const BACKEND_REDACTION_MARKER_RE =
+  /\[(?:SENSITIVE:\s*[^\]]*|CREDENTIAL REDACTED|PATH REDACTED|FILE CONTENT REDACTED[^\]]*)\]/g;
+
+
+
+async function sessionBodyFields(): Promise<Record<string, string>> {
+  const session = await ensureSession();
+  return session.bodySessionId ? { sessionId: session.bodySessionId } : {};
+}
 
 // ---------------------------------------------------------------- directives
 
@@ -97,63 +107,7 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
   }
 }
 
-function publishStep(data: Record<string, unknown>): void {
-  const kind = String(data.type ?? '');
-  const tool = String(data.tool ?? '');
-  const output = String(data.output ?? '');
-  if (kind === 'tool_call') {
-    publishCognition({
-      type: 'agent-dispatch',
-      label: tool.toUpperCase(),
-      detail: `tool engaged: ${tool}`,
-      intensity: 0.8,
-      source: 'aios',
-    });
-    return;
-  }
-  if (kind === 'tool_blocked') {
-    publishCognition({
-      type: 'agent-dispatch',
-      label: `${tool.toUpperCase()} BLOCKED`,
-      detail: String(data.reason ?? '').slice(0, 140),
-      intensity: 0.4,
-      source: 'aios',
-    });
-    return;
-  }
-  if (kind !== 'tool_result') return;
-  if (output.startsWith('[VERIFY PASS]') || output.startsWith('[VERIFY FAIL]')) {
-    publishCognition({
-      type: 'knowledge-acquired',
-      label: output.startsWith('[VERIFY PASS]') ? 'VERIFICATION GREEN' : 'VERIFICATION RED',
-      detail: output.slice(0, 140),
-      intensity: 1,
-      source: 'aios',
-    });
-    return;
-  }
-  if (tool === 'swarm' || tool === 'role_pass') {
-    // Orchestration castes: narrate the mesh forming so a swarm / role-pass turn
-    // reads as the decompose -> workers -> synthesize flow it actually is, rather
-    // than a generic tool ping.
-    const role = String(data.role ?? '').replace(/-/g, ' ').toUpperCase();
-    publishCognition({
-      type: 'agent-dispatch',
-      label: tool === 'swarm' ? 'SWARM' : 'ROLE-PASS',
-      detail: role ? `${role} caste online` : output.slice(0, 80),
-      intensity: 0.5,
-      source: 'aios',
-    });
-    return;
-  }
-  publishCognition({
-    type: 'knowledge-acquired',
-    label: tool ? tool.toUpperCase() : 'SIGNAL',
-    detail: output.slice(0, 140),
-    intensity: 0.6,
-    source: 'aios',
-  });
-}
+
 
 /** A pause the operator must resolve: the server-issued capability plus
  *  everything needed to judge it (the diff IS the decision surface). */
@@ -271,23 +225,43 @@ function captureApproval(text: string, data: Record<string, unknown>): void {
   });
 }
 
+/** Swarm opt-in (the command bar's toggle). Module singleton — like the
+ *  pending-approval state — so approval REPLAYS (streamTurn with tokens)
+ *  inherit the operator's current choice instead of silently dropping the
+ *  colony mid-turn. LAB-SYNC: this block + the `swarm` body field + the
+ *  `plan` SSE case below must be mirrored into the lab before `npm run port`. */
+let swarmMode = false;
+
+export function setSwarmMode(enabled: boolean): void {
+  swarmMode = enabled;
+}
+
+export function getSwarmMode(): boolean {
+  return swarmMode;
+}
+
 async function streamTurn(
   text: string,
   tokens: string[],
   signal?: AbortSignal,
+  onChunk?: (answer: string) => void,
+  onCodeChunk?: (code: string, language: string) => void,
 ): Promise<DirectiveResult> {
   let answer = '';
   let paused = false;
   try {
+    const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/generate`, {
       method: 'POST',
       signal,
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         messages: [{ role: 'user', content: [{ text }] }],
         modelId: 'auto',
-        sessionId: SESSION_ID,
+        ...sessionFields,
         approvalTokens: tokens,
+        ...(swarmMode ? { swarm: true } : {}),
       }),
     });
     if (!response.ok || !response.body) {
@@ -295,135 +269,29 @@ async function streamTurn(
     }
     for await (const frame of readSse(response.body)) {
       switch (frame.event) {
-        case 'step':
-          publishStep(frame.data);
-          break;
         case 'text_chunk':
           answer += String(frame.data.text ?? '');
+          onChunk?.(answer);
           break;
         case 'human_required':
           paused = true;
           captureApproval(text, frame.data);
-          publishCognition({
-            type: 'approval-required',
-            label: 'OPERATOR APPROVAL REQUIRED',
-            detail: String(frame.data.text ?? 'The supervised mind is waiting for its human.').slice(0, 160),
-            intensity: 1,
-            source: 'aios',
-          });
           break;
-        case 'code': {
-          // Generated code used to vanish into the default branch. Capture it so
-          // the forge can surface the brain's ACTUAL emitted code
-          // (getLastEmittedCode), then announce the artifact honestly on the bus.
+        case 'code_chunk': {
           const code = String(frame.data.code ?? '');
           const language = String(frame.data.language ?? 'text');
           lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
-          publishCognition({
-            type: 'knowledge-acquired',
-            label: 'CODE EMITTED',
-            detail: `${language} · ${code.split('\n').length} line(s)`,
-            intensity: 0.7,
-            source: 'aios',
-          });
+          onCodeChunk?.(code, language);
           break;
         }
-        case 'alignment': {
-          // The mind declares its understanding every turn; show it.
-          const intent = String(frame.data.intent ?? '');
-          const confidence = frame.data.confidence;
-          if (intent) {
-            publishCognition({
-              type: 'agent-dispatch',
-              label: `INTENT ${intent.toUpperCase()}`,
-              detail:
-                typeof confidence === 'number'
-                  ? `declared understanding · confidence ${(confidence * 100).toFixed(0)}%`
-                  : 'declared understanding',
-              intensity: 0.3,
-              source: 'aios',
-            });
-          }
-          break;
-        }
-        case 'earned_autonomy': {
-          // The mind acted on its OWN earned trust: a write whose class earned
-          // autonomy by repeated verified success, applied with no human pause
-          // (still gated + audited). The rarest, most-grown-up thing it does.
-          const what = String(frame.data.command ?? frame.data.filepath ?? 'a write');
-          publishCognition({
-            type: 'knowledge-acquired',
-            label: 'AUTONOMOUS ACTION',
-            detail: `earned trust applied · ${what}`.slice(0, 140),
-            intensity: 1,
-            source: 'aios',
-          });
-          break;
-        }
-        case 'error':
-          publishCognition({
-            type: 'synthesis',
-            label: 'COGNITION FAULT',
-            detail: String(frame.data.text ?? 'unknown error').slice(0, 140),
-            intensity: 0.4,
-            source: 'aios',
-          });
-          break;
-        case 'done':
-          if (!paused) {
-            publishCognition({
-              type: 'synthesis',
-              label: 'SYNTHESIS COMPLETE',
-              detail: answer.trim().slice(0, 160) || 'turn complete',
-              intensity: 0.9,
-              source: 'aios',
-            });
-          }
-          break;
-        case 'route': {
-          // The active brain for this turn — which provider/model served it and
-          // whether it stayed local. The HUD surfaces it in the sovereignty row.
-          const d = (frame.data ?? {}) as Record<string, unknown>;
-          publishCognition({
-            type: 'route',
-            label: 'ACTIVE BRAIN',
-            detail: `${String(d.provider ?? '?')}:${String(d.model ?? '?')} (${String(d.privacy ?? '?')})`,
-            intensity: 0.3,
-            source: 'aios',
-            data: d,
-          });
-          break;
-        }
-        case 'swarm_plan': {
-          const plan = Array.isArray(frame.data.plan) ? (frame.data.plan as string[]) : [];
-          startSwarmPlan(plan);
-          break;
-        }
-        case 'caste_start':
-          startSwarmCaste(String(frame.data.caste ?? ''));
-          break;
-        case 'caste_end':
-          endSwarmCaste(String(frame.data.caste ?? ''));
-          break;
-        case 'cloud_route': {
-          const idx = Number(frame.data.subtask_index ?? -1);
-          if (idx >= 0) markSwarmCloudSubtask(idx);
-          break;
-        }
-        case 'verify_result': {
-          const verdict = String(frame.data.verdict ?? '').toLowerCase();
-          publishCognition({
-            type: 'verify',
-            label: verdict === 'pass' ? 'VERIFY PASS' : 'VERIFY FAIL',
-            detail: String(frame.data.target ?? ''),
-            intensity: verdict === 'pass' ? 0.75 : 0.95,
-            source: 'aios',
-            data: frame.data,
-          });
+        case 'code': {
+          const code = String(frame.data.code ?? '');
+          const language = String(frame.data.language ?? 'text');
+          lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
           break;
         }
         default:
-          break; // alignment and future frames are advisory to the scene
+          break;
       }
     }
     return { ok: true, paused, answer };
@@ -431,25 +299,26 @@ async function streamTurn(
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
     }
-    publishCognition({
-      type: 'synthesis',
-      label: 'LINK OFFLINE',
-      detail: 'AI-OS backend unreachable — directive handled by imagination only.',
-      intensity: 0.3,
-      source: 'aios',
-    });
+    
     return { ok: false, paused: false, answer };
   }
 }
 
-/** Stream one REAL supervised turn through the AI-OS and narrate it on the bus. */
-export async function sendDirective(text: string, signal?: AbortSignal): Promise<DirectiveResult> {
+
+
+/** Stream one REAL supervised turn through GAGOS and narrate it on the bus. */
+export async function sendDirective(
+  text: string,
+  signal?: AbortSignal,
+  onChunk?: (answer: string) => void,
+  onCodeChunk?: (code: string, language: string) => void,
+): Promise<DirectiveResult> {
   setPendingApprovalState(null);
   resetSwarmHUD();
-  return streamTurn(text, [], signal);
+  return streamTurn(text, [], signal, onChunk, onCodeChunk);
 }
 
-/** Stream one CONVERSATIONAL turn through the Jarvis voice mind (POST
+/** Stream one CONVERSATIONAL turn through the GAGOS voice mind (POST
  *  /api/v1/chat) and narrate it on the bus. This is the spoken channel: it is a
  *  DIRECTIVE/conversation, never consent — the endpoint runs NO tools and has NO
  *  approval mechanism, so a spoken word can never redeem an approval token (a
@@ -462,19 +331,21 @@ export async function sendDirective(text: string, signal?: AbortSignal): Promise
  *  transport/backend error (callers surface it honestly, never a fake reply). */
 export async function sendVoiceTurn(
   transcript: string,
-  opts: { onChunk?: (reply: string) => void; signal?: AbortSignal } = {},
+  opts: { onChunk?: (reply: string) => void; signal?: AbortSignal; modelId?: string } = {},
 ): Promise<string> {
   const text = transcript.trim();
   if (!text) return '';
-  publishCognition({ type: 'directive', label: text.slice(0, 80), intensity: 1, source: 'voice' });
+  
   let reply = '';
-  const { signal } = opts;
+  const { signal, modelId } = opts;
   try {
+    const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/v1/chat`, {
       method: 'POST',
       signal,
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ transcript: text, sessionId: SESSION_ID }),
+      body: JSON.stringify({ transcript: text, modelId, ...sessionFields }),
     });
     if (!response.ok || !response.body) {
       throw new Error(`voice backend responded ${response.status}`);
@@ -485,39 +356,55 @@ export async function sendVoiceTurn(
         reply += String(data.text ?? '');
         opts.onChunk?.(reply);
       } else if (frame.event === 'route' && typeof data.model === 'string' && data.model) {
-        publishCognition({
-          type: 'route',
-          label: 'ACTIVE BRAIN',
-          detail: `${String(data.provider ?? '?')}:${String(data.model)} (${String(data.privacy ?? '?')})`,
-          intensity: 0.3,
-          source: 'aios',
-          data,
-        });
+        // (route event handled by aiosMirror)
       } else if (frame.event === 'error') {
         throw new Error(String(data.text ?? 'The voice mind could not answer.'));
       }
     }
-    publishCognition({
-      type: 'synthesis',
-      label: 'SYNTHESIS COMPLETE',
-      detail: reply.slice(0, 140) || 'voice reply received',
-      intensity: 0.6,
-      source: 'aios',
-    });
+    
     return reply;
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
     }
-    publishCognition({
-      type: 'synthesis',
-      label: 'LINK OFFLINE',
-      detail: 'Voice mind unreachable — the reply did not arrive.',
-      intensity: 0.3,
-      source: 'aios',
-    });
+    
     throw err;
   }
+}
+
+/** POST audio to local STT backend. Returns transcribed text. */
+export async function transcribeAudio(
+  audioBlob: Blob,
+  opts: { signal?: AbortSignal; language?: string } = {},
+): Promise<{ text: string; language: string; confidence: number }> {
+  const form = new FormData();
+  form.append('file', audioBlob, 'recording.wav');
+  if (opts.language) form.append('language', opts.language);
+  const response = await fetch(`${AIOS_BASE}/api/v1/voice/transcribe`, {
+    method: 'POST',
+    signal: opts.signal,
+    credentials: FETCH_CREDENTIALS,
+    headers: authHeaders(),
+    body: form,
+  });
+  if (!response.ok) throw new Error(`STT backend responded ${response.status}`);
+  return response.json();
+}
+
+/** POST text to local TTS backend. Returns audio ArrayBuffer (WAV). */
+export async function speakText(
+  text: string,
+  opts: { voice?: string; signal?: AbortSignal } = {},
+): Promise<ArrayBuffer> {
+  const response = await fetch(`${AIOS_BASE}/api/v1/voice/speak`, {
+    method: 'POST',
+    signal: opts.signal,
+    credentials: FETCH_CREDENTIALS,
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ text, voice: opts.voice }),
+  });
+  if (!response.ok) throw new Error(`TTS backend responded ${response.status}`);
+  return response.arrayBuffer();
 }
 
 /** The operator authorizes: redeem the capability by replaying the turn with
@@ -527,13 +414,7 @@ export async function approvePendingApproval(): Promise<DirectiveResult> {
   const pending = pendingApproval;
   if (!pending?.token) return { ok: false, paused: false, answer: '' };
   setPendingApprovalState(null);
-  publishCognition({
-    type: 'approval-resolved',
-    label: 'approved',
-    detail: pending.summary.slice(0, 140),
-    intensity: 0.9,
-    source: 'operator',
-  });
+  
   return streamTurn(pending.prompt, [pending.token]);
 }
 
@@ -547,12 +428,15 @@ export async function rejectPendingApproval(): Promise<void> {
   setPendingApprovalState(null);
   let confirmed = false;
   try {
+    const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/v1/approval/req`, {
       method: 'POST',
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         approvalToken: pending.token,
-        sessionId: SESSION_ID,
+        ...(pending.command ? { command: pending.command } : {}),
+        ...sessionFields,
         approve: false,
       }),
     });
@@ -563,13 +447,7 @@ export async function rejectPendingApproval(): Promise<void> {
   } catch {
     // The token simply expires unredeemed; the visual still stands down.
   }
-  publishCognition({
-    type: 'approval-resolved',
-    label: confirmed ? 'rejected' : 'rejected (unconfirmed — token will expire)',
-    detail: pending.summary.slice(0, 140),
-    intensity: 0.5,
-    source: 'operator',
-  });
+  
 }
 
 /** The operator cancelled the turn while an approval slab was showing.
@@ -579,13 +457,7 @@ export function cancelPendingApproval(): void {
   const pending = pendingApproval;
   if (!pending) return;
   setPendingApprovalState(null);
-  publishCognition({
-    type: 'approval-resolved',
-    label: 'cancelled',
-    detail: pending.summary.slice(0, 140),
-    intensity: 0.5,
-    source: 'operator',
-  });
+  
 }
 
 // -------------------------------------------------------- trails + metrics
@@ -707,6 +579,7 @@ export async function previewIntent(text: string): Promise<IntentPreview> {
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/intent/preview`, {
       method: 'POST',
+      credentials: FETCH_CREDENTIALS,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ text }),
     });
@@ -742,6 +615,7 @@ export async function fetchOnboardingState(): Promise<OnboardingState> {
   };
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/onboarding/state`, {
+      credentials: FETCH_CREDENTIALS,
       headers: authHeaders(),
     });
     if (!res.ok) return empty;
@@ -758,8 +632,40 @@ export async function fetchOnboardingState(): Promise<OnboardingState> {
   }
 }
 
+export interface OperatorModel {
+  preferences: Array<{ predicate: string; object: string }>;
+  attributes: Record<string, string>;
+  projectContext: Array<{ predicate: string; object: string }>;
+}
+
+/** Read the structured snapshot of what the system knows about the operator.
+ *  Returns all-empty sections if the backend is unreachable. */
+export async function fetchOperatorModel(): Promise<OperatorModel> {
+  const empty: OperatorModel = { preferences: [], attributes: {}, projectContext: [] };
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/operator/model`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return empty;
+    const data = (await res.json()) as Record<string, unknown>;
+    return {
+      preferences: Array.isArray(data.preferences) ? (data.preferences as OperatorModel['preferences']) : [],
+      attributes: (data.attributes && typeof data.attributes === 'object'
+        ? (data.attributes as Record<string, string>)
+        : {}),
+      projectContext: Array.isArray(data.project_context)
+        ? (data.project_context as OperatorModel['projectContext'])
+        : [],
+    };
+  } catch {
+    return empty;
+  }
+}
+
 /** Test seam: clear the module's poll memory between test cases. */
 export function __resetAiosAdapterForTests(): void {
+  __resetSessionForTests();
   seenTrailTotals.clear();
   seenTrailFailures.clear();
   seenTrailStatus.clear();
@@ -783,8 +689,14 @@ export async function pollOnce(): Promise<void> {
   try {
     const startedAt = performance.now();
     const [trailsRes, metricsRes] = await Promise.all([
-      fetch(`${AIOS_BASE}/api/v1/development/trails`, { headers: authHeaders() }),
-      fetch(`${AIOS_BASE}/api/v1/development/metrics`, { headers: authHeaders() }),
+      fetch(`${AIOS_BASE}/api/v1/development/trails`, {
+        credentials: FETCH_CREDENTIALS,
+        headers: authHeaders(),
+      }),
+      fetch(`${AIOS_BASE}/api/v1/development/metrics`, {
+        credentials: FETCH_CREDENTIALS,
+        headers: authHeaders(),
+      }),
     ]);
     if (!trailsRes.ok || !metricsRes.ok) throw new Error('bad status');
     const trailMap = (await trailsRes.json()) as TrailMapResponse;
@@ -795,13 +707,7 @@ export async function pollOnce(): Promise<void> {
     if (!linkUp) {
       linkUp = true;
       setMetricLink(true);
-      publishCognition({
-        type: 'synthesis',
-        label: 'AI-OS LINK ESTABLISHED',
-        detail: `live cognition: ${trails.length} trail(s) on the pheromone map`,
-        intensity: 0.7,
-        source: 'aios',
-      });
+      
     }
 
     knownTrails = trails;
@@ -820,13 +726,7 @@ export async function pollOnce(): Promise<void> {
       const total = trail.success_count + trail.reuse_success_count;
       const previous = seenTrailTotals.get(trail.skill_id);
       if (previous !== undefined && total > previous) {
-        publishCognition({
-          type: 'knowledge-acquired',
-          label: trailLabel(trail.goal_pattern),
-          detail: `trail #${trail.skill_id} reinforced — strength ${trail.strength.toFixed(3)}`,
-          intensity: Math.max(0.4, Math.min(1, trail.strength)),
-          source: 'aios',
-        });
+        
       }
       seenTrailTotals.set(trail.skill_id, total);
 
@@ -839,13 +739,7 @@ export async function pollOnce(): Promise<void> {
         previousStatus !== 'verified' &&
         trail.status === 'verified'
       ) {
-        publishCognition({
-          type: 'knowledge-acquired',
-          label: `SKILL MASTERED — TRAIL #${trail.skill_id}`,
-          detail: trailLabel(trail.goal_pattern).toLowerCase(),
-          intensity: 1,
-          source: 'aios',
-        });
+        
       }
       seenTrailStatus.set(trail.skill_id, trail.status);
 
@@ -853,13 +747,7 @@ export async function pollOnce(): Promise<void> {
       const failures = (trail.failure_count ?? 0) + (trail.reuse_failure_count ?? 0);
       const previousFailures = seenTrailFailures.get(trail.skill_id);
       if (previousFailures !== undefined && failures > previousFailures) {
-        publishCognition({
-          type: 'agent-dispatch',
-          label: 'TRAIL WEAKENED',
-          detail: `trail #${trail.skill_id} took a failure — strength ${trail.strength.toFixed(3)}`,
-          intensity: 0.4,
-          source: 'aios',
-        });
+        
       }
       seenTrailFailures.set(trail.skill_id, failures);
     }
@@ -869,20 +757,17 @@ export async function pollOnce(): Promise<void> {
     pollCount += 1;
     if (pollCount % CHAIN_PROBE_EVERY === 0) {
       try {
-        const chainRes = await fetch(`${AIOS_BASE}/api/v1/audit/verify`, { headers: authHeaders() });
+        const chainRes = await fetch(`${AIOS_BASE}/api/v1/audit/verify`, {
+          credentials: FETCH_CREDENTIALS,
+          headers: authHeaders(),
+        });
         if (chainRes.ok) {
           const chain = (await chainRes.json()) as { valid?: boolean; total_entries?: number };
           const wasValid = chainValid;
           chainValid = chain.valid === true ? true : chain.valid === false ? false : null;
           chainEntries = typeof chain.total_entries === 'number' ? chain.total_entries : 0;
           if (chainValid === false && wasValid !== false) {
-            publishCognition({
-              type: 'synthesis',
-              label: 'AUDIT CHAIN BROKEN',
-              detail: 'tamper-evidence check FAILED — inspect the audit ledger',
-              intensity: 1,
-              source: 'aios',
-            });
+            
           }
         }
       } catch {
@@ -896,19 +781,16 @@ export async function pollOnce(): Promise<void> {
     // class. Best-effort and SEPARATE from the critical trails+metrics fetch:
     // an older backend without the endpoint never breaks the poll/link.
     try {
-      const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`, { headers: authHeaders() });
+      const autRes = await fetch(`${AIOS_BASE}/api/v1/development/autonomy`, {
+        credentials: FETCH_CREDENTIALS,
+        headers: authHeaders(),
+      });
       if (autRes.ok) {
         lastAutonomy = (await autRes.json()) as AutonomySnapshot;
         for (const entry of lastAutonomy.entries ?? []) {
           const prev = seenAutonomyStatus.get(entry.signature);
           if (prev !== undefined && prev !== 'earned' && entry.status === 'earned') {
-            publishCognition({
-              type: 'knowledge-acquired',
-              label: 'CAPABILITY EARNED',
-              detail: `${entry.action_type} ${entry.target_shape} — autonomous after ${entry.success_count} verified`,
-              intensity: 1,
-              source: 'aios',
-            });
+            
           }
           seenAutonomyStatus.set(entry.signature, entry.status);
         }
@@ -941,30 +823,27 @@ export async function pollOnce(): Promise<void> {
         revoked: lastAutonomy?.summary?.revoked ?? 0,
       },
     };
-    publishCognition({
-      type: 'telemetry',
-      source: 'aios',
-      data: lastTelemetry as unknown as Record<string, unknown>,
-    });
+    notifyTelemetry();
   } catch {
     if (linkUp) {
       linkUp = false;
       setMetricLink(false);
       lastTelemetry = lastTelemetry ? { ...lastTelemetry, link: false } : null;
-      publishCognition({
-        type: 'synthesis',
-        label: 'AI-OS LINK LOST',
-        detail: 'pheromone map unreachable — cognition running on imagination.',
-        intensity: 0.3,
-        source: 'aios',
-      });
-      publishCognition({
-        type: 'telemetry',
-        source: 'aios',
-        data: { link: false },
-      });
+      notifyTelemetry();
     }
   }
+}
+
+export type TelemetryListener = () => void;
+const telemetryListeners = new Set<TelemetryListener>();
+
+export function subscribeTelemetry(listener: TelemetryListener): () => void {
+  telemetryListeners.add(listener);
+  return () => telemetryListeners.delete(listener);
+}
+
+function notifyTelemetry(): void {
+  for (const listener of telemetryListeners) listener();
 }
 
 /* -------------------------------------------------------- facts graph */
@@ -992,11 +871,134 @@ export async function fetchFactGraph(
   try {
     const res = await fetch(
       `${AIOS_BASE}/api/v1/memory/facts/graph?start=${encodeURIComponent(start)}&depth=${depth}`,
-      { headers: authHeaders() },
+      { credentials: FETCH_CREDENTIALS, headers: authHeaders() },
     );
     if (!res.ok) return [];
     const body = (await res.json()) as FactGraphResponse;
     return Array.isArray(body.edges) ? body.edges : [];
+  } catch {
+    return [];
+  }
+}
+
+/* ------------------------------------------------- pending fact proposals */
+
+/** One auto-extracted fact awaiting the operator's touch (B4 memory halo). */
+export interface FactProposal {
+  id: number;
+  subject: string;
+  predicate: string;
+  object: string;
+  source: string;
+}
+
+interface PendingFactsResponse {
+  proposals?: FactProposal[];
+}
+
+/** Fetch the quarantined pending-fact queue. [] on any error (never throws). */
+export async function fetchPendingFacts(): Promise<FactProposal[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/memory/facts/pending`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as PendingFactsResponse;
+    return Array.isArray(body.proposals) ? body.proposals : [];
+  } catch {
+    return [];
+  }
+}
+
+export type ProposalResolution = 'approved' | 'contradiction' | 'failed';
+
+/** Approve one proposal — the operator's touch mints knowledge THROUGH the
+ *  backend's contradiction check. 'contradiction' (409) means the fact stays
+ *  pending for an explicit reconcile; the halo flares and holds the mote. */
+export async function approveFactProposal(id: number): Promise<ProposalResolution> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/memory/facts/pending/${id}/approve`, {
+      method: 'POST',
+      credentials: FETCH_CREDENTIALS,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ resolvedBy: 'operator' }),
+    });
+    if (res.status === 409) return 'contradiction';
+    return res.ok ? 'approved' : 'failed';
+  } catch {
+    return 'failed';
+  }
+}
+
+/** Reject one proposal — it resolves without ever touching recall. */
+export async function rejectFactProposal(id: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/memory/facts/pending/${id}/reject`, {
+      method: 'POST',
+      credentials: FETCH_CREDENTIALS,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ resolvedBy: 'operator' }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------- living mirror extensions */
+
+export async function fetchHiringProposals(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/hiring/proposals`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchSkills(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/skills`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchMaintenanceFindings(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/maintenance/findings`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchMaintenanceScans(): Promise<any[]> {
+  try {
+    const res = await fetch(`${AIOS_BASE}/api/v1/maintenance/scans`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return Array.isArray(body?.items) ? body.items : [];
   } catch {
     return [];
   }

@@ -9,7 +9,7 @@
   inset: 0;
   z-index: 20;
   pointer-events: none; /* the 3D being stays orbit-draggable; only controls capture */
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   color: #eaf0fb;
@@ -106,21 +106,79 @@
   align-items: flex-end;
   gap: 7px;
 }
-/* Step 1B — de-pilled: NOT floating HUD pills. A quiet status whisper (a tiny
-   signal dot + low-key text) so the model / supervised / offline TRUST facts stay
-   legible (a safety/data signal — kept readable rather than debug-only), without
-   the boxed-pill chrome the "brain + panels" critique flagged. The richer move —
-   supervised/auto/error as in-scene BODY marks — is the next step. */
 .gagos-pill {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  /* no box: no padding/background/border/blur/shadow — just dot + whisper text */
+  max-width: 220px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.06em;
-  color: rgba(228, 236, 250, 0.5);
   white-space: nowrap;
+  overflow: hidden;
+  color: rgba(228, 236, 250, 0.78);
+  background: rgba(6, 4, 15, 0.58);
+  border: 1px solid rgba(123, 245, 251, 0.16);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
+}
+.gagos-pill__copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+}
+.gagos-pill__main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gagos-pill__meta {
+  flex: none;
+  opacity: 0.6;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.gagos-pill--model {
+  color: var(--neon-purple);
+  background: rgba(176, 110, 255, 0.1);
+  border-color: rgba(176, 110, 255, 0.32);
+  box-shadow:
+    0 0 18px rgba(176, 110, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.gagos-pill--supervised {
+  color: var(--neon-green);
+  background: rgba(84, 240, 160, 0.1);
+  border-color: rgba(84, 240, 160, 0.3);
+  box-shadow:
+    0 0 18px rgba(84, 240, 160, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.gagos-pill--offline {
+  color: rgba(255, 210, 210, 0.92);
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.32);
+  box-shadow:
+    0 0 18px rgba(248, 113, 113, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+/* TurnCoordinator mode badge — data-true, only appears when a route event carries mode. */
+.gagos-pill--mode {
+  color: var(--neon-cyan);
+  background: rgba(123, 245, 251, 0.1);
+  border-color: rgba(123, 245, 251, 0.3);
+  box-shadow:
+    0 0 18px rgba(123, 245, 251, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  text-transform: lowercase;
 }
 .gagos-dot {
   width: 6px;
@@ -138,6 +196,11 @@
   background: var(--neon-green);
   box-shadow: 0 0 9px rgba(84, 240, 160, 0.85), 0 0 18px rgba(84, 240, 160, 0.28);
 }
+/* TurnCoordinator mode badge dot — cyan accent */
+.gagos-dot--mode {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 9px rgba(123, 245, 251, 0.85), 0 0 18px rgba(123, 245, 251, 0.28);
+}
 /* Honest offline state — the connection dot tells the truth, never a faked status. */
 .gagos-dot--offline {
   background: #f87171;
@@ -147,6 +210,24 @@
 .swarm-hud {
   top: 86px;
   right: 30px;
+  animation: hud-enter 400ms var(--ease-out-expo) 0ms both;
+}
+
+/* Backend redaction tokens render as a calm withheld-content chip — the value
+   itself never reaches the client; this is presentation only (never un-redacts).
+   Canon cyan family; the dashed edge reads "sealed". */
+.gagos-redaction {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: baseline;
+  color: rgba(174, 243, 255, 0.75);
+  background: rgba(123, 245, 251, 0.07);
+  border: 1px dashed rgba(123, 245, 251, 0.28);
 }
 
 /* Retry on a failed turn — a graceful way back, never a silent dead-end. */
@@ -166,10 +247,6 @@
 }
 .gagos-retry:hover { background: var(--phase-accent-dim); border-color: rgba(123, 245, 251, 0.5); }
 .gagos-retry:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
-.gagos-pill--supervised {
-  color: rgba(200, 250, 228, 0.5);
-}
-
 /* ── Bottom-left chat (history thread + input) ───────────────────────────
    Docked left so the conversation never overlaps the centered being / spine;
    history grows upward, newest message sits at the bottom by the input. */
@@ -319,6 +396,30 @@
   30% { opacity: 1; transform: translateY(-3px); }
 }
 
+.gagos-thinking-echo {
+  pointer-events: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 -3px 22px;
+  padding: 2px 0;
+  color: var(--neon-cyan);
+  font-size: 12px;
+  font-weight: 450;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  opacity: 0.86;
+  text-shadow: 0 0 14px rgba(123, 245, 251, 0.26);
+}
+.gagos-thinking-echo .gagos-typing {
+  padding: 0;
+}
+.gagos-thinking-echo .gagos-typing i {
+  width: 4px;
+  height: 4px;
+}
+
 /* Streaming caret — the reply types itself out with a living cyan cursor. */
 .gagos-caret {
   display: inline-block;
@@ -460,9 +561,11 @@
 }
 .gagos-mic.is-listening {
   position: relative;
-  background: rgba(255, 90, 120, 0.18);
+  background: rgba(255, 90, 120, calc(0.12 + 0.18 * var(--mic-level, 0)));
   color: #ff9bb0;
-  box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.35), 0 0 18px rgba(255, 90, 120, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(255, 120, 150, calc(0.25 + 0.3 * var(--mic-level, 0))),
+    0 0 calc(12px + 20px * var(--mic-level, 0)) rgba(255, 90, 120, calc(0.25 + 0.4 * var(--mic-level, 0)));
 }
 .gagos-mic.is-listening::after {
   content: '';
@@ -470,7 +573,7 @@
   inset: 0;
   border-radius: inherit;
   box-shadow: 0 0 0 1px rgba(255, 120, 150, 0.5), 0 0 24px rgba(255, 90, 120, 0.55);
-  opacity: 0.6;
+  opacity: calc(0.4 + 0.6 * var(--mic-level, 0));
   animation: gagos-pulse 1.4s ease-in-out infinite;
 }
 .gagos-speaker {
@@ -492,6 +595,29 @@
   color: #7bf5fb;
   box-shadow: 0 0 0 1px rgba(123, 245, 251, 0.35), 0 0 18px rgba(123, 245, 251, 0.25);
 }
+.gagos-lang {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(220, 230, 248, 0.75);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.gagos-lang:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eaf0fb;
+}
+
+.gagos-input.has-transcript {
+  animation: gagos-transcript-flash 0.6s ease-out;
+}
+@keyframes gagos-transcript-flash {
+  0%   { opacity: 0.5; }
+  100% { opacity: 1.0; }
+}
+
 .gagos-send {
   width: 44px;
   height: 44px;
@@ -555,61 +681,37 @@
   letter-spacing: 0.02em;
   text-shadow: 0 0 18px rgba(123, 245, 251, 0.5);
 }
-.gagos-welcome__prompts {
+.gagos-starters {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 2px;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  justify-content: center;
 }
 .gagos-starter {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
-  border-radius: 13px;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(123, 245, 251, 0.12);
-  color: rgba(228, 236, 250, 0.84);
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 360;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  padding: 0.4rem 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.82rem;
   cursor: pointer;
-  backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
-  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.08);
-  /* Paint-safe: only transform is transitioned on a backdrop-filter element. */
-  transition: transform 0.16s ease;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 .gagos-starter:hover {
-  background: rgba(123, 245, 251, 0.07);
-  border-color: rgba(123, 245, 251, 0.34);
-  box-shadow: 0 6px 26px -12px rgba(123, 245, 251, 0.4), inset 0 0 0 1px rgba(123, 245, 251, 0.06);
-  transform: translateY(-1px);
+  background: var(--hairline);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.95);
+}
+.gagos-starter:active {
+  background: rgba(255, 255, 255, 0.12);
 }
 .gagos-starter:focus-visible {
   outline: 2px solid rgba(123, 245, 251, 0.6);
   outline-offset: 2px;
 }
-.gagos-starter:active { transform: translateY(0) scale(0.99); }
-.gagos-starter__icon {
-  flex: none;
-  display: inline-flex;
-  width: 26px; height: 26px;
-  align-items: center; justify-content: center;
-  border-radius: 8px;
-  color: var(--neon-cyan);
-  background: rgba(123, 245, 251, 0.08);
-}
-.gagos-starter__label { flex: 1; min-width: 0; line-height: 1.35; }
-.gagos-starter__arrow {
-  flex: none;
-  color: rgba(123, 245, 251, 0.5);
-  font-size: 14px;
-  transition: transform 0.2s ease, color 0.2s ease;
-}
-.gagos-starter:hover .gagos-starter__arrow { transform: translateX(3px); color: rgba(123, 245, 251, 0.9); }
 
 @keyframes gagos-welcome-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -636,10 +738,11 @@
   .gagos-msg { animation: none; transition: opacity 0.2s ease; filter: none; }
   .gagos-msg--gagos.is-latest .gagos-msg__node { animation: none; }
   .gagos-typing i { animation: none; }
-  .gagos-mic.is-listening { animation: none; }
-  .gagos-send.is-busy svg { animation: none; }
+  .gagos-mic.is-listening, .gagos-mic.is-listening::after { animation: none; }
+  .gagos-input.has-transcript { animation: none; }
+  .swarm-hud { animation: none; }
   .gagos-welcome { animation: none; }
-  .gagos-starter, .gagos-starter__arrow { transition: none; }
+  .gagos-starter { transition: none; }
   .gagos-lockup, .gagos-status, .gagos-bar { animation: none; }
   .gagos-pill--state.is-active .gagos-dot { animation: none; }
   .gagos-caret { animation: none; }
@@ -657,7 +760,7 @@
   .gagos-wordmark { font-size: 18px; letter-spacing: 0.34em; margin-right: -0.34em; }
   .gagos-subtitle { font-size: 8.5px; letter-spacing: 0.34em; margin-right: -0.34em; }
   .gagos-status { top: 16px; right: 14px; gap: 6px; }
-  .gagos-pill { padding: 6px 11px 6px 10px; font-size: 11px; }
+  .gagos-pill { max-width: min(220px, calc(100vw - 28px)); font-size: 11px; }
   .gagos-chat { left: 14px; right: 14px; width: auto; bottom: 16px; gap: 11px; }
   .gagos-thread { max-height: 42vh; }
   .gagos-welcome__greeting { font-size: 15px; max-width: none; }
@@ -675,10 +778,10 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .gagos-bar.intent-browse {
-  border-color: rgba(96, 165, 250, calc(0.18 + var(--dock-intensity) * 0.32));
+  border-color: rgba(84, 240, 160, calc(0.18 + var(--dock-intensity) * 0.32));
   box-shadow:
     0 10px 44px rgba(0, 0, 0, 0.5),
-    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(96, 165, 250, calc(var(--dock-intensity) * 0.22)),
+    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(84, 240, 160, calc(var(--dock-intensity) * 0.22)),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .gagos-bar.intent-swarm {
@@ -689,10 +792,10 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .gagos-bar.intent-command {
-  border-color: rgba(250, 204, 21, calc(0.18 + var(--dock-intensity) * 0.32));
+  border-color: rgba(255, 126, 64, calc(0.18 + var(--dock-intensity) * 0.32));
   box-shadow:
     0 10px 44px rgba(0, 0, 0, 0.5),
-    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(250, 204, 21, calc(var(--dock-intensity) * 0.22)),
+    0 0 calc(18px + var(--dock-intensity) * 34px) rgba(255, 126, 64, calc(var(--dock-intensity) * 0.22)),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .gagos-bar.intent-chat {
@@ -896,9 +999,16 @@
   box-shadow: 0 0 8px rgba(248, 113, 113, 0.85);
   animation: gagos-verify-dot-shimmer 1.2s ease-in-out infinite;
 }
+.gagos-verify-toast--leaving {
+  animation: gagos-verify-out 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 @keyframes gagos-verify-in {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gagos-verify-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
 }
 @keyframes gagos-verify-dot-pulse {
   0%, 100% { transform: scale(1); opacity: 0.9; }
@@ -911,6 +1021,30 @@
 
 @media (prefers-reduced-motion: reduce) {
   .gagos-verify-toast { animation: none; }
+  .gagos-verify-toast--leaving { animation: none; }
   .gagos-verify-toast--pass .gagos-verify-toast__dot,
   .gagos-verify-toast--fail .gagos-verify-toast__dot { animation: none; }
+}
+
+/* Swarm opt-in chip — the next directive runs as an ephemeral worker colony.
+   Sizing mirrors .gagos-lang; the ON state reuses the speaker's live-cyan
+   treatment (existing palette values only). */
+.gagos-swarm {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(220, 230, 248, 0.75);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.gagos-swarm:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eaf0fb;
+}
+.gagos-swarm.is-on {
+  background: rgba(123, 245, 251, 0.12);
+  color: #7bf5fb;
+  box-shadow: 0 0 0 1px rgba(123, 245, 251, 0.35), 0 0 18px rgba(123, 245, 251, 0.25);
 }

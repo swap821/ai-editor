@@ -44,7 +44,7 @@ import {
 } from '@/lib/tabStore';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { setConversationPhase } from '@/lib/conversationPhaseBus';
-import { deriveDemoStatePlan, type DemoStateName } from '@/lib/demoStates';
+
 import { getTurnMetabolismSnapshot, useTurnMetabolism } from '@/lib/turnMetabolism';
 import AnatomicalConductorOverlay from './AnatomicalConductorOverlay';
 import AttentionConductionPulse from './AttentionConductionPulse';
@@ -59,7 +59,7 @@ import { readBeingMode } from '@/lib/beingMode';
 const POINTS = readBeingMode() === 'points';
 
 const DEV_STUB_CONTENT: MaterializedTabContent = {
-  code: "export function hello(name = 'AI-OS') {\n  return `Hello, ${name}`;\n}\n",
+  code: "export function hello(name = 'GAGOS') {\n  return `Hello, ${name}`;\n}\n",
   language: 'javascript',
   filepath: 'hello.js',
 };
@@ -170,7 +170,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
       __materializeTab?: (content?: Partial<MaterializedTabContent>) => unknown;
       __materializeInput?: (text?: string) => unknown;
       __materializeApproval?: (partial?: Partial<MaterializedApprovalSurface>) => unknown;
-      __demo?: (name: DemoStateName) => unknown;
+      __demo?: (name: string) => unknown;
       __focusMaterializedTab?: (id: string) => void;
       __conductNextMaterializedTab?: () => unknown;
       __conductPreviousMaterializedTab?: () => unknown;
@@ -223,27 +223,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
     host.__conductNextMaterializedTab = focusNextMaterializedTab;
     host.__conductPreviousMaterializedTab = focusPreviousMaterializedTab;
     host.__reabsorbMaterializedTab = beginRetractingMaterializedTab;
-    // Proof harness: drive the organism into a canonical poster state, persistently
-    // (window.__demo('orchestrate3') etc.). Composes the existing primitives per the
-    // pure plan — distinct filepaths so multi-surface appends; conversation phase as
-    // the override driver; surfaces drive the structural phases emergently. See
-    // lib/demoStates.ts + .aios/state/PROOF_SWEEP.md.
-    host.__demo = (name: DemoStateName) => {
-      const plan = deriveDemoStatePlan(name);
-      clearMaterializedTab(); // clean slate (clears all surfaces)
-      reabsorbInputSurface();
-      for (const s of plan.surfaces) {
-        const placement = getContentSurfacePlacement(s.seatIndex);
-        showContentSurface({ code: s.code, language: s.language, filepath: s.filepath }, placement);
-      }
-      setConversationPhase(plan.conversation ?? 'idle');
-      if (plan.reabsorbFocused) {
-        const focusId = getTabStoreSnapshot().focusId;
-        if (focusId) beginRetractingMaterializedTab(focusId);
-      }
-      const o = deriveLivingOrchestration(getTabStoreSnapshot());
-      return { name, surfaces: plan.surfaces.length, workspaceCount: o.workspaceCount, conversation: plan.conversation };
-    };
+
     host.__getLivingOrchestration = () => deriveLivingOrchestration(getTabStoreSnapshot());
     host.__getTurnMetabolism = getTurnMetabolismSnapshot;
     host.__getOutcomeImprint = getOutcomeImprintSnapshot;

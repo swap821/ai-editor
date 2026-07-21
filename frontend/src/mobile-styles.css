@@ -1,0 +1,19 @@
+/* ── Mobile & Responsive Tweaks ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Scale down text and padding slightly */
+  body {
+    font-size: 14px;
+  }
+  
+  /* Make sure HUD panels don't overflow horizontally */
+  [data-testid="hud-panel"] {
+    max-width: calc(100vw - 32px) !important;
+    max-height: calc(100vh - 120px) !important;
+  }
+  
+  /* Ensure CodeEditor takes full width */
+  .workspace-in {
+    width: 100% !important;
+    border-radius: 0 !important;
+  }
+}

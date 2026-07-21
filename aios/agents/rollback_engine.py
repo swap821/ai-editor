@@ -19,6 +19,7 @@ gitignored). Snapshots are therefore local scratch state, like the rest of
 ``data/``. An explicitly injected ``repo_dir`` (used by tests) keeps its database
 in-tree, since a temp directory is already isolated.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ from git import Actor, Repo  # GitPython
 from aios import config
 
 #: Identity stamped on snapshot commits (avoids needing global git config).
-_AUTHOR = Actor("AI-OS Rollback", "rollback@aios.local")
+_AUTHOR = Actor("GAGOS Rollback", "rollback@aios.local")
 
 
 class RollbackError(RuntimeError):
@@ -66,8 +67,10 @@ class RollbackEngine:
         lock_path: Optional[Path] = None,
     ) -> None:
         roots = config.SCOPE_ROOTS
-        target = Path(repo_dir).resolve() if repo_dir else (
-            roots[0] if roots else Path.cwd()
+        target = (
+            Path(repo_dir).resolve()
+            if repo_dir
+            else (roots[0] if roots else Path.cwd())
         )
 
         # Hard refuse to ever operate on the project's own repository.
@@ -83,26 +86,47 @@ class RollbackEngine:
         #: only a small ``gitdir:`` pointer file in ``training_ground/``. When a
         #: ``repo_dir`` is injected (tests), the database stays inside it (a temp
         #: dir is already isolated) unless an explicit ``git_dir`` overrides.
+        #:
+        #: ``git_dir``/``lock_path`` are trusted, code-supplied override points —
+        #: no caller anywhere in this codebase passes them from request/user input
+        #: (verified: only ``repo_dir`` is ever injected, and only by tests). The
+        #: containment invariant that actually matters — never operate on the
+        #: project's own repository — is enforced on ``repo_dir`` above, before
+        #: this point. ``os.path.realpath`` here resolves symlinks and normalises
+        #: ``..`` so the paths we hand to ``FileLock``/``git`` are canonical.
+        import os
+
         if git_dir is not None:
-            self._git_dir = Path(git_dir).resolve()
+            self._git_dir = Path(os.path.realpath(str(git_dir)))
         elif repo_dir is None:
-            self._git_dir = Path(config.ROLLBACK_DIR).resolve()
+            self._git_dir = Path(os.path.realpath(str(config.ROLLBACK_DIR)))
         else:
-            self._git_dir = self.repo_dir / ".git"
+            self._git_dir = Path(os.path.realpath(str(self.repo_dir / ".git")))
 
         if lock_path is not None:
-            resolved_lock = Path(lock_path)
+            resolved_lock = Path(os.path.realpath(str(lock_path)))
         elif repo_dir is None:
-            resolved_lock = Path(config.ROLLBACK_DIR).parent / "rollback.lock"
+            resolved_lock = Path(
+                os.path.realpath(
+                    str(Path(config.ROLLBACK_DIR).parent / "rollback.lock")
+                )
+            )
         else:
-            resolved_lock = self.repo_dir.parent / f".{self.repo_dir.name}.rollback.lock"
+            resolved_lock = Path(
+                os.path.realpath(
+                    str(self.repo_dir.parent / f".{self.repo_dir.name}.rollback.lock")
+                )
+            )
+
         resolved_lock.parent.mkdir(parents=True, exist_ok=True)
         self._repo_lock = FileLock(str(resolved_lock), timeout=30)
         try:
             with self._repo_lock:
                 self.repo = self._ensure_repo()
         except Timeout as exc:
-            raise RollbackError("Rollback repository is busy; initialization refused") from exc
+            raise RollbackError(
+                "Rollback repository is busy; initialization refused"
+            ) from exc
 
     def _ensure_repo(self) -> Repo:
         """Open the sandbox repo, initialising it with a baseline commit if new.
@@ -126,12 +150,20 @@ class RollbackEngine:
             repo = Repo.init(self.repo_dir, separate_git_dir=str(self._git_dir))
         else:
             repo = Repo.init(self.repo_dir)
-        # A .gitkeep guarantees a non-empty initial commit even in a bare folder.
-        keep = self.repo_dir / ".gitkeep"
-        if not keep.exists():
-            keep.write_text("", encoding="utf-8")
-        repo.index.add([str(keep.relative_to(self.repo_dir))])
-        repo.index.commit("baseline: rollback engine initialised", author=_AUTHOR, committer=_AUTHOR)
+        # Keep the work-tree byte-for-byte unchanged while establishing the
+        # rollback baseline.  A marker file would change the enrolled-project
+        # baseline before PromotionAuthority can apply the staged diff.
+        with repo.git.custom_environment(
+            GIT_AUTHOR_NAME=_AUTHOR.name,
+            GIT_AUTHOR_EMAIL=_AUTHOR.email,
+            GIT_COMMITTER_NAME=_AUTHOR.name,
+            GIT_COMMITTER_EMAIL=_AUTHOR.email,
+        ):
+            repo.git.commit(
+                "--allow-empty",
+                "-m",
+                "baseline: rollback engine initialised",
+            )
         return repo
 
     def create_snapshot(self, message: str = "pre-action snapshot") -> Snapshot:
@@ -188,7 +220,9 @@ class RollbackEngine:
             with self._repo_lock:
                 out: list[Snapshot] = []
                 for commit in self.repo.iter_commits(max_count=limit):
-                    out.append(Snapshot(sha=commit.hexsha, message=str(commit.message).strip()))
+                    out.append(
+                        Snapshot(sha=commit.hexsha, message=str(commit.message).strip())
+                    )
                 return out
         except Exception as exc:  # noqa: BLE001
             raise RollbackError(f"Snapshot listing failed: {exc}") from exc

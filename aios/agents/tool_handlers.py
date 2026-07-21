@@ -3,12 +3,12 @@
 Each handler is a stateless callable that receives the dependencies it needs
 from ToolAgent and returns the same (output, status, failed) tuple.
 """
+
 from __future__ import annotations
 
 import difflib
 import ipaddress
 import os
-import re
 import socket
 import tempfile
 import urllib.parse
@@ -82,7 +82,11 @@ def read_file(
     """Read a scoped text file, redact secrets, and return its contents."""
     resolved = _resolve_within(read_root, filepath)
     if resolved is None:
-        return (f"[BLOCKED] Path '{filepath}' escapes the project root.", "blocked", False)
+        return (
+            f"[BLOCKED] Path '{filepath}' escapes the project root.",
+            "blocked",
+            False,
+        )
     if not resolved.is_file():
         return (f"[ERROR] Not a file: {filepath}", "blocked", False)
     try:
@@ -256,7 +260,11 @@ def create_file(
 
     resolved = _resolve_within(read_root, filepath)
     if resolved is None:
-        return (f"[BLOCKED] Path '{filepath}' escapes the project root.", "blocked", False)
+        return (
+            f"[BLOCKED] Path '{filepath}' escapes the project root.",
+            "blocked",
+            False,
+        )
     # Same containment check edit_file uses: resolve project-relative, then a
     # pure scope test against the sandbox roots (out-of-sandbox -> refused).
     scope = scope_lock.is_path_in_scope(str(read_root / filepath))
@@ -348,28 +356,6 @@ def create_file(
 
 # --------------------------------------------------------------------------- verify
 
-def _normalise_sandbox_paths(command: str) -> str:
-    """Strip a redundant sandbox-root prefix from path tokens in *command*.
-
-    Verify commands run FROM the sandbox cwd (``SCOPE_ROOTS[0]``), so a path the
-    model wrote repo-relative — e.g. ``pytest training_ground/test_x.py`` — would
-    double-nest (``training_ground/training_ground/...``), collect 0 tests, and
-    exit 4, surfacing a spurious ``[VERIFY FAIL]`` that wastes a model turn. The
-    forced auto-verify already expresses its path sandbox-relative; do the same
-    for the model's OWN command so its check actually runs.
-
-    Conservative by construction: only the EXACT sandbox-root basename used as a
-    leading path segment (after whitespace, a quote, or string start) is removed,
-    so unrelated tokens are left byte-for-byte. Idempotent — a no-op on the
-    already-correct forced command and on a plain ``pytest -q``.
-    """
-    roots = config.SCOPE_ROOTS
-    name = roots[0].name if roots else ""
-    if not name or name not in command:
-        return command
-    pattern = re.compile(rf"(?<![\w./])(?:\./)?{re.escape(name)}/")
-    return pattern.sub("", command)
-
 
 def verify_command(
     command: str,
@@ -378,6 +364,7 @@ def verify_command(
     approved_commands: set[str],
     verifier: Any,
     session_id: Optional[str],
+    lesson_sink: Optional[dict[str, Any]] = None,
 ) -> tuple[str, str, bool]:
     """Run *command* as a verification through the Verifier; map its verdict.
 
@@ -387,16 +374,24 @@ def verify_command(
     we do NOT bypass it — and judges pass/fail by exit code + parsed counts,
     fail-closed. The Verifier fires the reflection hook itself on a genuine
     failure, so this dispatch path must NOT reflect again.
+
+    If *lesson_sink* is given, it is populated with ``mistake_id``/
+    ``lesson_summary`` from the ``VerifierResult`` (``None``/``""`` when the
+    Verifier recorded no lesson) so the caller can SURFACE an already-recorded
+    lesson as a tool-loop step without recording it a second time.
     """
     from aios.core.verifier import VerifierResult  # local to avoid import cycles
 
-    command = _normalise_sandbox_paths(command)
     is_approved = approved or command in approved_commands
     result = verifier.verify(
         command,
         session_id=session_id,
         approved=is_approved,
     )
+
+    if lesson_sink is not None:
+        lesson_sink["mistake_id"] = getattr(result, "mistake_id", None)
+        lesson_sink["lesson_summary"] = getattr(result, "lesson_summary", "") or ""
 
     if result.status == "REQUIRE_APPROVAL":
         return (result.summary, "approval", False)
@@ -416,6 +411,7 @@ def verify_command(
 
 
 # --------------------------------------------------------------------------- execute
+
 
 def _format_exec_result(result: Any) -> tuple[str, str, bool]:
     """Map a *resolved* ExecutionResult to ``(output, status, failed)``.
@@ -460,6 +456,7 @@ def execute_terminal(
 
 # --------------------------------------------------------------------------- browse
 
+
 def browse_url(
     url: str,
     *,
@@ -484,7 +481,11 @@ def browse_url(
 
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        return (f"[BLOCKED] URL scheme '{parsed.scheme}' is not allowed.", "blocked", False)
+        return (
+            f"[BLOCKED] URL scheme '{parsed.scheme}' is not allowed.",
+            "blocked",
+            False,
+        )
     if not parsed.hostname:
         return ("[BLOCKED] URL has no hostname.", "blocked", False)
     hostname = parsed.hostname.lower()
@@ -496,7 +497,11 @@ def browse_url(
         for _, _, _, _, sockaddr in addr_info:
             ip = ipaddress.ip_address(sockaddr[0])
             if ip.is_private or ip.is_loopback or ip.is_reserved:
-                return (f"[BLOCKED] {hostname} resolves to a non-public address.", "blocked", False)
+                return (
+                    f"[BLOCKED] {hostname} resolves to a non-public address.",
+                    "blocked",
+                    False,
+                )
     except Exception as exc:  # noqa: BLE001 - DNS failure is not a mistake
         return (f"[ERROR] could not resolve {hostname}: {exc}", "ok", True)
 
@@ -507,8 +512,15 @@ def browse_url(
         resp = requests.get(
             url,
             timeout=15,
-            headers={"User-Agent": "AI-OS browse tool"},
+            headers={"User-Agent": "GAGOS browse tool"},
+            allow_redirects=False,
         )
+        if resp.is_redirect or resp.is_permanent_redirect:
+            return (
+                "[BLOCKED] URL attempted redirect — potential SSRF.",
+                "blocked",
+                False,
+            )
         resp.raise_for_status()
         content_type = resp.headers.get("Content-Type", "")
         if "text/html" in content_type:
@@ -527,6 +539,7 @@ def browse_url(
 
 
 # --------------------------------------------------------------------------- plan
+
 
 def plan_task(
     goal: str,
@@ -582,6 +595,7 @@ def plan_task(
 
 
 # --------------------------------------------------------------------------- self-analysis
+
 
 def self_analyze(
     path: str,

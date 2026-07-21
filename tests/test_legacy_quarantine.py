@@ -1,111 +1,52 @@
-"""Regression tests for P0-2 / P0-5 legacy quarantine.
+"""Regression guards for the legacy/ tree — quarantine graduated to deletion.
 
-The legacy/ directory holds dead/orphaned scripts that operated on the root
-``orchestrator_memory.sqlite`` database. These tests make sure they cannot be
-run accidentally and that they do not touch the live audit ledger.
+History: legacy/ once held dead scripts that operated on the root
+``orchestrator_memory.sqlite`` (P0-2 / P0-5). Step 1 (June) quarantined them
+behind refusal prompts and import bans. Step 2 (2026-07-02, operator-approved
+coverage-honesty pass) deleted the tree outright: 26 tracked files, zero
+importers, containing broken test files that any repo-root collector tripped
+over. These guards keep the tree gone and the import ban standing.
 """
 import re
-import subprocess
-import sys
 from pathlib import Path
-
-import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LEGACY_DIR = PROJECT_ROOT / "legacy"
-LIVE_AUDIT_DB = PROJECT_ROOT / "data" / "aios_audit.db"
+
+LEGACY_MODULES = {
+    "hybrid_search",
+    "ingest_knowledge",
+    "ingest_update",
+    "extract_text",
+    "vector_memory_setup",
+    "reset_audit_chain",
+}
 
 
-@pytest.mark.parametrize(
-    "script_name,args,expected_code,expected_substring,use_tmp_cwd",
-    [
-        (
-            "reset_audit_chain.py",
-            ["--yes"],
-            0,
-            "QUARANTINED",
-            False,
-        ),
-        (
-            "vector_memory_setup.py",
-            [],
-            1,
-            "Refusing to initialize",
-            False,
-        ),
-        (
-            "vector_memory_setup.py",
-            ["--yes"],
-            0,
-            "Vector Memory Environment",
-            True,
-        ),
-    ],
-)
-def test_legacy_script_quarantine(script_name, args, expected_code, expected_substring, use_tmp_cwd, tmp_path):
-    script = LEGACY_DIR / script_name
-    assert script.exists(), f"{script_name} should be quarantined under legacy/"
-
-    before_mtime = LIVE_AUDIT_DB.stat().st_mtime if LIVE_AUDIT_DB.exists() else None
-
-    if use_tmp_cwd:
-        # vector_memory_setup.py --yes writes relative files; keep it out of the
-        # project root by copying the script into a temp directory and running it
-        # from there.
-        cwd = tmp_path
-        script_in_tmp = cwd / script.name
-        script_in_tmp.write_text(script.read_text(encoding="utf-8"), encoding="utf-8")
-        executable = str(script_in_tmp)
-    else:
-        cwd = PROJECT_ROOT
-        executable = str(script)
-
-    result = subprocess.run(
-        [sys.executable, executable, *args],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        timeout=30,
+def test_legacy_tree_stays_deleted() -> None:
+    assert not LEGACY_DIR.exists(), (
+        "legacy/ was deleted (2026-07-02) after quarantine; it must not "
+        "quietly return. Resurrect a module only by wiring and testing it "
+        "inside aios/."
     )
 
-    output = result.stdout + result.stderr
-    assert result.returncode == expected_code, (
-        f"{script_name} {'should refuse without --yes' if expected_code == 1 else 'should run'}; "
-        f"got exit {result.returncode}\n{output}"
-    )
-    assert expected_substring in output, (
-        f"{script_name} output should mention {expected_substring!r}\n{output}"
-    )
 
-    if LIVE_AUDIT_DB.exists():
-        after_mtime = LIVE_AUDIT_DB.stat().st_mtime
-        assert after_mtime == before_mtime, (
-            "Legacy script must not touch the live audit ledger "
-            f"({LIVE_AUDIT_DB})"
-        )
-
-
-def test_legacy_scripts_not_imported_by_live_code():
-    """Live modules must import from ``aios.*``, not the quarantined legacy/."""
-    legacy_modules = {
-        "hybrid_search",
-        "ingest_knowledge",
-        "ingest_update",
-        "extract_text",
-        "vector_memory_setup",
-        "reset_audit_chain",
-    }
+def test_legacy_module_names_stay_out_of_live_code() -> None:
+    """Live modules must never import the deleted legacy module names."""
     live_dirs = [PROJECT_ROOT / "aios", PROJECT_ROOT / "tests", PROJECT_ROOT / "tools"]
     violations = []
     for directory in live_dirs:
         for py_file in directory.rglob("*.py"):
             text = py_file.read_text(encoding="utf-8", errors="ignore")
-            for mod in legacy_modules:
-                # Match top-level legacy imports only, not aios.memory.retrieval.hybrid_search.
+            for mod in LEGACY_MODULES:
+                # Top-level imports only — aios.memory.retrieval.hybrid_search
+                # (the LIVE module of the same name) is not a violation.
                 patterns = [
                     rf"^\s*import\s+{re.escape(mod)}\b",
                     rf"^\s*from\s+{re.escape(mod)}\s+import\b",
                 ]
                 if any(re.search(pattern, text, flags=re.MULTILINE) for pattern in patterns):
                     violations.append(f"{py_file.relative_to(PROJECT_ROOT)} imports legacy {mod}")
-    assert not violations, "Live code must not import quarantined legacy modules:\n" + "\n".join(violations)
+    assert not violations, (
+        "Live code must not import deleted legacy modules:\n" + "\n".join(violations)
+    )

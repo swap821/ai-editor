@@ -4,6 +4,7 @@ These helpers deliberately avoid an LLM judge. They are used for lesson, skill,
 and outcome retrieval where a transparent, stable score is preferable to a
 probabilistic decision about whether past evidence should change behavior.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -13,16 +14,39 @@ import re
 _TOKEN = re.compile(r"[a-z0-9_./-]+")
 _STOP = frozenset(
     {
-        "a", "an", "and", "are", "as", "at", "be", "by", "do", "for",
-        "from", "how", "i", "in", "is", "it", "of", "on", "or", "the",
-        "this", "to", "use", "with",
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "do",
+        "for",
+        "from",
+        "how",
+        "i",
+        "in",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "the",
+        "this",
+        "to",
+        "use",
+        "with",
     }
 )
 
 
 def tokens(text: str) -> set[str]:
     """Return normalized, low-noise tokens from *text*."""
-    return {token for token in _TOKEN.findall((text or "").lower()) if token not in _STOP}
+    return {
+        token for token in _TOKEN.findall((text or "").lower()) if token not in _STOP
+    }
 
 
 def relevance(query: str, document: str) -> float:

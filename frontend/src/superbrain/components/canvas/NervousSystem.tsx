@@ -6,14 +6,13 @@ import { createSeededRandom } from '@/lib/seededRandom';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
-import type { BurstRef, CognitionUniforms } from './SuperbrainScene';
+import type { BurstRef, CognitionUniforms } from './SuperbrainScene.LEGACY';
 import {
   CORD_Z,
   SEGMENT_COUNT,
-  SEGMENT_TOP_Y,
-  SEGMENT_BOTTOM_Y,
   SEGMENT_ANCHORS,
 } from '@/lib/spineAnatomy';
+import VertebraeRepoMapOverlay from './VertebraeRepoMapOverlay';
 
 // ============================================================================
 // THE LIVING NERVOUS SYSTEM — MESH, wearing the BRAIN'S EXACT material
@@ -43,8 +42,6 @@ import {
 // Geometry merges into FOUR draw calls (cord+bulge / vertebrae / roots / spray),
 // all sharing ONE nerve material instance.
 // ============================================================================
-
-const TAU = Math.PI * 2;
 
 // ── BRAIN-PALETTE ARC RAMP (keep the brain's vivid hues EXACTLY) ─────────────
 // The body is the cortex palette read head→tail. The brain is born violet at
@@ -336,7 +333,7 @@ export default function NervousSystem({
   burst,
   uniforms,
   tier = 'high',
-  reducedMotion = false,
+  reducedMotion: _reducedMotion = false,
 }: {
   burst: BurstRef;
   uniforms: CognitionUniforms;
@@ -799,6 +796,7 @@ export default function NervousSystem({
       {sprayBundle && (
         <mesh geometry={sprayBundle} material={material} frustumCulled={false} renderOrder={2} />
       )}
+      <VertebraeRepoMapOverlay />
     </group>
   );
 }

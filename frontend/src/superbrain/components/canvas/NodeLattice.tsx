@@ -46,9 +46,9 @@ import { useFrame } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeCognition } from '@/lib/cognitionBus';
-import { fetchFactGraph, getKnownTrails } from '@/lib/aiosAdapter';
+import { fetchFactGraph, getKnownTrails, subscribeTelemetry } from '@/lib/aiosAdapter';
 import type { FactEdge, TrailRow } from '@/lib/aiosAdapter';
-import type { CognitionUniforms } from './SuperbrainScene';
+import type { CognitionUniforms } from './SuperbrainScene.LEGACY';
 import type { QualityTier } from '@/components/QualityTierProvider';
 
 const TAU = Math.PI * 2;
@@ -692,10 +692,8 @@ export default function NodeLattice({
 
   // Re-fetch on telemetry events (trails may have grown since mount).
   useEffect(() => {
-    return subscribeCognition((event) => {
-      if (event.type === 'telemetry') {
-        doFetch();
-      }
+    return subscribeTelemetry(() => {
+      doFetch();
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

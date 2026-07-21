@@ -7,6 +7,7 @@ object. A contradiction is **not** silently committed: it is surfaced so the
 caller can route it to the Reflection Agent or a human for reconciliation
 (Blueprint 5.3 contradiction-detection flow). Exact duplicates are idempotent.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -15,8 +16,12 @@ from pathlib import Path
 from typing import Optional
 
 from aios import config
-from aios.memory.db import get_connection
+from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
+
+
+_TRAVERSE_ROW_LIMIT = 256
+_MAX_FANOUT = 32
 
 
 @dataclass(frozen=True)
@@ -25,9 +30,33 @@ class FactWriteResult:
 
     committed: bool
     fact_id: Optional[int]
-    reason: str  # 'committed' | 'already present' | 'reconciled' | 'contradiction' | ...
+    reason: (
+        str  # 'committed' | 'already present' | 'reconciled' | 'contradiction' | ...
+    )
     conflict_id: Optional[int] = None
     conflict_object: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WeightedEdge:
+    """One edge in a confidence-weighted traversal."""
+
+    subject: str
+    predicate: str
+    object: str
+    depth: int
+    confidence: float
+    path_confidence: float
+    path: str
+
+
+@dataclass(frozen=True)
+class ProposalResult:
+    """Outcome of proposing an auto-extracted fact for human review."""
+
+    proposed: bool
+    proposal_id: Optional[int]
+    reason: str  # 'proposed' | 'already proposed' | 'already known' | ...
 
 
 class SemanticFacts:
@@ -36,7 +65,9 @@ class SemanticFacts:
     def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
         self.db_path = db_path
 
-    def find_conflict(self, subject: str, predicate: str, obj: str) -> Optional[sqlite3.Row]:
+    def find_conflict(
+        self, subject: str, predicate: str, obj: str
+    ) -> Optional[sqlite3.Row]:
         """Return an active fact with the same subject+predicate but a *different*
         object (the contradiction), or ``None``."""
         with get_connection(self.db_path) as conn:
@@ -48,7 +79,13 @@ class SemanticFacts:
             ).fetchone()
 
     def add_fact(
-        self, subject: str, predicate: str, obj: str, *, approved_by: Optional[str] = None
+        self,
+        subject: str,
+        predicate: str,
+        obj: str,
+        *,
+        approved_by: Optional[str] = None,
+        confidence: float = 1.0,
     ) -> FactWriteResult:
         """Commit a fact unless it contradicts an existing active fact.
 
@@ -93,15 +130,22 @@ class SemanticFacts:
             if existing is not None:
                 if approved_by is not None:
                     conn.execute(
-                        "UPDATE semantic_facts SET approved_by = COALESCE(approved_by, ?) "
+                        "UPDATE semantic_facts "
+                        "SET approved_by = COALESCE(approved_by, ?), "
+                        "    confidence = MAX(confidence, ?) "
                         "WHERE id = ?",
-                        (approved_by, int(existing["id"])),
+                        (
+                            approved_by,
+                            max(0.0, min(1.0, confidence)),
+                            int(existing["id"]),
+                        ),
                     )
                 return FactWriteResult(True, int(existing["id"]), "already present")
             cur = conn.execute(
-                "INSERT INTO semantic_facts (subject, predicate, object, approved_by) "
-                "VALUES (?, ?, ?, ?)",
-                (subject, predicate, obj, approved_by),
+                "INSERT INTO semantic_facts "
+                "(subject, predicate, object, approved_by, confidence) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (subject, predicate, obj, approved_by, max(0.0, min(1.0, confidence))),
             )
             return FactWriteResult(True, int(cur.lastrowid), "committed")
 
@@ -142,7 +186,9 @@ class SemanticFacts:
                 "SELECT * FROM semantic_facts WHERE id = ?", (fact_id,)
             ).fetchone()
 
-    def facts_for(self, subject: str, predicate: Optional[str] = None) -> list[sqlite3.Row]:
+    def facts_for(
+        self, subject: str, predicate: Optional[str] = None
+    ) -> list[sqlite3.Row]:
         """Return active facts for *subject* (optionally filtered by *predicate*)."""
         sql = "SELECT * FROM semantic_facts WHERE subject = ? AND status = 'active'"
         params: list[object] = [subject]
@@ -197,16 +243,18 @@ class SemanticFacts:
         start = (start or "").strip()
         if not start:
             return []
-        depth = max(1, min(int(max_depth), 4))
-        # Recursive CTE. ``path`` is bounded by the marker char so the cycle
-        # guard matches whole nodes (not substrings): '→a→b→' contains '→a→'
-        # but not '→ab→'.
+        depth = max(1, min(int(max_depth), 3))
         sql = """
         WITH RECURSIVE graph(subject, predicate, object, depth, path) AS (
             SELECT subject, predicate, object, 1,
                    '→' || subject || '→' || object || '→'
             FROM semantic_facts
             WHERE subject = :start AND status = 'active'
+              AND rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = :start AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
             UNION ALL
             SELECT f.subject, f.predicate, f.object, g.depth + 1,
                    g.path || f.object || '→'
@@ -215,13 +263,110 @@ class SemanticFacts:
             WHERE g.depth < :max_depth
               AND f.status = 'active'
               AND g.path NOT LIKE '%→' || f.object || '→%'
+              AND f.rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = g.object AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
         )
         SELECT subject, predicate, object, depth, path
         FROM graph
         ORDER BY depth, subject, predicate
+        LIMIT :row_limit
         """
         with get_connection(self.db_path) as conn:
-            return conn.execute(sql, {"start": start, "max_depth": depth}).fetchall()
+            return conn.execute(
+                sql,
+                {
+                    "start": start,
+                    "max_depth": depth,
+                    "row_limit": _TRAVERSE_ROW_LIMIT,
+                    "max_fanout": _MAX_FANOUT,
+                },
+            ).fetchall()
+
+    def traverse_weighted(
+        self,
+        start: str,
+        max_depth: int = 3,
+        *,
+        min_path_confidence: float = 0.1,
+        decay: float = 0.85,
+    ) -> list[WeightedEdge]:
+        """Walk the ACTIVE fact graph with confidence decay per hop.
+
+        Like traverse(), but each hop's contribution decays by *decay*
+        starting at depth 2. A direct fact (depth 1) at confidence 1.0
+        stays 1.0. A 2-hop path decays to 0.85. A 3-hop path to ~0.72.
+        Paths below *min_path_confidence* are pruned.
+        """
+        start = (start or "").strip()
+        if not start:
+            return []
+        depth = max(1, min(int(max_depth), 3))
+        sql = """
+        WITH RECURSIVE graph(
+            subject, predicate, object, depth, path,
+            edge_confidence, path_confidence
+        ) AS (
+            SELECT subject, predicate, object, 1,
+                   '→' || subject || '→' || object || '→',
+                   COALESCE(confidence, 1.0),
+                   COALESCE(confidence, 1.0)
+            FROM semantic_facts
+            WHERE subject = :start AND status = 'active'
+              AND rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = :start AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
+            UNION ALL
+            SELECT f.subject, f.predicate, f.object, g.depth + 1,
+                   g.path || f.object || '→',
+                   COALESCE(f.confidence, 1.0),
+                   g.path_confidence * COALESCE(f.confidence, 1.0) * :decay
+            FROM semantic_facts f
+            JOIN graph g ON f.subject = g.object
+            WHERE g.depth < :max_depth
+              AND f.status = 'active'
+              AND g.path NOT LIKE '%→' || f.object || '→%'
+              AND g.path_confidence * COALESCE(f.confidence, 1.0) * :decay >= :min_conf
+              AND f.rowid IN (
+                  SELECT rowid FROM semantic_facts
+                  WHERE subject = g.object AND status = 'active'
+                  ORDER BY rowid LIMIT :max_fanout
+              )
+        )
+        SELECT subject, predicate, object, depth, path,
+               edge_confidence, path_confidence
+        FROM graph
+        ORDER BY path_confidence DESC, depth ASC
+        LIMIT :row_limit
+        """
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                sql,
+                {
+                    "start": start,
+                    "max_depth": depth,
+                    "decay": decay,
+                    "min_conf": min_path_confidence,
+                    "row_limit": _TRAVERSE_ROW_LIMIT,
+                    "max_fanout": _MAX_FANOUT,
+                },
+            ).fetchall()
+        return [
+            WeightedEdge(
+                subject=str(row["subject"]),
+                predicate=str(row["predicate"]),
+                object=str(row["object"]),
+                depth=int(row["depth"]),
+                confidence=float(row["edge_confidence"]),
+                path_confidence=float(row["path_confidence"]),
+                path=str(row["path"]),
+            )
+            for row in rows
+        ]
 
     def search(self, query: str) -> list[sqlite3.Row]:
         """Return ACTIVE facts whose subject or object contains a token from *query*.
@@ -252,3 +397,155 @@ class SemanticFacts:
         """
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
+
+    # ── Auto-extracted proposals (supervised memory formation) ────────────────
+    #
+    # Proposals live in ``fact_proposals`` — a separate table no recall path
+    # reads — so an unreviewed candidate is structurally incapable of reaching
+    # a prompt. Only a named human approval moves knowledge across the boundary,
+    # and it moves through the same contradiction-aware ``add_fact`` gate.
+
+    def propose(
+        self, subject: str, predicate: str, obj: str, *, source: str = "auto-extract"
+    ) -> ProposalResult:
+        """Queue a fact candidate for human review; never enters recall.
+
+        Idempotent: an identical active fact ('already known') or identical
+        pending proposal ('already proposed') creates no new row.
+        """
+        subject = scan_and_redact(subject.strip()).scrubbed
+        predicate = scan_and_redact(predicate.strip()).scrubbed
+        obj = scan_and_redact(obj.strip()).scrubbed
+        source = scan_and_redact((source or "").strip()).scrubbed or "auto-extract"
+        if not (subject and predicate and obj):
+            return ProposalResult(False, None, "empty subject/predicate/object")
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            active = conn.execute(
+                "SELECT id FROM semantic_facts "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'active'",
+                (subject, predicate, obj),
+            ).fetchone()
+            if active is not None:
+                return ProposalResult(False, None, "already known")
+            pending = conn.execute(
+                "SELECT id FROM fact_proposals "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'pending'",
+                (subject, predicate, obj),
+            ).fetchone()
+            if pending is not None:
+                return ProposalResult(False, int(pending["id"]), "already proposed")
+            cur = conn.execute(
+                "INSERT INTO fact_proposals (subject, predicate, object, source) "
+                "VALUES (?, ?, ?, ?)",
+                (subject, predicate, obj, source),
+            )
+            return ProposalResult(True, int(cur.lastrowid), "proposed")
+
+    def pending_proposals(self, limit: int = 100) -> list[sqlite3.Row]:
+        """Return pending fact proposals, newest first."""
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            return conn.execute(
+                "SELECT * FROM fact_proposals WHERE status = 'pending' "
+                "ORDER BY id DESC LIMIT ?",
+                (max(1, int(limit)),),
+            ).fetchall()
+
+    def approve_proposal(
+        self, proposal_id: int, *, approved_by: str
+    ) -> FactWriteResult:
+        """Promote one pending proposal THROUGH the contradiction-aware write.
+
+        A contradiction is returned, not committed, and the proposal stays
+        pending for an explicit human ``reconcile``. Idempotent under retries:
+        if the fact already landed, the proposal is still marked approved.
+        """
+        approver = (approved_by or "").strip()
+        if not approver:
+            return FactWriteResult(False, None, "approver required")
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM fact_proposals WHERE id = ?", (int(proposal_id),)
+            ).fetchone()
+        if row is None or str(row["status"]) != "pending":
+            return FactWriteResult(False, None, "not pending")
+        result = self.add_fact(
+            str(row["subject"]),
+            str(row["predicate"]),
+            str(row["object"]),
+            approved_by=approver,
+        )
+        if result.committed:
+            with get_connection(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE fact_proposals SET status = 'approved', resolved_by = ?, "
+                    "resolved_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'",
+                    (approver, int(proposal_id)),
+                )
+        return result
+
+    def reject_proposal(self, proposal_id: int, *, rejected_by: str) -> bool:
+        """Resolve a pending proposal as rejected; ``False`` if not pending."""
+        resolver = (rejected_by or "").strip()
+        if not resolver:
+            return False
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            cur = conn.execute(
+                "UPDATE fact_proposals SET status = 'rejected', resolved_by = ?, "
+                "resolved_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'",
+                (resolver, int(proposal_id)),
+            )
+            return cur.rowcount == 1
+
+    def strengthen_or_propose(
+        self, subject: str, predicate: str, obj: str, *, source: str = "auto-extract"
+    ) -> ProposalResult:
+        """Propose a fact OR strengthen confidence if already approved.
+
+        - Already-approved exact match: bump confidence by 0.05 (cap 1.0),
+          return ``ProposalResult(False, None, 'strengthened')``.
+        - Already pending: no-op, return 'already proposed'.
+        - Novel: insert a new proposal for human review.
+        """
+        subject_clean = scan_and_redact(subject.strip()).scrubbed
+        predicate_clean = scan_and_redact(predicate.strip()).scrubbed
+        obj_clean = scan_and_redact(obj.strip()).scrubbed
+        if not (subject_clean and predicate_clean and obj_clean):
+            return ProposalResult(False, None, "empty subject/predicate/object")
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            active = conn.execute(
+                "SELECT id, confidence FROM semantic_facts "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'active'",
+                (subject_clean, predicate_clean, obj_clean),
+            ).fetchone()
+            if active is not None:
+                new_conf = min(1.0, float(active["confidence"]) + 0.05)
+                conn.execute(
+                    "UPDATE semantic_facts SET confidence = ? WHERE id = ?",
+                    (round(new_conf, 3), int(active["id"])),
+                )
+                return ProposalResult(False, None, "strengthened")
+            pending = conn.execute(
+                "SELECT id FROM fact_proposals "
+                "WHERE subject = ? AND predicate = ? AND object = ? AND status = 'pending'",
+                (subject_clean, predicate_clean, obj_clean),
+            ).fetchone()
+            if pending is not None:
+                return ProposalResult(False, int(pending["id"]), "already proposed")
+            cur = conn.execute(
+                "INSERT INTO fact_proposals (subject, predicate, object, source) "
+                "VALUES (?, ?, ?, ?)",
+                (
+                    subject_clean,
+                    predicate_clean,
+                    obj_clean,
+                    scan_and_redact((source or "").strip()).scrubbed or "auto-extract",
+                ),
+            )
+            return ProposalResult(True, int(cur.lastrowid), "proposed")

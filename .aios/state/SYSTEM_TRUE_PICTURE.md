@@ -281,12 +281,12 @@ coverage gate). Live/E2E proof lives in untracked `training_ground/` scripts out
 ### 3.6 Config, infra, deploy
 
 **Config (~95%, production-grade for the stated single-laptop target).** `aios/config.py` is a
-genuine single source of truth: 60+ `AIOS_*` flags via typed accessors with local-first defaults,
-`.env` auto-loaded on import, `DATA_DIR` created at import time, every subsystem reading its
-tunables here and wired into FastAPI via `Depends(...)` so tests swap fakes. The privacy gate is
-deterministic and unspoofable by a model: `AIOS_ROUTER_CLOUD_TASKS` is empty by default
-(`auto` never routes to cloud), parsed once into a frozenset with unknown task names silently
-dropped, and the hybrid LLM picker can re-order but never escape the allowed set. Secret hygiene is
+genuine single source of truth: 60+ `AIOS_*` flags via typed accessors, `.env` auto-loaded on import,
+`DATA_DIR` created at import time, every subsystem reading its tunables here and wired into FastAPI
+via `Depends(...)` so tests swap fakes. The privacy gate is deterministic and unspoofable by a
+model: the shipped interactive config keeps `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`, while
+`AIOS_ROUTER_CLOUD_TASKS=""` forces `auto` local-only; unknown task names are silently dropped, and
+the hybrid LLM picker can re-order but never escape the allowed set. Secret hygiene is
 layered and real (keys never persisted; the executor strips `*KEY*`/`*TOKEN*`/`*SECRET*`/`*BEARER*`/
 etc. from every child env). The token-gated API hard-requires a ≥32-char token before it will boot
 on a non-loopback host.
@@ -352,8 +352,8 @@ control flow in which **cognition is sandwiched between deterministic layers it 
    verifier verdict), then `record_reuse` credits/stains recalled trails. The pheromone math is
    asymmetric and the DIRECT/REUSE evidence boundary means co-occurrence can never launder a
    candidate into "verified".
-8. **Earned autonomy (OFF by default).** If `AIOS_EARNED_AUTONOMY` is enabled and a write *class*
-   has crossed the verified-streak threshold (default 5 consecutive verified successes), that class
+8. **Earned autonomy (enabled by default, grants nothing until earned).** If a write *class* has
+   crossed the verified-streak threshold (default 5 consecutive verified successes), that class
    auto-applies **without pausing for approval** — a distinct, audit-tagged hash-chain entry
    carrying the evidence. A single verified failure instantly revokes it. RED is structurally
    un-earnable. The adapter surfaces this as a topbar AUTONOMY count + a CAPABILITY EARNED event;
@@ -376,8 +376,8 @@ control flow in which **cognition is sandwiched between deterministic layers it 
 
 New on `feat/jarvis-voice` (verified at `main.py:2138`). This is **conversation, not the agentic
 forge**: `tools=None`, **no `ToolAgent` loop, no file writes**. It reuses the same cross-provider
-router (privacy gate fully intact — `auto` stays local-only by default), injects real operator
-facts + recalled memory under a Hinglish persona prompt, calls the chat client **once**, and
+router with the privacy gate intact; cloud eligibility follows `AIOS_ROUTER_CLOUD_TASKS` plus
+configured providers. It injects real operator facts + recalled memory under a Hinglish persona prompt, calls the chat client **once**, and
 **fake-streams the reply word-by-word over the same SSE wire shape** (`route` → `text_chunk` →
 `done`) so the existing UI reader works identically for local and cloud. User + assistant turns are
 persisted to L2/L3 exactly like `/api/generate`. **There is no STT/TTS audio anywhere** — the

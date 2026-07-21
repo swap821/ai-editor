@@ -7,11 +7,24 @@ import os
 import pytest
 
 from aios.config import (
+    PROJECT_ROOT,
+    SCOPE_ROOTS,
     _env_bool,
     _env_float,
     _env_int,
+    _env_router_tasks,
     startup_banner,
 )
+
+
+class TestScopeRoots:
+    """training_ground and lab are both sandbox scope roots (same posture)."""
+
+    def test_training_ground_is_a_scope_root(self):
+        assert (PROJECT_ROOT / "training_ground") in SCOPE_ROOTS
+
+    def test_lab_is_a_scope_root(self):
+        assert (PROJECT_ROOT / "lab") in SCOPE_ROOTS
 
 
 def _unique(name: str) -> str:
@@ -94,6 +107,11 @@ class TestUnparseableEnvWarnings:
             result = _env_bool(name, not expected)
         assert result is expected
         assert "Unparseable AIOS env var" not in caplog.text
+
+    def test_router_tasks_blank_env_means_local_only(self, monkeypatch):
+        name = _unique("ROUTER_TASKS")
+        monkeypatch.setenv(name, "")
+        assert _env_router_tasks(name, ("reasoning", "coding")) == ()
 
 
 class TestStartupBanner:

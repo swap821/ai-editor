@@ -5,18 +5,46 @@ operations that shape the events yielded by :class:`~aios.agents.tool_agent.Tool
 Keeping them in a dedicated module lets the main agent focus on loop orchestration
 and security dispatch while guaranteeing the SSE event contract stays stable.
 """
+
 from __future__ import annotations
 
 import re
 from collections.abc import Iterator
 from typing import Any, Callable, Optional
 
+from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.core.verifier import VerifierResult
 
 #: A failure hook: given (command, error_output), return a lesson dict or None.
 FailureHook = Callable[[str, str], Optional[dict[str, Any]]]
 #: A confirmation hook: given a lesson's mistake id, promote it pending->verified.
 ConfirmHook = Callable[[int], None]
+
+
+def chunk_code(code: str, *, steps: int = 12) -> list[str]:
+    """Break a complete code block into a growing sequence of prefix snapshots.
+
+    Each snapshot is a prefix of ``code`` ending on a line boundary, and the final
+    snapshot is always the whole block. This lets the UI reveal generated code
+    incrementally even though the (function-calling) model returns it in one frame
+    — honest "incremental reveal", not raw model tokens. A single line yields a
+    single snapshot; empty input yields none.
+    """
+    if not code:
+        return []
+    lines = code.split("\n")
+    if len(lines) <= 1:
+        return [code]
+    # Up to `steps` growing cut points spread across the lines, always ending on
+    # the full block. Cutting on line boundaries keeps each snapshot a clean prefix.
+    count = min(steps, len(lines))
+    cut_indices = sorted(
+        {max(1, round((i + 1) * len(lines) / count)) for i in range(count)}
+    )
+    snaps = ["\n".join(lines[:idx]) for idx in cut_indices]
+    if snaps[-1] != code:
+        snaps.append(code)
+    return snaps
 
 
 def finish_stream(
@@ -28,7 +56,8 @@ def finish_stream(
     """Stream a final answer word-by-word, then surface any fenced code block.
 
     The emitted sequence is ``text`` events (one per whitespace-preserving word),
-    an optional ``code`` event for the first fenced block, and a final ``done``.
+    then — for the first fenced block — a series of growing ``code_chunk`` events
+    (incremental reveal) followed by the final ``code`` event, and a ``done``.
     """
     text = content.strip() or "(no answer)"
     for word in re.findall(r"\S+\s*", text):
@@ -37,7 +66,35 @@ def finish_stream(
     if match:
         code = match.group(2).rstrip("\n")
         if code.strip():
-            yield {"type": "code", "code": code, "language": match.group(1) or "text"}
+            language = match.group(1) or "text"
+            for partial in chunk_code(code):
+                yield {"type": "code_chunk", "code": partial, "language": language}
+            yield {"type": "code", "code": code, "language": language}
+    yield {"type": "done"}
+
+
+def finish_code_only(
+    content: str,
+    *,
+    code_fence: re.Pattern,
+) -> Iterator[dict[str, Any]]:
+    """Emit code blocks and ``done`` — text was already streamed in real-time.
+
+    Used by the streaming tool loop path (C4): text tokens were yielded as they
+    arrived from the provider, so only code-block extraction and ``done`` remain.
+    """
+    text = content.strip()
+    if not text:
+        yield {"type": "done"}
+        return
+    match = code_fence.search(text)
+    if match:
+        code = match.group(2).rstrip("\n")
+        if code.strip():
+            language = match.group(1) or "text"
+            for partial in chunk_code(code):
+                yield {"type": "code_chunk", "code": partial, "language": language}
+            yield {"type": "code", "code": code, "language": language}
     yield {"type": "done"}
 
 
@@ -111,9 +168,7 @@ def grant_earned(
     audit -> write sequence unchanged. Only writes are earnable in v1.
     """
     if name == "create_file":
-        approved_creations[str(args.get("filepath", ""))] = str(
-            args.get("content", "")
-        )
+        approved_creations[str(args.get("filepath", ""))] = str(args.get("content", ""))
     elif name == "edit_file":
         approved_edits[str(args.get("filepath", ""))] = (
             str(args.get("old_string", "")),
@@ -140,7 +195,9 @@ def reflect(
     mistake_id = lesson.get("mistake_id")
     if isinstance(mistake_id, int):
         pending_lessons.append((mistake_id, command))
-    summary = f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+    summary = (
+        f"{lesson.get('error_type', 'Error')}: {lesson.get('lesson_text', '')}".strip()
+    )
     if lesson.get("recurrence"):
         summary = f"(recurring) {summary}"
     yield {
@@ -157,13 +214,18 @@ def confirm(
     index: int,
     confirm_lesson: ConfirmHook | None,
     *,
+    strength: VerificationStrength = VerificationStrength.STRONG,
     preview_limit: int = 400,
 ) -> Iterator[dict[str, Any]]:
     """Promote lessons only after their exact failed command succeeds."""
-    promoted = [mistake_id for mistake_id, failed in pending_lessons if failed == command]
-    pending_lessons[:] = [item for item in pending_lessons if item[1] != command]
+    promoted = [
+        mistake_id for mistake_id, failed in pending_lessons if failed == command
+    ]
     if confirm_lesson is None or not promoted:
         return
+    if not meets_promotion_floor(strength):
+        return
+    pending_lessons[:] = [item for item in pending_lessons if item[1] != command]
     for mistake_id in promoted:
         try:
             confirm_lesson(mistake_id)
@@ -187,7 +249,7 @@ def format_verifier_result(result: VerifierResult) -> tuple[str, str, bool]:
     exit_str = "?" if result.exit_code is None else str(result.exit_code)
     header = (
         f"[VERIFY {verdict}] {result.passed_count} passed, "
-        f"{result.failed_count} failed (exit {exit_str})"
+        f"{result.failed_count} failed (exit {exit_str}) (strength={result.strength.name})"
     )
     body = result.summary.strip()
     output = f"{header}\n{body}" if body else header

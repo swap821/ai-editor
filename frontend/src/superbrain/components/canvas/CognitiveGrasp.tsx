@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { publishCognition } from '@/lib/cognitionBus';
+
 import { getKnownTrails, trailLabel, type TrailRow } from '@/lib/aiosAdapter';
 
 type Point = readonly [number, number, number];
@@ -26,7 +26,7 @@ const ABSORB_PULSE_SECONDS = 0.5;
 
 /**
  * The glints are no longer lore: each cycle recalls a REAL trail from the
- * AI-OS pheromone map (the trail for a given absolute slot is a pure function
+ * GAGOS pheromone map (the trail for a given absolute slot is a pure function
  * of the slot, so every sub-component agrees without shared state). The
  * absorb moment publishes a RECALL — a label-anchored cortical burst that
  * lights the matching anatomical region — never 'knowledge-acquired', which
@@ -395,16 +395,7 @@ function TransferRoute({
       absorbTimeRef.current = state.clock.elapsedTime;
       const trail = trailForSlot(timeline.slot);
       if (trail) {
-        publishCognition({
-          type: 'burst',
-          label: trailLabel(trail.goal_pattern),
-          detail:
-            `trail #${trail.skill_id} · strength ${trail.strength.toFixed(2)} · ` +
-            `${trail.success_count + trail.reuse_success_count} walk(s)` +
-            (trail.quarantined ? ' · QUARANTINED' : ''),
-          intensity: THREE.MathUtils.clamp(0.3 + trail.strength * 0.5, 0, 1),
-          source: 'grasp',
-        });
+        
       }
     }
     // 1 at the absorb instant -> 0 after ABSORB_PULSE_SECONDS.

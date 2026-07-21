@@ -1,10 +1,16 @@
 # FUTURE_FRONTIER.md — The North Star
 
+> **2026-06-27 update:** near-term execution now follows the sovereign Council
+> Runtime roadmap at
+> [`docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md`](../../docs/superpowers/specs/2026-06-27-sovereign-ai-os-roadmap.md):
+> Phase 0 foundation lock, 30-day First Heartbeat, then 24-week v1.0. This
+> document remains the longer-range frontier vision.
+>
 > **Authored by the chief synthesizer, 2026-06-13.** Closing document of a futurist
 > advisory: a lead CALIBRE assessment + eight specialist lenses, synthesized into one
 > honest north star. This is the **multi-year vision above `PLAN.md`** — it does NOT
-> replace it. `PLAN.md` (2026-06-13) is the single source of truth for *what is next*
-> (Tier 0 hygiene → Tier 1 the three gaps → Tier 2 surplus maturation). This document
+> replace the active roadmap. `PLAN.md` (2026-06-13) is retained as the
+> blueprint-vs-reality context map. This document
 > answers a different question: *what makes this genuinely first-of-its-kind, and what
 > are the futuristic moves that put it "in prime" after the grind.*
 >

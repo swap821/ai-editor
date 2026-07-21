@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { QualityTier } from '@/components/QualityTierProvider';
-import type { CognitionUniforms } from '@/components/canvas/SuperbrainScene';
+import type { CognitionUniforms } from '@/components/canvas/SuperbrainScene.LEGACY';
 
 // ============================================================================
 // SHARED BRAIN MATERIAL FACTORY
