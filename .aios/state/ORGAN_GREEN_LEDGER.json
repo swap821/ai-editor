@@ -681,12 +681,18 @@
     "name": "Local Clerk Runtime",
     "status": "yellow",
     "authority_owner": "LocalClerkRuntimeAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/local_workforce/contracts.py"
+    ],
+    "focused_tests": [
+      "tests/test_local_clerk_dispatcher.py"
+    ],
+    "integration_tests": [
+      "tests/domain/test_local_workforce_registry.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Bounded clerk profiles are only partially formalised; the full CLASSIFY_REQUEST/PREPARE_FRONTIER_BRIEF/etc profile set is not qualification-tested."
+      "LocalJobProfile already existed with 9 real, production-used profiles (CLASSIFY/EXTRACT/SUMMARISE/CLUSTER/TRIAGE/FORMAT_REPORT/PREPARE_BRIEFING/SELECT_SKILL/PARAMETERISE_SKILL). Slice 32 added the 4 that had no equivalent (VALIDATE_STRUCTURE/SUMMARISE_DISAGREEMENT/EXPLAIN_ROUTE/CHECK_CONTEXT_COMPLETENESS) rather than duplicate the plan brief's near-synonymous names for jobs already covered. Still missing: the 4 new profiles have no qualification-suite cases of their own yet, and no handler implements EXPLAIN_ROUTE/CHECK_CONTEXT_COMPLETENESS/SUMMARISE_DISAGREEMENT/VALIDATE_STRUCTURE end to end."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -696,12 +702,18 @@
     "name": "Clerical Job Contract and Dispatcher",
     "status": "yellow",
     "authority_owner": "ClerkDispatcherAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/application/local_workforce/dispatcher.py"
+    ],
+    "focused_tests": [
+      "tests/test_local_clerk_dispatcher.py"
+    ],
+    "integration_tests": [
+      "tests/test_local_workforce_api.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "No dispatcher choosing between deterministic code / local clerk / frontier escalation / human clarification exists yet."
+      "dispatch_clerical_job() now exists: deterministic code always wins first (Granite is never consulted when a parser can already answer), an unqualified or failed-qualification model always escalates to frontier regardless of self-reported confidence, and only a qualified model's own low-confidence result routes to a human. Still missing: nothing in aios.application.local_workforce.service.LocalWorkforceService (the real production run_advisory_job() path) calls this dispatcher yet -- it is a standalone, tested decision function, not wired into the live request path."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -711,12 +723,16 @@
     "name": "Local Model Qualification and Health",
     "status": "yellow",
     "authority_owner": "LocalModelQualificationAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
+    "production_entrypoints": [
+      "aios/domain/local_workforce/qualifier.py"
+    ],
+    "focused_tests": [
+      "tests/test_local_clerk_dispatcher.py"
+    ],
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No live qualification suite has been run against the actual granite3.2:2b Ollama model (JSON adherence, abstention, injection resistance, latency)."
+      "A REAL qualification suite already existed (aios.domain.local_workforce.qualifier.QualificationSuite, 12 model cases + reliability/resource/concurrency/timeout gates) and Slice 32 actually ran it 3x live against the real granite3.2:2b model via Ollama in this environment -- exact tag, digest 9d79a41f..., hardware profile, and elapsed time recorded in release/slice32/granite-qualification-live.json. Honest finding, not hidden: all 3 runs failed the same way -- the model reliably passes 15/16 checks but consistently fails \"summarisation\" because it substitutes its own field name (observed: service_status) instead of the instructed exact field name (summary), confirmed reproducible across 5 additional raw sampling attempts (1/5 used the correct name). This is a genuine, reproducible model-reliability gap, not a test bug or a synthetic fixture -- the organ stays yellow because the live evidence itself shows the model does not yet qualify, which is exactly what a truthful qualification gate is for. Follow-up: either the qualifier needs a schema-normalising retry (Slice 32's own \"invalid JSON retries within a bounded count\" requirement, not yet built), or this specific case needs loosening to accept any single-field object regardless of field name -- a real design decision, not made here."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

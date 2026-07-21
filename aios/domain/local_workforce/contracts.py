@@ -8,7 +8,18 @@ from pydantic import BaseModel, ConfigDict
 
 
 class LocalJobProfile(str, Enum):
-    """Specific clerical jobs the local workforce is allowed to perform."""
+    """Specific clerical jobs the local workforce is allowed to perform.
+
+    Slice 32 adds the four profiles named in the GAGOS Completion Plan that
+    had no prior equivalent here (`VALIDATE_STRUCTURE`, `SUMMARISE_
+    DISAGREEMENT`, `EXPLAIN_ROUTE`, `CHECK_CONTEXT_COMPLETENESS`). The
+    plan's `CLASSIFY_REQUEST`/`PREPARE_FRONTIER_BRIEF`/`TRIAGE_FAILURE` are
+    deliberately not added as separate members -- they are the same job as
+    the existing `CLASSIFY`/`PREPARE_BRIEFING`/`TRIAGE`, and adding a near-
+    duplicate name for the same concept would fragment this enum the way
+    Slice 30 found three competing "gateway" implementations already
+    fragmenting that concept.
+    """
 
     CLASSIFY = "classify"
     EXTRACT = "extract"
@@ -19,6 +30,10 @@ class LocalJobProfile(str, Enum):
     PREPARE_BRIEFING = "prepare_briefing"
     SELECT_SKILL = "select_skill"
     PARAMETERISE_SKILL = "parameterise_skill"
+    VALIDATE_STRUCTURE = "validate_structure"
+    SUMMARISE_DISAGREEMENT = "summarise_disagreement"
+    EXPLAIN_ROUTE = "explain_route"
+    CHECK_CONTEXT_COMPLETENESS = "check_context_completeness"
 
 
 class LocalWorkerModel(BaseModel):
