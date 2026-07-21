@@ -923,12 +923,19 @@
     "name": "Read-Model and Projection Organ",
     "status": "yellow",
     "authority_owner": "ReadModelProjectionAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/read_models/contracts.py",
+      "aios/application/read_models/governance_projections.py"
+    ],
+    "focused_tests": [
+      "tests/test_read_model_projections.py"
+    ],
+    "integration_tests": [
+      "tests/test_read_model_projection.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Canonical projections (SystemHeartbeatProjection, ApprovalProjection, etc.) with measured/derived/stale/unavailable field provenance are not fully built."
+      "ConstitutionProjection/EmergencyStopProjection/ProviderHealthProjection/ApprovalProjection now exist, built on the pre-existing MetricEnvelope/MetricStatus provenance primitive (not a new one) with real projector functions (project_constitution/project_emergency_stop/project_provider_health/project_approval) verified directly against real Slice 26 ConstitutionSnapshotV1, the real EmergencyStopState, a real ProviderHealthSnapshot, and the real production ApprovedAction from aios/core/approvals.py's ApprovalStore. Missing/None source state renders every field UNAVAILABLE, never a fabricated default (verified: no constitution loaded, unknown provider budget, unsupplied approval fields). Still yellow (honest scope note, not an oversight): these projectors are not yet called by any live API route or wired into the frontend -- that requires a real browser operator walkthrough this autonomous session cannot perform (no human present to review a live UI session), so it was not attempted rather than claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -943,7 +950,7 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "Reaction-registry construction exists (organ 20), but end-to-end truthful reflection across every organ above is not complete."
+      "Backend truth now exists to build this surface honestly: ConstitutionProjection, EmergencyStopProjection, ProviderHealthProjection and ApprovalProjection (organ 47) supply typed, status-aware values with no fabricated defaults. This organ itself is still yellow: no frontend TypeScript/React component consumes these projections yet, and this autonomous session has no human operator present to perform the required live browser walkthrough (system rule: UI changes must be verified in a running browser before being reported complete) -- so frontend wiring was deliberately not attempted here rather than silently skipped or claimed without evidence."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -958,7 +965,7 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No pinned (not scroll-hidden) exact-decision approval surface exists yet."
+      "Backend truth now exists to build this surface honestly: ConstitutionProjection, EmergencyStopProjection, ProviderHealthProjection and ApprovalProjection (organ 47) supply typed, status-aware values with no fabricated defaults. This organ itself is still yellow: no frontend TypeScript/React component consumes these projections yet, and this autonomous session has no human operator present to perform the required live browser walkthrough (system rule: UI changes must be verified in a running browser before being reported complete) -- so frontend wiring was deliberately not attempted here rather than silently skipped or claimed without evidence."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -973,7 +980,7 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No UI answers why a model was chosen, what was sent to it, or what was removed, yet."
+      "Backend truth now exists to build this surface honestly: ConstitutionProjection, EmergencyStopProjection, ProviderHealthProjection and ApprovalProjection (organ 47) supply typed, status-aware values with no fabricated defaults. This organ itself is still yellow: no frontend TypeScript/React component consumes these projections yet, and this autonomous session has no human operator present to perform the required live browser walkthrough (system rule: UI changes must be verified in a running browser before being reported complete) -- so frontend wiring was deliberately not attempted here rather than silently skipped or claimed without evidence."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -988,7 +995,7 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No single heartbeat surface shows identity/constitution/stop/budget/executor/learning state together yet."
+      "Backend truth now exists to build this surface honestly: ConstitutionProjection, EmergencyStopProjection, ProviderHealthProjection and ApprovalProjection (organ 47) supply typed, status-aware values with no fabricated defaults. This organ itself is still yellow: no frontend TypeScript/React component consumes these projections yet, and this autonomous session has no human operator present to perform the required live browser walkthrough (system rule: UI changes must be verified in a running browser before being reported complete) -- so frontend wiring was deliberately not attempted here rather than silently skipped or claimed without evidence."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
