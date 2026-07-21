@@ -1125,12 +1125,15 @@ def get_learning_service(
     promotion_authority: Any = Depends(get_promotion_authority),
     local_workforce_service: Any = Depends(get_local_workforce_service),
     capability_authority: Any = Depends(get_capability_authority),
+    emergency_stop: Any = Depends(get_emergency_stop),
 ) -> Any:
     """Provide durable trajectory and skill reuse over canonical mission state."""
     if verification_authority is None or hasattr(verification_authority, "dependency"):
         verification_authority = get_verification_authority()
     if promotion_authority is None or hasattr(promotion_authority, "dependency"):
         promotion_authority = get_promotion_authority()
+    if emergency_stop is None or hasattr(emergency_stop, "dependency"):
+        emergency_stop = get_emergency_stop()
     if local_workforce_service is None or hasattr(
         local_workforce_service, "dependency"
     ):
@@ -1247,6 +1250,7 @@ def get_learning_service(
         verification_authority=verification_authority,
         promotion_authority=promotion_authority,
         local_workforce_service=local_workforce_service,
+        emergency_stop=emergency_stop,
     )
 
 
@@ -1256,6 +1260,7 @@ def get_maintenance_convergence_service(
     verifier_registry: Any = Depends(get_maintenance_scanner_registry),
     executor_service: Any = Depends(get_private_executor_service),
     worker_foundry: Any = Depends(get_worker_foundry),
+    emergency_stop: Any = Depends(get_emergency_stop),
 ) -> Any:
     """Provide canonical maintenance scan, repair, verification and rescan service."""
     if verification_authority is None or hasattr(verification_authority, "dependency"):
@@ -1268,6 +1273,8 @@ def get_maintenance_convergence_service(
         executor_service = get_private_executor_service()
     if worker_foundry is None or hasattr(worker_foundry, "dependency"):
         worker_foundry = get_worker_foundry()
+    if emergency_stop is None or hasattr(emergency_stop, "dependency"):
+        emergency_stop = get_emergency_stop()
 
     from aios.application.maintenance.service import MaintenanceConvergenceService
     from aios.application.missions.mission_service import MissionService
@@ -1305,4 +1312,5 @@ def get_maintenance_convergence_service(
         promotion_authority=promotion_authority,
         workspace_manager=workspace_manager,
         lifecycle_engine=lifecycle_engine,
+        emergency_stop=emergency_stop,
     )

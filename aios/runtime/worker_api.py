@@ -29,6 +29,32 @@ from aios.security.gateway import Zone, classify
 _MAX_COMMAND_OUTPUT: int = 50_000
 
 
+def _read_only_emergency_stop() -> Any:
+    """A worker-side controller that only ever reads the durable latch.
+
+    The isolated worker process does not own capability revocation, mission
+    cancellation, or any other stop hook -- the process that engaged the
+    latch already ran those. This instance points at the same durable
+    `emergency_stop.db` and is only ever used for `assert_operational()`, so
+    its hooks are intentionally no-ops rather than a second, redundant set
+    of production side effects.
+    """
+    from aios.application.governance.emergency_stop import (
+        EmergencyStopController,
+        EmergencyStopHooks,
+    )
+
+    return EmergencyStopController(
+        hooks=EmergencyStopHooks(
+            revoke_capabilities=lambda: None,
+            cancel_queued_missions=lambda: None,
+            kill_active_workers=lambda: None,
+            disable_autonomy=lambda: None,
+            preserve_evidence=lambda reason: None,
+        )
+    )
+
+
 def _runner_for_backend(backend: str):
     """Resolve the isolated runner for a worker's verification command (Phase 2b).
 
@@ -66,6 +92,7 @@ class WorkerRuntime:
         result_path: str | Path,
         intelligence_gateway: IntelligenceGateway | None = None,
         command_runner=None,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.contract = contract
         #: Phase 2b — the runner for verification commands. None => resolved from the
@@ -82,7 +109,9 @@ class WorkerRuntime:
         self.worker_dir = self.mission_dir / "workers" / worker_id
         self.approval_dir = self.mission_dir / "approvals"
         self.evidence_path = self.worker_dir / "evidence.json"
-        self.intelligence_gateway = intelligence_gateway or IntelligenceGateway()
+        self.intelligence_gateway = intelligence_gateway or IntelligenceGateway(
+            emergency_stop=emergency_stop or _read_only_emergency_stop()
+        )
         self._secret_policy = SecretPolicy()
         self.worker_dir.mkdir(parents=True, exist_ok=True)
         self.approval_dir.mkdir(parents=True, exist_ok=True)

@@ -150,6 +150,8 @@ class CapabilityAuthority:
     def consume(
         self, token: str, binding: CapabilityBinding
     ) -> ConsumedCapabilityProof:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
         capability = self.inspect(token)
         now = self.clock()
         if capability.binding != binding:

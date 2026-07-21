@@ -93,6 +93,7 @@ class MaintenanceConvergenceService:
         promotion_authority: PromotionAuthority,
         workspace_manager: StagedWorkspaceManager,
         lifecycle_engine: MaintenanceLifecycleEngine,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.finding_repository = finding_repository
         self.scan_repository = scan_repository
@@ -109,6 +110,11 @@ class MaintenanceConvergenceService:
         self.workspace_manager = workspace_manager
         self.lifecycle_engine = lifecycle_engine
         self._maintenance_force = AutonomousMaintenanceForce(lifecycle_engine)
+        self.emergency_stop = emergency_stop
+
+    def _assert_operational(self) -> None:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
 
     def run_scan(
         self,
@@ -122,6 +128,7 @@ class MaintenanceConvergenceService:
         rescan_of: str | None = None,
     ) -> MaintenanceScanResult:
         """Run one bounded scan and durably reconcile only its observations."""
+        self._assert_operational()
         scan_id = f"scan-{uuid.uuid4().hex}"
         started_at = _utc_now()
         scan = MaintenanceScan(
@@ -213,6 +220,7 @@ class MaintenanceConvergenceService:
         consumed_capability_proof: Any | None = None,
     ) -> MaintenanceRepairResult:
         """Execute one already-approved repair through the canonical organs."""
+        self._assert_operational()
         record = self.mission_service.repository.get(mission_id)
         if record.state is not MissionState.APPROVED:
             raise MaintenanceConvergenceError(

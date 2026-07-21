@@ -393,6 +393,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
         target = workspace / "frontend/src/pages/Login.jsx"
 
         class PatchedGateway:
+            def __init__(self, **_kwargs):  # noqa: ANN001
+                pass
+
             def request(self, request, *, contract):  # noqa: ANN001
                 return _FakeIntelligenceResponse(
                     "Line one of the plan.\nMore detail follows."

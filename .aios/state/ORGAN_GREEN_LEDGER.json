@@ -482,12 +482,23 @@
     "name": "Emergency Stop Organ (full boundary hard-wiring)",
     "status": "yellow",
     "authority_owner": "EmergencyStopHardWiringAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/runtime/intelligence_gateway.py",
+      "aios/application/learning/service.py",
+      "aios/application/maintenance/service.py",
+      "aios/operations/recovery.py",
+      "aios/application/capabilities/authority.py"
+    ],
+    "focused_tests": [
+      "tests/test_emergency_stop_boundaries.py"
+    ],
+    "integration_tests": [
+      "tests/test_governance.py",
+      "tests/test_maintenance_api.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "EmergencyStopController is durable and hook-based, but assert_operational() is not yet required at every listed side-effect boundary (worker spawn, scheduler dequeue, skill activation, backup restore, amendment activation)."
+      "Slice 27 closed 5 confirmed-missing boundaries: intelligence gateway (local + cloud calls), skill activation/reuse, maintenance scan/repair (service layer, not just the pre-existing route-layer checks), backup restore, and capability consume (defense-in-depth alongside issue()). Still open: constitutional amendment activation (organ does not exist until Slice 37); the route-layer duplication across routes/council.py and routes/maintenance.py with inconsistent EmergencyStopError handling (503 vs uncaught) is not yet centralized; and mission state transitions beyond create/start (approve/reject/verify/complete/rollback) are not individually re-checked."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

@@ -165,8 +165,11 @@ def restore_backup(
     bundle: Path,
     data_dir: Path = config.DATA_DIR,
     safety_backup: Path | None = None,
+    emergency_stop: Any | None = None,
 ) -> Path | None:
     """Stage and install verified state; retain the old directory when present."""
+    if emergency_stop is not None:
+        emergency_stop.assert_operational()
     manifest = verify_backup(Path(bundle))
     destination = Path(data_dir).resolve()
     if destination.exists() and any(destination.iterdir()) and safety_backup is None:

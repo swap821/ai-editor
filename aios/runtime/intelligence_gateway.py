@@ -77,6 +77,7 @@ class IntelligenceGateway:
         default_cloud_provider: str = "cloud",
         budget_guard: BudgetGuard | None = None,
         secret_policy: SecretPolicy | None = None,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.local_model = local_model or config.LLM_MODEL
         self.local_client = local_client or LocalOllamaReasoner(model=self.local_model)
@@ -84,6 +85,11 @@ class IntelligenceGateway:
         self.default_cloud_provider = default_cloud_provider
         self.budget_guard = budget_guard or BudgetGuard()
         self.secret_policy = secret_policy or SecretPolicy()
+        self.emergency_stop = emergency_stop
+
+    def _assert_operational(self) -> None:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
 
     def request(
         self,
@@ -91,6 +97,9 @@ class IntelligenceGateway:
         *,
         contract: MissionContract,
     ) -> IntelligenceResponse:
+        # Slice 27: no local or cloud provider call may proceed once the
+        # emergency stop is engaged -- checked before any side effect below.
+        self._assert_operational()
         if request.mission_id != contract.mission_id:
             raise ValueError("IntelligenceRequest mission_id does not match contract")
         secret_decision = self.secret_policy.inspect_text(request.prompt)

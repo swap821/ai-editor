@@ -112,6 +112,7 @@ class LearningService:
         local_workforce_service: Any | None = None,
         reuse_outcome_repository: ReuseOutcomeRepository | None = None,
         minimum_confidence: float = 0.8,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.mission_service = mission_service
         self.trajectory_repository = trajectory_repository
@@ -133,6 +134,11 @@ class LearningService:
         self.reuse = SkillReuseOrchestrator(self.applicability)
         self.trajectory_gate = TrajectoryGate()
         self.confidence = ConfidenceUpdater()
+        self.emergency_stop = emergency_stop
+
+    def _assert_operational(self) -> None:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
 
     def capture_trajectory(
         self,
@@ -269,6 +275,7 @@ class LearningService:
         authorization: SkillActivationAuthorization,
     ) -> SkillRecord:
         """Activate a candidate skill using an exact capability-backed Human approval."""
+        self._assert_operational()
         if not isinstance(authorization, SkillActivationAuthorization):
             raise SkillActivationDenied(
                 "authorization must be a SkillActivationAuthorization instance"
@@ -342,6 +349,7 @@ class LearningService:
         mission_allowed_tools: Sequence[str],
         validated_version: str,
     ) -> LocalExecutionDirective | EscalateToFrontierDirective:
+        self._assert_operational()
         skill = self.skill_repository.get(skill_id, version)
         if skill is None:
             return EscalateToFrontierDirective(

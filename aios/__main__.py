@@ -146,7 +146,11 @@ def _cmd_backup(args: argparse.Namespace) -> int:
                 f"pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
             )
         )
-        old_dir = restore_backup(bundle=bundle, safety_backup=safety)
+        from aios.api.deps import get_emergency_stop
+
+        old_dir = restore_backup(
+            bundle=bundle, safety_backup=safety, emergency_stop=get_emergency_stop()
+        )
         _print_payload(
             {
                 "restored": True,

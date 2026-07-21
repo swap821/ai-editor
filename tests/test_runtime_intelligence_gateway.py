@@ -215,6 +215,9 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
 
     seen_prompts: list[str] = []
     class PatchedGateway:
+        def __init__(self, **_kwargs):
+            pass
+
         def request(self, request: IntelligenceRequest, *, contract: MissionContract):
             seen_prompts.append(request.prompt)
             return IntelligenceResponse(
