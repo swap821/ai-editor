@@ -39,7 +39,6 @@ _AWS_AKIA_KEY = "AKIA" + "IOSFODNN7EXAMPLE"
 _AWS_ASIA_KEY = "ASIA" + "IOSFODNN7EXAMPLE"
 _GOOGLE_API_KEY = "AIza" + "SyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI"
 
-
 # ============================================================================ #
 # S1: API Key Detection
 # ============================================================================ #
