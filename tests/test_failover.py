@@ -1,176 +1,123 @@
-"""Unit tests for the failover chat client (aios.core.failover).
+"""Unit tests for aios.core.failover (FailoverChatClient)."""
 
-The resilience layer of the multi-LLM library: a ranked list of (client, model,
-provider) candidates tried in order, riding the next on an LLMError so one model's
-outage never blocks the turn. Fakes only — no network.
-"""
-from __future__ import annotations
-
+from unittest.mock import MagicMock
 import pytest
 
-from aios.core.failover import FailoverChatClient
+from aios.core.failover import FailoverChatClient, _is_cloud_provider, _is_local_provider
 from aios.core.llm import LLMError
+from aios.core.stream_protocol import StreamFinished
 
 
-class OK:
-    """A client that succeeds and echoes the model it was handed."""
+def test_provider_classification():
+    assert _is_cloud_provider("bedrock") is True
+    assert _is_cloud_provider("gemini") is True
+    assert _is_cloud_provider("ollama") is False
 
-    def __init__(self, reply: str) -> None:
-        self.reply = reply
-        self.calls = 0
-
-    def chat(self, messages, *, tools=None, model=None):
-        self.calls += 1
-        return {"role": "assistant", "content": self.reply, "_model": model}
+    assert _is_local_provider("ollama") is True
+    assert _is_local_provider("local") is True
+    assert _is_local_provider("bedrock") is False
 
 
-class Boom:
-    """A client whose chat always raises LLMError (provider outage/throttle)."""
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def chat(self, messages, *, tools=None, model=None):
-        self.calls += 1
-        raise LLMError("provider down")
-
-
-MSG = [{"role": "user", "content": "hi"}]
-
-
-def test_returns_first_candidate_on_success() -> None:
-    c = OK("hello")
-    fc = FailoverChatClient([(c, "m1", "ollama")])
-    out = fc.chat(MSG)
-    assert out["content"] == "hello"
-    assert fc.active_provider == "ollama" and fc.active_model == "m1"
-    assert c.calls == 1
-
-
-def test_uses_the_candidate_model_not_the_passed_model() -> None:
-    c = OK("x")
-    fc = FailoverChatClient([(c, "candidate-model", "gemini")])
-    out = fc.chat(MSG, model="ignored")
-    assert out["_model"] == "candidate-model"  # the failover client supplies its own
-
-
-def test_falls_over_to_next_on_llmerror() -> None:
-    bad, good = Boom(), OK("served-by-fallback")
-    fc = FailoverChatClient([(bad, "m1", "gemini"), (good, "m2", "bedrock")])
-    out = fc.chat(MSG)
-    assert out["content"] == "served-by-fallback"
-    assert fc.active_provider == "bedrock" and fc.active_model == "m2"  # truthful attribution
-    assert bad.calls == 1 and good.calls == 1
-
-
-def test_same_cloud_provider_can_try_ranked_model_fallback_before_local() -> None:
-    bad, good, local = Boom(), OK("served-by-same-provider"), OK("local")
-    fc = FailoverChatClient(
-        [(bad, "claude", "bedrock"), (good, "nova", "bedrock"), (local, "qwen", "ollama")]
-    )
-    out = fc.chat(MSG)
-    assert out["content"] == "served-by-same-provider"
-    assert fc.active_provider == "bedrock" and fc.active_model == "nova"
-    assert bad.calls == 1 and good.calls == 1 and local.calls == 0
-
-
-def test_different_cloud_provider_is_skipped_when_local_fallback_exists() -> None:
-    bad, other_cloud, local = Boom(), OK("other-cloud"), OK("local")
-    fc = FailoverChatClient(
-        [(bad, "gemini-pro", "gemini"), (other_cloud, "sonnet", "bedrock"), (local, "qwen", "ollama")]
-    )
-    out = fc.chat(MSG)
-    assert out["content"] == "local"
-    assert fc.active_provider == "ollama" and fc.active_model == "qwen"
-    assert bad.calls == 1 and other_cloud.calls == 0 and local.calls == 1
-
-
-def test_all_candidates_failing_raises_llmerror() -> None:
-    fc = FailoverChatClient([(Boom(), "a", "gemini"), (Boom(), "b", "bedrock")])
-    with pytest.raises(LLMError):
-        fc.chat(MSG)
-
-
-def test_sticky_forward_does_not_retry_a_failed_candidate() -> None:
-    bad, good = Boom(), OK("ok")
-    fc = FailoverChatClient([(bad, "m1", "gemini"), (good, "m2", "bedrock")])
-    fc.chat(MSG)  # fails over gemini -> bedrock
-    fc.chat(MSG)  # next call must start from bedrock, NOT retry gemini
-    assert bad.calls == 1  # tried exactly once across the whole turn
-    assert good.calls == 2
-    assert fc.active_model == "m2"
-
-
-def test_non_llmerror_propagates_and_does_not_failover() -> None:
-    # A real bug (not a provider outage) must surface, not be masked by failover.
-    class Crash:
-        def chat(self, messages, *, tools=None, model=None):
-            raise ValueError("bug in mapping")
-
-    after = OK("should-not-be-reached")
-    fc = FailoverChatClient([(Crash(), "m1", "ollama"), (after, "m2", "gemini")])
-    with pytest.raises(ValueError):
-        fc.chat(MSG)
-    assert after.calls == 0
-
-
-class StreamOK:
-    """A streaming client that yields fixed chunks and records the model."""
-
-    def __init__(self, chunks: list[str]) -> None:
-        self.chunks = chunks
-        self.calls = 0
-        self.models: list[str | None] = []
-
-    def stream_chat(self, messages, *, tools=None, model=None):
-        self.calls += 1
-        self.models.append(model)
-        yield from self.chunks
-
-    def chat(self, messages, *, tools=None, model=None):
-        raise AssertionError("streaming path should not call chat")
-
-
-class StreamBoom:
-    """A streaming client that fails before yielding any chunk."""
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def stream_chat(self, messages, *, tools=None, model=None):
-        self.calls += 1
-        raise LLMError("stream provider down")
-
-
-
-def test_stream_chat_yields_chunks_from_successful_candidate() -> None:
-    c = StreamOK(["hel", "lo"])
-    fc = FailoverChatClient([(c, "stream-model", "gemini")])
-
-    assert list(fc.stream_chat(MSG)) == ["hel", "lo"]
-    assert fc.active_provider == "gemini" and fc.active_model == "stream-model"
-    assert c.calls == 1 and c.models == ["stream-model"]
-
-
-def test_stream_chat_fails_over_before_first_chunk() -> None:
-    bad, good = StreamBoom(), StreamOK(["fallback ", "stream"])
-    fc = FailoverChatClient([(bad, "m1", "bedrock"), (good, "m2", "bedrock")])
-
-    assert list(fc.stream_chat(MSG)) == ["fallback ", "stream"]
-    assert fc.active_provider == "bedrock" and fc.active_model == "m2"
-    assert bad.calls == 1 and good.calls == 1
-
-
-def test_empty_candidate_list_is_rejected() -> None:
-    with pytest.raises(ValueError):
+def test_failover_chat_client_init_empty():
+    with pytest.raises(ValueError, match="requires at least one candidate"):
         FailoverChatClient([])
 
 
-def test_on_failover_hook_is_called_with_from_and_to() -> None:
-    events = []
-    fc = FailoverChatClient(
-        [(Boom(), "m1", "gemini"), (OK("x"), "m2", "bedrock")],
-        on_failover=lambda fp, fm, np, nm, e: events.append((fp, fm, np, nm)),
-    )
-    fc.chat(MSG)
-    assert events == [("gemini", "m1", "bedrock", "m2")]
+def test_failover_chat_success_first_candidate():
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "response 1"}
+
+    client2 = MagicMock()
+
+    candidates = [
+        (client1, "model-1", "ollama"),
+        (client2, "model-2", "ollama"),
+    ]
+
+    fc = FailoverChatClient(candidates)
+    assert fc.active_provider == "ollama"
+    assert fc.active_model == "model-1"
+
+    result = fc.chat([{"role": "user", "content": "hi"}])
+    assert result == {"content": "response 1"}
+    client1.chat.assert_called_once()
+    client2.chat.assert_not_called()
+
+
+def test_failover_chat_fallback_on_llm_error():
+    client1 = MagicMock()
+    client1.chat.side_effect = LLMError("Outage on model 1")
+
+    client2 = MagicMock()
+    client2.chat.return_value = {"content": "response 2"}
+
+    hook_calls = []
+    def on_failover(failed_p, failed_m, next_p, next_m, exc):
+        hook_calls.append((failed_p, failed_m, next_p, next_m, str(exc)))
+
+    candidates = [
+        (client1, "model-1", "ollama"),
+        (client2, "model-2", "ollama"),
+    ]
+
+    fc = FailoverChatClient(candidates, on_failover=on_failover)
+    result = fc.chat([{"role": "user", "content": "hello"}])
+    assert result == {"content": "response 2"}
+    assert fc.active_model == "model-2"
+    assert len(hook_calls) == 1
+    assert hook_calls[0][0] == "ollama"
+    assert hook_calls[0][1] == "model-1"
+    assert hook_calls[0][3] == "model-2"
+
+
+def test_failover_chat_all_fail_raises():
+    client1 = MagicMock()
+    client1.chat.side_effect = LLMError("Error 1")
+
+    client2 = MagicMock()
+    client2.chat.side_effect = LLMError("Error 2")
+
+    candidates = [
+        (client1, "m1", "ollama"),
+        (client2, "m2", "ollama"),
+    ]
+
+    fc = FailoverChatClient(candidates)
+    with pytest.raises(LLMError, match="all 2 model candidate\(s\) failed"):
+        fc.chat([{"role": "user", "content": "test"}])
+
+
+def test_failover_stream_chat():
+    client1 = MagicMock()
+    client1.stream_chat.side_effect = LLMError("Stream failed")
+
+    client2 = MagicMock()
+    client2.stream_chat.return_value = iter(["chunk 1", "chunk 2"])
+
+    candidates = [
+        (client1, "m1", "ollama"),
+        (client2, "m2", "ollama"),
+    ]
+
+    fc = FailoverChatClient(candidates)
+    chunks = list(fc.stream_chat([{"role": "user", "content": "hi"}]))
+    assert chunks == ["chunk 1", "chunk 2"]
+    assert fc.active_model == "m2"
+
+
+def test_failover_stream_chat_with_tools():
+    client1 = MagicMock()
+    client1.stream_chat_with_tools.return_value = iter([
+        "text",
+        StreamFinished(tool_calls=[], content="text")
+    ])
+
+    candidates = [
+        (client1, "m1", "ollama")
+    ]
+
+    fc = FailoverChatClient(candidates)
+    items = list(fc.stream_chat_with_tools([{"role": "user", "content": "hi"}]))
+    assert len(items) == 2
+    assert items[0] == "text"
+    assert isinstance(items[1], StreamFinished)

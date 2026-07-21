@@ -261,6 +261,73 @@ class MemoryCompactor:
 
         return result
 
+    def distill_experiences(
+        self,
+        experiences_path: Path = Path(".aios/memory/experiences.jsonl"),
+        trusted_workflows_path: Path = Path(".aios/memory/trusted_workflows.md"),
+        *,
+        min_confidence: float = 0.75,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Distill append-only experience objects into summarized trusted workflows.
+
+        Reads experiences.jsonl, identifies high-confidence (>= min_confidence)
+        successful lessons, dedupes them against existing trusted workflows, and
+        updates trusted_workflows.md to keep prompt context concise.
+        """
+        if not experiences_path.exists():
+            return {
+                "dry_run": dry_run,
+                "experiences_total": 0,
+                "experiences_distilled": 0,
+                "trusted_workflows_added": 0,
+            }
+
+        experiences: list[dict[str, Any]] = []
+        with open(experiences_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    experiences.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+        existing_workflows: set[str] = set()
+        if trusted_workflows_path.exists():
+            with open(trusted_workflows_path, "r", encoding="utf-8") as f:
+                for l in f:
+                    clean = l.strip().lstrip("-* ").strip()
+                    if clean:
+                        existing_workflows.add(clean.lower())
+
+        new_workflows: list[str] = []
+        for exp in experiences:
+            conf = float(exp.get("confidence", 0.0))
+            outcome = str(exp.get("outcome", "")).lower()
+            lesson = str(exp.get("lessons", "")).strip()
+
+            if conf >= min_confidence and outcome.startswith("success") and lesson:
+                # Deduplicate against known patterns
+                simplified = lesson.split(".")[0].strip()
+                if simplified and simplified.lower() not in existing_workflows:
+                    new_workflows.append(lesson)
+                    existing_workflows.add(simplified.lower())
+
+        if new_workflows and not dry_run:
+            trusted_workflows_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(trusted_workflows_path, "a", encoding="utf-8") as f:
+                for wf in new_workflows:
+                    f.write(f"\n- {wf}")
+
+        return {
+            "dry_run": dry_run,
+            "experiences_total": len(experiences),
+            "experiences_distilled": len(new_workflows),
+            "trusted_workflows_added": len(new_workflows),
+        }
+
     def _audit(self, result: dict[str, Any]) -> None:
         """Write one tamper-evident audit entry for the batch."""
         payload = json.dumps(result, sort_keys=True, default=str)
@@ -273,3 +340,4 @@ class MemoryCompactor:
             )
         except Exception as exc:  # noqa: BLE001 - audit failure is logged but does not rollback memory
             logger.warning("Compaction audit entry failed", exc_info=exc)
+

@@ -199,8 +199,10 @@ def test_mirror_unsubscribe_called(mock_cortex_bus):
 
     try:
         with patch("fastapi.Request.is_disconnected") as mock_is_disconnected:
+            call_count = [0]
             async def fake_is_disconnected():
-                return True # Disconnect immediately
+                call_count[0] += 1
+                return call_count[0] > 1
             mock_is_disconnected.side_effect = fake_is_disconnected
             
             with TestClient(app, client=("127.0.0.1", 12345)) as client:
@@ -212,3 +214,4 @@ def test_mirror_unsubscribe_called(mock_cortex_bus):
             unsubscribe_mock.assert_called_once()
     finally:
         app.dependency_overrides.clear()
+

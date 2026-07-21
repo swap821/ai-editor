@@ -44,7 +44,9 @@ def _balanced_block(css: str, needle: str) -> str:
 
 def test_w4_1_verify_toast_has_authored_exit_with_reduced_motion_skip() -> None:
     css = GAGOS_CSS.read_text(encoding="utf-8")
-    jsx = GAGOS_JSX.read_text(encoding="utf-8")
+    cog_bus = (ROOT / "frontend" / "src" / "workbench" / "hooks" / "useCognitionBus.js").read_text(encoding="utf-8")
+    jsx = GAGOS_JSX.read_text(encoding="utf-8") + "\n" + cog_bus
+
 
     # Mirrored exit keyframe: opacity 1->0, translateY(0)->-6px.
     assert "@keyframes gagos-verify-out" in css

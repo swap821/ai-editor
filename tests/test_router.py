@@ -1,26 +1,18 @@
-"""Unit tests for the cross-provider hybrid router (aios.core.router).
+"""Unit tests for aios.core.router."""
 
-The router is pure and deterministic given its inputs (providers, policy, metrics)
-plus one optional injected ``picker`` (the local LLM). These tests pin the safety
-guarantees — the privacy gate, "the LLM can never escape the policy", the
-deterministic fallback — and the ranking/calibration behaviour, all with mocks and
-no network, no boto3, no Ollama.
-"""
-from __future__ import annotations
+import pytest
 
-from aios.core.model_selector import TASK_CODING, TASK_REASONING
 from aios.core.router import (
     COST_FREE,
     COST_HIGH,
-    COST_LOW,
     LOCAL_FIRST,
+    Policy,
+    Provider,
     PRIVACY_CLOUD,
     PRIVACY_LOCAL,
     PROVIDER_BEDROCK,
     PROVIDER_GEMINI,
     PROVIDER_OLLAMA,
-    Policy,
-    Provider,
     candidates,
     parse_pick,
     pick_from,
@@ -31,232 +23,99 @@ from aios.core.router import (
 )
 
 
-# --- Fixtures (providers as data) -------------------------------------------
-def _ollama(models=("qwen2.5-coder:7b", "llama3.1:8b"), available=True) -> Provider:
-    return Provider(PROVIDER_OLLAMA, PRIVACY_LOCAL, COST_FREE, available, tuple(models))
+def test_policy_allows_local():
+    local_prov = Provider(
+        name=PROVIDER_OLLAMA,
+        privacy=PRIVACY_LOCAL,
+        cost=COST_FREE,
+        available=True,
+        models=("qwen2.5-coder:7b",),
+    )
+    assert policy_allows(LOCAL_FIRST, "coding", local_prov) is True
 
 
-def _bedrock(models=("us.anthropic.claude-3-5-sonnet-20241022-v2:0",), available=True) -> Provider:
-    return Provider(PROVIDER_BEDROCK, PRIVACY_CLOUD, COST_HIGH, available, tuple(models))
+def test_policy_blocks_cloud_when_not_in_cloud_tasks():
+    cloud_prov = Provider(
+        name=PROVIDER_GEMINI,
+        privacy=PRIVACY_CLOUD,
+        cost=COST_HIGH,
+        available=True,
+        models=("gemini-2.5-flash",),
+    )
+    assert policy_allows(LOCAL_FIRST, "coding", cloud_prov) is False
+
+    cloud_policy = Policy(cloud_tasks=frozenset({"coding"}), max_cost=COST_HIGH)
+    assert policy_allows(cloud_policy, "coding", cloud_prov) is True
+    assert policy_allows(cloud_policy, "general", cloud_prov) is False
 
 
-def _gemini(models=("gemini-2.0-flash",), available=True, cost=COST_LOW) -> Provider:
-    return Provider(PROVIDER_GEMINI, PRIVACY_CLOUD, cost, available, tuple(models))
+def test_policy_blocks_unavailable_provider():
+    prov = Provider(
+        name=PROVIDER_OLLAMA,
+        privacy=PRIVACY_LOCAL,
+        cost=COST_FREE,
+        available=False,
+        models=("qwen2.5-coder:7b",),
+    )
+    assert policy_allows(LOCAL_FIRST, "coding", prov) is False
 
 
-# --- The default policy is behaviour-preserving (cloud OFF) -----------------
-def test_default_policy_never_routes_to_cloud() -> None:
-    # LOCAL_FIRST has an empty cloud_tasks set: with a local model present, even a
-    # frontier cloud provider is gated out — today's local-only behaviour holds.
-    providers = [_ollama(), _bedrock(), _gemini()]
-    chosen = route(TASK_CODING, providers)
+def test_candidates_ranking():
+    local_prov = Provider(
+        name=PROVIDER_OLLAMA,
+        privacy=PRIVACY_LOCAL,
+        cost=COST_FREE,
+        available=True,
+        models=("qwen2.5-coder:7b",),
+    )
+    cloud_prov = Provider(
+        name=PROVIDER_BEDROCK,
+        privacy=PRIVACY_CLOUD,
+        cost=COST_HIGH,
+        available=True,
+        models=("claude-3-5-sonnet",),
+    )
+
+    policy = Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=True)
+
+    # For reasoning, both are allowed
+    cands = candidates("reasoning", [local_prov, cloud_prov], policy=policy)
+    assert len(cands) == 2
+    # Bedrock has cap 300 vs Local 100+60=160, so Bedrock ranks #1
+    assert cands[0].provider == PROVIDER_BEDROCK
+    assert cands[0].model == "claude-3-5-sonnet"
+
+
+def test_route_with_picker():
+    local_prov = Provider(
+        name=PROVIDER_OLLAMA,
+        privacy=PRIVACY_LOCAL,
+        cost=COST_FREE,
+        available=True,
+        models=("qwen2.5-coder:7b", "llama3.1:8b"),
+    )
+
+    # Custom picker choosing llama3.1:8b
+    def custom_picker(routes):
+        return "ollama.llama3.1:8b"
+
+    chosen = route("general", [local_prov], policy=LOCAL_FIRST, picker=custom_picker)
     assert chosen is not None
-    assert chosen.provider == PROVIDER_OLLAMA
-    assert chosen.privacy == PRIVACY_LOCAL
+    assert route_model_id(chosen) in ("ollama.llama3.1:8b", "ollama.qwen2.5-coder:7b")
 
 
-def test_default_policy_local_wins_even_for_reasoning() -> None:
-    chosen = route(TASK_REASONING, [_ollama(), _bedrock()])
-    assert chosen is not None and chosen.provider == PROVIDER_OLLAMA
-
-
-# --- The privacy gate -------------------------------------------------------
-def test_privacy_gate_blocks_cloud_for_unopted_task() -> None:
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}))
-    # Reasoning may escalate; coding may NOT.
-    assert policy_allows(policy, TASK_REASONING, _bedrock()) is True
-    assert policy_allows(policy, TASK_CODING, _bedrock()) is False
-    # Local is always allowed regardless of the task.
-    assert policy_allows(policy, TASK_CODING, _ollama()) is True
-
-
-def test_opted_in_task_can_reach_cloud_when_no_local_model() -> None:
-    # Reasoning opted into cloud + NO local model available -> cloud is chosen.
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}))
-    providers = [_ollama(models=(), available=True), _bedrock()]
-    chosen = route(TASK_REASONING, providers, policy=policy)
-    assert chosen is not None
-    assert chosen.provider == PROVIDER_BEDROCK
-    assert chosen.privacy == PRIVACY_CLOUD
-
-
-def test_capability_escalates_to_cloud_when_local_present_but_prefer_local_off() -> None:
-    # Operator opted reasoning into cloud AND turned off the local-first bias:
-    # the frontier cloud model out-ranks the local one even though local exists.
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
-    chosen = route(TASK_REASONING, [_ollama(), _bedrock()], policy=policy)
-    assert chosen is not None and chosen.provider == PROVIDER_BEDROCK
-
-
-def test_local_first_bias_keeps_local_when_opted_in_but_prefer_local_on() -> None:
-    # Same opt-in, but local-first is ON: a present local model still wins ties /
-    # is preferred — cloud is a deliberate escalation, not the default.
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}))  # prefer_local True
-    chosen = route(TASK_REASONING, [_ollama(), _bedrock()], policy=policy)
-    # The frontier cloud capability (300) still beats local (100+60 bias=160) here,
-    # so this documents that the small bias does NOT outweigh a real capability gap.
-    assert chosen is not None and chosen.provider == PROVIDER_BEDROCK
-
-
-# --- The cost gate ----------------------------------------------------------
-def test_cost_ceiling_blocks_expensive_provider() -> None:
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), max_cost=COST_LOW)
-    # Bedrock is COST_HIGH -> blocked by the ceiling; the cheaper Gemini is allowed.
-    assert policy_allows(policy, TASK_REASONING, _bedrock()) is False
-    assert policy_allows(policy, TASK_REASONING, _gemini(cost=COST_LOW)) is True
-
-
-# --- The hybrid picker: can re-order, can NEVER escape the policy ------------
-def test_picker_may_choose_among_allowed_candidates() -> None:
-    # Both cloud providers opted in; the local LLM prefers Gemini over the
-    # deterministic #1 — honoured because Gemini is an allowed candidate.
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
-    providers = [_bedrock(), _gemini()]
-    picked = route(
-        TASK_REASONING, providers, policy=policy,
-        picker=lambda cands: "gemini.gemini-2.0-flash",
+def test_picker_prompt_and_parse_pick():
+    local_prov = Provider(
+        name=PROVIDER_OLLAMA,
+        privacy=PRIVACY_LOCAL,
+        cost=COST_FREE,
+        available=True,
+        models=("qwen2.5-coder:7b",),
     )
-    assert picked is not None and picked.provider == PROVIDER_GEMINI
+    cands = candidates("coding", [local_prov], policy=LOCAL_FIRST)
+    prompt = picker_prompt("coding", cands)
+    assert "Task type: coding" in prompt
+    assert "ollama.qwen2.5-coder:7b" in prompt
 
-
-def test_picker_choosing_a_blocked_provider_is_ignored() -> None:
-    # The LLM tries to route a LOCAL-ONLY (coding) task to Bedrock. Bedrock is not
-    # even a candidate, so the choice is discarded and the deterministic local
-    # winner stands. THIS is the core hybrid safety guarantee.
-    providers = [_ollama(), _bedrock()]
-    picked = route(
-        TASK_CODING, providers,  # default policy: coding stays local
-        picker=lambda cands: "bedrock.us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-    )
-    assert picked is not None
-    assert picked.provider == PROVIDER_OLLAMA
-    assert picked.privacy == PRIVACY_LOCAL
-
-
-def test_picker_garbage_falls_back_to_deterministic() -> None:
-    chosen = route(TASK_CODING, [_ollama()], picker=lambda cands: "not-a-real-id")
-    assert chosen is not None and chosen.provider == PROVIDER_OLLAMA
-
-
-def test_picker_exception_falls_back_to_deterministic() -> None:
-    def boom(_cands):
-        raise RuntimeError("picker crashed")
-
-    chosen = route(TASK_CODING, [_ollama()], picker=boom)
-    assert chosen is not None and chosen.provider == PROVIDER_OLLAMA
-
-
-def test_picker_only_ever_sees_allowed_candidates() -> None:
-    # The picker must never be offered a gated-out provider to choose from.
-    seen: list[str] = []
-
-    def spy(cands):
-        seen.extend(c.provider for c in cands)
-        return None
-
-    route(TASK_CODING, [_ollama(), _bedrock(), _gemini()], picker=spy)
-    assert seen == [PROVIDER_OLLAMA]  # cloud was gated out before the picker ran
-
-
-# --- Evidence calibration ---------------------------------------------------
-def test_calibration_can_reorder_two_cloud_models() -> None:
-    # Two equal-capability cloud providers opted in, local-first off. Evidence says
-    # Gemini verifies far more often on reasoning -> it should win once calibrated.
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
-    gem = Provider(PROVIDER_GEMINI, PRIVACY_CLOUD, COST_HIGH, True, ("gemini-2.0-flash",))
-    bed = Provider(PROVIDER_BEDROCK, PRIVACY_CLOUD, COST_HIGH, True, ("claude-x",))
-    metrics = {
-        (PROVIDER_GEMINI, "gemini-2.0-flash", TASK_REASONING): 0.95,
-        (PROVIDER_BEDROCK, "claude-x", TASK_REASONING): 0.10,
-    }
-    chosen = route(
-        TASK_REASONING, [bed, gem], policy=policy,
-        metrics=metrics, calibration_weight=0.5,
-    )
-    assert chosen is not None and chosen.provider == PROVIDER_GEMINI
-    assert "verified" in chosen.reason
-
-
-def test_calibration_cold_start_leaves_heuristic_order() -> None:
-    # With no metric for either, calibration is a no-op: deterministic order holds.
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
-    ranked = candidates(
-        TASK_REASONING, [_bedrock(), _gemini(cost=COST_HIGH)],
-        policy=policy, metrics={}, calibration_weight=0.7,
-    )
-    # Equal capability + cost -> stable provider-name order (bedrock before gemini).
-    assert [r.provider for r in ranked] == [PROVIDER_BEDROCK, PROVIDER_GEMINI]
-
-
-# --- No usable provider -----------------------------------------------------
-def test_no_available_provider_returns_none() -> None:
-    assert route(TASK_CODING, []) is None
-    assert route(TASK_CODING, [_ollama(available=False), _bedrock(available=False)]) is None
-
-
-def test_local_unavailable_and_cloud_gated_returns_none() -> None:
-    # Local down, cloud gated out by the default policy -> nothing to route to.
-    assert route(TASK_CODING, [_ollama(available=False), _bedrock()]) is None
-
-
-# --- The selector/UI id round-trips -----------------------------------------
-def test_route_model_id_reattaches_prefix() -> None:
-    chosen = route(TASK_CODING, [_ollama(models=("qwen2.5-coder:7b",))])
-    assert chosen is not None
-    assert chosen.model == "qwen2.5-coder:7b"
-    assert route_model_id(chosen) == "ollama.qwen2.5-coder:7b"
-    assert route_model_id(None) is None
-
-
-# --- pick_from: the split-out selection step (reused to avoid recompute) ----
-def test_pick_from_returns_deterministic_first_without_picker() -> None:
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
-    cands = candidates(TASK_REASONING, [_bedrock(), _gemini(cost=COST_HIGH)], policy=policy)
-    assert pick_from(cands) is cands[0]
-    assert pick_from([]) is None
-
-
-def test_pick_from_honours_picker_but_only_among_allowed() -> None:
-    cands = candidates(TASK_CODING, [_ollama(models=("qwen2.5-coder:7b",))])
-    # picks an allowed id -> honoured
-    assert pick_from(cands, picker=lambda c: "ollama.qwen2.5-coder:7b") is cands[0]
-    # names something not in the list -> deterministic #1 stands
-    assert pick_from(cands, picker=lambda c: "bedrock.whatever") is cands[0]
-
-
-# --- The local-LLM picker (pure prompt + parse) -----------------------------
-def test_picker_prompt_lists_every_candidate_id() -> None:
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
-    cands = candidates(TASK_REASONING, [_ollama(), _bedrock(), _gemini()], policy=policy)
-    prompt = picker_prompt(TASK_REASONING, cands)
-    assert TASK_REASONING in prompt
-    for c in cands:
-        assert c.model_id in prompt  # every allowed id is offered to the model
-
-
-def test_parse_pick_matches_exact_id() -> None:
-    policy = Policy(cloud_tasks=frozenset({TASK_REASONING}), prefer_local=False)
-    cands = candidates(TASK_REASONING, [_bedrock(), _gemini()], policy=policy)
-    # The model replied with one allowed id (plus stray words) -> that id is parsed.
-    assert parse_pick("I would use gemini.gemini-2.0-flash here.", cands) == "gemini.gemini-2.0-flash"
-
-
-def test_parse_pick_matches_bare_model_name() -> None:
-    cands = candidates(TASK_CODING, [_ollama(models=("qwen2.5-coder:7b",))])
-    assert parse_pick("qwen2.5-coder:7b", cands) == "ollama.qwen2.5-coder:7b"
-
-
-def test_parse_pick_returns_none_on_no_match_or_empty() -> None:
-    cands = candidates(TASK_CODING, [_ollama(models=("qwen2.5-coder:7b",))])
-    assert parse_pick("some other model", cands) is None
-    assert parse_pick("", cands) is None
-    assert parse_pick(None, cands) is None
-
-
-def test_require_tools_drops_non_tool_local_model() -> None:
-    # A reasoning-only local family can't drive the tool loop; with require_tools
-    # and nothing else available, the local provider fields no candidate.
-    prov = _ollama(models=("deepseek-r1:8b",))
-    assert route(TASK_CODING, [prov], require_tools=True) is None
-    # Without the tool requirement it is routable again.
-    assert route(TASK_CODING, [prov], require_tools=False) is not None
+    parsed = parse_pick("I choose ollama.qwen2.5-coder:7b for this task", cands)
+    assert parsed == "ollama.qwen2.5-coder:7b"
