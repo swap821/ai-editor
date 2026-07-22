@@ -838,7 +838,19 @@ def _sse(
             try:
                 bus.append(canonical)
             except Exception:
-                pass
+                # Not re-raised: a rejected/failed cortex-bus mirror-mapping
+                # must never break the real SSE response the operator is
+                # waiting on. Logged (not silently dropped) because a
+                # rejection here is a real gap in the truthful mirror, not
+                # noise -- e.g. "human_required" maps to "approval.required",
+                # which CortexBus.append() always refuses (an authority-
+                # bearing prefix), so this canonical event never reaches
+                # the mirror stream today.
+                logger.debug(
+                    "cortex_bus_mirror_append_failed",
+                    extra={"sse_event": event, "canonical_type": canonical_type},
+                    exc_info=True,
+                )
     payload = json.dumps(data, ensure_ascii=False)
     # Defensive: escape any literal newlines that would break the SSE frame.
     payload = payload.replace("\r", "\\r").replace("\n", "\\n")
