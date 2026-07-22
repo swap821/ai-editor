@@ -81,6 +81,11 @@ def test_council_origination_complex_task_uses_royal_decree_and_waits_for_approv
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
+    # This test exercises royal-decree mission origination mechanics, not
+    # reasoning quality -- Council LLM reasoning is now genuinely wired
+    # (Slice 41) and would otherwise make a real, slow, non-deterministic
+    # Ollama call whenever a test operator happens to be enrolled.
+    monkeypatch.setattr(config, "COUNCIL_REASONING", False)
     workspace = tmp_path / "ws"
     workspace.mkdir()
     (workspace / "target.txt").write_text("original\n", encoding="utf-8")

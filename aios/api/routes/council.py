@@ -48,7 +48,9 @@ from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
+from aios.council.gateway_reasoning import build_council_llm_client
 from aios.council.queen_verdict import has_blocking_verdict
+from aios.council.queens.planner import PlannerQueen
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
 from aios.runtime.cortex_bus import CortexBus
 from aios.api.deps import (
@@ -451,13 +453,18 @@ def _run_council_deliberation(
         council_state, council_memory, memory_authority = get_council_memory_scope(
             runtime_root
         )
+        emergency_stop = get_emergency_stop()
+        council_llm = build_council_llm_client(emergency_stop=emergency_stop)
+        planner = PlannerQueen(llm=council_llm) if council_llm is not None else None
         CouncilOrchestrator(
             runtime_root=runtime_root,
             council_state=council_state,
             council_memory=council_memory,
             memory_authority=memory_authority,
             bus=bus,
-            emergency_stop=get_emergency_stop(),
+            emergency_stop=emergency_stop,
+            planner=planner,
+            king_complete=council_llm.complete if council_llm is not None else None,
         ).deliberate(request)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning(
@@ -480,13 +487,18 @@ def _run_council_execution(
         council_state, council_memory, memory_authority = get_council_memory_scope(
             runtime_root
         )
+        emergency_stop = get_emergency_stop()
+        council_llm = build_council_llm_client(emergency_stop=emergency_stop)
+        planner = PlannerQueen(llm=council_llm) if council_llm is not None else None
         orchestrator = CouncilOrchestrator(
             runtime_root=runtime_root,
             council_state=council_state,
             council_memory=council_memory,
             memory_authority=memory_authority,
             bus=bus,
-            emergency_stop=get_emergency_stop(),
+            emergency_stop=emergency_stop,
+            planner=planner,
+            king_complete=council_llm.complete if council_llm is not None else None,
         )
         asyncio.run(
             orchestrator.execute(ledger.contract, list(ledger.council_verdicts))

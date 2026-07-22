@@ -32,6 +32,11 @@ ALLOWED_CLIENT_IMPORTERS = {
     # isinstance(self.llm, OllamaClient) capability check on an injected
     # client (self.llm = llm at construction) -- not a construction site.
     "aios/agents/reflection_agent.py",
+    # Slice 41: default local-model provider for Council Planner/King
+    # reasoning, wired through route_intelligence_request() (Slice 30)
+    # rather than calling a provider directly -- same category as the
+    # local-model adapters above, not a boundary bypass.
+    "aios/council/gateway_reasoning.py",
 }
 
 # Provider adapter classes that should not be used directly.

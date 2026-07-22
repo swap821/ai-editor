@@ -18,13 +18,19 @@ from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
 
 
-def _client_overrides(runtime_root: Path):
+def _client_overrides(runtime_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     app.dependency_overrides[get_council_runtime_root] = lambda: runtime_root
+    # These tests exercise approval/rejection mechanics, not reasoning
+    # quality -- Council LLM reasoning is now genuinely wired (Slice 41)
+    # and would otherwise make a real, slow, non-deterministic Ollama call
+    # whenever a test operator happens to be enrolled. Same convention as
+    # test_api.py's FakeLLM overrides for the /generate path.
+    monkeypatch.setattr(config, "COUNCIL_REASONING", False)
 
 
 def test_originate_disabled_returns_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", False)
-    _client_overrides(tmp_path / "runtime")
+    _client_overrides(tmp_path / "runtime", monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             r = client.post(
@@ -43,7 +49,7 @@ def test_originate_deliberates_to_awaiting_approval(
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "ws")
     (tmp_path / "ws").mkdir()
     runtime_root = tmp_path / "runtime"
-    _client_overrides(runtime_root)
+    _client_overrides(runtime_root, monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             r = client.post(
@@ -92,7 +98,7 @@ def test_approve_triggers_execution_and_worker_acts(
     original = (workspace / "target.txt").read_text(encoding="utf-8")
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", workspace)
     runtime_root = tmp_path / "runtime"
-    _client_overrides(runtime_root)
+    _client_overrides(runtime_root, monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             originated = client.post(
@@ -162,7 +168,7 @@ def test_reject_does_not_execute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     (workspace / "target.txt").write_text("original\n", encoding="utf-8")
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", workspace)
     runtime_root = tmp_path / "runtime"
-    _client_overrides(runtime_root)
+    _client_overrides(runtime_root, monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             mission_id = client.post(
@@ -199,7 +205,7 @@ def test_second_decision_is_rejected_409(tmp_path: Path, monkeypatch: pytest.Mon
     workspace.mkdir()
     (workspace / "target.txt").write_text("original\n", encoding="utf-8")
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", workspace)
-    _client_overrides(tmp_path / "runtime")
+    _client_overrides(tmp_path / "runtime", monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             mission_id = client.post(
@@ -236,7 +242,7 @@ def test_reject_blocks_a_later_approve(tmp_path: Path, monkeypatch: pytest.Monke
     workspace.mkdir()
     (workspace / "target.txt").write_text("original\n", encoding="utf-8")
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", workspace)
-    _client_overrides(tmp_path / "runtime")
+    _client_overrides(tmp_path / "runtime", monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             mission_id = client.post(
@@ -273,7 +279,7 @@ def test_originate_rejects_glob_scope(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "ws")
     (tmp_path / "ws").mkdir()
-    _client_overrides(tmp_path / "runtime")
+    _client_overrides(tmp_path / "runtime", monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             r = client.post(
@@ -289,7 +295,7 @@ def test_originate_rejects_escaping_scope(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "ws")
     (tmp_path / "ws").mkdir()
-    _client_overrides(tmp_path / "runtime")
+    _client_overrides(tmp_path / "runtime", monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             escape = client.post(
