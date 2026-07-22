@@ -125,6 +125,16 @@ const core: Record<string, ReactionSpec> = {
   'memory.trusted_workflow_applied': {
     react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'TRUSTED WORKFLOW', detail: text(payload, 'workflowId', 'workflow_id').slice(0, 140) || 'applied', intensity: 1, source: 'mirror' }),
   },
+  'facts.proposed': {
+    announcement: (p) => {
+      const count = Number(value(p, 'count') ?? 0);
+      return `${count} fact${count === 1 ? '' : 's'} proposed for memory.`;
+    },
+    react: ({ payload }) => {
+      const count = Number(value(payload, 'count') ?? 0);
+      publish({ type: 'knowledge-acquired', label: 'FACTS PROPOSED', detail: `${count} candidate fact(s)`, intensity: 0.5, source: 'mirror' });
+    },
+  },
   'memory.promoted': {
     announcement: () => 'Verified memory promoted with provenance.',
     react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'MEMORY PROMOTED', detail: text(payload, 'recordId', 'record_id', 'memoryType') || 'verified memory', intensity: 0.8, source: 'mirror' }),
@@ -154,10 +164,30 @@ const core: Record<string, ReactionSpec> = {
     announcement: (p) => `Edit blocked: ${text(p, 'reason') || 'policy gate'}`.slice(0, 160),
     react: ({ payload }) => publish({ type: 'error', label: 'EDIT BLOCKED', detail: text(payload, 'reason') || 'gate intervention', intensity: 1, source: 'mirror' }),
   },
+  'worker.requested': {
+    announcement: (p) => `Worker requested: ${text(p, 'workerId', 'worker_id')}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'agent-dispatch', label: 'WORKER REQUESTED', detail: text(payload, 'reason') || 'awaiting admission', intensity: 0.3, source: 'mirror' }),
+  },
+  'worker.admitted': {
+    announcement: (p) => `Worker admitted: ${text(p, 'workerId', 'worker_id')}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'agent-dispatch', label: 'WORKER ADMITTED', detail: text(payload, 'strategy') || 'scheduler admission', intensity: 0.5, source: 'mirror' }),
+  },
   'worker.started': {
     requiredFields: ['workerId'],
     announcement: (p) => `Worker started: ${text(p, 'role', 'workerId')}`.slice(0, 160),
     react: ({ payload }) => publish({ type: 'agent-dispatch', label: text(payload, 'role').toUpperCase() || 'WORKER STARTED', detail: text(payload, 'workerId', 'worker_id') || 'temporary worker', intensity: 0.8, source: 'mirror' }),
+  },
+  'worker.awaiting_capability': {
+    announcement: (p) => `Worker paused for capability: ${text(p, 'reason') || 'awaiting authority'}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'approval-required', label: 'WORKER AWAITING CAPABILITY', detail: text(payload, 'reason') || 'a capability grant is required to continue', intensity: 0.9, source: 'mirror' }),
+  },
+  'worker.failed': {
+    announcement: (p) => `Worker failed: ${text(p, 'reason') || 'see history'}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'error', label: 'WORKER FAILED', detail: text(payload, 'reason') || text(payload, 'workerId', 'worker_id'), intensity: 0.95, source: 'mirror' }),
+  },
+  'worker.killed': {
+    announcement: (p) => `Worker killed: ${text(p, 'reason') || 'cancelled'}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'error', label: 'WORKER KILLED', detail: text(payload, 'reason') || text(payload, 'workerId', 'worker_id'), intensity: 0.7, source: 'mirror' }),
   },
   'worker.completed': {
     announcement: (p) => `Worker completed: ${text(p, 'role', 'workerId')}`.slice(0, 160),
@@ -184,6 +214,15 @@ const core: Record<string, ReactionSpec> = {
     react: ({ payload }) => publish({ type: 'route', label: 'ACTIVE BRAIN', detail: `${text(payload, 'provider') || '?'}:${text(payload, 'model', 'model_id') || '?'} (${text(payload, 'privacy', 'data_classification') || '?'})`, intensity: 0.3, source: 'mirror', data: payload }),
   },
   'route': {
+    announcement: (p) => `Intelligence route: ${text(p, 'provider') || '?'}:${text(p, 'model') || '?'}`,
+    react: ({ payload }) => publish({ type: 'route', label: 'ACTIVE BRAIN', detail: `${text(payload, 'provider') || '?'}:${text(payload, 'model') || '?'} (${text(payload, 'privacy') || '?'})`, intensity: 0.3, source: 'mirror', data: payload }),
+  },
+  // The real canonical name (aios.core.events.CanonicalEventType.ROUTE_SELECTED)
+  // -- aios/api/main.py's _sse() bridge always translates the raw "route" SSE
+  // frame to "route.selected" before Cortex-bus publication, so this is the
+  // one that actually reaches this registry via aiosMirror.ts; 'route' and
+  // 'model.selected' above are unreachable through that pipeline today.
+  'route.selected': {
     announcement: (p) => `Intelligence route: ${text(p, 'provider') || '?'}:${text(p, 'model') || '?'}`,
     react: ({ payload }) => publish({ type: 'route', label: 'ACTIVE BRAIN', detail: `${text(payload, 'provider') || '?'}:${text(payload, 'model') || '?'} (${text(payload, 'privacy') || '?'})`, intensity: 0.3, source: 'mirror', data: payload }),
   },
