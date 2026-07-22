@@ -1,0 +1,9 @@
+# Files whose bytes are hash-pinned (release/organ-proof-manifest.json,
+# tests/test_organ_release_conformance.py) must check out identically on
+# every platform. Without this, Windows' core.autocrlf=true converts LF to
+# CRLF on checkout, producing a different sha256 than Linux/macOS -- which
+# only stores/checks out the committed LF bytes -- even though the git
+# object itself is unchanged.
+.aios/state/ORGAN_GREEN_LEDGER.json text eol=lf
+docs/architecture/GAGOS_54_ORGANS.md text eol=lf
+release/**/*.json text eol=lf

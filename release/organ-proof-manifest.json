@@ -1,18 +1,18 @@
 {
   "schema_version": "1",
-  "created_at": "2026-07-21T23:10:31+00:00",
-  "source_commit_sha": "58133b902d87257760adb3df9af651be42d8efbf",
+  "created_at": "2026-07-22T03:43:10+00:00",
+  "source_commit_sha": "f089d5195acee4641ca3c58d63b0d7cdcd7d56ed",
   "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
-  "ledger_sha256": "a2cf427053d3caed2bc7d4b284ef2873c02b54fb09fee5586c7ce658d2d9d08b",
+  "ledger_sha256": "4af868f0b49c64f3c706caf304dea86ff752f9427e387af1f6ab87a95b46c889",
   "organ_summary": {
     "total": 54,
     "green": 22,
     "yellow": 32
   },
   "files": {
-    ".aios/state/ORGAN_GREEN_LEDGER.json": "a2cf427053d3caed2bc7d4b284ef2873c02b54fb09fee5586c7ce658d2d9d08b",
+    ".aios/state/ORGAN_GREEN_LEDGER.json": "4af868f0b49c64f3c706caf304dea86ff752f9427e387af1f6ab87a95b46c889",
     "docs/architecture/GAGOS_54_ORGANS.md": "309337f268c4b3bf1ef6989b4c5da352f8b288236846bc1eee1d8fac5d3d56ac",
-    "release/slice32/granite-qualification-live.json": "bfdb7f004349628a99ac34e0cd409b7ebf047c4aec6d1d022f178cfa483fb87a"
+    "release/slice32/granite-qualification-live.json": "d9af4ebe01a98ca895573a70e6b7702e3d2b8216facedbdedf60cf7afcbfa60a"
   },
   "note": "This manifest hash-pins the Slice 25 organ ledger baseline at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never this baseline sha, and must never be labelled fixture."
 }
