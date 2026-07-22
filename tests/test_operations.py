@@ -146,9 +146,10 @@ def test_doctor_backup_check_empty_directory_is_warning_in_dev_fatal_in_prod(
     assert next(c for c in demo.checks if c.name == "backup_freshness").status == (
         "warning"
     )
-    assert next(
-        c for c in production.checks if c.name == "backup_freshness"
-    ).status == "fatal"
+    assert (
+        next(c for c in production.checks if c.name == "backup_freshness").status
+        == "fatal"
+    )
 
 
 def test_doctor_backup_check_fresh_backup_passes_even_in_production(
