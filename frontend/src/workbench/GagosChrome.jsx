@@ -74,21 +74,28 @@ function deriveCoachCards(state) {
 
 function renderWithRedactionChips(text) {
   const value = String(text ?? '');
-  const parts = value.split(BACKEND_REDACTION_MARKER_RE);
-  if (parts.length === 1) return value;
+  // BACKEND_REDACTION_MARKER_RE has no capturing group, so String.split()
+  // would silently drop any text after the last match rather than
+  // interleaving it -- walk matches explicitly instead. Clone the shared
+  // /g regex per aiosAdapter.ts's own documented convention: exec() is
+  // stateful via lastIndex, and the module-level constant is reused
+  // elsewhere.
+  const re = new RegExp(BACKEND_REDACTION_MARKER_RE.source, 'g');
   const out = [];
-  parts.forEach((part, i) => {
-    if (i % 2 === 0) {
-      if (part) out.push(part);
-    } else {
-      out.push(
-        <span key={i} className="gagos-redacted-chip" title="Withheld by privacy policy">
-          <span className="gagos-redacted-chip__dot" aria-hidden="true" />
-          <span className="gagos-redacted-chip__label">redacted</span>
-        </span>,
-      );
-    }
-  });
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+  while ((match = re.exec(value)) !== null) {
+    if (match.index > lastIndex) out.push(value.slice(lastIndex, match.index));
+    out.push(
+      <span key={key++} className="gagos-redaction" title="Withheld by privacy policy">
+        restricted
+      </span>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (out.length === 0) return value;
+  if (lastIndex < value.length) out.push(value.slice(lastIndex));
   return out;
 }
 
