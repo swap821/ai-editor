@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from aios.application.read_models.projection import IncrementalSystemProjection
-from aios.operations.doctor import doctor_report
+from aios.operations.doctor import doctor_report, newest_backup_age_seconds
 from aios.operations.recovery import (
     RecoveryError,
     create_backup,
@@ -215,6 +215,96 @@ def test_doctor_backup_check_picks_the_newest_of_several_archives(
     check = next(c for c in report.checks if c.name == "backup_freshness")
     assert check.status == "measured"
     assert newer.name in check.message
+
+
+# --------------------------------------------------------------------------- #
+# newest_backup_age_seconds -- shared by doctor's freshness check and the
+# CLI's `backup create --if-stale` (organ 54: scheduled backup cadence)
+# --------------------------------------------------------------------------- #
+
+
+def test_newest_backup_age_seconds_is_none_for_missing_directory(
+    tmp_path: Path,
+) -> None:
+    assert newest_backup_age_seconds(tmp_path / "no-such-dir") is None
+
+
+def test_newest_backup_age_seconds_is_none_for_empty_directory(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    assert newest_backup_age_seconds(backup_dir) is None
+
+
+def test_newest_backup_age_seconds_measures_the_newest_archive(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    archive = backup_dir / "gagos-20260722T000000Z.tar.gz"
+    archive.write_bytes(b"fake-archive")
+    one_hour_ago = datetime.now(timezone.utc).timestamp() - 3600
+    os.utime(archive, (one_hour_ago, one_hour_ago))
+
+    age = newest_backup_age_seconds(backup_dir)
+
+    assert age is not None
+    assert 3500 < age < 3700
+
+
+def test_cli_backup_create_if_stale_skips_when_fresh_creates_when_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Organ 54: makes `backup create --if-stale` safe for an OS-level
+    scheduler (cron/systemd timer/Task Scheduler) to invoke on a fixed
+    cadence -- a fresh existing archive means no-op, a stale or missing one
+    means a real backup is created, matching the same freshness threshold
+    doctor_report() already reports on."""
+    import types
+
+    from aios import __main__ as cli
+    from aios import config
+
+    backup_dir = tmp_path / "backups"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "aios_memory.db").write_bytes(b"state")
+    monkeypatch.setattr(config, "BACKUP_DIR", backup_dir)
+    monkeypatch.setattr(config, "DATA_DIR", data_dir)
+
+    args = types.SimpleNamespace(
+        backup_command="create",
+        output=None,
+        if_stale=True,
+        stale_after_seconds=None,
+        json=True,
+    )
+
+    # No backup exists yet -- must create one.
+    assert cli._cmd_backup(args) == 0
+    assert json.loads(capsys.readouterr().out)["created"] is True
+    assert len(list(backup_dir.glob("gagos-*.tar.gz"))) == 1
+
+    # Freshly created -- a second invocation must skip, not pile up archives.
+    assert cli._cmd_backup(args) == 0
+    skipped_payload = json.loads(capsys.readouterr().out)
+    assert skipped_payload["created"] is False
+    assert skipped_payload["reason"] == "most recent backup is still fresh"
+    assert len(list(backup_dir.glob("gagos-*.tar.gz"))) == 1
+
+    # Force staleness via an explicit tiny threshold -- must decide to
+    # create again (the decision itself, not the collidable same-second
+    # filename, is what this proves).
+    stale_args = types.SimpleNamespace(
+        backup_command="create",
+        output=None,
+        if_stale=True,
+        stale_after_seconds=0,
+        json=True,
+    )
+    assert cli._cmd_backup(stale_args) == 0
+    assert json.loads(capsys.readouterr().out)["created"] is True
 
 
 def test_backup_manifest_excludes_environment_files_and_round_trips_state(

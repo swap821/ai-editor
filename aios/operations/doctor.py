@@ -14,7 +14,7 @@ from aios.security.audit_logger import verify_chain
 
 #: A backup older than this is reported as a warning, never fatal -- staleness
 #: is a soft operational signal, not proof the backup is unusable.
-_BACKUP_STALE_AFTER_SECONDS = 7 * 24 * 60 * 60
+BACKUP_STALE_AFTER_SECONDS = 7 * 24 * 60 * 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +96,21 @@ def _audit_check(*, production: bool) -> DoctorCheck:
     )
 
 
+def newest_backup_age_seconds(backup_dir: Path) -> float | None:
+    """Age of the most recent `gagos-*.tar.gz` archive in *backup_dir*, or
+    `None` if the directory or an archive doesn't exist. Shared by
+    `_backup_check` (reporting) and the CLI's `backup create --if-stale`
+    (deciding whether a scheduled/cron invocation should actually run) so
+    both use one definition of "stale"."""
+    if not backup_dir.exists():
+        return None
+    backups = sorted(backup_dir.glob("gagos-*.tar.gz"))
+    if not backups:
+        return None
+    newest = max(backups, key=lambda path: path.stat().st_mtime)
+    return datetime.now(timezone.utc).timestamp() - newest.stat().st_mtime
+
+
 def _backup_check(*, production: bool, backup_dir: Path) -> DoctorCheck:
     """Existence is `required=production` (matching `executor`/`operator_token`'s
     dev-vs-production severity split); staleness is always a warning, never
@@ -108,17 +123,16 @@ def _backup_check(*, production: bool, backup_dir: Path) -> DoctorCheck:
             f"no backup directory found at {backup_dir}",
             required=production,
         )
-    backups = sorted(backup_dir.glob("gagos-*.tar.gz"))
-    if not backups:
+    age_seconds = newest_backup_age_seconds(backup_dir)
+    if age_seconds is None:
         return _check(
             "backup_freshness",
             False,
             f"no backup archive found in {backup_dir}",
             required=production,
         )
-    newest = max(backups, key=lambda path: path.stat().st_mtime)
-    age_seconds = datetime.now(timezone.utc).timestamp() - newest.stat().st_mtime
-    if age_seconds > _BACKUP_STALE_AFTER_SECONDS:
+    newest = max(backup_dir.glob("gagos-*.tar.gz"), key=lambda path: path.stat().st_mtime)
+    if age_seconds > BACKUP_STALE_AFTER_SECONDS:
         age_days = int(age_seconds // 86400)
         return _check(
             "backup_freshness",
@@ -233,4 +247,10 @@ def doctor_report(
     )
 
 
-__all__ = ["DoctorCheck", "DoctorReport", "doctor_report"]
+__all__ = [
+    "BACKUP_STALE_AFTER_SECONDS",
+    "DoctorCheck",
+    "DoctorReport",
+    "doctor_report",
+    "newest_backup_age_seconds",
+]

@@ -155,3 +155,62 @@ def test_restore_backup_automatically_invalidates_stale_authority(
     assert restored_generation != generation_at_snapshot
     with pytest.raises(Exception, match="unknown or already used"):
         ApprovalStore(db_path=approval_path).consume(token, "session-1")
+
+
+# --------------------------------------------------------------------------- #
+# Live disaster-recovery drill -- organ 54's own remaining gap: everything
+# above proves the invalidation *logic*, but never through a real crash and
+# restart of the actual production authentication chain (IdentityService,
+# a real signed/DB-backed session cookie). This drill does: it enrolls a
+# real operator, authenticates to get a real session cookie, snapshots,
+# simulates further live drift, restores, then builds a brand-new
+# IdentityService instance sharing no in-memory state with the original --
+# the same "new process starts, reads only from disk" a real crash/restart
+# implies -- and proves the pre-restore-snapshot cookie is honestly refused.
+# --------------------------------------------------------------------------- #
+
+
+def test_live_dr_drill_a_pre_snapshot_session_is_refused_after_crash_and_restart(
+    tmp_path: Path,
+) -> None:
+    from aios.application.identity.service import IdentityService
+
+    data = tmp_path / "data"
+    data.mkdir()
+    # Must match config.IDENTITY_DB_PATH.name / config.SESSION_DB_PATH.name --
+    # restore_backup()'s automatic invalidate_stale_authority_after_restore()
+    # call looks for these exact default filenames under data_dir.
+    identity_path = data / "aios_identity.db"
+    session_path = data / "aios_sessions.db"
+
+    service = IdentityService(
+        identity_db_path=identity_path, session_db_path=session_path
+    )
+    enrollment = service.enroll_operator(display_name="Operator")
+    authenticated = service.authenticate_credential(enrollment.enrollment_credential)
+    session_cookie = authenticated.session_cookie
+    # Sanity: the cookie genuinely works before any of this drill happens.
+    assert service.get_authenticated_principal(session_cookie) is not None
+
+    bundle = tmp_path / "backup.tar.gz"
+    create_backup(data_dir=data, destination=bundle)
+
+    # Live drift after the snapshot: the operator re-authenticates elsewhere
+    # (e.g. a second device), superseding the snapshot's session generation.
+    service.authenticate_credential(enrollment.enrollment_credential)
+
+    # The crash: restore from the pre-drift snapshot.
+    restore_backup(
+        bundle=bundle,
+        data_dir=data,
+        safety_backup=tmp_path / "safety.tar.gz",
+    )
+
+    # The restart: a brand-new IdentityService, no shared in-memory state
+    # with `service` above -- reads only what's now on disk.
+    restarted_service = IdentityService(
+        identity_db_path=identity_path, session_db_path=session_path
+    )
+    # The session cookie a real client still holds from before the crash
+    # must be honestly refused, not silently trusted.
+    assert restarted_service.get_authenticated_principal(session_cookie) is None

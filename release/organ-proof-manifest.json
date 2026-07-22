@@ -1,18 +1,18 @@
 {
   "schema_version": "1",
-  "created_at": "2026-07-22T20:56:28+00:00",
-  "source_commit_sha": "05e0d3b3eb307178d44a279df0499c136d5aba00",
+  "created_at": "2026-07-22T21:28:56+00:00",
+  "source_commit_sha": "d2ca25db166a07426793d1cf8658ab0a81eb9f15",
   "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
-  "ledger_sha256": "07538745025e86b1b467c680062bc5adee57425e113631d042fa4e03ee2dc82a",
+  "ledger_sha256": "4d186ee6d334dcdf4af4adc246a13a7cd6a3474d638604bc9bf9e84408ea1431",
   "organ_summary": {
     "total": 54,
-    "green": 25,
-    "yellow": 29
+    "green": 26,
+    "yellow": 28
   },
   "files": {
-    ".aios/state/ORGAN_GREEN_LEDGER.json": "07538745025e86b1b467c680062bc5adee57425e113631d042fa4e03ee2dc82a",
-    "docs/architecture/GAGOS_54_ORGANS.md": "d5ab902b3abb746ba38b13b6d073244edfb3cedc6948a39ca9bb3582ec80d546",
+    ".aios/state/ORGAN_GREEN_LEDGER.json": "4d186ee6d334dcdf4af4adc246a13a7cd6a3474d638604bc9bf9e84408ea1431",
+    "docs/architecture/GAGOS_54_ORGANS.md": "1f6ef3985dc71e355d3e8cdec1d962dc5adff5aa038a722a1256b894410b505e",
     "release/slice32/granite-qualification-live.json": "d9af4ebe01a98ca895573a70e6b7702e3d2b8216facedbdedf60cf7afcbfa60a"
   },
-  "note": "This manifest hash-pins the organ ledger at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never a stale baseline sha, and must never be labelled fixture. Regenerated after the Tier-1 closure pass moved organs 29, 35, and 43 to green (25/29 split, up from the 22/32 Slice-25 baseline)."
+  "note": "This manifest hash-pins the organ ledger at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never a stale baseline sha, and must never be labelled fixture. Regenerated after the Tier-1 closure pass moved organs 29, 35, 43, and 54 to green (26/28 split, up from the 22/32 Slice-25 baseline)."
 }

@@ -115,17 +115,40 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_backup(args: argparse.Namespace) -> int:
+    from aios.operations.doctor import BACKUP_STALE_AFTER_SECONDS, newest_backup_age_seconds
     from aios.operations.recovery import create_backup, restore_backup, verify_backup
 
     if args.backup_command == "create":
+        if getattr(args, "if_stale", False):
+            threshold = (
+                args.stale_after_seconds
+                if args.stale_after_seconds is not None
+                else BACKUP_STALE_AFTER_SECONDS
+            )
+            age_seconds = newest_backup_age_seconds(config.BACKUP_DIR)
+            if age_seconds is not None and age_seconds <= threshold:
+                _print_payload(
+                    {
+                        "created": False,
+                        "reason": "most recent backup is still fresh",
+                        "age_seconds": round(age_seconds),
+                        "stale_after_seconds": threshold,
+                    },
+                    as_json=args.json,
+                )
+                return 0
         destination = (
             Path(args.output)
             if args.output
             else config.BACKUP_DIR
             / (f"gagos-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz")
         )
-        manifest = create_backup(destination=destination)
-        payload = {"output": str(destination.resolve()), "manifest": manifest.as_dict()}
+        manifest = create_backup(data_dir=config.DATA_DIR, destination=destination)
+        payload = {
+            "created": True,
+            "output": str(destination.resolve()),
+            "manifest": manifest.as_dict(),
+        }
         _print_payload(payload, as_json=args.json)
         return 0
     if args.backup_command == "verify":
@@ -281,6 +304,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     backup_create.add_argument(
         "--output", help="Archive path; defaults to data/backups."
+    )
+    backup_create.add_argument(
+        "--if-stale",
+        action="store_true",
+        dest="if_stale",
+        help=(
+            "Skip creating a new archive if the most recent one is still "
+            "fresh (see --stale-after-seconds). Makes this command safe to "
+            "invoke on a fixed cadence from an OS-level scheduler (cron, "
+            "systemd timer, Windows Task Scheduler) without piling up "
+            "redundant archives."
+        ),
+    )
+    backup_create.add_argument(
+        "--stale-after-seconds",
+        type=int,
+        default=None,
+        dest="stale_after_seconds",
+        help="Only with --if-stale. Overrides the default 7-day threshold.",
     )
     backup_create.add_argument("--json", action="store_true", help="Emit JSON.")
     backup_verify = backup_subparsers.add_parser(

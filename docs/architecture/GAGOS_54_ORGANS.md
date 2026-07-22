@@ -27,11 +27,11 @@ surfaced via `python -m aios.launcher organ-check [--json] [--strict]`.
   blocker instead of an aspirational claim.
 
 **Update (Tier-1 closure pass, same-session follow-on after the Slices 25-40
-reconciliation pass closed):** organs 29, 35, and 43 moved green — see "Green
-organs closed since baseline" below. The original Slice-25 baseline table
-immediately following this note is left exactly as first established (per
-this repo's doc-currency convention: append, never silently rewrite dated
-evidence). Current true counts: 25 green / 29 yellow.
+reconciliation pass closed):** organs 29, 35, 43, and 54 moved green — see
+"Green organs closed since baseline" below. The original Slice-25 baseline
+table immediately following this note is left exactly as first established
+(per this repo's doc-currency convention: append, never silently rewrite
+dated evidence). Current true counts: 26 green / 28 yellow.
 
 ## Green organs (22) — established prior to Slice 25
 
@@ -60,15 +60,16 @@ evidence). Current true counts: 25 green / 29 yellow.
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `aios/council/council_orchestrator.py` | `tests/test_council_orchestrator.py`, `tests/test_e2e_sovereign_flywheel.py` |
 | 22 | V1 Release Declaration (`gagos v1-check`) | `ReleaseDeclarationAuthority` | `aios/application/governance/v1_declaration.py` | `tests/test_v1_declaration.py`, `tests/test_launcher.py` |
 
-## Green organs closed since baseline (3)
+## Green organs closed since baseline (4)
 
 | # | Organ | Authority owner | Entry point | Tests |
 |---|-------|------------------|-------------|-------|
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py` | `tests/test_human_representation.py`, `tests/test_alignment.py`, `tests/test_memory.py` |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `aios/domain/local_workforce/contracts.py` | `tests/test_local_clerk_dispatcher.py`, `tests/domain/test_local_workforce_qualifier.py` |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `aios/domain/learning/skill_contracts.py`, `aios/domain/learning/repository.py`, `aios/application/learning/skill_lifecycle.py`, `aios/application/learning/service.py` | `tests/test_skill_lifecycle.py`, `tests/domain/test_skill_library.py`, `tests/test_learning_application.py` |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `aios/operations/recovery.py`, `aios/operations/doctor.py`, `aios/__main__.py` | `tests/test_restore_invalidation.py`, `tests/test_operations.py` |
 
-## Yellow organs (29) — the Slices 26-40 completion target
+## Yellow organs (28) — the Slices 26-40 completion target
 
 | # | Organ | Authority owner | Slice | Truthful blocker |
 |---|-------|------------------|-------|-------------------|
@@ -100,7 +101,6 @@ evidence). Current true counts: 25 green / 29 yellow.
 | 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | 39 | `ConstitutionProjection`/`EmergencyStopProjection`/`ProviderHealthProjection` (organ 47) are exactly the typed values this heartbeat surface would compose. Still missing: no single view assembles them together, and no frontend consumes them yet. |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | 40 | No unified correlation-ID tracked telemetry across model calls, clerk, executor, mission queue, verification, promotion, rollback, and emergency-stop exists yet. Reconciliation pass item 9: grounded, not built -- `aios/operations/tracing.py`'s `TraceContext`/`bind_trace_context`/`get_trace_context` are real and tested but confirmed (grep across the whole tree) still unbound outside their own test file. Wiring real request-header-derived tracing into FastAPI middleware and every call chain named above is a genuine cross-cutting change, correctly scoped as its own dedicated slice. |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | 40 | Key rotation, a bounded grace period, and truthful Ollama-absence handling are not fully implemented. Reconciliation pass item 9: grounded, not built -- confirmed `ActionType.SECURITY_TOKENS_ROTATE` and an `audit_key_rotate` routing entry exist, but no function anywhere actually rotates a key; there is no real secret-material rotation implementation to wire up, only a named, unimplemented action type. A genuine security-sensitive design task (safe invalidation of old credentials without breaking live sessions), correctly scoped as its own dedicated slice. |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | 40 | `invalidate_stale_authority_after_restore()` now runs automatically inside `restore_backup()` (not opt-in): reuses `IdentityStore.bump_session_generation`, `CapabilityStore.revoke_all_active`, and `ApprovalStore.clear` unchanged, so a restored old session, unconsumed capability, or pending YELLOW approval can never silently act as current. Verified directly, including a live session generation *newer* than the snapshot still being invalidated, and a fresh install with no prior databases being a safe no-op. Reconciliation pass item 9: the backup-freshness gap named here is now closed -- new `config.BACKUP_DIR` constant (de-duplicating a path previously inlined twice in `aios/__main__.py`) and a new `_backup_check()` in `doctor_report()` report a missing/empty backup directory as fatal in production (matching the existing `executor`/`operator_token` severity split) and a stale (>7 day) backup as an always-non-fatal warning; verified against 5 scenarios (missing dir, empty dir, fresh archive, stale archive, newest-of-several selection). Still missing: no live disaster-recovery drill, no scheduled backup cadence -- `create_backup` must still be invoked manually. |
 
 ## How this ledger is enforced
 
