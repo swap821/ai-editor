@@ -900,7 +900,9 @@
     "authority_owner": "ConstitutionalAmendmentAuthority",
     "production_entrypoints": [
       "aios/domain/governance/amendments.py",
-      "aios/application/governance/amendment_authority.py"
+      "aios/application/governance/amendment_authority.py",
+      "aios/infrastructure/governance/sqlite_store.py",
+      "aios/infrastructure/storage/migrations/0007_governance_amendment_history.py"
     ],
     "focused_tests": [
       "tests/test_constitutional_amendment.py"
@@ -910,7 +912,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Confirmed genuinely missing (grep for ConstitutionalAmendment/amendment_authority found nothing but this slice's own additions) before building. ConstitutionalAmendmentProposalV1 + propose_amendment()/critique_amendment()/simulate_amendment()/ratify_amendment()/activate_amendment()/rollback_amendment()/reject_amendment() now exist. ratify_amendment() can only be satisfied by a real, already-consumed capability bound to the exact operator and to CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION -- models/workers have no path to produce one. Foundation-law-touching proposals are refused even with a valid capability. activate_amendment() reuses Slice 26's build_constitution_snapshot() chaining machinery directly and is now gated by emergency_stop -- closing a boundary Slice 27 flagged before this organ existed. Verified directly: existing MissionContract instances keep their original constitution_digest after activation (frozen contract, never mutated), and rollback refuses a snapshot that isn't the exact predecessor. Still missing: no aios/api/routes/ HTTP surface, no durable persistence of proposals, and CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION is not registered in the real ActionType/PolicyKernel routing table, so no real capability can actually be issued for it yet in production."
+      "Confirmed genuinely missing (grep for ConstitutionalAmendment/amendment_authority found nothing but this slice's own additions) before building. ConstitutionalAmendmentProposalV1 + propose_amendment()/critique_amendment()/simulate_amendment()/ratify_amendment()/activate_amendment()/rollback_amendment()/reject_amendment() now exist. ratify_amendment() can only be satisfied by a real, already-consumed capability bound to the exact operator and to CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION -- models/workers have no path to produce one. Foundation-law-touching proposals are refused even with a valid capability. activate_amendment() reuses Slice 26's build_constitution_snapshot() chaining machinery directly and is now gated by emergency_stop -- closing a boundary Slice 27 flagged before this organ existed. Verified directly: existing MissionContract instances keep their original constitution_digest after activation (frozen contract, never mutated), and rollback refuses a snapshot that isn't the exact predecessor.",
+      "Reconciliation pass item 6: durable persistence now exists. GovernanceAmendmentStore (aios/infrastructure/governance/sqlite_store.py, migration 0007, scope=\"governance\") records every propose/critique/simulate/ratify/activate/reject/rollback transition as its own append-only, digest-verified revision row rather than upserting current state in place -- matching the correction-lineage convention already established for operator preferences (Slice 28). Verified end to end in tests/test_governance_amendment_store.py by driving the real propose_amendment/critique_amendment/ratify_amendment functions and confirming the full transition history survives a save/read round trip, not just the final status; also verified a tampered row (edited outside the store) is detected at read time via digest mismatch, the same pattern as LocalWorkforceProvenanceStore (Slice 33). Still missing (unchanged scope -- amendments.py's own docstring already names this as deliberate follow-up, not assumed by Slice 37): no aios/api/routes/ HTTP surface, and CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION is still not registered in the real ActionType/PolicyKernel capability-issuance routing table, so no real capability can actually be issued for it in production yet. Deliberately not attempted here: wiring that route touches the same PolicyKernel routing table every other action type depends on, and a wrong entry risks breaking existing action routing -- a correctly scoped, separate task, not a reconciliation-pass addition."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -922,7 +925,9 @@
     "authority_owner": "ConstitutionalLearningAuthority",
     "production_entrypoints": [
       "aios/domain/governance/learning.py",
-      "aios/application/governance/constitutional_learning.py"
+      "aios/application/governance/constitutional_learning.py",
+      "aios/infrastructure/governance/sqlite_store.py",
+      "aios/infrastructure/storage/migrations/0007_governance_amendment_history.py"
     ],
     "focused_tests": [
       "tests/test_constitutional_learning.py"
@@ -932,7 +937,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Confirmed genuinely missing before building. GovernanceLessonV1 + propose_lesson()/lesson_to_amendment_proposal()/require_all_simulations_pass() now exist, feeding Slice 37's amendment pipeline directly rather than duplicating it. The one rule this organ exists to serve -- GAGOS may learn its sovereignty mechanisms are weak but may never itself propose reducing human authority -- is enforced by a deterministic keyword screen (assert_never_reduces_human_authority) checked against both the lesson's own text and the diff text independently, verified directly against 8 distinct authority-reducing phrasings. require_all_simulations_pass() treats a missing one of the 9 named adversarial checks exactly like a failed one -- never silently skipped. A full proposal -> simulation -> human-ratification -> rollback-capable-activation path was run end to end in a test, reusing Slice 37's real ratify_amendment/activate_amendment/rollback_amendment unchanged. Still missing (honest scope note, not an oversight): the 9 adversarial simulations are a fixed typed catalog this module requires results FOR, not simulations this module RUNS -- real adversarial testing against a running system is not implemented here. No HTTP route or durable persistence for lessons either."
+      "Confirmed genuinely missing before building. GovernanceLessonV1 + propose_lesson()/lesson_to_amendment_proposal()/require_all_simulations_pass() now exist, feeding Slice 37's amendment pipeline directly rather than duplicating it. The one rule this organ exists to serve -- GAGOS may learn its sovereignty mechanisms are weak but may never itself propose reducing human authority -- is enforced by a deterministic keyword screen (assert_never_reduces_human_authority) checked against both the lesson's own text and the diff text independently, verified directly against 8 distinct authority-reducing phrasings. A full proposal -> simulation -> human-ratification -> rollback-capable-activation path was run end to end in a test, reusing Slice 37's real ratify_amendment/activate_amendment/rollback_amendment unchanged.",
+      "Reconciliation pass item 6: GovernanceAmendmentStore also persists GovernanceLessonV1 (same table family, same append-only digest-verified revision-per-row pattern as the amendment side). Verified end to end in tests/test_governance_amendment_store.py by driving the real propose_lesson -> lesson_to_amendment_proposal pipeline and confirming both the lesson's own status transition (proposed -> amendment_drafted) and its amendment_proposal_id linkage survive a real save/read round trip through the store, plus tamper detection on a lesson row edited outside the store. Still missing (unchanged scope): the 9 named adversarial simulations remain a required catalog this module checks results FOR, not simulations it runs; no HTTP route exists, and drafting a lesson into a proposal still inherits organ 45's same capability-issuance-table gap before it could ever be ratified in production."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

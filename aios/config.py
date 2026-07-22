@@ -111,6 +111,7 @@ AUDIT_DB_PATH: Final[Path] = DATA_DIR / "aios_audit.db"
 LOCAL_WORKFORCE_PROVENANCE_DB_PATH: Final[Path] = (
     DATA_DIR / "aios_local_workforce_provenance.db"
 )
+GOVERNANCE_AMENDMENT_DB_PATH: Final[Path] = DATA_DIR / "aios_governance_amendments.db"
 FAISS_INDEX_PATH: Final[Path] = DATA_DIR / "vector_index.faiss"
 ROLLBACK_DIR: Final[Path] = _env_path("AIOS_ROLLBACK_DIR", DATA_DIR / "rollback")
 COUNCIL_RUNTIME_DIR: Final[Path] = _env_path(
@@ -580,6 +581,7 @@ __all__ = [
     "CAPABILITY_DB_PATH",
     "AUDIT_DB_PATH",
     "LOCAL_WORKFORCE_PROVENANCE_DB_PATH",
+    "GOVERNANCE_AMENDMENT_DB_PATH",
     "FAISS_INDEX_PATH",
     "ROLLBACK_DIR",
     "COUNCIL_RUNTIME_DIR",
