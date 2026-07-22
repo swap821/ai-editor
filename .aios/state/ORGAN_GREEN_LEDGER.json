@@ -506,21 +506,22 @@
   {
     "organ_id": 27,
     "name": "Operator Taste Model",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "OperatorTasteModelAuthority",
     "production_entrypoints": [
-      "aios/domain/memory/human_representation.py"
+      "aios/domain/memory/human_representation.py",
+      "aios/infrastructure/memory/human_representation_store.py"
     ],
     "focused_tests": [
-      "tests/test_human_representation.py"
+      "tests/test_human_representation.py",
+      "tests/test_human_representation_store.py"
     ],
     "integration_tests": [
-      "tests/test_personalization.py"
+      "tests/test_personalization.py",
+      "tests/test_human_representation_store.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "OperatorPreferenceV1 now exists (typed source_type/confidence/status/supersedes/contradicted_by) wrapping the existing confidence and contradiction lifecycle in aios.memory.facts.SemanticFacts. Still missing: a persistence adapter that actually stores/reads OperatorPreferenceV1 records (today it is a contract with no store), and project-scoped leak-prevention enforcement at the store layer."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -531,17 +532,20 @@
     "authority_owner": "ProjectUnderstandingAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
-      "aios/application/memory/human_representation.py"
+      "aios/application/memory/human_representation.py",
+      "aios/infrastructure/memory/human_representation_store.py"
     ],
     "focused_tests": [
-      "tests/test_human_representation.py"
+      "tests/test_human_representation.py",
+      "tests/test_human_representation_store.py"
     ],
     "integration_tests": [
-      "tests/test_project_passport.py"
+      "tests/test_project_passport.py",
+      "tests/test_human_representation_store.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "ProjectPassportV1 now exists (typed project_id/verified_at_commit/passport_digest) with build_project_passport_v1() wrapping the existing harvest_project_passport() scanner, and is_project_passport_stale() for commit-drift detection. Still missing: invariants and explicit_human_decisions have no source in the existing scanner (both default empty rather than being fabricated), and no durable store persists a ProjectPassportV1 across process restarts."
+      "Tier-1 closure pass: the organ's other stated gap -- 'no durable store persists a ProjectPassportV1 across process restarts' -- is now resolved. New ProjectPassportStore (aios/infrastructure/memory/human_representation_store.py, migration 0008, scope=\"human_representation\") gives ProjectPassportV1 real, append-only, digest-verified history across restarts, mirroring GovernanceAmendmentStore's established convention. Verified directly: a fresh store instance over the same file sees the exact history a prior instance wrote (the real cross-restart proof this gap named), and a tampered row is caught at read time via digest mismatch. Still genuinely missing (unchanged, honest scope note -- this pass did not build a new scanner): invariants and explicit_human_decisions still have no source in the existing harvest_project_passport() scanner and default empty rather than being fabricated, exactly as the domain contract's own docstring already documented before this pass."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

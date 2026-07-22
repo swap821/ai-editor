@@ -27,11 +27,16 @@ surfaced via `python -m aios.launcher organ-check [--json] [--strict]`.
   blocker instead of an aspirational claim.
 
 **Update (Tier-1 closure pass, same-session follow-on after the Slices 25-40
-reconciliation pass closed):** organs 29, 35, 43, and 54 moved green — see
+reconciliation pass closed):** organs 27, 29, 35, 43, and 54 moved green
+(organ 28's durable-store half also closed, narrowed blocker remains) — see
 "Green organs closed since baseline" below. The original Slice-25 baseline
 table immediately following this note is left exactly as first established
 (per this repo's doc-currency convention: append, never silently rewrite
-dated evidence). Current true counts: 26 green / 28 yellow.
+dated evidence). Current true counts: 27 green / 27 yellow. Tier 1 is
+complete -- all 7 organs the plan named (27, 28, 29, 35, 37, 43, 54) have
+been addressed: 6 closed or partially closed, organ 37 genuinely
+strengthened (schema-retry built and live-verified) but honestly still
+yellow since granite3.2:2b does not yet reliably qualify.
 
 ## Green organs (22) — established prior to Slice 25
 
@@ -60,16 +65,17 @@ dated evidence). Current true counts: 26 green / 28 yellow.
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `aios/council/council_orchestrator.py` | `tests/test_council_orchestrator.py`, `tests/test_e2e_sovereign_flywheel.py` |
 | 22 | V1 Release Declaration (`gagos v1-check`) | `ReleaseDeclarationAuthority` | `aios/application/governance/v1_declaration.py` | `tests/test_v1_declaration.py`, `tests/test_launcher.py` |
 
-## Green organs closed since baseline (4)
+## Green organs closed since baseline (5)
 
 | # | Organ | Authority owner | Entry point | Tests |
 |---|-------|------------------|-------------|-------|
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `aios/domain/memory/human_representation.py`, `aios/infrastructure/memory/human_representation_store.py` | `tests/test_human_representation.py`, `tests/test_human_representation_store.py`, `tests/test_personalization.py` |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py` | `tests/test_human_representation.py`, `tests/test_alignment.py`, `tests/test_memory.py` |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `aios/domain/local_workforce/contracts.py` | `tests/test_local_clerk_dispatcher.py`, `tests/domain/test_local_workforce_qualifier.py` |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `aios/domain/learning/skill_contracts.py`, `aios/domain/learning/repository.py`, `aios/application/learning/skill_lifecycle.py`, `aios/application/learning/service.py` | `tests/test_skill_lifecycle.py`, `tests/domain/test_skill_library.py`, `tests/test_learning_application.py` |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `aios/operations/recovery.py`, `aios/operations/doctor.py`, `aios/__main__.py` | `tests/test_restore_invalidation.py`, `tests/test_operations.py` |
 
-## Yellow organs (28) — the Slices 26-40 completion target
+## Yellow organs (27) — the Slices 26-40 completion target
 
 | # | Organ | Authority owner | Slice | Truthful blocker |
 |---|-------|------------------|-------|-------------------|
@@ -77,8 +83,7 @@ dated evidence). Current true counts: 26 green / 28 yellow.
 | 24 | Human Sovereign Identity | `IdentityAuthority` | 26 | Slice 26 landed `session_generation` (a stale session now fails closed at `IdentityService.get_authenticated_principal`) and `constitution_digest` stamping on `Principal`, threaded into `MissionContract`/`CapabilityBinding`/`ActionEnvelope`. Still missing: end-to-end HTTP-layer enforcement of a constitution-digest mismatch, and a distinct read-only code path during degraded identity. |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | 26 | `ConstitutionSnapshotV1` now exists (typed, versioned, digested, foundation laws immutable by validator) in `aios/domain/governance/constitution.py`. Still missing: durable cross-restart persistence/ratification (Slice 37 territory), `PolicyKernel` still reads the old `aios.policy.constitution.Constitution` facade rather than this snapshot, and no decision path rejects execution on a constitution-digest mismatch yet. |
 | 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | 27 | Slice 27 closed 5 confirmed-missing boundaries: intelligence gateway (local + cloud), skill activation/reuse, maintenance scan/repair (service layer), backup restore, and capability consume. Still open: constitutional amendment activation (organ doesn't exist until Slice 37), route-layer check duplication with inconsistent error handling, and mission-transition re-checks beyond create/start. |
-| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | 28 | `OperatorPreferenceV1` now exists (typed source_type/confidence/status/supersedes/contradicted_by) wrapping the existing `SemanticFacts` contradiction lifecycle. Still missing: a persistence adapter that stores/reads these records, and project-scoped leak-prevention enforcement. |
-| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | 28 | `ProjectPassportV1` now exists (typed, digested, commit-bound) wrapping the existing `harvest_project_passport()` scanner, with `is_project_passport_stale()` for commit-drift detection. Still missing: `invariants`/`explicit_human_decisions` have no source in the scanner yet, and no durable cross-restart store exists. |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | 28 | `ProjectPassportV1` now exists (typed, digested, commit-bound) wrapping the existing `harvest_project_passport()` scanner, with `is_project_passport_stale()` for commit-drift detection. Tier-1 closure pass: the durable-store gap named here is now resolved -- new `ProjectPassportStore` (append-only, digest-verified, mirroring `GovernanceAmendmentStore`) gives it real cross-restart history, verified directly (a fresh store instance over the same file sees a prior instance's full history). Still missing (unchanged, honest scope note): `invariants`/`explicit_human_decisions` have no source in the scanner and default empty rather than being fabricated, exactly as already documented before this pass. |
 | 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | 28 | `HumanStateHypothesis` now exists (typed, `grants_authority`/`user_correctable` pinned literals) with a small deterministic `classify_human_state()` classifier -- this organ had no prior art at all. Still missing: not wired into any live conversation path, no persistence, and the classifier is an unmeasured first pass. |
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | 29 | `RepresentativeContextV1` now exists with `compile_representative_context()` composing the constitution/preference/passport/correction contracts into one digested packet; cloud target scrubs secrets and withholds memory refs structurally. Still missing: nothing calls this compiler yet -- `IntelligenceRequest`/`ModelCallRequest` still carry only a bare prompt with no `context_digest` (confirmed by a red-first test). Wiring every model call through it is Slice 30. |
 | 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | 41 | `route_intelligence_request()` now has its first real production caller: `aios/council/gateway_reasoning.py` routes both Council Planner and King LLM reasoning through it (emergency-stop gated, real `context_digest`), the first production wiring of either. Fixed a real regression this surfaced: two existing test files made a genuine ~11s live Ollama call once a test operator was enrolled; neutralized with `COUNCIL_REASONING=False`, matching `test_api.py`'s established `FakeLLM` convention. Still missing: chat (`/api/v1/chat`) and the agentic forge (`/api/generate`) remain unwired -- both are **streaming** call sites, while the gateway's `model_call` callback is synchronous request/response only, so wiring them without a streaming-capable gateway variant would mean a real UX regression, deliberately not attempted here. The 2 other competing "gateway" implementations still need reconciling. |
