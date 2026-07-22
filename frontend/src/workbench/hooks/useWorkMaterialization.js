@@ -260,8 +260,15 @@ export function useWorkMaterialization({
             beginRetractingMaterializedTab(writingTab.id);
             workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writingTab.id);
             const replyText = cleanText(stripAlignmentPreamble(result?.answer));
-            if (replyText) {
+            if (result?.ok && replyText) {
               pushMessage('gagos', replyText);
+            } else if (replyText) {
+              // Real backend text streamed, but the connection dropped before
+              // a terminal frame arrived -- never present a truncated reply as
+              // a complete one.
+              pushMessage('gagos', `${replyText}\n\n[response interrupted before completion]`);
+              setConversationPhase('error');
+              publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
             } else {
               pushMessage('gagos', 'COGNITION FAULT: the stream ended before any code or reply arrived.');
               setConversationPhase('error');

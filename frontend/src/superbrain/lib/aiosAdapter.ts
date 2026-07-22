@@ -249,6 +249,7 @@ async function streamTurn(
 ): Promise<DirectiveResult> {
   let answer = '';
   let paused = false;
+  let completed = false;
   try {
     const sessionFields = await sessionBodyFields();
     const response = await fetch(`${AIOS_BASE}/api/generate`, {
@@ -290,11 +291,21 @@ async function streamTurn(
           lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
           break;
         }
+        case 'done':
+          completed = true;
+          break;
+        case 'error':
+          throw new Error(String(frame.data.text ?? 'the backend reported an error'));
         default:
           break;
       }
     }
-    return { ok: true, paused, answer };
+    // The SSE connection closing is not itself proof the turn finished --
+    // only a real terminal frame ('done') or a legitimate pause
+    // ('human_required') is. A drop with neither (backend crash, proxy
+    // timeout, network failure) must never be reported as success, even
+    // when partial text already streamed.
+    return { ok: completed || paused, paused, answer };
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
