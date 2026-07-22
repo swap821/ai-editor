@@ -1925,6 +1925,195 @@ aside.right-console {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Sovereign Bond — the one-human identity ceremony                           */
+/* Recognition register (accent cyan / champagne gold), NOT the amber caution */
+/* register: approvals warn, the bond recognizes.                             */
+/* -------------------------------------------------------------------------- */
+.bond-panel {
+  pointer-events: auto;
+  position: absolute;
+  top: 72px;
+  right: 28px;
+  width: min(420px, calc(100vw - 56px));
+  max-height: 70vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  background: rgba(6, 10, 16, 0.82);
+  border: 1px solid rgba(123, 245, 251, 0.35);
+  border-radius: 14px;
+  box-shadow: 0 0 26px rgba(92, 225, 230, 0.12);
+  backdrop-filter: blur(14px) saturate(140%) brightness(1.06);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(1.06);
+  animation: hud-enter 450ms var(--ease-out-expo) both;
+  z-index: 30;
+}
+
+.bond-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 6px;
+}
+
+.bond-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+
+.bond-close {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.bond-close:hover { color: var(--text-1); }
+
+.bond-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 14px 14px;
+}
+
+.bond-lede {
+  margin: 0;
+  padding: 0 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-1);
+}
+.bond-body .bond-lede { padding: 0; }
+.bond-lede--grave {
+  color: #ffd98a;
+  border-left: 2px solid rgba(255, 200, 100, 0.55);
+  padding-left: 10px;
+}
+
+.bond-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.bond-field input {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 10px;
+  color: var(--text-1);
+  background: rgba(2, 4, 8, 0.6);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  outline: none;
+}
+.bond-field input:focus { border-color: rgba(123, 245, 251, 0.45); }
+
+/* The one-time material: mono spine-block, same family as the approval diff. */
+.bond-material {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'label copy' 'value copy';
+  align-items: center;
+  gap: 3px 10px;
+  padding: 8px 10px;
+  background: rgba(2, 4, 8, 0.65);
+  border: 1px solid rgba(255, 200, 100, 0.35);
+  border-radius: 6px;
+}
+.bond-material__label {
+  grid-area: label;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 217, 138, 0.75);
+}
+.bond-material__value {
+  grid-area: value;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-1);
+  word-break: break-all;
+  user-select: all;
+}
+.bond-material__copy {
+  grid-area: copy;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  padding: 5px 10px;
+  color: var(--accent);
+  background: rgba(92, 225, 230, 0.08);
+  border: 1px solid rgba(92, 225, 230, 0.35);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.bond-material__copy:hover { background: rgba(92, 225, 230, 0.16); }
+
+.bond-ack {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-1);
+  cursor: pointer;
+}
+.bond-ack input { margin-top: 2px; accent-color: #ffc864; }
+
+.bond-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.bond-actions button {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 200ms var(--ease-out-quart), background 200ms var(--ease-out-quart),
+    border-color 200ms var(--ease-out-quart);
+}
+.bond-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.bond-primary {
+  background: rgba(92, 225, 230, 0.14);
+  border: 1px solid rgba(92, 225, 230, 0.65);
+  color: var(--accent);
+}
+.bond-primary:hover:not(:disabled) { background: rgba(92, 225, 230, 0.24); }
+.bond-secondary {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(232, 238, 250, 0.72);
+}
+.bond-secondary:hover:not(:disabled) { border-color: rgba(232, 238, 250, 0.45); }
+.bond-release {
+  background: none;
+  border: 1px solid rgba(255, 141, 126, 0.4);
+  color: #ff8d7e;
+}
+.bond-release:hover:not(:disabled) { background: rgba(255, 141, 126, 0.1); }
+
+.bond-notice {
+  margin: 0;
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 217, 138, 0.9);
+}
+
+@media (max-width: 780px) {
+  .bond-panel { right: 14px; left: 14px; width: auto; top: 64px; }
+}
+
+/* -------------------------------------------------------------------------- */
 /* SwarmHUD — ant-colony plan + caste status overlay                          */
 /* -------------------------------------------------------------------------- */
 .swarm-hud {

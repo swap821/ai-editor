@@ -170,6 +170,43 @@
     0 0 18px rgba(248, 113, 113, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+/* Sovereign bond pill — a real <button>: gold when the bond holds (the one
+   human is present), dim accent-cyan while unbound. Gold is deliberately
+   reserved for this pill alone: sovereignty, not status. */
+.gagos-pill--bond {
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: 0.06em;
+  color: rgba(228, 236, 250, 0.6);
+  background: rgba(123, 245, 251, 0.05);
+  border: 1px solid rgba(123, 245, 251, 0.18);
+  box-shadow:
+    0 0 14px rgba(123, 245, 251, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 200ms var(--ease-out-quart, ease-out),
+    color 200ms var(--ease-out-quart, ease-out);
+}
+.gagos-pill--bond:hover,
+.gagos-pill--bond:focus-visible {
+  color: rgba(228, 236, 250, 0.92);
+  border-color: rgba(123, 245, 251, 0.42);
+}
+.gagos-pill--bond-sovereign {
+  color: #ffd98a;
+  background: rgba(255, 200, 100, 0.09);
+  border-color: rgba(255, 200, 100, 0.34);
+  box-shadow:
+    0 0 18px rgba(255, 200, 100, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.gagos-dot--bond-unbound {
+  background: rgba(123, 245, 251, 0.4);
+  box-shadow: 0 0 7px rgba(123, 245, 251, 0.3);
+}
+.gagos-dot--bond-sovereign {
+  background: #ffc864;
+  box-shadow: 0 0 9px rgba(255, 200, 100, 0.85), 0 0 18px rgba(255, 200, 100, 0.28);
+}
 /* TurnCoordinator mode badge — data-true, only appears when a route event carries mode. */
 .gagos-pill--mode {
   color: var(--neon-cyan);

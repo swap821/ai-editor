@@ -30,6 +30,11 @@ import {
 } from '../superbrain/lib/aiosAdapter';
 import { initSwarmCognitionBridge } from './swarmCognitionBridge';
 import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
+import SovereigntyPanel from '../superbrain/components/ui/SovereigntyPanel';
+import {
+  refreshSovereignStatus,
+  subscribeSovereignStatus,
+} from '../superbrain/lib/sovereignIdentity';
 import { subscribeSwarmHUD } from '../superbrain/lib/swarmHUDStore';
 import { triggerSpineFlash } from './spineFlashBridge';
 import { useVoiceSpeak, setVoiceSpeakMuted, interruptSpeech } from './voiceSpeak';
@@ -154,6 +159,15 @@ export default function GagosChrome() {
   const [hintDismissed, setHintDismissed] = useState(true);
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
+
+  // Sovereign bond: measured identity state + the Bond ceremony panel.
+  const [sovereign, setSovereign] = useState({ sessionActive: false, operatorId: null, measured: 'unknown' });
+  const [bondOpen, setBondOpen] = useState(false);
+  useEffect(() => {
+    const unsub = subscribeSovereignStatus(setSovereign);
+    refreshSovereignStatus();
+    return unsub;
+  }, []);
 
   const voice = useVoiceSpeak();
   const [voiceLang, setVoiceLang] = useState(() => {
@@ -393,6 +407,33 @@ export default function GagosChrome() {
           <span className="gagos-dot gagos-dot--supervised" aria-hidden="true" />
           <span className="gagos-pill__main">supervised</span>
         </span>
+        <button
+          type="button"
+          className={`gagos-pill gagos-pill--bond${sovereign.operatorId ? ' gagos-pill--bond-sovereign' : ''}`}
+          onClick={() => setBondOpen((open) => !open)}
+          aria-haspopup="dialog"
+          aria-expanded={bondOpen}
+          aria-label={
+            sovereign.operatorId
+              ? `Sovereign bond held by ${sovereign.operatorId}. Open the bond panel.`
+              : 'No sovereign session. Open the bond panel to claim or present a credential.'
+          }
+        >
+          <span
+            className={`gagos-dot ${sovereign.operatorId ? 'gagos-dot--bond-sovereign' : 'gagos-dot--bond-unbound'}`}
+            aria-hidden="true"
+          />
+          <span className="gagos-pill__main">
+            {sovereign.measured !== 'measured'
+              ? 'bond…'
+              : sovereign.operatorId
+                ? 'sovereign'
+                : 'unbound'}
+          </span>
+          {sovereign.operatorId ? (
+            <span className="gagos-pill__meta">{sovereign.operatorId}</span>
+          ) : null}
+        </button>
         {online && brainChip.mode ? (
           <span
             className={`gagos-pill gagos-pill--mode gagos-pill--mode-${brainChip.mode}`}
@@ -419,6 +460,8 @@ export default function GagosChrome() {
       <CouncilDashboard />
       <OperatorProfileCard />
       <TrustHalo />
+
+      {bondOpen ? <SovereigntyPanel onClose={() => setBondOpen(false)} /> : null}
 
       {pendingApproval ? (
         <ApprovalPanel
