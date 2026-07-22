@@ -33,6 +33,7 @@ from aios.domain.learning.reuse_orchestrator import (
     LocalExecutionDirective,
     SkillReuseOrchestrator,
 )
+from aios.application.learning.skill_lifecycle import apply_reuse_outcome
 from aios.domain.learning.trajectory_gate import TrajectoryGate
 from aios.domain.learning.trajectory_repository import (
     TrajectoryRecord,
@@ -379,7 +380,14 @@ class LearningService:
             policy_allows=policy_allows,
         )
         if isinstance(directive, EscalateToFrontierDirective):
-            self._record_failure(skill, "applicability")
+            apply_reuse_outcome(
+                self.skill_repository,
+                skill.skill_id,
+                skill.version,
+                success=False,
+                reason="applicability",
+                updater=self.confidence,
+            )
             return directive
 
         if self.local_workforce_service is not None:
@@ -584,25 +592,25 @@ class LearningService:
                 for result in results
             )
         )
-        if passed:
-            updated_contract = self.confidence.record_success(skill)
-        else:
-            updated_contract = self.confidence.record_failure(skill, "verification")
-            if updated_contract.confidence < self.applicability.minimum_confidence:
-                updated_contract = updated_contract.model_copy(
-                    update={"state": "degraded"}
-                )
-        updated = SkillRecord(
-            **updated_contract.model_dump(
-                mode="python", exclude={"created_at", "updated_at"}
-            ),
-            created_at=skill.created_at,
-            updated_at=_utc_now(),
+        return apply_reuse_outcome(
+            self.skill_repository,
+            skill_id,
+            version,
+            success=passed,
+            reason=None if passed else "verification",
+            updater=self.confidence,
         )
-        self.skill_repository.save(updated)
-        return updated
 
     def _record_failure(self, skill: SkillRecord, reason: str) -> None:
+        """Legacy confidence-only failure path, kept for the two call sites
+        below that pass "clerk_advisory_refused" -- not a real
+        skill_lifecycle.FailureReason, so routing them through
+        apply_reuse_outcome() would mean inventing a mapping (e.g. onto
+        "applicability", which triggers immediate suspension rather than
+        this function's soft confidence-threshold "degraded") without a
+        clear basis for it. The one caller with a genuine FailureReason
+        match ("applicability", the EscalateToFrontierDirective branch
+        above) now calls apply_reuse_outcome() directly instead."""
         updated_contract = self.confidence.record_failure(skill, reason)  # type: ignore[arg-type]
         if updated_contract.confidence < self.applicability.minimum_confidence:
             updated_contract = updated_contract.model_copy(update={"state": "degraded"})

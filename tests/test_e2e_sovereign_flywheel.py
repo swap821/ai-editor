@@ -563,13 +563,33 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(
             diff_digest="diff-loc-2",
         )
     )
+    # ReuseOutcomeRepository.record() dedups by a lineage_key hashing the
+    # whole reference except reuse_outcome_id, so this second attempt needs
+    # its own genuinely distinct VerificationResult (same mission, different
+    # action_id) -- reusing failed_v_result here would be silently rejected
+    # as a duplicate and never reach confidence tracking at all. With the
+    # one prior successful reuse earlier in this test already on record,
+    # this second real failure is what crosses evaluate_demotion()'s (Slice
+    # 36, now wired into record_reuse_outcome via apply_reuse_outcome)
+    # confidence floor: active(0.85) -> 0.65 (2a) -> 0.45, degraded (2b).
+    retry_v_result = verification_auth.verify(
+        mission_id="mission-local-2",
+        action_id="act-loc-2b",
+        worker_id="w-loc-2",
+        target="bug.txt",
+        plan=_verification_plan(),
+        workspace_digest="ws-loc-2",
+        diff_digest="diff-loc-2",
+        environment_digest="env-loc-2",
+        observation=_observation(exit_code=1),
+    )
     degraded = learning_service.record_reuse_outcome(
         reuse_outcome_reference(
             reuse_outcome_id="reuse-local-2b",
             skill=active_skill,
             trajectory_id=traj_rec.trajectory_id,
             mission=mission_service.repository.get("mission-local-2"),
-            verification=failed_v_result,
+            verification=retry_v_result,
             worker_id="w-loc-2",
             workspace_digest="ws-loc-2",
             diff_digest="diff-loc-2",

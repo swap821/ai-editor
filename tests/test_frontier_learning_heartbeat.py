@@ -424,7 +424,7 @@ def test_skill_degradation_and_fail_closed_escalation(learning_env) -> None:
     mission_service.start_execution("mission-local-fail")
     mission_service.fail("mission-local-fail", reason="verification failed")
 
-    degraded_skill = service.record_reuse_outcome(
+    service.record_reuse_outcome(
         reuse_outcome_reference(
             reuse_outcome_id="reuse-local-fail",
             skill=active_skill,
@@ -437,7 +437,41 @@ def test_skill_degradation_and_fail_closed_escalation(learning_env) -> None:
         )
     )
 
-    assert degraded_skill.failure_count == 1
+    # evaluate_demotion() (Slice 36, now wired into record_reuse_outcome via
+    # apply_reuse_outcome) requires MIN_ATTEMPTS_BEFORE_FLOOR_APPLIES=3 total
+    # attempts before its confidence floor applies at all -- two more real
+    # failures are needed to reach that gate (0.8 -> 0.6 -> 0.4 -> 0.2, and
+    # only the 3rd failure's attempt count actually triggers demotion).
+    # ReuseOutcomeRepository.record() dedups by a lineage_key hashing the
+    # whole reference except reuse_outcome_id, so each retry needs its own
+    # genuinely distinct VerificationResult (same mission, different
+    # action_id) or it is silently rejected as a duplicate.
+    for suffix in ("fail-2", "fail-3"):
+        retry_v_result = verification_auth.verify(
+            mission_id="mission-local-fail",
+            action_id=f"act-local-{suffix}",
+            worker_id="w-local-fail",
+            target="output.py",
+            plan=_plan(),
+            workspace_digest="ws-fail-1",
+            diff_digest="diff-fail-1",
+            environment_digest="env-fail-1",
+            observation=_observation(exit_code=1),
+        )
+        degraded_skill = service.record_reuse_outcome(
+            reuse_outcome_reference(
+                reuse_outcome_id=f"reuse-local-{suffix}",
+                skill=active_skill,
+                trajectory_id=traj.trajectory_id,
+                mission=mission_service.repository.get("mission-local-fail"),
+                verification=retry_v_result,
+                worker_id="w-local-fail",
+                workspace_digest="ws-fail-1",
+                diff_digest="diff-fail-1",
+            )
+        )
+
+    assert degraded_skill.failure_count == 3
     assert degraded_skill.confidence < 0.8
     assert degraded_skill.state == "degraded"
 
