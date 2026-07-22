@@ -11,6 +11,15 @@ vi.mock('../superbrain/SuperbrainApp', () => ({
 
 // Keep the real adapter (real pending-approval store + __injectApproval), but stub
 // the network-bound authorize/reject so the gate resolves without a backend.
+// Mutable per-test return values so failure-path tests can flip the adapter's
+// resolved outcome without re-mocking the whole module.
+const approveResult: { ok: boolean; paused: boolean; answer: string } = {
+  ok: true,
+  paused: false,
+  answer: '',
+};
+const rejectResult: { confirmed: boolean } = { confirmed: true };
+
 vi.mock('../superbrain/lib/aiosAdapter', async () => {
   const actual = await vi.importActual<typeof import('../superbrain/lib/aiosAdapter')>(
     '../superbrain/lib/aiosAdapter',
@@ -19,10 +28,11 @@ vi.mock('../superbrain/lib/aiosAdapter', async () => {
     ...actual,
     approvePendingApproval: vi.fn(async () => {
       (window as unknown as { __clearApproval?: () => void }).__clearApproval?.();
-      return { ok: true, paused: false, answer: '' };
+      return { ...approveResult };
     }),
     rejectPendingApproval: vi.fn(async () => {
       (window as unknown as { __clearApproval?: () => void }).__clearApproval?.();
+      return { ...rejectResult };
     }),
   };
 });
@@ -48,6 +58,8 @@ describe('GagosChrome DOM approval gate', () => {
       })),
     });
     (window as unknown as ApprovalHost).__clearApproval?.();
+    approveResult.ok = true;
+    rejectResult.confirmed = true;
   });
 
   it('surfaces an actionable AUTHORIZE/REJECT gate when the adapter has a pending approval', async () => {
@@ -105,6 +117,59 @@ describe('GagosChrome DOM approval gate', () => {
       expect(screen.getByText(/hello_loop\.py/i)).toBeInTheDocument();
     });
     expect(screen.getByText(/created|approved/i)).toBeInTheDocument();
+  });
+
+  it('never narrates success when the authorize replay does not actually complete', async () => {
+    approveResult.ok = false;
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    act(() => {
+      (window as unknown as ApprovalHost).__injectApproval?.({
+        summary: 'Approval required to create hello_loop.py',
+        filepath: 'hello_loop.py',
+        kind: 'create',
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /authorize/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      screen.getByRole('button', { name: /authorize/i }).click();
+    });
+
+    // Must narrate the real failure, never a false "Created"/"Approved".
+    await waitFor(() => {
+      expect(screen.getByText(/failed to authorize/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/^↳ created/i)).toBeNull();
+    expect(screen.queryByText(/^↳ approved/i)).toBeNull();
+  });
+
+  it('narrates an unconfirmed decline distinctly from a confirmed one', async () => {
+    rejectResult.confirmed = false;
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    act(() => {
+      (window as unknown as ApprovalHost).__injectApproval?.({
+        summary: 'Approval required to create hello_loop.py',
+        filepath: 'hello_loop.py',
+        kind: 'create',
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      screen.getByRole('button', { name: /reject/i }).click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/unconfirmed by the server/i)).toBeInTheDocument();
+    });
   });
 
   it('clears the gate once the pending approval is resolved', async () => {

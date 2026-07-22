@@ -71,6 +71,15 @@ export interface ApprovalOutcome {
    *  full file content for a create, the unified diff for an edit. */
   content: string;
   diff: string;
+  /** Whether the decision's real effect is verified, not merely requested.
+   *  For 'authorize': whether the replay actually completed (the adapter's
+   *  own `DirectiveResult.ok`) -- a rejected/thrown promise or a resolved
+   *  `ok: false` are both real failures and must both narrate as failure,
+   *  never as success. For 'reject': whether the server confirmed the
+   *  decline; declining is always locally safe (nothing gets authorized
+   *  either way), so `false` here means "unconfirmed by the server", not
+   *  "the reject failed". */
+  succeeded: boolean;
 }
 
 export default function ApprovalPanel({
@@ -87,33 +96,51 @@ export default function ApprovalPanel({
 
   const authorize = useCallback(() => {
     setBusy('authorize');
-    const decided: ApprovalOutcome = {
-      action: 'authorize',
-      kind: pending.kind,
-      filepath: pending.filepath,
-      content: pending.content,
-      diff: pending.diff,
-    };
-    void approvePendingApproval().finally(() => {
-      setBusy(null);
-      onSettled(decided);
-    });
-  }, [onSettled, pending.kind, pending.filepath]);
+    void (async () => {
+      let succeeded = false;
+      try {
+        const result = await approvePendingApproval();
+        succeeded = result.ok;
+      } catch {
+        // A thrown promise (e.g. the operator aborted mid-replay) is still a
+        // real failure to authorize -- never treated as success.
+        succeeded = false;
+      } finally {
+        setBusy(null);
+        onSettled({
+          action: 'authorize',
+          kind: pending.kind,
+          filepath: pending.filepath,
+          content: pending.content,
+          diff: pending.diff,
+          succeeded,
+        });
+      }
+    })();
+  }, [onSettled, pending.kind, pending.filepath, pending.content, pending.diff]);
 
   const reject = useCallback(() => {
     setBusy('reject');
-    const decided: ApprovalOutcome = {
-      action: 'reject',
-      kind: pending.kind,
-      filepath: pending.filepath,
-      content: pending.content,
-      diff: pending.diff,
-    };
-    void rejectPendingApproval().finally(() => {
-      setBusy(null);
-      onSettled(decided);
-    });
-  }, [onSettled, pending.kind, pending.filepath]);
+    void (async () => {
+      let succeeded = false;
+      try {
+        const result = await rejectPendingApproval();
+        succeeded = result.confirmed;
+      } catch {
+        succeeded = false;
+      } finally {
+        setBusy(null);
+        onSettled({
+          action: 'reject',
+          kind: pending.kind,
+          filepath: pending.filepath,
+          content: pending.content,
+          diff: pending.diff,
+          succeeded,
+        });
+      }
+    })();
+  }, [onSettled, pending.kind, pending.filepath, pending.content, pending.diff]);
 
   return (
     <section className="approval-panel" role="alertdialog" aria-label="Operator approval required">

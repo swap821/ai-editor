@@ -428,13 +428,28 @@ export default function GagosChrome() {
             const writeId = writingTabIdRef.current;
             writingTabIdRef.current = null;
             if (!outcome) return;
+            const target = outcome.filepath
+              || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
             if (outcome.action === 'reject') {
               if (writeId) {
                 beginRetractingMaterializedTab(writeId);
                 workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
               }
               releaseWorkMaterialization();
-              pushMessage('gagos', 'Stood down — that action was declined.');
+              pushMessage('gagos', outcome.succeeded
+                ? 'Stood down — that action was declined.'
+                : 'Stood down — that action was declined (unconfirmed by the server).');
+              return;
+            }
+            if (!outcome.succeeded) {
+              // The replay did not actually complete -- never narrate a write,
+              // run or fetch that never happened.
+              if (writeId) {
+                beginRetractingMaterializedTab(writeId);
+                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
+              }
+              releaseWorkMaterialization();
+              pushMessage('gagos', `↳ Failed to authorize ${target} — the request did not complete.`);
               return;
             }
             if (writeId) {
@@ -461,8 +476,6 @@ export default function GagosChrome() {
               : outcome.kind === 'command' ? 'Ran'
               : outcome.kind === 'browse' ? 'Fetched'
               : 'Approved';
-            const target = outcome.filepath
-              || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
             pushMessage('gagos', `↳ ${verb} ${target}.`);
           }}
         />

@@ -419,12 +419,15 @@ export async function approvePendingApproval(): Promise<DirectiveResult> {
 }
 
 /** The operator declines: the rejection is recorded through the real
- *  endpoint (audited server-side) and the organism stands down. The bus
- *  only announces 'rejected' when the server CONFIRMED the decision —
- *  an unreachable backend gets the honest 'rejected (unconfirmed)'. */
-export async function rejectPendingApproval(): Promise<void> {
+ *  endpoint (audited server-side) and the organism stands down. The
+ *  capability token is discarded locally either way (the decline is always
+ *  safe -- nothing gets authorized), but `confirmed` tells the caller
+ *  whether the server actually acknowledged the decision, so an
+ *  unreachable backend can be narrated honestly as unconfirmed instead of
+ *  silently reported the same as a confirmed decline. */
+export async function rejectPendingApproval(): Promise<{ confirmed: boolean }> {
   const pending = pendingApproval;
-  if (!pending?.token) return;
+  if (!pending?.token) return { confirmed: false };
   setPendingApprovalState(null);
   let confirmed = false;
   try {
@@ -447,7 +450,7 @@ export async function rejectPendingApproval(): Promise<void> {
   } catch {
     // The token simply expires unredeemed; the visual still stands down.
   }
-  
+  return { confirmed };
 }
 
 /** The operator cancelled the turn while an approval slab was showing.
