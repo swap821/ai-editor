@@ -786,13 +786,26 @@
     "name": "Isolated Workspace and Executor (live proof)",
     "status": "yellow",
     "authority_owner": "IsolatedExecutorLiveAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
-    "live_evidence": [],
+    "production_entrypoints": [
+      "aios/application/executor/service.py",
+      "aios/application/governance/runtime_proof.py"
+    ],
+    "focused_tests": [
+      "tests/test_executor_service.py",
+      "tests/test_executor_client.py"
+    ],
+    "integration_tests": [
+      "tests/test_executor_integration.py"
+    ],
+    "live_evidence": [
+      {
+        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/29890416231 (commit db0441144db9): a real docker-compose Executor Service container was started, and aios.application.governance.runtime_proof._probe_executor made a genuine HTTP call through StructuredExecutorClient to submit and execute an isolated job inside it -- verified real output confirming uid=65534 (non-root), network=blocked, and outside=blocked (no workspace escape). Separately, tests/test_executor_integration.py ran python -m pytest *inside* the real container via `docker compose run`, and test_missing_private_executor_is_refused proved there is no host-process fallback when the service is absent. This is genuine runtime evidence, not a fixture: reviewed the proof source directly (not just the passing CI job name) to confirm it makes real network calls against a real container rather than mocking the executor client.",
+        "commit_sha": "db0441144db9c7612d9be31cbb7e1a576ccf08d2",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "Checked before claiming anything: `docker ps` in this environment fails to connect to the daemon (Docker Desktop is installed but not running), matching this repo's own pre-existing V1_RELEASE_DECLARATION.md admission that 'Docker unavailability independently blocks the executor runtime probe.' A live private-Executor proof genuinely cannot be produced in this environment right now -- recorded honestly, not faked or silently skipped.",
-      "Construction already exists (organs 13/14) and is emergency-stop-gated (Slice 27). What remains open specifically requires a live Docker daemon: a real separate Executor process performing a controlled mission, and proof that no host-process fallback occurs."
+      "The specific blocker recorded at Slice 35/40 -- 'Docker unavailability independently blocks the executor runtime probe' -- is now resolved: real CI evidence exists (see live_evidence above), reviewed at the source-code level to confirm it is genuinely live, not mocked. Still yellow, for two real remaining gaps found by checking the plan's own 10-point bar directly rather than assuming CI-green implies full green: (1) no frontend surface shows executor status truthfully -- grepped the entire frontend workbench/superbrain source tree for 'executor' and found zero matches; (2) failure and timeout are tested (test_missing_private_executor_is_refused, test_private_executor_timeout_is_refused) but there is no test specifically covering executor *restart* resilience. Both are real, scoped, single-commit-sized follow-on work, not something to half-build here. This evidence was produced by CI, not by anything run interactively in this session -- this local sandbox still has no Docker daemon."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -807,8 +820,7 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "Checked before claiming anything: `docker ps` in this environment fails to connect to the daemon (Docker Desktop is installed but not running), matching this repo's own pre-existing V1_RELEASE_DECLARATION.md admission that 'Docker unavailability independently blocks the executor runtime probe.' A live private-Executor proof genuinely cannot be produced in this environment right now -- recorded honestly, not faked or silently skipped.",
-      "Construction already exists (organs 15/16) and CheckpointAuthority/WorkspacePromotionRuntime are real code. What remains open specifically requires a live Docker daemon: an authoritative post-promotion typed receipt from a real executor run, and genuine proof that a forced failure restores exact bytes (not a mocked one)."
+      "Checked directly against the new CI evidence before assuming it helps: the same CI run that proves organ 40 does NOT resolve this organ's specific gap. Read aios/application/governance/runtime_proof.py's _probe_staging_and_promotion source directly -- its promotion_authority/staged_workspaces/verification_and_recovery proofs all call PromotionAuthority.promote() with hand-injected lambda stubs for create_checkpoint (returns a fake string id, creates nothing) and restore_checkpoint (either `lambda *_: True`, doing nothing, or a hardcoded rewrite of a known string) -- this tests PromotionAuthority's orchestration contract with fakes, never touching Docker or a live daemon at all, and never exercising the real CheckpointAuthority/WorkspacePromotionRuntime persistence path. This is exactly the 'not a mocked one' gap this organ's blocker already named before this update. tests/test_executor_integration.py (the genuinely live proof organ 40 now cites) only covers isolation (non-root/network/timeout/missing-service refusal) -- zero overlap with promotion, checkpoint, or rollback. Construction still exists (organs 15/16, real CheckpointAuthority/WorkspacePromotionRuntime); an authoritative post-promotion receipt and a genuine (non-mocked) rollback-restores-exact-bytes proof against a live daemon remain unbuilt."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
