@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -48,6 +50,7 @@ def test_doctor_reports_executor_as_fatal_only_in_production(
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
     monkeypatch.setattr(config, "AUDIT_DB_PATH", tmp_path / "audit.db")
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "data" / "backups")
     monkeypatch.setattr(config, "API_TOKEN", "")
 
     demo = doctor_report(
@@ -79,6 +82,7 @@ def test_doctor_uses_explicit_profile_for_audit_severity(
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
     monkeypatch.setattr(config, "AUDIT_DB_PATH", tmp_path / "audit.db")
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "data" / "backups")
     monkeypatch.setattr(config, "API_TOKEN", "t" * 32)
     monkeypatch.setenv("AIOS_PROFILE", "development")
 
@@ -92,6 +96,124 @@ def test_doctor_uses_explicit_profile_for_audit_severity(
         check for check in report.checks if check.name == "audit_integrity"
     )
     assert audit_check.status == "fatal"
+
+
+def test_doctor_backup_check_missing_directory_is_warning_in_dev_fatal_in_prod(
+    tmp_path: Path,
+) -> None:
+    missing_dir = tmp_path / "no-backups-here"
+
+    demo = doctor_report(
+        profile="demo",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+        backup_dir=missing_dir,
+    )
+    production = doctor_report(
+        profile="production",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+        backup_dir=missing_dir,
+    )
+
+    demo_check = next(c for c in demo.checks if c.name == "backup_freshness")
+    production_check = next(
+        c for c in production.checks if c.name == "backup_freshness"
+    )
+    assert demo_check.status == "warning"
+    assert production_check.status == "fatal"
+
+
+def test_doctor_backup_check_empty_directory_is_warning_in_dev_fatal_in_prod(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+
+    demo = doctor_report(
+        profile="demo",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+        backup_dir=backup_dir,
+    )
+    production = doctor_report(
+        profile="production",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+        backup_dir=backup_dir,
+    )
+
+    assert next(c for c in demo.checks if c.name == "backup_freshness").status == (
+        "warning"
+    )
+    assert next(
+        c for c in production.checks if c.name == "backup_freshness"
+    ).status == "fatal"
+
+
+def test_doctor_backup_check_fresh_backup_passes_even_in_production(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    (backup_dir / "gagos-20260722T000000Z.tar.gz").write_bytes(b"fake-archive")
+
+    report = doctor_report(
+        profile="production",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+        backup_dir=backup_dir,
+    )
+
+    check = next(c for c in report.checks if c.name == "backup_freshness")
+    assert check.status == "measured"
+
+
+def test_doctor_backup_check_stale_backup_is_warning_not_fatal_in_production(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    stale = backup_dir / "gagos-20260101T000000Z.tar.gz"
+    stale.write_bytes(b"fake-archive")
+    eight_days_ago = datetime.now(timezone.utc).timestamp() - (8 * 24 * 60 * 60)
+    os.utime(stale, (eight_days_ago, eight_days_ago))
+
+    report = doctor_report(
+        profile="production",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+        backup_dir=backup_dir,
+    )
+
+    check = next(c for c in report.checks if c.name == "backup_freshness")
+    assert check.status == "warning"
+    assert "day(s) old" in check.message
+
+
+def test_doctor_backup_check_picks_the_newest_of_several_archives(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    older = backup_dir / "gagos-20260101T000000Z.tar.gz"
+    newer = backup_dir / "gagos-20260722T000000Z.tar.gz"
+    older.write_bytes(b"old")
+    newer.write_bytes(b"new")
+    now = datetime.now(timezone.utc).timestamp()
+    os.utime(older, (now - (30 * 24 * 60 * 60), now - (30 * 24 * 60 * 60)))
+    os.utime(newer, (now, now))
+
+    report = doctor_report(
+        profile="demo",
+        project_roots=(tmp_path,),
+        executor_probe=lambda: (True, "available"),
+        backup_dir=backup_dir,
+    )
+
+    check = next(c for c in report.checks if c.name == "backup_freshness")
+    assert check.status == "measured"
+    assert newer.name in check.message
 
 
 def test_backup_manifest_excludes_environment_files_and_round_trips_state(

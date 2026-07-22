@@ -1035,7 +1035,8 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "No unified correlation-ID tracked telemetry across model calls, clerk, executor, mission queue, verification, promotion, rollback, and emergency-stop exists yet."
+      "No unified correlation-ID tracked telemetry across model calls, clerk, executor, mission queue, verification, promotion, rollback, and emergency-stop exists yet.",
+      "Reconciliation pass item 9: grounded, not built. aios/operations/tracing.py's TraceContext/new_trace_context/bind_trace_context/get_trace_context are real, tested code (see tests/test_operations.py::test_trace_context_rejects_unbounded_or_invalid_header_values) but confirmed via grep across the whole tree to still be unbound and unused outside their own test -- no HTTP middleware constructs one from real request headers, and no model call, clerk job, executor submission, mission-queue dequeue, verification, promotion, rollback, or emergency-stop path binds one via bind_trace_context(). Wiring that in is a real, cross-cutting, architecturally-invasive change (FastAPI middleware, propagation across every async call chain named above) -- correctly scoped as its own dedicated slice, not attempted as part of a reconciliation-pass commit."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1050,7 +1051,8 @@
     "integration_tests": [],
     "live_evidence": [],
     "known_blockers": [
-      "Key rotation, a bounded grace period, and truthful Ollama-absence handling are not fully implemented."
+      "Key rotation, a bounded grace period, and truthful Ollama-absence handling are not fully implemented.",
+      "Reconciliation pass item 9: grounded, not built. ActionType.SECURITY_TOKENS_ROTATE and an audit_key_rotate route-authority entry exist in the policy kernel's routing table, but confirmed no function anywhere actually rotates a key -- there is no real secret-material rotation implementation to wire up, only a named, unimplemented action type. Implementing real key rotation (generating new credentials, safely invalidating old ones without breaking already-authenticated sessions, distributing new keys to already-running processes) is a genuine, security-sensitive design task, not a wiring gap -- correctly scoped as its own dedicated slice, not attempted here."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1061,7 +1063,8 @@
     "status": "yellow",
     "authority_owner": "BackupDisasterRecoveryAuthority",
     "production_entrypoints": [
-      "aios/operations/recovery.py"
+      "aios/operations/recovery.py",
+      "aios/operations/doctor.py"
     ],
     "focused_tests": [
       "tests/test_restore_invalidation.py"
@@ -1071,7 +1074,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "The genuinely-missing piece from this organ's own stated gap is now closed: invalidate_stale_authority_after_restore() always runs once restore_backup() installs restored state (not opt-in) and reuses each domain's real store unchanged -- IdentityStore.bump_session_generation (any session stamped with the pre-restore generation fails the exact Slice 26 `stamped_generation != current_generation` check), CapabilityStore.revoke_all_active, and ApprovalStore.clear. Verified directly: a pending approval from the snapshot is no longer consumable, an unconsumed capability from the snapshot is revoked, a session generation newer than the snapshot is still invalidated (not just older ones), and a fresh install with no prior identity/capability/approval database is a safe no-op. Still yellow (honest scope note): no live disaster-recovery drill has been run (this environment cannot simulate an actual crash/restart cycle against a production deployment), doctor_report() does not yet check backup freshness/existence, and there is no scheduled/automatic backup cadence -- create_backup must still be invoked manually."
+      "The genuinely-missing piece from this organ's own stated gap is now closed: invalidate_stale_authority_after_restore() always runs once restore_backup() installs restored state (not opt-in) and reuses each domain's real store unchanged -- IdentityStore.bump_session_generation (any session stamped with the pre-restore generation fails the exact Slice 26 `stamped_generation != current_generation` check), CapabilityStore.revoke_all_active, and ApprovalStore.clear. Verified directly: a pending approval from the snapshot is no longer consumable, an unconsumed capability from the snapshot is revoked, a session generation newer than the snapshot is still invalidated (not just older ones), and a fresh install with no prior identity/capability/approval database is a safe no-op.",
+      "Reconciliation pass item 9: doctor_report()'s backup-freshness gap named above is now closed too. New config.BACKUP_DIR constant (previously the same path was inlined twice in aios/__main__.py's backup-create/backup-restore default paths, unnamed -- now a single source of truth both read). New _backup_check() in aios/operations/doctor.py reports a missing backup directory or empty directory as required=production (fatal in production, warning in dev, matching the existing executor/operator_token severity split) and a stale backup (>7 days, a documented, adjustable threshold) as always a warning, never fatal -- staleness is a soft operational signal, not proof an archive is unusable. Verified against 5 real scenarios in tests/test_operations.py: missing directory, empty directory, a fresh archive, a stale archive, and picking the newest of several archives by mtime. Still yellow (unchanged, honest scope note): no live disaster-recovery drill has been run against a real crash/restart cycle, and there is still no scheduled/automatic backup cadence -- create_backup must still be invoked manually, so a doctor check reporting 'fresh' still depends entirely on an operator remembering to run it."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

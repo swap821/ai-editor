@@ -121,8 +121,7 @@ def _cmd_backup(args: argparse.Namespace) -> int:
         destination = (
             Path(args.output)
             if args.output
-            else config.DATA_DIR
-            / "backups"
+            else config.BACKUP_DIR
             / (f"gagos-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz")
         )
         manifest = create_backup(destination=destination)
@@ -140,8 +139,7 @@ def _cmd_backup(args: argparse.Namespace) -> int:
         safety = (
             Path(args.safety_backup)
             if args.safety_backup
-            else config.DATA_DIR
-            / "backups"
+            else config.BACKUP_DIR
             / (
                 f"pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
             )
