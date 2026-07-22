@@ -762,11 +762,16 @@ OLLAMA_HOST=http://127.0.0.1:11434
 AIOS_ROUTER_CLOUD_TASKS=reasoning,coding
 
 # Hard local-only posture
-AIOS_ROUTER_CLOUD_TASKS=
+AIOS_ROUTER_CLOUD_TASKS=""
 
 # Worker limits
 AIOS_SWARM_MAX_WORKERS=4
 AIOS_COUNCIL_MAX_CONCURRENT_WORKERS=4
+
+# Swarm cloud burst is a separate egress control from AIOS_ROUTER_CLOUD_TASKS
+# above -- it defaults to enabled and must also be turned off for a hard
+# local-only posture.
+AIOS_SWARM_CLOUD_BURST=false
 
 # Execution boundary
 AIOS_APPROVED_EXECUTION_BACKEND=container
