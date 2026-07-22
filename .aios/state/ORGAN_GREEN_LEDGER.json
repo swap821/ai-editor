@@ -748,17 +748,20 @@
       "aios/infrastructure/storage/migrations/0005_local_workforce_provenance.py",
       "aios/infrastructure/local_workforce/sqlite_store.py",
       "aios/application/local_workforce/provenance.py",
-      "aios/launcher.py"
+      "aios/launcher.py",
+      "aios/application/local_workforce/service.py",
+      "aios/api/deps.py"
     ],
     "focused_tests": [
-      "tests/test_local_workforce_provenance.py"
+      "tests/test_local_workforce_provenance.py",
+      "tests/test_local_workforce_service_provenance.py"
     ],
     "integration_tests": [
       "tests/test_launcher.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "LocalJobRequestRecord/LocalModelCallRecord/LocalJobResultRecord already existed as typed contracts but were referenced nowhere outside their own definition -- no repository, no store, not even a test. Slice 33 built the real thing: LocalWorkforceProvenanceStore (SQLite, migration 0005, scope=local_workforce) with per-record sha256 digests computed at write and verified at read (a row edited outside the store is detected, not silently trusted), a duplicate job_id insert fails closed via the primary key rather than silently overwriting, and `gagos provenance clerk-job <job-id>` reconstructs the request -> model-call -> result trace honestly even from partial (crash-shaped) state. Verified restart-reconstruction and tamper-detection directly, not just asserted. Still missing: nothing in the real LocalWorkforceService.run_advisory_job() path calls this store yet, so no real job's provenance is persisted in production; and 'missing provenance prevents learned-skill promotion' is not wired into aios.application.learning.service at all."
+      "Reconciliation pass item 3: the organ's own stated gap -- 'LocalWorkforceService.run_advisory_job() doesn't call this store yet, so no real job is persisted in production' -- is now resolved. run_advisory_job() is a thin wrapper around the original logic (renamed _execute_advisory_job, body byte-for-byte unchanged, zero validation-logic risk) that records every real job's request, model call, and result via LocalWorkforceProvenanceStore once execution completes -- honestly, including refusals (no admitted model) and schema-validation failures, not only successes. get_local_workforce_service() (aios/api/deps.py) now constructs and injects a real store at config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH (new config constant), so this is genuinely live in the production DI path, not just available. Fail-safe by construction: provenance_store defaults to None and recording is skipped entirely when absent, matching every other optional-dependency pattern in this codebase. New tests/test_local_workforce_service_provenance.py (5 tests: no-store no-op, successful job recorded, rejection recorded, schema-failure recorded, two jobs don't collide). While grounding this, found and reported (not fixed here, flagged as a separate task) a real pre-existing bug unrelated to this change: three tests in test_r15_new_blockers.py's TestBlocker9LocalJobSchema silently never exercised the schema-validation code they claim to test, because a bare MagicMock() registry always satisfies hasattr(registry, 'dependency'), triggering a real-registry fallback that made every job 'rejected' rather than 'failed' -- their weak assertion (status != 'completed') passed either way. Still missing: dispatch_clerical_job() (Slice 32) itself remains unwired -- a full integration needs a QualificationResult tracked per model, which isn't stored anywhere in the registry today; inventing that under time pressure was deliberately not attempted here rather than forcing a shallow/fake integration."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

@@ -779,8 +779,16 @@ def get_local_workforce_service(
 ) -> Any:
     """Provide the application-layer local-workforce orchestration service."""
     from aios.application.local_workforce.service import LocalWorkforceService
+    from aios.infrastructure.local_workforce.sqlite_store import (
+        LocalWorkforceProvenanceStore,
+    )
 
-    return LocalWorkforceService(registry=registry, ollama=ollama)
+    provenance_store = LocalWorkforceProvenanceStore(
+        config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH
+    )
+    return LocalWorkforceService(
+        registry=registry, ollama=ollama, provenance_store=provenance_store
+    )
 
 
 def get_hiring_repository() -> Any:

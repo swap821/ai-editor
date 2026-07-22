@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import uuid
 from collections.abc import Callable, Sequence
+from datetime import datetime, timezone
 from typing import Any
 
 from aios.core.llm import LLMClient, LLMError, OllamaClient
@@ -14,11 +18,17 @@ from aios.domain.local_workforce.admission import (
 from aios.domain.local_workforce.contracts import (
     LocalJobProfile,
     LocalJobRequest,
+    LocalJobRequestRecord,
     LocalJobResult,
+    LocalJobResultRecord,
+    LocalModelCallRecord,
     LocalWorkerModel,
 )
 from aios.domain.local_workforce.qualifier import QualificationSuite
 from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+from aios.infrastructure.local_workforce.sqlite_store import (
+    LocalWorkforceProvenanceStore,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +60,14 @@ class LocalWorkforceService:
         hardware_admission: HardwareAdmission | None = None,
         qualification_suite_factory: QualificationSuiteFactory = QualificationSuite,
         model_client_factory: ModelClientFactory | None = None,
+        provenance_store: LocalWorkforceProvenanceStore | None = None,
     ) -> None:
         self.registry = registry
         self.ollama = ollama
         self.hardware_admission = hardware_admission or HardwareAdmission()
         self.qualification_suite_factory = qualification_suite_factory
         self.model_client_factory = model_client_factory or self._default_model_client
+        self.provenance_store = provenance_store
 
     def refresh(self) -> Sequence[LocalWorkerModel]:
         """Reconcile durable state with the real Ollama model listing."""
@@ -167,8 +179,84 @@ class LocalWorkforceService:
         *,
         model_id: str | None = None,
     ) -> LocalJobResult:
+        """Execute a governed local clerical job, then durably record its
+        full provenance (Slice 33) -- the real request, model call, and
+        result -- when a store is configured. Recording happens after
+        execution, from the same request/result objects a caller already
+        sees, so it can never fabricate what actually happened; a rejection
+        (no admitted model) is recorded as honestly as a success."""
+        result = self._execute_advisory_job(request, model_id=model_id)
+        if self.provenance_store is not None:
+            self._record_advisory_job_provenance(request, result)
+        return result
+
+    def _record_advisory_job_provenance(
+        self, request: LocalJobRequest, result: LocalJobResult
+    ) -> None:
+        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        request_digest = hashlib.sha256(
+            request.redacted_payload.encode("utf-8")
+        ).hexdigest()
+        response_digest = hashlib.sha256(
+            json.dumps(
+                result.structured_output, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+            if result.structured_output is not None
+            else b""
+        ).hexdigest()
+        call_id = f"local-call-{uuid.uuid4().hex}"
+
+        store = self.provenance_store
+        assert store is not None
+        store.save_job_request(
+            LocalJobRequestRecord(
+                job_id=request.job_id,
+                job_profile=request.job_profile.value,
+                input_schema_version=request.input_schema_version,
+                requested_model=result.model_id,
+                evidence_references=tuple(sorted(request.evidence_references)),
+                redacted_input_digest=request_digest,
+                token_budget=request.token_budget,
+                deadline=request.deadline.isoformat(),
+                created_at=now,
+            )
+        )
+        store.save_model_call(
+            LocalModelCallRecord(
+                local_model_call_id=call_id,
+                local_job_id=request.job_id,
+                exact_model_id=result.model_id,
+                request_digest=request_digest,
+                response_digest=response_digest,
+                token_limits=request.token_budget,
+                measured_latency=result.latency,
+                start_time=now,
+                end_time=now,
+                status=result.status,
+                failure_reason=result.failure_reason,
+            )
+        )
+        store.save_job_result(
+            LocalJobResultRecord(
+                local_job_id=request.job_id,
+                local_model_call_id=call_id,
+                structured_result_digest=response_digest,
+                schema_valid=result.schema_valid,
+                evidence_references_preserved=result.evidence_references_preserved,
+                unsupported_claims=tuple(result.unsupported_claims),
+                status=result.status,
+                failure_reason=result.failure_reason,
+            )
+        )
+
+    def _execute_advisory_job(
+        self,
+        request: LocalJobRequest,
+        *,
+        model_id: str | None = None,
+    ) -> LocalJobResult:
         """Execute a governed local clerical job through an admitted model."""
-        import time, json
+        import time
 
         start_t = time.time()
 
