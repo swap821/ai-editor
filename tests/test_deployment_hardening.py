@@ -16,18 +16,24 @@ Guards the top-3 fixes picked from the 2026-07-05 deployment-hardening audit:
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "Dockerfile"
 EXECUTOR_DOCKERFILE = REPO_ROOT / "Dockerfile.executor"
+FRONTEND_DOCKERFILE = REPO_ROOT / "Dockerfile.frontend"
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 PYTHON_VERSION_FILE = REPO_ROOT / ".python-version"
 DOCKERIGNORE = REPO_ROOT / ".dockerignore"
+GATEWAY_NGINX_TEMPLATE = REPO_ROOT / "gateway" / "nginx.conf.template"
 
 
 def _dockerfile_lines() -> list[str]:
@@ -193,3 +199,85 @@ def test_ci_python_version_matches_dockerfile_and_pin_file() -> None:
     assert pinned.startswith(dockerfile_version), (
         f".python-version ({pinned!r}) does not match Dockerfile ({dockerfile_version!r})"
     )
+
+
+# ---------------------------------------------------------------------------
+# 4. The packaged gateway forwards the API bearer the backend requires
+# ---------------------------------------------------------------------------
+#
+# docker-compose.yml's own header comment says AIOS_API_TOKEN is required
+# (the aios service binds 0.0.0.0). Browser JavaScript never holds this
+# token by design (frontend/src/superbrain/lib/aiosAdapter.ts's authHeaders()
+# always returns {}), so the gateway -- the only process that both
+# terminates the browser connection and can hold the real secret -- must be
+# the one to inject it into every proxied /api/ request. Without this, a
+# real AIOS_API_TOKEN 401s every single request through the packaged
+# topology (aios/interfaces/http/edge_security.py's check_bearer_token()).
+
+
+def test_gateway_service_receives_the_api_token() -> None:
+    compose = _load_compose()
+    gateway_environment = "\n".join(
+        str(item) for item in compose["services"]["gateway"].get("environment", [])
+    )
+    assert "AIOS_API_TOKEN" in gateway_environment, (
+        "gateway service never receives AIOS_API_TOKEN -- it cannot forward "
+        "a bearer it was never given"
+    )
+
+
+def test_frontend_dockerfile_templates_nginx_conf_instead_of_a_static_copy() -> None:
+    """A static COPY to conf.d can never see the token at build time (it isn't
+    set yet, and baking a real secret into an image layer would be worse
+    anyway); the config must be rendered from the container's own runtime
+    environment via nginx's standard envsubst templating mechanism."""
+    text = FRONTEND_DOCKERFILE.read_text(encoding="utf-8")
+    assert "/etc/nginx/templates/" in text, (
+        "nginx config is not installed as a template -- ${AIOS_API_TOKEN} "
+        "can never be substituted at container startup"
+    )
+    assert "conf.d/default.conf\n" not in text and "conf.d/default.conf " not in text
+
+
+def test_gateway_nginx_template_forwards_authorization_header_to_the_api() -> None:
+    text = GATEWAY_NGINX_TEMPLATE.read_text(encoding="utf-8")
+    api_block_match = re.search(r"location /api/ \{(.*?)\n    \}", text, re.DOTALL)
+    assert api_block_match, "could not find the /api/ location block"
+    api_block = api_block_match.group(1)
+    assert "proxy_set_header Authorization" in api_block, (
+        "the /api/ location block never sets an Authorization header -- the "
+        "backend's required bearer is never forwarded"
+    )
+    assert "${AIOS_API_TOKEN}" in api_block
+
+
+def test_gateway_nginx_template_renders_the_real_bearer_via_envsubst() -> None:
+    """Exercises the exact mechanism the official nginx image's own
+    docker-entrypoint.d/20-envsubst-on-templates.sh uses: envsubst scoped to
+    only the container's currently-defined environment variable names, so
+    nginx's own runtime variables ($scheme, $remote_addr, ...) are never
+    touched. This is real, live verification of the substitution itself --
+    not of the running container, since no Docker daemon is available in
+    this environment."""
+    if shutil.which("envsubst") is None:
+        pytest.skip("envsubst is not installed in this environment")
+
+    token = "test-token-01234567890123456789012345"
+    env = dict(os.environ)
+    env["AIOS_API_TOKEN"] = token
+    defined_envs = " ".join(f"${{{name}}}" for name in env)
+    rendered = subprocess.run(
+        ["envsubst", defined_envs],
+        input=GATEWAY_NGINX_TEMPLATE.read_text(encoding="utf-8"),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    assert f'proxy_set_header Authorization "Bearer {token}";' in rendered
+    # nginx's own runtime variables must survive untouched -- envsubst here
+    # is scoped to exactly the container's defined env var names, none of
+    # which are named "scheme" or "remote_addr".
+    assert "proxy_set_header X-Forwarded-Proto $scheme;" in rendered
+    assert "proxy_set_header X-Real-IP $remote_addr;" in rendered

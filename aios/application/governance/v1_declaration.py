@@ -294,7 +294,7 @@ def evaluate_release(
         _gate(
             "production_profile_fail_closed",
             repo,
-            ("aios/launcher.py", "Dockerfile.frontend", "gateway/nginx.conf"),
+            ("aios/launcher.py", "Dockerfile.frontend", "gateway/nginx.conf.template"),
             "production launcher refuses missing Docker and host fallback",
             runtime_proven=supplied_runtime_proofs.get(
                 "production_profile_fail_closed", False

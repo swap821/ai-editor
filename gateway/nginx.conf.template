@@ -21,6 +21,18 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # The backend requires this bearer for every /api/* request whenever
+        # AIOS_API_TOKEN is configured (aios/interfaces/http/edge_security.py);
+        # browser JavaScript never receives the token by design (aiosAdapter.ts's
+        # authHeaders() always returns {}), so the gateway -- the one process
+        # that both terminates the browser connection and holds the real
+        # secret -- must be the one to inject it. The value below is
+        # substituted at container startup by nginx's standard envsubst
+        # templating (this file lives under /etc/nginx/templates/); it
+        # resolves to an empty, harmless value when the token isn't set. Not
+        # written as a literal dollar-brace reference in this comment on
+        # purpose -- envsubst does not distinguish comments from directives.
+        proxy_set_header Authorization "Bearer ${AIOS_API_TOKEN}";
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 3600s;

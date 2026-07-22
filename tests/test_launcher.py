@@ -134,7 +134,7 @@ def test_launcher_status_does_not_claim_missing_local_process_is_running(
 
 def test_same_origin_gateway_is_loopback_only_and_proxies_api() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
-    nginx = Path("gateway/nginx.conf").read_text(encoding="utf-8")
+    nginx = Path("gateway/nginx.conf.template").read_text(encoding="utf-8")
     dockerfile = Path("Dockerfile.frontend").read_text(encoding="utf-8")
     assert "127.0.0.1:${AIOS_GATEWAY_PORT:-3000}:8080" in compose
     assert "dockerfile: Dockerfile.frontend" in compose

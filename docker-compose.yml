@@ -115,6 +115,11 @@ services:
     cpus: 1.0
     ports:
       - "127.0.0.1:${AIOS_GATEWAY_PORT:-3000}:8080"
+    environment:
+      # Injected into every proxied /api/ request by gateway/nginx.conf.template
+      # -- the one process holding this secret and terminating the browser
+      # connection, so browser JavaScript never needs to (and never does).
+      - AIOS_API_TOKEN=${AIOS_API_TOKEN:-}
     networks:
       - aios-net
     depends_on:
