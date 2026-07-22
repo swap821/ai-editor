@@ -150,9 +150,7 @@ def require_all_simulations_pass(results: Sequence[SimulationCheckResult]) -> No
         )
     failed = [name for name in ADVERSARIAL_SIMULATION_CHECKS if not seen[name].passed]
     if failed:
-        raise ConstitutionalLearningError(
-            f"failed adversarial simulations: {failed}"
-        )
+        raise ConstitutionalLearningError(f"failed adversarial simulations: {failed}")
 
 
 __all__ = [

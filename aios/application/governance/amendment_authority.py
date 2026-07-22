@@ -70,7 +70,9 @@ def critique_amendment(
 ) -> ConstitutionalAmendmentProposalV1:
     """Models or humans may critique -- never changes runtime behavior."""
     if proposal.status not in _OPEN_STATUSES:
-        raise AmendmentError(f"cannot critique a proposal in status {proposal.status!r}")
+        raise AmendmentError(
+            f"cannot critique a proposal in status {proposal.status!r}"
+        )
     return proposal.model_copy(
         update={
             "critiques": proposal.critiques + (critique_text,),
@@ -84,7 +86,9 @@ def simulate_amendment(
 ) -> ConstitutionalAmendmentProposalV1:
     """Models or humans may simulate -- never changes runtime behavior."""
     if proposal.status not in _OPEN_STATUSES:
-        raise AmendmentError(f"cannot simulate a proposal in status {proposal.status!r}")
+        raise AmendmentError(
+            f"cannot simulate a proposal in status {proposal.status!r}"
+        )
     return proposal.model_copy(
         update={
             "simulation_notes": proposal.simulation_notes + (simulation_note,),
@@ -110,10 +114,11 @@ def ratify_amendment(
     if proposal.status not in _OPEN_STATUSES:
         raise AmendmentError(f"cannot ratify a proposal in status {proposal.status!r}")
     if _touches_foundation_law(proposal):
-        raise AmendmentError(
-            "foundation-law modifications are not amendable in v1"
-        )
-    if getattr(capability_proof, "action_type", None) != CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION:
+        raise AmendmentError("foundation-law modifications are not amendable in v1")
+    if (
+        getattr(capability_proof, "action_type", None)
+        != CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION
+    ):
         raise AmendmentError(
             "ratification capability must be bound to "
             f"{CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION!r}, got "
@@ -162,7 +167,9 @@ def activate_amendment(
     if emergency_stop is not None:
         emergency_stop.assert_operational()
     if proposal.status != "ratified":
-        raise AmendmentError(f"cannot activate a proposal in status {proposal.status!r}")
+        raise AmendmentError(
+            f"cannot activate a proposal in status {proposal.status!r}"
+        )
     if proposal.ratified_by_operator_id is None:
         raise AmendmentError("ratified proposal is missing its ratifying operator")
     new_snapshot = build_constitution_snapshot(
@@ -181,7 +188,9 @@ def rollback_amendment(
     """Every activation has a rollback: revert to the exact predecessor
     snapshot this activation chained from, never an arbitrary older one."""
     if proposal.status != "activated":
-        raise AmendmentError(f"cannot roll back a proposal in status {proposal.status!r}")
+        raise AmendmentError(
+            f"cannot roll back a proposal in status {proposal.status!r}"
+        )
     if current_snapshot.previous_snapshot_digest != previous_snapshot.snapshot_digest:
         raise AmendmentError(
             "previous_snapshot is not the exact predecessor of current_snapshot"
