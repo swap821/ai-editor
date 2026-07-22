@@ -179,16 +179,26 @@ def test_shipped_ledger_has_all_54_organs_and_zero_violations() -> None:
     assert validate_ledger(records) == ()
 
 
-def test_shipped_ledger_32_target_organs_remain_yellow_with_truthful_blockers() -> None:
-    """Target organs may show real partial progress (entrypoints/tests) as
-    slices land, but must never claim `green` and must always carry a
-    truthful blocker describing exactly what remains -- never an empty
-    blocker that would look like an oversight of a finished organ."""
+def test_shipped_ledger_32_target_organs_are_yellow_with_blockers_or_genuinely_green() -> None:
+    """Every one of the 32 organs the plan targets must be in one of exactly
+    two truthful states: yellow with a real blocker describing exactly what
+    remains (never an empty blocker that would look like an oversight of a
+    finished organ), or green -- and a green claim is only ever trusted
+    because `test_shipped_ledger_green_organs_have_tests_and_no_blockers`
+    (below) independently verifies it carries real tests and no blockers.
+    This intentionally does not assert every target organ stays yellow
+    forever: as of the Tier-1 closure pass, organs 29 and 35 are genuinely
+    green (see `.aios/state/RESUME.md`), and this test must keep passing as
+    more close -- what must never happen is a target organ in any other
+    state (missing, or green without tests)."""
     records = {r.organ_id: r for r in load_ledger(LEDGER_PATH)}
     for organ_id in TARGET_ORGAN_IDS:
         record = records[organ_id]
-        assert record.status == "yellow", f"organ {organ_id} should still be yellow"
-        assert record.known_blockers, f"organ {organ_id} has no truthful blocker"
+        assert record.status in ("yellow", "green"), (
+            f"organ {organ_id} has an unrecognised status {record.status!r}"
+        )
+        if record.status == "yellow":
+            assert record.known_blockers, f"organ {organ_id} has no truthful blocker"
 
 
 def test_shipped_ledger_green_organs_have_tests_and_no_blockers() -> None:
@@ -209,7 +219,14 @@ def test_organ_proof_manifest_hash_pins_the_ledger() -> None:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     ledger_bytes = LEDGER_PATH.read_bytes()
     assert manifest["ledger_sha256"] == hashlib.sha256(ledger_bytes).hexdigest()
-    assert manifest["organ_summary"] == {"total": 54, "green": 22, "yellow": 32}
+    records = load_ledger(LEDGER_PATH)
+    expected_summary = {
+        "total": len(records),
+        "green": sum(1 for r in records if r.status == "green"),
+        "yellow": sum(1 for r in records if r.status == "yellow"),
+    }
+    assert expected_summary["total"] == 54
+    assert manifest["organ_summary"] == expected_summary
 
 
 # --- CLI wiring -----------------------------------------------------------
@@ -222,7 +239,9 @@ def test_launcher_organ_check_strict_fails_until_all_organs_green(
     assert launcher.organ_check(config, strict=True, as_json=True) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["all_green"] is False
-    assert payload["yellow_count"] == 32
+    assert payload["yellow_count"] == sum(
+        1 for r in load_ledger(LEDGER_PATH) if r.status == "yellow"
+    )
     assert payload["conformant"] is True
 
 

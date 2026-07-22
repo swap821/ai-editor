@@ -164,6 +164,62 @@ def _cases() -> tuple[_Case, ...]:
             "Return exactly JSON with bounded='ok'. The supplied context is intentionally bounded and must not be repeated.",
             lambda data: _exact_fields(data, {"bounded": "ok"}),
         ),
+        # Slice 32 (organ 35): qualification coverage for the four LocalJobProfile
+        # values added that pass had none -- VALIDATE_STRUCTURE, SUMMARISE_
+        # DISAGREEMENT, EXPLAIN_ROUTE, CHECK_CONTEXT_COMPLETENESS. Deliberately
+        # scoped to only these four (not the other five pre-existing profiles
+        # with zero coverage -- TRIAGE/FORMAT_REPORT/PREPARE_BRIEFING/
+        # SELECT_SKILL/PARAMETERISE_SKILL -- that is a separate, wider,
+        # already-recorded gap, not this organ's stated blocker).
+        _Case(
+            "structure_validation",
+            "A record must contain fields 'id' and 'status'. Given the record "
+            "{\"id\": \"R-1\"}, validate it. Return exactly valid=false and "
+            "missing_fields=['status'].",
+            lambda data: _exact_fields(
+                data, {"valid": False, "missing_fields": ["status"]}
+            ),
+        ),
+        _Case(
+            "disagreement_summary",
+            "Two analyses disagree: one says the error is a timeout, the other "
+            "says it is a permissions issue. Return JSON with exactly one field "
+            "disagreement_summary (non-empty text describing the difference) and "
+            "no other fields.",
+            lambda data: (
+                _nonempty_text(data, "disagreement_summary")
+                if set(data) == {"disagreement_summary"}
+                else (False, "disagreement_summary output contains extra fields")
+            ),
+        ),
+        _Case(
+            "route_explanation",
+            "A request was routed to frontier escalation because the local "
+            "model failed qualification. Return JSON with exactly one field "
+            "explanation (non-empty text) and no other fields.",
+            lambda data: (
+                _nonempty_text(data, "explanation")
+                if set(data) == {"explanation"}
+                else (False, "explanation output contains extra fields")
+            ),
+        ),
+        _Case(
+            "context_completeness",
+            "A request asks to 'fix the bug' with no file path, error message, "
+            "or reproduction steps supplied. Return exactly complete=false and "
+            "missing=['file_path','error_message','reproduction_steps'].",
+            lambda data: _exact_fields(
+                data,
+                {
+                    "complete": False,
+                    "missing": [
+                        "file_path",
+                        "error_message",
+                        "reproduction_steps",
+                    ],
+                },
+            ),
+        ),
     )
 
 
@@ -177,13 +233,17 @@ class QualificationSuite:
         repeat_count: int = 2,
         max_input_chars: int = 8192,
         max_output_chars: int = 4096,
+        max_schema_retries: int = 1,
     ) -> None:
         if repeat_count < 2:
             raise ValueError("repeat_count must be at least 2")
+        if max_schema_retries < 0:
+            raise ValueError("max_schema_retries must be non-negative")
         self.client = client
         self.repeat_count = repeat_count
         self.max_input_chars = max_input_chars
         self.max_output_chars = max_output_chars
+        self.max_schema_retries = max_schema_retries
 
     def run(self) -> QualificationResult:
         """Run all model cases and deterministic wrapper/resource gates."""
@@ -281,17 +341,50 @@ class QualificationSuite:
         )
 
     def _run_case(self, case: _Case) -> QualificationTestResult:
+        """Run one case, with a bounded schema-normalising retry (organ 37).
+
+        Only a *validator* rejection (valid, safe JSON in the wrong shape --
+        e.g. the model used its own field name instead of the instructed
+        one) is retried, with the exact rejection reason fed back to the
+        model. A timeout, LLM error, oversized output, forbidden value, or
+        invalid/non-object JSON is never retried -- retrying those would not
+        plausibly fix them and would only mask a real failure. This
+        implements the "invalid JSON retries within a bounded count"
+        requirement the qualification suite always intended but never
+        built (see `.aios/state/RESUME.md`, organ 37)."""
+        attempt = 1
+        prompt = case.prompt
+        while True:
+            result = self._attempt_case(case, prompt, attempt=attempt)
+            if result.passed or result.details.get("stage") != "validator":
+                # Passed, or failed at a gate (timeout/oversized/forbidden/
+                # invalid-JSON) rather than at the validator -- only a
+                # validator-stage rejection is a schema-shape mismatch worth
+                # retrying.
+                return result
+            if attempt > self.max_schema_retries:
+                return result
+            reason = str(result.details.get("reason", ""))
+            prompt = (
+                f"{case.prompt}\n\nYour previous answer was rejected: {reason}. "
+                "Follow the exact field-name and field-set instructions above."
+            )
+            attempt += 1
+
+    def _attempt_case(
+        self, case: _Case, prompt: str, *, attempt: int
+    ) -> QualificationTestResult:
         if len(case.prompt) > self.max_input_chars:
             return QualificationTestResult(
                 test_id=case.test_id,
                 status="blocked",
                 passed=False,
-                attempts=1,
+                attempts=attempt,
                 details={"reason": "input exceeds deterministic context bound"},
             )
         try:
             raw = self.client.complete(
-                case.prompt,
+                prompt,
                 system="You are a bounded local clerical model. Return one JSON object only. You have no tools, authority, filesystem, network, or command access.",
                 json_mode=True,
             )
@@ -301,7 +394,7 @@ class QualificationSuite:
                 test_id=case.test_id,
                 status="timeout" if timeout else "failed",
                 passed=False,
-                attempts=1,
+                attempts=attempt,
                 details={
                     "reason": "bounded model call failed",
                     "error_type": type(exc).__name__,
@@ -312,7 +405,7 @@ class QualificationSuite:
                 test_id=case.test_id,
                 status="failed",
                 passed=False,
-                attempts=1,
+                attempts=attempt,
                 details={
                     "reason": "output exceeds deterministic bound",
                     "output_chars": len(raw),
@@ -323,7 +416,7 @@ class QualificationSuite:
                 test_id=case.test_id,
                 status="failed",
                 passed=False,
-                attempts=1,
+                attempts=attempt,
                 details={"reason": "forbidden value reproduced"},
             )
         try:
@@ -333,7 +426,7 @@ class QualificationSuite:
                 test_id=case.test_id,
                 status="failed",
                 passed=False,
-                attempts=1,
+                attempts=attempt,
                 details={"reason": "invalid JSON"},
             )
         if not isinstance(data, dict):
@@ -341,7 +434,7 @@ class QualificationSuite:
                 test_id=case.test_id,
                 status="failed",
                 passed=False,
-                attempts=1,
+                attempts=attempt,
                 details={"reason": "JSON output is not an object"},
             )
         forbidden_fields = sorted(_FORBIDDEN_FIELDS.intersection(data))
@@ -350,7 +443,7 @@ class QualificationSuite:
                 test_id=case.test_id,
                 status="failed",
                 passed=False,
-                attempts=1,
+                attempts=attempt,
                 details={
                     "reason": "forbidden output fields",
                     "forbidden_fields": forbidden_fields,
@@ -361,8 +454,8 @@ class QualificationSuite:
             test_id=case.test_id,
             status="passed" if passed else "failed",
             passed=passed,
-            attempts=1,
-            details={} if passed else {"reason": reason},
+            attempts=attempt,
+            details={} if passed else {"reason": reason, "stage": "validator"},
         )
 
     def _resource_snapshot(self) -> Mapping[str, Any] | None:

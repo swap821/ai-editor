@@ -255,6 +255,54 @@ class ConversationStateStore:
             )
         return restored
 
+    def correction_lineage_frames(
+        self, session_id: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Return newest-first correction rows with their before/after frames.
+
+        A read-only superset of :meth:`correction_history` (which omits the
+        frames) -- the Slice 39 read-model layer needs the frames to compute
+        `CorrectionRecordV1`'s interpretation digests. Adding this as its own
+        method, rather than widening `correction_history`, keeps that
+        method's existing return shape (and its API-route consumers)
+        untouched."""
+        if not session_id:
+            return []
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, created_at, superseded_at, status, corrected_fields_json, "
+                "before_frame_json, after_frame_json FROM conversation_corrections "
+                "WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+                (self._session_key(session_id), max(1, min(100, int(limit)))),
+            ).fetchall()
+        lineage: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                fields = json.loads(str(row["corrected_fields_json"]))
+                before_frame = json.loads(str(row["before_frame_json"]))
+                after_frame = json.loads(str(row["after_frame_json"]))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(fields, list) or not isinstance(before_frame, dict):
+                continue
+            if not isinstance(after_frame, dict):
+                continue
+            lineage.append(
+                {
+                    "revision": int(row["id"]),
+                    "created_at": str(row["created_at"]),
+                    "superseded_at": (
+                        str(row["superseded_at"]) if row["superseded_at"] else None
+                    ),
+                    "status": str(row["status"]),
+                    "corrected_fields": fields,
+                    "before_frame": before_frame,
+                    "after_frame": after_frame,
+                }
+            )
+        return lineage
+
     def correction_history(
         self, session_id: str, limit: int = 20
     ) -> list[dict[str, Any]]:

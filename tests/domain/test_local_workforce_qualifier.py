@@ -6,10 +6,24 @@ from aios.domain.local_workforce.admission import HardwareAdmission, AdmissionCo
 class FakeLLMClient:
     def __init__(self, mode: str = "pass"):
         self.mode = mode
+        self.calls: list[str] = []
 
     def complete(
         self, prompt: str, *, system: str | None = None, json_mode: bool = False
     ) -> str:
+        self.calls.append(prompt)
+        if self.mode == "schema_retry_then_pass":
+            if "reference identifier" in prompt:
+                # Wrong field name on the first attempt (no retry-correction
+                # text present yet), the instructed one once corrected.
+                if "was rejected" not in prompt:
+                    return '{"ref_id": "REF-15"}'
+                return '{"reference_id": "REF-15"}'
+            return '{"result": "ok"}'
+        if self.mode == "schema_retry_exhausted":
+            if "reference identifier" in prompt:
+                return '{"ref_id": "REF-15"}'
+            return '{"result": "ok"}'
         if self.mode == "pass":
             if "one field result" in prompt:
                 return '{"result": "ok"}'
@@ -35,6 +49,17 @@ class FakeLLMClient:
                 return '{"accepted": false}'
             if "bounded" in prompt:
                 return '{"bounded": "ok"}'
+            if "must contain fields 'id' and 'status'" in prompt:
+                return '{"valid": false, "missing_fields": ["status"]}'
+            if "Two analyses disagree" in prompt:
+                return '{"disagreement_summary": "timeout vs permissions issue"}'
+            if "routed to frontier escalation" in prompt:
+                return '{"explanation": "the local model failed qualification"}'
+            if "fix the bug" in prompt:
+                return (
+                    '{"complete": false, "missing": '
+                    '["file_path", "error_message", "reproduction_steps"]}'
+                )
             return '{"result": "ok"}'
         elif self.mode == "fail_schema":
             if "one field result" in prompt:
@@ -120,3 +145,85 @@ def test_qualification_suite_fail_timeout():
     res = suite.run()
     assert res.passed is False
     assert res.timeout_rate == 1.0
+
+
+# --- Organ 35: qualification coverage for the four new LocalJobProfile cases
+
+
+def test_qualification_suite_covers_the_four_new_organ_35_cases():
+    client = FakeLLMClient(mode="pass")
+    suite = QualificationSuite(client)
+    res = suite.run()
+    assert res.passed is True
+    test_ids = {item.test_id for item in res.test_results}
+    assert test_ids >= {
+        "structure_validation",
+        "disagreement_summary",
+        "route_explanation",
+        "context_completeness",
+    }
+
+
+# --- Organ 37: bounded schema-normalising retry ----------------------------
+
+
+def test_schema_retry_recovers_from_a_wrong_field_name():
+    """A model that used the wrong field name once, then the correct one
+    when the exact rejection reason is fed back, ends up passing -- and the
+    result honestly records that it took 2 attempts."""
+    client = FakeLLMClient(mode="schema_retry_then_pass")
+    suite = QualificationSuite(client)
+    res = suite.run()
+    identifier_result = next(
+        item for item in res.test_results if item.test_id == "identifier_preservation"
+    )
+    assert identifier_result.passed is True
+    assert identifier_result.attempts == 2
+    assert res.identifier_preservation == 1.0
+
+
+def test_schema_retry_is_bounded_and_still_reports_honest_failure():
+    """A model that never produces the right field name still fails --
+    the retry gives it one more real chance, not infinite chances, and the
+    final result is an honest failure, not a fabricated pass."""
+    client = FakeLLMClient(mode="schema_retry_exhausted")
+    suite = QualificationSuite(client)
+    res = suite.run()
+    identifier_result = next(
+        item for item in res.test_results if item.test_id == "identifier_preservation"
+    )
+    assert identifier_result.passed is False
+    assert identifier_result.attempts == 2  # 1 initial + 1 retry, then stop
+    assert res.identifier_preservation == 0.0
+
+
+def test_schema_retry_does_not_apply_to_invalid_json():
+    """Retrying invalid JSON or a timeout would not plausibly fix them and
+    would only mask a real failure -- only a validator-stage rejection
+    (valid, safe JSON in the wrong shape) is retried."""
+    client = FakeLLMClient(mode="fail_schema")
+    suite = QualificationSuite(client)
+    res = suite.run()
+    json_case = next(
+        item for item in res.test_results if item.test_id == "json_validity"
+    )
+    assert json_case.passed is False
+    assert json_case.attempts == 1
+
+
+def test_schema_retries_can_be_disabled():
+    client = FakeLLMClient(mode="schema_retry_then_pass")
+    suite = QualificationSuite(client, max_schema_retries=0)
+    res = suite.run()
+    identifier_result = next(
+        item for item in res.test_results if item.test_id == "identifier_preservation"
+    )
+    assert identifier_result.passed is False
+    assert identifier_result.attempts == 1
+
+
+def test_max_schema_retries_must_be_non_negative():
+    import pytest
+
+    with pytest.raises(ValueError):
+        QualificationSuite(FakeLLMClient(), max_schema_retries=-1)

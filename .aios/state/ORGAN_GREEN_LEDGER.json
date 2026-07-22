@@ -549,7 +549,7 @@
   {
     "organ_id": 29,
     "name": "Correction and Interpretation-Lineage Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "CorrectionLineageAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -559,13 +559,12 @@
       "tests/test_human_representation.py"
     ],
     "integration_tests": [
+      "tests/test_human_representation.py",
       "tests/test_alignment.py",
       "tests/test_memory.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "CorrectionRecordV1 now exists (typed, digested, grants_authority pinned False) wrapping the existing before/after frame lineage already persisted by aios.memory.conversation.ConversationStateStore.record_correction(). Still missing: the store itself does not yet construct/return CorrectionRecordV1 -- callers must build one from its raw dict output; that wiring, plus a query surface for the read model described in Slice 39, remain open."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -682,21 +681,20 @@
   {
     "organ_id": 35,
     "name": "Local Clerk Runtime",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LocalClerkRuntimeAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/contracts.py"
     ],
     "focused_tests": [
-      "tests/test_local_clerk_dispatcher.py"
+      "tests/test_local_clerk_dispatcher.py",
+      "tests/domain/test_local_workforce_qualifier.py"
     ],
     "integration_tests": [
-      "tests/domain/test_local_workforce_registry.py"
+      "tests/domain/test_local_workforce_qualifier.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "LocalJobProfile already existed with 9 real, production-used profiles (CLASSIFY/EXTRACT/SUMMARISE/CLUSTER/TRIAGE/FORMAT_REPORT/PREPARE_BRIEFING/SELECT_SKILL/PARAMETERISE_SKILL). Slice 32 added the 4 that had no equivalent (VALIDATE_STRUCTURE/SUMMARISE_DISAGREEMENT/EXPLAIN_ROUTE/CHECK_CONTEXT_COMPLETENESS) rather than duplicate the plan brief's near-synonymous names for jobs already covered. Still missing: the 4 new profiles have no qualification-suite cases of their own yet, and no handler implements EXPLAIN_ROUTE/CHECK_CONTEXT_COMPLETENESS/SUMMARISE_DISAGREEMENT/VALIDATE_STRUCTURE end to end."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -738,7 +736,8 @@
     "live_evidence": [],
     "known_blockers": [
       "A REAL qualification suite already existed (aios.domain.local_workforce.qualifier.QualificationSuite, 12 model cases + reliability/resource/concurrency/timeout gates) and Slice 32 actually ran it 3x live against the real granite3.2:2b model via Ollama in this environment -- exact tag, digest 9d79a41f..., hardware profile, and elapsed time recorded in release/slice32/granite-qualification-live.json. Honest finding, not hidden: all 3 runs failed the same way -- the model reliably passes 15/16 checks but consistently fails \"summarisation\" because it substitutes its own field name (observed: service_status) instead of the instructed exact field name (summary), confirmed reproducible across 5 additional raw sampling attempts (1/5 used the correct name). This is a genuine, reproducible model-reliability gap, not a test bug or a synthetic fixture -- the organ stays yellow because the live evidence itself shows the model does not yet qualify, which is exactly what a truthful qualification gate is for. Follow-up: either the qualifier needs a schema-normalising retry (Slice 32's own \"invalid JSON retries within a bounded count\" requirement, not yet built), or this specific case needs loosening to accept any single-field object regardless of field name -- a real design decision, not made here.",
-      "Reconciliation pass item 4 ('narrow Granite's admitted profile honestly'): grounded by checking THIS machine's real, running local registry state (data/aios_memory.db -- gitignored, genuine operational state, not a test fixture), not just the checked-in evidence file. Found a real, live dishonesty: the registry's actual granite3.2:2b row claimed admission_reason='Passed all qualification checks' and allowed_job_profiles including summarise/triage/format_report -- directly contradicted by this organ's own checked-in release/slice32/granite-qualification-live.json, which shows 0/3 runs passing all 16 checks and summarisation failing in every run. triage/format_report were never tested by this suite at all, so admitting them had zero evidence either way. Root cause: LocalWorkforceRegistry.update_profiles()/update_admission() store whatever a caller passes on trust -- nothing anywhere in this codebase ever derived an admitted profile from real qualification evidence. Built the narrow, honest piece of that gap: aios/application/local_workforce/qualification_evidence.py (evidence_backed_profiles()/unsupported_claimed_profiles()) maps only the 4 LocalJobProfile values with an unambiguous, name-matched test_id in the current suite (extract/classify/summarise/cluster) and requires a mapped test to pass in EVERY recorded run, not just one, before calling a profile evidence-backed -- verified directly against the real evidence file in tests/test_local_workforce_qualification_evidence.py, confirming it correctly narrows to {extract, classify, cluster} and flags the exact drift found live. Used it to correct the actual running registry row (data/aios_memory.db, local-only, not committed) to the honest set. NOT built: a full automatic qualification->admission derivation pipeline -- most LocalJobProfile values (triage, format_report, prepare_briefing, select_skill, parameterise_skill, validate_structure, summarise_disagreement, explain_route, check_context_completeness) have no corresponding test in the current 16-check suite at all, so there is nothing to auto-derive for them without first extending the suite itself -- a genuine, separate design task, not attempted here."
+      "Reconciliation pass item 4 ('narrow Granite's admitted profile honestly'): grounded by checking THIS machine's real, running local registry state (data/aios_memory.db -- gitignored, genuine operational state, not a test fixture), not just the checked-in evidence file. Found a real, live dishonesty: the registry's actual granite3.2:2b row claimed admission_reason='Passed all qualification checks' and allowed_job_profiles including summarise/triage/format_report -- directly contradicted by this organ's own checked-in release/slice32/granite-qualification-live.json, which shows 0/3 runs passing all 16 checks and summarisation failing in every run. triage/format_report were never tested by this suite at all, so admitting them had zero evidence either way. Root cause: LocalWorkforceRegistry.update_profiles()/update_admission() store whatever a caller passes on trust -- nothing anywhere in this codebase ever derived an admitted profile from real qualification evidence. Built the narrow, honest piece of that gap: aios/application/local_workforce/qualification_evidence.py (evidence_backed_profiles()/unsupported_claimed_profiles()) maps only the 4 LocalJobProfile values with an unambiguous, name-matched test_id in the current suite (extract/classify/summarise/cluster) and requires a mapped test to pass in EVERY recorded run, not just one, before calling a profile evidence-backed -- verified directly against the real evidence file in tests/test_local_workforce_qualification_evidence.py, confirming it correctly narrows to {extract, classify, cluster} and flags the exact drift found live. Used it to correct the actual running registry row (data/aios_memory.db, local-only, not committed) to the honest set. NOT built: a full automatic qualification->admission derivation pipeline -- most LocalJobProfile values (triage, format_report, prepare_briefing, select_skill, parameterise_skill, validate_structure, summarise_disagreement, explain_route, check_context_completeness) have no corresponding test in the current 16-check suite at all, so there is nothing to auto-derive for them without first extending the suite itself -- a genuine, separate design task, not attempted here.",
+      "Tier-1 closure pass (organ 37 specifically): built the schema-normalising retry the prior blocker named as the correct fix (not the loosening alternative). QualificationSuite._run_case now retries once (bounded, configurable via max_schema_retries) ONLY on a validator-stage rejection -- valid, safe JSON in the wrong shape -- feeding the exact rejection reason back to the model; a timeout, LLM error, oversized output, forbidden value, or invalid/non-object JSON is never retried. Verified with 6 new fake-client tests (recovery, bounded exhaustion, non-retryable failures untouched, disable-via-zero) in tests/domain/test_local_workforce_qualifier.py. Re-ran live against the real granite3.2:2b model 3x with the retry active -- see release/slice32/granite-qualification-live-organ37-retry.json. Honest result: a real improvement (1 of 3 runs now passes all 16 checks, versus 0 of 3 in the pre-retry baseline), but not a fix -- 2 of 3 runs still fail summarisation even after the corrective retry (attempts=2, still the wrong field name). The organ stays yellow: the retry is genuinely built and live-verified, but granite3.2:2b still does not reliably qualify."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

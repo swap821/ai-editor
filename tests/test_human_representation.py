@@ -11,7 +11,9 @@ from aios.application.memory.human_representation import (
     build_correction_record_v1,
     build_project_passport_v1,
     classify_human_state,
+    correction_lineage_v1,
     is_project_passport_stale,
+    record_correction_and_build_v1,
 )
 from aios.domain.memory.human_representation import (
     CorrectionRecordV1,
@@ -19,6 +21,7 @@ from aios.domain.memory.human_representation import (
     OperatorPreferenceV1,
     ProjectPassportV1,
 )
+from aios.memory.conversation import ConversationStateStore
 
 
 # --- OperatorPreferenceV1 ---------------------------------------------------
@@ -215,6 +218,75 @@ def test_correction_record_base_revision_defaults_to_zero_when_none() -> None:
         after_frame={"intent": "new"},
     )
     assert record.base_revision == 0
+
+
+def test_record_correction_and_build_v1_returns_a_real_typed_record(
+    tmp_path: Path,
+) -> None:
+    """Organ 29's stated gap: callers previously had to build a
+    CorrectionRecordV1 themselves from record_correction's raw dict output."""
+    store = ConversationStateStore(tmp_path / "mem.db")
+    revision, persisted, record = record_correction_and_build_v1(
+        store,
+        "session-1",
+        before_frame={"intent": "deploy"},
+        after_frame={"intent": "do not deploy"},
+        corrections={"intent": "do not deploy"},
+        corrected_fields=["intent"],
+    )
+    assert isinstance(record, CorrectionRecordV1)
+    assert record.correction_revision == revision
+    assert record.session_id == "session-1"
+    assert record.grants_authority is False
+    assert persisted["intent"] == "do not deploy"
+
+
+def test_record_correction_and_build_v1_does_not_change_record_correction() -> None:
+    """The wrapper must be additive -- record_correction's own return
+    contract (used directly by aios/api/routes/memory.py) is untouched."""
+    import inspect
+
+    original = ConversationStateStore.record_correction
+    assert "before_frame" in inspect.signature(original).parameters
+    assert "after_frame" in inspect.signature(original).parameters
+
+
+def test_correction_lineage_v1_reconstructs_typed_history_newest_first(
+    tmp_path: Path,
+) -> None:
+    store = ConversationStateStore(tmp_path / "mem.db")
+    first_revision, _, _ = record_correction_and_build_v1(
+        store,
+        "session-2",
+        before_frame={"intent": "deploy"},
+        after_frame={"intent": "hold"},
+        corrections={"intent": "hold"},
+        corrected_fields=["intent"],
+    )
+    second_revision, _, _ = record_correction_and_build_v1(
+        store,
+        "session-2",
+        before_frame={"intent": "hold"},
+        after_frame={"intent": "cancel"},
+        corrections={"intent": "cancel"},
+        corrected_fields=["intent"],
+        expected_revision=first_revision,
+    )
+    lineage = correction_lineage_v1(store, "session-2")
+    assert [record.correction_revision for record in lineage] == [
+        second_revision,
+        first_revision,
+    ]
+    assert lineage[0].base_revision == first_revision
+    assert lineage[1].base_revision == 0
+    for record in lineage:
+        assert isinstance(record, CorrectionRecordV1)
+        assert record.grants_authority is False
+
+
+def test_correction_lineage_v1_empty_for_unknown_session(tmp_path: Path) -> None:
+    store = ConversationStateStore(tmp_path / "mem.db")
+    assert correction_lineage_v1(store, "no-such-session") == ()
 
 
 # --- HumanStateHypothesis ----------------------------------------------------

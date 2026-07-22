@@ -24,6 +24,7 @@ from aios.domain.memory.human_representation import (
     HumanStateHypothesis,
     ProjectPassportV1,
 )
+from aios.memory.conversation import ConversationStateStore
 from aios.memory.project_passport import ProjectPassport, harvest_project_passport
 
 
@@ -156,6 +157,73 @@ def build_correction_record_v1(
     )
 
 
+def record_correction_and_build_v1(
+    store: ConversationStateStore,
+    session_id: str,
+    *,
+    before_frame: Mapping[str, Any],
+    after_frame: Mapping[str, Any],
+    corrections: Mapping[str, Any],
+    corrected_fields: Sequence[str],
+    expected_revision: int | None = None,
+) -> tuple[int, dict[str, Any], CorrectionRecordV1]:
+    """Record a correction and return the typed `CorrectionRecordV1` alongside it.
+
+    Composes `ConversationStateStore.record_correction` (unchanged, reused
+    exactly as every existing caller uses it) with `build_correction_record_v1`
+    -- closing organ 29's stated gap ("callers must build one from its raw
+    dict output") without touching the store's existing return contract or
+    any of its current callers."""
+    revision, persisted_after = store.record_correction(
+        session_id,
+        before_frame=dict(before_frame),
+        after_frame=dict(after_frame),
+        corrections=dict(corrections),
+        corrected_fields=list(corrected_fields),
+        expected_revision=expected_revision,
+    )
+    record = build_correction_record_v1(
+        correction_id=f"correction:{session_id}:{revision}",
+        session_id=session_id,
+        base_revision=expected_revision,
+        correction_revision=revision,
+        corrected_fields=corrected_fields,
+        before_frame=before_frame,
+        after_frame=persisted_after,
+    )
+    return revision, persisted_after, record
+
+
+def correction_lineage_v1(
+    store: ConversationStateStore, session_id: str, limit: int = 20
+) -> tuple[CorrectionRecordV1, ...]:
+    """The typed read-model query surface organ 29's ledger entry names.
+
+    Reads `ConversationStateStore.correction_lineage_frames` (a new,
+    read-only method that adds before/after frames to the existing
+    `correction_history` query) and maps each row through
+    `build_correction_record_v1`, newest-first -- the same ordering
+    `correction_history` already uses."""
+    frames = store.correction_lineage_frames(session_id, limit)
+    chronological = list(reversed(frames))
+    records: list[CorrectionRecordV1] = []
+    previous_revision: int | None = None
+    for row in chronological:
+        revision = int(row["revision"])
+        record = build_correction_record_v1(
+            correction_id=f"correction:{session_id}:{revision}",
+            session_id=session_id,
+            base_revision=previous_revision,
+            correction_revision=revision,
+            corrected_fields=row["corrected_fields"],
+            before_frame=row["before_frame"],
+            after_frame=row["after_frame"],
+        )
+        records.append(record)
+        previous_revision = revision
+    return tuple(reversed(records))
+
+
 #: Deterministic, human-auditable keyword signals. Order matters: frustration
 #: and rushed markers are checked before softer signals so an urgent,
 #: frustrated message is not misread as merely "decisive".
@@ -235,5 +303,7 @@ __all__ = [
     "build_project_passport_v1",
     "is_project_passport_stale",
     "build_correction_record_v1",
+    "record_correction_and_build_v1",
+    "correction_lineage_v1",
     "classify_human_state",
 ]

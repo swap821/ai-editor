@@ -76,6 +76,17 @@ class DeterministicOllama:
             return '{"accepted": false}'
         if "bounded" in prompt:
             return '{"bounded": "ok"}'
+        if "must contain fields 'id' and 'status'" in prompt:
+            return '{"valid": false, "missing_fields": ["status"]}'
+        if "Two analyses disagree" in prompt:
+            return '{"disagreement_summary": "timeout vs permissions issue"}'
+        if "routed to frontier escalation" in prompt:
+            return '{"explanation": "the local model failed qualification"}'
+        if "fix the bug" in prompt:
+            return (
+                '{"complete": false, "missing": '
+                '["file_path", "error_message", "reproduction_steps"]}'
+            )
         return '{"result": "ok"}'
 
     def running_model_metrics(self) -> dict[str, object]:
