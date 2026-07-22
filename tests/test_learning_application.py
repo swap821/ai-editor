@@ -21,7 +21,7 @@ from aios.domain.evidence import (
 )
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.learning.contracts import ToolObservation
-from aios.domain.learning.repository import SkillRecord
+from aios.domain.learning.repository import SkillRecord, SkillRepository
 from aios.domain.verification import SkillVerifierSpec
 from aios.domain.learning.trajectory_repository import TrajectoryRepository
 from aios.domain.missions.mission_contract import MissionContract
@@ -315,6 +315,168 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
     assert escalated.directive_type == "escalate"
     with pytest.raises(Exception):
         mission_repo.get("local-reuse-2")
+
+
+def _activated_skill_for_clerk_advisory_test(
+    tmp_path: Path,
+) -> tuple[LearningService, SkillRepository, str, int]:
+    """Build a real, activated skill via the same path
+    test_activation_requires_external_human_authority_and_reuse_creates_mission
+    uses -- a real SkillRecord in a real SQLite-backed repository, not a
+    hand-built fixture, so confidence/failure_count changes below reflect
+    the real apply_reuse_outcome() -> ConfidenceUpdater -> repository chain."""
+    mission_repo = SqliteMissionRepository(tmp_path / "missions.db")
+    source = mission_repo.create(_mission(), state=MissionState.COMPLETED)
+    trajectory_repo = TrajectoryRepository(tmp_path / "learning.db")
+    authority = VerificationAuthority()
+    capture_service = LearningService(
+        mission_service=MissionService(mission_repo),
+        trajectory_repository=trajectory_repo,
+        verification_authority=authority,
+    )
+    trajectory = _capture(
+        capture_service, source, (_authoritative_verification(authority),)
+    )
+    candidate = capture_service.create_skill_candidate(
+        trajectory.trajectory_id, _candidate()
+    )
+    authorized_service = LearningService(
+        mission_service=MissionService(mission_repo),
+        trajectory_repository=trajectory_repo,
+        activation_authorizer=lambda *_args: True,
+        verification_plan_validator=lambda *_args: True,
+        reuse_policy=lambda *_args: True,
+    )
+    active = authorized_service.activate_skill(
+        _activation_auth(candidate.skill_id, candidate.version)
+    )
+    assert active.state == "active"
+    return (
+        authorized_service,
+        authorized_service.skill_repository,
+        active.skill_id,
+        active.version,
+    )
+
+
+def test_clerk_advisory_incomplete_result_routes_through_apply_reuse_outcome(
+    tmp_path: Path,
+) -> None:
+    """Organ 43: the clerk-execution-failed refusal (job did not complete,
+    or produced no structured output) must flow through apply_reuse_outcome
+    -- the real, durable reuse-outcome path every other failure uses -- not
+    the removed legacy confidence-only shortcut."""
+    from unittest.mock import MagicMock
+
+    from aios.domain.local_workforce.contracts import LocalJobResult
+
+    _base_service, skill_repo, skill_id, version = (
+        _activated_skill_for_clerk_advisory_test(tmp_path)
+    )
+    before = skill_repo.get(skill_id, version)
+
+    mock_local_workforce = MagicMock()
+    mock_local_workforce.run_advisory_job.return_value = LocalJobResult(
+        job_id="job-incomplete",
+        model_id="granite3.2:2b",
+        structured_output=None,
+        schema_valid=False,
+        evidence_references_preserved=False,
+        unsupported_claims=(),
+        latency=0.1,
+        status="failed",
+        failure_reason="model unavailable",
+    )
+    service_with_clerk = LearningService(
+        mission_service=_base_service.mission_service,
+        trajectory_repository=_base_service.trajectory_repository,
+        skill_repository=skill_repo,
+        activation_authorizer=lambda *_args: True,
+        verification_plan_validator=lambda *_args: True,
+        reuse_policy=lambda *_args: True,
+        local_workforce_service=mock_local_workforce,
+    )
+
+    directive = service_with_clerk.attempt_local_reuse(
+        skill_id=skill_id,
+        version=version,
+        mission_id="local-reuse-clerk-incomplete",
+        operator_id="operator-1",
+        goal="repair another JSON parser instance",
+        project_id="project-1",
+        current_inputs={"format": "json", "log_path": "src/app.py"},
+        current_state={"parser_version": "v2"},
+        current_scope="src/app.py",
+        mission_allowed_tools=("read_file", "edit_file", "run_tests"),
+        validated_version="project-v2",
+    )
+    assert directive.directive_type == "escalate"
+    after = skill_repo.get(skill_id, version)
+    assert after.failure_count == before.failure_count + 1
+    assert after.confidence < before.confidence
+    # Not a precondition failure (organs 45/46 territory) -- soft demotion
+    # only, matching the removed legacy path's severity exactly.
+    assert after.state == "active"
+
+
+def test_clerk_advisory_declined_result_routes_through_apply_reuse_outcome(
+    tmp_path: Path,
+) -> None:
+    """Organ 43: the clerk's own semantic refusal (completed, but not
+    applicable/abstained/low-confidence) must also flow through
+    apply_reuse_outcome, not the removed legacy shortcut."""
+    from unittest.mock import MagicMock
+
+    from aios.domain.local_workforce.contracts import LocalJobResult
+
+    _base_service, skill_repo, skill_id, version = (
+        _activated_skill_for_clerk_advisory_test(tmp_path)
+    )
+    before = skill_repo.get(skill_id, version)
+
+    mock_local_workforce = MagicMock()
+    mock_local_workforce.run_advisory_job.return_value = LocalJobResult(
+        job_id="job-declined",
+        model_id="granite3.2:2b",
+        structured_output={
+            "applicable": False,
+            "confidence": 0.9,
+            "reason": "inputs do not match applicability conditions",
+        },
+        schema_valid=True,
+        evidence_references_preserved=True,
+        unsupported_claims=(),
+        latency=0.1,
+        status="completed",
+    )
+    service_with_clerk = LearningService(
+        mission_service=_base_service.mission_service,
+        trajectory_repository=_base_service.trajectory_repository,
+        skill_repository=skill_repo,
+        activation_authorizer=lambda *_args: True,
+        verification_plan_validator=lambda *_args: True,
+        reuse_policy=lambda *_args: True,
+        local_workforce_service=mock_local_workforce,
+    )
+
+    directive = service_with_clerk.attempt_local_reuse(
+        skill_id=skill_id,
+        version=version,
+        mission_id="local-reuse-clerk-declined",
+        operator_id="operator-1",
+        goal="repair another JSON parser instance",
+        project_id="project-1",
+        current_inputs={"format": "json", "log_path": "src/app.py"},
+        current_state={"parser_version": "v2"},
+        current_scope="src/app.py",
+        mission_allowed_tools=("read_file", "edit_file", "run_tests"),
+        validated_version="project-v2",
+    )
+    assert directive.directive_type == "escalate"
+    after = skill_repo.get(skill_id, version)
+    assert after.failure_count == before.failure_count + 1
+    assert after.confidence < before.confidence
+    assert after.state == "active"
 
 
 def test_reuse_outcome_updates_confidence_only_from_current_verification(

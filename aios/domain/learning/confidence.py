@@ -32,6 +32,7 @@ class ConfidenceUpdater:
             "human_correction",
             "rollback",
             "side_effects",
+            "clerk_advisory_refused",
         ],
     ) -> SkillContract:
         """Decrease confidence and potentially disable automatic reuse after a failure."""

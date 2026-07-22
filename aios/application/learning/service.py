@@ -423,7 +423,14 @@ class LearningService:
             # a refusal that must escalate to the frontier; it must never fall
             # through to local mission creation.
             if clerk_res.status != "completed" or not clerk_res.structured_output:
-                self._record_failure(skill, "clerk_advisory_refused")
+                apply_reuse_outcome(
+                    self.skill_repository,
+                    skill.skill_id,
+                    skill.version,
+                    success=False,
+                    reason="clerk_advisory_refused",
+                    updater=self.confidence,
+                )
                 return EscalateToFrontierDirective(
                     reason=clerk_res.failure_reason or "Local clerk advisory failed"
                 )
@@ -439,7 +446,14 @@ class LearningService:
                     or parsed.get("reason")
                     or "advisory evaluation declined local execution"
                 )
-                self._record_failure(skill, "clerk_advisory_refused")
+                apply_reuse_outcome(
+                    self.skill_repository,
+                    skill.skill_id,
+                    skill.version,
+                    success=False,
+                    reason="clerk_advisory_refused",
+                    updater=self.confidence,
+                )
                 return EscalateToFrontierDirective(reason=reason)
         contract = MissionContract(
             mission_id=mission_id,
@@ -599,29 +613,6 @@ class LearningService:
             success=passed,
             reason=None if passed else "verification",
             updater=self.confidence,
-        )
-
-    def _record_failure(self, skill: SkillRecord, reason: str) -> None:
-        """Legacy confidence-only failure path, kept for the two call sites
-        below that pass "clerk_advisory_refused" -- not a real
-        skill_lifecycle.FailureReason, so routing them through
-        apply_reuse_outcome() would mean inventing a mapping (e.g. onto
-        "applicability", which triggers immediate suspension rather than
-        this function's soft confidence-threshold "degraded") without a
-        clear basis for it. The one caller with a genuine FailureReason
-        match ("applicability", the EscalateToFrontierDirective branch
-        above) now calls apply_reuse_outcome() directly instead."""
-        updated_contract = self.confidence.record_failure(skill, reason)  # type: ignore[arg-type]
-        if updated_contract.confidence < self.applicability.minimum_confidence:
-            updated_contract = updated_contract.model_copy(update={"state": "degraded"})
-        self.skill_repository.save(
-            SkillRecord(
-                **updated_contract.model_dump(
-                    mode="python", exclude={"created_at", "updated_at"}
-                ),
-                created_at=skill.created_at,
-                updated_at=_utc_now(),
-            )
         )
 
 

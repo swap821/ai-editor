@@ -860,7 +860,7 @@
   {
     "organ_id": 43,
     "name": "Local Skill Reuse, Confidence and Demotion",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "SkillLifecycleAuthority",
     "production_entrypoints": [
       "aios/domain/learning/skill_contracts.py",
@@ -869,15 +869,15 @@
       "aios/application/learning/service.py"
     ],
     "focused_tests": [
-      "tests/test_skill_lifecycle.py"
+      "tests/test_skill_lifecycle.py",
+      "tests/test_learning_application.py"
     ],
     "integration_tests": [
-      "tests/domain/test_skill_library.py"
+      "tests/domain/test_skill_library.py",
+      "tests/test_learning_application.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "Reconciliation pass item 5 (skill-demotion half): the organ's own stated gap -- 'nothing in the real LearningService.attempt_local_reuse()/record_reuse_outcome() path calls apply_reuse_outcome() yet' -- is now resolved. record_reuse_outcome()'s ad-hoc confidence/'degraded'-only logic (duplicated in two places, no minimum-attempts gate, no path past 'degraded') is replaced with a direct call to apply_reuse_outcome(), and the EscalateToFrontierDirective branch in attempt_local_reuse() (an applicability-reason failure) does too. Found and fixed two real, deep test bugs while verifying this end-to-end: two integration tests (test_frontier_learning_heartbeat.py, test_e2e_sovereign_flywheel.py) expected demotion after 1-2 failures, which was only ever true because of a SEPARATE latent bug -- ReuseOutcomeRepository.record()'s lineage_key hashes the whole reference except reuse_outcome_id, so any 'retry' reusing the same mission/verification/digests (only reuse_outcome_id differing) is silently rejected as a duplicate and never reaches confidence tracking. Both tests were rewritten to use genuinely distinct VerificationResults (same mission, different action_id) per retry, and their attempt counts corrected to match Slice 36's real, intentional evaluate_demotion() gate (MIN_ATTEMPTS_BEFORE_FLOOR_APPLIES=3) -- this gate existed since Slice 36 shipped but this is the first time it has ever actually run against real integration-test traffic. Left the one clean-but-out-of-scope caller alone: _record_failure()'s two 'clerk_advisory_refused' call sites don't map to a modeled FailureReason, so forcing them onto apply_reuse_outcome() would mean inventing a mapping without a clear basis -- not attempted here (documented in _record_failure()'s own docstring)."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },

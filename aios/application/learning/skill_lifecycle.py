@@ -25,6 +25,7 @@ FailureReason = Literal[
     "human_correction",
     "rollback",
     "side_effects",
+    "clerk_advisory_refused",
 ]
 
 #: Reasons meaning the skill's *preconditions* no longer hold -- not merely
