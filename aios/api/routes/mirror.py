@@ -117,7 +117,9 @@ def get_snapshot(
                 "snapshot_required": snapshot_required,
                 "pending_events": pending,
                 "phase": projected.phase,
-                "active_castes": list(projected.active_workers),
+                "active_castes": list(projected.active_castes),
+                "active_workers": list(projected.active_workers),
+                "active_missions": list(projected.active_missions),
                 "last_event_id": projected.last_event_id,
                 "metrics": {
                     key: value.model_dump(mode="json")

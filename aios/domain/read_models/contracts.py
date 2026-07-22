@@ -37,6 +37,7 @@ class SystemPortraitSnapshot(BaseModel):
     active_missions: tuple[str, ...] = ()
     active_workers: tuple[str, ...] = ()
     active_models: tuple[str, ...] = ()
+    active_castes: tuple[str, ...] = ()
     last_event_id: int = 0
     metrics: dict[str, MetricEnvelope] = {}
 

@@ -237,6 +237,24 @@ class IncrementalSystemProjection:
                     "active_models",
                 )
             }
+            # Castes (worker roles) are not tracked as their own entity table --
+            # a worker's declared role already lives in active_workers' stored
+            # payload_json (aios/runtime/spawner.py sets `payload={"role": ...}`
+            # on worker.started). Deriving the active caste set from currently
+            # active workers, rather than a parallel table, means a dissolved
+            # worker's role disappears automatically with no separate cleanup.
+            castes: set[str] = set()
+            for row in conn.execute(
+                "SELECT payload_json FROM active_workers"
+            ).fetchall():
+                try:
+                    payload = json.loads(row["payload_json"])
+                except (TypeError, ValueError):
+                    continue
+                role = payload.get("role")
+                if isinstance(role, str) and role:
+                    castes.add(role)
+            active_castes = tuple(sorted(castes))
             phase = self._state(conn, "phase")
             last_event_id = int(self._state(conn, "last_event_id"))
             counts = {
@@ -263,6 +281,7 @@ class IncrementalSystemProjection:
             active_missions=active["active_missions"],
             active_workers=active["active_workers"],
             active_models=active["active_models"],
+            active_castes=active_castes,
             last_event_id=last_event_id,
             metrics=metrics,
         )
