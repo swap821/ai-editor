@@ -5,8 +5,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from aios.api.deps import get_project_passport_store
 from aios.api.main import app
 from aios.api.routes import projects
+from aios.infrastructure.memory.human_representation_store import ProjectPassportStore
 from aios.memory.project_passport import harvest_project_passport
 
 
@@ -111,6 +113,45 @@ def test_project_passport_status_does_not_scan_or_activate_memory(monkeypatch) -
     assert body["activation"] == "proposal/evidence"
     assert body["trustedMemoryActivated"] is False
     assert body["lastScan"] is None
+
+
+def test_project_passport_scan_persists_a_real_typed_passport_durably(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Organ 28: build_project_passport_v1()/ProjectPassportStore previously
+    had zero production callers -- every real scan discarded the typed
+    representation. A real scan must now durably record it, and re-scanning
+    the SAME project must append a new revision to the SAME history rather
+    than starting a fresh one each time."""
+    project_root = tmp_path / "proj"
+    _write(project_root / "README.md", "# Durable Passport Demo\n")
+    monkeypatch.chdir(project_root)
+
+    store = ProjectPassportStore(tmp_path / "passports.db")
+    app.dependency_overrides[get_project_passport_store] = lambda: store
+    try:
+        client = TestClient(app, client=("127.0.0.1", 12345))
+        first = client.post(
+            "/api/v1/projects/passport/scan", json={"root": ".", "maxFiles": 20}
+        )
+        assert first.status_code == 200
+
+        status = client.get("/api/v1/projects/passport/status")
+        assert status.status_code == 200
+        durable = status.json()["durable"]
+        assert durable is not None
+        assert durable["revisionCount"] == 1
+        assert durable["passportDigest"]
+
+        second = client.post(
+            "/api/v1/projects/passport/scan", json={"root": ".", "maxFiles": 20}
+        )
+        assert second.status_code == 200
+
+        status_after = client.get("/api/v1/projects/passport/status")
+        assert status_after.json()["durable"]["revisionCount"] == 2
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_project_passport_api_rejects_scan_outside_workspace(

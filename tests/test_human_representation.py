@@ -158,6 +158,33 @@ def test_project_passport_with_no_recorded_commit_is_conservatively_stale(
     assert is_project_passport_stale(passport, current_commit_sha="sha-anything") is True
 
 
+def test_project_passport_invariants_and_decisions_default_empty_but_are_now_acceptable(
+    tmp_path: Path,
+) -> None:
+    """Organ 28: these fields were previously hardcoded to () INSIDE the
+    function with no parameter at all -- a caller with a real source could
+    never supply them. They still default empty (no auto-derivation exists
+    or is safely derivable), but a caller can now actually pass real values
+    through."""
+    (tmp_path / "README.md").write_text("# Test Project\n", encoding="utf-8")
+
+    default = build_project_passport_v1(tmp_path, project_id="proj-1")
+    assert default.invariants == ()
+    assert default.explicit_human_decisions == ()
+
+    supplied = build_project_passport_v1(
+        tmp_path,
+        project_id="proj-1",
+        invariants=["never write outside the workspace root"],
+        explicit_human_decisions=["operator chose local-first over cloud-first"],
+    )
+    assert supplied.invariants == ("never write outside the workspace root",)
+    assert supplied.explicit_human_decisions == (
+        "operator chose local-first over cloud-first",
+    )
+    assert supplied.passport_digest != default.passport_digest
+
+
 def test_project_passport_commands_grouped_by_kind(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("# Test Project\n", encoding="utf-8")
     passport = build_project_passport_v1(tmp_path, project_id="proj-1")

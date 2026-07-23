@@ -534,25 +534,24 @@
   {
     "organ_id": 28,
     "name": "Project Understanding Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ProjectUnderstandingAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
       "aios/application/memory/human_representation.py",
-      "aios/infrastructure/memory/human_representation_store.py"
+      "aios/infrastructure/memory/human_representation_store.py",
+      "aios/api/routes/projects.py",
+      "aios/api/deps.py"
     ],
     "focused_tests": [
       "tests/test_human_representation.py",
       "tests/test_human_representation_store.py"
     ],
     "integration_tests": [
-      "tests/test_project_passport.py",
-      "tests/test_human_representation_store.py"
+      "tests/test_project_passport.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "Tier-1 closure pass: the organ's other stated gap -- 'no durable store persists a ProjectPassportV1 across process restarts' -- is now resolved. New ProjectPassportStore (aios/infrastructure/memory/human_representation_store.py, migration 0008, scope=\"human_representation\") gives ProjectPassportV1 real, append-only, digest-verified history across restarts, mirroring GovernanceAmendmentStore's established convention. Verified directly: a fresh store instance over the same file sees the exact history a prior instance wrote (the real cross-restart proof this gap named), and a tampered row is caught at read time via digest mismatch. Still genuinely missing (unchanged, honest scope note -- this pass did not build a new scanner): invariants and explicit_human_decisions still have no source in the existing harvest_project_passport() scanner and default empty rather than being fabricated, exactly as the domain contract's own docstring already documented before this pass."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },

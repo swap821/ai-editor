@@ -68,15 +68,24 @@ def build_project_passport_v1(
     project_id: str,
     verified_at_commit: str | None = None,
     passport: ProjectPassport | None = None,
+    invariants: Sequence[str] = (),
+    explicit_human_decisions: Sequence[str] = (),
 ) -> ProjectPassportV1:
     """Wrap `harvest_project_passport` with identity and a stable digest.
 
     `known_risks` combines the existing scanner's `risky_actions` (actions the
     passport itself flags as risky) and `known_issues` (TODO/FIXME/BUG hits)
     -- both already computed by the wrapped scanner, not re-derived here.
-    `explicit_human_decisions` and `invariants` are not derivable from the
-    existing scanner; they default empty until a caller supplies them (the
-    scanner has no source for either today -- see Slice 28's known blockers).
+    `explicit_human_decisions` and `invariants` are not mechanically
+    derivable from the existing scanner (neither is expressible as a
+    syntactic/static-analysis signal without risking a fabricated-looking
+    heuristic) -- they default empty, matching the honest absence-of-source
+    this organ's own blocker already documented, but are now real
+    parameters a caller WITH a genuine source (an operator-supplied form, a
+    structured project doc) can actually pass through. Previously these were
+    hardcoded to `()` inside this function, so no caller could ever supply
+    them even if they had real values -- that ceiling is the part this
+    removes.
     """
     scanned = passport if passport is not None else harvest_project_passport(root)
     commands = {
@@ -94,18 +103,20 @@ def build_project_passport_v1(
     goal = scanned.purpose or (
         scanned.current_goals[0] if scanned.current_goals else ""
     )
+    invariants_tuple = tuple(invariants)
+    decisions_tuple = tuple(explicit_human_decisions)
 
     digest_payload = _project_passport_digest_payload(
         project_id=project_id,
         goal=goal,
         architecture_summary=architecture_summary,
-        invariants=(),
+        invariants=invariants_tuple,
         important_paths=tuple(scanned.key_files),
         commands=commands,
         environments=tuple(scanned.env_vars),
         current_phase="",
         known_risks=known_risks,
-        explicit_human_decisions=(),
+        explicit_human_decisions=decisions_tuple,
         verified_at_commit=verified_at_commit,
     )
 
@@ -113,10 +124,12 @@ def build_project_passport_v1(
         project_id=project_id,
         goal=goal,
         architecture_summary=architecture_summary,
+        invariants=invariants_tuple,
         important_paths=tuple(scanned.key_files),
         commands=commands,
         environments=tuple(scanned.env_vars),
         known_risks=known_risks,
+        explicit_human_decisions=decisions_tuple,
         verified_at_commit=verified_at_commit,
         passport_digest=_canonical_digest(digest_payload),
     )

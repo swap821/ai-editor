@@ -9,14 +9,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+import hashlib
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from aios.api.deps import get_project_passport_store
+from aios.application.governance.organ_ledger import current_commit_sha
+from aios.application.memory.human_representation import build_project_passport_v1
 from aios.cognition.repo_map import (
     SymbolRepoMapLimits,
     scan_symbol_repo_map,
     scope_hints_for_contract,
 )
+from aios.infrastructure.memory.human_representation_store import ProjectPassportStore
 from aios.memory.project_passport import ProjectPassport
 from aios.memory.project_passport import RepoScanLimits, harvest_project_passport
 from aios.runtime.contracts import MissionContract
@@ -25,6 +31,7 @@ from aios.api.action_guard import enforce_action_boundary
 
 router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 _LAST_PROJECT_PASSPORT_SCAN: dict[str, object] | None = None
+_LAST_PROJECT_PASSPORT_ID: str | None = None
 _LAST_SYMBOL_REPO_MAP_SCAN: dict[str, object] | None = None
 
 
@@ -39,9 +46,21 @@ class ProjectPassportScanRequest(BaseModel):
 
 
 @router.post("/api/v1/projects/passport/scan")
-def scan_project_passport(req: ProjectPassportScanRequest) -> dict:
-    """Return a local-only Project Passport as proposal/evidence."""
-    global _LAST_PROJECT_PASSPORT_SCAN
+def scan_project_passport(
+    req: ProjectPassportScanRequest,
+    store: ProjectPassportStore = Depends(get_project_passport_store),
+) -> dict:
+    """Return a local-only Project Passport as proposal/evidence.
+
+    Organ 28: also builds the typed ProjectPassportV1 (Slice 28) from this
+    same real scan and records it durably (append-only, digest-verified,
+    ProjectPassportStore) -- previously build_project_passport_v1() had zero
+    production callers anywhere; every real scan silently discarded the
+    typed representation this organ exists to provide. The route's own
+    response shape is unchanged (existing frontend callers are unaffected);
+    the durable record is additive.
+    """
+    global _LAST_PROJECT_PASSPORT_SCAN, _LAST_PROJECT_PASSPORT_ID
     workspace = Path.cwd().resolve()
     root = _resolve_scan_root(req.root, workspace)
     try:
@@ -51,18 +70,49 @@ def scan_project_passport(req: ProjectPassportScanRequest) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     _LAST_PROJECT_PASSPORT_SCAN = _project_passport_summary(passport)
+
+    project_id = _project_id_for_root(root)
+    typed_passport = build_project_passport_v1(
+        root,
+        project_id=project_id,
+        verified_at_commit=current_commit_sha(root),
+        passport=passport,
+    )
+    store.save(typed_passport)
+    _LAST_PROJECT_PASSPORT_ID = project_id
+
     return passport.as_dict()
 
 
+def _project_id_for_root(root: Path) -> str:
+    """A stable, per-root identifier so unrelated projects never share one
+    passport history. Deterministic (not random) so re-scanning the same
+    project always resolves to the same durable history."""
+    return hashlib.sha256(str(root.resolve()).encode("utf-8")).hexdigest()[:32]
+
+
 @router.get("/api/v1/projects/passport/status")
-def project_passport_status() -> dict:
+def project_passport_status(
+    store: ProjectPassportStore = Depends(get_project_passport_store),
+) -> dict:
     """Return status for the local-only RepoMap harvester without scanning."""
+    durable: dict[str, object] | None = None
+    if _LAST_PROJECT_PASSPORT_ID is not None:
+        current = store.get_current(_LAST_PROJECT_PASSPORT_ID)
+        if current is not None:
+            history = store.get_history(_LAST_PROJECT_PASSPORT_ID)
+            durable = {
+                "revisionCount": len(history),
+                "passportDigest": current.passport_digest,
+                "verifiedAtCommit": current.verified_at_commit,
+            }
     return {
         "available": True,
         "localOnly": True,
         "activation": "proposal/evidence",
         "trustedMemoryActivated": False,
         "lastScan": _LAST_PROJECT_PASSPORT_SCAN,
+        "durable": durable,
     }
 
 
