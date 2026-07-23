@@ -16,7 +16,7 @@
  * success.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   enrollSovereign,
   loginSovereign,
@@ -81,13 +81,22 @@ export default function SovereigntyPanel({ onClose }: { onClose: () => void }) {
   const sealed = mode !== 'reveal';
 
   // The reveal state must survive Escape. Other states close politely.
+  // Read mode/onClose from refs (updated synchronously during render) rather
+  // than re-subscribing the listener on every mode change: a passive-effect
+  // resubscribe is scheduled asynchronously, so under load the native
+  // keydown can fire against a stale closure before the effect re-runs.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && sealed) onClose();
+      if (event.key === 'Escape' && modeRef.current !== 'reveal') onCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sealed, onClose]);
+  }, []);
 
   const claim = useCallback(() => {
     const name = displayName.trim();
