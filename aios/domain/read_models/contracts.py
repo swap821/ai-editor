@@ -118,6 +118,29 @@ class ExecutorStatusProjection(BaseModel):
     reason: MetricEnvelope
 
 
+class RoutingDecisionProjection(BaseModel):
+    """Organ 50 (half): why a specific model was chosen for one real turn.
+
+    Sourced from `development_events.metadata_json`, written by
+    `generate_pipeline.py`'s `route_meta()` on every real `/api/generate`
+    turn -- never invented after the fact. `auto` distinguishes a
+    router-picked turn from an operator's explicit model selection.
+    Deliberately does not answer "what was sent / what was removed" --
+    that half (the `PrivacyFilter` audit) is computed at multiple provider
+    call sites and only logged today, not yet durably captured; a real,
+    separate, still-open gap this projection does not paper over."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    turn_id: MetricEnvelope
+    provider: MetricEnvelope
+    model: MetricEnvelope
+    privacy: MetricEnvelope
+    task: MetricEnvelope
+    auto: MetricEnvelope
+    recorded_at: MetricEnvelope
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -130,5 +153,6 @@ __all__ = [
     "MetricEnvelope",
     "MetricStatus",
     "ProviderHealthProjection",
+    "RoutingDecisionProjection",
     "SystemPortraitSnapshot",
 ]

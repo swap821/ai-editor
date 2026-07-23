@@ -1027,12 +1027,23 @@
     "name": "Provenance and Explanation Surface",
     "status": "yellow",
     "authority_owner": "ProvenanceExplanationSurfaceAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/memory/development.py",
+      "aios/application/read_models/provenance_projections.py",
+      "aios/api/routes/mirror.py",
+      "frontend/src/workbench/SovereignStatePanel.jsx"
+    ],
+    "focused_tests": [
+      "tests/test_brain_growth.py",
+      "tests/test_read_model_projections.py"
+    ],
+    "integration_tests": [
+      "tests/test_mirror.py",
+      "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Backend truth now exists to build this surface honestly: ConstitutionProjection, EmergencyStopProjection, ProviderHealthProjection and ApprovalProjection (organ 47) supply typed, status-aware values with no fabricated defaults. This organ itself is still yellow: no frontend TypeScript/React component consumes these projections yet, and this autonomous session has no human operator present to perform the required live browser walkthrough (system rule: UI changes must be verified in a running browser before being reported complete) -- so frontend wiring was deliberately not attempted here rather than silently skipped or claimed without evidence."
+      "Half closed: \"why was this model chosen\" now has a real, live surface. DevelopmentTracker.recent_routing_decisions() reads already-durable development_events.metadata_json (written by generate_pipeline.py's route_meta() on every real /api/generate turn -- a pure read, zero hot-path changes) and is projected through GET /api/v1/mirror/governance's new routingDecisions field, rendered in SovereignStatePanel.jsx's new 'Provenance & Explanation' section. Still genuinely missing: \"what was sent / what was removed\" -- PrivacyFilter.filter()'s per-call audit (redacted_system/redacted_paths/redacted_credentials/etc.) is computed at 5 separate call sites (FailoverChatClient plus each of the 4 direct cloud clients) and today is only passed to logger.info(), never durably captured anywhere queryable. Building a safe, non-invasive capture mechanism across all 5 call sites is real, separately-scoped follow-on work, not attempted here to avoid touching 5 hot paths without a dedicated review."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

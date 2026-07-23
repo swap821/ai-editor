@@ -277,6 +277,78 @@ def test_model_task_success_rates_skips_events_missing_provider(tmp_path: Path) 
     assert tracker.model_task_success_rates(min_attempts=1) == {}
 
 
+def test_recent_routing_decisions_returns_newest_first(tmp_path: Path) -> None:
+    tracker = DevelopmentTracker(_db(tmp_path))
+    tracker.record(
+        "turn one",
+        "unverified",
+        metadata={
+            "provider": "ollama",
+            "model": "qwen2.5-coder:7b",
+            "privacy": "local",
+            "task": "coding",
+            "auto": True,
+            "turn_id": "t1",
+        },
+    )
+    tracker.record(
+        "turn two",
+        "verified_success",
+        metadata={
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "privacy": "cloud",
+            "task": "reasoning",
+            "auto": True,
+            "turn_id": "t2",
+        },
+    )
+
+    decisions = tracker.recent_routing_decisions(limit=10)
+
+    assert [d["turn_id"] for d in decisions] == ["t2", "t1"]
+    assert decisions[0]["provider"] == "gemini"
+    assert decisions[0]["model"] == "gemini-2.5-flash"
+    assert decisions[0]["privacy"] == "cloud"
+    assert decisions[0]["task"] == "reasoning"
+    assert decisions[0]["auto"] is True
+    assert decisions[1]["provider"] == "ollama"
+
+
+def test_recent_routing_decisions_skips_events_without_routing_shape(
+    tmp_path: Path,
+) -> None:
+    tracker = DevelopmentTracker(_db(tmp_path))
+    tracker.record("no metadata at all", "unverified")
+    tracker.record("legacy shape", "verified_success", metadata={"task": "coding"})
+    tracker.record(
+        "real routing event",
+        "unverified",
+        metadata={"provider": "bedrock", "model": "amazon.titan"},
+    )
+
+    decisions = tracker.recent_routing_decisions(limit=10)
+
+    assert len(decisions) == 1
+    assert decisions[0]["provider"] == "bedrock"
+    assert decisions[0]["model"] == "amazon.titan"
+
+
+def test_recent_routing_decisions_respects_limit(tmp_path: Path) -> None:
+    tracker = DevelopmentTracker(_db(tmp_path))
+    for i in range(5):
+        tracker.record(
+            f"turn {i}",
+            "unverified",
+            metadata={"provider": "ollama", "model": "qwen2.5:7b", "turn_id": str(i)},
+        )
+
+    decisions = tracker.recent_routing_decisions(limit=2)
+
+    assert len(decisions) == 2
+    assert [d["turn_id"] for d in decisions] == ["4", "3"]
+
+
 def test_skill_memory_promotes_after_repeated_verified_success_and_regresses(
     tmp_path: Path,
 ) -> None:

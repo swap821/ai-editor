@@ -99,6 +99,49 @@ class DevelopmentTracker:
 
         return row_id
 
+    def recent_routing_decisions(self, *, limit: int = 10) -> list[dict[str, Any]]:
+        """The most recent real turns' routing metadata, newest first.
+
+        Organ 50 (half): "why was this model chosen" for a real turn.
+        `generate_pipeline.py`'s `route_meta()` already attaches
+        `provider`/`model`/`privacy`/`task`/`auto`/`turn_id` to every real
+        `/api/generate` turn's `record()` call, regardless of outcome --
+        this is a pure read of that already-durable data, not a new capture
+        path. Rows whose `metadata_json` doesn't carry the routing shape
+        (older events, or events from a different caller) are skipped
+        rather than guessed at. Pure read; no schema change.
+        """
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, timestamp, metadata_json FROM development_events "
+                "ORDER BY id DESC LIMIT ?",
+                (max(int(limit), 1) * 5,),
+            ).fetchall()
+        decisions: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                meta = json.loads(row["metadata_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(meta, dict) or "provider" not in meta or "model" not in meta:
+                continue
+            decisions.append(
+                {
+                    "event_id": int(row["id"]),
+                    "timestamp": str(row["timestamp"]),
+                    "provider": meta.get("provider"),
+                    "model": meta.get("model"),
+                    "privacy": meta.get("privacy"),
+                    "task": meta.get("task"),
+                    "auto": meta.get("auto"),
+                    "turn_id": meta.get("turn_id"),
+                }
+            )
+            if len(decisions) >= limit:
+                break
+        return decisions
+
     def relevant_success_rate(
         self, query: str, *, min_attempts: int = 3, limit: int = 50
     ) -> Optional[OutcomeEvidence]:

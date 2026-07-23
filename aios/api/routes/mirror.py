@@ -25,6 +25,7 @@ from aios.application.read_models.governance_projections import (
     project_provider_health_list,
 )
 from aios.application.read_models.executor_projections import project_executor_status
+from aios.application.read_models.provenance_projections import project_routing_decisions
 from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.governance.emergency_stop import EmergencyStopController
 from aios.application.identity.service import IdentityService
@@ -219,9 +220,10 @@ def get_governance_projection(
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
     provider_health: ProviderHealthTracker = Depends(get_provider_health),
     capability_authority: CapabilityAuthority = Depends(get_capability_authority),
+    development_tracker: DevelopmentTracker = Depends(get_development_tracker),
 ) -> JSONResponse:
-    """Organs 47/48: the truthful constitution, emergency-stop, provider-
-    health, and pending-approvals surface.
+    """Organs 47/48/50 (half): the truthful constitution, emergency-stop,
+    provider-health, pending-approvals, and recent-routing-decisions surface.
 
     Unauthenticated by design, matching /snapshot's own convention -- the
     living mirror reflects state, it never gates on who's watching (risky
@@ -234,7 +236,11 @@ def get_governance_projection(
     outcomes entirely (never a fabricated "healthy" placeholder). approvals
     projects CapabilityAuthority.list_pending() -- the real production
     issue/consume authority, not the legacy ApprovalStore -- and never
-    exposes a usable bearer token.
+    exposes a usable bearer token. routingDecisions answers "why was this
+    model chosen" for the most recent real turns from development_events'
+    already-durable metadata -- it does NOT answer "what was sent / what
+    was removed" (the PrivacyFilter audit remains log-only, a separate,
+    still-open gap).
     """
     principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
     if principal is not None and principal.principal_type is PrincipalType.OPERATOR:
@@ -247,12 +253,14 @@ def get_governance_projection(
     stop_projection = project_emergency_stop(emergency_stop.state())
     provider_health_list = project_provider_health_list(provider_health)
     approvals = project_pending_approvals(capability_authority)
+    routing_decisions = project_routing_decisions(development_tracker, limit=10)
     return JSONResponse(
         content={
             "constitution": constitution.model_dump(mode="json"),
             "emergencyStop": stop_projection.model_dump(mode="json"),
             "providerHealth": [p.model_dump(mode="json") for p in provider_health_list],
             "approvals": [a.model_dump(mode="json") for a in approvals],
+            "routingDecisions": [r.model_dump(mode="json") for r in routing_decisions],
         }
     )
 

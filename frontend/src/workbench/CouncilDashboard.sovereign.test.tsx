@@ -188,6 +188,17 @@ const GOVERNANCE = {
       constitution_version: { value: null, status: 'unavailable', source: 'capability_authority' },
     },
   ],
+  routingDecisions: [
+    {
+      turn_id: { value: 'turn-1', status: 'measured', source: 'development_tracker' },
+      provider: { value: 'gemini', status: 'measured', source: 'development_tracker' },
+      model: { value: 'gemini-2.5-flash', status: 'measured', source: 'development_tracker' },
+      privacy: { value: 'cloud', status: 'measured', source: 'development_tracker' },
+      task: { value: 'reasoning', status: 'measured', source: 'development_tracker' },
+      auto: { value: true, status: 'measured', source: 'development_tracker' },
+      recorded_at: { value: '2026-07-23T00:00:00+00:00', status: 'measured', source: 'development_tracker' },
+    },
+  ],
 };
 
 const EXECUTOR = {
@@ -338,6 +349,8 @@ describe('CouncilDashboard sovereignty views', () => {
     expect(screen.getByText('rollback')).toBeInTheDocument();
     expect(screen.getByText('mission-xyz')).toBeInTheDocument();
     expect(screen.getByText('workspace/')).toBeInTheDocument();
+    expect(await screen.findByText(/Provenance & Explanation/)).toBeInTheDocument();
+    expect(screen.getByText(/gemini · gemini-2.5-flash · reasoning/)).toBeInTheDocument();
     expect(await screen.findByText(/Isolated Executor/)).toBeInTheDocument();
     expect(screen.getByText('not configured')).toBeInTheDocument();
     expect(

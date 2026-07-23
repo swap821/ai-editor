@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from aios.api.deps import (
     get_capability_authority,
+    get_development_tracker,
     get_emergency_stop,
     get_identity_service,
     get_private_executor_service,
@@ -20,6 +21,7 @@ from aios.application.executor.service import StructuredExecutorClient
 from aios.application.models.health import ProviderHealthTracker
 from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest
+from aios.memory.development import DevelopmentTracker
 from aios.application.governance.emergency_stop import (
     EmergencyStopController,
     EmergencyStopHooks,
@@ -477,6 +479,70 @@ def test_governance_projection_approvals_reflects_a_real_pending_capability(
             assert approval["scope"]["value"] == "workspace/"
             assert approval["verification_plan"]["value"] == "rollback_snapshot_restore"
             assert approval["risk"]["status"] == "unavailable"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_routing_decisions_reflects_a_real_recorded_turn(
+    tmp_path: Path,
+) -> None:
+    """Organ 50 (half): a real routing decision, already durably recorded by
+    generate_pipeline.py's route_meta(), must surface truthfully -- newest
+    first, and with no fabricated value for a field it never recorded."""
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    tracker = DevelopmentTracker(db_path=tmp_path / "memory.db")
+    tracker.record(
+        "a real turn",
+        "unverified",
+        metadata={
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "privacy": "cloud",
+            "task": "reasoning",
+            "auto": True,
+            "turn_id": "turn-1",
+        },
+    )
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    app.dependency_overrides[get_development_tracker] = lambda: tracker
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["routingDecisions"]) == 1
+            decision = data["routingDecisions"][0]
+            assert decision["provider"]["value"] == "gemini"
+            assert decision["model"]["value"] == "gemini-2.5-flash"
+            assert decision["privacy"]["value"] == "cloud"
+            assert decision["task"]["value"] == "reasoning"
+            assert decision["turn_id"]["value"] == "turn-1"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_routing_decisions_empty_when_nothing_recorded(
+    tmp_path: Path,
+) -> None:
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    tracker = DevelopmentTracker(db_path=tmp_path / "memory.db")
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    app.dependency_overrides[get_development_tracker] = lambda: tracker
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            assert response.json()["routingDecisions"] == []
     finally:
         app.dependency_overrides.clear()
 

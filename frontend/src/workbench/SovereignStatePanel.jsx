@@ -382,6 +382,33 @@ export default function SovereignStatePanel() {
             )}
           </section>
 
+          <section className="council-dashboard__section" aria-label="Routing decisions, measured">
+            <h3>
+              <ShieldCheck size={14} aria-hidden="true" /> Provenance &amp; Explanation
+              <span className="council-dashboard__badge is-ok">
+                {(governance?.routingDecisions ?? []).length} recent turn(s)
+              </span>
+            </h3>
+            <p className="council-dashboard__muted">
+              Why the router picked a model, for the most recent real turns — sourced from durably recorded routing metadata, never guessed. Does not yet show what was sent to or redacted from a cloud provider (organ 50's other half, still open).
+            </p>
+            {(governance?.routingDecisions ?? []).length === 0 ? (
+              <p>No routed turn recorded yet this session.</p>
+            ) : (
+              (governance?.routingDecisions ?? []).map((d, index) => (
+                <div key={index} className="council-dashboard__route">
+                  <span className={`council-dashboard__badge is-${envelopeText(d.privacy) === 'cloud' ? 'warn' : 'ok'}`}>
+                    {envelopeText(d.privacy)}
+                  </span>
+                  <span>
+                    {envelopeText(d.provider)} · {envelopeText(d.model)} · {envelopeText(d.task)}
+                  </span>
+                  <span>{envelopeText(d.recorded_at)}</span>
+                </div>
+              ))
+            )}
+          </section>
+
           <section className="council-dashboard__section" aria-label="Isolated executor, measured">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Isolated Executor

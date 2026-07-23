@@ -336,3 +336,76 @@ def test_pending_approvals_projects_every_real_pending_capability(tmp_path):
 def test_pending_approvals_empty_when_nothing_pending(tmp_path):
     authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
     assert project_pending_approvals(authority) == ()
+
+
+# --------------------------------------------------------------------------- #
+# project_routing_decisions (organ 50, half)
+# --------------------------------------------------------------------------- #
+
+
+def test_routing_decisions_measured_from_real_development_events(tmp_path):
+    from aios.application.read_models.provenance_projections import (
+        project_routing_decisions,
+    )
+    from aios.memory.development import DevelopmentTracker
+
+    tracker = DevelopmentTracker(db_path=tmp_path / "memory.db")
+    tracker.record(
+        "a real turn",
+        "unverified",
+        metadata={
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+            "privacy": "cloud",
+            "task": "reasoning",
+            "auto": True,
+            "turn_id": "turn-1",
+        },
+    )
+
+    projections = project_routing_decisions(tracker, limit=10)
+
+    assert len(projections) == 1
+    p = projections[0]
+    assert p.provider.value == "gemini"
+    assert p.provider.status == MetricStatus.MEASURED
+    assert p.model.value == "gemini-2.5-flash"
+    assert p.privacy.value == "cloud"
+    assert p.task.value == "reasoning"
+    assert p.auto.value is True
+    assert p.turn_id.value == "turn-1"
+    assert p.recorded_at.status == MetricStatus.MEASURED
+
+
+def test_routing_decisions_empty_when_nothing_recorded(tmp_path):
+    from aios.application.read_models.provenance_projections import (
+        project_routing_decisions,
+    )
+    from aios.memory.development import DevelopmentTracker
+
+    tracker = DevelopmentTracker(db_path=tmp_path / "memory.db")
+    assert project_routing_decisions(tracker, limit=10) == ()
+
+
+def test_routing_decisions_field_stays_unavailable_when_genuinely_absent(tmp_path):
+    from aios.application.read_models.provenance_projections import (
+        project_routing_decisions,
+    )
+    from aios.memory.development import DevelopmentTracker
+
+    tracker = DevelopmentTracker(db_path=tmp_path / "memory.db")
+    # A routing event with no turn_id (an older shape) must not fabricate one.
+    tracker.record(
+        "a real turn",
+        "unverified",
+        metadata={"provider": "ollama", "model": "qwen2.5:7b"},
+    )
+
+    projections = project_routing_decisions(tracker, limit=10)
+
+    assert len(projections) == 1
+    assert projections[0].turn_id.status == MetricStatus.UNAVAILABLE
+    assert projections[0].privacy.status == MetricStatus.UNAVAILABLE
+    assert projections[0].task.status == MetricStatus.UNAVAILABLE
+    assert projections[0].auto.status == MetricStatus.UNAVAILABLE
+    assert projections[0].provider.status == MetricStatus.MEASURED
