@@ -154,8 +154,34 @@ class CapabilityAuthority:
             self.emergency_stop.assert_operational()
         capability = self.inspect(token)
         now = self.clock()
-        if capability.binding != binding:
+        # constitution_digest reflects "what was live when this side was
+        # built" for both the stored binding (issue time) and the caller's
+        # freshly-reconstructed one (this consume request, from a live
+        # Principal) -- it is not part of "is this literally the same
+        # requested action" and is checked for staleness separately below,
+        # so a real callable amendment during the TTL window surfaces as
+        # the specific stale-constitution error rather than a generic
+        # binding mismatch.
+        if replace(capability.binding, constitution_digest=None) != replace(
+            binding, constitution_digest=None
+        ):
             raise CapabilityError("capability binding mismatch")
+        if capability.binding.constitution_digest is not None:
+            # Organ 24/25: reject outright rather than downgrade -- a
+            # capability issued under a constitution that has since been
+            # amended must never be honored, even if it hasn't expired.
+            from aios.domain.governance.constitution import (
+                build_constitution_snapshot,
+            )
+
+            current_digest = build_constitution_snapshot(
+                ratified_by_operator_id=capability.binding.operator_id
+            ).snapshot_digest
+            if current_digest != capability.binding.constitution_digest:
+                raise CapabilityError(
+                    "capability was issued under a stale constitution; "
+                    "re-authenticate and retry"
+                )
         if capability.revoked_at is not None:
             raise CapabilityError("capability revoked")
         if capability.consumed_at is not None:

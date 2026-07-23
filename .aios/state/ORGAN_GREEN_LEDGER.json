@@ -436,7 +436,7 @@
   {
     "organ_id": 24,
     "name": "Human Sovereign Identity",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "IdentityAuthority",
     "production_entrypoints": [
       "aios/domain/identity/models.py",
@@ -444,15 +444,15 @@
       "aios/infrastructure/identity/sqlite_store.py"
     ],
     "focused_tests": [
-      "tests/test_constitution_snapshot.py"
+      "tests/test_constitution_snapshot.py",
+      "tests/test_exact_capabilities.py"
     ],
     "integration_tests": [
+      "tests/test_action_guard.py",
       "tests/test_human_sovereign_identity.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "Slice 26 landed session_generation (stale sessions now fail closed at IdentityService.get_authenticated_principal) and constitution_digest stamping on Principal, plus threading through MissionContract/CapabilityBinding/ActionEnvelope. Still missing: HTTP-layer end-to-end enforcement of a constitution-digest mismatch, and read-only status during degraded identity is not yet a distinct code path."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -472,7 +472,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "ConstitutionSnapshotV1 now exists (typed, versioned, digested, foundation laws immutable-by-validator) via aios.domain.governance.constitution. Still missing: durable cross-restart persistence/ratification (Slice 37 territory), PolicyKernel still reads the old aios.policy.constitution.Constitution facade rather than ConstitutionSnapshotV1, and no decision path rejects execution on a constitution-digest mismatch yet."
+      "ConstitutionSnapshotV1 now exists (typed, versioned, digested, foundation laws immutable-by-validator) via aios.domain.governance.constitution, and a real decision path now rejects execution on a constitution-digest mismatch: CapabilityAuthority.consume() recomputes the live snapshot digest and refuses outright (CapabilityError) when it no longer matches the digest stamped on the capability's binding at issue time, with the digest now genuinely threaded Principal -> CapabilityBinding at all 6 real production construction sites and persisted through the CapabilityStore SQLite round-trip (a prior gap: the store had no constitution_digest column at all, so the stamped value was silently dropped before consume() could ever compare it). Still missing: durable cross-restart persistence/ratification of the constitution itself (separate from the Slice 37 amendment-authority machinery) and PolicyKernel still reads the old aios.policy.constitution.Constitution facade rather than ConstitutionSnapshotV1 -- a genuinely large, cross-cutting migration (every caste/routing/security check in the kernel depends on that facade's specific shape) intentionally out of scope for this pass."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

@@ -175,6 +175,7 @@ def _binding_for(envelope: ActionEnvelope, principal: Principal) -> CapabilityBi
         policy_version=envelope.policy_version,
         scope=f"route:{envelope.route}",
         verification_requirement="route_policy_v1",
+        constitution_digest=principal.constitution_digest or None,
     )
 
 

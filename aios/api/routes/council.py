@@ -851,6 +851,7 @@ def council_mission_rollback(
         policy_version=getattr(ledger.contract, "policy_version", "v1"),
         scope=f"mission:{safe_id}/rollback",
         verification_requirement="rollback_snapshot_restore",
+        constitution_digest=_principal.constitution_digest or None,
     )
     try:
         decision = broker.submit(

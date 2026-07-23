@@ -83,8 +83,29 @@ existing isolation proof against it. A first attempt genuinely failed
 (a forgotten env-var re-export caused `docker compose up --wait` to
 silently recreate the container with the wrong docker-socket group)
 and was root-caused, not glossed over, before the real fix landed.
-**Tier 1 and Tier 2 are now both fully green.** Current true counts:
-38 green / 16 yellow.
+**Tier 1 and Tier 2 are now both fully green.** Tier 3 follow-on: organ 24
+flipped green -- both halves of its blocker closed. Constitution-digest
+mismatch now rejects outright (operator-confirmed design): `constitution_digest`
+is genuinely threaded `Principal` -> `CapabilityBinding` at all 6 real
+production construction sites, and `CapabilityAuthority.consume()` recomputes
+the live constitution snapshot digest and refuses (`CapabilityError`) on a
+mismatch. Grounding this found a real, separate bug: `CapabilityStore`'s
+SQLite schema had no `constitution_digest` column at all, so a stamped value
+was silently dropped before `consume()` could ever compare it -- fixed with a
+migration-style `ALTER TABLE` column addition, proven by a dedicated
+two-process round-trip test. Degraded-identity handling (operator-confirmed:
+freeze in place) is a new `IdentityDegraded` exception raised when the
+identity store itself fails (not merely "no session"), centrally handled by
+a new `@app.exception_handler` mirroring organ 26's `EmergencyStopError`
+precedent -- a clean 503 for any NEW action while identity is degraded;
+already-issued, in-flight actions are untouched since nothing on a mission's
+execution path re-checks identity mid-flight. Organ 25 narrowed, not flipped:
+"no decision path rejects execution on a constitution-digest mismatch" is now
+closed by the same `CapabilityAuthority.consume()` enforcement, but
+`PolicyKernel`'s migration off the legacy `Constitution` facade and durable
+cross-restart ratification remain genuinely unbuilt, large, cross-cutting
+work intentionally out of scope for this pass. Current true counts:
+39 green / 15 yellow.
 
 ## Green organs (22) — established prior to Slice 25
 
@@ -113,7 +134,7 @@ and was root-caused, not glossed over, before the real fix landed.
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `aios/council/council_orchestrator.py` | `tests/test_council_orchestrator.py`, `tests/test_e2e_sovereign_flywheel.py` |
 | 22 | V1 Release Declaration (`gagos v1-check`) | `ReleaseDeclarationAuthority` | `aios/application/governance/v1_declaration.py` | `tests/test_v1_declaration.py`, `tests/test_launcher.py` |
 
-## Green organs closed since baseline (16)
+## Green organs closed since baseline (17)
 
 | # | Organ | Authority owner | Entry point | Tests |
 |---|-------|------------------|-------------|-------|
@@ -133,6 +154,7 @@ and was root-caused, not glossed over, before the real fix landed.
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `aios/domain/intelligence/deliberation.py`, `aios/application/intelligence/deliberation.py`, `aios/council/deliberation_gather.py`, `aios/infrastructure/intelligence/deliberation_store.py`, `aios/council/gateway_reasoning.py`, `aios/council/council_orchestrator.py`, `aios/api/routes/council.py` | `tests/test_deliberation.py`, `tests/test_deliberation_gather.py`, `tests/test_deliberation_store.py`, `tests/test_council_gateway_reasoning.py`, `tests/test_council_orchestrator.py`, `tests/test_council_api.py` |
 | 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | `aios/application/executor/service.py`, `aios/application/governance/runtime_proof.py`, `aios/application/read_models/executor_projections.py`, `aios/api/routes/mirror.py`, `frontend/src/workbench/SovereignStatePanel.jsx`, `.github/workflows/ci.yml` | `tests/test_executor_service.py`, `tests/test_executor_client.py`, `tests/test_mirror.py`, `frontend/src/workbench/CouncilDashboard.sovereign.test.tsx`, `tests/test_executor_integration.py` |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `aios/operations/recovery.py`, `aios/operations/doctor.py`, `aios/__main__.py` | `tests/test_restore_invalidation.py`, `tests/test_operations.py` |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | `aios/domain/identity/models.py`, `aios/application/identity/service.py`, `aios/infrastructure/identity/sqlite_store.py`, `aios/domain/capabilities/contracts.py`, `aios/application/capabilities/authority.py`, `aios/infrastructure/capabilities/sqlite_store.py`, `aios/api/action_guard.py`, `aios/api/main.py`, `aios/api/routes/actions.py`, `aios/api/routes/council.py` | `tests/test_constitution_snapshot.py`, `tests/test_exact_capabilities.py`, `tests/test_human_sovereign_identity.py`, `tests/test_action_guard.py` |
 
 **Organ 28 note:** the Tier-1 closure pass had already built `ProjectPassportStore` (durable, cross-restart history), but grounding it further found `build_project_passport_v1()` and `ProjectPassportStore` had **zero production callers anywhere** -- `aios/api/routes/projects.py`'s real scan route called the untyped legacy `harvest_project_passport()` directly and discarded the typed representation this organ exists to provide. `POST /api/v1/projects/passport/scan` now also builds a real `ProjectPassportV1` from the same scan and records it durably via a new `get_project_passport_store()` singleton (`aios/api/deps.py`); `GET /api/v1/projects/passport/status` surfaces a `durable` field (revision count, digest, verified commit) so the wiring is genuinely observable, not silent. Separately, `invariants`/`explicit_human_decisions` were previously hardcoded to `()` **inside** `build_project_passport_v1()` with no parameter at all -- structurally impossible for any caller to supply even with real values. Both are now real optional parameters; they still default empty (neither is safely derivable by static analysis without risking a fabricated-looking heuristic), but the artificial ceiling blocking a future real source (an operator-supplied form, a structured project doc) is gone.
 
@@ -152,13 +174,60 @@ and was root-caused, not glossed over, before the real fix landed.
 
 **Organ 40 note:** closed the one real remaining gap named in this organ's own blocker -- failure and timeout were already tested (`test_missing_private_executor_is_refused`, `test_private_executor_timeout_is_refused`) but restart resilience specifically was not, and could only be proven where a real Docker daemon exists (CI, never this local sandbox). Two new `.github/workflows/ci.yml` steps restart the real docker-compose executor container in place (`docker compose restart` + `up -d --wait`, re-applying the same healthcheck gate the initial start uses) then re-run the existing, already-reviewed `test_executor_integration.py` against it -- no new Python test logic, reusing the proven isolation proof itself as the restart-resilience proof. **A first attempt at this genuinely failed and was root-caused, not glossed over**: the restart step omitted re-exporting `AIOS_DOCKER_SOCKET_GID`, so the follow-up `docker compose up --wait` saw `docker-compose.yml`'s silent `${AIOS_DOCKER_SOCKET_GID:-999}` fallback resolve differently than the running container's actual config, treated that as drift, and RECREATED the container with the wrong docker-socket group -- breaking its ability to spawn per-job containers entirely (surfaced as the isolation test asserting job status `"failed"` and the timeout test never raising, since jobs failed fast on a permission error rather than genuinely misbehaving). Fixed by exporting the same real GID the original start step already computes. CI run [29989936411](https://github.com/swap821/ai-editor/actions/runs/29989936411) (commit `697d925`) confirms all 3 tests in `test_executor_integration.py` pass against the restarted container.
 
-## Yellow organs (16) — the Slices 26-40 completion target
+**Organ 24 note:** closed both halves of the organ's own blocker.
+Constitution-digest mismatch enforcement (operator-confirmed design: reject
+outright, not downgrade): `Principal.constitution_digest` was already
+genuinely stamped fresh on every authentication event, but grounding found
+it was never actually threaded into any of the 6 real production
+`CapabilityBinding(...)` construction sites (`aios/api/action_guard.py`'s
+`_binding_for()`, `aios/api/main.py`'s `_generate_capability_binding()`,
+`aios/api/routes/actions.py`'s command/rollback/proposal-apply bindings, and
+`aios/api/routes/council.py`'s mission-rollback binding) -- the field existed
+but nothing populated it, despite the prior blocker's text implying it was
+done. Fixed at all 6 sites. `CapabilityAuthority.consume()` now recomputes
+`build_constitution_snapshot(...).snapshot_digest` and raises `CapabilityError`
+on a mismatch against the digest stamped at issue time, mirroring the
+existing `emergency_stop.assert_operational()` call at the same choke point.
+Grounding this surfaced a real, separate bug that would have made the whole
+mechanism a silent no-op in production: `CapabilityStore`'s SQLite schema had
+no `constitution_digest` column at all, so any stamped value was dropped the
+moment a capability was persisted, and `consume()` would always see
+`constitution_digest=None` regardless of what was issued. Fixed with an
+`ALTER TABLE` column addition (matching the store's own established
+`action_payload_json` migration convention) plus a dedicated test that issues
+and consumes through two separate `CapabilityAuthority` instances sharing one
+database file, proving the value survives a real process-boundary round trip.
+A second, subtler bug was caught before it shipped: the naive fix folded
+`constitution_digest` into `consume()`'s existing full-binding equality check,
+but every real caller reconstructs its "expected" binding fresh from the
+*current* request's live `Principal` -- meaning a legitimate constitutional
+amendment during the ~120s TTL window would trigger the generic "binding
+mismatch" error instead of ever reaching the new, more specific
+stale-constitution check (which would have been unreachable dead code in
+production). Fixed by excluding `constitution_digest` from that equality
+comparison and checking it as an independent condition. Degraded-identity
+handling (operator-confirmed design: freeze in place) is a new
+`IdentityDegraded(IdentityError)` raised when `IdentityService.
+get_authenticated_principal()`'s underlying store calls raise a real
+`sqlite3.Error` -- grounding confirmed zero existing "degraded" or
+health-check concept anywhere in the identity modules, so this distinguishes
+a genuine store failure from the routine "no valid session" `None` return.
+Handled by a new centralized `@app.exception_handler(IdentityDegraded)` in
+`aios/api/main.py`, mirroring organ 26's `EmergencyStopError` precedent
+exactly: one handler covers every real call site (`action_guard.py`'s direct
+call, `deps.py`'s shared `get_authenticated_principal` dependency, `auth.py`,
+`mirror.py`) with a consistent, fail-closed 503 instead of an unhandled 500.
+"Freeze in place" for already-issued, in-flight actions needed no new code:
+nothing on a mission's execution path re-checks identity mid-flight, so
+degrading the identity store only blocks the resolution of a NEW `Principal`
+(and therefore new capability issuance), never an already-running mission.
+
+## Yellow organs (15) — the Slices 26-40 completion target
 
 | # | Organ | Authority owner | Slice | Truthful blocker |
 |---|-------|------------------|-------|-------------------|
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | 25 / 40 | Ledger established at this baseline; the strict gate stays non-green until every organ below turns green and Slice 40's final release proof lands. |
-| 24 | Human Sovereign Identity | `IdentityAuthority` | 26 | Slice 26 landed `session_generation` (a stale session now fails closed at `IdentityService.get_authenticated_principal`) and `constitution_digest` stamping on `Principal`, threaded into `MissionContract`/`CapabilityBinding`/`ActionEnvelope`. Still missing: end-to-end HTTP-layer enforcement of a constitution-digest mismatch, and a distinct read-only code path during degraded identity. |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | 26 | `ConstitutionSnapshotV1` now exists (typed, versioned, digested, foundation laws immutable by validator) in `aios/domain/governance/constitution.py`. Still missing: durable cross-restart persistence/ratification (Slice 37 territory), `PolicyKernel` still reads the old `aios.policy.constitution.Constitution` facade rather than this snapshot, and no decision path rejects execution on a constitution-digest mismatch yet. |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | 26 | `ConstitutionSnapshotV1` now exists (typed, versioned, digested, foundation laws immutable by validator) in `aios/domain/governance/constitution.py`, and a real decision path (`CapabilityAuthority.consume()`, see organ 24) now rejects execution on a constitution-digest mismatch. Still missing: durable cross-restart persistence/ratification of the constitution itself (separate from the Slice 37 amendment-authority machinery), and `PolicyKernel` still reads the old `aios.policy.constitution.Constitution` facade rather than this snapshot -- a genuinely large, cross-cutting migration (every caste/routing/security check in the kernel depends on that facade's specific shape) intentionally out of scope for this pass. |
 | 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | 28 | `HumanStateHypothesis` now exists (typed, `grants_authority`/`user_correctable` pinned literals) with a small deterministic `classify_human_state()` classifier -- this organ had no prior art at all. Still missing: not wired into any live conversation path, no persistence, and the classifier is an unmeasured first pass. |
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | 29 | `RepresentativeContextV1` now exists with `compile_representative_context()` composing the constitution/preference/passport/correction contracts into one digested packet; cloud target scrubs secrets and withholds memory refs structurally. Still missing: nothing calls this compiler yet -- `IntelligenceRequest`/`ModelCallRequest` still carry only a bare prompt with no `context_digest` (confirmed by a red-first test). Wiring every model call through it is Slice 30. |
 | 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | 41 | `route_intelligence_request()` now has its first real production caller: `aios/council/gateway_reasoning.py` routes both Council Planner and King LLM reasoning through it (emergency-stop gated, real `context_digest`), the first production wiring of either. Fixed a real regression this surfaced: two existing test files made a genuine ~11s live Ollama call once a test operator was enrolled; neutralized with `COUNCIL_REASONING=False`, matching `test_api.py`'s established `FakeLLM` convention. Still missing: chat (`/api/v1/chat`) and the agentic forge (`/api/generate`) remain unwired -- both are **streaming** call sites, while the gateway's `model_call` callback is synchronous request/response only, so wiring them without a streaming-capable gateway variant would mean a real UX regression, deliberately not attempted here. The 2 other competing "gateway" implementations still need reconciling. |

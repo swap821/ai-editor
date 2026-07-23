@@ -33,6 +33,19 @@ class InvalidCredential(IdentityError):
     """Raised for invalid enrollment/re-authentication material."""
 
 
+class IdentityDegraded(IdentityError):
+    """Raised when the identity store itself is failing, not merely absent.
+
+    Distinct from returning ``None`` (no valid session): ``None`` means "this
+    caller isn't authenticated," which is routine and recoverable by logging
+    in. This means the durable identity store could not answer the question
+    at all (e.g. the SQLite database is locked, corrupted, or unreachable),
+    so no NEW capability can be safely authorized until it recovers -- an
+    already-issued, in-flight action is untouched since nothing on its
+    execution path re-checks identity mid-flight.
+    """
+
+
 class IdentityService:
     """Authoritative single-operator identity service."""
 
@@ -133,27 +146,36 @@ class IdentityService:
     ) -> Principal | None:
         if not session_cookie:
             return None
-        session = self.sessions.validate_session(session_cookie)
-        if session is None:
-            return None
-        operator = self.store.operator()
-        if (
-            operator is None
-            or session.data.get("operator_id") != operator["operator_id"]
-        ):
-            return None
-        event_id = str(session.data.get("authentication_event_id") or "")
-        event = self.store.authentication_event(event_id)
-        if event is None or event.get("session_hash") != session_cookie:
-            return None
-        if float(event.get("expires_at") or 0) <= time.time():
-            return None
-        if event.get("device_id") != session.data.get("device_id"):
-            return None
-        stamped_generation = int(session.data.get("session_generation") or 0)
-        current_generation = self.store.current_session_generation(
-            str(operator["operator_id"])
-        )
+        try:
+            session = self.sessions.validate_session(session_cookie)
+            if session is None:
+                return None
+            operator = self.store.operator()
+            if (
+                operator is None
+                or session.data.get("operator_id") != operator["operator_id"]
+            ):
+                return None
+            event_id = str(session.data.get("authentication_event_id") or "")
+            event = self.store.authentication_event(event_id)
+            if event is None or event.get("session_hash") != session_cookie:
+                return None
+            if float(event.get("expires_at") or 0) <= time.time():
+                return None
+            if event.get("device_id") != session.data.get("device_id"):
+                return None
+            stamped_generation = int(session.data.get("session_generation") or 0)
+            current_generation = self.store.current_session_generation(
+                str(operator["operator_id"])
+            )
+        except sqlite3.Error as exc:
+            # Organ 24: a real store-level failure is not "no session" -- it
+            # means identity resolution itself is degraded, so the caller
+            # must refuse to authorize anything new rather than silently
+            # treating this operator as unauthenticated.
+            raise IdentityDegraded(
+                "identity store is degraded; no new actions can be authorized"
+            ) from exc
         if stamped_generation != current_generation:
             # Slice 26: a newer session (login/reauthentication) superseded
             # this one. Fail closed rather than honoring a stale generation.

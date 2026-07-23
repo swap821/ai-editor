@@ -134,6 +134,7 @@ from aios.core.router_wiring import (
 from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.governance import EmergencyStopError
+from aios.application.identity.service import IdentityDegraded
 from aios.api.action_guard import enforce_action_boundary
 from aios.domain.actions.envelope import (
     ActionEnvelope,
@@ -314,6 +315,29 @@ async def _emergency_stop_error_handler(
     return JSONResponse(
         status_code=503,
         content={"detail": f"Emergency stop engaged: {exc}"},
+    )
+
+
+@app.exception_handler(IdentityDegraded)
+async def _identity_degraded_handler(
+    request: Request, exc: IdentityDegraded
+) -> JSONResponse:
+    """Organ 24: a single, centralized 503 for a genuinely degraded identity store.
+
+    Every real call site that resolves a Principal (action_guard.py's direct
+    call, deps.py's shared get_authenticated_principal dependency, auth.py,
+    mirror.py) ultimately calls IdentityService.get_authenticated_principal(),
+    which now raises IdentityDegraded instead of letting a raw sqlite3.Error
+    escape as an unhandled 500 when the store itself is failing. One handler
+    here means every route gets the same honest, fail-closed 503 regardless
+    of which one triggered it -- no NEW action can be authorized while
+    identity is degraded. Already-issued, in-flight actions are unaffected:
+    nothing on a mission's execution path re-checks identity mid-flight, so
+    they complete normally (freeze in place, not a hard stop).
+    """
+    return JSONResponse(
+        status_code=503,
+        content={"detail": f"identity service degraded: {exc}"},
     )
 
 
@@ -657,6 +681,7 @@ def _generate_capability_binding(
             if action_type == "command"
             else "write_auto_verify_pass"
         ),
+        constitution_digest=principal.constitution_digest or None,
     )
 
 

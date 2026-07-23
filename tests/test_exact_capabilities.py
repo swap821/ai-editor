@@ -11,6 +11,7 @@ from aios.application.capabilities.authority import CapabilityAuthority, Capabil
 from aios.application.capabilities.verifier import CapabilityVerifier
 from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest
+from aios.domain.governance.constitution import build_constitution_snapshot
 
 
 def _binding(**overrides) -> CapabilityBinding:
@@ -215,6 +216,80 @@ def test_resource_metadata_entropy_does_not_block_exact_capability(tmp_path):
     proof = authority.consume(token, binding)
     assert proof.consumed_at is not None
     assert proof.payload_digest == payload_digest(payload)
+
+
+def test_constitution_digest_none_is_unaffected(tmp_path):
+    """Organ 24/25: bindings that never opted into digest-tracking keep working."""
+    authority = CapabilityAuthority(db_path=tmp_path / "digest-none.db")
+    binding = _binding()
+    assert binding.constitution_digest is None
+
+    token = authority.issue(binding)
+    proof = authority.consume(token, binding)
+    assert proof.constitution_digest is None
+
+
+def test_constitution_digest_match_is_accepted(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "digest-match.db")
+    current_digest = build_constitution_snapshot(
+        ratified_by_operator_id="operator:one"
+    ).snapshot_digest
+    binding = _binding(constitution_digest=current_digest)
+
+    token = authority.issue(binding)
+    proof = authority.consume(token, binding)
+    assert proof.constitution_digest == current_digest
+
+
+def test_constitution_digest_mismatch_is_rejected_outright(tmp_path):
+    """Organ 24/25: a capability issued under a stale constitution is
+    refused at consume time even though nothing else about it has expired,
+    been revoked, or been tampered with."""
+    authority = CapabilityAuthority(db_path=tmp_path / "digest-mismatch.db")
+    binding = _binding(constitution_digest="sha256:stale-constitution-digest")
+
+    token = authority.issue(binding)
+    with pytest.raises(CapabilityError, match="stale constitution"):
+        authority.consume(token, binding)
+
+
+def test_constitution_digest_is_excluded_from_the_replay_equality_check(tmp_path):
+    """Every real production caller reconstructs its 'expected' binding fresh
+    from the current request's live Principal -- its constitution_digest
+    reflects *now*, not issue time. If that raw field were folded into the
+    generic binding-equality check, a legitimate constitutional amendment
+    during the TTL window would surface as an opaque "binding mismatch"
+    and this test's own stale-constitution check would be unreachable."""
+    authority = CapabilityAuthority(db_path=tmp_path / "digest-replay.db")
+    issued_binding = _binding(constitution_digest="sha256:old-digest")
+    token = authority.issue(issued_binding)
+
+    freshly_reconstructed = replace(
+        issued_binding, constitution_digest="sha256:new-digest"
+    )
+
+    with pytest.raises(CapabilityError, match="stale constitution"):
+        authority.consume(token, freshly_reconstructed)
+
+
+def test_constitution_digest_survives_the_real_store_round_trip(tmp_path):
+    """A digest stamped at issue time must not be silently dropped by the
+    durable store before consume() ever gets to compare it -- issue and
+    consume here go through two separate CapabilityAuthority instances
+    (like two separate requests) so nothing but the real SQLite row can
+    carry the value across."""
+    db_path = tmp_path / "digest-roundtrip.db"
+    current_digest = build_constitution_snapshot(
+        ratified_by_operator_id="operator:one"
+    ).snapshot_digest
+    binding = _binding(constitution_digest=current_digest)
+
+    issuing_authority = CapabilityAuthority(db_path=db_path)
+    token = issuing_authority.issue(binding)
+
+    consuming_authority = CapabilityAuthority(db_path=db_path)
+    proof = consuming_authority.consume(token, binding)
+    assert proof.constitution_digest == current_digest
 
 
 def test_resource_metadata_named_secret_is_still_rejected(tmp_path):

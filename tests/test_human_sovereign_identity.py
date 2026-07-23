@@ -7,10 +7,16 @@ the operator.
 """
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
-from aios.application.identity.service import AlreadyEnrolled, IdentityService
+from aios.application.identity.service import (
+    AlreadyEnrolled,
+    IdentityDegraded,
+    IdentityService,
+)
 from aios.api.main import app
 from aios.api.deps import get_identity_service, get_session_manager
 from aios.domain.identity.models import PrincipalType
@@ -194,5 +200,65 @@ def test_anonymous_local_session_cannot_mutate_privileged_routes(
             assert created.status_code == 200
             response = client.post(path, json=payload, params=params)
         assert response.status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_authenticated_principal_is_stamped_with_the_live_constitution_digest(tmp_path):
+    """Organ 24/25: the digest threaded into a CapabilityBinding at issue time
+    must come from a real, freshly-computed constitution snapshot, not a
+    placeholder."""
+    service = _service(tmp_path)
+    enrollment = service.enroll_operator(display_name="Kumar")
+    authenticated = service.authenticate_credential(enrollment.enrollment_credential)
+
+    assert authenticated.principal.constitution_digest
+    principal = service.get_authenticated_principal(authenticated.session_cookie)
+    assert principal is not None
+    assert principal.constitution_digest == authenticated.principal.constitution_digest
+
+
+def test_a_genuine_store_failure_raises_identity_degraded_not_unauthenticated(
+    tmp_path, monkeypatch
+):
+    """Organ 24: a real SQLite failure while resolving identity must be
+    distinguishable from "no session" -- silently treating it as
+    unauthenticated would let a degraded store masquerade as a routine 401
+    instead of the fail-closed refusal every NEW capability issuance needs."""
+    service = _service(tmp_path)
+    enrollment = service.enroll_operator(display_name="Kumar")
+    authenticated = service.authenticate_credential(enrollment.enrollment_credential)
+
+    def _broken_operator():
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(service.store, "operator", _broken_operator)
+
+    with pytest.raises(IdentityDegraded):
+        service.get_authenticated_principal(authenticated.session_cookie)
+
+
+def test_degraded_identity_store_returns_503_not_a_bare_500(tmp_path, monkeypatch):
+    """Organ 24: the centralized app-level handler must turn a degraded
+    identity store into an honest, fail-closed 503 for a real guarded route,
+    matching the EmergencyStopError precedent, rather than an unhandled 500."""
+    service = _service(tmp_path)
+    import aios.api.deps as api_deps
+
+    monkeypatch.setattr(api_deps, "_SESSION_MANAGER", service.sessions)
+    app.dependency_overrides[get_identity_service] = lambda: service
+    app.dependency_overrides[get_session_manager] = lambda: service.sessions
+    try:
+        with TestClient(app, client=("127.0.0.1", 43126)) as client:
+            created = client.post("/api/v1/auth/session")
+            assert created.status_code == 200
+
+            def _broken_operator():
+                raise sqlite3.OperationalError("database is locked")
+
+            monkeypatch.setattr(service.store, "operator", _broken_operator)
+            response = client.post("/api/v1/rollback", json={})
+        assert response.status_code == 503
+        assert "degraded" in response.json()["detail"]
     finally:
         app.dependency_overrides.clear()

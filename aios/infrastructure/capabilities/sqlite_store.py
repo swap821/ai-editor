@@ -74,6 +74,10 @@ class CapabilityStore:
                 conn.execute(
                     "ALTER TABLE capabilities ADD COLUMN action_payload_json TEXT"
                 )
+            if "constitution_digest" not in columns:
+                conn.execute(
+                    "ALTER TABLE capabilities ADD COLUMN constitution_digest TEXT"
+                )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_capability_expiry ON capabilities(expires_at)"
             )
@@ -96,6 +100,7 @@ class CapabilityStore:
             binding.policy_version,
             binding.scope,
             binding.verification_requirement,
+            binding.constitution_digest,
         )
 
     def insert(self, capability: Capability, token_digest: str) -> None:
@@ -108,9 +113,9 @@ class CapabilityStore:
                     authentication_event_id, session_id, action_type, route,
                     http_method, payload_digest, resource_digest, mission_id,
                     contract_digest, policy_version, scope,
-                    verification_requirement, issued_at, expires_at, nonce,
-                    action_payload_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    verification_requirement, constitution_digest, issued_at,
+                    expires_at, nonce, action_payload_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     capability.capability_id,
@@ -154,6 +159,11 @@ class CapabilityStore:
             policy_version=str(row["policy_version"]),
             scope=str(row["scope"]),
             verification_requirement=str(row["verification_requirement"]),
+            constitution_digest=(
+                str(row["constitution_digest"])
+                if row["constitution_digest"] is not None
+                else None
+            ),
         )
         return Capability(
             capability_id=str(row["capability_id"]),

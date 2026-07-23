@@ -158,6 +158,7 @@ def _command_capability_binding(
         policy_version="v1",
         scope="training_ground/",
         verification_requirement="command_exit_zero",
+        constitution_digest=principal.constitution_digest or None,
     )
 
 
@@ -460,6 +461,7 @@ def rollback(
         policy_version="v1",
         scope=f"rollback:{snapshot_id}",
         verification_requirement="rollback_snapshot_restore",
+        constitution_digest=_principal.constitution_digest or None,
     )
     try:
         decision = broker.submit(
@@ -566,6 +568,7 @@ def _proposal_capability_binding(
         policy_version="v1",
         scope=str(proposal["target_path"]),
         verification_requirement="self_apply_verify_pass",
+        constitution_digest=principal.constitution_digest or None,
     )
 
 
