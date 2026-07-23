@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pytest
 import structlog
+from fastapi import BackgroundTasks, FastAPI
 from fastapi.testclient import TestClient
+from starlette.testclient import TestClient as StarletteTestClient
 
 from aios import logging_config
 from aios.api import main as api_main
@@ -78,6 +80,67 @@ def test_middleware_persists_provided_request_id(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.headers.get("x-request-id") == provided
+
+
+def test_middleware_binds_a_trace_context_visible_within_the_request(
+    client: TestClient, monkeypatch
+) -> None:
+    """Organ 52: a real TraceContext (aios.operations.tracing), not just the
+    separate structlog contextvars mechanism, must be bound for the request's
+    duration and visible to any synchronous call within it."""
+    from aios.operations.tracing import get_trace_context
+
+    provided = str(uuid.uuid4())
+    seen = {}
+
+    from aios.api.routes.system import IntentPreviewResponse
+
+    def _classify_and_capture(text: str):
+        seen["trace"] = get_trace_context()
+        return IntentPreviewResponse(intent="chat", confidence=1.0, tool=None)
+
+    import aios.api.routes.system as system_routes
+
+    monkeypatch.setattr(system_routes, "_classify_intent", _classify_and_capture)
+
+    response = client.post(
+        "/api/v1/intent/preview",
+        json={"text": "hello"},
+        headers={"x-request-id": provided},
+    )
+
+    assert response.status_code == 200
+    assert seen["trace"].request_id == provided
+
+
+def test_trace_context_survives_into_a_background_task() -> None:
+    """Organ 52: FastAPI's BackgroundTasks run after the response is sent but
+    within the same request's contextvars -- Starlette awaits an async
+    background callable directly (no new asyncio Task) and anyio's
+    run_in_threadpool copies the current context into the worker thread for a
+    sync one. Proven here empirically against the real middleware function
+    and real Starlette/anyio, not assumed from reading the library source."""
+    from aios.api.main import bind_request_context
+    from aios.operations.tracing import get_trace_context
+
+    probe_app = FastAPI()
+    probe_app.middleware("http")(bind_request_context)
+    seen: dict[str, object] = {}
+
+    def _background_probe() -> None:
+        seen["trace"] = get_trace_context()
+
+    @probe_app.post("/probe")
+    def _probe(background: BackgroundTasks) -> dict[str, bool]:
+        background.add_task(_background_probe)
+        return {"ok": True}
+
+    provided = str(uuid.uuid4())
+    with StarletteTestClient(probe_app) as client:
+        response = client.post("/probe", headers={"x-request-id": provided})
+
+    assert response.status_code == 200
+    assert seen["trace"].request_id == provided
 
 
 def test_middleware_hashes_session_id_before_logging(

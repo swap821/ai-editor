@@ -266,6 +266,40 @@ def test_apply_or_smoke_failure_restores_exact_checkpoint(staged) -> None:
     assert calls == ["apply", "snapshot-exact"]
 
 
+def test_apply_or_smoke_failure_restores_exact_bytes_via_real_checkpoint_authority(
+    staged,
+) -> None:
+    """Organ 41: prior coverage of the restore path only ever used lambda
+    stubs for create_checkpoint/restore_checkpoint, never the real,
+    production CheckpointAuthority-backed adapters
+    (aios.api.deps.get_checkpoint_creator/get_checkpoint_restorer, the exact
+    callables POST /api/v1/maintenance/repairs/run wires into promote()).
+    This proves a genuine filesystem round trip: promote() checkpoints the
+    real pre-promotion bytes, applies a real diff, fails its smoke test, and
+    restores -- with no stub standing in for the persistence path at any
+    step."""
+    from aios.api.deps import get_checkpoint_creator, get_checkpoint_restorer
+
+    manager, project, lease = staged
+    verification = VerificationAuthority()
+    request = _request(manager, project, lease, verification=verification)
+    original_bytes = (project / "app.txt").read_bytes()
+    assert b"before" in original_bytes
+
+    result = PromotionAuthority(manager, verification).promote(
+        request,
+        create_checkpoint=get_checkpoint_creator(),
+        apply_staged_diff=lambda _: manager.apply(lease),
+        smoke_test=lambda _: False,
+        restore_checkpoint=get_checkpoint_restorer(),
+    )
+
+    assert result.status is PromotionStatus.ROLLED_BACK
+    assert result.restored is True
+    assert result.checkpoint_id is not None
+    assert (project / "app.txt").read_bytes() == original_bytes
+
+
 def test_forged_lease_cannot_reach_promotion_callback(staged) -> None:
     manager, project, lease = staged
     verification = VerificationAuthority()

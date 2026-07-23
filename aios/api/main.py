@@ -465,25 +465,41 @@ app.include_router(_maintenance_router)
 
 @app.middleware("http")
 async def bind_request_context(request: Request, call_next):
-    """Stamp every request with a correlation id and bind a hashed session id."""
+    """Stamp every request with a correlation id and bind a hashed session id.
+
+    Organ 52: also builds and binds the shared `TraceContext` (`aios.operations
+    .tracing`) for this request's duration, reusing the SAME request_id already
+    computed below rather than generating a second, independently-sourced id.
+    Any synchronous call within this request's task -- including ones FastAPI
+    later runs via `BackgroundTasks` in the same ASGI cycle -- sees the same
+    context through `get_trace_context()` with no further wiring; a genuinely
+    separate process (the Docker executor container) does not and is not
+    covered by this alone.
+    """
     from structlog.contextvars import bind_contextvars, clear_contextvars
+
+    from aios.operations.tracing import bind_trace_context, new_trace_context
 
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     clear_contextvars()
     bind_contextvars(
         request_id=request_id, method=request.method, path=request.url.path
     )
-    try:
-        session_id = await edge_security.extract_session_id(
-            request, allow_body_fallback=True
-        )
-        if session_id:
-            bind_contextvars(session_id_hash=session_log_key(session_id))
-        response = await call_next(request)
-        response.headers["x-request-id"] = request_id
-        return response
-    finally:
-        clear_contextvars()
+    trace_headers = dict(request.headers)
+    trace_headers["x-request-id"] = request_id
+    trace_context = new_trace_context(trace_headers)
+    with bind_trace_context(trace_context):
+        try:
+            session_id = await edge_security.extract_session_id(
+                request, allow_body_fallback=True
+            )
+            if session_id:
+                bind_contextvars(session_id_hash=session_log_key(session_id))
+            response = await call_next(request)
+            response.headers["x-request-id"] = request_id
+            return response
+        finally:
+            clear_contextvars()
 
 
 #: Hosts that are allowed to call the API without a token. Starlette's
