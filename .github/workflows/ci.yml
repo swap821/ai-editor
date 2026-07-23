@@ -244,6 +244,18 @@ jobs:
           AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
           AIOS_PROFILE: production
         run: |
+          # Must match the "Start" step's own env setup exactly: AIOS_DOCKER_
+          # SOCKET_GID is a real ROOT CAUSE this pass caught (not guessed) --
+          # a first attempt omitted it here, so `up -d --wait` below resolved
+          # the compose file's `group_add: ["${AIOS_DOCKER_SOCKET_GID:-999}"]`
+          # to the empty-default 999 (not this runner's real socket GID),
+          # detected that as config drift versus the running container, and
+          # RECREATED it with the wrong docker-socket group -- breaking the
+          # executor's ability to spawn per-job containers entirely (every
+          # job then failed with a permission error, not a real restart-
+          # resilience failure). `export`ing the same real value here keeps
+          # the resolved config identical, so `up` only waits, never recreates.
+          export AIOS_DOCKER_SOCKET_GID="$(stat -c '%g' /var/run/docker.sock)"
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
           docker compose restart executor
           docker compose up -d --wait executor
