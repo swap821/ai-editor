@@ -23,10 +23,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GRANITE_EVIDENCE_PATH = (
     REPO_ROOT / "release" / "slice32" / "granite-qualification-live.json"
 )
+QWEN_EVIDENCE_PATH = (
+    REPO_ROOT / "release" / "slice32" / "qwen25coder7b-qualification-live.json"
+)
 
 
 def _granite_evidence() -> dict:
     return json.loads(GRANITE_EVIDENCE_PATH.read_text(encoding="utf-8"))
+
+
+def _qwen_evidence() -> dict:
+    return json.loads(QWEN_EVIDENCE_PATH.read_text(encoding="utf-8"))
 
 
 def test_real_granite_evidence_backs_extract_classify_cluster_not_summarise() -> None:
@@ -103,3 +110,22 @@ def test_a_profile_with_no_corresponding_test_id_is_never_backed() -> None:
 def test_empty_evidence_backs_nothing() -> None:
     assert evidence_backed_profiles({"runs": []}) == frozenset()
     assert evidence_backed_profiles({}) == frozenset()
+
+
+def test_real_qwen_coder_evidence_backs_all_four_mapped_profiles() -> None:
+    """Tier-1/2 follow-up: unlike granite3.2:2b, qwen2.5-coder:7b passes ALL
+    16 checks in every one of 3 live runs (release/slice32/
+    qwen25coder7b-qualification-live.json) -- the same unmodified suite,
+    a genuinely better-suited model, not a loosened validator."""
+    evidence = _qwen_evidence()
+
+    backed = evidence_backed_profiles(evidence)
+
+    assert backed == frozenset(
+        {
+            LocalJobProfile.EXTRACT,
+            LocalJobProfile.CLASSIFY,
+            LocalJobProfile.CLUSTER,
+            LocalJobProfile.SUMMARISE,
+        }
+    )
