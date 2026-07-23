@@ -811,7 +811,7 @@
   {
     "organ_id": 40,
     "name": "Isolated Workspace and Executor (live proof)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "IsolatedExecutorLiveAuthority",
     "production_entrypoints": [
       "aios/application/executor/service.py",
@@ -834,11 +834,14 @@
         "description": "CI run https://github.com/swap821/ai-editor/actions/runs/29890416231 (commit db0441144db9): a real docker-compose Executor Service container was started, and aios.application.governance.runtime_proof._probe_executor made a genuine HTTP call through StructuredExecutorClient to submit and execute an isolated job inside it -- verified real output confirming uid=65534 (non-root), network=blocked, and outside=blocked (no workspace escape). Separately, tests/test_executor_integration.py ran python -m pytest *inside* the real container via `docker compose run`, and test_missing_private_executor_is_refused proved there is no host-process fallback when the service is absent. This is genuine runtime evidence, not a fixture: reviewed the proof source directly (not just the passing CI job name) to confirm it makes real network calls against a real container rather than mocking the executor client.",
         "commit_sha": "db0441144db9c7612d9be31cbb7e1a576ccf08d2",
         "proof_level": "live"
+      },
+      {
+        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/29989936411 (commit 697d925fa6c2151c4c59c2372ae98f411d5e74b2): the release-authority job's real docker-compose Executor Service container was RESTARTED in place (`docker compose restart executor` + `up -d --wait`, on the real GitHub Actions Docker daemon -- this local sandbox has none) and tests/test_executor_integration.py was re-run against it via a fresh `docker compose run`, genuinely passing all 3 tests post-restart -- the same real isolation proof (uid=65534, network=blocked, outside=blocked) as the original pre-restart run, now proven to survive a real container restart, not just a cold start. A first attempt at this same proof (run 29988647828, commit 51306512f09dee23ce54de6ff1bb39e0f7c155fb) genuinely FAILED and was root-caused, not glossed over: the restart step omitted re-exporting AIOS_DOCKER_SOCKET_GID, so the follow-up `docker compose up --wait` detected config drift against docker-compose.yml's silent `${AIOS_DOCKER_SOCKET_GID:-999}` fallback and recreated the container with the wrong docker-socket group, breaking its ability to spawn per-job containers -- fixed by exporting the same real GID the original start step already computes.",
+        "commit_sha": "697d925fa6c2151c4c59c2372ae98f411d5e74b2",
+        "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "The specific blocker recorded at Slice 35/40 -- 'Docker unavailability independently blocks the executor runtime probe' -- is resolved (see live_evidence). The frontend-truthfulness gap is now also resolved: GET /api/v1/mirror/executor (aios/api/routes/mirror.py) projects a real authenticated ExecutorService.client.health() call through a new typed ExecutorStatusProjection (aios/domain/read_models/contracts.py, aios/application/read_models/executor_projections.py) -- configured is read from the client's own settings (no network call, so an unconfigured dev/demo environment fails instantly rather than blocking); reachable/runtime come from a real call and stay honestly unavailable when unconfigured or unreachable, never guessed. SovereignStatePanel.jsx renders it in a new 'Isolated Executor' section, live-verified in the browser against a real running backend showing the honest 'not configured' state (no AIOS_EXECUTOR_TOKEN in this dev environment). Still yellow for the one real remaining gap: failure and timeout are tested (test_missing_private_executor_is_refused, test_private_executor_timeout_is_refused) but there is no test specifically covering executor *restart* resilience -- genuinely Docker-dependent, deferred to Tier 4 per the closure plan alongside organ 41/42's own Docker gaps. This local sandbox still has no Docker daemon."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
