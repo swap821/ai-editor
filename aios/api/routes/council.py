@@ -758,8 +758,12 @@ def council_mission_rollback(
     _principal: Principal = Depends(require_privileged_operator),
     runtime_root: Path = Depends(get_council_runtime_root),
     broker: ActionBroker = Depends(get_action_broker),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Restore one Council mission workspace to its pre-worker snapshot."""
+    # Organ 26: a destructive workspace restore must never proceed while the
+    # emergency stop is engaged -- this route had no such check at all.
+    emergency_stop.assert_operational()
     safe_id = _validate_council_mission_id(mission_id)
     reports = KingReportStore(runtime_root)
     ledgers = RunLedgerStore(runtime_root)

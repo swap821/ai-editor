@@ -16,7 +16,17 @@ from fastapi.testclient import TestClient
 
 from aios import config
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
-from aios.api.deps import get_capability_authority, get_identity_service, get_policy_kernel
+from aios.api.deps import (
+    get_capability_authority,
+    get_emergency_stop,
+    get_identity_service,
+    get_policy_kernel,
+)
+from aios.application.governance.emergency_stop import (
+    EmergencyStopController,
+    EmergencyStopHooks,
+    EmergencyStopRequest,
+)
 from aios.api.main import (
     app,
     get_bedrock_client,
@@ -1707,6 +1717,47 @@ def test_rollback_endpoint_requires_session_before_approval(
     response = client.post("/api/v1/rollback", json={"snapshot_id": snap.sha})
     assert response.status_code == 403
     assert work.read_text(encoding="utf-8") == "v2"
+
+
+def test_rollback_endpoint_refuses_with_503_when_emergency_stop_engaged(
+    client: TestClient, tmp_path
+) -> None:
+    """Organ 26: /api/v1/rollback is a DESTRUCTIVE operation but previously had
+    no emergency-stop check at all -- a real, live gap this closes."""
+    engine = RollbackEngine(repo_dir=tmp_path)
+    work = tmp_path / "work.txt"
+    work.write_text("v1", encoding="utf-8")
+    snap = engine.create_snapshot("v1 state")
+    work.write_text("v2", encoding="utf-8")
+    engine.create_snapshot("v2 state")
+
+    stop = EmergencyStopController(
+        tmp_path / "stop.db",
+        hooks=EmergencyStopHooks(
+            revoke_capabilities=lambda: None,
+            cancel_queued_missions=lambda: None,
+            kill_active_workers=lambda: None,
+            disable_autonomy=lambda: None,
+            preserve_evidence=lambda reason: None,
+        ),
+    )
+    stop.engage(
+        EmergencyStopRequest(
+            operator_id="operator:1",
+            authentication_event_id="event-1",
+            reason="test engagement",
+        )
+    )
+    app.dependency_overrides[get_rollback_engine] = lambda: engine
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    session_id = _cookie_session_id(client)
+    response = client.post(
+        "/api/v1/rollback",
+        json={"snapshot_id": snap.sha, "sessionId": session_id},
+    )
+    assert response.status_code == 503
+    assert "Emergency stop" in response.json()["detail"]
+    assert work.read_text(encoding="utf-8") == "v2"  # nothing rolled back
 
 
 def test_rollback_endpoint_restores_snapshot_with_approval_token(

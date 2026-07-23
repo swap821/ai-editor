@@ -26,6 +26,7 @@ from aios.api.deps import (
     _session_id_from_request,
     get_action_broker,
     get_capability_authority,
+    get_emergency_stop,
     get_executor,
     get_llm_client,
     get_memory_authority,
@@ -414,6 +415,7 @@ def rollback(
     _principal: Principal = Depends(require_privileged_operator),
     engine: RollbackEngine = Depends(get_rollback_engine),
     broker: ActionBroker = Depends(get_action_broker),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Restore the sandbox working tree to a prior snapshot.
 
@@ -422,6 +424,9 @@ def rollback(
     can prompt the human approver; when called with a valid token, the token
     is consumed and the rollback executes.
     """
+    # Organ 26: a destructive workspace restore must never proceed while the
+    # emergency stop is engaged -- this route had no such check at all.
+    emergency_stop.assert_operational()
     session_id = _session_id_from_request(request, None)
     if not session_id:
         raise HTTPException(

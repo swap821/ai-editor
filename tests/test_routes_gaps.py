@@ -24,12 +24,27 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aios import config
-from aios.api.deps import get_capability_authority
+from aios.api.deps import get_capability_authority, get_emergency_stop
 from aios.api.main import app, get_council_runtime_root
+from aios.application.governance.emergency_stop import (
+    EmergencyStopController,
+    EmergencyStopHooks,
+    EmergencyStopRequest,
+)
 from aios.domain.capabilities.digest import payload_digest
 from aios.runtime.contracts import KingReport, MissionContract, QueenVerdict, RunLedger
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
+
+
+def _no_op_hooks() -> EmergencyStopHooks:
+    return EmergencyStopHooks(
+        revoke_capabilities=lambda: None,
+        cancel_queued_missions=lambda: None,
+        kill_active_workers=lambda: None,
+        disable_autonomy=lambda: None,
+        preserve_evidence=lambda reason: None,
+    )
 
 
 def _client_overrides(runtime_root: Path) -> None:
@@ -445,6 +460,36 @@ def test_council_originate_adds_request_change_tool_when_worker_reasoning_enable
 # council.py — council_mission_rollback (594, 616, 620-622, 626, 632, 647-648,
 # 650, 652, 661-662, 664)
 # --------------------------------------------------------------------------- #
+
+
+def test_council_rollback_refuses_with_503_when_emergency_stop_engaged(
+    tmp_path: Path,
+) -> None:
+    """Organ 26: council_mission_rollback restores a workspace from a
+    snapshot -- a real, live gap that previously had no emergency-stop check
+    at all, unlike /api/v1/council/missions (originate) and /approve."""
+    runtime_root = tmp_path / "runtime"
+    _seed_mission(runtime_root)
+    _client_overrides(runtime_root)
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    stop.engage(
+        EmergencyStopRequest(
+            operator_id="operator:1",
+            authentication_event_id="event-1",
+            reason="test engagement",
+        )
+    )
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.post(
+                "/api/v1/council/missions/mission-gap-1/rollback",
+                json={"sessionId": _cookie_session_id(client)},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 503
+    assert "Emergency stop" in response.json()["detail"]
 
 
 def test_council_rollback_404_when_artifacts_missing(tmp_path: Path) -> None:

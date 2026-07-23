@@ -13,9 +13,25 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aios import config
+from aios.api.deps import get_emergency_stop
 from aios.api.main import app, get_council_runtime_root
+from aios.application.governance.emergency_stop import (
+    EmergencyStopController,
+    EmergencyStopHooks,
+    EmergencyStopRequest,
+)
 from aios.council.council_memory import CouncilMemory
 from aios.council.council_state import CouncilState
+
+
+def _no_op_hooks() -> EmergencyStopHooks:
+    return EmergencyStopHooks(
+        revoke_capabilities=lambda: None,
+        cancel_queued_missions=lambda: None,
+        kill_active_workers=lambda: None,
+        disable_autonomy=lambda: None,
+        preserve_evidence=lambda reason: None,
+    )
 
 
 def _client_overrides(runtime_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -40,6 +56,37 @@ def test_originate_disabled_returns_404(tmp_path: Path, monkeypatch: pytest.Monk
     finally:
         app.dependency_overrides.clear()
     assert r.status_code == 404
+
+
+def test_originate_refuses_with_503_when_emergency_stop_engaged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Organ 26: council_originate() calls assert_operational() with no
+    local try/except around it -- this proves the new centralized handler
+    (aios/api/main.py::_emergency_stop_error_handler) turns that previously
+    -uncaught EmergencyStopError into a consistent 503, not an unhandled 500,
+    closing the "503 vs uncaught" duplication the organ's own blocker named."""
+    monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
+    _client_overrides(tmp_path / "runtime", monkeypatch)
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    stop.engage(
+        EmergencyStopRequest(
+            operator_id="operator:1",
+            authentication_event_id="event-1",
+            reason="test engagement",
+        )
+    )
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            r = client.post(
+                "/api/v1/council/missions",
+                json={"goal": "improve login", "allowedFiles": ["x.txt"], "sessionId": "s-stop"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 503
+    assert "Emergency stop" in r.json()["detail"]
 
 
 def test_originate_deliberates_to_awaiting_approval(

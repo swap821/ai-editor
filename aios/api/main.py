@@ -133,6 +133,7 @@ from aios.core.router_wiring import (
 )
 from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
+from aios.application.governance import EmergencyStopError
 from aios.api.action_guard import enforce_action_boundary
 from aios.domain.actions.envelope import (
     ActionEnvelope,
@@ -292,6 +293,28 @@ app = FastAPI(
     summary="Local-first, memory-driven, security-gated, human-supervised AI operating system.",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(EmergencyStopError)
+async def _emergency_stop_error_handler(
+    request: Request, exc: EmergencyStopError
+) -> JSONResponse:
+    """Organ 26: a single, centralized 503 for every emergency-stop refusal.
+
+    Several routes (aios/api/routes/maintenance.py) already catch
+    EmergencyStopError locally and return 503 themselves -- that per-route
+    handling still runs first and is unaffected. This handler only catches
+    the routes that previously let it escape uncaught (e.g. Council mission
+    creation/execution, gated deep inside route_intelligence_request()),
+    which FastAPI would otherwise turn into an unhandled 500. Centralizing
+    here means every emergency-stop refusal is consistently 503 regardless
+    of which route triggered it, closing the "503 vs uncaught" duplication
+    this organ's own blocker named.
+    """
+    return JSONResponse(
+        status_code=503,
+        content={"detail": f"Emergency stop engaged: {exc}"},
+    )
 
 
 # ── Cortex bus W2 helpers ─────────────────────────────────────────────────────
