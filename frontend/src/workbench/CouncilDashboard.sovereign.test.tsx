@@ -153,6 +153,22 @@ const V10_STATUS = {
     proposalCount: 3,
   },
 };
+const GOVERNANCE = {
+  constitution: {
+    constitution_id: { value: 'constitution:operator-1', status: 'measured', source: 'constitution_snapshot' },
+    version: { value: 1, status: 'measured', source: 'constitution_snapshot' },
+    ratified_by_operator_id: { value: 'operator-1', status: 'measured', source: 'constitution_snapshot' },
+    snapshot_digest: { value: 'a'.repeat(64), status: 'measured', source: 'constitution_snapshot' },
+    foundation_laws_count: { value: 5, status: 'measured', source: 'constitution_snapshot' },
+  },
+  emergencyStop: {
+    engaged: { value: false, status: 'measured', source: 'emergency_stop_state' },
+    generation: { value: 0, status: 'measured', source: 'emergency_stop_state' },
+    reason: { value: null, status: 'unavailable', source: 'emergency_stop_state' },
+    engaged_at: { value: null, status: 'unavailable', source: 'emergency_stop_state' },
+  },
+};
+
 const PHEROMONES = {
   pheromones: [
     {
@@ -204,6 +220,8 @@ function mockFetch() {
         ? REPO_MAP
         : u.includes('/v10/status')
           ? V10_STATUS
+          : u.includes('/mirror/governance')
+            ? GOVERNANCE
           : u.includes('/resource/status')
           ? RESOURCE
           : u.includes('/hibernation/status')
@@ -270,6 +288,13 @@ describe('CouncilDashboard sovereignty views', () => {
     expect(screen.getByText(/123 symbols · proposal\/evidence/)).toBeInTheDocument();
     expect(screen.getByText(/ok · 3 proposal\(s\)/)).toBeInTheDocument();
     expect(screen.getByText(/none can authorize action/)).toBeInTheDocument();
+    expect(await screen.findByText(/Constitution & Emergency Stop/)).toBeInTheDocument();
+    expect(screen.getByText('operational')).toBeInTheDocument();
+    expect(screen.getByText('operator-1')).toBeInTheDocument();
+    expect(screen.getByText('clear')).toBeInTheDocument();
+    // The reason is genuinely unavailable (no stop ever engaged) -- must
+    // render the honest fallback, never a blank or fabricated value.
+    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
     expect(await screen.findByText(/Sovereign Superorganism v7/)).toBeInTheDocument();
     expect(screen.getByText(/AI Editor - local-first AI OS/)).toBeInTheDocument();
     expect(screen.getAllByText(/conservation/).length).toBeGreaterThan(0);

@@ -6,7 +6,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from aios.api.deps import get_emergency_stop, get_identity_service
 from aios.api.main import app, get_cortex_bus
+from aios.application.governance.emergency_stop import (
+    EmergencyStopController,
+    EmergencyStopHooks,
+    EmergencyStopRequest,
+)
+from aios.application.identity.service import IdentityService
 from aios.application.read_models import projection as projection_module
 from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap, CortexBus
 from tests.cortex_event_helpers import append_event
@@ -282,5 +289,109 @@ def test_mirror_unsubscribe_called(mock_cortex_bus):
                         pass
 
             unsubscribe_mock.assert_called_once()
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/mirror/governance -- organs 47/48: the first real route exposing
+# the Slice 39 typed projections. Unauthenticated by design, matching
+# /snapshot's own convention.
+# --------------------------------------------------------------------------- #
+
+
+def _no_op_hooks() -> EmergencyStopHooks:
+    return EmergencyStopHooks(
+        revoke_capabilities=lambda: None,
+        cancel_queued_missions=lambda: None,
+        kill_active_workers=lambda: None,
+        disable_autonomy=lambda: None,
+        preserve_evidence=lambda reason: None,
+    )
+
+
+def test_governance_projection_is_honestly_unavailable_when_unauthenticated(
+    tmp_path: Path,
+) -> None:
+    """No session cookie -> no fabricated constitution. Emergency stop is
+    always real and renderable (a never-engaged latch is still a true,
+    non-None state), matching project_emergency_stop's own documented
+    always-renderable guarantee."""
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["constitution"]["version"]["status"] == "unavailable"
+            assert data["constitution"]["version"]["value"] is None
+            assert data["emergencyStop"]["engaged"]["status"] == "measured"
+            assert data["emergencyStop"]["engaged"]["value"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_shows_the_real_authenticated_operators_constitution(
+    tmp_path: Path,
+) -> None:
+    """A real Human Sovereign session -> a real, non-fabricated constitution
+    snapshot attributed to that exact operator, reusing the same
+    build_constitution_snapshot() pattern IdentityService already stamps
+    onto every Principal."""
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    enrollment = identity.enroll_operator(display_name="Operator")
+    authenticated = identity.authenticate_credential(enrollment.enrollment_credential)
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            test_client.cookies.set("session_id", authenticated.session_cookie)
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["constitution"]["version"]["status"] == "measured"
+            assert data["constitution"]["version"]["value"] == 1
+            assert (
+                data["constitution"]["ratified_by_operator_id"]["value"]
+                == enrollment.operator_id
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_reflects_a_real_engaged_emergency_stop(
+    tmp_path: Path,
+) -> None:
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    stop.engage(
+        EmergencyStopRequest(
+            operator_id="operator:1",
+            authentication_event_id="event-1",
+            reason="test engagement",
+        )
+    )
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["emergencyStop"]["engaged"]["value"] is True
+            assert data["emergencyStop"]["reason"]["value"] == "test engagement"
     finally:
         app.dependency_overrides.clear()

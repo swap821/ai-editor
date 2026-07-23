@@ -91,6 +91,14 @@ function repoMapSummary(surface) {
   return `${surface.lastScan.symbolCount ?? 0} symbols · ${surface.activation}`;
 }
 
+/** A MetricEnvelope-shaped field: {value, status, source, ...}. Renders the
+ * real value when measured, an honest "unavailable" when not -- never a
+ * silently-guessed default. */
+function envelopeText(envelope, formatValue = (v) => String(v)) {
+  if (!envelope || envelope.status !== 'measured') return 'unavailable';
+  return formatValue(envelope.value);
+}
+
 export default function SovereignStatePanel() {
   const [autonomy, setAutonomy] = useState(null);
   const [facts, setFacts] = useState([]);
@@ -105,6 +113,7 @@ export default function SovereignStatePanel() {
     selfAnalysis: null,
   });
   const [v10, setV10] = useState(null);
+  const [governance, setGovernance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -128,6 +137,7 @@ export default function SovereignStatePanel() {
       getJson('/api/v1/council/missions?limit=8', signal),
       getJson('/api/v1/self-analysis/proposals', signal),
       getJson('/api/v1/v10/status', signal),
+      getJson('/api/v1/mirror/governance', signal),
     ]);
     // An aborted load is a CANCELLED load (unmount / StrictMode cleanup), not
     // a failure: bail before any setState, or the abandoned first pass would
@@ -147,6 +157,7 @@ export default function SovereignStatePanel() {
       councilR,
       selfAnalysisR,
       v10R,
+      governanceR,
     ] = results;
     if (autonomyR.status === 'fulfilled') setAutonomy(autonomyR.value);
     if (factsR.status === 'fulfilled') setFacts(asArray(factsR.value));
@@ -161,6 +172,7 @@ export default function SovereignStatePanel() {
       selfAnalysis: selfAnalysisR.status === 'fulfilled' ? selfAnalysisR.value : null,
     });
     setV10(v10R.status === 'fulfilled' ? v10R.value : null);
+    setGovernance(governanceR.status === 'fulfilled' ? governanceR.value : null);
     if (results.every((r) => r.status === 'rejected')) setError('Sovereign state link offline');
     setLoading(false);
   }, []);
@@ -257,6 +269,48 @@ export default function SovereignStatePanel() {
             <p className="council-dashboard__muted">
               These v10 organs are backend-backed advisory evidence; none can authorize action, mutate policy, self-apply, write files, or bypass approval.
             </p>
+          </section>
+
+          <section className="council-dashboard__section" aria-label="Constitution and emergency stop, measured">
+            <h3>
+              <ShieldCheck size={14} aria-hidden="true" /> Constitution &amp; Emergency Stop
+              <span className={`council-dashboard__badge is-${governance?.emergencyStop?.engaged?.value ? 'danger' : 'ok'}`}>
+                {governance?.emergencyStop?.engaged?.value ? 'STOPPED' : 'operational'}
+              </span>
+            </h3>
+            <p className="council-dashboard__muted">
+              Distinct from the v10 section's own "Constitution" field above
+              (an older, separate caste-count view) — this is the typed,
+              digest-verified read-model surface (organs 47/48): every field
+              below is either a real measured value or an honest
+              "unavailable", never guessed.
+            </p>
+            <div className="council-dashboard__grid">
+              <span>
+                <b>Constitution version</b>
+                {envelopeText(governance?.constitution?.version)}
+              </span>
+              <span>
+                <b>Ratified by</b>
+                {envelopeText(governance?.constitution?.ratified_by_operator_id)}
+              </span>
+              <span>
+                <b>Snapshot digest</b>
+                {envelopeText(governance?.constitution?.snapshot_digest, (v) => `${String(v).slice(0, 16)}…`)}
+              </span>
+              <span>
+                <b>Foundation laws</b>
+                {envelopeText(governance?.constitution?.foundation_laws_count)}
+              </span>
+              <span>
+                <b>Emergency stop</b>
+                {envelopeText(governance?.emergencyStop?.engaged, (v) => (v ? 'engaged' : 'clear'))}
+              </span>
+              <span>
+                <b>Stop reason</b>
+                {envelopeText(governance?.emergencyStop?.reason)}
+              </span>
+            </div>
           </section>
 
           <section className="council-dashboard__section" aria-label="V7 truth surface">

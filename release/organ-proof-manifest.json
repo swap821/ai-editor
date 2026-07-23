@@ -1,18 +1,18 @@
 {
   "schema_version": "1",
-  "created_at": "2026-07-22T21:56:03+00:00",
+  "created_at": "2026-07-23T01:47:54+00:00",
   "source_commit_sha": "1cce4c66bf493c17a90081029fbe40acc3b9de92",
   "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
-  "ledger_sha256": "4aea2aee3d62b74d082bbae3996b2822378b0e497e9b072962d596d805c6dbae",
+  "ledger_sha256": "ac8d946ce7a0bfc9e69a3042b685ac1c191cfceaa7ca6b68180c870194d5d731",
   "organ_summary": {
     "total": 54,
     "green": 27,
     "yellow": 27
   },
   "files": {
-    ".aios/state/ORGAN_GREEN_LEDGER.json": "4aea2aee3d62b74d082bbae3996b2822378b0e497e9b072962d596d805c6dbae",
+    ".aios/state/ORGAN_GREEN_LEDGER.json": "ac8d946ce7a0bfc9e69a3042b685ac1c191cfceaa7ca6b68180c870194d5d731",
     "docs/architecture/GAGOS_54_ORGANS.md": "774de0909655b2fcbea319ad4fc4ff6f08ae66d060086fe0516d86e5cd457b7b",
     "release/slice32/granite-qualification-live.json": "d9af4ebe01a98ca895573a70e6b7702e3d2b8216facedbdedf60cf7afcbfa60a"
   },
-  "note": "This manifest hash-pins the organ ledger at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never a stale baseline sha, and must never be labelled fixture. Regenerated after the Tier-1 closure pass completed -- organs 27, 29, 35, 43, 54 green, organ 28's durable-store half closed (narrowed blocker remains), organ 37 strengthened but honestly still yellow (27/27 split, up from the 22/32 Slice-25 baseline)."
+  "note": "This manifest hash-pins the organ ledger at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never a stale baseline sha, and must never be labelled fixture. Regenerated after the Tier-1 closure pass completed -- organs 27, 29, 35, 43, 54 green, organ 28's durable-store half closed (narrowed blocker remains), organ 37 strengthened but honestly still yellow (27/27 split, up from the 22/32 Slice-25 baseline). Tier-2 update: organs 47/48 narrowed (2 of 4 projections now live-routed and frontend-consumed); counts unchanged (27/27), both stay yellow honestly."
 }

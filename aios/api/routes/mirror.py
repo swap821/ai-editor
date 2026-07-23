@@ -18,12 +18,22 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from aios.api.main import get_cortex_bus
 from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap, CortexBus
 from aios.application.read_models.projection import get_system_projection
+from aios.application.read_models.governance_projections import (
+    project_constitution,
+    project_emergency_stop,
+)
+from aios.application.governance.emergency_stop import EmergencyStopController
+from aios.application.identity.service import IdentityService
 from aios.application.memory.authority import MemoryAuthority
 from aios.api.deps import (
     get_development_tracker,
+    get_emergency_stop,
+    get_identity_service,
     get_memory_authority,
     get_skill_memory,
 )
+from aios.domain.governance.constitution import build_constitution_snapshot
+from aios.domain.identity.models import PrincipalType
 from aios.domain.read_models import MetricEnvelope, MetricStatus
 from aios.memory.development import DevelopmentTracker
 from aios.memory.skills import SkillMemory
@@ -190,6 +200,40 @@ def get_snapshot(
                 "models_total": None,
                 "memory_gb": None,
             },
+        }
+    )
+
+
+@router.get("/governance")
+def get_governance_projection(
+    request: Request,
+    identity: IdentityService = Depends(get_identity_service),
+    emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
+) -> JSONResponse:
+    """Organs 47/48: the truthful constitution and emergency-stop surface.
+
+    Unauthenticated by design, matching /snapshot's own convention -- the
+    living mirror reflects state, it never gates on who's watching (risky
+    ACTIONS are gated elsewhere). The constitution is honestly UNAVAILABLE
+    (never fabricated) unless a real Human Sovereign session is active,
+    reusing the exact same per-request build_constitution_snapshot()
+    pattern IdentityService._current_constitution_digest() already stamps
+    onto every authenticated Principal -- not a new construction, the same
+    established one.
+    """
+    principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
+    if principal is not None and principal.principal_type is PrincipalType.OPERATOR:
+        snapshot = build_constitution_snapshot(
+            ratified_by_operator_id=principal.principal_id
+        )
+    else:
+        snapshot = None
+    constitution = project_constitution(snapshot)
+    stop_projection = project_emergency_stop(emergency_stop.state())
+    return JSONResponse(
+        content={
+            "constitution": constitution.model_dump(mode="json"),
+            "emergencyStop": stop_projection.model_dump(mode="json"),
         }
     )
 
