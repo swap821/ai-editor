@@ -91,10 +91,14 @@ class FailoverChatClient:
         #: Privacy filter — applied once before any cloud transmission this turn.
         self._privacy_filter = PrivacyFilter()
         #: Organ 34: records real outcomes so the circuit-breaker tracker
-        #: actually observes production traffic. Optional and purely
-        #: observational here -- this pass does not yet gate candidate
-        #: selection on `is_call_allowed()`, which would change failover
-        #: ordering and deserves its own reviewed pass.
+        #: actually observes production traffic, AND gates candidate
+        #: selection on `is_call_allowed()` -- a candidate with an open
+        #: circuit is skipped exactly like an H9-skip (never attempted,
+        #: `self._idx` untouched), so a known-broken provider doesn't cost a
+        #: real network timeout to rediscover what the tracker already
+        #: knows. This does not change H9's own privacy ordering: skipping
+        #: an open-circuit candidate is an orthogonal, additional condition,
+        #: never a relaxation of the at-most-one-cloud-provider rule.
         self._provider_health = provider_health
 
     def _record_success(self, provider: str) -> None:
@@ -195,6 +199,15 @@ class FailoverChatClient:
                     "H9: no local fallback available; trying additional cloud provider %s",
                     provider,
                 )
+
+            # Organ 34: a provider whose circuit is open is known-broken right
+            # now -- skip it exactly like an H9-skip (never attempted, self._idx
+            # untouched) rather than paying a real network timeout to confirm
+            # what the tracker already knows.
+            if self._provider_health is not None and not self._provider_health.is_call_allowed(
+                provider
+            ):
+                continue
 
             attempted.add(i)
             if i in cloud_indices:
@@ -303,6 +316,11 @@ class FailoverChatClient:
                     "H9: no local fallback available; trying additional cloud provider %s",
                     provider,
                 )
+
+            if self._provider_health is not None and not self._provider_health.is_call_allowed(
+                provider
+            ):
+                continue
 
             attempted.add(i)
             if i in cloud_indices:
@@ -434,6 +452,11 @@ class FailoverChatClient:
                     "H9: no local fallback available; trying additional cloud provider %s",
                     provider,
                 )
+
+            if self._provider_health is not None and not self._provider_health.is_call_allowed(
+                provider
+            ):
+                continue
 
             attempted.add(i)
             if i in cloud_indices:

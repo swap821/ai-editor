@@ -199,6 +199,99 @@ def test_failover_stream_chat_with_tools_records_a_failure():
     assert tracker.snapshot("ollama").reachable is True
 
 
+# --- Organ 34: an open circuit is actually consulted, not just recorded ---
+def test_failover_chat_skips_a_candidate_with_an_open_circuit():
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "should not be called"}
+    client2 = MagicMock()
+    client2.chat.return_value = {"content": "ok"}
+    tracker = ProviderHealthTracker(failure_threshold=1)
+    tracker.record_failure("bedrock")  # opens the circuit after 1 failure
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock"), (client2, "m2", "ollama")],
+        provider_health=tracker,
+    )
+    result = fc.chat([{"role": "user", "content": "hi"}])
+
+    assert result == {"content": "ok"}
+    client1.chat.assert_not_called()
+    assert fc.active_provider == "ollama"
+
+
+def test_failover_chat_raises_when_every_candidate_has_an_open_circuit():
+    client1 = MagicMock()
+    client2 = MagicMock()
+    tracker = ProviderHealthTracker(failure_threshold=1)
+    tracker.record_failure("bedrock")
+    tracker.record_failure("ollama")
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock"), (client2, "m2", "ollama")],
+        provider_health=tracker,
+    )
+
+    with pytest.raises(LLMError):
+        fc.chat([{"role": "user", "content": "hi"}])
+    client1.chat.assert_not_called()
+    client2.chat.assert_not_called()
+
+
+def test_failover_stream_chat_skips_a_candidate_with_an_open_circuit():
+    client1 = MagicMock()
+    client2 = MagicMock()
+    client2.stream_chat.return_value = iter(["chunk"])
+    tracker = ProviderHealthTracker(failure_threshold=1)
+    tracker.record_failure("bedrock")
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock"), (client2, "m2", "ollama")],
+        provider_health=tracker,
+    )
+    chunks = list(fc.stream_chat([{"role": "user", "content": "hi"}]))
+
+    assert chunks == ["chunk"]
+    client1.stream_chat.assert_not_called()
+
+
+def test_failover_stream_chat_with_tools_skips_a_candidate_with_an_open_circuit():
+    client1 = MagicMock()
+    client2 = MagicMock()
+    client2.stream_chat_with_tools.return_value = iter(
+        ["text", StreamFinished(tool_calls=[], content="text")]
+    )
+    tracker = ProviderHealthTracker(failure_threshold=1)
+    tracker.record_failure("bedrock")
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock"), (client2, "m2", "ollama")],
+        provider_health=tracker,
+    )
+    list(fc.stream_chat_with_tools([{"role": "user", "content": "hi"}]))
+
+    client1.stream_chat_with_tools.assert_not_called()
+
+
+def test_failover_chat_recovers_after_a_half_open_success():
+    """A circuit that has entered recovery (half_open) must still allow
+    exactly the recovery probe through -- gating must not permanently lock
+    out a provider once its cooldown has elapsed."""
+    now = [0.0]
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "recovered"}
+    tracker = ProviderHealthTracker(
+        failure_threshold=1, recovery_after_seconds=10.0, clock=lambda: now[0]
+    )
+    tracker.record_failure("bedrock")
+    now[0] = 11.0  # past recovery_after_seconds -> half_open
+
+    fc = FailoverChatClient([(client1, "m1", "bedrock")], provider_health=tracker)
+    result = fc.chat([{"role": "user", "content": "hi"}])
+
+    assert result == {"content": "recovered"}
+    client1.chat.assert_called_once()
+
+
 def test_failover_stream_chat_with_tools():
     client1 = MagicMock()
     client1.stream_chat_with_tools.return_value = iter([
