@@ -210,6 +210,30 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # own comment on this organ's routes). An entry with no real endpoint
     # behind it would be misleading, not forward-looking documentation.
     # ------------------------------------------------------------------ #
+    # Constitutional Learning (organ 46)
+    # ------------------------------------------------------------------ #
+    "/api/v1/governance/lessons/propose": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="constitutional_lesson_propose",
+        action_type=ActionType.CONSTITUTIONAL_LESSON_PROPOSE,
+    ),
+    "/api/v1/governance/lessons/{lesson_id}/draft-amendment": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="constitutional_lesson_draft_amendment",
+        action_type=ActionType.CONSTITUTIONAL_LESSON_DRAFT_AMENDMENT,
+    ),
+    "/api/v1/governance/lessons/check-simulations": RouteAuthority(
+        "YELLOW",
+        20,
+        "server-session",
+        audit_event="constitutional_lesson_check_simulations",
+        action_type=ActionType.CONSTITUTIONAL_LESSON_CHECK_SIMULATIONS,
+    ),
+    # ------------------------------------------------------------------ #
     # Council
     # ------------------------------------------------------------------ #
     "/api/v1/council/missions": RouteAuthority(

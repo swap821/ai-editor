@@ -1,5 +1,6 @@
 """Human Sovereign emergency-control routes, plus the Constitutional
-Amendment Authority's HTTP surface (organ 45)."""
+Amendment Authority's (organ 45) and Constitutional Learning Organ's
+(organ 46) HTTP surfaces."""
 
 from __future__ import annotations
 
@@ -24,9 +25,16 @@ from aios.application.governance.amendment_authority import (
     ratify_amendment,
     simulate_amendment,
 )
+from aios.application.governance.constitutional_learning import (
+    ConstitutionalLearningError,
+    lesson_to_amendment_proposal,
+    propose_lesson,
+    require_all_simulations_pass,
+)
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.governance import EmergencyStopRequest
 from aios.domain.governance.constitution import build_constitution_snapshot
+from aios.domain.governance.learning import GovernanceEventClass, SimulationCheckResult
 from aios.domain.identity.models import Principal
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 
@@ -314,6 +322,128 @@ def activate_amendment_route(
         "proposal": updated.as_dict(),
         "newConstitutionDigest": new_snapshot.snapshot_digest,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Constitutional Learning Organ (organ 46)
+#
+# A GovernanceLessonV1 can produce a real Slice 37 amendment *proposal*,
+# never further -- ratification/activation still flow through the routes
+# above, unchanged. `require_all_simulations_pass` is exposed as a pure,
+# stateless check: this organ does not run the 9 named adversarial
+# simulations itself (constitutional_learning.py's own documented scope),
+# so the route only ever validates results a caller already produced,
+# refusing on any missing or failed check exactly like the domain function.
+# --------------------------------------------------------------------------- #
+
+
+class ProposeLessonRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lesson_id: str = Field(min_length=1, max_length=200)
+    problem_class: GovernanceEventClass
+    evidence_refs: tuple[str, ...] = Field(min_length=1)
+    observed_harm: str = Field(min_length=1)
+    current_rule: str = Field(min_length=1)
+    proposed_improvement: str = Field(min_length=1)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class DraftAmendmentFromLessonRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    proposal_id: str = Field(min_length=1, max_length=200)
+    target_articles: tuple[str, ...] = Field(min_length=1)
+    proposed_diff: str = Field(min_length=1)
+    migration_plan: str = Field(min_length=1)
+    rollback_plan: str = Field(min_length=1)
+
+
+class CheckSimulationsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    results: tuple[SimulationCheckResult, ...] = ()
+
+
+@router.post("/api/v1/governance/lessons/propose")
+def propose_lesson_route(
+    body: ProposeLessonRequest,
+    principal: Principal = Depends(require_privileged_operator),
+    store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
+) -> dict[str, Any]:
+    lesson = propose_lesson(
+        lesson_id=body.lesson_id,
+        problem_class=body.problem_class,
+        evidence_refs=body.evidence_refs,
+        observed_harm=body.observed_harm,
+        current_rule=body.current_rule,
+        proposed_improvement=body.proposed_improvement,
+        confidence=body.confidence,
+    )
+    store.save_lesson(lesson)
+    return lesson.as_dict()
+
+
+@router.get("/api/v1/governance/lessons/{lesson_id}")
+def get_lesson_route(
+    lesson_id: str,
+    store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
+) -> dict[str, Any]:
+    lesson = store.get_current_lesson(lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="no such governance lesson")
+    return lesson.as_dict()
+
+
+@router.get("/api/v1/governance/lessons/{lesson_id}/history")
+def get_lesson_history_route(
+    lesson_id: str,
+    store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
+) -> dict[str, Any]:
+    history = store.get_lesson_history(lesson_id)
+    return {"items": [lesson.as_dict() for lesson in history]}
+
+
+@router.post("/api/v1/governance/lessons/{lesson_id}/draft-amendment")
+def draft_amendment_from_lesson_route(
+    lesson_id: str,
+    body: DraftAmendmentFromLessonRequest,
+    principal: Principal = Depends(require_privileged_operator),
+    store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
+) -> dict[str, Any]:
+    """The resulting proposal is always `proposer_type="model"` -- a lesson
+    is machine-derived even when a human later ratifies what it produced,
+    matching `lesson_to_amendment_proposal`'s own contract exactly (its
+    default `proposed_by` is never overridden here)."""
+    lesson = store.get_current_lesson(lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="no such governance lesson")
+    try:
+        updated_lesson, proposal = lesson_to_amendment_proposal(
+            lesson,
+            proposal_id=body.proposal_id,
+            target_articles=body.target_articles,
+            proposed_diff=body.proposed_diff,
+            migration_plan=body.migration_plan,
+            rollback_plan=body.rollback_plan,
+        )
+    except ConstitutionalLearningError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    store.save_lesson(updated_lesson)
+    store.save_proposal(proposal)
+    return {"lesson": updated_lesson.as_dict(), "proposal": proposal.as_dict()}
+
+
+@router.post("/api/v1/governance/lessons/check-simulations")
+def check_lesson_simulations_route(
+    body: CheckSimulationsRequest,
+    principal: Principal = Depends(require_privileged_operator),
+) -> dict[str, Any]:
+    try:
+        require_all_simulations_pass(body.results)
+    except ConstitutionalLearningError as exc:
+        return {"ready": False, "reason": str(exc)}
+    return {"ready": True, "reason": ""}
 
 
 __all__ = ["router"]

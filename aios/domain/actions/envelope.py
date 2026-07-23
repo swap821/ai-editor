@@ -114,6 +114,9 @@ class ActionType(str, Enum):
     CONSTITUTIONAL_AMENDMENT_REJECT = "constitutional_amendment_reject"
     CONSTITUTIONAL_AMENDMENT_ACTIVATE = "constitutional_amendment_activate"
     CONSTITUTIONAL_AMENDMENT_ROLLBACK = "constitutional_amendment_rollback"
+    CONSTITUTIONAL_LESSON_PROPOSE = "constitutional_lesson_propose"
+    CONSTITUTIONAL_LESSON_DRAFT_AMENDMENT = "constitutional_lesson_draft_amendment"
+    CONSTITUTIONAL_LESSON_CHECK_SIMULATIONS = "constitutional_lesson_check_simulations"
     UNKNOWN = "unknown"
 
 

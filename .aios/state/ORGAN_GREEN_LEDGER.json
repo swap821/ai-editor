@@ -975,18 +975,22 @@
       "aios/domain/governance/learning.py",
       "aios/application/governance/constitutional_learning.py",
       "aios/infrastructure/governance/sqlite_store.py",
-      "aios/infrastructure/storage/migrations/0007_governance_amendment_history.py"
+      "aios/infrastructure/storage/migrations/0007_governance_amendment_history.py",
+      "aios/api/routes/governance.py",
+      "aios/domain/actions/envelope.py",
+      "aios/policy/kernel.py"
     ],
     "focused_tests": [
       "tests/test_constitutional_learning.py"
     ],
     "integration_tests": [
-      "tests/test_constitutional_amendment.py"
+      "tests/test_constitutional_amendment.py",
+      "tests/test_governance_amendment_store.py",
+      "tests/test_governance_lesson_api.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Confirmed genuinely missing before building. GovernanceLessonV1 + propose_lesson()/lesson_to_amendment_proposal()/require_all_simulations_pass() now exist, feeding Slice 37's amendment pipeline directly rather than duplicating it. The one rule this organ exists to serve -- GAGOS may learn its sovereignty mechanisms are weak but may never itself propose reducing human authority -- is enforced by a deterministic keyword screen (assert_never_reduces_human_authority) checked against both the lesson's own text and the diff text independently, verified directly against 8 distinct authority-reducing phrasings. A full proposal -> simulation -> human-ratification -> rollback-capable-activation path was run end to end in a test, reusing Slice 37's real ratify_amendment/activate_amendment/rollback_amendment unchanged.",
-      "Reconciliation pass item 6: GovernanceAmendmentStore also persists GovernanceLessonV1 (same table family, same append-only digest-verified revision-per-row pattern as the amendment side). Verified end to end in tests/test_governance_amendment_store.py by driving the real propose_lesson -> lesson_to_amendment_proposal pipeline and confirming both the lesson's own status transition (proposed -> amendment_drafted) and its amendment_proposal_id linkage survive a real save/read round trip through the store, plus tamper detection on a lesson row edited outside the store. Still missing (unchanged scope): the 9 named adversarial simulations remain a required catalog this module checks results FOR, not simulations it runs; no HTTP route exists, and drafting a lesson into a proposal still inherits organ 45's same capability-issuance-table gap before it could ever be ratified in production."
+      "Tier 3 update: the HTTP surface now exists, reusing organ 45's just-established pattern exactly. 3 new ActionType members (CONSTITUTIONAL_LESSON_PROPOSE/DRAFT_AMENDMENT/CHECK_SIMULATIONS) plus real RouteAuthority entries. New routes in aios/api/routes/governance.py: POST .../lessons/propose, GET .../lessons/{id} + .../history, POST .../lessons/{id}/draft-amendment (calls the real lesson_to_amendment_proposal(), persists BOTH the updated lesson and the resulting real ConstitutionalAmendmentProposalV1 via GovernanceAmendmentStore -- the drafted proposal is then independently fetchable and ratifiable through organ 45's own routes, proven end to end in tests), and POST .../lessons/check-simulations (a pure, stateless gate over require_all_simulations_pass() -- this organ still does not run the 9 named adversarial simulations itself, only validates results a caller already produced, refusing on any missing or failed check). 8 new HTTP tests, including a genuine authority-reduction refusal at draft-amendment time and both a missing-simulation and a failed-simulation refusal. Organ 45's capability-issuance-table gap this organ's blocker previously named is now resolved (see organ 45's own closure). Still missing (unchanged scope, documented by constitutional_learning.py's own docstring as deliberate): the 9 named adversarial simulations remain a fixed catalog this module checks results FOR, not simulations it runs -- a genuine, not-fabricatable gap (real adversarial testing against a running system), not a wiring gap."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
