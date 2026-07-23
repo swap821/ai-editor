@@ -390,7 +390,7 @@ export default function SovereignStatePanel() {
               </span>
             </h3>
             <p className="council-dashboard__muted">
-              Why the router picked a model, for the most recent real turns — sourced from durably recorded routing metadata, never guessed. Does not yet show what was sent to or redacted from a cloud provider (organ 50's other half, still open).
+              Why the router picked a model, for the most recent real turns — sourced from durably recorded routing metadata, never guessed.
             </p>
             {(governance?.routingDecisions ?? []).length === 0 ? (
               <p>No routed turn recorded yet this session.</p>
@@ -404,6 +404,22 @@ export default function SovereignStatePanel() {
                     {envelopeText(d.provider)} · {envelopeText(d.model)} · {envelopeText(d.task)}
                   </span>
                   <span>{envelopeText(d.recorded_at)}</span>
+                </div>
+              ))
+            )}
+            <p className="council-dashboard__muted" style={{ marginTop: '8px' }}>
+              What was sent / what was removed before a cloud call — real per-call redaction counts, never a second logging sink.
+            </p>
+            {(governance?.privacyAudits ?? []).length === 0 ? (
+              <p>No cloud call audited yet this session.</p>
+            ) : (
+              (governance?.privacyAudits ?? []).map((a, index) => (
+                <div key={index} className="council-dashboard__route" aria-label="Privacy audit">
+                  <span>{envelopeText(a.provider)}</span>
+                  <span>
+                    {envelopeText(a.redacted_paths)} path(s) · {envelopeText(a.redacted_credentials)} credential(s) · {envelopeText(a.redacted_secrets)} secret(s)
+                  </span>
+                  <span>{envelopeText(a.recorded_at)}</span>
                 </div>
               ))
             )}

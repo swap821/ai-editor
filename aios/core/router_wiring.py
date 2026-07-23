@@ -76,6 +76,21 @@ def _provider_health_tracker() -> Any:
         return None
 
 
+def _privacy_audit_tracker_singleton() -> Any:
+    """The process-wide privacy-audit tracker singleton (organ 50).
+
+    Same fail-soft contract as ``_provider_health_tracker`` above: a lookup
+    error must never break routing, so it yields ``None`` (the failover
+    client stays fully functional, just unobserved for this one call).
+    """
+    try:
+        from aios.api.deps import get_privacy_audit_tracker
+
+        return get_privacy_audit_tracker()
+    except Exception:  # noqa: BLE001 - observability must never break routing
+        return None
+
+
 def _build_providers(
     ollama: Any,
     bedrock: Optional[Any],
@@ -375,7 +390,9 @@ def _select_chat_client(
             if cascade:
                 return (
                     FailoverChatClient(
-                        cascade, provider_health=_provider_health_tracker()
+                        cascade,
+                        provider_health=_provider_health_tracker(),
+                        privacy_audit_tracker=_privacy_audit_tracker_singleton(),
                     ),
                     cascade[0][1],
                 )

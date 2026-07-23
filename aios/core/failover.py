@@ -41,6 +41,7 @@ import logging
 from typing import Any, Callable, Iterator, Optional
 
 from aios.application.models.health import ProviderHealthTracker
+from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter
 from aios.core.stream_protocol import StreamFinished
@@ -82,6 +83,7 @@ class FailoverChatClient:
         *,
         on_failover: Optional[FailoverHook] = None,
         provider_health: Optional[ProviderHealthTracker] = None,
+        privacy_audit_tracker: Optional[PrivacyAuditTracker] = None,
     ) -> None:
         if not candidates:
             raise ValueError("FailoverChatClient requires at least one candidate")
@@ -100,6 +102,9 @@ class FailoverChatClient:
         #: an open-circuit candidate is an orthogonal, additional condition,
         #: never a relaxation of the at-most-one-cloud-provider rule.
         self._provider_health = provider_health
+        #: Organ 50: optional sink for the real per-call redaction audit
+        #: computed once per turn below, before any cloud attempt.
+        self._privacy_audit_tracker = privacy_audit_tracker
 
     def _record_success(self, provider: str) -> None:
         if self._provider_health is not None:
@@ -172,6 +177,10 @@ class FailoverChatClient:
                         "audit": audit,
                         "primary_provider": self._candidates[started][2],
                     },
+                )
+            if self._privacy_audit_tracker is not None:
+                self._privacy_audit_tracker.record(
+                    self._candidates[started][2], audit
                 )
 
         attempted: set[int] = set()
@@ -295,6 +304,10 @@ class FailoverChatClient:
                         "audit": audit,
                         "primary_provider": self._candidates[started][2],
                     },
+                )
+            if self._privacy_audit_tracker is not None:
+                self._privacy_audit_tracker.record(
+                    self._candidates[started][2], audit
                 )
 
         attempted: set[int] = set()
@@ -431,6 +444,10 @@ class FailoverChatClient:
                         "audit": audit,
                         "primary_provider": self._candidates[started][2],
                     },
+                )
+            if self._privacy_audit_tracker is not None:
+                self._privacy_audit_tracker.record(
+                    self._candidates[started][2], audit
                 )
 
         attempted: set[int] = set()

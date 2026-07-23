@@ -292,6 +292,31 @@ def test_stream_chat_applies_privacy_filter_before_generate_content_stream() -> 
     assert "[PATH REDACTED]" in sent
 
 
+def test_chat_records_the_real_privacy_audit_when_a_tracker_is_supplied() -> None:
+    """Organ 50 (second half): the real per-call redaction audit -- not just
+    logged -- must reach an injected PrivacyAuditTracker."""
+    from aios.application.models.privacy_audit import PrivacyAuditTracker
+
+    raw_path = r"C:\Users\kumar\ai-editor\secrets.txt"
+    fake = FakeGemini(_Response([_Candidate(_Content([_Part(text="ok")]))]))
+    tracker = PrivacyAuditTracker()
+    client = GeminiClient(model="m", project="p", client=fake, privacy_audit_tracker=tracker)
+
+    client.chat([{"role": "user", "content": f"read {raw_path}"}])
+
+    records = tracker.recent()
+    assert len(records) == 1
+    assert records[0].provider == "gemini"
+    assert records[0].audit["redacted_paths"] >= 1
+
+
+def test_chat_never_raises_when_no_tracker_is_supplied() -> None:
+    fake = FakeGemini(_Response([_Candidate(_Content([_Part(text="ok")]))]))
+    client = GeminiClient(model="m", project="p", client=fake)
+    result = client.chat([{"role": "user", "content": "hello"}])
+    assert result["content"] == "ok"
+
+
 def test_chat_passes_system_instruction_separately() -> None:
     fake = FakeGemini(_Response([_Candidate(_Content([_Part(text="ok")]))]))
     client = GeminiClient(project="p", client=fake)

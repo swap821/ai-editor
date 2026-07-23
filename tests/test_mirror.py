@@ -12,6 +12,7 @@ from aios.api.deps import (
     get_development_tracker,
     get_emergency_stop,
     get_identity_service,
+    get_privacy_audit_tracker,
     get_private_executor_service,
     get_provider_health,
 )
@@ -21,6 +22,7 @@ from aios.application.executor.service import StructuredExecutorClient
 from aios.application.models.health import ProviderHealthTracker
 from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest
+from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.memory.development import DevelopmentTracker
 from aios.application.governance.emergency_stop import (
     EmergencyStopController,
@@ -543,6 +545,56 @@ def test_governance_projection_routing_decisions_empty_when_nothing_recorded(
             response = test_client.get("/api/v1/mirror/governance")
             assert response.status_code == 200
             assert response.json()["routingDecisions"] == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_privacy_audits_reflects_a_real_recorded_audit(
+    tmp_path: Path,
+) -> None:
+    """Organ 50 (other half): a real PrivacyFilter audit captured by
+    PrivacyAuditTracker must surface truthfully."""
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    tracker = PrivacyAuditTracker()
+    tracker.record("gemini", {"redacted_paths": 2, "redacted_credentials": 1})
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    app.dependency_overrides[get_privacy_audit_tracker] = lambda: tracker
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["privacyAudits"]) == 1
+            audit = data["privacyAudits"][0]
+            assert audit["provider"]["value"] == "gemini"
+            assert audit["redacted_paths"]["value"] == 2
+            assert audit["redacted_credentials"]["value"] == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_privacy_audits_empty_when_nothing_recorded(
+    tmp_path: Path,
+) -> None:
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    tracker = PrivacyAuditTracker()
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    app.dependency_overrides[get_privacy_audit_tracker] = lambda: tracker
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            assert response.json()["privacyAudits"] == []
     finally:
         app.dependency_overrides.clear()
 

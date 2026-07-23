@@ -34,6 +34,7 @@ import logging
 from typing import Any, Iterator, Optional
 
 from aios import config
+from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 from aios.core.stream_protocol import StreamFinished
@@ -247,6 +248,7 @@ class GeminiClient:
         temperature: float = config.LLM_TEMPERATURE,
         thinking_budget: int = config.GEMINI_THINKING_BUDGET,
         client: Optional[Any] = None,
+        privacy_audit_tracker: Optional[PrivacyAuditTracker] = None,
     ) -> None:
         self.model = model
         self.project = project
@@ -256,6 +258,10 @@ class GeminiClient:
         self.thinking_budget = thinking_budget
         #: Privacy filter — applied to every message list before cloud transmission.
         self._privacy_filter = PrivacyFilter()
+        #: Organ 50: optional sink for the real per-call redaction audit
+        #: (never constructed here -- a lookup failure must never break a
+        #: chat call, so the caller supplies it or it stays None).
+        self._privacy_audit_tracker = privacy_audit_tracker
         if client is not None:
             self._client = client  # injected fake (tests)
         else:
@@ -295,6 +301,8 @@ class GeminiClient:
                 "Gemini privacy filter applied",
                 extra=audit,
             )
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("gemini", audit)
 
         system_text, contents = _to_gemini(safe_messages)
         output_tokens = self.max_tokens if max_tokens is None else max_tokens
@@ -355,6 +363,8 @@ class GeminiClient:
         safe_messages, audit = self._privacy_filter.filter(messages)
         if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
             logger.info("Gemini privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("gemini", audit)
 
         system_text, contents = _to_gemini(safe_messages)
         gen_config: dict[str, Any] = {
@@ -404,6 +414,8 @@ class GeminiClient:
         safe_messages, audit = self._privacy_filter.filter(messages)
         if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
             logger.info("Gemini privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("gemini", audit)
 
         system_text, contents = _to_gemini(safe_messages)
         gen_config: dict[str, Any] = {

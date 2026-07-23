@@ -1025,26 +1025,37 @@
   {
     "organ_id": 50,
     "name": "Provenance and Explanation Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ProvenanceExplanationSurfaceAuthority",
     "production_entrypoints": [
       "aios/memory/development.py",
+      "aios/application/models/privacy_audit.py",
+      "aios/core/failover.py",
+      "aios/core/gemini.py",
+      "aios/core/bedrock.py",
+      "aios/core/openai_compat.py",
+      "aios/core/anthropic_direct.py",
       "aios/application/read_models/provenance_projections.py",
       "aios/api/routes/mirror.py",
       "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
     "focused_tests": [
       "tests/test_brain_growth.py",
-      "tests/test_read_model_projections.py"
+      "tests/test_read_model_projections.py",
+      "tests/test_privacy_audit.py",
+      "tests/test_gemini.py",
+      "tests/test_bedrock.py",
+      "tests/test_openai_compat.py",
+      "tests/test_anthropic_direct.py",
+      "tests/test_failover.py"
     ],
     "integration_tests": [
       "tests/test_mirror.py",
+      "tests/test_route_wiring.py",
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "Half closed: \"why was this model chosen\" now has a real, live surface. DevelopmentTracker.recent_routing_decisions() reads already-durable development_events.metadata_json (written by generate_pipeline.py's route_meta() on every real /api/generate turn -- a pure read, zero hot-path changes) and is projected through GET /api/v1/mirror/governance's new routingDecisions field, rendered in SovereignStatePanel.jsx's new 'Provenance & Explanation' section. Still genuinely missing: \"what was sent / what was removed\" -- PrivacyFilter.filter()'s per-call audit (redacted_system/redacted_paths/redacted_credentials/etc.) is computed at 5 separate call sites (FailoverChatClient plus each of the 4 direct cloud clients) and today is only passed to logger.info(), never durably captured anywhere queryable. Building a safe, non-invasive capture mechanism across all 5 call sites is real, separately-scoped follow-on work, not attempted here to avoid touching 5 hot paths without a dedicated review."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },

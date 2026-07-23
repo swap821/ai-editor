@@ -409,3 +409,68 @@ def test_routing_decisions_field_stays_unavailable_when_genuinely_absent(tmp_pat
     assert projections[0].task.status == MetricStatus.UNAVAILABLE
     assert projections[0].auto.status == MetricStatus.UNAVAILABLE
     assert projections[0].provider.status == MetricStatus.MEASURED
+
+
+# --------------------------------------------------------------------------- #
+# project_privacy_audits (organ 50, other half)
+# --------------------------------------------------------------------------- #
+
+
+def test_privacy_audits_measured_from_a_real_tracked_audit():
+    from aios.application.models.privacy_audit import PrivacyAuditTracker
+    from aios.application.read_models.provenance_projections import (
+        project_privacy_audits,
+    )
+
+    tracker = PrivacyAuditTracker()
+    tracker.record(
+        "gemini",
+        {
+            "redacted_system": 1,
+            "redacted_paths": 2,
+            "redacted_credentials": 0,
+            "redacted_secrets": 0,
+            "redacted_tool_files": 0,
+            "truncated_history": 0,
+            "dropped_messages": 0,
+            "input_messages": 3,
+            "output_messages": 3,
+        },
+    )
+
+    projections = project_privacy_audits(tracker, limit=10)
+
+    assert len(projections) == 1
+    p = projections[0]
+    assert p.provider.value == "gemini"
+    assert p.provider.status == MetricStatus.MEASURED
+    assert p.redacted_system.value == 1
+    assert p.redacted_paths.value == 2
+    assert p.redacted_credentials.value == 0
+    assert p.recorded_at.status == MetricStatus.MEASURED
+
+
+def test_privacy_audits_empty_when_nothing_recorded():
+    from aios.application.models.privacy_audit import PrivacyAuditTracker
+    from aios.application.read_models.provenance_projections import (
+        project_privacy_audits,
+    )
+
+    tracker = PrivacyAuditTracker()
+    assert project_privacy_audits(tracker, limit=10) == ()
+
+
+def test_privacy_audits_respects_limit_newest_first():
+    from aios.application.models.privacy_audit import PrivacyAuditTracker
+    from aios.application.read_models.provenance_projections import (
+        project_privacy_audits,
+    )
+
+    tracker = PrivacyAuditTracker()
+    tracker.record("gemini", {"redacted_paths": 1})
+    tracker.record("bedrock", {"redacted_paths": 2})
+
+    projections = project_privacy_audits(tracker, limit=1)
+
+    assert len(projections) == 1
+    assert projections[0].provider.value == "bedrock"

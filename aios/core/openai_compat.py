@@ -31,6 +31,7 @@ import urllib.request
 from typing import Any, Iterator, Optional
 
 from aios import config
+from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 
@@ -135,6 +136,7 @@ class OpenAICompatClient:
         max_tokens: int = config.OPENAI_MAX_TOKENS,
         timeout_s: int = config.LLM_REQUEST_TIMEOUT_S,
         temperature: float = config.LLM_TEMPERATURE,
+        privacy_audit_tracker: Optional[PrivacyAuditTracker] = None,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -144,6 +146,8 @@ class OpenAICompatClient:
         self.temperature = temperature
         #: Privacy filter — applied to every message list before cloud transmission.
         self._privacy_filter = PrivacyFilter()
+        #: Organ 50: optional sink for the real per-call redaction audit.
+        self._privacy_audit_tracker = privacy_audit_tracker
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -227,6 +231,8 @@ class OpenAICompatClient:
         safe_messages, audit = self._privacy_filter.filter(messages)
         if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
             logger.info("OpenAI-compatible privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("openai", audit)
 
         output_tokens = self.max_tokens if max_tokens is None else max_tokens
         if output_tokens <= 0:
@@ -270,6 +276,8 @@ class OpenAICompatClient:
         safe_messages, audit = self._privacy_filter.filter(messages)
         if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
             logger.info("OpenAI-compatible privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("openai", audit)
 
         payload: dict[str, Any] = {
             "model": model or self.model,

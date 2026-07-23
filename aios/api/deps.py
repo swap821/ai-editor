@@ -42,6 +42,7 @@ from aios.application.governance import (
 )
 from aios.application.identity.service import IdentityService
 from aios.application.models.health import ProviderHealthTracker
+from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.application.memory.adapters import (
     AdvisoryPheromoneAdapter,
     EpisodicMemoryAdapter,
@@ -139,7 +140,7 @@ def get_bedrock_client() -> Optional[BedrockClient]:
         if _bedrock_client is not None:
             return _bedrock_client
         try:
-            _bedrock_client = BedrockClient()
+            _bedrock_client = BedrockClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
         except LLMError:
             return None
     return _bedrock_client
@@ -165,7 +166,7 @@ def get_gemini_client() -> Optional[GeminiClient]:
         if _gemini_client is not None:
             return _gemini_client
         try:
-            _gemini_client = GeminiClient()
+            _gemini_client = GeminiClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
         except LLMError:
             return None
     return _gemini_client
@@ -183,7 +184,7 @@ def get_openai_client() -> Optional[Any]:
             return _openai_client
         from aios.core.openai_compat import OpenAICompatClient
 
-        _openai_client = OpenAICompatClient()
+        _openai_client = OpenAICompatClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
     return _openai_client
 
 
@@ -199,7 +200,7 @@ def get_anthropic_client() -> Optional[Any]:
             return _anthropic_client
         from aios.core.anthropic_direct import AnthropicDirectClient
 
-        _anthropic_client = AnthropicDirectClient()
+        _anthropic_client = AnthropicDirectClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
     return _anthropic_client
 
 
@@ -528,6 +529,17 @@ _PROVIDER_HEALTH = ProviderHealthTracker()
 def get_provider_health() -> ProviderHealthTracker:
     """Provide the process-wide provider-health circuit-breaker singleton."""
     return _PROVIDER_HEALTH
+
+
+#: Organ 50: real, in-memory per-process record of PrivacyFilter's per-call
+#: redaction audits -- same in-memory-only convention as _PROVIDER_HEALTH
+#: above (diagnostic data, not authoritative state).
+_PRIVACY_AUDIT_TRACKER = PrivacyAuditTracker()
+
+
+def get_privacy_audit_tracker() -> PrivacyAuditTracker:
+    """Provide the process-wide privacy-audit tracker singleton."""
+    return _PRIVACY_AUDIT_TRACKER
 
 
 def get_identity_service() -> IdentityService:

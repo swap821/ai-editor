@@ -14,7 +14,7 @@ from dataclasses import replace
 import pytest
 
 from aios import config
-from aios.api.deps import get_policy_kernel, get_provider_health
+from aios.api.deps import get_policy_kernel, get_privacy_audit_tracker, get_provider_health
 from aios.api.main import _build_providers, _provider_name, _select_chat_client
 from aios.core.catalog import clear_catalog_cache
 from aios.core.llm import LLMError
@@ -271,6 +271,29 @@ def test_auto_failover_client_records_a_real_failure_then_falls_over(monkeypatch
 
     after = get_provider_health().snapshot("gemini").recent_failure_count
     assert after == before + 1
+
+
+def test_auto_failover_client_reports_a_real_privacy_audit(monkeypatch) -> None:
+    """Organ 50 (second half): the `auto` route's FailoverChatClient is
+    wired to the same process-wide PrivacyAuditTracker `get_privacy_audit_
+    tracker()` returns -- a real cloud-routed turn must be observable there,
+    not just logged."""
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
+    ollama = FakeOllama(["qwen2.5-coder:7b"])
+    gemini = FakeCloud(fails=False)
+    client, _ = _select_chat_client(
+        "auto", ollama, bedrock=object(), gemini=gemini, task="reasoning",
+    )
+    assert client.active_provider == "gemini"
+
+    raw_path = r"C:\Users\kumar\ai-editor\secrets.txt"
+    client.chat([{"role": "user", "content": f"read {raw_path}"}])
+
+    records = get_privacy_audit_tracker().recent()
+    assert records
+    assert records[0].provider == "gemini"
+    assert records[0].audit["redacted_paths"] >= 1
 
 
 # --- Breadth: auto spans the provider's model catalog ------------------------

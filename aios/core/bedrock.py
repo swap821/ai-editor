@@ -28,6 +28,7 @@ import logging
 from typing import Any, Iterator, Optional
 
 from aios import config
+from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.core.llm import LLMError
 from aios.core.stream_protocol import StreamFinished
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
@@ -317,6 +318,7 @@ class BedrockClient:
         temperature: float = config.LLM_TEMPERATURE,
         client: Optional[Any] = None,
         ctrl_client: Optional[Any] = None,
+        privacy_audit_tracker: Optional[PrivacyAuditTracker] = None,
     ) -> None:
         self.model = model
         self.region = region
@@ -327,6 +329,8 @@ class BedrockClient:
         self._ctrl_client = ctrl_client
         #: Privacy filter — applied to every message list before cloud transmission.
         self._privacy_filter = PrivacyFilter()
+        #: Organ 50: optional sink for the real per-call redaction audit.
+        self._privacy_audit_tracker = privacy_audit_tracker
         if client is not None:
             self._client = client  # injected fake (tests)
         else:
@@ -362,6 +366,8 @@ class BedrockClient:
                 "Bedrock privacy filter applied",
                 extra=audit,
             )
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("bedrock", audit)
 
         system, converse_messages = _to_converse(safe_messages)
         output_tokens = self.max_tokens if max_tokens is None else max_tokens
@@ -421,6 +427,8 @@ class BedrockClient:
         safe_messages, audit = self._privacy_filter.filter(messages)
         if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
             logger.info("Bedrock privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("bedrock", audit)
 
         system, converse_messages = _to_converse(safe_messages)
         kwargs: dict[str, Any] = {
@@ -469,6 +477,8 @@ class BedrockClient:
         safe_messages, audit = self._privacy_filter.filter(messages)
         if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
             logger.info("Bedrock privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("bedrock", audit)
 
         system, converse_messages = _to_converse(safe_messages)
         kwargs: dict[str, Any] = {

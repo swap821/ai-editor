@@ -25,18 +25,23 @@ from aios.application.read_models.governance_projections import (
     project_provider_health_list,
 )
 from aios.application.read_models.executor_projections import project_executor_status
-from aios.application.read_models.provenance_projections import project_routing_decisions
+from aios.application.read_models.provenance_projections import (
+    project_privacy_audits,
+    project_routing_decisions,
+)
 from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.governance.emergency_stop import EmergencyStopController
 from aios.application.identity.service import IdentityService
 from aios.application.memory.authority import MemoryAuthority
 from aios.application.models.health import ProviderHealthTracker
+from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.api.deps import (
     get_capability_authority,
     get_development_tracker,
     get_emergency_stop,
     get_identity_service,
     get_memory_authority,
+    get_privacy_audit_tracker,
     get_private_executor_service,
     get_provider_health,
     get_skill_memory,
@@ -221,9 +226,11 @@ def get_governance_projection(
     provider_health: ProviderHealthTracker = Depends(get_provider_health),
     capability_authority: CapabilityAuthority = Depends(get_capability_authority),
     development_tracker: DevelopmentTracker = Depends(get_development_tracker),
+    privacy_audit_tracker: PrivacyAuditTracker = Depends(get_privacy_audit_tracker),
 ) -> JSONResponse:
-    """Organs 47/48/50 (half): the truthful constitution, emergency-stop,
-    provider-health, pending-approvals, and recent-routing-decisions surface.
+    """Organs 47/48/50: the truthful constitution, emergency-stop,
+    provider-health, pending-approvals, routing-decision, and privacy-audit
+    surface.
 
     Unauthenticated by design, matching /snapshot's own convention -- the
     living mirror reflects state, it never gates on who's watching (risky
@@ -238,9 +245,10 @@ def get_governance_projection(
     issue/consume authority, not the legacy ApprovalStore -- and never
     exposes a usable bearer token. routingDecisions answers "why was this
     model chosen" for the most recent real turns from development_events'
-    already-durable metadata -- it does NOT answer "what was sent / what
-    was removed" (the PrivacyFilter audit remains log-only, a separate,
-    still-open gap).
+    already-durable metadata. privacyAudits answers "what was sent / what
+    was removed" from PrivacyAuditTracker's real per-call redaction audits,
+    captured at all 5 real PrivacyFilter.filter() call sites -- closing
+    organ 50's full two-part claim.
     """
     principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
     if principal is not None and principal.principal_type is PrincipalType.OPERATOR:
@@ -254,6 +262,7 @@ def get_governance_projection(
     provider_health_list = project_provider_health_list(provider_health)
     approvals = project_pending_approvals(capability_authority)
     routing_decisions = project_routing_decisions(development_tracker, limit=10)
+    privacy_audits = project_privacy_audits(privacy_audit_tracker, limit=10)
     return JSONResponse(
         content={
             "constitution": constitution.model_dump(mode="json"),
@@ -261,6 +270,7 @@ def get_governance_projection(
             "providerHealth": [p.model_dump(mode="json") for p in provider_health_list],
             "approvals": [a.model_dump(mode="json") for a in approvals],
             "routingDecisions": [r.model_dump(mode="json") for r in routing_decisions],
+            "privacyAudits": [p.model_dump(mode="json") for p in privacy_audits],
         }
     )
 

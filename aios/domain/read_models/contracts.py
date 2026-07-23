@@ -119,16 +119,14 @@ class ExecutorStatusProjection(BaseModel):
 
 
 class RoutingDecisionProjection(BaseModel):
-    """Organ 50 (half): why a specific model was chosen for one real turn.
+    """Organ 50 (half 1): why a specific model was chosen for one real turn.
 
     Sourced from `development_events.metadata_json`, written by
     `generate_pipeline.py`'s `route_meta()` on every real `/api/generate`
     turn -- never invented after the fact. `auto` distinguishes a
-    router-picked turn from an operator's explicit model selection.
-    Deliberately does not answer "what was sent / what was removed" --
-    that half (the `PrivacyFilter` audit) is computed at multiple provider
-    call sites and only logged today, not yet durably captured; a real,
-    separate, still-open gap this projection does not paper over."""
+    router-picked turn from an operator's explicit model selection. See
+    `PrivacyAuditProjection` for the other half of this organ's claim
+    ("what was sent / what was removed")."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -138,6 +136,29 @@ class RoutingDecisionProjection(BaseModel):
     privacy: MetricEnvelope
     task: MetricEnvelope
     auto: MetricEnvelope
+    recorded_at: MetricEnvelope
+
+
+class PrivacyAuditProjection(BaseModel):
+    """Organ 50 (half 2): what was sent / what was removed for one real
+    cloud call.
+
+    Sourced from `PrivacyAuditTracker` (`aios/application/models/
+    privacy_audit.py`), a process-local, in-memory ring buffer fed by the
+    real `PrivacyFilter.filter()` audit dict at all 5 real call sites
+    (`FailoverChatClient` plus each direct cloud client) -- never a second
+    logging sink, never invented after the fact."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider: MetricEnvelope
+    redacted_system: MetricEnvelope
+    redacted_paths: MetricEnvelope
+    redacted_credentials: MetricEnvelope
+    redacted_secrets: MetricEnvelope
+    redacted_tool_files: MetricEnvelope
+    truncated_history: MetricEnvelope
+    dropped_messages: MetricEnvelope
     recorded_at: MetricEnvelope
 
 
@@ -152,6 +173,7 @@ __all__ = [
     "ExecutorStatusProjection",
     "MetricEnvelope",
     "MetricStatus",
+    "PrivacyAuditProjection",
     "ProviderHealthProjection",
     "RoutingDecisionProjection",
     "SystemPortraitSnapshot",

@@ -292,6 +292,54 @@ def test_failover_chat_recovers_after_a_half_open_success():
     client1.chat.assert_called_once()
 
 
+def test_failover_chat_records_the_real_privacy_audit_when_a_tracker_is_supplied():
+    """Organ 50 (second half): the real per-call redaction audit computed
+    once before any cloud attempt -- not just logged -- must reach an
+    injected PrivacyAuditTracker, labelled with the provider that will
+    actually be attempted first."""
+    from aios.application.models.privacy_audit import PrivacyAuditTracker
+
+    raw_path = r"C:\Users\kumar\ai-editor\secrets.txt"
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "ok"}
+    audit_tracker = PrivacyAuditTracker()
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock")], privacy_audit_tracker=audit_tracker
+    )
+    fc.chat([{"role": "user", "content": f"read {raw_path}"}])
+
+    records = audit_tracker.recent()
+    assert len(records) == 1
+    assert records[0].provider == "bedrock"
+    assert records[0].audit["redacted_paths"] >= 1
+
+
+def test_failover_chat_never_raises_when_no_privacy_audit_tracker_is_supplied():
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "ok"}
+    fc = FailoverChatClient([(client1, "m1", "bedrock")])
+    result = fc.chat([{"role": "user", "content": "hi"}])
+    assert result == {"content": "ok"}
+
+
+def test_failover_chat_privacy_audit_tracker_untouched_for_local_only_candidates():
+    """No cloud candidate means the privacy pre-filter never runs at all --
+    confirms the tracker isn't touched for a purely local turn."""
+    from aios.application.models.privacy_audit import PrivacyAuditTracker
+
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "ok"}
+    audit_tracker = PrivacyAuditTracker()
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "ollama")], privacy_audit_tracker=audit_tracker
+    )
+    fc.chat([{"role": "user", "content": "hi"}])
+
+    assert audit_tracker.recent() == []
+
+
 def test_failover_stream_chat_with_tools():
     client1 = MagicMock()
     client1.stream_chat_with_tools.return_value = iter([

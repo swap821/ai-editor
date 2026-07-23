@@ -266,6 +266,25 @@ def test_stream_chat_applies_privacy_filter_before_converse_stream() -> None:
     assert "[PATH REDACTED]" in sent
 
 
+def test_chat_records_the_real_privacy_audit_when_a_tracker_is_supplied() -> None:
+    """Organ 50 (second half): the real per-call redaction audit -- not just
+    logged -- must reach an injected PrivacyAuditTracker."""
+    from aios.application.models.privacy_audit import PrivacyAuditTracker
+
+    raw_path = r"C:\Users\kumar\ai-editor\secrets.txt"
+    reply = {"output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}}}
+    fake = FakeBedrock(reply)
+    tracker = PrivacyAuditTracker()
+    client = BedrockClient(model="m", region="r", client=fake, privacy_audit_tracker=tracker)
+
+    client.chat([{"role": "user", "content": f"read {raw_path}"}])
+
+    records = tracker.recent()
+    assert len(records) == 1
+    assert records[0].provider == "bedrock"
+    assert records[0].audit["redacted_paths"] >= 1
+
+
 def test_chat_wraps_failures_as_llmerror() -> None:
     class Boom:
         def converse(self, **kwargs):

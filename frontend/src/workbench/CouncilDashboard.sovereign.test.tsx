@@ -199,6 +199,19 @@ const GOVERNANCE = {
       recorded_at: { value: '2026-07-23T00:00:00+00:00', status: 'measured', source: 'development_tracker' },
     },
   ],
+  privacyAudits: [
+    {
+      provider: { value: 'gemini', status: 'measured', source: 'privacy_audit_tracker' },
+      redacted_system: { value: 0, status: 'measured', source: 'privacy_audit_tracker' },
+      redacted_paths: { value: 2, status: 'measured', source: 'privacy_audit_tracker' },
+      redacted_credentials: { value: 1, status: 'measured', source: 'privacy_audit_tracker' },
+      redacted_secrets: { value: 0, status: 'measured', source: 'privacy_audit_tracker' },
+      redacted_tool_files: { value: 0, status: 'measured', source: 'privacy_audit_tracker' },
+      truncated_history: { value: 0, status: 'measured', source: 'privacy_audit_tracker' },
+      dropped_messages: { value: 0, status: 'measured', source: 'privacy_audit_tracker' },
+      recorded_at: { value: '2026-07-23T00:00:00+00:00', status: 'measured', source: 'privacy_audit_tracker' },
+    },
+  ],
 };
 
 const EXECUTOR = {
@@ -351,6 +364,7 @@ describe('CouncilDashboard sovereignty views', () => {
     expect(screen.getByText('workspace/')).toBeInTheDocument();
     expect(await screen.findByText(/Provenance & Explanation/)).toBeInTheDocument();
     expect(screen.getByText(/gemini · gemini-2.5-flash · reasoning/)).toBeInTheDocument();
+    expect(screen.getByText(/2 path\(s\) · 1 credential\(s\) · 0 secret\(s\)/)).toBeInTheDocument();
     expect(await screen.findByText(/Isolated Executor/)).toBeInTheDocument();
     expect(screen.getByText('not configured')).toBeInTheDocument();
     expect(
