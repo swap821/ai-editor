@@ -267,6 +267,118 @@ def test_execute_after_deliberate_runs_worker_without_collision(
     ).read_text(encoding="utf-8")
 
 
+def test_execute_does_not_persist_a_deliberation_for_an_ordinary_approved_mission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Organ 39: a real dissent reviewer + store are wired, but a normal
+    successful mission's recommendation never reaches block-tier and its
+    Queens never disagree -- should_trigger_deliberation() must correctly
+    stay silent, so no deliberation record is ever persisted for the
+    common case."""
+    from aios.infrastructure.intelligence.deliberation_store import DeliberationStore
+
+    monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
+    workspace = _workspace(tmp_path)
+    runtime_root = tmp_path / "runtime"
+    deliberation_store = DeliberationStore(tmp_path / "deliberations.db")
+    orchestrator = CouncilOrchestrator(
+        runtime_root=runtime_root,
+        dissent_complete=lambda prompt: '{"answer": "approve", "confidence": 0.9}',
+        dissent_provider="gemini",
+        dissent_exact_model_id="gemini-2.5-flash",
+        deliberation_store=deliberation_store,
+    )
+
+    deliberation = orchestrator.deliberate(_request(workspace))
+    authority = orchestrator.mission_service.repository.get(
+        deliberation.contract.mission_id
+    )
+    orchestrator.mission_service.approve(
+        deliberation.contract.mission_id,
+        operator_id="human-sovereign-test",
+        capability_digest="sha256:test-approval",
+        contract_digest=authority.contract_digest,
+        authentication_event_id="auth-test-approval",
+        session_id="session-test-approval",
+    )
+    run = asyncio.run(
+        orchestrator.execute(deliberation.contract, deliberation.verdicts)
+    )
+
+    assert run.report.status == "completed"
+    assert deliberation_store.for_mission(deliberation.contract.mission_id) == ()
+
+
+def test_maybe_persist_deliberation_saves_a_real_record_for_a_block_tier_report(
+    tmp_path: Path,
+) -> None:
+    """Direct proof the orchestrator's own wiring (not a bypass) reaches a
+    real DeliberationStore when a King report is genuinely block-tier."""
+    from aios.infrastructure.intelligence.deliberation_store import DeliberationStore
+    from aios.runtime.contracts import KingReport
+
+    deliberation_store = DeliberationStore(tmp_path / "deliberations.db")
+    orchestrator = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime",
+        dissent_complete=lambda prompt: (
+            '{"answer": "reject", "confidence": 0.8, '
+            '"security_concerns": ["unvalidated input"]}'
+        ),
+        dissent_provider="gemini",
+        dissent_exact_model_id="gemini-2.5-flash",
+        deliberation_store=deliberation_store,
+    )
+    report = KingReport(
+        mission_id="mission-block-tier",
+        mission="do something risky",
+        status="completed",
+        recommendation="reject",
+        risk="RED",
+        approval_needed=True,
+        rollback_available=False,
+        human_summary="Council blocked this mission.",
+    )
+
+    orchestrator._maybe_persist_deliberation(report, mission_id="mission-block-tier")
+
+    records = deliberation_store.for_mission("mission-block-tier")
+    assert len(records) == 1
+    assert records[0].final_disposition == "reject"
+    assert records[0].unresolved_minority_concerns == ("unvalidated input",)
+
+
+def test_maybe_persist_deliberation_never_raises_on_a_flaky_dissent_call(
+    tmp_path: Path,
+) -> None:
+    from aios.infrastructure.intelligence.deliberation_store import DeliberationStore
+    from aios.runtime.contracts import KingReport
+
+    def flaky(prompt: str) -> str:
+        raise RuntimeError("provider outage")
+
+    orchestrator = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime",
+        dissent_complete=flaky,
+        dissent_provider="gemini",
+        dissent_exact_model_id="gemini-2.5-flash",
+        deliberation_store=DeliberationStore(tmp_path / "deliberations.db"),
+    )
+    report = KingReport(
+        mission_id="mission-1",
+        mission="do something risky",
+        status="completed",
+        recommendation="reject",
+        risk="RED",
+        approval_needed=True,
+        rollback_available=False,
+        human_summary="Council blocked this mission.",
+    )
+
+    # Must not raise -- this is exactly what execute()'s own try/except
+    # wraps, but the method is safe even called directly.
+    orchestrator._maybe_persist_deliberation(report, mission_id="mission-1")
+
+
 def test_deliberate_blocks_on_denying_security(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"

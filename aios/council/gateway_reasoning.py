@@ -107,4 +107,78 @@ def build_council_llm_client(
     )
 
 
-__all__ = ["GatewayRoutedCouncilLLMClient", "build_council_llm_client"]
+class _ChatBackedCompleter:
+    """`LLMClient`-shaped adapter over a `chat(messages) -> message-dict`
+    client (every cloud provider) -- `GatewayRoutedCouncilLLMClient`'s own
+    `provider` slot expects `.complete()`, and only `OllamaClient` has one
+    natively. Wraps a single prompt as a one-message user turn and returns
+    the assistant's real (possibly empty) text content, never inventing one
+    when the reply carries only tool calls."""
+
+    def __init__(self, chat_client: Any) -> None:
+        self._chat_client = chat_client
+
+    def complete(
+        self, prompt: str, *, system: Optional[str] = None, json_mode: bool = False
+    ) -> str:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        result = self._chat_client.chat(messages)
+        return str(result.get("content") or "")
+
+
+def build_dissent_llm_client(
+    *, emergency_stop: Optional[Any] = None
+) -> tuple[GatewayRoutedCouncilLLMClient, str, str] | None:
+    """Organ 39: a genuinely independent second reviewer for multi-model
+    deliberation -- a real CONFIGURED CLOUD provider, never Ollama (which
+    is always the King's own provider; using it here would violate
+    `verify_independence()`'s whole point). Returns `None` when reasoning
+    is off, no operator is enrolled (same gating as `build_council_llm_
+    client`), or no cloud provider is actually configured on this machine.
+
+    Lazily imports `aios.api.deps` -- the same pattern `aios/core/router_
+    wiring.py`'s `_provider_health_tracker()` already established, to keep
+    this module free of API-layer imports at load time.
+    """
+    if not config.COUNCIL_REASONING:
+        return None
+    identity_store = IdentityStore(config.IDENTITY_DB_PATH)
+    operator = identity_store.operator()
+    if operator is None:
+        return None
+
+    from aios.api import deps
+
+    for provider_name, getter in (
+        ("gemini", deps.get_gemini_client),
+        ("bedrock", deps.get_bedrock_client),
+        ("openai", deps.get_openai_client),
+        ("anthropic", deps.get_anthropic_client),
+    ):
+        try:
+            client = getter()
+        except Exception:  # noqa: BLE001 - a flaky provider lookup must not break wiring
+            continue
+        if client is None:
+            continue
+        model_id = str(getattr(client, "model", "unknown"))
+        operator_id = str(operator["operator_id"])
+        snapshot = build_constitution_snapshot(ratified_by_operator_id=operator_id)
+        dissent_client = GatewayRoutedCouncilLLMClient(
+            operator_identity_digest=credential_digest(operator_id),
+            constitution_digest=snapshot.snapshot_digest,
+            emergency_stop=emergency_stop,
+            provider=_ChatBackedCompleter(client),
+        )
+        return dissent_client, provider_name, model_id
+    return None
+
+
+__all__ = [
+    "GatewayRoutedCouncilLLMClient",
+    "build_council_llm_client",
+    "build_dissent_llm_client",
+]

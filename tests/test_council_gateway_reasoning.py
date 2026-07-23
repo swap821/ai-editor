@@ -22,7 +22,9 @@ from aios.application.governance import (
 from aios.domain.governance import EmergencyStopRequest
 from aios.council.gateway_reasoning import (
     GatewayRoutedCouncilLLMClient,
+    _ChatBackedCompleter,
     build_council_llm_client,
+    build_dissent_llm_client,
 )
 from aios.infrastructure.identity.sqlite_store import IdentityStore, credential_digest
 
@@ -155,3 +157,127 @@ def test_king_compatible_call_shape_single_positional_argument(tmp_path: Path) -
 
     assert output == '{"risk_level": "YELLOW"}'
     assert provider.calls == [("King prompt only", None, False)]
+
+
+# --------------------------------------------------------------------------- #
+# build_dissent_llm_client -- organ 39's real independent second reviewer
+# --------------------------------------------------------------------------- #
+
+
+class _FakeChatClient:
+    """Stands in for a real cloud client's chat() -- never Ollama, so a
+    real dissent client must never wrap one of these with provider='ollama'."""
+
+    model = "gemini-2.5-flash"
+
+    def __init__(self, content: str = '{"answer": "reject", "confidence": 0.7}') -> None:
+        self._content = content
+        self.calls: list[list[dict]] = []
+
+    def chat(self, messages: list[dict]) -> dict:
+        self.calls.append(messages)
+        return {"role": "assistant", "content": self._content}
+
+
+def test_build_dissent_llm_client_returns_none_when_reasoning_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "COUNCIL_REASONING", False)
+    monkeypatch.setattr(config, "IDENTITY_DB_PATH", tmp_path / "identity.db")
+    _seed_operator(tmp_path / "identity.db")
+
+    assert build_dissent_llm_client() is None
+
+
+def test_build_dissent_llm_client_returns_none_with_no_enrolled_operator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "COUNCIL_REASONING", True)
+    monkeypatch.setattr(config, "IDENTITY_DB_PATH", tmp_path / "identity.db")
+
+    assert build_dissent_llm_client() is None
+
+
+def test_build_dissent_llm_client_returns_none_when_no_cloud_provider_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "COUNCIL_REASONING", True)
+    monkeypatch.setattr(config, "IDENTITY_DB_PATH", tmp_path / "identity.db")
+    _seed_operator(tmp_path / "identity.db")
+    from aios.api import deps
+
+    monkeypatch.setattr(deps, "get_gemini_client", lambda: None)
+    monkeypatch.setattr(deps, "get_bedrock_client", lambda: None)
+    monkeypatch.setattr(deps, "get_openai_client", lambda: None)
+    monkeypatch.setattr(deps, "get_anthropic_client", lambda: None)
+
+    assert build_dissent_llm_client() is None
+
+
+def test_build_dissent_llm_client_returns_real_gemini_backed_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "COUNCIL_REASONING", True)
+    monkeypatch.setattr(config, "IDENTITY_DB_PATH", tmp_path / "identity.db")
+    _seed_operator(tmp_path / "identity.db")
+    from aios.api import deps
+
+    fake_gemini = _FakeChatClient()
+    monkeypatch.setattr(deps, "get_gemini_client", lambda: fake_gemini)
+    monkeypatch.setattr(deps, "get_bedrock_client", lambda: None)
+    monkeypatch.setattr(deps, "get_openai_client", lambda: None)
+    monkeypatch.setattr(deps, "get_anthropic_client", lambda: None)
+
+    result = build_dissent_llm_client()
+
+    assert result is not None
+    client, provider_name, model_id = result
+    assert isinstance(client, GatewayRoutedCouncilLLMClient)
+    assert provider_name == "gemini"
+    assert model_id == "gemini-2.5-flash"
+    output = client.complete("Independently assess this mission")
+    assert output == '{"answer": "reject", "confidence": 0.7}'
+    assert fake_gemini.calls  # the real chat() was actually invoked
+
+
+def test_build_dissent_llm_client_falls_back_to_bedrock_when_gemini_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "COUNCIL_REASONING", True)
+    monkeypatch.setattr(config, "IDENTITY_DB_PATH", tmp_path / "identity.db")
+    _seed_operator(tmp_path / "identity.db")
+    from aios.api import deps
+
+    fake_bedrock = _FakeChatClient()
+    fake_bedrock.model = "anthropic.claude-sonnet"
+    monkeypatch.setattr(deps, "get_gemini_client", lambda: None)
+    monkeypatch.setattr(deps, "get_bedrock_client", lambda: fake_bedrock)
+    monkeypatch.setattr(deps, "get_openai_client", lambda: None)
+    monkeypatch.setattr(deps, "get_anthropic_client", lambda: None)
+
+    result = build_dissent_llm_client()
+
+    assert result is not None
+    _client, provider_name, model_id = result
+    assert provider_name == "bedrock"
+    assert model_id == "anthropic.claude-sonnet"
+
+
+def test_chat_backed_completer_wraps_chat_into_a_completion_string() -> None:
+    fake = _FakeChatClient(content="a real assistant reply")
+    completer = _ChatBackedCompleter(fake)
+
+    output = completer.complete("hello", system="be terse")
+
+    assert output == "a real assistant reply"
+    assert fake.calls == [
+        [{"role": "system", "content": "be terse"}, {"role": "user", "content": "hello"}]
+    ]
+
+
+def test_chat_backed_completer_returns_empty_string_for_tool_only_reply() -> None:
+    fake = _FakeChatClient()
+    fake.chat = lambda messages: {"role": "assistant", "content": None, "tool_calls": []}
+    completer = _ChatBackedCompleter(fake)
+
+    assert completer.complete("hello") == ""

@@ -782,20 +782,29 @@
   {
     "organ_id": 39,
     "name": "Multi-Model Deliberation and Dissent Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "DeliberationCouncilAuthority",
     "production_entrypoints": [
       "aios/domain/intelligence/deliberation.py",
-      "aios/application/intelligence/deliberation.py"
+      "aios/application/intelligence/deliberation.py",
+      "aios/council/deliberation_gather.py",
+      "aios/infrastructure/intelligence/deliberation_store.py",
+      "aios/council/gateway_reasoning.py",
+      "aios/council/council_orchestrator.py",
+      "aios/api/routes/council.py"
     ],
     "focused_tests": [
-      "tests/test_deliberation.py"
+      "tests/test_deliberation.py",
+      "tests/test_deliberation_gather.py",
+      "tests/test_deliberation_store.py",
+      "tests/test_council_gateway_reasoning.py"
     ],
-    "integration_tests": [],
+    "integration_tests": [
+      "tests/test_council_orchestrator.py",
+      "tests/test_council_api.py"
+    ],
     "live_evidence": [],
-    "known_blockers": [
-      "Reconciliation pass item 2: Council Queens' LLM slots are wired but were never supplied a client in production -- this is now genuinely resolved. aios/council/gateway_reasoning.py's build_council_llm_client() supplies a real, gateway-routed LLMClient to both PlannerQueen(llm=...) and CouncilOrchestrator(king_complete=...) at both real construction sites (aios/api/routes/council.py's _run_council_deliberation and _run_council_execution). Fail-closed by design: returns None (fully deterministic Council, unchanged prior behaviour) when config.COUNCIL_REASONING is off or no sovereign operator is enrolled yet. Live-verified via the browser bridge that the real origination endpoint's pre-existing auth boundary (require_privileged_operator) is unaffected. Still open: this makes a single model's reasoning live, not the DeliberationRecord multi-model dissent machinery (Slice 34) itself -- Council Queens' LLM slots being live doesn't yet mean a live DeliberationRecord with independent positions gets created from a real Council mission; that wiring is a separate, larger piece of work."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },

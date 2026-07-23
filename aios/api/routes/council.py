@@ -48,7 +48,8 @@ from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
-from aios.council.gateway_reasoning import build_council_llm_client
+from aios.council.gateway_reasoning import build_council_llm_client, build_dissent_llm_client
+from aios.infrastructure.intelligence.deliberation_store import DeliberationStore
 from aios.council.queen_verdict import has_blocking_verdict
 from aios.council.queens.planner import PlannerQueen
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
@@ -490,6 +491,12 @@ def _run_council_execution(
         emergency_stop = get_emergency_stop()
         council_llm = build_council_llm_client(emergency_stop=emergency_stop)
         planner = PlannerQueen(llm=council_llm) if council_llm is not None else None
+        # Organ 39: a genuinely independent second reviewer, real cloud
+        # provider only (never Ollama -- that's always the King's own
+        # provider). None when no cloud provider is configured or no
+        # operator is enrolled; deliberation then simply never fires,
+        # matching king_complete's own "None -> off" convention.
+        dissent = build_dissent_llm_client(emergency_stop=emergency_stop)
         orchestrator = CouncilOrchestrator(
             runtime_root=runtime_root,
             council_state=council_state,
@@ -499,6 +506,10 @@ def _run_council_execution(
             emergency_stop=emergency_stop,
             planner=planner,
             king_complete=council_llm.complete if council_llm is not None else None,
+            dissent_complete=dissent[0].complete if dissent is not None else None,
+            dissent_provider=dissent[1] if dissent is not None else "",
+            dissent_exact_model_id=dissent[2] if dissent is not None else "",
+            deliberation_store=DeliberationStore(config.DELIBERATION_DB_PATH),
         )
         asyncio.run(
             orchestrator.execute(ledger.contract, list(ledger.council_verdicts))

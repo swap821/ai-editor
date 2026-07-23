@@ -27,6 +27,7 @@ from aios.council.ganglia import (
     signals_from_verdicts,
     synthesize_signals,
 )
+from aios.council.deliberation_gather import maybe_deliberate
 from aios.council.king_reasoning import reason_king
 from aios.council.reasoning import MistakeBackedRetriever
 from aios.council.participation import CouncilParticipationPolicy
@@ -133,6 +134,10 @@ class CouncilOrchestrator:
         participation_policy: CouncilParticipationPolicy | None = None,
         use_queen_services: bool | None = None,
         king_complete: Callable[[str], str] | None = None,
+        dissent_complete: Callable[[str], str] | None = None,
+        dissent_provider: str = "",
+        dissent_exact_model_id: str = "",
+        deliberation_store: Any | None = None,
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
         council_state: CouncilState | None = None,
@@ -243,6 +248,15 @@ class CouncilOrchestrator:
         # Opt-in (AIOS_COUNCIL_KING_REASONING): an injected LLM `complete` the King
         # uses to reason over the verdicts, clamped strengthen-only. None → off.
         self.king_complete = king_complete
+        # Organ 39: an optional, genuinely independent second reviewer for
+        # multi-model deliberation. None → deliberation never fires (matches
+        # king_complete's own "None → off" convention exactly). Best-effort:
+        # see _maybe_deliberate() below, wrapped so a failure here can never
+        # affect the mission's own recommendation or completion.
+        self.dissent_complete = dissent_complete
+        self.dissent_provider = dissent_provider
+        self.dissent_exact_model_id = dissent_exact_model_id
+        self.deliberation_store = deliberation_store
         self.ledger_store = ledger_store or self.spawner.ledger_store
         self.report_store = report_store or self.spawner.report_store
         # Optional Phase-3A durable deliberation log. None → no persistence.
@@ -587,6 +601,16 @@ class CouncilOrchestrator:
                 verdicts=verdicts,
                 complete=self.king_complete,
             )
+        # Organ 39: best-effort, decoupled from the mission's own control
+        # flow -- a deliberation failure (a flaky second provider, an
+        # unparseable reply) must never affect the mission's own
+        # recommendation or completion, matching reason_king()'s own
+        # advisory-only posture but even more conservative: this can only
+        # ADD a side artifact, never touch `report` itself.
+        try:
+            self._maybe_persist_deliberation(report, mission_id=contract.mission_id)
+        except Exception:  # noqa: BLE001 - deliberation must never break a mission
+            _LOGGER.warning("Deliberation gather/persist failed", exc_info=True)
         report_path = self.report_store.write(report)
         self.mission_service.export(contract.mission_id)
         self._persist_event(
@@ -608,6 +632,24 @@ class CouncilOrchestrator:
     def _assert_operational(self) -> None:
         if self.emergency_stop is not None:
             self.emergency_stop.assert_operational()
+
+    def _maybe_persist_deliberation(self, report: Any, *, mission_id: str) -> None:
+        """Organ 39: gather a real independent second opinion and persist a
+        durable DeliberationRecord, or do nothing when no dissent reviewer
+        is configured or deliberation isn't warranted for this mission."""
+        if self.dissent_complete is None or self.deliberation_store is None:
+            return
+        record = maybe_deliberate(
+            report,
+            mission_id=mission_id,
+            king_provider="ollama",
+            king_exact_model_id=config.LLM_MODEL,
+            dissent_complete=self.dissent_complete,
+            dissent_provider=self.dissent_provider,
+            dissent_exact_model_id=self.dissent_exact_model_id,
+        )
+        if record is not None:
+            self.deliberation_store.save(record)
 
     def _promote_worker(
         self,

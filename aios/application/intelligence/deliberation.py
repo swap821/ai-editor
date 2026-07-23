@@ -99,6 +99,32 @@ def _detect_disagreements(positions: Sequence[ModelPosition]) -> tuple[str, ...]
     )
 
 
+def deliberation_record_digest(
+    *,
+    deliberation_id: str,
+    mission_id: str | None,
+    trigger_reasons: Sequence[str],
+    positions: Sequence[ModelPosition],
+    disagreements: Sequence[str],
+    unresolved_minority_concerns: Sequence[str],
+    final_disposition: str,
+) -> str:
+    """The canonical digest for a deliberation's content -- the single
+    source of truth both `synthesize_deliberation()` and any persistence
+    layer's tamper check must call, so the two can never silently drift
+    apart into two different digest shapes."""
+    digest_payload = {
+        "deliberation_id": deliberation_id,
+        "mission_id": mission_id,
+        "trigger_reasons": sorted(trigger_reasons),
+        "positions": [position.as_dict() for position in positions],
+        "disagreements": list(disagreements),
+        "unresolved_minority_concerns": list(unresolved_minority_concerns),
+        "final_disposition": final_disposition,
+    }
+    return _canonical_digest(digest_payload)
+
+
 def synthesize_deliberation(
     *,
     deliberation_id: str,
@@ -130,16 +156,15 @@ def synthesize_deliberation(
     )
     created_at = _utc_now()
 
-    digest_payload = {
-        "deliberation_id": deliberation_id,
-        "mission_id": mission_id,
-        "trigger_reasons": sorted(trigger_reasons),
-        "positions": [position.as_dict() for position in positions],
-        "disagreements": list(disagreements),
-        "unresolved_minority_concerns": list(unresolved_minority_concerns),
-        "final_disposition": final_disposition,
-    }
-    digest = _canonical_digest(digest_payload)
+    digest = deliberation_record_digest(
+        deliberation_id=deliberation_id,
+        mission_id=mission_id,
+        trigger_reasons=trigger_reasons,
+        positions=positions,
+        disagreements=disagreements,
+        unresolved_minority_concerns=unresolved_minority_concerns,
+        final_disposition=final_disposition,
+    )
 
     return DeliberationRecord(
         deliberation_id=deliberation_id,
@@ -164,6 +189,7 @@ def blocks_promotion(record: DeliberationRecord) -> bool:
 __all__ = [
     "DeliberationError",
     "blocks_promotion",
+    "deliberation_record_digest",
     "should_trigger_deliberation",
     "synthesize_deliberation",
     "verify_independence",
