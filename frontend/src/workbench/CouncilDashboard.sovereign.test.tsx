@@ -167,6 +167,27 @@ const GOVERNANCE = {
     reason: { value: null, status: 'unavailable', source: 'emergency_stop_state' },
     engaged_at: { value: null, status: 'unavailable', source: 'emergency_stop_state' },
   },
+  providerHealth: [
+    {
+      provider: 'bedrock',
+      reachable: { value: false, status: 'measured', source: 'provider_health_tracker' },
+      circuit_state: { value: 'open', status: 'measured', source: 'provider_health_tracker' },
+      recent_failure_count: { value: 3, status: 'measured', source: 'provider_health_tracker' },
+      budget_remaining: { value: null, status: 'unavailable', source: 'provider_health_tracker' },
+    },
+  ],
+  approvals: [
+    {
+      requested_action: { value: 'rollback', status: 'measured', source: 'capability_authority' },
+      requesting_model: { value: null, status: 'unavailable', source: 'capability_authority' },
+      mission_id: { value: 'mission-xyz', status: 'measured', source: 'capability_authority' },
+      risk: { value: null, status: 'unavailable', source: 'capability_authority' },
+      scope: { value: 'workspace/', status: 'measured', source: 'capability_authority' },
+      reversibility: { value: null, status: 'unavailable', source: 'capability_authority' },
+      verification_plan: { value: 'rollback_snapshot_restore', status: 'measured', source: 'capability_authority' },
+      constitution_version: { value: null, status: 'unavailable', source: 'capability_authority' },
+    },
+  ],
 };
 
 const EXECUTOR = {
@@ -310,6 +331,13 @@ describe('CouncilDashboard sovereignty views', () => {
     // The reason is genuinely unavailable (no stop ever engaged) -- must
     // render the honest fallback, never a blank or fabricated value.
     expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Provider Health/)).toBeInTheDocument();
+    expect(screen.getByText(/bedrock · 3 recent failure\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText('open')).toBeInTheDocument();
+    expect(await screen.findByText(/Pending Approvals/)).toBeInTheDocument();
+    expect(screen.getByText('rollback')).toBeInTheDocument();
+    expect(screen.getByText('mission-xyz')).toBeInTheDocument();
+    expect(screen.getByText('workspace/')).toBeInTheDocument();
     expect(await screen.findByText(/Isolated Executor/)).toBeInTheDocument();
     expect(screen.getByText('not configured')).toBeInTheDocument();
     expect(

@@ -57,6 +57,17 @@ class ProviderHealthTracker:
     def _state(self, provider: str) -> _ProviderState:
         return self._states.setdefault(provider, _ProviderState())
 
+    def has_observations(self, provider: str) -> bool:
+        """True once a real outcome has been reported for *provider*.
+
+        `snapshot()` always returns a value (the default closed/reachable
+        state for a never-called provider) so callers computing metrics
+        never crash on a KeyError -- but that default must never be
+        presented as a real measurement. Callers building a truthful
+        read-model check this first.
+        """
+        return provider in self._states
+
     def record_success(
         self, provider: str, *, latency_ms: float | None = None
     ) -> None:

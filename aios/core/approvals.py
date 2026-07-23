@@ -384,6 +384,38 @@ class ApprovalStore:
         with self._lock:
             self._grants.pop(session_id, None)
 
+    def list_pending(self) -> list[ApprovedAction]:
+        """Return every currently-pending (unexpired, unconsumed) approval.
+
+        A real, non-consuming enumeration -- the store's primary key is a
+        token DIGEST, and the raw bearer token is never persisted (only
+        whoever `issue()` returned it to holds it), so this can never be
+        used to consume/replay an approval. `session_id` on each returned
+        action is the stored digest, not the raw session id -- callers must
+        not treat it as reversible. Note: this class is a legacy
+        compatibility surface (see `aios/api/deps.py`'s own comment) --
+        `aios/operations/recovery.py` is its only real production caller
+        today, for stale-approval cleanup on restore. The live
+        issue/consume path for real actions is `CapabilityAuthority`
+        (`aios/application/capabilities/authority.py`).
+        """
+        if self.db_path is not None:
+            with self._connect() as conn:
+                self._prune_db(conn)
+                rows = conn.execute(
+                    "SELECT action_type, payload_json, session_id, expires_at, "
+                    "route, http_method FROM approval_pending ORDER BY expires_at ASC"
+                ).fetchall()
+            return [self._row_action(row) for row in rows]
+        with self._lock:
+            self._prune_locked()
+            return [
+                pending.action
+                for pending in sorted(
+                    self._pending.values(), key=lambda p: p.expires_at
+                )
+            ]
+
     def grant_count(self) -> int:
         """Total number of redeemed approval grants currently on record."""
         if self.db_path is not None:

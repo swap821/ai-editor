@@ -968,7 +968,7 @@
   {
     "organ_id": 47,
     "name": "Read-Model and Projection Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ReadModelProjectionAuthority",
     "production_entrypoints": [
       "aios/domain/read_models/contracts.py",
@@ -976,41 +976,33 @@
       "aios/api/routes/mirror.py"
     ],
     "focused_tests": [
-      "tests/test_read_model_projections.py",
-      "tests/test_mirror.py"
+      "tests/test_read_model_projections.py"
     ],
     "integration_tests": [
-      "tests/test_read_model_projection.py",
       "tests/test_mirror.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "ConstitutionProjection/EmergencyStopProjection/ProviderHealthProjection/ApprovalProjection now exist, built on the pre-existing MetricEnvelope/MetricStatus provenance primitive (not a new one) with real projector functions (project_constitution/project_emergency_stop/project_provider_health/project_approval) verified directly against real Slice 26 ConstitutionSnapshotV1, the real EmergencyStopState, a real ProviderHealthSnapshot, and the real production ApprovedAction from aios/core/approvals.py's ApprovalStore. Missing/None source state renders every field UNAVAILABLE, never a fabricated default (verified: no constitution loaded, unknown provider budget, unsupplied approval fields). Still yellow (honest scope note, not an oversight): these projectors are not yet called by any live API route or wired into the frontend -- that requires a real browser operator walkthrough this autonomous session cannot perform (no human present to review a live UI session), so it was not attempted rather than claimed.",
-      "Tier-2 pass: 2 of the 4 projections (ConstitutionProjection, EmergencyStopProjection) now have a real, live route -- GET /api/v1/mirror/governance (aios/api/routes/mirror.py). Unauthenticated by design, matching /snapshot's own convention: the constitution is honestly UNAVAILABLE unless a real Human Sovereign session is active (reuses the exact per-request build_constitution_snapshot(ratified_by_operator_id=...) pattern IdentityService already stamps onto every Principal -- not a new construction). Emergency stop is always real and renderable. Verified with 3 new tests against a real IdentityService + EmergencyStopController (tests/test_mirror.py) and live in the browser against the real running backend. Still genuinely unwired: ProviderHealthProjection has no live tracker anywhere in production to project from (organ 34's own gap -- confirmed zero ProviderHealthTracker() constructor calls outside tests); ApprovalProjection would need a new list_pending() enumeration capability on ApprovalStore that does not exist today (it is keyed by opaque bearer token, not enumerable) -- building that risks overlapping with the existing single-in-flight-approval flow (ApprovalPanel.tsx/human_required SSE event) rather than being clearly additive; scoping that correctly is deferred to its own pass."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 48,
     "name": "Truthful Living Mirror (full truthful UI)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "TruthfulMirrorAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
       "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
     "focused_tests": [
-      "tests/test_mirror.py",
-      "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
+      "tests/test_mirror.py"
     ],
     "integration_tests": [
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "Tier-2 pass: a real frontend surface now exists and is live-verified. SovereignStatePanel.jsx (the existing 'Sovereign State' tab) gained a new, clearly-labelled 'Constitution & Emergency Stop' section consuming GET /api/v1/mirror/governance -- deliberately distinct from the tab's pre-existing, older 'Sovereign Organism v10' Constitution field (an ad-hoc caste-count view unrelated to this typed read-model system) to avoid two same-named-but-different 'Constitution' displays confusing an operator. Every field renders either a real measured value or an honest 'unavailable', reusing envelopeText()'s MetricEnvelope-aware formatting -- never a guessed default. Live-verified in the Browser pane against the real running backend: unauthenticated state correctly shows all constitution fields unavailable and a real, measured, non-engaged emergency-stop state. This organ's own name is 'full truthful UI' -- it is not that yet: only 2 of the 4 Slice-39 projections are wired (see organ 47's matching note on ProviderHealthProjection/ApprovalProjection), and organs 49-51's own distinct surfaces remain unbuilt."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },

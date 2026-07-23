@@ -11,13 +11,21 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from aios.application.capabilities.authority import CapabilityAuthority
+from aios.application.models.health import ProviderHealthTracker
 from aios.application.read_models.governance_projections import (
+    KNOWN_PROVIDER_NAMES,
     project_approval,
+    project_capability_approval,
     project_constitution,
     project_emergency_stop,
+    project_pending_approvals,
     project_provider_health,
+    project_provider_health_list,
 )
 from aios.core.approvals import ApprovedAction
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest
 from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.domain.governance.contracts import EmergencyStopState
 from aios.domain.models.contracts import ProviderHealthSnapshot
@@ -221,3 +229,110 @@ def test_approval_projection_rejects_unknown_fields():
     data["approved"] = True
     with pytest.raises(ValidationError):
         ApprovalProjection(**data)
+
+
+# --------------------------------------------------------------------------- #
+# project_provider_health_list
+# --------------------------------------------------------------------------- #
+
+
+def test_provider_health_list_omits_providers_with_zero_observations():
+    """A never-called provider's snapshot() default (closed/reachable) must
+    never be presented as a real measurement."""
+    tracker = ProviderHealthTracker()
+    tracker.record_success("gemini")
+
+    projections = project_provider_health_list(tracker)
+
+    assert [p.provider for p in projections] == ["gemini"]
+    assert set(KNOWN_PROVIDER_NAMES) - {"gemini"}  # sanity: others exist and were skipped
+
+
+def test_provider_health_list_reflects_a_real_recorded_failure():
+    tracker = ProviderHealthTracker()
+    tracker.record_failure("bedrock")
+
+    projections = project_provider_health_list(tracker)
+
+    assert len(projections) == 1
+    assert projections[0].provider == "bedrock"
+    assert projections[0].recent_failure_count.value == 1
+
+
+# --------------------------------------------------------------------------- #
+# project_capability_approval / project_pending_approvals
+# --------------------------------------------------------------------------- #
+
+
+def _binding(**overrides) -> CapabilityBinding:
+    values = {
+        "operator_id": "operator:one",
+        "device_id": "device:one",
+        "authentication_event_id": "event:strong",
+        "session_id": "session:one",
+        "action_type": "command",
+        "route": "/api/v1/execute",
+        "http_method": "POST",
+        "payload_digest": payload_digest({"command": "echo safe"}),
+        "resource_digest": payload_digest({"workspace": "training_ground"}),
+        "mission_id": "mission-abc123",
+        "contract_digest": None,
+        "policy_version": "policy:v1",
+        "scope": "training_ground/",
+        "verification_requirement": "command_exit_zero",
+    }
+    values.update(overrides)
+    return CapabilityBinding(**values)
+
+
+def test_capability_approval_projection_measures_real_binding_fields(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    binding = _binding()
+    authority.issue(binding)
+    capability = authority.list_pending()[0]
+
+    projection = project_capability_approval(capability)
+
+    assert projection.requested_action.value == "command"
+    assert projection.mission_id.value == "mission-abc123"
+    assert projection.scope.value == "training_ground/"
+    assert projection.verification_plan.value == "command_exit_zero"
+    for envelope in (
+        projection.requesting_model,
+        projection.risk,
+        projection.reversibility,
+        projection.constitution_version,
+    ):
+        assert envelope.status == MetricStatus.UNAVAILABLE
+
+
+def test_capability_approval_projection_mission_id_unavailable_when_none(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority.issue(_binding(mission_id=None))
+    capability = authority.list_pending()[0]
+
+    projection = project_capability_approval(capability)
+
+    assert projection.mission_id.status == MetricStatus.UNAVAILABLE
+
+
+def test_pending_approvals_projects_every_real_pending_capability(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority.issue(_binding(action_type="command", route="/api/v1/execute"))
+    authority.issue(
+        _binding(
+            action_type="edit",
+            route="/api/edit",
+            payload_digest=payload_digest({"filepath": "a.py"}),
+            resource_digest=payload_digest({"workspace": "training_ground/a.py"}),
+        )
+    )
+
+    projections = project_pending_approvals(authority)
+
+    assert {p.requested_action.value for p in projections} == {"command", "edit"}
+
+
+def test_pending_approvals_empty_when_nothing_pending(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    assert project_pending_approvals(authority) == ()

@@ -38,6 +38,49 @@ def test_redeemed_grant_expires() -> None:
     assert store.grants("s1") == []
 
 
+def test_list_pending_returns_unexpired_actions_oldest_first_in_memory() -> None:
+    now = [10.0]
+    store = ApprovalStore(timeout_ms=1000, clock=lambda: now[0])
+    store.issue("command", {"command": "echo first"}, "s1")
+    now[0] = 10.1
+    store.issue("edit", {"filepath": "x.txt", "content": "x"}, "s2")
+
+    pending = store.list_pending()
+
+    assert [a.action_type for a in pending] == ["command", "edit"]
+
+
+def test_list_pending_excludes_consumed_and_expired_actions_in_memory() -> None:
+    now = [10.0]
+    store = ApprovalStore(timeout_ms=100, clock=lambda: now[0])
+    token = store.issue("command", {"command": "echo ok"}, "s1")
+    store.consume(token, "s1")
+    store.issue("edit", {"filepath": "y.txt", "content": "y"}, "s2")
+    now[0] = 10.2  # expires the second one too
+
+    assert store.list_pending() == []
+
+
+def test_list_pending_survives_restart_and_never_exposes_the_raw_token(
+    tmp_path,
+) -> None:
+    """Organ 47/49: a real, non-consuming enumeration for the read-only
+    mirror surface. The primary key is a token DIGEST, not the raw bearer
+    token -- confirm the returned action carries no way to derive it."""
+    path = tmp_path / "approvals.db"
+    first = ApprovalStore(timeout_ms=1000, db_path=path)
+    token = first.issue("rollback", {"snapshot_id": "abc123"}, "s1")
+
+    second = ApprovalStore(timeout_ms=1000, db_path=path)
+    pending = second.list_pending()
+
+    assert len(pending) == 1
+    assert pending[0].action_type == "rollback"
+    assert pending[0].payload == {"snapshot_id": "abc123"}
+    assert token not in repr(pending[0])
+    assert token not in str(pending[0].session_id)
+
+
 def test_connect_closes_the_underlying_connection_after_the_with_block(tmp_path) -> None:
     # Regression: ``with self._connect() as conn:`` only commits-or-rolls-back
     # (that's all sqlite3.Connection.__enter__/__exit__ do) -- it never closes

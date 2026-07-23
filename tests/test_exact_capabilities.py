@@ -47,6 +47,60 @@ def test_capability_is_opaque_exact_and_single_use(tmp_path):
     assert token.encode() not in (tmp_path / "capabilities.db").read_bytes()
 
 
+def test_list_pending_excludes_consumed_revoked_and_expired(tmp_path):
+    """Organ 47/49: a real, non-consuming enumeration for the read-only
+    approval-decision surface."""
+    now = [1000.0]
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", ttl_seconds=50, clock=lambda: now[0]
+    )
+    still_pending = _binding(action_type="command", route="/api/v1/execute")
+    to_consume = _binding(
+        action_type="edit",
+        route="/api/edit",
+        payload_digest=payload_digest({"filepath": "a.py"}),
+        resource_digest=payload_digest({"workspace": "training_ground/a.py"}),
+    )
+    to_revoke = _binding(
+        action_type="create",
+        route="/api/create",
+        payload_digest=payload_digest({"filepath": "b.py"}),
+        resource_digest=payload_digest({"workspace": "training_ground/b.py"}),
+    )
+    to_expire = _binding(
+        action_type="rollback",
+        route="/api/v1/rollback",
+        payload_digest=payload_digest({"snapshot_id": "abc"}),
+        resource_digest=payload_digest({"snapshot_id": "abc"}),
+    )
+
+    authority.issue(still_pending)
+    consume_token = authority.issue(to_consume)
+    revoke_token = authority.issue(to_revoke)
+    authority.issue(to_expire)
+
+    authority.consume(consume_token, to_consume)
+    revoked = authority.inspect(revoke_token)
+    authority.revoke(revoked.capability_id)
+
+    pending_now = authority.list_pending()
+    assert {c.binding.action_type for c in pending_now} == {"command", "rollback"}
+
+    now[0] = 1051.0  # past to_expire's 50s ttl too
+    assert authority.list_pending() == []
+
+
+def test_list_pending_never_exposes_a_usable_bearer_token(tmp_path):
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    token = authority.issue(_binding())
+
+    pending = authority.list_pending()
+
+    assert len(pending) == 1
+    assert token not in repr(pending[0])
+    assert token.encode() not in (tmp_path / "capabilities.db").read_bytes()
+
+
 @pytest.mark.parametrize(
     "field",
     [

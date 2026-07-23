@@ -212,6 +212,12 @@ class CapabilityAuthority:
         """Return the durable number of consumed exact capabilities."""
         return self.store.consumed_count()
 
+    def list_pending(self) -> list[Capability]:
+        """Return every capability currently awaiting consumption -- the
+        real production approval-decision surface (organ 47/49). Never
+        exposes a usable bearer token; a read-only awareness enumeration."""
+        return self.store.pending(self.clock())
+
     def revoke_all_active(self) -> int:
         """Revoke every still-live unconsumed capability."""
         return self.store.revoke_all_active(self.clock())

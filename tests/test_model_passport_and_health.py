@@ -137,3 +137,15 @@ def test_snapshot_budget_remaining_defaults_to_unknown_not_zero() -> None:
     tracker.record_success("anthropic")
     snapshot = tracker.snapshot("anthropic")
     assert snapshot.budget_remaining is None
+
+
+def test_has_observations_is_false_until_a_real_outcome_is_reported() -> None:
+    """Organ 47: snapshot() always returns a value (the default closed/
+    reachable state) so it never crashes -- but that default must never be
+    mistaken for a real measurement of a provider that was never called."""
+    tracker = ProviderHealthTracker()
+    assert tracker.has_observations("bedrock") is False
+
+    tracker.record_success("bedrock")
+    assert tracker.has_observations("bedrock") is True
+    assert tracker.has_observations("gemini") is False

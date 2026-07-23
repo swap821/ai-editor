@@ -182,6 +182,20 @@ class CapabilityStore:
             ).fetchone()
         return self._row_to_capability(row) if row is not None else None
 
+    def pending(self, now: float) -> list[Capability]:
+        """Every capability still awaiting consumption right now: issued,
+        not yet consumed, not revoked, not expired. Real enumeration for a
+        read-only awareness surface -- the bearer token itself is never
+        persisted (only its digest), so this can never be used to consume
+        or replay an approval."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM capabilities WHERE consumed_at IS NULL "
+                "AND revoked_at IS NULL AND expires_at > ? ORDER BY expires_at ASC",
+                (now,),
+            ).fetchall()
+        return [self._row_to_capability(row) for row in rows]
+
     def consume_if_available(self, capability_id: str, now: float) -> bool:
         with closing(self._connect()) as conn:
             cur = conn.execute(

@@ -317,6 +317,55 @@ export default function SovereignStatePanel() {
             </div>
           </section>
 
+          <section className="council-dashboard__section" aria-label="Provider health, measured">
+            <h3>
+              <ShieldCheck size={14} aria-hidden="true" /> Provider Health
+              <span className="council-dashboard__badge is-ok">
+                {(governance?.providerHealth ?? []).length} observed
+              </span>
+            </h3>
+            <p className="council-dashboard__muted">
+              Only providers with at least one real recorded call outcome are shown — a never-called provider is never presented as "healthy".
+            </p>
+            {(governance?.providerHealth ?? []).length === 0 ? (
+              <p>No provider calls observed yet this process.</p>
+            ) : (
+              (governance?.providerHealth ?? []).map((p) => (
+                <div key={p.provider} className="council-dashboard__route">
+                  <span className={`council-dashboard__badge is-${p.reachable?.value ? 'ok' : 'danger'}`}>
+                    {envelopeText(p.circuit_state)}
+                  </span>
+                  <span>
+                    {p.provider} · {envelopeText(p.recent_failure_count)} recent failure(s)
+                  </span>
+                </div>
+              ))
+            )}
+          </section>
+
+          <section className="council-dashboard__section" aria-label="Pending approvals, measured">
+            <h3>
+              <AlertTriangle size={14} aria-hidden="true" /> Pending Approvals
+              <span className="council-dashboard__badge is-warn">
+                {(governance?.approvals ?? []).length} pending
+              </span>
+            </h3>
+            <p className="council-dashboard__muted">
+              A real, read-only enumeration of every capability awaiting consumption (CapabilityAuthority) — never exposes a usable bearer token.
+            </p>
+            {(governance?.approvals ?? []).length === 0 ? (
+              <p>Nothing awaiting consumption right now.</p>
+            ) : (
+              (governance?.approvals ?? []).map((a, index) => (
+                <div key={index} className="council-dashboard__route">
+                  <span>{envelopeText(a.requested_action)}</span>
+                  <span>{envelopeText(a.mission_id)}</span>
+                  <span>{envelopeText(a.scope)}</span>
+                </div>
+              ))
+            )}
+          </section>
+
           <section className="council-dashboard__section" aria-label="Isolated executor, measured">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Isolated Executor

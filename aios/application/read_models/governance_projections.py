@@ -3,17 +3,26 @@
 Each function assembles a `read_models` projection from a real object already
 built in this plan -- `ConstitutionSnapshotV1` (Slice 26), `EmergencyStopState`
 (Slice 27), `ProviderHealthSnapshot` (Slice 31), and `ApprovedAction` (the
-existing production `ApprovalStore`, `aios/core/approvals.py`). Nothing here
-invents a value: a field with no real source becomes `MetricStatus.UNAVAILABLE`,
-never a guessed default, matching the same convention `aios/api/routes/mirror.py`
-already uses for `development_tracker` metrics.
+generic shape; the real production issue/consume authority is
+`CapabilityAuthority`, `aios/application/capabilities/authority.py` -- see
+`project_capability_approval`/`project_pending_approvals` below).
+`aios.core.approvals.ApprovalStore` is a legacy compatibility surface
+(`aios/api/deps.py`'s own comment: "not constructed in the production
+dependency graph"), not the live path. Nothing here invents a value: a field
+with no real source becomes `MetricStatus.UNAVAILABLE`, never a guessed
+default, matching the same convention `aios/api/routes/mirror.py` already
+uses for `development_tracker` metrics.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
+from aios.application.capabilities.authority import CapabilityAuthority
+from aios.application.models.health import ProviderHealthTracker
 from aios.core.approvals import ApprovedAction
+from aios.domain.capabilities.contracts import Capability
 from aios.domain.governance.constitution import ConstitutionSnapshotV1
 from aios.domain.governance.contracts import EmergencyStopState
 from aios.domain.models.contracts import ProviderHealthSnapshot
@@ -146,9 +155,97 @@ def project_approval(
     )
 
 
+#: The provider names any real production call site can report through
+#: ProviderHealthTracker (aios/core/failover.py, aios/core/router.py's own
+#: PROVIDER_* constants) -- a fixed, known set, not derived from the
+#: tracker's own internal state (which only knows what's been observed).
+KNOWN_PROVIDER_NAMES: tuple[str, ...] = (
+    "ollama",
+    "bedrock",
+    "gemini",
+    "openai",
+    "anthropic",
+)
+
+
+def project_provider_health_list(
+    tracker: ProviderHealthTracker,
+    *,
+    providers: Sequence[str] = KNOWN_PROVIDER_NAMES,
+) -> tuple[ProviderHealthProjection, ...]:
+    """Project every known provider the tracker has *actually observed*.
+
+    `ProviderHealthTracker.snapshot()` always returns a value (a never-called
+    provider gets the default closed/reachable state) so it never raises --
+    but that default must never be presented as a real measurement. This
+    checks `has_observations()` first and omits any provider with zero
+    recorded outcomes entirely, rather than showing a fabricated-looking
+    "healthy" placeholder for something that was never actually called.
+    """
+    return tuple(
+        project_provider_health(tracker.snapshot(name))
+        for name in providers
+        if tracker.has_observations(name)
+    )
+
+
+def project_capability_approval(capability: Capability) -> ApprovalProjection:
+    """Build the pinned decision surface for one real pending capability.
+
+    `capability` comes from `CapabilityAuthority.list_pending()` -- the real
+    production issue/consume authority for a gated action awaiting
+    consumption (`aios/application/capabilities/authority.py`), not the
+    legacy `ApprovalStore`. Unlike `project_approval()`'s generic
+    `ApprovedAction`, a `Capability`'s `binding` carries real `mission_id`,
+    `scope`, and `verification_requirement` -- these are MEASURED here, not
+    guessed. `risk` and `requesting_model` still have no source anywhere in
+    the binding and stay honestly UNAVAILABLE. `constitution_digest` is
+    accepted on `CapabilityBinding` at construction time but the SQLite
+    store does not persist or reload it (a real, separate, pre-existing
+    gap) -- `constitution_version` stays UNAVAILABLE rather than reporting a
+    digest that may not reflect what was actually re-read.
+    """
+    source = "capability_authority"
+    binding = capability.binding
+    return ApprovalProjection(
+        requested_action=_measured(binding.action_type, source),
+        requesting_model=_unavailable(source),
+        mission_id=(
+            _measured(binding.mission_id, source)
+            if binding.mission_id
+            else _unavailable(source)
+        ),
+        risk=_unavailable(source),
+        scope=_measured(binding.scope, source),
+        reversibility=_unavailable(source),
+        verification_plan=_measured(binding.verification_requirement, source),
+        constitution_version=_unavailable(source),
+    )
+
+
+def project_pending_approvals(
+    authority: CapabilityAuthority,
+) -> tuple[ApprovalProjection, ...]:
+    """Project every currently-pending capability as a real, truthful surface.
+
+    `CapabilityAuthority.list_pending()` enumerates real rows without ever
+    exposing a usable bearer token (the store's primary key is a token
+    DIGEST) -- this is a read-only awareness surface, never a path back to
+    consuming anything.
+    """
+    return tuple(
+        project_capability_approval(capability)
+        for capability in authority.list_pending()
+    )
+
+
 __all__ = [
+    "KNOWN_PROVIDER_NAMES",
     "project_approval",
+    "project_capability_approval",
     "project_constitution",
     "project_emergency_stop",
+    "project_pending_approvals",
     "project_provider_health",
+    "project_provider_health_list",
 ]

@@ -21,17 +21,23 @@ from aios.application.read_models.projection import get_system_projection
 from aios.application.read_models.governance_projections import (
     project_constitution,
     project_emergency_stop,
+    project_pending_approvals,
+    project_provider_health_list,
 )
 from aios.application.read_models.executor_projections import project_executor_status
+from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.governance.emergency_stop import EmergencyStopController
 from aios.application.identity.service import IdentityService
 from aios.application.memory.authority import MemoryAuthority
+from aios.application.models.health import ProviderHealthTracker
 from aios.api.deps import (
+    get_capability_authority,
     get_development_tracker,
     get_emergency_stop,
     get_identity_service,
     get_memory_authority,
     get_private_executor_service,
+    get_provider_health,
     get_skill_memory,
 )
 from aios.domain.governance.constitution import build_constitution_snapshot
@@ -211,8 +217,11 @@ def get_governance_projection(
     request: Request,
     identity: IdentityService = Depends(get_identity_service),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
+    provider_health: ProviderHealthTracker = Depends(get_provider_health),
+    capability_authority: CapabilityAuthority = Depends(get_capability_authority),
 ) -> JSONResponse:
-    """Organs 47/48: the truthful constitution and emergency-stop surface.
+    """Organs 47/48: the truthful constitution, emergency-stop, provider-
+    health, and pending-approvals surface.
 
     Unauthenticated by design, matching /snapshot's own convention -- the
     living mirror reflects state, it never gates on who's watching (risky
@@ -221,7 +230,11 @@ def get_governance_projection(
     reusing the exact same per-request build_constitution_snapshot()
     pattern IdentityService._current_constitution_digest() already stamps
     onto every authenticated Principal -- not a new construction, the same
-    established one.
+    established one. providerHealth omits any provider with zero recorded
+    outcomes entirely (never a fabricated "healthy" placeholder). approvals
+    projects CapabilityAuthority.list_pending() -- the real production
+    issue/consume authority, not the legacy ApprovalStore -- and never
+    exposes a usable bearer token.
     """
     principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
     if principal is not None and principal.principal_type is PrincipalType.OPERATOR:
@@ -232,10 +245,14 @@ def get_governance_projection(
         snapshot = None
     constitution = project_constitution(snapshot)
     stop_projection = project_emergency_stop(emergency_stop.state())
+    provider_health_list = project_provider_health_list(provider_health)
+    approvals = project_pending_approvals(capability_authority)
     return JSONResponse(
         content={
             "constitution": constitution.model_dump(mode="json"),
             "emergencyStop": stop_projection.model_dump(mode="json"),
+            "providerHealth": [p.model_dump(mode="json") for p in provider_health_list],
+            "approvals": [a.model_dump(mode="json") for a in approvals],
         }
     )
 

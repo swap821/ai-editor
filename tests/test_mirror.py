@@ -8,12 +8,18 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aios.api.deps import (
+    get_capability_authority,
     get_emergency_stop,
     get_identity_service,
     get_private_executor_service,
+    get_provider_health,
 )
 from aios.api.main import app, get_cortex_bus
+from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.executor.service import StructuredExecutorClient
+from aios.application.models.health import ProviderHealthTracker
+from aios.domain.capabilities.contracts import CapabilityBinding
+from aios.domain.capabilities.digest import payload_digest
 from aios.application.governance.emergency_stop import (
     EmergencyStopController,
     EmergencyStopHooks,
@@ -399,6 +405,78 @@ def test_governance_projection_reflects_a_real_engaged_emergency_stop(
             data = response.json()
             assert data["emergencyStop"]["engaged"]["value"] is True
             assert data["emergencyStop"]["reason"]["value"] == "test engagement"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_provider_health_reflects_a_real_recorded_outcome(
+    tmp_path: Path,
+) -> None:
+    """A never-observed provider must never appear (no fabricated 'healthy'
+    placeholder); a real recorded failure must show up truthfully."""
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    tracker = ProviderHealthTracker()
+    tracker.record_failure("bedrock")
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    app.dependency_overrides[get_provider_health] = lambda: tracker
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            data = response.json()
+            assert [p["provider"] for p in data["providerHealth"]] == ["bedrock"]
+            assert data["providerHealth"][0]["recent_failure_count"]["value"] == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_governance_projection_approvals_reflects_a_real_pending_capability(
+    tmp_path: Path,
+) -> None:
+    identity = IdentityService(
+        identity_db_path=tmp_path / "identity.db",
+        session_db_path=tmp_path / "sessions.db",
+    )
+    stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority.issue(
+        CapabilityBinding(
+            operator_id="operator:1",
+            device_id="device:1",
+            authentication_event_id="event:1",
+            session_id="session:1",
+            action_type="rollback",
+            route="/api/v1/rollback",
+            http_method="POST",
+            payload_digest=payload_digest({"snapshot_id": "abc"}),
+            resource_digest=payload_digest({"snapshot_id": "abc"}),
+            mission_id="mission-xyz",
+            contract_digest=None,
+            policy_version="policy:v1",
+            scope="workspace/",
+            verification_requirement="rollback_snapshot_restore",
+        )
+    )
+    app.dependency_overrides[get_identity_service] = lambda: identity
+    app.dependency_overrides[get_emergency_stop] = lambda: stop
+    app.dependency_overrides[get_capability_authority] = lambda: authority
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/governance")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["approvals"]) == 1
+            approval = data["approvals"][0]
+            assert approval["requested_action"]["value"] == "rollback"
+            assert approval["mission_id"]["value"] == "mission-xyz"
+            assert approval["scope"]["value"] == "workspace/"
+            assert approval["verification_plan"]["value"] == "rollback_snapshot_restore"
+            assert approval["risk"]["status"] == "unavailable"
     finally:
         app.dependency_overrides.clear()
 
