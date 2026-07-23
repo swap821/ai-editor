@@ -367,6 +367,21 @@ describe('CouncilDashboard sovereignty views', () => {
     );
   });
 
+  it('refresh button reloads sovereign state from the real endpoints', async () => {
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    await screen.findByText(/Constitution & Emergency Stop/);
+    const fetchCallsBefore = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh sovereign state' }));
+
+    await waitFor(() => {
+      const fetchCallsAfter = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+      expect(fetchCallsAfter).toBeGreaterThan(fetchCallsBefore);
+    });
+    expect(await screen.findByText(/Constitution & Emergency Stop/)).toBeInTheDocument();
+  });
+
   it('approves a pending fact through the quarantine endpoint', async () => {
     render(<CouncilDashboard />);
     fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));

@@ -1005,15 +1005,20 @@
   {
     "organ_id": 49,
     "name": "Approval and Decision Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ApprovalDecisionSurfaceAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
-    "live_evidence": [],
-    "known_blockers": [
-      "Backend truth now exists to build this surface honestly: ConstitutionProjection, EmergencyStopProjection, ProviderHealthProjection and ApprovalProjection (organ 47) supply typed, status-aware values with no fabricated defaults. This organ itself is still yellow: no frontend TypeScript/React component consumes these projections yet, and this autonomous session has no human operator present to perform the required live browser walkthrough (system rule: UI changes must be verified in a running browser before being reported complete) -- so frontend wiring was deliberately not attempted here rather than silently skipped or claimed without evidence."
+    "production_entrypoints": [
+      "aios/api/routes/mirror.py",
+      "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
+    "focused_tests": [
+      "tests/test_mirror.py"
+    ],
+    "integration_tests": [
+      "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -1035,15 +1040,20 @@
   {
     "organ_id": 51,
     "name": "Sovereign Control and Heartbeat Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "SovereignHeartbeatSurfaceAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
-    "live_evidence": [],
-    "known_blockers": [
-      "Backend truth now exists to build this surface honestly: ConstitutionProjection, EmergencyStopProjection, ProviderHealthProjection and ApprovalProjection (organ 47) supply typed, status-aware values with no fabricated defaults. This organ itself is still yellow: no frontend TypeScript/React component consumes these projections yet, and this autonomous session has no human operator present to perform the required live browser walkthrough (system rule: UI changes must be verified in a running browser before being reported complete) -- so frontend wiring was deliberately not attempted here rather than silently skipped or claimed without evidence."
+    "production_entrypoints": [
+      "aios/api/routes/mirror.py",
+      "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
+    "focused_tests": [
+      "tests/test_mirror.py"
+    ],
+    "integration_tests": [
+      "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },

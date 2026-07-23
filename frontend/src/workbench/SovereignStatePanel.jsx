@@ -12,7 +12,7 @@
  * styled entirely with existing council-dashboard classes — no new palette.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Cloud, FileText, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Cloud, FileText, RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   approveFactProposal,
   fetchPendingFacts,
@@ -119,6 +119,7 @@ export default function SovereignStatePanel() {
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [busyKey, setBusyKey] = useState('');
+  const [manualRefreshing, setManualRefreshing] = useState(false);
 
   const load = useCallback(async (signal) => {
     setLoading(true);
@@ -230,6 +231,21 @@ export default function SovereignStatePanel() {
         <div className="council-dashboard__empty">{error}</div>
       ) : (
         <div className="council-dashboard__detail">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 2px 0' }}>
+            <button
+              type="button"
+              className={`council-dashboard__icon-btn${manualRefreshing ? ' is-refreshing' : ''}`}
+              onClick={() => {
+                setManualRefreshing(true);
+                load().finally(() => setManualRefreshing(false));
+              }}
+              aria-label="Refresh sovereign state"
+              title="Refresh"
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+            </button>
+          </div>
+
           <section className="council-dashboard__section" aria-label="V10 truth surface">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Sovereign Organism v10
