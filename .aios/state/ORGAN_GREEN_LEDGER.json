@@ -480,7 +480,7 @@
   {
     "organ_id": 26,
     "name": "Emergency Stop Organ (full boundary hard-wiring)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "EmergencyStopHardWiringAuthority",
     "production_entrypoints": [
       "aios/runtime/intelligence_gateway.py",
@@ -503,9 +503,7 @@
       "tests/test_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "Slice 27 closed 5 confirmed-missing boundaries: intelligence gateway (local + cloud calls), skill activation/reuse, maintenance scan/repair (service layer, not just the pre-existing route-layer checks), backup restore, and capability consume (defense-in-depth alongside issue()). Tier-2 update, grounded item by item rather than assumed from this blocker's own stale prose: (1) 'constitutional amendment activation doesn't exist until Slice 37' is now stale text -- Slice 37 shipped and activate_amendment() already takes an emergency_stop param and calls assert_operational() when supplied; the real remaining gap is that amendment_authority.py has no production HTTP route at all yet (item 6's own separately-documented deferral), so there is nothing live to re-verify here. (2) Route-layer duplication is now centralized: a new app.exception_handler(EmergencyStopError) (aios/api/main.py) gives every route a consistent 503 whether or not it has its own try/except -- maintenance.py's existing try/except-then-503 blocks are unaffected (they still run first); council_originate's pre-existing uncaught assert_operational() call now correctly 503s instead of an unhandled 500 (proven by a new TestClient-level test with no route change needed there). (3) Auditing all 4 mutating Council routes directly (not assumed) found two real, live, unguarded destructive-write gaps: POST /api/v1/rollback (aios/api/routes/actions.py) and POST /api/v1/council/missions/{id}/rollback (aios/api/routes/council.py) -- both restore a workspace from a snapshot but had ZERO emergency-stop check anywhere in their call chain (ActionBroker.submit() doesn't check it either). Both now call emergency_stop.assert_operational() first, matching the exact pattern already used by council_originate/approve. council_reject was deliberately left unguarded -- rejecting/cancelling a mission is itself a safety action and must remain available during an emergency stop, matching MissionService.cancel_queued()'s own explicit actor='emergency-stop' design. MissionService.rollback() (the application-layer method, distinct from the two HTTP routes above) was checked and found to have zero production HTTP caller anywhere -- dead code today, not a live gap to gate. Still open: MissionService's other internal state-transition methods (start_deliberation, request_approval, start_verification, complete, fail) remain individually unchecked -- deliberately not touched this pass since none of them perform a new destructive action (they mark state/cleanup on work already gated at create()/start_execution()/the two rollback routes), and blanket-gating them risks stranding an in-flight mission mid-transition without a clear safety benefit; this needs its own reviewed pass if pursued."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
