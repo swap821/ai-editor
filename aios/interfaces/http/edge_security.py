@@ -28,6 +28,27 @@ _BOOTSTRAP_AUTH_PATHS = frozenset(
 )
 _LOGGER = logging.getLogger(__name__)
 
+_API_TOKEN_AUTHORITY: "ApiTokenAuthority | None" = None
+
+
+def get_api_token_authority() -> "ApiTokenAuthority":
+    """Lazily construct the process-wide API bearer-token rotation authority.
+
+    Organ 53: the authority only wraps the durable rotation-state db path
+    (genuinely process-lifetime-stable, safe to cache) -- it never caches
+    ``config.API_TOKEN``'s value itself. Callers pass that in fresh at each
+    call, so a later reassignment (production restart, or a test
+    monkeypatch) is always respected.
+    """
+    global _API_TOKEN_AUTHORITY
+    if _API_TOKEN_AUTHORITY is None:
+        from aios.application.security.api_token_authority import ApiTokenAuthority
+
+        _API_TOKEN_AUTHORITY = ApiTokenAuthority(
+            db_path=config.API_TOKEN_ROTATION_DB_PATH,
+        )
+    return _API_TOKEN_AUTHORITY
+
 
 def _parse_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
     """Parse a syntactically valid IP, returning ``None`` for unknown input."""
@@ -208,16 +229,25 @@ def _check_host_header(request: Request) -> Optional[JSONResponse]:
 
 
 def check_bearer_token(request: Request) -> bool:
-    """Return True if the Authorization header bears the configured API token."""
-    if not config.API_TOKEN:
-        return False
+    """Return True if the Authorization header bears a currently-valid API token.
+
+    Organ 53: ``config.API_TOKEN`` (the env-configured value) is always a
+    valid credential, exactly as before -- the operator retires it the
+    normal way, by restarting with a different env var. On top of that, the
+    durable rotation authority (aios.application.security.api_token_authority)
+    additionally accepts a freshly-rotated token, or the one it superseded
+    within its grace-period window, without needing a restart.
+    """
     auth = request.headers.get("authorization", "")
     parts = auth.split()
     if len(parts) != 2:
         return False
     if parts[0].lower() != "bearer":
         return False
-    return secrets.compare_digest(parts[1], config.API_TOKEN)
+    candidate = parts[1]
+    if config.API_TOKEN and secrets.compare_digest(candidate, config.API_TOKEN):
+        return True
+    return get_api_token_authority().is_valid(candidate)
 
 
 def check_api_token_or_loopback(request: Request) -> Optional[JSONResponse]:
@@ -241,7 +271,7 @@ def check_api_token_or_loopback(request: Request) -> Optional[JSONResponse]:
         return None
     if check_bearer_token(request):
         return None
-    if config.API_TOKEN:
+    if get_api_token_authority().is_configured(current_env_token=config.API_TOKEN):
         return JSONResponse(
             status_code=401, content={"detail": "invalid or missing API token"}
         )

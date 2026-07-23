@@ -8,6 +8,7 @@ here is security-operator-facing rather than general system observability.
 from __future__ import annotations
 
 import shutil
+import time as _time
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from aios import config
 from aios.api.deps import require_privileged_operator
 from aios.domain.identity.models import Principal
+from aios.interfaces.http.edge_security import get_api_token_authority
 from aios.security.audit_logger import (
     AuditError,
     get_anchor,
@@ -78,6 +80,75 @@ def security_rotate_tokens(
     except AuditError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"status": "rotated", "newKeyId": new_key_id}
+
+
+class RotateApiTokenRequest(BaseModel):
+    confirm: bool = Field(
+        False, description="Must be explicitly true to rotate the API bearer token"
+    )
+    grace_period_seconds: float = Field(
+        3600.0,
+        ge=0,
+        description=(
+            "How long the previous token keeps working after rotation, so "
+            "already-running processes have a real window to pick up the new "
+            "value before the old one stops working."
+        ),
+    )
+
+
+@router.post("/api/v1/security/api-token/rotate")
+def security_rotate_api_token(
+    req: RotateApiTokenRequest,
+    principal: Principal = Depends(require_privileged_operator),
+) -> dict[str, Any]:
+    """Rotate the shared API bearer token with a grace-period overlap.
+
+    The new token is returned exactly once here and never stored or logged
+    in plaintext -- the caller must record it immediately. The previous
+    token keeps working until ``grace_period_seconds`` elapses so an
+    already-running client is not broken the instant this returns.
+    """
+    if not req.confirm:
+        raise HTTPException(
+            status_code=422, detail="confirm must be true to rotate the API token"
+        )
+
+    authority = get_api_token_authority()
+    new_token = authority.rotate(
+        grace_period_seconds=req.grace_period_seconds,
+        current_env_token=config.API_TOKEN,
+    )
+    log_action(
+        principal.principal_id,
+        f"rotated API bearer token (grace period {req.grace_period_seconds}s)",
+        "YELLOW",
+    )
+    return {
+        "status": "rotated",
+        "apiToken": new_token,
+        "gracePeriodSeconds": req.grace_period_seconds,
+    }
+
+
+@router.get("/api/v1/security/api-token/status")
+def security_api_token_status(
+    principal: Principal = Depends(require_privileged_operator),
+) -> dict[str, Any]:
+    """Report rotation state without ever exposing a token value."""
+    state = get_api_token_authority().current_state()
+    if state is None:
+        return {"configured": False}
+    grace_active = (
+        state.previous_expires_at is not None
+        and state.previous_expires_at > _time.time()
+    )
+    return {
+        "configured": True,
+        "currentIssuedAt": state.current_issued_at,
+        "gracePeriodActive": grace_active,
+        "previousExpiresAt": state.previous_expires_at,
+    }
 
 
 class SandboxClearRequest(BaseModel):

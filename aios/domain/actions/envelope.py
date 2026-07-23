@@ -72,6 +72,7 @@ class ActionType(str, Enum):
     FILES_EDIT = "files_edit"
     SECURITY_CLASSIFY = "security_classify"
     SECURITY_TOKENS_ROTATE = "security_tokens_rotate"
+    SECURITY_API_TOKEN_ROTATE = "security_api_token_rotate"
     SECURITY_SANDBOX_CLEAR = "security_sandbox_clear"
     SYSTEM_CONFIG = "system_config"
     SYSTEM_RESTART = "system_restart"

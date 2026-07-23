@@ -170,6 +170,55 @@ def test_check_bearer_token_is_case_insensitive():
         edge_security.config = orig
 
 
+def test_check_bearer_token_accepts_a_rotated_token_and_its_predecessor_in_grace_period(
+    tmp_path,
+):
+    """Organ 53: check_bearer_token() -- the real function every protected
+    route goes through -- must accept a freshly-rotated token immediately,
+    and the token it superseded for as long as its grace period lasts,
+    without needing config.API_TOKEN to ever be set at all."""
+    from aios.application.security.api_token_authority import ApiTokenAuthority
+
+    now = {"value": 1000.0}
+    authority = ApiTokenAuthority(
+        db_path=tmp_path / "rotation.db", clock=lambda: now["value"]
+    )
+    old_token = authority.rotate(grace_period_seconds=30.0)
+    new_token = authority.rotate(grace_period_seconds=30.0)
+
+    orig_getter = edge_security.get_api_token_authority
+    edge_security.get_api_token_authority = lambda: authority
+    try:
+        assert (
+            edge_security.check_bearer_token(
+                _request(headers={"authorization": f"bearer {new_token}"})
+            )
+            is True
+        )
+        assert (
+            edge_security.check_bearer_token(
+                _request(headers={"authorization": f"bearer {old_token}"})
+            )
+            is True
+        )
+
+        now["value"] = 1031.0  # past the second rotation's 30s grace period
+        assert (
+            edge_security.check_bearer_token(
+                _request(headers={"authorization": f"bearer {old_token}"})
+            )
+            is False
+        )
+        assert (
+            edge_security.check_bearer_token(
+                _request(headers={"authorization": f"bearer {new_token}"})
+            )
+            is True
+        )
+    finally:
+        edge_security.get_api_token_authority = orig_getter
+
+
 def test_check_api_token_or_loopback_accepts_loopback_without_token():
     request = _request(client_host="127.0.0.1", path="/api/v1/status")
     assert edge_security.check_api_token_or_loopback(request) is None

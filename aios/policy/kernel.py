@@ -429,6 +429,14 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="audit_key_rotate",
         action_type=ActionType.SECURITY_TOKENS_ROTATE,
     ),
+    "/api/v1/security/api-token/rotate": RouteAuthority(
+        "YELLOW",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="api_token_rotate",
+        action_type=ActionType.SECURITY_API_TOKEN_ROTATE,
+    ),
     "/api/v1/security/sandbox/clear": RouteAuthority(
         "RED",
         10,

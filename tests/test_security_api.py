@@ -13,6 +13,8 @@ from fastapi.testclient import TestClient
 
 from aios import config
 from aios.api.main import app
+from aios.api.routes import security as security_routes
+from aios.application.security.api_token_authority import ApiTokenAuthority
 from aios.security.audit_logger import log_action
 
 
@@ -20,6 +22,15 @@ from aios.security.audit_logger import log_action
 def client() -> Iterator[TestClient]:
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client
+
+
+@pytest.fixture()
+def isolated_api_token_authority(tmp_path, monkeypatch):
+    """A tmp_path-backed authority so rotate-route tests never touch the
+    real config.API_TOKEN_ROTATION_DB_PATH file."""
+    authority = ApiTokenAuthority(db_path=tmp_path / "api-token-rotation.db")
+    monkeypatch.setattr(security_routes, "get_api_token_authority", lambda: authority)
+    return authority
 
 
 def test_security_audit_returns_real_ledger_entries(client) -> None:
@@ -63,6 +74,48 @@ def test_tokens_rotate_returns_new_key_id(client) -> None:
     # Rotation itself is audited.
     audit_resp = client.get("/api/v1/security/audit", params={"limit": 1})
     assert "rotated audit signing key" in audit_resp.json()["entries"][0]["payload"]
+
+
+def test_api_token_rotate_requires_explicit_confirm(client, isolated_api_token_authority) -> None:
+    resp = client.post("/api/v1/security/api-token/rotate", json={"confirm": False})
+    assert resp.status_code == 422
+    assert isolated_api_token_authority.current_state() is None
+
+
+def test_api_token_rotate_returns_a_new_token_once(client, isolated_api_token_authority) -> None:
+    resp = client.post(
+        "/api/v1/security/api-token/rotate",
+        json={"confirm": True},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "rotated"
+    assert body["apiToken"]
+    assert body["gracePeriodSeconds"] == 3600.0
+    assert isolated_api_token_authority.is_valid(body["apiToken"]) is True
+
+    # Rotation itself is audited, matching the audit-key rotate convention.
+    audit_resp = client.get("/api/v1/security/audit", params={"limit": 1})
+    assert "rotated API bearer token" in audit_resp.json()["entries"][0]["payload"]
+
+
+def test_api_token_status_reports_rotation_state_without_exposing_a_value(
+    client, isolated_api_token_authority
+) -> None:
+    before = client.get("/api/v1/security/api-token/status")
+    assert before.status_code == 200
+    assert before.json() == {"configured": False}
+
+    rotate_resp = client.post(
+        "/api/v1/security/api-token/rotate", json={"confirm": True}
+    )
+    issued_token = rotate_resp.json()["apiToken"]
+
+    after = client.get("/api/v1/security/api-token/status")
+    assert after.status_code == 200
+    body = after.json()
+    assert body["configured"] is True
+    assert issued_token not in str(body)
 
 
 def test_sandbox_clear_requires_explicit_confirm(client) -> None:

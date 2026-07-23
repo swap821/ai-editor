@@ -1118,13 +1118,23 @@
     "name": "Installation, Configuration and Key Authority",
     "status": "yellow",
     "authority_owner": "InstallationConfigurationAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
+    "production_entrypoints": [
+      "aios/domain/security/api_token.py",
+      "aios/infrastructure/security/api_token_store.py",
+      "aios/application/security/api_token_authority.py",
+      "aios/interfaces/http/edge_security.py",
+      "aios/api/routes/security.py"
+    ],
+    "focused_tests": [
+      "tests/test_api_token_authority.py"
+    ],
+    "integration_tests": [
+      "tests/test_edge_security.py",
+      "tests/test_security_api.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "Key rotation, a bounded grace period, and truthful Ollama-absence handling are not fully implemented.",
-      "Reconciliation pass item 9: grounded, not built. ActionType.SECURITY_TOKENS_ROTATE and an audit_key_rotate route-authority entry exist in the policy kernel's routing table, but confirmed no function anywhere actually rotates a key -- there is no real secret-material rotation implementation to wire up, only a named, unimplemented action type. Implementing real key rotation (generating new credentials, safely invalidating old ones without breaking already-authenticated sessions, distributing new keys to already-running processes) is a genuine, security-sensitive design task, not a wiring gap -- correctly scoped as its own dedicated slice, not attempted here."
+      "Key rotation and a bounded grace period are now real (operator-confirmed design: grace-period overlap, not an immediate hard cutover). New ApiTokenAuthority (aios/application/security/api_token_authority.py) issues a fresh API bearer token via a new POST /api/v1/security/api-token/rotate route; the token it supersedes keeps working for a caller-chosen grace period (default 3600s) so an already-running client is not broken the instant rotation happens, then stops validating once the window elapses -- proven with a fake-clock unit test, not just asserted. config.API_TOKEN (the env-configured value) stays unconditionally valid exactly as before this organ existed -- the operator retires it the normal way, by restarting with a different env var; this authority only owns tokens issued through an explicit rotate() call, layered on top, so every pre-existing test and behavior around the static token is unchanged. A real regression was caught and fixed before shipping: an early draft cached config.API_TOKEN's value inside the long-lived authority singleton at first construction, so a test elsewhere in the suite that temporarily reassigns config.API_TOKEN would permanently poison every later, unrelated test in the same process -- caught by real adversarial-suite regressions (tests/adversarial/test_api_security.py), not by a test written for this change; fixed by making the authority stateless with respect to config.API_TOKEN (every method takes it fresh as an argument) rather than caching it. Still missing: 'truthful Ollama-absence handling' -- the other named half of this organ's original blocker -- has no further specification anywhere in the repo beyond that one paraphrased sentence, and is an unrelated concern (local-model availability reporting, not credential rotation); not investigated or built in this pass."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
